@@ -4,6 +4,15 @@ import time
 from . import overlap_store
 
 # Explicit allowlists prevent future private schema additions leaking through the API.
+DECISION_PUBLIC=('identity_decision_id','identity_profile_revision','identity_state')
+
+def _payload(table,ref,pairs):
+    base=f'json_object({pairs})'
+    if table in ('segments','speaker_turns'):
+        extras=','.join(f"'{column}',{ref}.{column}" for column in DECISION_PUBLIC)
+        return f"json_patch({base},CASE WHEN {ref}.identity_decision_id IS NOT NULL THEN json_object({extras}) ELSE '{{}}' END)"
+    return base
+
 PUBLIC = {
     'segments': ('id','chunk_id','start','end','text','speaker_id','speaker_local_id',
                  'confidence','speaker_match_score','speaker_status','asr_backend',
@@ -46,14 +55,17 @@ def initialize(store):
                 name = f'feed_{table}_{timing.lower()}'
                 db.execute(f'DROP TRIGGER IF EXISTS {name}')
                 pairs = ','.join(f"'{column}',{ref}.{column}" for column in selected)
-                payload = 'NULL' if operation == 'delete' else f'json_object({pairs})'
+                payload = 'NULL' if operation == 'delete' else _payload(table,ref,pairs)
                 if table in ('segments','events','speaker_turns','event_candidates','overlap_regions','overlap_tracks'):
                     source = f'SELECT session_id FROM chunks WHERE id={ref}.chunk_id'
                 elif table == 'speakers':
                     source = f'SELECT id AS session_id FROM sessions WHERE identity_group={ref}.identity_group AND deleted=0'
                 else:
                     source = f'SELECT {ref}.session_id AS session_id'
-                db.execute(f'''CREATE TRIGGER {name} AFTER {timing} ON {table} BEGIN
+                condition=''
+                if table in ('segments','speaker_turns'):
+                    condition=f"WHEN NOT EXISTS(SELECT 1 FROM identity_feed_suppression x JOIN sessions s ON s.identity_group=x.identity_group JOIN chunks c ON c.session_id=s.id WHERE c.id={ref}.chunk_id)"
+                db.execute(f'''CREATE TRIGGER {name} AFTER {timing} ON {table} {condition} BEGIN
                     INSERT INTO result_changes(session_id,entity,entity_id,operation,data,created)
                     SELECT session_id,'{table}',CAST({ref}.{key} AS TEXT),'{operation}',{payload},
                     (julianday('now')-2440587.5)*86400 FROM ({source}); END''')
@@ -71,7 +83,7 @@ def initialize(store):
                 else:
                     source = f'{table} t JOIN sessions s ON s.id=t.session_id'
                 db.execute(f'''INSERT INTO result_changes(session_id,entity,entity_id,operation,data,created)
-                    SELECT s.id,?,CAST(t.{key} AS TEXT),'upsert',json_object({pairs}),? FROM {source}
+                    SELECT s.id,?,CAST(t.{key} AS TEXT),'upsert',{_payload(table,'t',pairs)},? FROM {source}
                     WHERE s.deleted=0''',(table,time.time()))
             db.execute("INSERT INTO change_feed_migrations VALUES('initial_snapshot_v1')")
         if not db.execute("SELECT 1 FROM change_feed_migrations WHERE name='speaker_candidate_public_v2'").fetchone():
@@ -83,7 +95,7 @@ def initialize(store):
                     if not columns:continue
                     pairs=','.join(f"'{c}',t.{c}" for c in PUBLIC[table] if c in columns)
                     db.execute(f'''INSERT INTO result_changes(session_id,entity,entity_id,operation,data,created)
-                        SELECT s.id,?,CAST(t.id AS TEXT),'upsert',json_object({pairs}),? FROM {table} t
+                        SELECT s.id,?,CAST(t.id AS TEXT),'upsert',{_payload(table,'t',pairs)},? FROM {table} t
                         JOIN chunks c ON c.id=t.chunk_id JOIN sessions s ON s.id=c.session_id
                         WHERE s.deleted=0''',(table,time.time()))
             db.execute("INSERT INTO change_feed_migrations VALUES('speaker_candidate_public_v2')")
@@ -97,10 +109,22 @@ def initialize(store):
                     if not columns:continue
                     pairs=','.join(f"'{c}',t.{c}" for c in PUBLIC[table] if c in columns)
                     db.execute(f"""INSERT INTO result_changes(session_id,entity,entity_id,operation,data,created)
-                        SELECT s.id,?,CAST(t.id AS TEXT),'upsert',json_object({pairs}),? FROM {table} t
+                        SELECT s.id,?,CAST(t.id AS TEXT),'upsert',{_payload(table,'t',pairs)},? FROM {table} t
                         JOIN chunks c ON c.id=t.chunk_id JOIN sessions s ON s.id=c.session_id
                         WHERE s.deleted=0""",(table,time.time()))
             db.execute("INSERT INTO change_feed_migrations VALUES('overlap_support_conditioning_v3')")
+        db.execute('DROP TRIGGER IF EXISTS feed_identity_bank')
+        db.execute('''CREATE TRIGGER feed_identity_bank AFTER UPDATE OF revision ON identity_group_policy
+            WHEN NEW.mode='verified_review_v1' AND NEW.revision!=OLD.revision BEGIN
+            INSERT INTO result_changes(session_id,entity,entity_id,operation,data,created)
+            SELECT id,'identity_bank',NEW.identity_group,'upsert',json_object(
+                'identity_mode',NEW.mode,'profile_revision',NEW.revision,'availability_sequence',NEW.availability,
+                'invalidate_before_revision',NEW.revision,'invalidates_automatic_assignments',json('true'),'reason',NEW.change_reason,
+                'clears_all_identity_assignments',json(CASE WHEN NEW.change_reason='identity_reset' THEN 'true' ELSE 'false' END),
+                'policy_sha256',NEW.policy_sha256,'space_id',NEW.space_id,
+                'generation',(SELECT generation FROM speaker_identity_generations WHERE identity_group=NEW.identity_group)),
+                (julianday('now')-2440587.5)*86400 FROM sessions
+                WHERE identity_group=NEW.identity_group AND deleted=0; END''')
         # Erasure includes historical text and identity payloads, not just live rows.
         db.execute('''CREATE TRIGGER IF NOT EXISTS feed_session_erasure AFTER UPDATE OF deleted ON sessions
             WHEN NEW.deleted=1 BEGIN DELETE FROM result_changes WHERE session_id=NEW.id; END''')
@@ -111,12 +135,19 @@ def initialize(store):
 def changes(store, sid, after=0, limit=500):
     store.session(sid)
     with store.db() as db:
+        db.execute('BEGIN')
         rows = [dict(row) for row in db.execute('''SELECT cursor,entity,entity_id,operation,data,created
             FROM result_changes WHERE session_id=? AND cursor>? ORDER BY cursor LIMIT ?''', (sid,after,limit))]
+        from .verified_identity import group_policy
+        group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
+        policy=group_policy(db,group)
         high_watermark = db.execute('SELECT COALESCE(MAX(cursor),0) FROM result_changes WHERE session_id=?',(sid,)).fetchone()[0]
     for row in rows:
         if row['data'] is not None:
             row['data'] = json.loads(row['data'])
+            if row['entity'] in ('segments','speaker_turns'):
+                from .verified_identity import project_result
+                project_result(row['data'],policy)
             if row['entity']=='event_candidates':
                 payload=json.loads(row['data'].pop('payload'))
                 row['data']['provenance']=json.loads(row['data']['provenance'])

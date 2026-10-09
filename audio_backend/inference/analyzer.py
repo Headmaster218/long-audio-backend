@@ -130,11 +130,29 @@ class AudioAnalyzer:
         self._sensevoice = None
         gc.collect()
 
+    def _embedding_space_metadata(self):
+        if not self.config.get('speaker_support_enabled',False):
+            return {}
+        return {'speaker_embedding_space':self._speaker_embedding_space,
+                'speaker_embedding_space_id':self._speaker_embedding_space_id}
+
+    def _embedding_vector_result(self):
+        if not self.config.get('speaker_support_enabled',False):
+            return {}
+        return {'_speaker_embedding_vectors':self._speaker_embedding_vectors}
+
     def analyze(self, wav_path: str, diarization: dict | None = None, analysis_options: dict | None = None) -> dict:
         if self.closed:
             raise RuntimeError('AudioAnalyzer is closed')
         with _LOCK:
             t = time.monotonic()
+            if self.config.get('speaker_support_enabled',False):
+                from ..embedding_space import unavailable
+                # Never reuse a previous window's proof when this window skips
+                # embedding extraction (silence or a non-speech veto).
+                self._speaker_embedding_space=unavailable('embedding_not_executed')
+                self._speaker_embedding_space_id=None
+                self._speaker_embedding_vectors={}
             info=sf.info(wav_path)
             max_seconds=min(60.,float(self.config.get('max_chunk_seconds',60)))
             if info.samplerate!=16000 or info.channels!=1 or info.frames<=0 or info.frames/16000>max_seconds+.01:
@@ -151,8 +169,8 @@ class AudioAnalyzer:
             provenance = self._metadata_provenance(event_artifacts_required=not silence_fast_path)
             provenance.update(getattr(self,'_support_diarization',{}))
             if silence_fast_path:
-                return {'segments': [], 'speaker_turns': [], 'events': [{'start': 0., 'end': duration, 'label': 'silence', 'score': 1., 'method': 'peak-amplitude fast path'}],
-                        'metadata': {**provenance, 'duration_seconds': duration,
+                return {'segments': [], 'speaker_turns': [], **self._embedding_vector_result(), 'events': [{'start': 0., 'end': duration, 'label': 'silence', 'score': 1., 'method': 'peak-amplitude fast path'}],
+                        'metadata': {**provenance, **self._embedding_space_metadata(), 'duration_seconds': duration,
                                      'processing_seconds': round(time.monotonic()-t, 3),
                                      'stage_seconds': {'events': 0., 'diarization': 0., 'asr': 0.},
                                      'silence_fast_path': True, 'event_model_inference_executed': False, 'models_executed': [], 'model_execution': 'not_run_silence',
@@ -245,10 +263,11 @@ class AudioAnalyzer:
                     note='Experimental candidate sources are separate unverified evidence; the ordinary transcript remains mixture ASR.')
             gc.collect()
             return {'segments': segments, 'events': events, 'overlap_candidates':overlap_candidates,
+                    **self._embedding_vector_result(),
 
                     'speaker_turns':[dict(turn,speaker_embedding=embeddings.get(turn['speaker_local_id'])) for turn in turns],
                     'metadata': {
-                **provenance, 'asr_suppressed_as_nonspeech': bool(nonspeech and not turns),
+                **provenance, **self._embedding_space_metadata(), 'asr_suppressed_as_nonspeech': bool(nonspeech and not turns),
                 'non_speech_gate_triggered':nonspeech,
                 'non_speech_gate_overridden_by_native_activity':bool(nonspeech and diarization is not None and turns),
                 'overlapping_speech':overlap_summary,
@@ -283,6 +302,19 @@ class AudioAnalyzer:
         """Pool clean evidence independently of the source of speaker activity."""
         import sherpa_onnx as s
         ec=s.SpeakerEmbeddingExtractorConfig(model=str(self.paths['speaker']),num_threads=self.threads,provider='cpu')
+        capture=self.config.get('speaker_support_enabled',False)
+        snapshot=None
+        if capture:
+            from ..embedding_space import SherpaSpaceAttestor, bounded_raw_vectors, unavailable
+            self._speaker_embedding_space=unavailable('embedding_space_proof_unavailable')
+            self._speaker_embedding_space_id=None
+            self._speaker_embedding_vectors={}
+            if not hasattr(self,'_embedding_space_attestor'):
+                self._embedding_space_attestor=SherpaSpaceAttestor()
+            try:
+                snapshot=self._embedding_space_attestor.begin(s,ec,self._speaker_sha256)
+            except (OSError,ValueError,TypeError,KeyError,AttributeError,ImportError):
+                pass  # Unknown proof abstains; ordinary inference is unchanged.
         extractor = s.SpeakerEmbeddingExtractor(ec)
         embeddings = {}
         self._embedding_evidence = {}
@@ -309,6 +341,16 @@ class AudioAnalyzer:
             if norm > 1e-8 and np.isfinite(emb).all():
                 embeddings[sid] = (emb/norm).tolist()
         dim = extractor.dim
+        if capture:
+            # Original producer lists, before Store's separate normalization.
+            # Transient query evidence does not depend on PCM admission quota.
+            self._speaker_embedding_vectors=bounded_raw_vectors(embeddings,dim)
+            if snapshot is not None:
+                try:
+                    self._speaker_embedding_space,self._speaker_embedding_space_id=\
+                        self._embedding_space_attestor.finish(snapshot,extractor)
+                except (OSError,ValueError,TypeError,KeyError,AttributeError,ImportError):
+                    pass
         del extractor
         return embeddings, dim
 
