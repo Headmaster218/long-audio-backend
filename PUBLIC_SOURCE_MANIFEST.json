@@ -20,8 +20,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1961,
-      "sha256": "5350959653307bca469c89b060dcf550d5af0008fb691a66961be76c13331ac8"
+      "bytes": 1959,
+      "sha256": "a876672ed43dbb833a067f3d9556a06aad8b9fc965462f5328134a3c2bcbfa76"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -51,12 +51,12 @@
     {
       "path": "SOURCE_CONTROL_PROVENANCE.json",
       "bytes": 36117,
-      "sha256": "8007e0aaa7582dd10a12982e856612aa225a25808c0aa1f15e97edf7d95792bc"
+      "sha256": "44518c3548bc6ee5cbb5bd4f5f09940ccb772b2516f9c4508bec35c6ed6a4134"
     },
     {
       "path": "TEST_STATUS.md",
-      "bytes": 4270,
-      "sha256": "cb2afbff1a99cbb42916b599ae86f7a73d851813351560da232f2eca62bc13c8"
+      "bytes": 5057,
+      "sha256": "fc774c3b6ba535baea01a57c6aac25649a5b26d9f8f156a1f21b3d2dbbebf03f"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -65,13 +65,13 @@
     },
     {
       "path": "VERSIONING.md",
-      "bytes": 1554,
-      "sha256": "d29ab585e66187beace116bbc300d0679af993fd86a13e8b460bbaedf38e813e"
+      "bytes": 1530,
+      "sha256": "569a379211bf241d7d15fb7d6d993b985798be04fa0acd4ce3b6b964e6893589"
     },
     {
       "path": "audio_backend/__init__.py",
       "bytes": 107,
-      "sha256": "597069c198330e72752c40af21c17a81f56707275f70bd3d0a885c95e5637d26"
+      "sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -416,7 +416,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 828,
-      "sha256": "aa475893af776eaceead98dcd98671652a5761669b52ce622fbae8de3153af3e"
+      "sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7"
     },
     {
       "path": "requirements-dicow.txt",

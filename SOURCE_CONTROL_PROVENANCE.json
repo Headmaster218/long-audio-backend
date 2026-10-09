@@ -3,9 +3,14 @@
   "local_source_commit": "86c1b7983206a8e83877a3384a91ba0b04a6316e",
   "local_source_tree": "4c49778732b02e0187409dadf036e6984dd3b732",
   "local_source_version": "0.2.0rc2.dev1",
-  "public_integration_version": "0.2.0rc2.dev0",
+  "public_integration_version": "0.2.0rc2.dev1",
   "relationship": "Reviewed public projection from this exact immutable local commit. Historical baseline remains in BASELINE_IMPORT.json; no raw reports, biometric values or array-study helpers are imported.",
   "byte_identical_files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "local_source_sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099",
+      "public_sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099"
+    },
     {
       "path": "audio_backend/__main__.py",
       "local_source_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204",
@@ -280,6 +285,11 @@
       "path": "overlap-model-manifest.json",
       "local_source_sha256": "5e409a9eb5c19665412745c65ee3cfeafaae507118093bda3180d9a658d2fff3",
       "public_sha256": "5e409a9eb5c19665412745c65ee3cfeafaae507118093bda3180d9a658d2fff3"
+    },
+    {
+      "path": "pyproject.toml",
+      "local_source_sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7",
+      "public_sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7"
     },
     {
       "path": "requirements-dicow.txt",
@@ -654,11 +664,6 @@
       "public_sha256": "469718fbc96f5a137392c8416d778c94b9f159b65866cb1da652583c223cd4cf"
     },
     {
-      "path": "audio_backend/__init__.py",
-      "local_source_sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099",
-      "public_sha256": "597069c198330e72752c40af21c17a81f56707275f70bd3d0a885c95e5637d26"
-    },
-    {
       "path": "docs/API.md",
       "local_source_sha256": "d7aed89d8df4eed6b2f07acc228c87036d896569f8cf6572a26c6dcf5efb16bd",
       "public_sha256": "e88fd3841a6d8a66aa3cf1cc28a65bfe600cb978cdb5b4908d6a0ebe98d6f4b9"
@@ -697,11 +702,6 @@
       "path": "docs/QUICKSTART_ZH.md",
       "local_source_sha256": "b0d321840ae67c2162b59db25376b0d84db2376369571113cf79fc78b80e0451",
       "public_sha256": "4a05d184dd4ad47b85a9a2883ecc4481d29e9b9dc90b47e39ddc35399e8b6241"
-    },
-    {
-      "path": "pyproject.toml",
-      "local_source_sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7",
-      "public_sha256": "aa475893af776eaceead98dcd98671652a5761669b52ce622fbae8de3153af3e"
     },
     {
       "path": "tests/test_moss_td_runner_lifecycle.py",

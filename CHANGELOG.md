@@ -1,6 +1,6 @@
 # Change log
 
-## Reviewed support and event-provenance integration
+## 0.2.0rc2.dev1 (unreleased reviewed integration)
 
 - Import exact reviewed runtime/test source from local commit 86c1b7983206a8e83877a3384a91ba0b04a6316e.
 - Bind new event candidates to effective policy and actual local artifact hashes, with explicit silence/no-model execution metadata.
