@@ -68,13 +68,17 @@ def delete_session(store, sid, delete_file=None):
         if session is None:
             raise KeyError('Session not found')
         if not session['deleted']:
+            if db.execute('SELECT 1 FROM fragment_http_sessions WHERE session_id=? AND cleanup_error IS NOT NULL',(sid,)).fetchone():
+                raise ValueError('Provider ownership cleanup is unresolved; session erasure is fenced')
             if db.execute("SELECT 1 FROM chunks WHERE session_id=? AND status='running' LIMIT 1", (sid,)).fetchone():
                 raise ValueError('Pause or cancel the running chunk first, then wait for worker idle')
             db.execute('''INSERT OR IGNORE INTO session_file_cleanup(session_id,path,created)
                 SELECT session_id,path,? FROM chunks WHERE session_id=?''', (time.time(), sid))
             # Keep only a scrubbed ID tombstone for idempotent cleanup retry.
             # The change-feed erasure trigger removes historical text snapshots.
-            db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0 WHERE id=?", (sid,))
+            db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))
+            from .fragment_http import erase
+            erase(db,sid)
             for table in ('segments', 'events', 'speaker_turns'):
                 db.execute(f'DELETE FROM {table} WHERE chunk_id IN (SELECT id FROM chunks WHERE session_id=?)', (sid,))
             db.execute('DELETE FROM speaker_observations WHERE session_id=?', (sid,))
@@ -125,12 +129,14 @@ def recover_cancelled_streams(db):
     """Repair dependent jobs stranded by older versions, using disk-backed SQL."""
     db.execute('''UPDATE chunks SET status='cancelled',error=
         'Cancelled because an earlier stream chunk was cancelled; committed results retained'
-        WHERE status IN ('queued','running','paused','failed','waiting_input') AND EXISTS (
+        WHERE status IN ('queued','running','paused','failed','waiting_input')
+        AND session_id IN (SELECT id FROM sessions WHERE processing_mode='legacy') AND EXISTS (
             SELECT 1 FROM stream_chunks own JOIN stream_chunks prior
             ON prior.session_id=own.session_id AND prior.stream_id=own.stream_id
             AND prior.position<own.position JOIN chunks previous ON previous.id=prior.chunk_id
             WHERE own.chunk_id=chunks.id AND previous.status='cancelled')''')
     db.execute('''UPDATE stream_chunks AS tail SET stream_final=1 WHERE stream_final=0
+        AND session_id IN (SELECT id FROM sessions WHERE processing_mode='legacy')
         AND NOT EXISTS (SELECT 1 FROM stream_chunks later WHERE later.session_id=tail.session_id
             AND later.stream_id=tail.stream_id AND later.position>tail.position)
         AND EXISTS (SELECT 1 FROM stream_chunks member JOIN chunks c ON c.id=member.chunk_id

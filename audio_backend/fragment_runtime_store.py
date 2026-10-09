@@ -191,25 +191,33 @@ class RuntimeStore:
         self._admit(plan)
         self._validate_policy(plan, policy)
         with self._transaction('create') as db:
-            existing = db.execute('SELECT 1 FROM fragment_runs WHERE run_id=?', (run_id,)).fetchone()
-            if existing:
-                snapshot, _ = self._snapshot(db, run_id)
-                saved = db.execute('SELECT * FROM fragment_plans WHERE run_id=? AND operation_id=?',
-                                   (run_id, operation_id)).fetchone()
-                if saved is None or saved['plan_hash'] != plan.sha256 or snapshot.policy != policy:
-                    raise StaleWork('Run/import identity already has a different payload')
-                return snapshot
-            self.fault('create.before_plan')
-            prefix = prefix_hash(plan, 0)
-            state_hash = self._state_hash(1, plan.sha256, policy.sha256, 0, prefix, '[]', '{}', 'running')
-            db.execute('INSERT INTO fragment_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                       (run_id, 1, plan.sha256, canonical(asdict(policy)), policy.sha256,
-                        0, prefix, '[]', '{}', state_hash, 'running', None))
-            db.execute('INSERT INTO fragment_plans VALUES(?,?,?,?,?,?)',
-                       (run_id, 1, operation_id, plan.sha256, None, plan.to_json()))
-            self.fault('create.after_plan')
-            self._intent(db, run_id, 1, plan, policy)
+            self._create_in_transaction(db, run_id, plan, policy, operation_id)
         return self.snapshot(run_id)
+
+    def _create_in_transaction(self, db, run_id, plan, policy, operation_id='initial'):
+        """Embed admission in a caller-owned transaction; never commits it."""
+        self._id(run_id)
+        self._id(operation_id)
+        self._admit(plan)
+        self._validate_policy(plan, policy)
+        existing = db.execute('SELECT 1 FROM fragment_runs WHERE run_id=?', (run_id,)).fetchone()
+        if existing:
+            snapshot, _ = self._snapshot(db, run_id)
+            saved = db.execute('SELECT * FROM fragment_plans WHERE run_id=? AND operation_id=?',
+                               (run_id, operation_id)).fetchone()
+            if saved is None or saved['plan_hash'] != plan.sha256 or snapshot.policy != policy:
+                raise StaleWork('Run/import identity already has a different payload')
+            return snapshot
+        self.fault('create.before_plan')
+        prefix = prefix_hash(plan, 0)
+        state_hash = self._state_hash(1, plan.sha256, policy.sha256, 0, prefix, '[]', '{}', 'running')
+        db.execute('INSERT INTO fragment_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                   (run_id, 1, plan.sha256, canonical(asdict(policy)), policy.sha256,
+                    0, prefix, '[]', '{}', state_hash, 'running', None))
+        db.execute('INSERT INTO fragment_plans VALUES(?,?,?,?,?,?)',
+                   (run_id, 1, operation_id, plan.sha256, None, plan.to_json()))
+        self.fault('create.after_plan')
+        self._intent(db, run_id, 1, plan, policy)
 
     @staticmethod
     def _id(value):
@@ -322,8 +330,12 @@ class RuntimeStore:
             self._save_state(db, row, next_frame=window.core_end, prefix_hash=prefix_hash(actual.plan, window.core_end),
                              tail=tail_text, checkpoint=checkpoint_text, status='completed' if final else 'running',
                              wait_revision=None)
+            self._publish_core(db, snapshot, payload)
             self.fault('core.after_cursor')
         return wid
+
+    def _publish_core(self, db, snapshot, payload):
+        """Optional atomic projection; default internal ledger has none."""
 
     def acknowledge_empty(self, snapshot, response):
         with self._transaction('empty_ack') as db:

@@ -14,6 +14,12 @@ SPEC.loader.exec_module(guard)
 guard.ROOT = ROOT
 
 
+def lineage_pin(row):
+    if row.get('source_kind') == 'reviewed_local_override':
+        return {'source_blob': row['source_blob'], 'sha256': row['sha256']}
+    return {'source_commit': row['source_commit'], 'sha256': row['sha256']}
+
+
 def reviewed_imports(base, layers):
     """Resolve explicit reviewed updates without rewriting historical import facts."""
     assert layers['schema_version'] == 1
@@ -25,6 +31,12 @@ def reviewed_imports(base, layers):
     assert [layer['component'] for layer in layers['updates']] == layers['reviewed_layer_order']
     updated = []
     for layer in layers['updates']:
+        if layer['component'] == 'finalized-pcm16-http':
+            assert layer is layers['updates'][-1] and len(layer['files']) == 1
+            assert layer['files'][0]['path'] == 'audio_backend/fragment_runtime_store.py'
+            assert layer['files'][0].get('source_kind') == 'reviewed_local_override'
+        else:
+            assert all('source_kind' not in row for row in layer['files'])
         seen = set()
         for row in layer['files']:
             path = row['path']
@@ -32,9 +44,7 @@ def reviewed_imports(base, layers):
             seen.add(path)
             previous = effective.get(path)
             if previous is not None:
-                assert row['supersedes'] == {
-                    'source_commit': previous['source_commit'], 'sha256': previous['sha256'],
-                }, 'Unreviewed or stale override'
+                assert row['supersedes'] == lineage_pin(previous), 'Unreviewed or stale override'
                 assert row['sha256'] != previous['sha256'], 'Duplicate unchanged override'
             else:
                 assert 'supersedes' not in row
@@ -56,6 +66,17 @@ def verify_import_bytes(records, read_bytes):
         data = read_bytes(path)
         assert len(data) == row['bytes'], path
         assert hashlib.sha256(data).hexdigest() == row['sha256'], path
+        if row.get('source_kind') == 'reviewed_local_override':
+            assert path == 'audio_backend/fragment_runtime_store.py'
+            assert set(row) == {'path','bytes','sha256','source_kind','reviewed_base_commit','source_blob','supersedes'}
+            assert row['reviewed_base_commit'] == '867a215a0578bb23885d175623a36ee3ed04d238'
+            blob = subprocess.check_output(['git','hash-object','--stdin'],input=data,cwd=ROOT).decode().strip()
+            assert blob == row['source_blob'], 'Stale reviewed Git blob pin'
+            kind = subprocess.check_output(['git','cat-file','-t',blob],cwd=ROOT).decode().strip()
+            assert kind == 'blob'
+            assert subprocess.check_output(['git','cat-file','blob',blob],cwd=ROOT) == data
+            before = subprocess.check_output(['git','show',row['reviewed_base_commit']+':'+path],cwd=ROOT)
+            assert hashlib.sha256(before).hexdigest() == row['supersedes']['sha256'], 'Override base differs from prior imported bytes'
 
 
 def test_reviewed_import_bytes_are_exact():
@@ -122,7 +143,7 @@ def test_complete_source_tree_passes_exact_allowlist():
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
     assert policy['maximum_files'] == 250
-    assert policy['maximum_total_bytes'] == 2_500_000
+    assert policy['maximum_total_bytes'] == 2_550_000
     assert guard.MAX_BYTES == 250_000
 
 
@@ -154,3 +175,34 @@ def test_codec_reader_is_not_sourceplan_or_runtime_integrated():
         source = (ROOT / 'audio_backend' / path).read_text()
         assert 'fragment_decoded_source' not in source
         assert 'fragment_rolling_decode' not in source
+
+
+@pytest.mark.parametrize('mutation', ['blob','base','missing_override'])
+def test_candidate_override_requires_exact_reviewed_provenance(mutation):
+    base, layers = import_records()
+    row = layers['updates'][-1]['files'][0]
+    assert layers['updates'][-1]['component'] == 'finalized-pcm16-http'
+    if mutation == 'blob':
+        row['source_blob'] = '0'*40
+    elif mutation == 'base':
+        row['reviewed_base_commit'] = '0'*40
+    else:
+        layers['updates'][-1]['files'].clear()
+    with pytest.raises(AssertionError):
+        effective = reviewed_imports(base,layers)
+        verify_import_bytes(effective,lambda path:(ROOT/path).read_bytes())
+
+
+def test_candidate_layer_preserves_all_historical_import_facts():
+    historical = json.loads(subprocess.check_output(
+        ['git','show','867a215a0578bb23885d175623a36ee3ed04d238:docs/FRAGMENT_STAGING_LAYERS.json'],cwd=ROOT))
+    _, current = import_records()
+    assert current['base_manifest_sha256'] == historical['base_manifest_sha256']
+    assert current['updates'][:-1] == historical['updates']
+    assert current['reviewed_layer_order'][:-1] == historical['reviewed_layer_order']
+
+
+def test_reviewed_import_index_bytes_are_exact():
+    base, layers = import_records()
+    verify_import_bytes(reviewed_imports(base,layers),
+                        lambda path:subprocess.check_output(['git','show',':'+path],cwd=ROOT))

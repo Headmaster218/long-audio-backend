@@ -30,6 +30,11 @@ PUBLIC = {
 }
 
 
+from .fragment_http import PUBLIC_FIELDS
+for _table in ('segments','events','speaker_turns'):
+    PUBLIC[_table] += PUBLIC_FIELDS
+
+
 def initialize(store):
     """Install after other migrations, before accepting uploads or worker activity.
 

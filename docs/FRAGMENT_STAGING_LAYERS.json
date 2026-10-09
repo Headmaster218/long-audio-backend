@@ -6,7 +6,8 @@
   "base_manifest_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
   "reviewed_layer_order": [
     "normalized-runtime",
-    "compressed-receipts-rolling-reader"
+    "compressed-receipts-rolling-reader",
+    "finalized-pcm16-http"
   ],
   "expected_updated_paths": [
     "audio_backend/fragment_decoded_source.py",
@@ -14,6 +15,7 @@
     "audio_backend/fragment_normalized_runtime.py",
     "audio_backend/fragment_rolling_decode.py",
     "audio_backend/fragment_runtime_contracts.py",
+    "audio_backend/fragment_runtime_store.py",
     "audio_backend/fragment_runtime_store.py",
     "docs/DECODED_SOURCE_RECEIPTS.md",
     "docs/FRAGMENT_NORMALIZED_RUNTIME_INTERNAL.md",
@@ -116,6 +118,24 @@
           "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2"
         }
       ]
+    },
+    {
+      "component": "finalized-pcm16-http",
+      "files": [
+        {
+          "path": "audio_backend/fragment_runtime_store.py",
+          "bytes": 20224,
+          "sha256": "0c5649e19b50146c326780287eed5f6a71dbfd9d91560580ca3f205f2708f9b2",
+          "source_kind": "reviewed_local_override",
+          "reviewed_base_commit": "867a215a0578bb23885d175623a36ee3ed04d238",
+          "source_blob": "1bd35723c9041e8b998f1cdb2d53661ab0d1b348",
+          "supersedes": {
+            "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+            "sha256": "cf88bc98c30a1dc3cc62857a3058523d3ebb599f0d7ec9feece26820b932b3ee"
+          }
+        }
+      ]
     }
-  ]
+  ],
+  "candidate_note": "The finalized HTTP layer is a reviewed local override pinned to an exact Git blob, not an imported commit. Historical imports and prior layer rows are unchanged; expected_updated_paths counts every update occurrence."
 }

@@ -130,6 +130,11 @@ class Worker:
         except KeyError: return True
     def loop(self):
         while not self.stop_event.is_set():
+            fragments=getattr(self.store,'fragment_http',None)
+            if fragments and fragments.cleanup_error is not None:
+                self.wake.wait(1); self.wake.clear(); continue
+            if fragments and fragments.process_next(self):
+                continue
             chunk=self.store.claim()
             if chunk is None:
                 self.wake.wait(1); self.wake.clear(); continue

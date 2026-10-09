@@ -93,3 +93,7 @@ python scripts/run_cpu_candidate.py --dry-run
 单元测试含明确的假分析器；通过只证明所覆盖的程序行为，不能证明模型质量。真实 CPU 集成证据包括 [21 个跨日期片段的 API 检查](reports/crossday-api-native-calibrated-21-v1/REPORT.md)和 [native 分离试验](reports/nemotron-trial/README.md)，各自保留小样本、训练集关系和失败限制。`reports/endurance_v02/` 保存独立冻结运行的配置、进度和资源记录；必须检查该运行终态和评分，不能把启动器参数、短测试或部分进度说成 12–48 小时验收通过。
 
 源码包不含模型、虚拟环境、运行数据库或第三方录音。各 `*-manifest.json` 固定下载源、大小、SHA256 和许可证；新安装要显式准备资源。保留模型和 runtime notices。部分研究素材含非商业条款，不能随着商业产品无条件分发。
+
+### 实验性 finalized PCM16 HTTP 接线
+
+独立 feature 候选新增[显式配置 provider factory 的 HTTP 集成切片](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受已声明连续、已结束的原始 16 kHz 单声道 PCM16 WAV 流；零裁剪，逻辑窗口输出、公共行、游标和 EOS 确认同事务提交。默认仍关闭，未提供真实模型启动器，不代表神经模型或上线验收；全局身份学习和独立候选公开投影暂不可用。测试使用假 provider 与实际桥接契约，不启动神经推理。

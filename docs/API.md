@@ -253,3 +253,13 @@ convert implicitly. See [the full review API and mandatory compact invalidation
 protocol](VERIFIED_IDENTITY.md) before using this mode. An `identity_bank` change
 invalidates prior automatic assignments by revision; reset clears human labels
 too. Neither event requires millions of per-result updates.
+
+## Opt-in finalized PCM16 integration slice
+
+An explicitly configured embedding application may select the experimental
+`processing_mode=fragment_pcm16_v1` when creating a session. This mode is disabled
+without an injected provider factory and has no default neural launcher. It
+accepts one finalized, original 16 kHz mono PCM16 stream with zero trimming.
+See [the complete experimental contract](FRAGMENT_HTTP_EXPERIMENT.md) for
+admission, evidence-backed public rows, controls, atomicity and limitations.
+Legacy sessions and their streaming behavior remain the default.

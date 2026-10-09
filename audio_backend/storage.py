@@ -151,6 +151,8 @@ class Store:
                         kind='INTEGER' if column=='identity_profile_revision' else 'REAL' if column=='speaker_window_start' or (table=='events' and column=='onset_precision_seconds') else 'TEXT'
                         db.execute(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
             verified_identity.install_lifecycle(db)
+            from .fragment_http import init_schema
+            init_schema(db)
 
     @contextmanager
     def db(self):
@@ -171,14 +173,25 @@ class Store:
             db.execute("UPDATE chunks SET status='queued', error='Recovered after process restart' WHERE status='running'")
             lifecycle.recover_cancelled_streams(db)
 
-    def create_session(self, name, identity_group="default", identity_mode=None):
+    def create_session(self, name, identity_group="default", identity_mode=None, processing_mode="legacy"):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             if db.execute('SELECT COUNT(*) FROM sessions WHERE deleted=0').fetchone()[0] >= self.settings.max_sessions:
                 raise OverflowError('Session capacity reached; delete unused sessions')
-            verified_identity.create_group(self,db,identity_group,identity_mode)
             sid = ident()
+            if processing_mode not in ('legacy', 'fragment_pcm16_v1'):
+                raise ValueError('Unknown session processing mode')
+            if processing_mode != 'legacy':
+                if identity_mode is not None or identity_group != 'default':
+                    raise ValueError('Experimental sessions use isolated, disabled global identity')
+                identity_group = 'fragment.' + sid
+            verified_identity.create_group(self,db,identity_group,identity_mode)
             db.execute('INSERT INTO sessions(id,name,identity_group,created) VALUES(?,?,?,?)', (sid,name,identity_group,time.time()))
+            if processing_mode != 'legacy':
+                if not hasattr(self, 'fragment_http'):
+                    raise ValueError('Experimental fragment provider is not configured')
+                self.fragment_http.create_session(db,sid)
+                db.execute('UPDATE sessions SET processing_mode=? WHERE id=?',(processing_mode,sid))
         return self.session(sid)
 
     def session(self, sid):
@@ -228,7 +241,7 @@ class Store:
     def capacity(self,sid=None,stream_id=None):
         with self.db() as db:return self._check_queue_limit(db,sid,stream_id)
 
-    def add_chunk(self, sid, key, digest, path, duration, offset=None, recorded_at=None, stream_id=None, stream_final=False):
+    def add_chunk(self, sid, key, digest, path, duration, offset=None, recorded_at=None, stream_id=None, stream_final=False, fragment_source=None):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             session = db.execute('SELECT * FROM sessions WHERE id=? AND deleted=0',(sid,)).fetchone()
@@ -244,21 +257,35 @@ class Store:
                 raise ValueError('Nonfinal stream fragments must contain at least0.5seconds; coalesce tiny packets or send an explicit final fragment')
             self._check_queue_limit(db,sid,stream_id)
             start = session['timeline_end'] if offset is None else offset
+            if session['processing_mode'] != 'legacy':
+                if fragment_source is None or fragment_source.sha256 != digest or duration != fragment_source.frames/16000:
+                    raise ValueError('Experimental upload requires server-verified PCM source')
+                total = db.execute('SELECT source FROM fragment_http_sources WHERE session_id=?',(sid,))
+                expected = sum(json.loads(row['source'])['frames'] for row in total)/16000
+                if start != expected:
+                    raise ValueError('Experimental uploads require exact contiguous frame offsets from zero')
+                if expected+duration > self.settings.max_audio_seconds:
+                    raise ValueError('Experimental stream duration limit exceeded')
+                start = expected
             if start < 0 or not math.isfinite(start): raise ValueError('Invalid timeline offset')
             # Existing chunk intervals are nonoverlapping. Only the latest
             # predecessor whose start is before our end can intersect us.
             predecessor=db.execute('SELECT id,timeline_start+duration AS endpoint FROM chunks WHERE session_id=? AND timeline_start<? ORDER BY timeline_start DESC LIMIT 1',(sid,start+duration)).fetchone()
-            if predecessor and predecessor['endpoint']>start:raise ValueError('Chunk overlaps an existing timeline interval')
+            if session['processing_mode']=='legacy' and predecessor and predecessor['endpoint']>start:
+                raise ValueError('Chunk overlaps an existing timeline interval')
             cid = ident()
             db.execute('INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,timeline_start,recorded_at,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (cid,sid,key,digest,str(path),duration,start,recorded_at,'queued',time.time()))
             register_stream_chunk(db,cid,sid,stream_id,stream_final)
             db.execute('UPDATE sessions SET timeline_end=MAX(timeline_end,?) WHERE id=?',(start+duration,sid))
+            if session['processing_mode'] != 'legacy':
+                self.fragment_http.register_upload(db,sid,cid,stream_id,fragment_source,stream_final)
+                db.execute('UPDATE sessions SET timeline_end=? WHERE id=?',((round(start*16000)+fragment_source.frames)/16000,sid))
             return cid, True
 
     def claim(self):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
-            row = db.execute("""SELECT c.* FROM chunks c WHERE c.status='queued' AND NOT EXISTS (
+            row = db.execute("""SELECT c.* FROM chunks c JOIN sessions s ON s.id=c.session_id WHERE c.status='queued' AND s.processing_mode='legacy' AND NOT EXISTS (
                 SELECT 1 FROM stream_chunks sc JOIN stream_chunks prior
                 ON prior.session_id=sc.session_id AND prior.stream_id=sc.stream_id AND prior.position=sc.position-1
                 JOIN chunks pc ON pc.id=prior.chunk_id WHERE sc.chunk_id=c.id AND pc.status!='completed')
@@ -268,6 +295,9 @@ class Store:
             return dict(row)
 
     def set_state(self, cid, action):
+        from .fragment_http import is_experimental
+        if is_experimental(self,self.chunk(cid)['session_id']):
+            return self.fragment_http.control(cid,action)
         states = {'pause': ('queued','running','waiting_input'), 'resume': ('paused',), 'retry': ('failed',), 'cancel': ('queued','running','paused','failed','waiting_input')}
         targets = {'pause':'paused','resume':'queued','retry':'queued','cancel':'cancelled'}
         with self.db() as db:

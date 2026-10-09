@@ -27,6 +27,7 @@ class SessionRequest(BaseModel):
     name: str=Field(default='',max_length=200)
     identity_group: str=Field(default='default',min_length=1,max_length=100,pattern=r'^[A-Za-z0-9_.-]+$')
     identity_mode: Literal['legacy','verified_review_v1'] | None = None
+    processing_mode: Literal['legacy','fragment_pcm16_v1'] = 'legacy'
 class ReviewAttestation(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     version: Literal['all_pooled_support_single_identified_voice_v1']
@@ -84,11 +85,13 @@ def probe(path,settings):
     finally: output.unlink(missing_ok=True)
 
 
-def create_app(settings=None,analyzer_factory=None):
+def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=None):
     settings=settings or Settings()
     for folder in ('uploads','tmp'):
         (settings.data_dir/folder).mkdir(parents=True,exist_ok=True)
     store=Store(settings.data_dir/'jobs.sqlite3',settings)
+    from .fragment_http import FragmentHTTP, is_experimental, no_identity_mutation
+    fragments=FragmentHTTP(store,settings,fragment_provider_factory)
     change_feed.initialize(store)
     worker=Worker(store,settings,analyzer_factory)
     lock=InstanceLock(settings.data_dir/'instance.lock')
@@ -116,6 +119,7 @@ def create_app(settings=None,analyzer_factory=None):
                         raw=str(path.resolve())
                         if not db.execute('SELECT 1 FROM chunks WHERE path=? LIMIT 1',(raw,)).fetchone() and not db.execute('SELECT 1 FROM session_file_cleanup WHERE path=? LIMIT 1',(str(path),)).fetchone(): path.unlink()
             store.recover()
+            fragments.recover()
             if settings.start_worker: worker.start()
             yield
         finally:
@@ -123,7 +127,7 @@ def create_app(settings=None,analyzer_factory=None):
 
     from . import __version__
     app=FastAPI(title='Local incremental audio analysis',version=__version__,lifespan=lifespan)
-    app.state.store=store; app.state.worker=worker; app.state.settings=settings
+    app.state.store=store; app.state.worker=worker; app.state.settings=settings; app.state.fragments=fragments
 
     @app.middleware('http')
     async def auth(request,call_next):
@@ -173,10 +177,11 @@ def create_app(settings=None,analyzer_factory=None):
                                 'maximum_pending_receipts_for_new_work':128*settings.max_pending_chunks,
                                 'failed_stream_receipts_count_toward_limit':True},
                 'disk_free_bytes':shutil.disk_usage(settings.data_dir).free,
+                'fragment_pcm16_v1': {'configured':fragment_provider_factory is not None,'experimental':True,'finalized_only':True,'cleanup_error':fragments.cleanup_error},
                 'inference_ready': None, 'note':'Health is liveness, not model-readiness. Run model validation before ingest.'}
 
     @app.post('/sessions',status_code=201)
-    def create_session(body:SessionRequest): return store.create_session(body.name,body.identity_group,body.identity_mode)
+    def create_session(body:SessionRequest): return store.create_session(body.name,body.identity_group,body.identity_mode,body.processing_mode)
     @app.get('/sessions/{sid}')
     def get_session(sid:str): return store.session(sid)
     @app.get('/sessions/{sid}/chunks')
@@ -194,7 +199,9 @@ def create_app(settings=None,analyzer_factory=None):
                      stream_id:str | None=Query(None,min_length=1,max_length=128,pattern=r'^[A-Za-z0-9_.-]+$'),
                      stream_final:bool=Query(False)):
         """Stream raw audio bytes (not multipart). Idempotency-Key is scoped to the session."""
-        store.session(sid)
+        experimental=is_experimental(store,sid)
+        if experimental and stream_id is None:
+            raise HTTPException(422,'Experimental finalized PCM16 mode requires explicit continuous stream_id')
         if stream_final and stream_id is None:
             raise HTTPException(422,'stream_final requires stream_id')
         if timeline_start is not None and not math.isfinite(timeline_start):
@@ -235,13 +242,22 @@ def create_app(settings=None,analyzer_factory=None):
                     recorded_at is not None and existing['recorded_at'] is not None and
                     recorded_at==datetime.fromisoformat(existing['recorded_at']))
                 if (original_stream!=stream_id or original_final!=stream_final or not same_recorded or
-                    (timeline_start is not None and abs(existing['timeline_start']-timeline_start)>1e-8)):
+                    (timeline_start is not None and (existing['timeline_start']!=timeline_start if experimental else abs(existing['timeline_start']-timeline_start)>1e-8))):
                     raise HTTPException(409,'Idempotency key already used with different upload metadata')
                 return {'chunk':existing,'duplicate':True}
-            try: duration=await run_in_threadpool(probe,path,settings)
+            source=None
+            try:
+                if experimental:
+                    from .fragment_core import inspect_pcm16_source
+                    source=await run_in_threadpool(inspect_pcm16_source,'pending',path)
+                    if source.format != (16000,1,2,'wav-pcm16le') or source.sha256 != sha:
+                        raise ValueError('Original 16 kHz mono PCM16 WAV is required')
+                    duration=source.frames/16000
+                else:
+                    duration=await run_in_threadpool(probe,path,settings)
             except Exception as e: raise HTTPException(422,f'Cannot validate supported audio: {e}')
             final=path.with_suffix('.audio'); path.replace(final)
-            cid,created=store.add_chunk(sid,idempotency_key,sha,final,duration,timeline_start,recorded_at.isoformat() if recorded_at else None,stream_id=stream_id,stream_final=stream_final)
+            cid,created=store.add_chunk(sid,idempotency_key,sha,final,duration,timeline_start,recorded_at.isoformat() if recorded_at else None,stream_id=stream_id,stream_final=stream_final,fragment_source=source)
             if not created: final.unlink(missing_ok=True)
             final=None
             worker.notify()
@@ -253,7 +269,7 @@ def create_app(settings=None,analyzer_factory=None):
 
     @app.post('/sessions/{sid}/streams/{stream_id}/finish')
     def finish(sid:str,stream_id:str):
-        result=finish_stream(store,sid,stream_id)
+        result=fragments.finish(sid,stream_id) if is_experimental(store,sid) else finish_stream(store,sid,stream_id)
         worker.notify()
         return result
 
@@ -276,31 +292,39 @@ def create_app(settings=None,analyzer_factory=None):
         return store.events(sid,after,limit)
     @app.get('/sessions/{sid}/event-candidates')
     def event_candidates(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=500)):
+        if is_experimental(store,sid):
+            raise HTTPException(409,'Event candidate public projection is unsupported in fragment_pcm16_v1; candidate evidence is retained privately')
         return store.event_candidates(sid,after,limit)
     @app.get('/sessions/{sid}/overlap-candidates')
     def overlap_candidates(sid:str,after:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
+        if is_experimental(store,sid):
+            raise HTTPException(409,'Overlap text candidate projection is unsupported in fragment_pcm16_v1')
         return store.overlap_candidates(sid,after,limit)
     @app.get('/sessions/{sid}/speaker-turns')
     def speaker_turns(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=1000)):
         return store.speaker_turns(sid,after,limit)
     @app.post('/sessions/{sid}/speakers',status_code=201)
     def enroll(sid:str,body:EnrollmentRequest):
+        no_identity_mutation(store,sid)
         if not body.name.strip(): raise HTTPException(422,'Name must not be blank')
         return store.enroll_speaker(sid,body.name.strip(),body.source_segment_id)
 
     @app.post('/sessions/{sid}/speakers/{pid}/examples',status_code=201)
     def add_speaker_example(sid:str,pid:str,body:SpeakerExampleRequest):
+        no_identity_mutation(store,sid)
         return store.add_speaker_example(sid,pid,body.source_segment_id)
 
     @app.get('/sessions/{sid}/speakers')
     def speakers(sid:str): return {'speakers':store.speakers(sid)}
     @app.patch('/sessions/{sid}/speakers/{pid}')
     def correction(sid:str,pid:str,body:SpeakerRequest):
+        no_identity_mutation(store,sid)
         if sum((body.name is not None,body.merge_into is not None,body.undo_merge))!=1: raise HTTPException(422,'Provide one of name, merge_into, undo_merge')
         store.correct_speaker(sid,pid,body.name,body.merge_into,body.undo_merge)
         return {'speakers':store.speakers(sid)}
     @app.patch('/sessions/{sid}/segments/{segment_id}')
     def assign(sid:str,segment_id:int,body:SegmentRequest):
+        no_identity_mutation(store,sid)
         store.assign_segment(sid,segment_id,body.speaker_id)
         return {'updated':segment_id}
     @app.get('/sessions/{sid}/segments/{segment_id}/speaker-support')
@@ -349,16 +373,19 @@ def create_app(settings=None,analyzer_factory=None):
 
     @app.post('/sessions/{sid}/identity-reviews')
     def add_identity_review(sid:str,body:IdentityReviewRequest):
+        no_identity_mutation(store,sid)
         from .verified_identity import mutate
         return private_json(mutate(store,sid,body.model_dump(),operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
 
     @app.post('/sessions/{sid}/identity-reviews/{event_id}/replace')
     def replace_identity_review(sid:str,event_id:str,body:IdentityReviewRequest):
+        no_identity_mutation(store,sid)
         from .verified_identity import mutate
         return private_json(mutate(store,sid,body.model_dump(),previous=event_id,operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
 
     @app.post('/sessions/{sid}/identity-reviews/{event_id}/retract')
     def retract_identity_review(sid:str,event_id:str,body:ReviewMutation):
+        no_identity_mutation(store,sid)
         from .verified_identity import mutate
         return private_json(mutate(store,sid,body.model_dump(),previous=event_id,retract=True,operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
 
@@ -375,6 +402,8 @@ def create_app(settings=None,analyzer_factory=None):
 
     @app.delete('/sessions/{sid}')
     def delete(sid:str):
+        if fragments.active_sid==sid:
+            raise HTTPException(409,'Wait until the fragment worker releases this session after pause/cancel')
         if worker.current_chunk:
             with store.db() as db:
                 active=db.execute('SELECT session_id FROM chunks WHERE id=?',(worker.current_chunk,)).fetchone()
