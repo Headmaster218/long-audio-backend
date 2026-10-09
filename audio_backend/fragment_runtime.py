@@ -74,8 +74,11 @@ class LogicalPCMReader:
 
 
 def _validate_analyzer(result, pcm):
-    if not isinstance(result, dict) or set(result) != {'segments', 'events'}:
+    if not isinstance(result, dict) or set(result) not in ({'segments', 'events'}, {'segments', 'events', 'evidence_ref'}):
         raise ValueError('Analyzer must return bounded native segments and event intervals')
+    if 'evidence_ref' in result:
+        from .fragment_evidence import validate_reference
+        validate_reference(result['evidence_ref'])
     segments = result['segments']
     if not isinstance(segments, list) or len(segments) > MAX_ITEMS:
         raise ValueError('Bounded analyzer segments required')
@@ -238,6 +241,8 @@ class LogicalRunner:
                     return 'waiting_native'
             pcm = self.reader.read(window.read_start, window.read_end)
             self.fault('core.after_read')
+            if hasattr(self.analyzer, 'bind_context'):
+                self.analyzer.bind_context(snapshot, window, self.native)
             result = self.analyzer.analyze(pcm, status)
             _validate_analyzer(result, pcm)
             self.fault('core.after_analysis')
@@ -297,6 +302,10 @@ class LogicalRunner:
                                         window_id(self.run_id, window, snapshot.policy)),
                 'tail': tail, 'checkpoint': checkpoint,
             }
+            if 'evidence_ref' in result:
+                payload['evidence_ref'] = result['evidence_ref']
+                if hasattr(self.analyzer, 'finalize_evidence'):
+                    payload['evidence_ref'] = self.analyzer.finalize_evidence(payload, result.get('metadata', {}))
             bounded_json(payload)
             self.reader.verify()
             self._verify_providers(snapshot)

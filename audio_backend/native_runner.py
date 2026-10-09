@@ -29,6 +29,9 @@ def main():
             if len(line)>16384:raise ValueError('Oversized native request')
             request=json.loads(line);out=Path(request['output'])
             try:
+                if config.get('_fragment_expected_imports'):
+                    from .fragment_model_protocol import imported_receipt
+                    imported_receipt(config['_fragment_expected_imports'])
                 if provider is None:provider=NativeDiarizer(config)
                 action=request['action']
                 if action=='reset':
@@ -42,8 +45,12 @@ def main():
                 elif action=='finish':result=provider.finish()
                 elif action=='turns':result={'turns':provider.turns(request['start'],request['end'],allow_provisional=True)}
                 else:raise ValueError('Unsupported native command')
+                if config.get('_fragment_expected_imports'):
+                    result['implementation_attestation']=imported_receipt(config['_fragment_expected_imports'])
                 encoded=json.dumps(result,allow_nan=False)
-                if len(encoded)>8*1024**2:raise ValueError('Native response exceeds8MiB')
+                limit=min(8*1024**2,int(config.get('_fragment_native_max_response_bytes',8*1024**2)))
+                if not 16384<=limit<=8*1024**2 or len(encoded.encode())>limit:
+                    raise ValueError('Native response exceeds configured bounded envelope')
             except Exception as exc:encoded=json.dumps({'_error':f'{type(exc).__name__}: {exc}'[:2000]})
             pending=out.with_suffix('.pending');pending.write_text(encoded);pending.replace(out)
     finally:

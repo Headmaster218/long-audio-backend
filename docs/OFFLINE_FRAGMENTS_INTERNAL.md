@@ -1,5 +1,9 @@
 # Internal offline fragment APIs (default OFF)
 
+This document records the dev3 internal contract. The default-OFF dev4 offline
+extensions and their separate evidence limits are described in
+[FRAGMENT_EXTENSIONS_INTERNAL.md](FRAGMENT_EXTENSIONS_INTERNAL.md).
+
 Version `0.2.0rc2.dev3` adds experimental import-only modules. Nothing registers
 these modules in the public API, worker, queue, production database, native
 adapter or identity pipeline. Existing production processing remains unchanged.

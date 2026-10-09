@@ -2,7 +2,7 @@
 
 This is a newly curated source-only test suite, not the full private development suite. Historical recovery validation and model measurements do not automatically apply to this exported tree.
 
-The public suite covers runtime/API behavior, storage, queues, boundaries, identity guards, model setup logic and fake-worker subprocesses using synthetic inputs. Real media/clinical corpora, full gold annotations, operational endurance records, private packaging tests, and benchmark replay tests that depend on omitted assets are excluded. One optional MOSS-TD local-asset test is expected to skip without separately prepared validation assets.
+The public suite covers runtime/API behavior, storage, queues, boundaries, identity guards, model setup logic and fake-worker subprocesses using synthetic inputs. Real media/clinical corpora, full gold annotations, operational endurance records, private packaging tests, and benchmark replay tests that depend on omitted assets are excluded. Private-input and optional local-asset cases skip explicitly; the current integration section lists their exact counts and scope.
 
 The first exact source import exposed two portability dependencies: a test temporary directory under an excluded validation tree, and a source-pin assertion reading a private operational report. The next commit moves the temporary directory to the project filesystem and retains only reviewed public dependency-pin fields for the assertion.
 
@@ -67,7 +67,7 @@ These are exact exported-source checks; no claim is made that this equals the fu
 - Verified identity remains opt-in, experimental and uncalibrated. Unknown runtime/model bindings abstain; unsupported verified merge/undo is explicit. No raw evidence, operational reports, private provenance files or unrelated residual research helpers are included.
 
 
-## Current 0.2.0rc2.dev3 offline fragment integration
+## Historical 0.2.0rc2.dev3 offline fragment integration
 
 - Immutable active source-only input: `6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2`. The 29 reviewed matcher/runtime imports, integration API documentation and test setup retain exact source bytes. Original private feature histories and reports are excluded.
 - Entire curated public suite: **1,122 passed, 43 skipped, 2 strict xfailed**, with one existing Starlette/HTTPX deprecation warning. The first isolated public-tree run took 77.79 seconds. These are public-source results, distinct from the broader private suite.
@@ -77,3 +77,24 @@ These are exact exported-source checks; no claim is made that this equals the fu
 - Python 3.12 uses existing dependencies, one CPU and one numerical-library thread, with explicit isolated temporary storage. No download, real model inference, production worker/API integration or model-quality acceptance was performed.
 - Source fingerprint: `6b6a95f2a16f6ef4d8f608a2b29ce9c1f88dfcc2d89e631cc1c29e6bded7b02b` using the policy-ordered algorithm above. Public versions, path allowlist, manifest, private exclusions, source caps and unchanged hook/scanner pass; local document links resolve.
 - The source budget grows only from 200 to 224 files to accommodate reviewed paths. The 2,000,000-byte total and 250,000-byte per-file limits remain unchanged. The release remains unmade and the fragment modules remain import-only/default OFF.
+
+
+## Current 0.2.0rc2.dev4 offline extensions
+
+- Immutable source input: `732f37698b58f00750d76ba99e4cf7599c1b97f7`. All 30 reviewed component files retain their exact source bytes and modes. Original private feature graphs, PCM/cache assets, models, vectors and raw reports are excluded.
+- The complete exported suite exercised **all 71 public test modules sequentially: 1,222 passed, 51 explicitly skipped, 2 strict rejected-q1 expected failures, no failures/errors**. This was module-by-module coverage in fresh pytest processes, not a single-process invocation. The first public-tree run took 175.96 seconds total. The existing Starlette/HTTPX deprecation appeared 19 times across separate processes, with no new warning category.
+- New component coverage: bridge 41 passed / one private-packager skip; standalone normalizer 20 passed; positive-event harness 15 passed / seven private-development skips; native boundary probe 15 passed. The public projection also ran nine provenance/privacy checks, including a separate admission/exclusion case against the real public gate.
+- The 51 skips are exactly 42 opt-in real PCM matrix arms, one optional local MOSS-TD asset case, seven private development PCM/cache-dependent event cases, and one private source/evidence-packager case. No test module is broadly skipped; reviewed component assertions are unchanged.
+- Seven named cases in `tests/test_positive_event_seams.py` require both explicit `FRAGMENT_POSITIVE_DEVELOPMENT_OPT_IN=1` and the excluded local development bindings:
+  - `test_actual_development_selection_and_matcher_transport`
+  - `test_full_event_only_bridge_model_free`
+  - `test_model_load_failure_persisted_and_same_receipt_cannot_retry`
+  - `test_compute_failure_keeps_durable_partial_calls`
+  - `test_terminal_reporting_failure_preserves_primary_and_ceiling`
+  - `test_reservation_persistence_failure_prevents_model_call`
+  - `test_compute_primary_survives_bridge_evidence_write_failure`
+- The one excluded-packager case is `tests/test_fragment_model_bridges.py::test_private_real_output_admission_and_packaging_exclusion`. Public output admission and private-path exclusion are independently covered by `test_private_output_admission_and_public_gate_exclusion`; no private packager or substitute corpus is shipped.
+- The two strict xfails remain only the historical rejected-q1 quiet-tone-jitter and strong-tone-jitter controls listed above. Unexpected passes fail. p1 assertions remain ordinary tests.
+- Existing dependencies and the pinned local FFmpeg build were used with synthetic PCM, CPU 6, one numerical-library thread and isolated temporary roots. No neural inference, model download or external API call was performed. Source fingerprint: `4fb09f7f61b21173838a9f0b82bfc23fec51e167e9f238203027aeaf5d8050c8`, using the policy-ordered algorithm above.
+- This result is distinct from the wider staging run of 1,416 passed / 56 skipped / two strict xfails at `2011dc082e6cf4f6daa9bf81018ff91c59f9c89b`, and from the 71 version/docs-affected checks later run at dev4. Neither is substituted for the public result.
+- The [extension scope](docs/FRAGMENT_EXTENSIONS_INTERNAL.md) preserves the empty-event base result, selected synthetic-development positive-event limits, original native P2 report-size failure and separately admitted remainder. Normalization remains standalone/default OFF. No HTTP or end-to-end product acceptance is claimed.
