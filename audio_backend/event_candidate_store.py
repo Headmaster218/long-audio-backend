@@ -55,11 +55,15 @@ def _provenance(metadata):
         if not isinstance(value,str):return
         if len(value)>256:truncated=True
         out[key]=value[:256]
-    for key in ('inference_revision','event_model','event_model_sha256','event_model_license'):
+    for key in ('inference_revision','event_model','event_model_license','event_policy_revision','event_artifact_identity_status'):
         if key in metadata:text(key,metadata[key])
+    for key in ('event_model_sha256','event_labelmap_sha256'):
+        value=metadata.get(key)
+        if isinstance(value,str) and len(value)==64 and all(c in '0123456789abcdefABCDEF' for c in value):
+            out[key]=value.lower()
     models=metadata.get('models',{})
     if isinstance(models,dict) and isinstance(models.get('events'),str):text('event_model',models['events'])
-    for key in ('event_window_seconds','event_hop_seconds'):
+    for key in ('event_window_seconds','event_hop_seconds','event_max_seconds'):
         if key in metadata:out[key]=_number(metadata[key],key,0,120)
     config=metadata.get('effective_config',{})
     if isinstance(config,dict):
@@ -98,6 +102,9 @@ def _payload(candidate):
             'ownership':'core_intersection','time_axis':'session_timeline',
             'support_semantics':'Original classifier support, not verified event onset/end',
             'scores_calibrated':False}
+    if 'model_inference_executed' in candidate:
+        if not isinstance(candidate['model_inference_executed'],bool):raise ValueError('Invalid candidate model execution state')
+        result['model_inference_executed']=candidate['model_inference_executed']
     for key in ('speech_score','rms','peak'):
         if key in candidate:result[key]=_number(candidate[key],key,0,1 if key=='speech_score' else None)
     return _json(result,MAX_PAYLOAD_BYTES)

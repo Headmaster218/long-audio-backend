@@ -1,4 +1,5 @@
 """No-model final audit of optional CTC windowing and installer selection."""
+from audio_backend.events.provenance import EventArtifactHashes
 import hashlib
 import importlib.util
 import json
@@ -36,6 +37,9 @@ def test_sensevoice_context_windows_ownership_and_honest_metadata(tmp_path, monk
     analyzer.config = {'chinese_script': 'as_is'}
     analyzer.threads = 1
     analyzer.paths = {'asr': Path('mock-model')}
+    analyzer._event_artifact_hashes = EventArtifactHashes()
+    for key in ('events', 'labels'):
+        analyzer.paths[key] = tmp_path / key; analyzer.paths[key].write_bytes(b'synthetic artifact')
     analyzer._sensevoice = FakeRecognizer()
     monkeypatch.setattr(analyzer, '_events', lambda samples: ([], []))
     monkeypatch.setattr(analyzer, '_diarize', lambda samples: ([{'start': 0., 'end': 60., 'speaker_local_id': 'mock'}], {}, 8))
