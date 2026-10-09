@@ -1,57 +1,76 @@
-# Reviewed fragment extensions: isolated source staging
+# Reviewed fragment extensions: isolated dev5 staging
 
-This is local development staging, version `0.2.0rc2.dev4`, not a release or
-promotion. The isolated branch preserves active develop `6835ec41` ancestry and adds
-source-only imports; the original experimental repositories retain their graphs
-separately. No private experimental ancestry is fetched or merged. No reports, private history,
-recordings, models, vectors, operational state are imported. No dependency changes, new HTTP interfaces, date or upload glue.
+This is local development staging, not a release or active/public promotion.
+The branch preserves active dev4 `732f37698b58f00750d76ba99e4cf7599c1b97f7`
+ancestry and adds exact source-only imports. Original experimental graphs and
+private review/evidence remain separate. No experimental history, reports,
+recordings, model assets, vectors or operational state are imported. No new
+HTTP interfaces, date/upload glue, production-worker or dependency changes.
 
-## Scope remains narrow and default off
+## Current scope: explicit internal experiments, default off
 
-- Real-provider bridges are explicit offline/internal experimental entrypoints.
-  The prior eight-arm real base matrix and separate two-support MOSS extension
-  reported empty base event arrays: their event result is negative-event
-  invariance only. It is not evidence for positive event coverage.
-- Positive-event seams are a separate selected synthetic development experiment.
-  Prior four-arm / 64 Zipformer calls reported equality and nonempty coverage at
-  a 30-second boundary. That finite selected development result does not imply
-  general event recall, production acceptance or full speech/diarization quality.
-- Normalization is finalized, single-island PCM16 only. It is a standalone
-  experimental class, not wired into the runtime/model bridge or HTTP APIs.
-  Do not infer streaming, multi-island or compressed-input support.
-- The independently admitted native boundary-probe and split-only continuation
-  harnesses are benchmark-only. P1 passed. The original P2 whole arm completed
-  processing but failed its report-size cap; that failure remains preserved.
-  A separately budgeted split-only remainder later matched the old whole arm's
-  exact PCM and all anonymous speaker intervals. This was not an uninterrupted
-  P2 pass. Combined native input was 808.80025 seconds within 822.400375 seconds.
-  The 300-second receipt was not EOS; ten commit IDs survived the epoch-boundary
-  restart, and the final one-sample core had no invented speaker activity.
-  This establishes no ASR quality, global identity or arbitrary crash recovery.
+- The finalized normalized runtime adapter explicitly connects the reviewed
+  PCM16 normalizer to internal logical scheduling and provider bridge classes.
+  This supersedes the earlier dev4 statement that the normalizer had no internal
+  runtime adapter. The exact-PCM default store/reader remain restricted to
+  original 16 kHz mono PCM16. Normalized admission is explicit: finalized,
+  single continuous island, same-rate 44.1/48 kHz PCM16 WAV, mono/stereo and the
+  existing minimum length. No HTTP/upload/production-worker integration.
+- Normalized scheduler/model timing remains canonical 16 kHz; original native
+  source coordinates and conservative many-to-many filter support remain
+  distinct. No fabricated one-to-one native sample map or global identity claim.
+  The adapter launches a separate bounded FFmpeg process per <=0.5-second read;
+  model-free correctness tests do not establish throughput or real-model quality.
+- Decoded-source receipts and the rolling emitted-PCM reader are a separate
+  Linux-only, read-only, explicit default-off experiment. They are NOT admitted
+  into SourcePlan, Alias, auto-trimming, normalized runtime, HTTP or workers.
+  The compressed file bytes, decode-policy receipt and actually emitted PCM
+  hashes remain distinct. No automatic compressed ingestion is added.
+- AAC endpoint accuracy remains unresolved. Rolling chunks are provisional until
+  their own session completes. One active rolling session per process is
+  supported; no 48-hour, arbitrary seeking or general streaming claim follows.
+- Prior real-provider base matrix event arrays were empty: only negative-event
+  invariance was established. Positive-event seams are separately selected
+  synthetic development equality/nonempty 30-second boundary coverage, not
+  general event recall or production acceptance.
+- Native-boundary evidence stays limited: P1 passed; original P2 whole processing
+  completed but report-size failed. A separately admitted split-only remainder
+  matched retained whole PCM and anonymous intervals. This was not uninterrupted
+  P2 success. The 300-second receipt was not EOS; ten commit IDs survived the
+  epoch-boundary restart; final one-sample core had no invented speaker activity.
+  No ASR/global identity or arbitrary crash recovery quality is established.
 
-`FRAGMENT_STAGING_IMPORTS.json` records every reviewed source import's exact
-commit, path, byte length and SHA256. Imports preserve bytes; any later change
-requires a distinct integration-fix commit and new tests. Existing active-only
-portability setup, private-input opt-ins and two strict historical rejected-q1
-expected failures are retained. Unexpected passes remain failures.
+## Exact source lineage and bounded packaging
 
-## Source guard proposal for this isolated tree
+`FRAGMENT_STAGING_IMPORTS.json` remains the unchanged original dev4 flat import
+manifest. `FRAGMENT_STAGING_LAYERS.json` pins that manifest's exact SHA256 and
+records ordered normalized-runtime and codec updates. Every overwritten path
+names its old source commit/hash and newly reviewed source commit/hash. Tests
+reject missing paths, duplicate overrides, stale lineage/version and unreviewed
+bytes. Original imported docs describe their historical experiment; this scope
+page and the layered manifest describe the current integrated source tree.
 
-The raw imports add 18 files and 248,902 bytes to the 211-file / 1,974,168-byte
-baseline, yielding 229 files / 2,223,070 bytes. The later admitted native benchmark adds three source files; staging
-documentation, provenance, guard and tests are separately audited additions. The proposed bounded total is
-2,500,000 bytes, with the existing 250-file and 250,000-byte per-file limits.
-The exact allowlist and existing privacy exclusions are retained in
-`FRAGMENT_STAGING_POLICY.json`. This does not change active or public policies.
-The older bridge allowlist is frozen source provenance, not this tree's policy.
+All reviewed source/test/docs bytes are preserved. Integration provenance,
+allowlist and tests are separately committed; version/docs changes are separate.
+The source budget remains 2,500,000 bytes, 250 files and 250,000 bytes per file.
+The exact allowlist and existing privacy exclusions are retained. No cap was
+increased or private exclusion relaxed. Additional work requires its own audited
+delta. The older bridge allowlist is historical provenance, not the current
+staging policy. The unchanged source guard remains a heuristic review aid.
 
-`scripts/source_staging_guard.py` is the unchanged original guard implementation.
-Its library API is used by the staging regression test with this tree's explicit
-policy; its standalone CLI retains its original public-policy defaults.
-Privacy scanning is heuristic and complements source review, not proof of privacy.
-The source map tests check reviewed bytes and enforce absence of accidental
-normalizer/runtime coupling. Generated regression evidence is kept outside
-tracked source. Tests use explicit temporary directories and CPU6, no neural
-inference or downloads, with own process-tree RSS <=512 MiB, generated disk
-<=180 MiB, available host RAM >=2 GiB and free disk >=5.5 GiB. Failed evidence
-is retained; only completed generated fixtures are cleaned.
+Historical rejected-q1 assertions retain strict expected failures; unexpected
+passes still fail. Private-input tests remain opt-in and explicit. Regression
+runs use CPU8, explicit temporary roots and per-module cleanup only on success:
+own process-tree RSS <=256 MiB, generated disk <=128 MiB, available host RAM
+>=2 GiB and free disk >=5.5 GiB. Failed attempts remain private evidence.
+No neural inference, downloads or frozen-longrun changes are part of this work.
+
+## Corrected codec resource evidence
+
+The earlier independent approximately 35 MB claim measured pytest only, and
+an initial rolling sampler measured only its supervisor. Neither is full-tree
+RSS. A corrected separate 63-test review measured 86,331,392 bytes for supervisor,
+pytest and live decoder children. That is sampled, not OS-hard, peak memory.
+The full correction remains in private review evidence with its byte hash;
+reports are excluded from source ancestry. These earlier measurements do not
+substitute for this staging tree's own monitored regression results.
