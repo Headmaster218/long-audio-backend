@@ -36,11 +36,14 @@ def result_for(samples, turns=None):
             'speaker_turns':[dict(t,speaker_embedding=vector) for t in turns], 'events':[],
             'metadata':{'speaker_embedding_version':'test-v1','speaker_embedding_sha256':'a'*64,
                 'speaker_embedding_dimension':8,'speaker_embedding_evidence':{'A':evidence},
-                'diarization_turns':turns,
+                'diarization_turns':turns,'diarization_backend':'pyannote','diarization_model_sha256':'c'*64,
+                'diarization_runtime':'sherpa-onnx','diarization_runtime_version':'model-free-fixture',
+                'effective_config':{'diarization_threshold':.7,'cpu_threads':2},
                 'speaker_support_producer':support.producer_provenance(samples,turns,'a'*64,2)}}
 
 
 def setup(tmp_path, **kwargs):
+    kwargs.setdefault('speaker_support_enabled',True)
     settings=Settings(data_dir=tmp_path,start_worker=False,disk_reserve_bytes=0,**kwargs)
     (tmp_path/'uploads').mkdir(exist_ok=True);(tmp_path/'tmp').mkdir(exist_ok=True)
     store=Store(tmp_path/'jobs.sqlite3',settings)
@@ -175,7 +178,8 @@ def test_reset_and_session_delete_erase_support_atomically(tmp_path):
     with pytest.raises(KeyError):support.audio(reloaded,sid,new['support_id'])
 
 
-def test_contributing_source_delete_removes_dependent_support(tmp_path):
+@pytest.mark.parametrize('delete_owner',[False,True])
+def test_contributing_source_delete_removes_dependent_support(tmp_path,delete_owner):
     _,store=setup(tmp_path)
     sid,chunk,result,wav,samples,lineage,generation=prepare(store)
     extra=store.settings.data_dir/'uploads'/f'{ident()}.audio';extra.write_bytes(wav.read_bytes())
@@ -188,9 +192,14 @@ def test_contributing_source_delete_removes_dependent_support(tmp_path):
     assert store.commit_window(chunk,0,3,result)
     meta=support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])
     assert meta['audio_available']
-    with store.db() as db:db.execute('DELETE FROM chunks WHERE id=?',(cid,))
+    with store.db() as db:
+        if delete_owner:
+            for table in ('segments','speaker_turns','speaker_observations'):
+                db.execute(f'DELETE FROM {table} WHERE chunk_id=?',(chunk['id'],))
+        db.execute('DELETE FROM chunks WHERE id=?',(chunk['id'] if delete_owner else cid,))
     with pytest.raises(KeyError):support.audio(store,sid,meta['support_id'])
-    assert support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])['reason']=='support_revoked_or_removed'
+    if not delete_owner:
+        assert support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])['reason']=='support_revoked_or_removed'
 
 
 @pytest.mark.parametrize('alter,reason',[
@@ -388,3 +397,157 @@ def test_unknown_extra_support_fields_do_not_leak_to_review_manifest(tmp_path):
     assert store.commit_window(chunk,0,3,result)
     meta=support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])
     assert 'private_path' not in json.dumps(meta) and '/secret/upload' not in json.dumps(meta)
+
+
+def test_capture_is_default_off_and_cli_enables_it_explicitly(tmp_path,monkeypatch):
+    import uvicorn
+    from audio_backend.__main__ import main
+    assert Settings(data_dir=tmp_path).speaker_support_enabled is False
+    calls=[]
+    monkeypatch.setattr(uvicorn,'run',lambda app,**kwargs:calls.append(app))
+    main(['--data-dir',str(tmp_path/'off')])
+    main(['--data-dir',str(tmp_path/'on'),'--speaker-support-review'])
+    assert [app.state.settings.speaker_support_enabled for app in calls]==[False,True]
+    assert calls[1].state.settings.speaker_support_max_records==4096
+    assert calls[1].state.settings.speaker_support_total_pcm_bytes==64*1024**2
+    assert calls[1].state.settings.inference_config()['speaker_support_enabled'] is True
+
+
+def test_disabled_capture_performs_no_review_hash_or_copy_io(tmp_path,monkeypatch):
+    settings,store=setup(tmp_path,speaker_support_enabled=False)
+    sid=store.create_session('legacy default')['id']
+    path=tmp_path/'uploads'/f'{ident()}.audio';write_wave(path)
+    store.add_chunk(sid,'k',hashlib.sha256(path.read_bytes()).hexdigest(),path,3)
+    def unexpected(*a,**k):raise AssertionError('Review capture must stay disabled')
+    monkeypatch.setattr(support.SourceFingerprints,'get',unexpected)
+    monkeypatch.setattr(support,'capture_generation',unexpected)
+    monkeypatch.setattr(support,'prepare_window',unexpected)
+    monkeypatch.setattr(support,'decoded_floats',unexpected)
+    class LegacyAnalyzer:
+        def __init__(self,config):assert config['speaker_support_enabled'] is False
+        def analyze(self,path,**kwargs):
+            return {'segments':[{'start':0,'end':1,'text':'legacy','speaker_local_id':'A',
+                                 'speaker_embedding':[1.]+[0.]*7}], 'speaker_turns':[], 'events':[]}
+        def close(self):pass
+    Worker(store,settings,LegacyAnalyzer).process(store.claim())
+    row=store.results(sid)['segments'][0]
+    assert row['text']=='legacy' and row['speaker_status']=='provisional'
+    assert support.metadata(store,sid,segment_id=row['id'])['reason']=='capture_not_enabled'
+    with store.db() as db:
+        assert db.execute('SELECT COUNT(*) FROM speaker_support').fetchone()[0]==0
+        assert db.execute('SELECT COUNT(*) FROM speaker_identity_generations').fetchone()[0]==0
+
+
+def test_disabled_actual_embedding_path_skips_optional_provenance_hashing(tmp_path,monkeypatch):
+    import types
+    import sys
+    from audio_backend.inference.analyzer import AudioAnalyzer
+    class Extractor:
+        dim=8
+        def __init__(self,config):pass
+        def create_stream(self):return types.SimpleNamespace(accept_waveform=lambda **kw:None,input_finished=lambda:None)
+        def is_ready(self,stream):return False
+    monkeypatch.setitem(sys.modules,'sherpa_onnx',types.SimpleNamespace(
+        SpeakerEmbeddingExtractorConfig=lambda **kwargs:None,SpeakerEmbeddingExtractor=Extractor))
+    def unexpected(*a,**k):raise AssertionError('Frontend hashing must remain opt-in')
+    monkeypatch.setattr(support,'producer_provenance',unexpected)
+    analyzer=AudioAnalyzer.__new__(AudioAnalyzer)
+    analyzer.config={};analyzer.paths={'speaker':tmp_path/'not-opened.onnx'};analyzer.threads=2
+    embeddings,dimension=analyzer._embed_turns(np.ones(48000,dtype=np.float32),
+        [{'start':0.,'end':3.,'speaker_local_id':'A'}])
+    assert dimension==8 and embeddings=={} and analyzer._speaker_support_producer is None
+
+
+def test_historical_frontend_selection_and_diarization_are_self_describing(tmp_path):
+    settings,store=setup(tmp_path)
+    sid,_,_,_,_,first=commit(store)
+    before=first['manifest']
+    for name in ('frontend','selection','diarization'):
+        assert support.digest(support.canonical(before[name]))==before[name+'_sha256']
+    assert before['frontend']['runtimes']['soundfile']
+    assert before['diarization']['model_sha256']=='c'*64
+    assert before['diarization']['config']['clustering_threshold']==.7
+    commit(store,sid=sid)
+    with store.db() as db:db.execute("UPDATE chunks SET metadata='{}' WHERE session_id=?",(sid,))
+    reopened=Store(store.path,settings)
+    assert support.metadata(reopened,sid,first['support_id'])['manifest']==before
+
+
+@pytest.mark.parametrize('value',[float('nan'),float('inf'),float('-inf')])
+def test_store_rejects_nonfinite_pcm_even_with_coherent_hash(tmp_path,value):
+    import struct
+    _,store=setup(tmp_path)
+    sid,chunk,result,*_=prepare(store)
+    prepared=result['_speaker_support']['A'];manifest=prepared['manifest']
+    prepared['pcm']=struct.pack('<f',value)*(len(prepared['pcm'])//4)
+    manifest['support']['pooled_pcm_sha256']=support.digest(prepared['pcm'])
+    manifest['analyzer_input_pcm_sha256']=support.digest(prepared['pcm'])
+    assert store.commit_window(chunk,0,3,result)
+    meta=support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])
+    assert meta['reason']=='invalid_support' and not meta['audio_available']
+    assert store.results(sid)['segments'][0]['text']=='unchanged'
+
+
+@pytest.mark.parametrize('value',[float('nan'),float('inf'),float('-inf')])
+def test_audio_boundary_rejects_coherent_nonfinite_corruption(tmp_path,value):
+    import struct
+    _,store=setup(tmp_path)
+    sid,_,_,_,_,meta=commit(store)
+    with store.db() as db:
+        db.execute('DROP TRIGGER speaker_support_immutable')
+        row=db.execute('SELECT manifest,pcm_bytes FROM speaker_support WHERE id=?',(meta['support_id'],)).fetchone()
+        pcm=struct.pack('<f',value)*(row['pcm_bytes']//4)
+        manifest=json.loads(row['manifest']);manifest['support']['pooled_pcm_sha256']=support.digest(pcm)
+        manifest['analyzer_input_pcm_sha256']=support.digest(pcm)
+        encoded=support.canonical(manifest)
+        db.execute('UPDATE speaker_support SET pcm=?,manifest=?,manifest_sha256=? WHERE id=?',
+                   (pcm,encoded.decode(),support.digest(encoded),meta['support_id']))
+    with pytest.raises(ValueError,match='integrity'):support.audio(store,sid,meta['support_id'])
+
+
+@pytest.mark.parametrize('alter',[
+    lambda manifest:manifest.update(private_path='/private/source'),
+    lambda manifest:manifest.update(private_path='x'*(support.MAX_MANIFEST_BYTES+1)),
+    lambda manifest:manifest['support'].update(private_embedding=[1.]*8),
+    lambda manifest:manifest['support'].update(hash_encoding='PCM16'),
+    lambda manifest:manifest['source_parts'][0].update(source_sha256='d'*64),
+])
+def test_store_boundary_rejects_hostile_metadata_without_disrupting_results(tmp_path,alter):
+    _,store=setup(tmp_path)
+    sid,chunk,result,*_=prepare(store)
+    alter(result['_speaker_support']['A']['manifest'])
+    assert store.commit_window(chunk,0,3,result)
+    meta=support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])
+    assert meta['reason'] in ('invalid_support','source_mismatch') and not meta['audio_available']
+    assert '/private/source' not in json.dumps(meta) and 'private_embedding' not in json.dumps(meta)
+    assert store.results(sid)['segments'][0]['text']=='unchanged'
+
+
+def test_same_identity_group_is_not_permission_to_read_other_session_support(tmp_path):
+    _,store=setup(tmp_path)
+    sid,_,_,_,_,meta=commit(store)
+    other=store.create_session('same group','default')['id']
+    with pytest.raises(KeyError):support.metadata(store,other,meta['support_id'])
+    with pytest.raises(KeyError):support.audio(store,other,meta['support_id'])
+
+
+def test_retained_pcm_is_original_even_if_source_bytes_change_after_capture(tmp_path):
+    _,store=setup(tmp_path)
+    sid,_,_,path,_,meta=commit(store)
+    original=support.audio(store,sid,meta['support_id'])
+    write_wave(path,3,seed=1234)
+    assert support.audio(store,sid,meta['support_id'])==original
+    assert support.metadata(store,sid,meta['support_id'])==meta
+
+
+def test_turn_only_support_can_exist_without_legacy_observation(tmp_path):
+    _,store=setup(tmp_path)
+    sid,chunk,result,*_=prepare(store,seconds=1)
+    result['segments']=[]
+    assert store.commit_window(chunk,0,1,result)
+    with store.db() as db:
+        assert db.execute('SELECT COUNT(*) FROM speaker_observations').fetchone()[0]==0
+        assert db.execute('SELECT observation_id FROM speaker_support').fetchone()[0] is None
+    turn=store.speaker_turns(sid)['speaker_turns'][0]
+    meta=support.metadata(store,sid,turn_id=turn['id'])
+    assert meta['audio_available'] and meta['human_verified'] is False

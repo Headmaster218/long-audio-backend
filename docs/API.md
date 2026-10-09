@@ -235,7 +235,8 @@ scaling, not recognition throughput for very small upload fragments.
 
 ## Exact acoustic-support review (Phase A)
 
-Read-only support discovery is available for a segment or independent speaker
+Capture is off by default; explicitly use `--speaker-support-review` to enable
+the bounded Phase A review path. Read-only support discovery is available for a segment or independent speaker
 turn under `/sessions/{sid}/segments/{id}/speaker-support` and
 `/sessions/{sid}/speaker-turns/{id}/speaker-support`. Safe immutable metadata and
 hash-checked full float-WAV audio are addressed by the returned session-scoped

@@ -5,7 +5,13 @@ used by an embedding. The extractor can concatenate predicted-clean fragments
 from a whole analyzer window, including context before/after a displayed line.
 Diarization can miss another voice. Byte integrity is not speaker purity.
 
-This additive phase retains exact support for review. It does **not** enable
+This additive phase can retain exact support for review when explicitly enabled.
+Capture is **off by default**. Start the service with `--speaker-support-review`
+or set `Settings(speaker_support_enabled=True)` to opt in. Default mode skips
+review-specific source hashing, provenance hashing and PCM artifact copying;
+the pre-existing lightweight pooled-support metadata is unchanged.
+
+This phase does **not** enable
 identity learning, verified anchors, promotion, human certification, or automatic
 template updates. Existing matching, enrollment, examples, rename, merge and
 assignment semantics remain legacy behavior. In particular, the existing
@@ -37,7 +43,10 @@ path, device, inode, size, mtime and ctime; unchanged files are not rehashed eve
 window. Cold sources require one extra sequential file read. Source signatures
 are checked after hashing and decoding. This detects local file changes; it is
 not an attestation against a malicious filesystem. Decoder executable hashes
-bind the executable, not every system shared library. The retained exact PCM,
+bind the executable, not every system shared library. Each immutable manifest retains bounded frontend runtime/configuration and
+selection objects with recomputable canonical hashes, plus actual diarization
+model/runtime settings and, for native diarization, epoch/replay scope.
+The retained exact PCM,
 not an assumption of deterministic later decoding, is the review truth.
 
 The analyzer hashes the actual float32 input. The worker independently converts
@@ -58,7 +67,8 @@ TLS/access controls. Session IDs and identity groups are not tenant boundaries.
 - `GET /sessions/{sid}/speaker-support/{support_id}`
 - `GET /sessions/{sid}/speaker-support/{support_id}/audio`
 
-A result-scoped request returns the immutable support ID, generation, safe
+Disabled capture is reported explicitly as `capture_not_enabled` for new
+results; enabling it later does not backfill old audio. A result-scoped request returns the immutable support ID, generation, safe
 manifest, explicit availability/reason and complete-support status, or a clear
 unavailable reason for legacy/non-retained evidence. A support-ID request is
 scoped to the owning live session. Metadata and audio use `Cache-Control:
@@ -73,19 +83,25 @@ Clients must disclose that review includes **all** pooled fragments and context,
 not just one corrected transcript line. On every audio request, length, encoding,
 manifest integrity and full PCM SHA256 are checked before producing any body.
 The response is a lossless mono 16 kHz IEEE float WAV. Re-decoding a deleted or
-changed source never substitutes different bytes under an old support ID.
+changed source never substitutes different bytes under an old support ID. If a
+source file changes after capture, the original hash-bound retained PCM remains
+reviewable; deleting a contributing chunk through the service revokes it.
 
 ## Private persistence, quotas and lifecycle
 
 Exact PCM artifacts are private SQLite BLOBs, committed atomically with their
 support manifest and result references. Support has an independent lifetime from
 the legacy observation ring; evicting an observation does not erase its support.
-There are no separate filesystem artifacts to orphan after a crash. A database
+The original embedding vector may disappear with observation eviction;
+`embedding_sha256` is a fingerprint, not a retained vector. Future anchor work
+must separately retain an authorized vector or create versioned re-embedding
+evidence with actual model/frontend provenance. There are no separate filesystem
+artifacts to orphan after a crash. A database
 trigger prevents mutation under an existing support ID.
 
-Settings (Python `Settings`, no new CLI flags):
+The CLI opt-in is `--speaker-support-review`. Quotas use Python `Settings`:
 
-| Setting | Default | Hard upper bound |
+| Setting | Recommended opt-in default | Hard upper bound |
 | --- | ---: | ---: |
 | `speaker_support_max_records` | 4096 | 8192 |
 | `speaker_support_max_pcm_bytes` | 1,280,000 (20 seconds) | 1,280,000 |

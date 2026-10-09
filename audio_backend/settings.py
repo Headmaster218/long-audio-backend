@@ -66,6 +66,7 @@ class Settings:
     max_speaker_examples_per_person: int = 8
     max_speaker_templates_total: int = 4096
     max_speaker_observations_total: int = 8192
+    speaker_support_enabled: bool = False
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
     speaker_support_total_pcm_bytes: int = 64 * 1024**2
@@ -93,6 +94,7 @@ class Settings:
             raise ValueError('Memory budget must be 256 MiB to 10 GiB; use 6 GiB on this host')
         for name in ('max_upload_bytes','max_pending_chunks','max_sessions','max_speakers_per_session','max_speaker_observations_per_group','max_matched_speaker_observations_per_group','max_speaker_examples_per_person','max_speaker_templates_total','max_speaker_observations_total'):
             if not isinstance(getattr(self,name),int) or getattr(self,name)<=0: raise ValueError(f'{name} must be a positive integer')
+        if not isinstance(self.speaker_support_enabled,bool):raise ValueError('speaker_support_enabled must be boolean')
         for name, cap in (('speaker_support_max_records',8192), ('speaker_support_max_pcm_bytes',1280000),
                           ('speaker_support_total_pcm_bytes',256*1024**2), ('speaker_support_window_pcm_bytes',8*1024**2)):
             value=getattr(self,name)
@@ -149,7 +151,7 @@ class Settings:
             raise ValueError('Invalid speaker matching threshold')
 
     def inference_config(self):
-        config={'model_dir': str(self.model_dir), 'offline': self.offline,
+        config={'speaker_support_enabled':self.speaker_support_enabled,'model_dir': str(self.model_dir), 'offline': self.offline,
                 'data_dir':str(self.data_dir),'disk_reserve_bytes':self.disk_reserve_bytes,
                 'process_memory_limit_bytes':self.process_memory_limit_bytes,
                 'overlap_backend':self.overlap_backend,'overlap_python':self.overlap_python,

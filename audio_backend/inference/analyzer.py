@@ -66,6 +66,17 @@ class AudioAnalyzer:
         with self.paths['speaker'].open('rb') as model:
             for block in iter(lambda:model.read(1024*1024),b''):digest.update(block)
         self._speaker_sha256=digest.hexdigest()
+        self._support_diarization={}
+        if self.config.get('speaker_support_enabled',False) and self.config.get('diarization_backend','pyannote')=='pyannote':
+            try:
+                import importlib.metadata
+                with self.paths['segmentation'].open('rb') as model:
+                    model_hash=hashlib.file_digest(model,'sha256').hexdigest()
+                self._support_diarization={'diarization_model_sha256':model_hash,
+                    'diarization_runtime':'sherpa-onnx',
+                    'diarization_runtime_version':importlib.metadata.version('sherpa-onnx')}
+            except (OSError,ValueError,ImportError):
+                pass  # Missing optional review lineage cannot change ordinary inference.
 
     def _metadata_provenance(self):
         """Configured provenance only: safe to report without loading any model."""
@@ -128,6 +139,7 @@ class AudioAnalyzer:
             if not np.isfinite(samples).all():
                 raise ValueError('Non-finite audio samples')
             provenance = self._metadata_provenance()
+            provenance.update(getattr(self,'_support_diarization',{}))
             if float(np.max(np.abs(samples))) < float(self.config.get('event_silence_peak',1e-5)) and not (diarization and diarization.get('turns')):
                 return {'segments': [], 'speaker_turns': [], 'events': [{'start': 0., 'end': duration, 'label': 'silence', 'score': 1., 'method': 'peak-amplitude fast path'}],
                         'metadata': {**provenance, 'duration_seconds': duration,
@@ -265,8 +277,9 @@ class AudioAnalyzer:
         self._embedding_evidence = {}
         self._speaker_support_producer = None
         try:
-            from audio_backend.speaker_support import producer_provenance
-            self._speaker_support_producer = producer_provenance(a,turns,self._speaker_sha256,self.threads)
+            if self.config.get('speaker_support_enabled',False):
+                from audio_backend.speaker_support import producer_provenance
+                self._speaker_support_producer = producer_provenance(a,turns,self._speaker_sha256,self.threads)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, ImportError):
             pass  # Optional review evidence must not alter embedding/matching behavior.
         from audio_backend.speaker_evidence import clean_speaker_audio

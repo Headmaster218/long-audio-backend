@@ -237,7 +237,7 @@ class Worker:
                 end=native['end'];extract_start=native['extract_start'];extract_end=native['extract_end']
             with tempfile.TemporaryDirectory(prefix='window-',dir=self.settings.data_dir/'tmp') as tmp:
                 tmp=Path(tmp); wav=tmp/'audio.wav'
-                capture_support=self.settings.speaker_support_max_records>0
+                capture_support=self.settings.speaker_support_enabled and self.settings.speaker_support_max_records>0
                 expected_generation=speaker_support.capture_generation(self.store,chunk) if capture_support else None
                 lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support)
                 options=({'candidate_core_start':offset-extract_start,'candidate_core_end':end-extract_start,
@@ -276,8 +276,8 @@ class Worker:
                                    extract_end-extract_start)
                     end=extract_start+local
                 try:
-                    prepared=speaker_support.prepare_window(result,wav,lineage,expected_generation,
-                        core_start=offset-extract_start,analyzer_start=extract_start,settings=self.settings)
+                    prepared=(speaker_support.prepare_window(result,wav,lineage,expected_generation,
+                        core_start=offset-extract_start,analyzer_start=extract_start,settings=self.settings) if capture_support else {})
                 except (ValueError,TypeError,OSError,RuntimeError,ImportError):
                     prepared={}
                 result=own_core(result,offset-extract_start,end-extract_start,previous,extract_start)

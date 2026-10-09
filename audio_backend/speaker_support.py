@@ -9,6 +9,7 @@ import hashlib
 import importlib.metadata
 import json
 import math
+import re
 from pathlib import Path
 import struct
 import uuid
@@ -70,6 +71,71 @@ def producer_provenance(samples, turns, model_sha256, threads):
     return {'frontend': frontend, 'frontend_sha256': digest(canonical(frontend)),
             'selection': selection, 'selection_sha256': digest(canonical(selection)),
             'analyzer_input_pcm_sha256': digest(np.ascontiguousarray(samples, dtype='<f4').tobytes())}
+
+
+def provenance_details(producer, metadata):
+    """Strict safe, self-describing historical runtime/selection snapshots."""
+    frontend_keys=('schema_version','input_contract','analyzer_sha256','runtimes','provider','threads','normalization','model_sha256')
+    selection_keys=('schema_version','implementation_sha256','turns_sha256','policy')
+    frontend={key:producer['frontend'][key] for key in frontend_keys}
+    selection={key:producer['selection'][key] for key in selection_keys}
+    runtime=frontend['runtimes']
+    def token(value,maximum=100):
+        return isinstance(value,str) and 0<len(value)<=maximum and re.fullmatch(r'[A-Za-z0-9_.+ -]+',value) is not None
+    if (frontend['schema_version']!=1 or frontend['provider']!='cpu'
+            or not integer(frontend['threads'],1,4) or not isinstance(runtime,dict)
+            or set(runtime)!={'numpy','soundfile','sherpa-onnx'} or any(not token(v) for v in runtime.values())
+            or frontend['normalization']!='extractor float32 vector / numpy.linalg.norm; cosine L2'
+            or selection['schema_version']!=1
+            or selection['policy']!='other-speaker overlap subtraction; inward rounding; first 20 seconds'
+            or digest(canonical(frontend))!=producer['frontend_sha256']
+            or digest(canonical(selection))!=producer['selection_sha256']):
+        raise ValueError('Unsupported frontend or selection provenance')
+    backend=metadata.get('diarization_backend')
+    model=metadata.get('diarization_model_sha256')
+    if backend not in ('pyannote','nemotron3-native') or not is_hash(model):
+        raise ValueError('Missing actual diarization model provenance')
+    diarization={'backend':backend,'model_sha256':model}
+    for key in ('diarization_runtime','diarization_runtime_version'):
+        value=metadata.get(key)
+        if not token(value):raise ValueError('Missing diarization runtime provenance')
+        diarization[key.removeprefix('diarization_')]=value
+    if backend=='pyannote':
+        config=metadata.get('effective_config',{})
+        threshold=config.get('diarization_threshold')
+        threads=config.get('cpu_threads')
+        if not finite(threshold) or not 0<=threshold<=1 or not integer(threads,1,4):
+            raise ValueError('Missing diarization frontend configuration')
+        diarization['config']={'clustering_threshold':threshold,'threads':threads,'provider':'cpu',
+                               'min_duration_on':.3,'min_duration_off':.3}
+    else:
+        for key in ('diarization_library_sha256','diarization_fingerprint'):
+            value=metadata.get(key)
+            if not is_hash(value):raise ValueError('Missing native runtime fingerprint')
+            diarization[key.removeprefix('diarization_')]=value
+        files=metadata.get('diarization_runtime_files_sha256')
+        if not isinstance(files,dict) or len(files)>128 or any(not token(k,160) or not is_hash(v) for k,v in files.items()):
+            raise ValueError('Invalid native runtime inventory')
+        diarization['runtime_files_sha256']=dict(files)
+        for key,allowed in (
+                ('diarization_geometry',('spkcache','fifo','chunk','update_period','left_context','right_context','frame_seconds')),
+                ('diarization_postprocessing',('onset','offset','pad_onset','pad_offset','min_duration_on','min_duration_off'))):
+            raw=metadata.get(key,{})
+            if not isinstance(raw,dict) or any(not finite(raw.get(k)) for k in allowed):
+                raise ValueError('Missing native geometry/postprocessing')
+            diarization[key.removeprefix('diarization_')]={k:raw[k] for k in allowed}
+        state=metadata.get('native_diarization',{})
+        if (not isinstance(state,dict) or not isinstance(state.get('epoch_id'),str)
+                or not re.fullmatch('[a-f0-9]{32}',state['epoch_id'])
+                or not integer(state.get('epoch_index'),0,10**12) or not isinstance(state.get('finished'),bool)):
+            raise ValueError('Missing native epoch scope')
+        epoch={k:state[k] for k in ('epoch_id','epoch_index','finished')}
+        for key in ('owned_start','owned_end','replay_start','input_until','processed_until','stable_until'):
+            if not finite(state.get(key)):raise ValueError('Invalid native epoch coordinates')
+            epoch[key]=state[key]
+        diarization['epoch']=epoch
+    if len(canonical(diarization))>32768:raise ValueError('Oversized diarization provenance')
+    return frontend,selection,diarization
 
 
 class SourceFingerprints:
@@ -231,6 +297,7 @@ def prepare_window(result, wav, lineage, expected_generation, *, core_start, ana
             if not is_hash(frontend.get('analyzer_sha256')) or not is_hash(selection.get('implementation_sha256')) or not is_hash(selection.get('turns_sha256')):
                 value['status'] = 'missing_frontend'
                 continue
+            frontend,selection,diarization=provenance_details(producer,metadata)
             turns=metadata.get('diarization_turns')
             if not isinstance(turns,list) or digest(canonical(turns))!=selection['turns_sha256']:
                 value['status']='selection_mismatch'
@@ -274,6 +341,8 @@ def prepare_window(result, wav, lineage, expected_generation, *, core_start, ana
                 'encoder': {'model_sha256': model, 'version': version, 'dimension': dimension,
                             'metric': 'cosine_l2_normalized'},
                 'embedding_sha256':digest(canonical(embeddings[0])),
+                'frontend':frontend,'selection':selection,'diarization':diarization,
+                'diarization_sha256':digest(canonical(diarization)),
                 'frontend_sha256': producer['frontend_sha256'],
                 'selection_sha256': producer['selection_sha256'],
                 'selection_implementation_sha256': selection['implementation_sha256'],
@@ -300,19 +369,97 @@ def prepare_window(result, wav, lineage, expected_generation, *, core_start, ana
     return prepared
 
 
+def validate_manifest(manifest):
+    """Fail closed at persistence AND read boundaries, including private extras."""
+    expected={'schema_version','support','encoder','embedding_sha256','frontend','selection','diarization',
+        'diarization_sha256','frontend_sha256','selection_sha256','selection_implementation_sha256',
+        'diarization_turns_sha256','decoder_sha256','decoder_contract_sha256','float_conversion_sha256',
+        'analyzer_input_pcm_sha256','source_parts','source_frame_semantics'}
+    if not isinstance(manifest,dict) or set(manifest)!=expected or manifest['schema_version']!=1:
+        raise ValueError('Invalid support manifest schema')
+    if len(canonical(manifest))>MAX_MANIFEST_BYTES:raise ValueError('Manifest size limit')
+    hashes=expected-{'schema_version','support','encoder','frontend','selection','diarization','source_parts','source_frame_semantics'}
+    if any(not is_hash(manifest[key]) for key in hashes):raise ValueError('Invalid manifest fingerprint')
+    selected=manifest['support']
+    if not isinstance(selected,dict) or set(selected)!={'schema_version','time_axis','sample_rate','analyzer_frame_count',
+            'intervals_samples','interval_count','complete','pooled_sample_count','pooled_pcm_sha256','hash_encoding',
+            'purity_status','human_verified','coordinate_projection'}:
+        raise ValueError('Invalid selected support schema')
+    projection=selected['coordinate_projection']
+    projected=project_review_support(selected,core_start_seconds=projection['core_start_in_analyzer_seconds'],
+                                    analyzer_chunk_start_seconds=projection['analyzer_start_in_chunk_seconds'])
+    if (canonical(projected)!=canonical(selected) or selected['complete'] is not True or selected['sample_rate']!=RATE
+            or not integer(selected['pooled_sample_count'],1,MAX_PCM_BYTES//4)
+            or not integer(selected['analyzer_frame_count'],1,MAX_FRAMES)):
+        raise ValueError('Incomplete or inconsistent selected support')
+    encoder=manifest['encoder']
+    if (not isinstance(encoder,dict) or set(encoder)!={'model_sha256','version','dimension','metric'}
+            or not is_hash(encoder['model_sha256']) or not integer(encoder['dimension'],8,2048)
+            or not isinstance(encoder['version'],str) or not 1<=len(encoder['version'])<=200
+            or not re.fullmatch(r'[A-Za-z0-9_.+ -]+',encoder['version']) or encoder['metric']!='cosine_l2_normalized'):
+        raise ValueError('Invalid encoder binding')
+    diar=manifest['diarization']
+    metadata={f'diarization_{key}':value for key,value in diar.items() if key not in ('config','epoch')}
+    if 'config' in diar:
+        config=diar['config']
+        metadata['effective_config']={'diarization_threshold':config['clustering_threshold'],'cpu_threads':config['threads']}
+    if 'epoch' in diar:metadata['native_diarization']=diar['epoch']
+    producer={key:manifest[key] for key in ('frontend','selection','frontend_sha256','selection_sha256')}
+    frontend,selection,diarization=provenance_details(producer,metadata)
+    if (canonical(diarization)!=canonical(diar) or digest(canonical(diar))!=manifest['diarization_sha256']
+            or frontend['model_sha256']!=encoder['model_sha256']
+            or selection['implementation_sha256']!=manifest['selection_implementation_sha256']
+            or selection['turns_sha256']!=manifest['diarization_turns_sha256']
+            or manifest['decoder_contract_sha256']!=digest(DECODE_CONTRACT.encode())
+            or manifest['float_conversion_sha256']!=digest(FLOAT_CONTRACT.encode())
+            or frontend['input_contract']!=FLOAT_CONTRACT):
+        raise ValueError('Inconsistent manifest provenance')
+    parts=manifest['source_parts'];cursor=0
+    if not isinstance(parts,list) or not 1<=len(parts)<=MAX_PARTS:raise ValueError('Source part limit')
+    for part in parts:
+        if not isinstance(part,dict) or set(part)!={'chunk_id','source_sha256','seek_seconds','requested_seconds','analyzer_frames','selected_decoded_frames'}:
+            raise ValueError('Invalid source part schema')
+        interval=part['analyzer_frames']
+        if (not isinstance(interval,list) or len(interval)!=2 or not integer(interval[0],cursor,cursor)
+                or not integer(interval[1],cursor,selected['analyzer_frame_count'])
+                or not isinstance(part['chunk_id'],str) or not re.fullmatch('[a-f0-9]{32}',part['chunk_id'])
+                or not is_hash(part['source_sha256']) or not finite(part['seek_seconds']) or part['seek_seconds']<0
+                or not finite(part['requested_seconds']) or not 0<part['requested_seconds']<=60.01):
+            raise ValueError('Invalid source frame lineage')
+        expected_selected=[]
+        for lo,hi in selected['intervals_samples']:
+            a,b=max(lo,interval[0]),min(hi,interval[1])
+            if a<b:expected_selected.append([a-interval[0],b-interval[0]])
+        if part['selected_decoded_frames']!=expected_selected:raise ValueError('Incorrect source selection')
+        cursor=interval[1]
+    if cursor!=selected['analyzer_frame_count']:raise ValueError('Incomplete source frames')
+    if manifest['source_frame_semantics']!='actual per-part decoded output frames; seeks are source-time requests, not original encoded-file sample alignment':
+        raise ValueError('Invalid source frame semantics')
+
+
+def finite_pcm(pcm):
+    # The exponent bits reject NaN/Inf without importing an inference dependency.
+    return isinstance(pcm,bytes) and len(pcm)%4==0 and all(
+        bits & 0x7f800000 != 0x7f800000 for (bits,) in struct.iter_unpack('<I',pcm))
+
+
 def commit_support(store, db, chunk, offset, group, local_id, observation_id, prepared):
     """Independent lifetime from the legacy observation cache; no auto-eviction."""
+    if not store.settings.speaker_support_enabled:
+        return None,'capture_not_enabled'
     if db.execute('SELECT COUNT(*) FROM speaker_support').fetchone()[0] >= store.settings.speaker_support_max_records:
         return None, 'support_row_quota'
     value = prepared if isinstance(prepared, dict) else {}
     current_generation = generation(db, group)
     status = value.get('status', 'missing_lineage')
+    if not isinstance(status,str) or not re.fullmatch('[a-z_]{1,80}',status):status='invalid_support'
     manifest = value.get('manifest', {})
     pcm = value.get('pcm')
     if value.get('generation') != current_generation:
         status, manifest, pcm = 'missing_or_stale_generation', {}, None
     try:
         encoded = canonical(manifest)
+        if manifest:validate_manifest(manifest)
         if len(encoded) > MAX_MANIFEST_BYTES:
             raise ValueError('Manifest limit')
         if status == 'available':
@@ -323,7 +470,8 @@ def commit_support(store, db, chunk, offset, group, local_id, observation_id, pr
             if support['complete'] is not True or support['sample_rate']!=RATE:
                 raise ValueError('Incomplete or unsupported support')
             if (not isinstance(pcm, bytes) or not 0 < len(pcm) <= min(MAX_PCM_BYTES, store.settings.speaker_support_max_pcm_bytes)
-                    or len(pcm) != support['pooled_sample_count'] * 4 or digest(pcm) != support['pooled_pcm_sha256']):
+                    or len(pcm) != support['pooled_sample_count'] * 4 or digest(pcm) != support['pooled_pcm_sha256']
+                    or not finite_pcm(pcm)):
                 raise ValueError('Invalid PCM artifact')
             for part in manifest['source_parts']:
                 source = db.execute('SELECT session_id,digest FROM chunks WHERE id=?', (part['chunk_id'],)).fetchone()
@@ -342,7 +490,7 @@ def commit_support(store, db, chunk, offset, group, local_id, observation_id, pr
                     status, pcm = 'resource_unavailable', None
         else:
             pcm = None
-    except (ValueError, TypeError, KeyError, OverflowError):
+    except (ValueError, TypeError, KeyError, OverflowError, AttributeError):
         status, manifest, pcm = 'invalid_support', {}, None
         encoded = canonical(manifest)
     support_id = uuid.uuid4().hex
@@ -387,8 +535,11 @@ def metadata(store, sid, support_id=None, *, segment_id=None, turn_id=None):
                 return unavailable('support_revoked_or_removed',support_id)
             raise
         manifest = json.loads(row['manifest'])
-        if digest(canonical(manifest)) != row['manifest_sha256']:
-            return unavailable('manifest_integrity_mismatch', support_id)
+        try:
+            if manifest:validate_manifest(manifest)
+            if digest(canonical(manifest)) != row['manifest_sha256']:raise ValueError('Manifest integrity')
+        except (ValueError,TypeError,KeyError,AttributeError):
+            return unavailable('manifest_integrity_mismatch',support_id)
         result = unavailable(row['status'], support_id)
         result.update(identity_generation=row['generation'], manifest_sha256=row['manifest_sha256'],
                       window_start=row['window_start'], local_speaker_id=row['local_speaker_id'],
@@ -420,12 +571,17 @@ def audio(store, sid, support_id):
             raise ValueError('Exact full acoustic support is unavailable')
         full = _row(db, sid, support_id, with_pcm=True)
         manifest = json.loads(row['manifest'])
+        try:
+            validate_manifest(manifest)
+        except (ValueError,TypeError,KeyError,AttributeError) as exc:
+            raise ValueError('Exact acoustic support integrity check failed') from exc
         support = manifest.get('support', {})
         pcm = full['pcm']
         if (digest(canonical(manifest)) != row['manifest_sha256'] or not isinstance(pcm, bytes)
                 or len(pcm) != row['pcm_bytes'] or len(pcm) != support.get('pooled_sample_count', -1) * 4
                 or support.get('sample_rate') != RATE or support.get('complete') is not True
-                or support.get('hash_encoding') != POOLED_HASH_ENCODING or digest(pcm) != support.get('pooled_pcm_sha256')):
+                or support.get('hash_encoding') != POOLED_HASH_ENCODING or digest(pcm) != support.get('pooled_pcm_sha256')
+                or not finite_pcm(pcm)):
             raise ValueError('Exact acoustic support integrity check failed')
     # IEEE float WAVE (format 3) preserves every f32 bit. No PCM16 requantization.
     fmt = struct.pack('<HHIIHH', 3, 1, RATE, RATE * 4, 4, 32)
