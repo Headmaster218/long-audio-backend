@@ -158,7 +158,7 @@ class Manifest:
         required = [str(Path(sys.executable).resolve()), self._config['native_diarization_model'],
                     self._config['native_diarization_library']]
         required += [str(Path(__file__).resolve().parent/name) for name in (
-            'fragment_cpu_provider.py','fragment_cpu_meter.py','fragment_model_bridges.py',
+            'fragment_cpu_provider.py','fragment_cpu_meter.py','fragment_model_bridges.py','fragment_asr_coverage.py',
             'fragment_http.py','fragment_runtime.py','fragment_runtime_store.py',
             'fragment_runtime_contracts.py','fragment_core.py','app.py','worker.py')]
         required += [str(model / name) for name in ('sensevoice/model.int8.onnx', 'sensevoice/tokens.txt',
@@ -1007,13 +1007,14 @@ class CPUFactory:
                    (sid, self.manifest.hash, plan.sha256, canonical(limits), canonical(used)))
 
     def __call__(self, context):
-        from .fragment_model_bridges import AnalyzerBridge, NativeBridge, NativeFactory
+        from .fragment_model_bridges import NativeBridge, NativeFactory
+        from .fragment_asr_coverage import CoverageAnalyzerBridge
         from .native_worker import NativeProcess
         from .resources import AnalyzerProcess
         context.ownership['no_process_started'] = True
         self.manifest.verify(full=True)
         owner = Owner(context, self.manifest)
-        class Bridge(AnalyzerBridge):
+        class Bridge(CoverageAnalyzerBridge):
             def bind_context(self, *args):
                 from .fragment_runtime_contracts import window_id
                 owner.window = window_id(args[0].run_id, args[1], args[0].policy)

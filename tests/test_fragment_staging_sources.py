@@ -149,8 +149,8 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 254
-    assert policy['maximum_total_bytes'] == 2_750_000
+    assert policy['maximum_files'] == 257
+    assert policy['maximum_total_bytes'] == 2_800_000
     assert guard.MAX_BYTES == 250_000
 
 
@@ -223,7 +223,8 @@ BUILDER_PATHS = {'audio_backend/fragment_cpu_provider.py',
 
 def verify_local_builder_followup(layers, worktree_bytes, index_bytes):
     followups = layers['local_followups']
-    assert len(followups) == 1
+    assert len(followups) == 2
+    verify_coverage_followup(layers, worktree_bytes, index_bytes)
     followup = followups[0]
     assert set(followup) == {'component', 'reviewed_base_commit', 'files'}
     assert followup['component'] == 'offline-cpu-manifest-builder'
@@ -232,8 +233,15 @@ def verify_local_builder_followup(layers, worktree_bytes, index_bytes):
     assert len(rows) == len(BUILDER_PATHS) and {row['path'] for row in rows} == BUILDER_PATHS
     for row in rows:
         path = row['path']
-        data = worktree_bytes(path)
-        assert data == index_bytes(path), 'Worktree/index source differs'
+        if path in COVERAGE_PATHS:
+            # Verify the actual immutable intermediate blob. Later layers must
+            # explicitly supersede it; never rewrite a historical builder pin.
+            assert row['source_blob'] == subprocess.check_output(
+                ['git', 'rev-parse', COVERAGE_BASE + ':' + path], cwd=ROOT).decode().strip()
+            data = subprocess.check_output(['git', 'cat-file', 'blob', row['source_blob']], cwd=ROOT)
+        else:
+            data = worktree_bytes(path)
+            assert data == index_bytes(path), 'Worktree/index source differs'
         assert len(data) == row['bytes'] and hashlib.sha256(data).hexdigest() == row['sha256']
         blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
         assert row['source_blob'] == blob
@@ -281,3 +289,59 @@ def test_local_builder_followup_preserves_every_historical_layer():
     _, current = import_records()
     current.pop('local_followups')
     assert current == historical
+
+
+COVERAGE_BASE = '4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb'
+COVERAGE_PATHS = {'audio_backend/fragment_asr_coverage.py', 'audio_backend/fragment_cpu_meter.py',
+                  'audio_backend/fragment_cpu_provider.py', 'tests/test_fragment_asr_coverage.py',
+                  'tests/test_fragment_cpu_provider.py', 'docs/ASR_INPUT_COVERAGE.md'}
+
+
+def verify_coverage_followup(layers, worktree_bytes, index_bytes):
+    layer = layers['local_followups'][1]
+    assert set(layer) == {'component', 'reviewed_base_commit', 'files'}
+    assert layer['component'] == 'asr-input-coverage'
+    assert layer['reviewed_base_commit'] == COVERAGE_BASE
+    assert len(layer['files']) == len(COVERAGE_PATHS)
+    assert {row['path'] for row in layer['files']} == COVERAGE_PATHS
+    for row in layer['files']:
+        data = worktree_bytes(row['path'])
+        assert data == index_bytes(row['path']), 'Worktree/index source differs'
+        assert len(data) == row['bytes'] and hashlib.sha256(data).hexdigest() == row['sha256']
+        blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+        assert row['source_blob'] == blob
+        assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+        key = COVERAGE_BASE + ':' + row['path']
+        before = subprocess.run(['git', 'cat-file', '-e', key], cwd=ROOT, capture_output=True)
+        if before.returncode:
+            assert row['base_absent'] is True
+            assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'base_absent'}
+        else:
+            previous = subprocess.check_output(['git', 'show', key], cwd=ROOT)
+            previous_blob = subprocess.check_output(['git', 'rev-parse', key], cwd=ROOT).decode().strip()
+            assert row['supersedes'] == {'source_blob': previous_blob, 'sha256': hashlib.sha256(previous).hexdigest()}
+            assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'supersedes'}
+            assert data != previous
+
+
+def test_coverage_preserves_all_prior_provenance():
+    historical = json.loads(subprocess.check_output(['git', 'show', COVERAGE_BASE + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
+    _, current = import_records()
+    assert current['local_followups'][:-1] == historical['local_followups']
+    current['local_followups'].pop()
+    assert current == historical
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'base', 'blob', 'supersedes', 'worktree', 'index'])
+def test_coverage_provenance_rejects_stale_delta(mutation):
+    _, layers = import_records()
+    layer = layers['local_followups'][1]
+    if mutation == 'missing': layer['files'].pop()
+    elif mutation == 'base': layer['reviewed_base_commit'] = '0' * 40
+    elif mutation == 'blob': layer['files'][0]['source_blob'] = '0' * 40
+    elif mutation == 'supersedes':
+        next(row for row in layer['files'] if 'supersedes' in row)['supersedes']['sha256'] = '0' * 64
+    with pytest.raises(AssertionError):
+        verify_coverage_followup(layers,
+            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))

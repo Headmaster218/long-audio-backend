@@ -124,6 +124,15 @@ class MeteredEngine:
         self.budget.update(ticket, execution_started=True)
         try:
             result = getattr(self.raw, method)(stream.raw)
+            if self.kind == 'sensevoice':
+                # Read native tokens before analyzer filtering or punctuation
+                # projection. Presence is not evidence of speech or correctness.
+                tokens = stream.raw.result.tokens
+                if not isinstance(tokens, (list, tuple)) or len(tokens) > 4096:
+                    raise ValueError('Unbounded or invalid native ASR token inventory')
+                self.budget.update(ticket, execution_returned=True, output={
+                    'raw_token_count': len(tokens), 'has_text': bool(tokens),
+                    'semantics': 'Raw tokens nonempty only; not speech evidence'})
             if self.kind == 'embedding':
                 import numpy as np
                 vector = np.ascontiguousarray(result, dtype='<f4')

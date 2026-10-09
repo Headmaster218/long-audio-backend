@@ -218,6 +218,63 @@
           "base_absent": true
         }
       ]
+    },
+    {
+      "component": "asr-input-coverage",
+      "reviewed_base_commit": "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb",
+      "files": [
+        {
+          "path": "audio_backend/fragment_asr_coverage.py",
+          "bytes": 11673,
+          "sha256": "a4fe24de707b2f3fa7ace9ecbbedb2e5c1c62109d3d63bdc0fd69579abf7942f",
+          "source_blob": "541b9f08ecb28f41e1306038a4eb2b6bf8e98bdb",
+          "base_absent": true
+        },
+        {
+          "path": "audio_backend/fragment_cpu_meter.py",
+          "bytes": 19093,
+          "sha256": "8cc16a3fd80b61805559d2bc7ac63a7b9f2173d7d53cb61df930b4c76e0147d0",
+          "source_blob": "ad396d05d9f91c50cf5a20cd1d8c1805143f358b",
+          "supersedes": {
+            "source_blob": "93272c6930354987102254d3919ad8f4b735de55",
+            "sha256": "d07c95d708dde6d9328824dd80c45fcfd3ff5eade54525b711d0c121eabf69cb"
+          }
+        },
+        {
+          "path": "audio_backend/fragment_cpu_provider.py",
+          "bytes": 68656,
+          "sha256": "adc4984931292a70d9d1fcad3404005e7b2a6b678358722c24449305d7e867c3",
+          "source_blob": "efd7f6d14b4b5311b1cb61647af11e5f4d5b2a96",
+          "supersedes": {
+            "source_blob": "2dd09b945a6dbda2655ff5a1fb3ab95a517398d4",
+            "sha256": "a8470a1752b7e24429dfd4a1b578c9c4d26b6102eceafc744ef0f8803942ccf7"
+          }
+        },
+        {
+          "path": "docs/ASR_INPUT_COVERAGE.md",
+          "bytes": 4356,
+          "sha256": "33d714a439a84f72e548543cc15d2340dfe35d0bbaea81d1bedf9a7ecefd1181",
+          "source_blob": "c6882fedf1624ebfdce6cc0b6be14cdb2b49cdf2",
+          "base_absent": true
+        },
+        {
+          "path": "tests/test_fragment_asr_coverage.py",
+          "bytes": 20315,
+          "sha256": "52ebdb8b68f26a2fe1b5c8d1e8e72350ec365117d1a7c1b9a75d27672f905a69",
+          "source_blob": "c97891d1a7f84da51f91d81059d8870081ae1c2a",
+          "base_absent": true
+        },
+        {
+          "path": "tests/test_fragment_cpu_provider.py",
+          "bytes": 72098,
+          "sha256": "1f930b00767a3c073200b1b3f320990cc220922c0921edaafc23fd13566da1dd",
+          "source_blob": "3e0e7358bb48370038bedf3d53f432278e7ffa2c",
+          "supersedes": {
+            "source_blob": "c3f102d6a8687b4a849f97cb8cd60778c4f9dfdb",
+            "sha256": "55a21d0efbd8fa6989327f5a91e4503e122ca14526d3fe1cdf5585f4c43d0313"
+          }
+        }
+      ]
     }
   ]
 }

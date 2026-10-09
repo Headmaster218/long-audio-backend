@@ -310,10 +310,17 @@ class Analyzer:
    try:analyzer._transcribe_turns(np.ones(frames,dtype=np.float32),kwargs['diarization']['turns'])
    finally:assert seen and not any(Path(wav).exists() for wav in seen)
   duration=frames/16000
-  ticket=self.budget.reserve('sensevoice',1)
-  self.budget.update(ticket,execution_started=True,input={'sample_count':1,'pcm_sha256':'f'*64})
+  from audio_backend.fragment_cpu_meter import INPUT_ENCODING
+  # The transport fixture records one genuinely read PCM16 sample, converted
+  # to the same float32 encoding as the real meter. It is not a model result.
+  import struct
+  with wave.open(path) as source: sample=struct.unpack('<h',source.readframes(1))[0]/32768.
+  receipt={'sample_rate':16000,'sample_count':1,'pcm_sha256':hashlib.sha256(struct.pack('<f',sample)).hexdigest(),'encoding':INPUT_ENCODING}
+  ticket=self.budget.reserve('sensevoice',1,context={'read_frames':[0,1],'input':receipt})
+  self.budget.update(ticket,execution_started=True,input=receipt,selection={'read_frames':[0,1]})
   if os.getenv('CPU_TEST_BLOCK'): __import__('time').sleep(30)
   if os.getenv('CPU_TEST_FAIL'): raise ValueError('injected compute failure')
+  self.budget.update(ticket,execution_returned=True,output={'raw_token_count':3,'has_text':True})
   self.budget.complete(ticket)
   end=min(.1,duration/4)
   return {'segments':[{'speaker_local_id':kwargs['diarization']['turns'][0]['speaker_local_id'],
@@ -520,6 +527,12 @@ def test_http_real_wire_preserves_v2_overlap_and_scores(tmp_path):
         inventories=[v['projection_index'] for v in values if 'projection_index' in v]
         assert inventories and inventories[-1]['raw_text_reconstruction'][0]['text']=='got 25'
         assert inventories[-1]['nonlexical_units'][0]['raw_unit']['text']==' '
+        core=json.loads(db.execute('SELECT payload FROM fragment_core_commits WHERE run_id=?',(sid,)).fetchone()[0])
+        saved=next(v for v in values if digest(v)==core['evidence_ref']['sha256'])
+        coverage=saved['asr_input_coverage']
+        assert coverage['submitted_union']==coverage['successfully_decoded_union']==[[0,1]]
+        assert coverage['gaps']==[[1,RATE]]  # published token endpoints cannot fill unsupported input
+        assert coverage['inputs'][0]['has_text'] is True
         assert not db.execute("SELECT 1 FROM fragment_cpu_processes WHERE state!='reaped'").fetchone()
         assert not db.execute("SELECT 1 FROM fragment_cpu_leases WHERE state!='released'").fetchone()
         used=json.loads(db.execute('SELECT used FROM fragment_cpu_runs').fetchone()[0])
@@ -605,7 +618,8 @@ def test_constructor_failure_retains_and_reaps_handle(tmp_path, monkeypatch, fau
     finally:owner.close();owner.release()
 
 
-def test_pause_during_compute_fences_publication_and_keeps_debit(tmp_path,monkeypatch):
+@pytest.mark.parametrize('action',['pause','cancel'])
+def test_pause_or_cancel_during_compute_fences_publication_and_keeps_debit(tmp_path,monkeypatch,action):
     monkeypatch.setenv('CPU_TEST_BLOCK','1')
     app,client=app_pair(tmp_path);sid,receipt=upload(client)
     worker=threading.Thread(target=app.state.fragments.process_next)
@@ -613,16 +627,20 @@ def test_pause_during_compute_fences_publication_and_keeps_debit(tmp_path,monkey
     deadline=time.monotonic()+12
     while time.monotonic()<deadline:
         with app.state.store.db() as db:
-            if db.execute("SELECT 1 FROM fragment_cpu_tickets WHERE kind='sensevoice'").fetchone():break
+            if db.execute("SELECT 1 FROM fragment_cpu_tickets WHERE kind='sensevoice' AND json_extract(payload,'$.execution_started')=1").fetchone():break
         time.sleep(.02)
     else:pytest.fail('stub never reached durable compute reservation')
-    app.state.fragments.control(receipt['id'],'pause')
+    app.state.fragments.control(receipt['id'],action)
     worker.join(5)
     assert not worker.is_alive()
     with app.state.store.db() as db:
         assert db.execute('SELECT COUNT(*) FROM segments').fetchone()[0]==0
         assert json.loads(db.execute('SELECT used FROM fragment_cpu_runs').fetchone()[0])['sensevoice']['calls']==1
-        assert db.execute('SELECT state FROM fragment_http_sessions').fetchone()[0]=='paused'
+        assert db.execute('SELECT state FROM fragment_http_sessions').fetchone()[0]==('paused' if action=='pause' else 'cancelled')
+        assert not db.execute('SELECT 1 FROM fragment_core_commits').fetchone()
+        ticket=json.loads(db.execute("SELECT payload FROM fragment_cpu_tickets WHERE kind='sensevoice'").fetchone()[0])
+        assert ticket['execution_started'] and ticket['status']=='reserved' and not ticket.get('execution_returned')
+    if action=='cancel':return
     monkeypatch.delenv('CPU_TEST_BLOCK')
     app.state.fragments.control(receipt['id'],'resume')
     assert app.state.fragments.process_next()
