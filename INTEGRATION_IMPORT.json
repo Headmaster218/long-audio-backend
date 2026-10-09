@@ -18,5 +18,6 @@
       "bytes": 2236,
       "sha256": "0ddaeb55bd8d1d885850a69e2b15aa8554abd824c62903d9b8a455834150ff7b"
     }
-  ]
+  ],
+  "verified_against_later_local_source_commit": "dafc9e4c8940ebcfbb7a51c0d0a0e6d285f4ec97"
 }
