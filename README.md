@@ -58,6 +58,10 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 [API 契约](docs/API.md) · [队列和独立候选记录](docs/QUEUING_AND_CANDIDATE_LEDGERS.md) · [边界拼接](docs/BOUNDARY_ASSEMBLY.md)
 
+## 实际 ASR 输入覆盖账本（实验 CPU 路径）
+
+显式启用 finalized PCM16 CPU 路径后，私有 evidence 记录每次 ASR 实际输入的整数帧范围、started 与 completed 回执，以及当前 core 内成功完成输入的覆盖并集和补集。详见 [ASR 输入覆盖语义](docs/ASR_INPUT_COVERAGE.md)。此账本只揭示漏送、失败或完成状态不明的范围，不修复识别准确率，也不会自动补词。未送入 ASR 不等于静音；完成回执也不证明文字正确。它不新增公共 API 字段或改变 canonical/fragment 身份隔离。升级后需重建显式 CPU manifest，以固定新增模块与实际 provider/meter 代码。
+
 ## 质量边界
 
 - `eres2net-ami20-v1` 是可运行的可选策略，不是通用准确率保证。绑定精确 ERes 模型哈希/版本与 512 维输出；候选接近、短/混杂语音等不确定证据会弃判。普通自动匹配不更新声纹参考。原始跨日期/远场和强烈表演风格仍有失败，普通感冒未验证。见[声纹策略与证据](docs/SPEAKER_REGISTRY.md)。

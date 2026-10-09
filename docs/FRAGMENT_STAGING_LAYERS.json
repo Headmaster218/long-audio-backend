@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target_version": "0.2.0rc2.dev6",
+  "target_version": "0.2.0rc2.dev7",
   "baseline_version": "0.2.0rc2.dev4",
   "baseline_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
   "base_manifest_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
@@ -218,6 +218,63 @@
           "base_absent": true
         }
       ]
+    },
+    {
+      "component": "asr-input-coverage",
+      "reviewed_base_commit": "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb",
+      "files": [
+        {
+          "path": "audio_backend/fragment_asr_coverage.py",
+          "bytes": 11673,
+          "sha256": "a4fe24de707b2f3fa7ace9ecbbedb2e5c1c62109d3d63bdc0fd69579abf7942f",
+          "source_blob": "541b9f08ecb28f41e1306038a4eb2b6bf8e98bdb",
+          "base_absent": true
+        },
+        {
+          "path": "audio_backend/fragment_cpu_meter.py",
+          "bytes": 19093,
+          "sha256": "8cc16a3fd80b61805559d2bc7ac63a7b9f2173d7d53cb61df930b4c76e0147d0",
+          "source_blob": "ad396d05d9f91c50cf5a20cd1d8c1805143f358b",
+          "supersedes": {
+            "source_blob": "93272c6930354987102254d3919ad8f4b735de55",
+            "sha256": "d07c95d708dde6d9328824dd80c45fcfd3ff5eade54525b711d0c121eabf69cb"
+          }
+        },
+        {
+          "path": "audio_backend/fragment_cpu_provider.py",
+          "bytes": 68656,
+          "sha256": "adc4984931292a70d9d1fcad3404005e7b2a6b678358722c24449305d7e867c3",
+          "source_blob": "efd7f6d14b4b5311b1cb61647af11e5f4d5b2a96",
+          "supersedes": {
+            "source_blob": "2dd09b945a6dbda2655ff5a1fb3ab95a517398d4",
+            "sha256": "a8470a1752b7e24429dfd4a1b578c9c4d26b6102eceafc744ef0f8803942ccf7"
+          }
+        },
+        {
+          "path": "docs/ASR_INPUT_COVERAGE.md",
+          "bytes": 4356,
+          "sha256": "33d714a439a84f72e548543cc15d2340dfe35d0bbaea81d1bedf9a7ecefd1181",
+          "source_blob": "c6882fedf1624ebfdce6cc0b6be14cdb2b49cdf2",
+          "base_absent": true
+        },
+        {
+          "path": "tests/test_fragment_asr_coverage.py",
+          "bytes": 20315,
+          "sha256": "52ebdb8b68f26a2fe1b5c8d1e8e72350ec365117d1a7c1b9a75d27672f905a69",
+          "source_blob": "c97891d1a7f84da51f91d81059d8870081ae1c2a",
+          "base_absent": true
+        },
+        {
+          "path": "tests/test_fragment_cpu_provider.py",
+          "bytes": 72098,
+          "sha256": "1f930b00767a3c073200b1b3f320990cc220922c0921edaafc23fd13566da1dd",
+          "source_blob": "3e0e7358bb48370038bedf3d53f432278e7ffa2c",
+          "supersedes": {
+            "source_blob": "c3f102d6a8687b4a849f97cb8cd60778c4f9dfdb",
+            "sha256": "55a21d0efbd8fa6989327f5a91e4503e122ca14526d3fe1cdf5585f4c43d0313"
+          }
+        }
+      ]
     }
   ],
   "composition": {
@@ -416,6 +473,172 @@
         "sha256": "8754fbef48f40f4f96a8dd40222a7345c46617e877819dc61f007a430586ae91",
         "source_blob": "a0d1d333821849b16da822e17259fac6d886db17",
         "source_commit": "429de02166fd18e77088489763abc233b33426f0"
+      }
+    ]
+  },
+  "coverage_composition": {
+    "schema": "reviewed-branch-composition-v1",
+    "parents": [
+      "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff",
+      "9b44a401143ed339ff2e21e3063201e5d044d232"
+    ],
+    "merge_base": "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb",
+    "composed": [
+      {
+        "path": "README.md",
+        "bytes": 12516,
+        "sha256": "3f909d87f6d989d395233caa9e6d76c612a1b42b2b172242a8783906f40c127d",
+        "source_blob": "509e6f085c9f3fadbaa4c62575d34ffa218fd3d3",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "a22eff4ef05a8ce51e3a67c3c7f7ea4fbd84fb47",
+            "sha256": "6d744ecb4e53829669ee4677a48cdd6847f04141090bbd61c79fffd3bd9c4c3b"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "a22eff4ef05a8ce51e3a67c3c7f7ea4fbd84fb47",
+            "sha256": "6d744ecb4e53829669ee4677a48cdd6847f04141090bbd61c79fffd3bd9c4c3b"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/__init__.py",
+        "bytes": 107,
+        "sha256": "19c39b4cf7f2b3fa281cbea62fbd2f4d0b002f37d4cf4c98f6c36f0c9d29d302",
+        "source_blob": "83f8e00387e1e099b18de25c98654a792b649ff4",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "b4612104e643805931f29c7ee11e440217ef96f3",
+            "sha256": "1585730fff05e3f875cc64310bdec4758dde21dcbeec5f74af69c18c8fba5cb5"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "9d4208dcfda9d0dc49db6131b9fff13c0d52d10f",
+            "sha256": "325030a22ea68db8af48e1bde0b7e689e70adb7397e34fdfdfe4654f87638561"
+          }
+        }
+      },
+      {
+        "path": "docs/API.md",
+        "bytes": 33696,
+        "sha256": "0a26e118858477a164a293b2343682416486f0b3d72f48f5d5dfc9e4f08827ef",
+        "source_blob": "9daedfca764d4b7299314a958538b50d1077f795",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "85f632f8076a0b932491676f168e8a8762f1b9ed",
+            "sha256": "31b4dff691e767206ff8280d350cfa43b331bea315ae0613edadd1112f820d8e"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "9a0d05671483b604e7e70bb20c141333996cdb54",
+            "sha256": "70c8c1b530a6dc09c0b1cfa9b8bbfa8155d6151690a802b999559fc3dd40dfa0"
+          }
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_EXTENSIONS_STAGING.md",
+        "bytes": 9148,
+        "sha256": "c6622f0b5ab4981f920b3218504550d0a71d6809bdf590c876a63e7b3afdd19f",
+        "source_blob": "c389356fa4db770d44e49edf4ea3d5e9ba9a2138",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "e0cbaf3c9a6d67d06205b5a6442789d847f6f09c",
+            "sha256": "83f726115f6b5bfc5e4ad011fa206f8cd21a84ae96646a85b5114fd89cfa2401"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "dc0bb4461bf1400b1f4e322bcb638a3ccbf25908",
+            "sha256": "ba3dfc87b1d92c59fc44845f0a165e12a4183532d99f42476654775da678645e"
+          }
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_STAGING_POLICY.json",
+        "bytes": 11724,
+        "sha256": "e89ce59fca7177be781cf88df8edafd8636224f44787f96f3456ea976d31e730",
+        "source_blob": "893ef0c2a99f1c5b470a6ac5fe0153ecae2580ed",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "88bf4ba66b684ae7754e03e71c70ad90b7b2baa1",
+            "sha256": "7095ebcd5d0d45fd3ea6b38b1ff2ab2d709272a933374485b8e07bb4f1ac6d82"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "2148ad96f7b09a81ae62f59647240cbcac33c91c",
+            "sha256": "85604f332b316bfe42419b45aef5aedceb075e240013bd464ff8b95404940915"
+          }
+        }
+      },
+      {
+        "path": "pyproject.toml",
+        "bytes": 828,
+        "sha256": "2219487162695e8d52fa33a23db542e4b959a55424764e3302b21c383414d0a7",
+        "source_blob": "9c3f0f6588fa0ee36cc821ec7a943f9cf5536216",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "b69041e5f06bd57e22dddb501fbe31f93b5e86c9",
+            "sha256": "ae0557ca0944c05503c477b6a38cc9da63eb27444b6e4e940610078cafc35f1b"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "724cab4577aa38eccbea1d25e57395e7f3a0f56d",
+            "sha256": "b1d5af5bc36f94e7491c0e55ea9b38f76c596a899f40d1f4f5de3721e8b6df40"
+          }
+        }
+      },
+      {
+        "path": "tests/test_fragment_staging_sources.py",
+        "bytes": 28308,
+        "sha256": "27b889b68e66598c697fb5f89306ff0164c4e80fb8062f7bfc2df77aba70beb5",
+        "source_blob": "03ff61aa6f4bee8fff08cf99085cd0435b1c3b1f",
+        "parents": {
+          "7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff": {
+            "source_blob": "f9771ee73c24cb35259711ddfe9e55eccbf9d15e",
+            "sha256": "4593757dd82a78a7872601c79be1796c45a1add8b094ca7a60bb356afbdce443"
+          },
+          "9b44a401143ed339ff2e21e3063201e5d044d232": {
+            "source_blob": "a4510afc5e5355193311b68b21fc4c674f8d9653",
+            "sha256": "908588619709fe0804e658264f1ce366731ffd02f6a6307e18fedc0abbe54b80"
+          }
+        }
+      }
+    ],
+    "coverage_unchanged": [
+      {
+        "path": "audio_backend/fragment_asr_coverage.py",
+        "bytes": 11673,
+        "sha256": "a4fe24de707b2f3fa7ace9ecbbedb2e5c1c62109d3d63bdc0fd69579abf7942f",
+        "source_blob": "541b9f08ecb28f41e1306038a4eb2b6bf8e98bdb",
+        "source_commit": "9b44a401143ed339ff2e21e3063201e5d044d232"
+      },
+      {
+        "path": "audio_backend/fragment_cpu_meter.py",
+        "bytes": 19093,
+        "sha256": "8cc16a3fd80b61805559d2bc7ac63a7b9f2173d7d53cb61df930b4c76e0147d0",
+        "source_blob": "ad396d05d9f91c50cf5a20cd1d8c1805143f358b",
+        "source_commit": "9b44a401143ed339ff2e21e3063201e5d044d232"
+      },
+      {
+        "path": "audio_backend/fragment_cpu_provider.py",
+        "bytes": 68656,
+        "sha256": "adc4984931292a70d9d1fcad3404005e7b2a6b678358722c24449305d7e867c3",
+        "source_blob": "efd7f6d14b4b5311b1cb61647af11e5f4d5b2a96",
+        "source_commit": "9b44a401143ed339ff2e21e3063201e5d044d232"
+      },
+      {
+        "path": "docs/ASR_INPUT_COVERAGE.md",
+        "bytes": 4356,
+        "sha256": "33d714a439a84f72e548543cc15d2340dfe35d0bbaea81d1bedf9a7ecefd1181",
+        "source_blob": "c6882fedf1624ebfdce6cc0b6be14cdb2b49cdf2",
+        "source_commit": "9b44a401143ed339ff2e21e3063201e5d044d232"
+      },
+      {
+        "path": "tests/test_fragment_asr_coverage.py",
+        "bytes": 20315,
+        "sha256": "52ebdb8b68f26a2fe1b5c8d1e8e72350ec365117d1a7c1b9a75d27672f905a69",
+        "source_blob": "c97891d1a7f84da51f91d81059d8870081ae1c2a",
+        "source_commit": "9b44a401143ed339ff2e21e3063201e5d044d232"
+      },
+      {
+        "path": "tests/test_fragment_cpu_provider.py",
+        "bytes": 72098,
+        "sha256": "1f930b00767a3c073200b1b3f320990cc220922c0921edaafc23fd13566da1dd",
+        "source_blob": "3e0e7358bb48370038bedf3d53f432278e7ffa2c",
+        "source_commit": "9b44a401143ed339ff2e21e3063201e5d044d232"
       }
     ]
   }

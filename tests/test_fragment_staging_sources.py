@@ -149,8 +149,8 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 256
-    assert policy['maximum_total_bytes'] == 2_850_000
+    assert policy['maximum_files'] == 260
+    assert policy['maximum_total_bytes'] == 2_950_000
     assert guard.MAX_BYTES == 250_000
 
 
@@ -223,7 +223,8 @@ BUILDER_PATHS = {'audio_backend/fragment_cpu_provider.py',
 
 def verify_local_builder_followup(layers, worktree_bytes, index_bytes):
     followups = layers['local_followups']
-    assert len(followups) == 1
+    assert len(followups) == 2
+    verify_coverage_followup(layers, worktree_bytes, index_bytes)
     followup = followups[0]
     assert set(followup) == {'component', 'reviewed_base_commit', 'files'}
     assert followup['component'] == 'offline-cpu-manifest-builder'
@@ -232,8 +233,15 @@ def verify_local_builder_followup(layers, worktree_bytes, index_bytes):
     assert len(rows) == len(BUILDER_PATHS) and {row['path'] for row in rows} == BUILDER_PATHS
     for row in rows:
         path = row['path']
-        data = worktree_bytes(path)
-        assert data == index_bytes(path), 'Worktree/index source differs'
+        if path in COVERAGE_PATHS:
+            # Verify the actual immutable intermediate blob. Later layers must
+            # explicitly supersede it; never rewrite a historical builder pin.
+            assert row['source_blob'] == subprocess.check_output(
+                ['git', 'rev-parse', COVERAGE_BASE + ':' + path], cwd=ROOT).decode().strip()
+            data = subprocess.check_output(['git', 'cat-file', 'blob', row['source_blob']], cwd=ROOT)
+        else:
+            data = worktree_bytes(path)
+            assert data == index_bytes(path), 'Worktree/index source differs'
         assert len(data) == row['bytes'] and hashlib.sha256(data).hexdigest() == row['sha256']
         blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
         assert row['source_blob'] == blob
@@ -281,7 +289,8 @@ def test_local_builder_followup_preserves_every_historical_layer():
     _, current = import_records()
     current.pop('local_followups')
     current.pop('composition')
-    assert current['target_version'] == '0.2.0rc2.dev6'
+    current.pop('coverage_composition')
+    assert current['target_version'] == '0.2.0rc2.dev7'
     current['target_version'] = historical['target_version']
     assert current == historical
 
@@ -333,14 +342,13 @@ def verify_composition(layers, worktree_bytes, index_bytes):
                 assert parent_pin(row['source_commit'], path) == {'source_blob': blob, 'sha256': row['sha256']}
 
 
-def test_composition_exact_parent_inputs_and_index():
+def test_historical_dev6_composition_exact_parent_inputs():
     _, layers = import_records()
-    verify_composition(layers, lambda path: (ROOT / path).read_bytes(),
-                       lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+    verify_composition(layers, dev6_bytes, dev6_bytes)
 
 
 @pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base', 'input', 'blob', 'canonical', 'worktree', 'index'])
-def test_composition_rejects_unreviewed_or_mislabelled_sources(mutation):
+def test_historical_dev6_composition_rejects_unreviewed_sources(mutation):
     _, layers = import_records(); value = layers['composition']
     if mutation == 'missing': value['composed'].pop()
     elif mutation == 'extra': value['composed'][0]['path'] = 'README.md'
@@ -352,17 +360,168 @@ def test_composition_rejects_unreviewed_or_mislabelled_sources(mutation):
     elif mutation == 'canonical': value['canonical_unchanged'][0]['source_commit'] = COMPOSITION_PARENTS[0]
     with pytest.raises(AssertionError):
         verify_composition(layers,
+            lambda path: dev6_bytes(path) + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: dev6_bytes(path) + (b'\n' if mutation == 'index' else b''))
+
+
+def test_historical_dev6_composition_preserves_history():
+    union = set()
+    for commit in COMPOSITION_PARENTS:
+        union.update(subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', commit], cwd=ROOT).decode().splitlines())
+    assert set(guard.read_git_tree(DEV7_PARENTS[0])) == union and len(union) == 256
+    historical = json.loads(subprocess.check_output(['git', 'show', COMPOSITION_PARENTS[0] + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
+    current = json.loads(dev6_bytes('docs/FRAGMENT_STAGING_LAYERS.json'))
+    current.pop('composition')
+    assert current['target_version'] == '0.2.0rc2.dev6'
+    current['target_version'] = historical['target_version']
+    assert current == historical
+
+
+COVERAGE_BASE = '4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb'
+COVERAGE_PATHS = {'audio_backend/fragment_asr_coverage.py', 'audio_backend/fragment_cpu_meter.py',
+                  'audio_backend/fragment_cpu_provider.py', 'tests/test_fragment_asr_coverage.py',
+                  'tests/test_fragment_cpu_provider.py', 'docs/ASR_INPUT_COVERAGE.md'}
+
+
+def verify_coverage_followup(layers, worktree_bytes, index_bytes):
+    layer = layers['local_followups'][1]
+    assert set(layer) == {'component', 'reviewed_base_commit', 'files'}
+    assert layer['component'] == 'asr-input-coverage'
+    assert layer['reviewed_base_commit'] == COVERAGE_BASE
+    assert len(layer['files']) == len(COVERAGE_PATHS)
+    assert {row['path'] for row in layer['files']} == COVERAGE_PATHS
+    for row in layer['files']:
+        data = worktree_bytes(row['path'])
+        assert data == index_bytes(row['path']), 'Worktree/index source differs'
+        assert len(data) == row['bytes'] and hashlib.sha256(data).hexdigest() == row['sha256']
+        blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+        assert row['source_blob'] == blob
+        assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+        key = COVERAGE_BASE + ':' + row['path']
+        before = subprocess.run(['git', 'cat-file', '-e', key], cwd=ROOT, capture_output=True)
+        if before.returncode:
+            assert row['base_absent'] is True
+            assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'base_absent'}
+        else:
+            previous = subprocess.check_output(['git', 'show', key], cwd=ROOT)
+            previous_blob = subprocess.check_output(['git', 'rev-parse', key], cwd=ROOT).decode().strip()
+            assert row['supersedes'] == {'source_blob': previous_blob, 'sha256': hashlib.sha256(previous).hexdigest()}
+            assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'supersedes'}
+            assert data != previous
+
+
+def test_coverage_preserves_all_prior_provenance():
+    historical = json.loads(subprocess.check_output(['git', 'show', COVERAGE_BASE + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
+    coverage = json.loads(subprocess.check_output(['git', 'show', DEV7_PARENTS[1] + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
+    _, current = import_records()
+    assert current['local_followups'] == coverage['local_followups']
+    coverage['local_followups'].pop()
+    assert coverage == historical
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'base', 'blob', 'supersedes', 'worktree', 'index'])
+def test_coverage_provenance_rejects_stale_delta(mutation):
+    _, layers = import_records()
+    layer = layers['local_followups'][1]
+    if mutation == 'missing': layer['files'].pop()
+    elif mutation == 'base': layer['reviewed_base_commit'] = '0' * 40
+    elif mutation == 'blob': layer['files'][0]['source_blob'] = '0' * 40
+    elif mutation == 'supersedes':
+        next(row for row in layer['files'] if 'supersedes' in row)['supersedes']['sha256'] = '0' * 64
+    with pytest.raises(AssertionError):
+        verify_coverage_followup(layers,
             lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
             lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
 
 
-def test_composition_is_exact_reviewed_path_union_and_preserves_history():
+DEV7_PARENTS = ['7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff',
+                '9b44a401143ed339ff2e21e3063201e5d044d232']
+DEV7_COMPOSED_PATHS = {'README.md', 'audio_backend/__init__.py', 'docs/API.md',
+    'docs/FRAGMENT_EXTENSIONS_STAGING.md', 'docs/FRAGMENT_STAGING_POLICY.json',
+    'pyproject.toml', 'tests/test_fragment_staging_sources.py'}
+LAYER_PATH = 'docs/FRAGMENT_STAGING_LAYERS.json'
+
+
+def dev6_bytes(path):
+    return subprocess.check_output(['git', 'show', DEV7_PARENTS[0] + ':' + path], cwd=ROOT)
+
+
+def verify_coverage_composition(layers, worktree_bytes, index_bytes):
+    value = layers['coverage_composition']
+    assert set(value) == {'schema', 'parents', 'merge_base', 'composed', 'coverage_unchanged'}
+    assert value['schema'] == 'reviewed-branch-composition-v1'
+    assert value['parents'] == DEV7_PARENTS and value['merge_base'] == COVERAGE_BASE
+    assert subprocess.check_output(['git', 'merge-base', *DEV7_PARENTS], cwd=ROOT).decode().strip() == COVERAGE_BASE
+    for name, expected in [('composed', DEV7_COMPOSED_PATHS), ('coverage_unchanged', COVERAGE_PATHS)]:
+        rows = value[name]
+        assert len(rows) == len(expected) and {row['path'] for row in rows} == expected
+        for row in rows:
+            path = row['path']; data = worktree_bytes(path)
+            assert data == index_bytes(path), 'Composition worktree/index mismatch'
+            assert row['bytes'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest()
+            blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+            assert row['source_blob'] == blob
+            assert subprocess.check_output(['git', 'cat-file', '-t', blob], cwd=ROOT).strip() == b'blob'
+            assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+            if name == 'composed':
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'parents'}
+                assert row['parents'] == {commit: parent_pin(commit, path) for commit in DEV7_PARENTS}
+                assert all(pin.get('sha256') != row['sha256'] for pin in row['parents'].values())
+            else:
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'source_commit'}
+                assert row['source_commit'] == DEV7_PARENTS[1]
+                assert parent_pin(row['source_commit'], path) == {'source_blob': blob, 'sha256': row['sha256']}
+
+
+def test_coverage_composition_exact_parent_inputs_and_index():
+    _, layers = import_records()
+    verify_coverage_composition(layers, lambda path: (ROOT / path).read_bytes(),
+        lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base',
+                                     'input', 'blob', 'coverage', 'worktree', 'index'])
+def test_coverage_composition_rejects_unreviewed_sources(mutation):
+    _, layers = import_records(); value = layers['coverage_composition']
+    if mutation == 'missing': value['composed'].pop()
+    elif mutation == 'extra': value['composed'][0]['path'] = 'audio_backend/app.py'
+    elif mutation == 'duplicate': value['composed'].append(value['composed'][0])
+    elif mutation == 'parent': value['parents'][0] = '0' * 40
+    elif mutation == 'base': value['merge_base'] = '0' * 40
+    elif mutation == 'input': value['composed'][0]['parents'][DEV7_PARENTS[0]]['sha256'] = '0' * 64
+    elif mutation == 'blob': value['composed'][0]['source_blob'] = '0' * 40
+    elif mutation == 'coverage': value['coverage_unchanged'][0]['source_commit'] = DEV7_PARENTS[0]
+    with pytest.raises(AssertionError):
+        verify_coverage_composition(layers,
+            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+
+
+def verify_dev7_inherited_bytes(files):
     union = set()
-    for commit in COMPOSITION_PARENTS:
-        union.update(subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', commit], cwd=ROOT).decode().splitlines())
-    assert set(guard.read_git_tree(':')) == union and len(union) == 256
-    historical = json.loads(subprocess.check_output(['git', 'show', COMPOSITION_PARENTS[0] + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
-    _, current = import_records(); current.pop('composition')
-    assert current['target_version'] == '0.2.0rc2.dev6'
+    for commit in DEV7_PARENTS:
+        union.update(guard.read_git_tree(commit))
+    assert set(files) == union and len(union) == 259
+    for path in union - DEV7_COMPOSED_PATHS - {LAYER_PATH}:
+        parent = DEV7_PARENTS[1] if path in COVERAGE_PATHS else DEV7_PARENTS[0]
+        assert files[path] == subprocess.check_output(['git', 'show', parent + ':' + path], cwd=ROOT), path
+
+
+def test_dev7_is_exact_reviewed_union_with_unchanged_inherited_bytes():
+    verify_dev7_inherited_bytes(guard.read_git_tree(':'))
+    verify_dev7_inherited_bytes({path: (ROOT / path).read_bytes() for path in guard.read_git_tree(':')})
+    historical = json.loads(dev6_bytes(LAYER_PATH))
+    _, current = import_records()
+    current.pop('coverage_composition')
+    current['local_followups'].pop()
+    assert current['target_version'] == '0.2.0rc2.dev7'
     current['target_version'] = historical['target_version']
     assert current == historical
+
+
+@pytest.mark.parametrize('path', ['audio_backend/app.py', 'audio_backend/identity_canonical.py',
+    'audio_backend/fragment_model_bridges.py', 'audio_backend/fragment_cpu_provider.py'])
+def test_dev7_rejects_mutation_of_inherited_identity_and_asr_sources(path):
+    files = guard.read_git_tree(':'); files[path] += b'\n'
+    with pytest.raises(AssertionError):
+        verify_dev7_inherited_bytes(files)

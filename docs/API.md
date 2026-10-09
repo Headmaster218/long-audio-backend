@@ -288,3 +288,17 @@ All identity-review and canonical-person relation mutations are explicitly
 rejected for fragment sessions, including review replacement/retraction and
 relation retraction. These guards precede the underlying mutation functions;
 an unrelated verified-mode group in the same application remains usable.
+
+### Private ASR input coverage receipts
+
+For the explicit CPU provider, existing private evidence now contains an
+`asr_input_coverage` ledger: actual integer-frame input ranges, separate
+`execution_started` and confirmed-return/completed receipts, the current core's
+successful-input union, and its half-open complement (`gaps`). No public response
+field or route is added. This ledger exposes omitted or unsuccessful/unconfirmed
+input; it does not fix recognition accuracy or automatically restore missing
+words. Unsubmitted input is not silence, and successful call completion is not
+correct transcription. Text, diarization and finished session state cannot fill
+gaps. Canonical-person and fragment identity guards are unchanged. Rebuild the
+explicit CPU manifest for the changed module closure before starting this version.
+See [the exact coverage and recovery contract](ASR_INPUT_COVERAGE.md).

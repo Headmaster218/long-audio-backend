@@ -1,12 +1,29 @@
-# Reviewed fragment and canonical-person composition: isolated dev6 staging
+# Reviewed fragment, canonical-person and ASR coverage composition: isolated dev7 staging
 
 This is local development staging, not a release or active/public promotion.
-This candidate preserves both reviewed histories: finalized PCM16 CPU/builder
+The earlier dev6 composition preserved both reviewed histories: finalized PCM16 CPU/builder
 `4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb` and verified canonical-person
 `429de02166fd18e77088489763abc233b33426f0`, sharing base
 `867a215a0578bb23885d175623a36ee3ed04d238`. Earlier dev4/dev5 import facts
 remain intact. Private evidence, recordings, model assets, vectors and
 operational state are not source imports. No dependencies are installed.
+
+The current dev7 composition retains dev6
+`7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff` and the independently reviewed ASR
+coverage candidate `9b44a401143ed339ff2e21e3063201e5d044d232` as separate merge
+parents, with merge base `4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb`. The new
+`coverage_composition` layer records actual composed blobs and both parent inputs;
+the historical dev6 `composition` and both local-followup records stay unchanged.
+Historical blob verification reads immutable parent trees, while the new layer
+binds the current worktree/index. Inherited paths must match the selected parent
+exactly. The current source union has 259 paths; its local budget is at most 260
+files / 2,950,000 bytes, with the unchanged 250,000-byte per-file ceiling.
+
+The coverage ledger records actual integer ASR input and separates invocation
+started from confirmed completion. It reports successful core support and its
+complement, without repairing recognition or automatically restoring words.
+Unsubmitted input is not silence. See [the coverage contract](ASR_INPUT_COVERAGE.md).
+The canonical/fragment identity guards and default-off modes are unchanged.
 
 ## Current scope: explicit internal experiments, default off
 
@@ -63,7 +80,7 @@ page and the layered manifest describe the current integrated source tree.
 Historical reviewed source lineage is preserved. Integration provenance,
 allowlist, cross-mode tests and current version/docs describe the new composition.
 The original dev5 staging budget was 2,500,000 bytes, 250 files and 250,000
-bytes per file. The exact dev6 union contains 256 already reviewed source paths,
+bytes per file. The historical dev6 union contained 256 already reviewed source paths,
 with a 2,850,000-byte ceiling and the same 250,000-byte per-file maximum. Original
 import/layer records and privacy exclusions remain unchanged.
 Additional work requires its own audited delta. The older bridge allowlist is historical provenance, not the current
@@ -96,7 +113,7 @@ The reviewed standalone canonical candidate added exactly `audio_backend/identit
 `tests/test_verified_identity_canonical.py` to the reviewed source allowlist. Its
 exact source inventory was 249 files, with a 2,600,000-byte ceiling; its 250-file
 maximum, 250,000-byte per-file maximum and all privacy exclusions are unchanged.
-The dev6 union policy is local to the new composition worktree. Shared policies
+Each union policy is local to its respective composition worktree. Shared policies
 and source-guard implementations are unchanged; both prior branches remain intact.
 
 The delta updates the existing verified-review bank, Store, API, change feed and
