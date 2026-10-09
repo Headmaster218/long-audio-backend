@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target_version": "0.2.0rc2.dev5",
+  "target_version": "0.2.0rc2.dev6",
   "baseline_version": "0.2.0rc2.dev4",
   "baseline_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
   "base_manifest_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
@@ -219,5 +219,204 @@
         }
       ]
     }
-  ]
+  ],
+  "composition": {
+    "schema": "reviewed-branch-composition-v1",
+    "parents": [
+      "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb",
+      "429de02166fd18e77088489763abc233b33426f0"
+    ],
+    "merge_base": "867a215a0578bb23885d175623a36ee3ed04d238",
+    "composed": [
+      {
+        "path": "audio_backend/__init__.py",
+        "bytes": 107,
+        "sha256": "1585730fff05e3f875cc64310bdec4758dde21dcbeec5f74af69c18c8fba5cb5",
+        "source_blob": "b4612104e643805931f29c7ee11e440217ef96f3",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "9d4208dcfda9d0dc49db6131b9fff13c0d52d10f",
+            "sha256": "325030a22ea68db8af48e1bde0b7e689e70adb7397e34fdfdfe4654f87638561"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "9d4208dcfda9d0dc49db6131b9fff13c0d52d10f",
+            "sha256": "325030a22ea68db8af48e1bde0b7e689e70adb7397e34fdfdfe4654f87638561"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/app.py",
+        "bytes": 26082,
+        "sha256": "d5857a6f8092bf8c862ed62eb1a1eeb5eb3ec5ae65257c8e4adde0762a4910ec",
+        "source_blob": "90e6ebe363ff4aa8e20e60805da5d5f4cce8fa9e",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "9617f3c1e67a217eb5747da94869af413cc10216",
+            "sha256": "7d2c48cef72db4013fd16b98766d1a92901fba33094cbc26dbffeaa1ed44c3ca"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "8bc2f15c60430799cdebd230f9518236e7af93f7",
+            "sha256": "a044d516dde242a32f03199ea9da04555302592ea63ffa586eea7ad4b35e8e8c"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/change_feed.py",
+        "bytes": 12651,
+        "sha256": "d87d38e2d1d507bd2c2cdcf820673a8de4c0c0a4a508670431725e651aa4e003",
+        "source_blob": "fd35ab081313f23f44e0d7b2288415fb6728538b",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "a030cfa597f428a7e154e29c1638391674e27795",
+            "sha256": "1b71a229daeabb9d41bdd99c17dcb49ca3f0e0450ee1467f10e55ee9a02f06da"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "20731293f10f0865220b22e8afa8c34c8d689ac7",
+            "sha256": "23dd0ca18c1b5ea83950b99624e19d6b23935f9cfbe67462ae6aaffc56cc9bff"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/storage.py",
+        "bytes": 52167,
+        "sha256": "5fc1d0970be2215fde8996a7254365790510002d19b112e6ffd4ef6bc703f798",
+        "source_blob": "a212c69708fe2248f2e6c4a9c46ecb45cabb9ece",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "796c9c2d6556dc7709581c5b4c9d906392e6a576",
+            "sha256": "09051c6b6083c7e7d7f0de47f8e0e1a8dd1996fd20bb3f1460ba2f87be224921"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "ec58dafbf1df6c83fbb4d2a17be9632b7cbcaed1",
+            "sha256": "85fcd059c9bf15d9f6642149451005e9713ee15ec4bd7e7217e71700a1af20bc"
+          }
+        }
+      },
+      {
+        "path": "docs/API.md",
+        "bytes": 32796,
+        "sha256": "31b4dff691e767206ff8280d350cfa43b331bea315ae0613edadd1112f820d8e",
+        "source_blob": "85f632f8076a0b932491676f168e8a8762f1b9ed",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "9a0d05671483b604e7e70bb20c141333996cdb54",
+            "sha256": "70c8c1b530a6dc09c0b1cfa9b8bbfa8155d6151690a802b999559fc3dd40dfa0"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "a1b40e925976f9b457e7dda5ef914f151055b1c7",
+            "sha256": "2a1852b3cfb118eb02e64f3d9cd7e801b3d1cffa0bc87e163a377234d58b3175"
+          }
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_EXTENSIONS_STAGING.md",
+        "bytes": 7957,
+        "sha256": "83f726115f6b5bfc5e4ad011fa206f8cd21a84ae96646a85b5114fd89cfa2401",
+        "source_blob": "e0cbaf3c9a6d67d06205b5a6442789d847f6f09c",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "dc0bb4461bf1400b1f4e322bcb638a3ccbf25908",
+            "sha256": "ba3dfc87b1d92c59fc44845f0a165e12a4183532d99f42476654775da678645e"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "94f4c7edff9c6ad7480042c8ed54dff3117f0b6e",
+            "sha256": "9dd9916567e1f557893823d3413f37c2f3b665dd202e701635f0b16306329c53"
+          }
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_STAGING_POLICY.json",
+        "bytes": 11578,
+        "sha256": "7095ebcd5d0d45fd3ea6b38b1ff2ab2d709272a933374485b8e07bb4f1ac6d82",
+        "source_blob": "88bf4ba66b684ae7754e03e71c70ad90b7b2baa1",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "84828230bf9e1c683fd043fd8594523a46e1f1fd",
+            "sha256": "2030dfb30efdf1539308efac69ba01acac6d94d17e81e150bca07654ef8f134a"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "cbc59ec78cdd1979c71349bfaecd5efbad729cd8",
+            "sha256": "5cbdc7329ae0beb0ad99e353228d14877dcc5468431e1e001af59509b4d92b81"
+          }
+        }
+      },
+      {
+        "path": "pyproject.toml",
+        "bytes": 828,
+        "sha256": "ae0557ca0944c05503c477b6a38cc9da63eb27444b6e4e940610078cafc35f1b",
+        "source_blob": "b69041e5f06bd57e22dddb501fbe31f93b5e86c9",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "724cab4577aa38eccbea1d25e57395e7f3a0f56d",
+            "sha256": "b1d5af5bc36f94e7491c0e55ea9b38f76c596a899f40d1f4f5de3721e8b6df40"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "724cab4577aa38eccbea1d25e57395e7f3a0f56d",
+            "sha256": "b1d5af5bc36f94e7491c0e55ea9b38f76c596a899f40d1f4f5de3721e8b6df40"
+          }
+        }
+      },
+      {
+        "path": "tests/test_fragment_http.py",
+        "bytes": 33875,
+        "sha256": "69aef85058e6990c7a41a4078522fbf054019736b541d04c0f1b6bec36f732b9",
+        "source_blob": "957f8b79082b22d5ca694dbfe992b2d5eb00b4e2",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "e253b92a6b3a0a01587ca2b46b8786f533f13a17",
+            "sha256": "b185610f879242ee78c653bd6f4dc119fb7552e78cb76af12256179c38d06ac3"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "absent": true
+          }
+        }
+      },
+      {
+        "path": "tests/test_fragment_staging_sources.py",
+        "bytes": 19107,
+        "sha256": "4593757dd82a78a7872601c79be1796c45a1add8b094ca7a60bb356afbdce443",
+        "source_blob": "f9771ee73c24cb35259711ddfe9e55eccbf9d15e",
+        "parents": {
+          "4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb": {
+            "source_blob": "750c9eaa5f750448077fd2f65731a67ed955ae5d",
+            "sha256": "1a71c776d4c6329c8a84ed2b23a0a6d563eb21a9bcc149425ef5ed16181818a2"
+          },
+          "429de02166fd18e77088489763abc233b33426f0": {
+            "source_blob": "c8f275953aa63def27ee61e6abd7ade82073979e",
+            "sha256": "beba8527f435fb0fc43f3d6c5a2915858de445a2f6c41d5ea3c2f418bdb2caa5"
+          }
+        }
+      }
+    ],
+    "canonical_unchanged": [
+      {
+        "path": "audio_backend/identity_canonical.py",
+        "bytes": 15535,
+        "sha256": "3bce55e4aae8151723c6ba0cad04bbc8ab7c7b167ca16e87c57a9c0aba3e36c4",
+        "source_blob": "961a8b485fef132750546f9ec13d4cf64b8dc338",
+        "source_commit": "429de02166fd18e77088489763abc233b33426f0"
+      },
+      {
+        "path": "audio_backend/verified_identity.py",
+        "bytes": 41151,
+        "sha256": "7a969043e704f391150d040929a9ac8a48ca110935c0d4578a5140e956d5f83f",
+        "source_blob": "ccc6050ef447df85efef2daaaf601b95d972bf4d",
+        "source_commit": "429de02166fd18e77088489763abc233b33426f0"
+      },
+      {
+        "path": "docs/VERIFIED_IDENTITY.md",
+        "bytes": 16837,
+        "sha256": "2a725e270e9530f599ae34f7929578e274b8676c2651839f5f2f1e032213758c",
+        "source_blob": "a26367ca1f2481b54f049f921d0f2e2b1577d707",
+        "source_commit": "429de02166fd18e77088489763abc233b33426f0"
+      },
+      {
+        "path": "tests/test_verified_identity_canonical.py",
+        "bytes": 19170,
+        "sha256": "8754fbef48f40f4f96a8dd40222a7345c46617e877819dc61f007a430586ae91",
+        "source_blob": "a0d1d333821849b16da822e17259fac6d886db17",
+        "source_commit": "429de02166fd18e77088489763abc233b33426f0"
+      }
+    ]
+  }
 }

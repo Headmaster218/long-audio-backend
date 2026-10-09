@@ -7,7 +7,7 @@ import json
 import time
 import uuid
 from pathlib import Path
-from . import speaker_support as support, support_vectors
+from . import speaker_support as support, support_vectors, identity_canonical
 
 MODE = 'verified_review_v1'
 ATTESTATION = 'all_pooled_support_single_identified_voice_v1'
@@ -96,6 +96,7 @@ def init_schema(db):
         decision_id TEXT NOT NULL REFERENCES identity_decisions(id) ON DELETE CASCADE,
         chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE, PRIMARY KEY(decision_id,chunk_id))''')
     db.execute('CREATE INDEX IF NOT EXISTS decision_sources_chunk ON identity_decision_sources(chunk_id)')
+    identity_canonical.init_schema(db)
 
 
 def install_lifecycle(db):
@@ -184,14 +185,23 @@ def _invalidate(db, group, reason):
         change_reason=? WHERE identity_group=?''', (reason,group))
 
 
-def project_result(row, policy):
+def project_result(row, policy, canonical=None):
     """Bounded response projection; immutable history keeps original prediction."""
+    original = row.get('speaker_id')
     if row.get('identity_decision_id') is not None and policy:
         stale=int(row['identity_profile_revision'])!=policy['revision']
         row['identity_profile_revision']=int(row['identity_profile_revision'])
         row['identity_state']='stale' if stale else 'current'
         if stale and not row.get('speaker_status','').startswith('human_'):
             row.update(speaker_id=None,speaker_match_score=None,speaker_status='identity_stale')
+    if policy and policy['mode'] == MODE:
+        row['original_speaker_id'] = original
+        row['canonical_revision'] = policy['revision']
+        row['canonical_state'] = 'current' if canonical else 'unavailable'
+        if row.get('speaker_id') is not None:
+            row['speaker_id'] = canonical['mapping'].get(row['speaker_id']) if canonical else None
+            if row['speaker_id'] is None:
+                row['canonical_state'] = 'unavailable'
     return row
 
 
@@ -208,6 +218,9 @@ def _request(db, group, generation, policy, request, action, previous):
         if prior['request_sha256'] != hashed:
             raise ValueError('idempotency_conflict')
         return hashed, json.loads(prior['response'])
+    if db.execute('''SELECT 1 FROM identity_relation_events
+        WHERE identity_group=? AND generation=? AND idempotency_key=?''', (group,generation,key)).fetchone():
+        raise ValueError('idempotency_conflict')
     if type(request.get('expected_revision')) is not int or request['expected_revision'] != policy['revision']:
         raise ValueError('stale_profile_revision')
     return hashed, None
@@ -230,7 +243,7 @@ def _evidence(db, sid, generation, policy, request):
     return raw, manifest, expected
 
 
-def _capacity(db, kind, person, replacing=None):
+def _capacity(db, kind, person, replacing=None, canonical=None):
     history = db.execute('SELECT COUNT(*) FROM identity_review_events').fetchone()[0]
     active = db.execute('SELECT COUNT(*) FROM identity_active_reviews').fetchone()[0]
     # Admission uses one history slot and reserves one later revocation. A
@@ -242,8 +255,12 @@ def _capacity(db, kind, person, replacing=None):
     if count + 1 - int(removed) > (MAX_POSITIVES if kind == 'positive' else MAX_NEGATIVES):
         raise OverflowError('Active review capacity reached')
     if kind == 'positive':
-        count = db.execute("SELECT COUNT(*) FROM identity_active_reviews WHERE kind='positive' AND person_id=?", (person,)).fetchone()[0]
-        removed = bool(replacing and replacing['kind'] == kind and replacing['person_id'] == person)
+        root = identity_canonical.review_root(canonical, person)
+        count = sum(identity_canonical.review_root(canonical, row['person_id']) == root
+                    for row in db.execute("SELECT person_id FROM identity_active_reviews WHERE kind='positive' AND identity_group=?",
+                                          (canonical['identity_group'],)))
+        removed = bool(replacing and replacing['kind'] == kind
+                       and identity_canonical.review_root(canonical, replacing['person_id']) == root)
         if count + 1 - int(removed) > MAX_PER_PERSON:
             raise OverflowError('At most eight active positive references per person')
 
@@ -270,6 +287,9 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
         raw = manifest = fingerprints = None
         person = old['person_id'] if old else None
         if not retract:
+            canonical = identity_canonical.load(db, group, generation, policy)
+            if not projection_intact(db, group, generation):
+                raise ValueError('unknown_reference_integrity')
             kind = request.get('kind')
             if kind not in ('positive','negative'):
                 raise ValueError('Review kind must be positive or negative')
@@ -301,9 +321,9 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
                     continue
                 if kind == 'positive' and claim['kind'] == 'positive':
                     raise ValueError('duplicate_or_conflicting_positive_evidence')
-                if claim['person_id'] == person:
+                if identity_canonical.review_root(canonical, claim['person_id']) == identity_canonical.review_root(canonical, person):
                     raise ValueError('duplicate_or_contradictory_review')
-            _capacity(db, kind, person, old)
+            _capacity(db, kind, person, old, canonical)
             if name:
                 db.execute('''INSERT INTO speakers(id,session_id,identity_group,name,embedding,state,created)
                     VALUES(?,?,?,?,NULL,'reviewed_reference',?)''', (person,sid,group,name,time.time()))
@@ -336,6 +356,7 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
 
 def reset(db, group):
     # Delete active state first so support erasure does not retain expiry audit.
+    identity_canonical.reset(db, group)
     db.execute('DELETE FROM identity_active_reviews WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_review_events WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_decisions WHERE identity_group=?', (group,))
@@ -356,7 +377,9 @@ def bank(store, sid):
                 'availability_sequence': policy['availability'], 'policy_sha256': policy['policy_sha256'],
                 'policy': json.loads(policy['policy']), 'space_id': policy['space_id'], 'active_counts': counts,
                 'limits': {'persons_global':MAX_PERSONS,'positives_global':MAX_POSITIVES,
-                           'negatives_global':MAX_NEGATIVES,'events_global':MAX_EVENTS,'positives_per_person':MAX_PER_PERSON},
+                           'negatives_global':MAX_NEGATIVES,'events_global':MAX_EVENTS,'positives_per_person':MAX_PER_PERSON,
+                           'relation_events_global':identity_canonical.MAX_EVENTS},
+                'relation_event_count':policy['relation_count'],
                 'experimental':True, 'warning':'Operator assertions are claims, not proof of correct identity or acoustic purity.'}
 
 
@@ -444,8 +467,9 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
     except (ValueError,TypeError,KeyError,AttributeError):
         pass
     scores=[]
+    canonical = identity_canonical.snapshot(db, group, policy)
     if proof:
-        if not projection_intact(db,group,generation):
+        if canonical is None or not projection_intact(db,group,generation):
             reason='unknown_reference_integrity'
         elif policy['space_id'] is not None and proof['space_id'] != policy['space_id']:
             reason='unknown_embedding_space'
@@ -462,12 +486,19 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
                     invalid_gallery=True;return
                 score=max(-1.,min(1.,math.fsum(a*b for a,b in zip(centroid,proof['vector']))))
                 scores.append((score,person,list(references)))
-            for active in db.execute('''SELECT a.* FROM identity_active_reviews a
+            # Sort bounded metadata only. Raw vectors still stream one canonical
+            # person's at-most-eight reviewed references at a time.
+            gallery = sorted(db.execute('''SELECT a.* FROM identity_active_reviews a
                     WHERE a.identity_group=? AND a.generation=? AND a.kind='positive' AND a.space_id=?
-                    ORDER BY a.person_id,a.event_id''', (group,generation,proof['space_id'])):
-                if active['person_id']!=person:
-                    score_person();person=active['person_id'];vectors=[];references=[]
+                    ORDER BY a.person_id,a.event_id''', (group,generation,proof['space_id'])),
+                    key=lambda row:(canonical['mapping'][row['person_id']],row['event_id']))
+            for active in gallery:
+                root=canonical['mapping'][active['person_id']]
+                if root!=person:
+                    score_person();person=root;vectors=[];references=[]
                 try:
+                    if len(vectors)>=MAX_PER_PERSON:
+                        raise ValueError('Canonical reference capacity exceeded')
                     raw,vector=reference_vector(db,active)
                     if raw['space_id']!=proof['space_id'] or raw['generation']!=generation or raw['identity_group']!=group:
                         raise ValueError('Anchor binding changed')
@@ -484,9 +515,10 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
         best, candidate, references=scores[0]
         margin=best-scores[1][0] if len(scores)>1 else 2.
         threshold=params['centroid_threshold'] if len(references)>1 else params['single_threshold']
-        veto=db.execute("""SELECT * FROM identity_active_reviews WHERE identity_group=? AND generation=?
-            AND kind='negative' AND person_id=? AND evidence_key=? LIMIT 1""",
-            (group,generation,candidate,proof['evidence_key'])).fetchone()
+        veto=next((row for row in db.execute("""SELECT * FROM identity_active_reviews
+            WHERE identity_group=? AND generation=? AND kind='negative' AND evidence_key=? ORDER BY event_id""",
+            (group,generation,proof['evidence_key']))
+            if canonical['mapping'][row['person_id']]==candidate),None)
         if veto:
             try:
                 reference_vector(db,veto)

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "purpose": "isolated supervised finalized PCM16 CPU candidate; exact source delta; active/shared policies unchanged",
-  "maximum_files": 254,
-  "maximum_total_bytes": 2750000,
+  "purpose": "isolated finalized PCM16 and verified canonical-person integration; exact reviewed union; shared gates unchanged",
+  "maximum_files": 256,
+  "maximum_total_bytes": 2850000,
   "allowed_files": [
     ".gitignore",
     "README.md",
@@ -48,6 +48,7 @@
     "audio_backend/fragment_runtime_contracts.py",
     "audio_backend/fragment_runtime_store.py",
     "audio_backend/guard.py",
+    "audio_backend/identity_canonical.py",
     "audio_backend/identity_reset.py",
     "audio_backend/inference/__init__.py",
     "audio_backend/inference/analyzer.py",
@@ -253,6 +254,7 @@
     "tests/test_stream_boundaries.py",
     "tests/test_stream_time_index.py",
     "tests/test_verified_identity_bank.py",
+    "tests/test_verified_identity_canonical.py",
     "tests/test_verified_identity_integrity.py",
     "tests/test_verified_identity_lifecycle.py",
     "tests/test_verified_identity_matching.py",

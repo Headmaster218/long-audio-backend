@@ -149,8 +149,8 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 254
-    assert policy['maximum_total_bytes'] == 2_750_000
+    assert policy['maximum_files'] == 256
+    assert policy['maximum_total_bytes'] == 2_850_000
     assert guard.MAX_BYTES == 250_000
 
 
@@ -280,4 +280,89 @@ def test_local_builder_followup_preserves_every_historical_layer():
     historical = json.loads(subprocess.check_output(['git', 'show', BUILDER_BASE + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
     _, current = import_records()
     current.pop('local_followups')
+    current.pop('composition')
+    assert current['target_version'] == '0.2.0rc2.dev6'
+    current['target_version'] = historical['target_version']
+    assert current == historical
+
+
+COMPOSITION_PARENTS = ['4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb',
+                       '429de02166fd18e77088489763abc233b33426f0']
+COMPOSITION_BASE = '867a215a0578bb23885d175623a36ee3ed04d238'
+COMPOSED_PATHS = {'audio_backend/__init__.py', 'audio_backend/app.py', 'audio_backend/change_feed.py',
+    'audio_backend/storage.py', 'docs/API.md', 'docs/FRAGMENT_EXTENSIONS_STAGING.md',
+    'docs/FRAGMENT_STAGING_POLICY.json', 'pyproject.toml', 'tests/test_fragment_http.py',
+    'tests/test_fragment_staging_sources.py'}
+CANONICAL_PATHS = {'audio_backend/identity_canonical.py', 'audio_backend/verified_identity.py',
+                   'docs/VERIFIED_IDENTITY.md', 'tests/test_verified_identity_canonical.py'}
+
+
+def parent_pin(commit, path):
+    key = commit + ':' + path
+    if subprocess.run(['git', 'cat-file', '-e', key], cwd=ROOT, capture_output=True).returncode:
+        return {'absent': True}
+    data = subprocess.check_output(['git', 'show', key], cwd=ROOT)
+    return {'source_blob': subprocess.check_output(['git', 'rev-parse', key], cwd=ROOT).decode().strip(),
+            'sha256': hashlib.sha256(data).hexdigest()}
+
+
+def verify_composition(layers, worktree_bytes, index_bytes):
+    value = layers['composition']
+    assert set(value) == {'schema', 'parents', 'merge_base', 'composed', 'canonical_unchanged'}
+    assert value['schema'] == 'reviewed-branch-composition-v1'
+    assert value['parents'] == COMPOSITION_PARENTS and value['merge_base'] == COMPOSITION_BASE
+    assert subprocess.check_output(['git', 'merge-base', *COMPOSITION_PARENTS], cwd=ROOT).decode().strip() == COMPOSITION_BASE
+    for name, expected in [('composed', COMPOSED_PATHS), ('canonical_unchanged', CANONICAL_PATHS)]:
+        rows = value[name]
+        assert len(rows) == len(expected) and {row['path'] for row in rows} == expected
+        for row in rows:
+            path = row['path']; data = worktree_bytes(path)
+            assert data == index_bytes(path), 'Composition worktree/index mismatch'
+            assert row['bytes'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest()
+            blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+            assert row['source_blob'] == blob
+            assert subprocess.check_output(['git', 'cat-file', '-t', blob], cwd=ROOT).strip() == b'blob'
+            assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+            if name == 'composed':
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'parents'}
+                assert row['parents'] == {commit: parent_pin(commit, path) for commit in COMPOSITION_PARENTS}
+                assert all(pin.get('sha256') != row['sha256'] for pin in row['parents'].values())
+            else:
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'source_commit'}
+                assert row['source_commit'] == COMPOSITION_PARENTS[1]
+                assert parent_pin(row['source_commit'], path) == {'source_blob': blob, 'sha256': row['sha256']}
+
+
+def test_composition_exact_parent_inputs_and_index():
+    _, layers = import_records()
+    verify_composition(layers, lambda path: (ROOT / path).read_bytes(),
+                       lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base', 'input', 'blob', 'canonical', 'worktree', 'index'])
+def test_composition_rejects_unreviewed_or_mislabelled_sources(mutation):
+    _, layers = import_records(); value = layers['composition']
+    if mutation == 'missing': value['composed'].pop()
+    elif mutation == 'extra': value['composed'][0]['path'] = 'README.md'
+    elif mutation == 'duplicate': value['composed'].append(value['composed'][0])
+    elif mutation == 'parent': value['parents'][0] = '0' * 40
+    elif mutation == 'base': value['merge_base'] = '0' * 40
+    elif mutation == 'input': value['composed'][0]['parents'][COMPOSITION_PARENTS[0]]['sha256'] = '0' * 64
+    elif mutation == 'blob': value['composed'][0]['source_blob'] = '0' * 40
+    elif mutation == 'canonical': value['canonical_unchanged'][0]['source_commit'] = COMPOSITION_PARENTS[0]
+    with pytest.raises(AssertionError):
+        verify_composition(layers,
+            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+
+
+def test_composition_is_exact_reviewed_path_union_and_preserves_history():
+    union = set()
+    for commit in COMPOSITION_PARENTS:
+        union.update(subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', commit], cwd=ROOT).decode().splitlines())
+    assert set(guard.read_git_tree(':')) == union and len(union) == 256
+    historical = json.loads(subprocess.check_output(['git', 'show', COMPOSITION_PARENTS[0] + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
+    _, current = import_records(); current.pop('composition')
+    assert current['target_version'] == '0.2.0rc2.dev6'
+    current['target_version'] = historical['target_version']
     assert current == historical

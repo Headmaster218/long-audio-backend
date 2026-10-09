@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from .boundary_store import init_stream_schema, register_stream_chunk, check_duplicate_stream, wake_stream_successor
-from . import event_candidate_store, lifecycle, overlap_store, speaker_support, support_vectors, verified_identity
+from . import event_candidate_store, lifecycle, overlap_store, speaker_support, support_vectors, verified_identity, identity_canonical
 
 
 STREAM_PENDING_COUNT_SQL="""SELECT COUNT(*) FROM chunks c INDEXED BY chunk_queue
@@ -519,8 +519,9 @@ class Store:
             segs=[dict(r) for r in db.execute('SELECT s.*,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL AND s.speaker_id IS NULL THEN 1 ELSE 0 END AS enrollment_available,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL THEN 1 ELSE 0 END AS profile_example_available FROM segments s JOIN chunks c ON c.id=s.chunk_id LEFT JOIN speaker_observations o ON o.id=s.candidate_observation_id WHERE c.session_id=? AND s.id>? ORDER BY s.id LIMIT ?', (sid,after,limit))]
             session_group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
             policy=verified_identity.group_policy(db,session_group)
+            canonical=identity_canonical.snapshot(db,session_group,policy)
             for s in segs:
-                verified_identity.project_result(s,policy)
+                verified_identity.project_result(s,policy,canonical)
                 s.pop('candidate_observation_id',None)
                 s.pop('speaker_support_id',None);s.pop('speaker_support_status',None)
                 if not verified_identity.is_verified(db,sid):
@@ -528,6 +529,8 @@ class Store:
                 else:s['enrollment_available']=s['profile_example_available']=False
                 s['enrollment_available']=bool(s['enrollment_available'])
                 s['profile_example_available']=bool(s['profile_example_available'])
+                if policy and policy['mode']==verified_identity.MODE:
+                    continue
                 speaker=s['speaker_id']; visited=set()
                 while speaker and speaker not in visited:
                     visited.add(speaker)
@@ -544,12 +547,16 @@ class Store:
             rows=[dict(r) for r in db.execute('SELECT t.* FROM speaker_turns t JOIN chunks c ON c.id=t.chunk_id WHERE c.session_id=? AND t.id>? ORDER BY t.id LIMIT ?',(sid,after,limit))]
             session_group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
             policy=verified_identity.group_policy(db,session_group)
+            canonical=identity_canonical.snapshot(db,session_group,policy)
             for row in rows:
-                verified_identity.project_result(row,policy)
+                verified_identity.project_result(row,policy,canonical)
                 row.pop('speaker_support_id',None);row.pop('speaker_support_status',None)
                 if not verified_identity.is_verified(db,sid):
                     for field in ('identity_decision_id','identity_profile_revision','identity_state'):row.pop(field,None)
-                row['overlap']=bool(row['overlap']);speaker=row['speaker_id'];visited=set()
+                row['overlap']=bool(row['overlap'])
+                if policy and policy['mode']==verified_identity.MODE:
+                    continue
+                speaker=row['speaker_id'];visited=set()
                 while speaker and speaker not in visited:
                     visited.add(speaker)
                     target=db.execute('SELECT merged_into FROM speakers WHERE id=?',(speaker,)).fetchone()
@@ -576,7 +583,12 @@ class Store:
     def speakers(self,sid):
         self.session(sid)
         with self.db() as db:
-            return [dict(r) for r in db.execute('SELECT id,name,state,merged_into,created FROM speakers WHERE identity_group=(SELECT identity_group FROM sessions WHERE id=?)',(sid,))]
+            db.execute('BEGIN')
+            group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
+            policy=verified_identity.group_policy(db,group)
+            canonical=identity_canonical.snapshot(db,group,policy)
+            return [identity_canonical.project_person(dict(r),policy,canonical) for r in db.execute(
+                'SELECT id,name,state,merged_into,created FROM speakers WHERE identity_group=?',(group,))]
 
     def _template_count(self,db):
         return db.execute('SELECT (SELECT COUNT(*) FROM speakers)+(SELECT COUNT(*) FROM speaker_examples)').fetchone()[0]
@@ -621,7 +633,7 @@ class Store:
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             verified=verified_identity.is_verified(db,sid)
-            if verified and (merge_into or undo_merge):raise ValueError('verified_merge_unsupported: merge/undo requires a future reviewed implementation')
+            if verified and (merge_into or undo_merge):raise ValueError('verified_merge_unsupported_on_legacy_route: use versioned identity-relations and exact event retraction')
             source=db.execute('SELECT * FROM speakers WHERE id=? AND identity_group=(SELECT identity_group FROM sessions WHERE id=?)',(pid,sid)).fetchone()
             if not source: raise KeyError('Speaker not found')
             if undo_merge:

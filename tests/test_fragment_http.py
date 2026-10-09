@@ -17,6 +17,7 @@ from audio_backend.settings import Settings
 from audio_backend.fragment_http import SQLiteEvidenceStore, HTTPRuntimeStore
 from audio_backend.fragment_runtime_contracts import NativeStatus, RuntimePolicy, StaleWork
 from audio_backend.fragment_model_bridges import AnalyzerBridge, NativeFactory, CallBudget
+from test_verified_identity_bank import proven
 
 RATE = 16000
 
@@ -209,6 +210,67 @@ def test_finalized_http_projection_overlap_and_identity_disabled(env):
     assert client.patch(f"/sessions/{sid}/segments/{segments[0]['id']}", json={'speaker_id': None}).status_code == 409
     assert rows(app, 'SELECT acknowledged FROM fragment_controls')[0]['acknowledged'] == 1
     assert len([x for x in factory.log if x[0] == 'finish']) == 1
+
+
+def test_fragment_identity_mutation_guards_and_verified_relations_share_app(tmp_path, proven, monkeypatch):
+    from audio_backend import verified_identity as bank, identity_canonical as canonical
+    from test_verified_identity_bank import configured
+    from test_verified_identity_canonical import people, relation, mutation, roster
+    settings, _, verified_sid = configured(tmp_path)
+    app = create_app(settings, fragment_provider_factory=Factory())
+    with TestClient(app) as client:
+        sid = session(client)
+        assert upload(client, sid, final=True).status_code == 202
+        process(app)
+        store = app.state.store
+        def fragment_state():
+            with store.db() as db:
+                tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'fragment_%' ORDER BY name")]
+                evidence = {name: [tuple(row) for row in db.execute(f'SELECT * FROM {name} ORDER BY rowid')] for name in tables}
+            return {'evidence': evidence,
+                    'segments': client.get(f'/sessions/{sid}/segments').json()['segments'],
+                    'turns': client.get(f'/sessions/{sid}/speaker-turns').json()['speaker_turns'],
+                    'changes': client.get(f'/sessions/{sid}/changes').json()['changes']}
+        original_fragment = fragment_state()
+        assert original_fragment['segments'][0]['speaker_id'] is None
+        assert len(original_fragment['turns']) == 2 and all(r['overlap'] for r in original_fragment['turns'])
+        for row in original_fragment['segments'] + original_fragment['turns']:
+            assert row['projection_version'] and row['source_track_id'] and row['evidence_sha256'] and row['evidence_item']
+        # The verified legacy mode remains usable in this very same application.
+        a, b = people(store, verified_sid, proven)
+        response = client.post(f'/sessions/{verified_sid}/identity-relations', json=relation(store, verified_sid, a, b))
+        assert response.status_code == 200, response.text
+        event = response.json()
+        assert roster(store, verified_sid) == {a: b, b: b}
+        response = client.post(f"/sessions/{verified_sid}/identity-relations/{event['event_id']}/retract",
+                               json=mutation(store, verified_sid, 'cross-mode-undo'))
+        assert response.status_code == 200, response.text
+        assert roster(store, verified_sid) == {a: a, b: b}
+        assert fragment_state() == original_fragment
+        common = {'expected_generation': '0' * 32, 'expected_revision': 0, 'idempotency_key': 'forbidden'}
+        review = {**common, 'kind': 'positive', 'support_id': '1' * 32, 'vector_id': '2' * 32,
+                  'manifest_sha256': '3' * 64, 'vector_sha256': '4' * 64, 'space_id': '5' * 64,
+                  'new_person_name': 'Cannot enroll fragment evidence',
+                  'attestation': {'version': bank.ATTESTATION, 'reviewed_all_pooled_support': True,
+                                  'single_identified_voice': True, 'no_other_overlapping_voice': True}}
+        related = {**common, 'kind': 'same_person', 'person_id': a, 'other_person_id': b, 'confirmed': True}
+        def all_identity_rows():
+            with store.db() as db:
+                tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'identity_%' OR name IN ('speakers','speaker_observations','speaker_support_vectors','result_changes')) ORDER BY name")]
+                return {name: [tuple(row) for row in db.execute(f'SELECT * FROM {name} ORDER BY rowid')] for name in tables}
+        before = all_identity_rows()
+        def forbidden(*args, **kwargs):
+            raise AssertionError('Fragment request reached an identity mutation implementation')
+        monkeypatch.setattr(bank, 'mutate', forbidden)
+        monkeypatch.setattr(canonical, 'mutate', forbidden)
+        for path, body in [('identity-reviews', review), ('identity-reviews/' + 'a' * 32 + '/replace', review),
+                           ('identity-reviews/' + 'a' * 32 + '/retract', common),
+                           ('identity-relations', related), ('identity-relations/' + event['event_id'] + '/retract', common)]:
+            denied = client.post(f'/sessions/{sid}/{path}', json=body)
+            assert denied.status_code == 409 and 'disabled for fragment_pcm16_v1' in denied.text, denied.text
+            assert all_identity_rows() == before
+            assert fragment_state() == original_fragment
+        assert not store.speakers(sid)
 
 
 def test_duplicate_receipts_and_finish_are_exactly_once(env):
