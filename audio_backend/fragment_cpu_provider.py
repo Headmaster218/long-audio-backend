@@ -13,6 +13,7 @@ import json
 import math
 import os
 from pathlib import Path
+from types import MappingProxyType
 import select
 import shutil
 import signal
@@ -44,6 +45,16 @@ OPENCC_T2S = {'name':'Traditional Chinese to Simplified Chinese',
     'segmentation':{'type':'mmseg','dict':{'type':'txt','file':'TSPhrases.txt'}},
     'conversion_chain':[{'dict':{'type':'group','dicts':[
         {'type':'txt','file':'TSPhrases.txt'},{'type':'txt','file':'TSCharacters.txt'}]}}]}
+ADMITTED_CONFIG = MappingProxyType({'asr_backend': 'sensevoice', 'diarization_backend': 'nemotron', 'device': 'cpu',
+    'cpu_threads': 2, 'native_diarization_threads': 2, 'language': 'auto',
+    'overlap_backend': 'none', 'speaker_support_enabled': False, 'offline': True,
+    'max_chunk_seconds': 34.0, 'max_segment_seconds': 5.0,
+    'native_diarization_epoch_max_seconds': 360.0, 'non_speech_gate': True,
+    'event_threshold': .25, 'event_release_ratio': 1.0, 'event_silence_peak': 1e-5,
+    'speaker_min_query_seconds': 2.0, 'chinese_script': 'simplified'})
+LIMIT_KEYS = frozenset({'max_source_frames', 'max_run_attempts', 'max_core_attempts', 'request_seconds',
+    'handshake_seconds', 'run_seconds', 'tree_rss_bytes', 'host_reserve_bytes',
+    'disk_reserve_bytes', 'scratch_bytes', 'retained_bytes'})
 
 
 def artifact_identity(st):
@@ -80,6 +91,19 @@ def _positive(value, name):
     return value
 
 
+def validate_limits(limits):
+    """Validate explicit finite deployment ceilings without choosing a budget."""
+    if not isinstance(limits, dict) or set(limits) != LIMIT_KEYS:
+        raise ValueError('Every finite resource and attempt ceiling must be explicit')
+    for key in LIMIT_KEYS:
+        _positive(limits[key], key)
+    if limits['max_core_attempts'] > limits['max_run_attempts']:
+        raise ValueError('Core attempts cannot exceed run attempts')
+    if not limits['handshake_seconds'] <= limits['request_seconds'] <= limits['run_seconds']:
+        raise ValueError('Invalid provider deadline ordering')
+    return dict(limits)
+
+
 def namespace():
     """Recovery observations are meaningful only in this boot/PID namespace."""
     if sys.platform != 'linux':
@@ -114,13 +138,7 @@ class Manifest:
             raise ValueError('Unsupported explicit CPU provider manifest')
         self._value, self._hash = value, digest(value)
         self._config, self._files, self._limits = value['config'], value['files'], value['limits']
-        expected = {'asr_backend': 'sensevoice', 'diarization_backend': 'nemotron', 'device': 'cpu',
-                    'cpu_threads': 2, 'native_diarization_threads': 2, 'language': 'auto',
-                    'overlap_backend': 'none', 'speaker_support_enabled': False, 'offline': True,
-                    'max_chunk_seconds': 34.0, 'max_segment_seconds': 5.0,
-                    'native_diarization_epoch_max_seconds': 360.0, 'non_speech_gate': True,
-                    'event_threshold': .25, 'event_release_ratio': 1.0, 'event_silence_peak': 1e-5,
-                    'speaker_min_query_seconds': 2.0, 'chinese_script': 'simplified'}
+        expected = ADMITTED_CONFIG
         paths = {'model_dir', 'native_diarization_model', 'native_diarization_library'}
         if set(self._config) != set(expected) | paths or any(self._config.get(k) != v or type(self._config[k]) is not type(v) for k, v in expected.items()):
             raise ValueError('CPU manifest differs from the admitted trusted provider configuration')
@@ -148,17 +166,7 @@ class Manifest:
             'sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv')]
         if any(path not in self._files for path in required):
             raise ValueError('Manifest omits an actual model/runtime/interpreter asset')
-        keys = {'max_source_frames', 'max_run_attempts', 'max_core_attempts', 'request_seconds',
-                'handshake_seconds', 'run_seconds', 'tree_rss_bytes', 'host_reserve_bytes',
-                'disk_reserve_bytes', 'scratch_bytes', 'retained_bytes'}
-        if set(self._limits) != keys:
-            raise ValueError('Every finite resource and attempt ceiling must be explicit')
-        for key in keys:
-            _positive(self._limits[key], key)
-        if self._limits['max_core_attempts'] > self._limits['max_run_attempts']:
-            raise ValueError('Core attempts cannot exceed run attempts')
-        if not self._limits['handshake_seconds'] <= self._limits['request_seconds'] <= self._limits['run_seconds']:
-            raise ValueError('Invalid provider deadline ordering')
+        validate_limits(self._limits)
         provenance = value['native_provenance']
         for field, path in (('diarization_model_sha256', self._config['native_diarization_model']),
                             ('diarization_library_sha256', self._config['native_diarization_library'])):

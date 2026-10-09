@@ -149,8 +149,8 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 253
-    assert policy['maximum_total_bytes'] == 2_700_000
+    assert policy['maximum_files'] == 254
+    assert policy['maximum_total_bytes'] == 2_750_000
     assert guard.MAX_BYTES == 250_000
 
 
@@ -213,3 +213,71 @@ def test_reviewed_import_index_bytes_are_exact():
     base, layers = import_records()
     verify_import_bytes(reviewed_imports(base,layers),
                         lambda path:subprocess.check_output(['git','show',':'+path],cwd=ROOT))
+
+
+BUILDER_BASE = '0de25be7b0e8983aceb1e5591f41f6cf667851fc'
+BUILDER_PATHS = {'audio_backend/fragment_cpu_provider.py',
+                 'audio_backend/inference/native_diarization.py',
+                 'scripts/build_fragment_cpu_manifest.py'}
+
+
+def verify_local_builder_followup(layers, worktree_bytes, index_bytes):
+    followups = layers['local_followups']
+    assert len(followups) == 1
+    followup = followups[0]
+    assert set(followup) == {'component', 'reviewed_base_commit', 'files'}
+    assert followup['component'] == 'offline-cpu-manifest-builder'
+    assert followup['reviewed_base_commit'] == BUILDER_BASE
+    rows = followup['files']
+    assert len(rows) == len(BUILDER_PATHS) and {row['path'] for row in rows} == BUILDER_PATHS
+    for row in rows:
+        path = row['path']
+        data = worktree_bytes(path)
+        assert data == index_bytes(path), 'Worktree/index source differs'
+        assert len(data) == row['bytes'] and hashlib.sha256(data).hexdigest() == row['sha256']
+        blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+        assert row['source_blob'] == blob
+        assert subprocess.check_output(['git', 'cat-file', '-t', blob], cwd=ROOT).strip() == b'blob'
+        assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+        key = BUILDER_BASE + ':' + path
+        before = subprocess.run(['git', 'cat-file', '-e', key], cwd=ROOT, capture_output=True)
+        if path == 'scripts/build_fragment_cpu_manifest.py':
+            assert before.returncode != 0 and row['base_absent'] is True
+            assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'base_absent'}
+        else:
+            assert before.returncode == 0
+            previous = subprocess.check_output(['git', 'show', key], cwd=ROOT)
+            previous_blob = subprocess.check_output(['git', 'rev-parse', key], cwd=ROOT).decode().strip()
+            assert row['supersedes'] == {'source_blob': previous_blob, 'sha256': hashlib.sha256(previous).hexdigest()}
+            assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'supersedes'}
+            assert data != previous
+
+
+def test_local_builder_followup_exact_worktree_and_index():
+    _, layers = import_records()
+    verify_local_builder_followup(layers, lambda path: (ROOT / path).read_bytes(),
+        lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'duplicate', 'base', 'blob', 'extra', 'supersedes', 'absence', 'worktree', 'index'])
+def test_local_builder_followup_rejects_unreviewed_delta(mutation):
+    _, layers = import_records()
+    followup = layers['local_followups'][0]
+    if mutation == 'missing': followup['files'].pop()
+    elif mutation == 'duplicate': followup['files'].append(followup['files'][0])
+    elif mutation == 'base': followup['reviewed_base_commit'] = '0' * 40
+    elif mutation == 'blob': followup['files'][0]['source_blob'] = '0' * 40
+    elif mutation == 'extra': followup['files'][0]['path'] = 'audio_backend/app.py'
+    elif mutation == 'supersedes': followup['files'][0]['supersedes']['sha256'] = '0' * 64
+    elif mutation == 'absence': followup['files'][-1]['base_absent'] = False
+    with pytest.raises(AssertionError):
+        verify_local_builder_followup(layers,
+            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+
+
+def test_local_builder_followup_preserves_every_historical_layer():
+    historical = json.loads(subprocess.check_output(['git', 'show', BUILDER_BASE + ':docs/FRAGMENT_STAGING_LAYERS.json'], cwd=ROOT))
+    _, current = import_records()
+    current.pop('local_followups')
+    assert current == historical

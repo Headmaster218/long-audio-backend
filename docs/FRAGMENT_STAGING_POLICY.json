@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "purpose": "isolated supervised finalized PCM16 CPU candidate; exact source delta; active/shared policies unchanged",
-  "maximum_files": 253,
-  "maximum_total_bytes": 2700000,
+  "maximum_files": 254,
+  "maximum_total_bytes": 2750000,
   "allowed_files": [
     ".gitignore",
     "README.md",
@@ -146,6 +146,7 @@
     "scripts/benchmarks/score_overlap_transcripts.py",
     "scripts/benchmarks/score_predictions.py",
     "scripts/benchmarks/verify_array_identity_replacement.py",
+    "scripts/build_fragment_cpu_manifest.py",
     "scripts/measure_command.py",
     "scripts/migrate_audio_data.py",
     "scripts/package_source.py",

@@ -1,8 +1,17 @@
 # Finalized PCM16 HTTP experiment
 
 Status: opt-in experimental integration with a pinned local CPU launcher.
-HTTP acceptance is model-free only; real neural HTTP execution and model quality
-remain unverified. The legacy worker and default launcher remain unchanged.
+One independently audited 12-second real CPU loopback HTTP smoke at commit
+`0de25be7` verified exact input receipts, one atomic final core/true EOS, duplicate
+upload/finish idempotency, paginated output and positive provider cleanup. It
+produced 22 lexical rows, four native turns and no public events. The original
+private harness exited 1 because it required service exit 0; Uvicorn 0.54.0
+gracefully shut down and replayed the planned SIGTERM, yielding retained wait
+status -15. That failed terminal is preserved; a separately reviewed, model-free
+classification accepts only the recorded complete shutdown and positive cleanup.
+No neural rerun was used. This short check does not establish accuracy, positive
+events, overlapping-word quality, endurance or other-platform support. The
+legacy worker and default launcher remain unchanged.
 
 ## Admission and API
 
@@ -129,7 +138,8 @@ The factory must independently bind/verify the approved local model/runtime
 fingerprints, actual model-call budgets, CPU/thread/affinity limits and aggregate
 process-tree resource supervisor. This module neither installs dependencies,
 loads a default model, expands a budget, nor starts a paid API. A real-provider
-launcher is described below; neural HTTP acceptance remains unverified.
+launcher is described below; its actual HTTP evidence is limited to the short
+audited smoke described above.
 
 ## Reproducible model-free checks
 
@@ -147,11 +157,85 @@ Neither interruption nor process exit implies native EOS.
 
 ## Explicit CPU launcher and recovery
 
-Use `python -m audio_backend --fragment-cpu-manifest FILE
+### Build a local manifest without inference
+
+The supported initial profile is Linux x86_64, Python 3.12, SenseVoice/native
+Nemotron/ERes2Net/Zipformer CPU with no extra separation. Prepare the models and
+native CPU installation explicitly using the existing setup documentation,
+including the model licenses. The builder never installs, downloads, changes a
+dependency, starts a server/child or constructs a model. It does import the
+trusted inference wrappers to check their actual local object/data closure.
+
+In an explicitly prepared environment, the supported dependency recipe is:
+
+```sh
+python -m pip install -e '.[inference]' numpy==2.5.3 sherpa-onnx==1.13.8 \
+  sherpa-onnx-core==1.13.8 soundfile==0.14.0 opencc-python-reimplemented==0.1.7 \
+  psutil==7.2.2 cffi==2.1.1
+```
+
+This is a separate, user-invoked installation step, not something the builder
+performs. Other dependency versions fail with an actionable error; broad legacy
+dependency ranges are not evidence of support for this frozen CPU profile.
+
+Create a limits JSON with every field below. These are explicit example ceilings,
+not automatic host admission or measured requirements. Size them for the host,
+other workloads and recording length before serving. The builder prints derived
+maximum call/frame debits without reserving resources or increasing any ceiling.
+The one-hour example can be changed; there is no fixed 330-second product limit.
+
+```json
+{
+  "max_source_frames": 57600000,
+  "max_run_attempts": 2,
+  "max_core_attempts": 2,
+  "handshake_seconds": 120,
+  "request_seconds": 180,
+  "run_seconds": 7200,
+  "tree_rss_bytes": 4294967296,
+  "host_reserve_bytes": 2147483648,
+  "disk_reserve_bytes": 5368709120,
+  "scratch_bytes": 16777216,
+  "retained_bytes": 268435456
+}
+```
+
+Save it as `cpu-limits.json`, then build/check the environment-specific manifest:
+
+```sh
+python scripts/build_fragment_cpu_manifest.py --asset-root . --model-dir ./models \
+  --limits cpu-limits.json --output cpu-provider.json > cpu-provider-build.json
+SHA=$(python -c 'import json; print(json.load(open("cpu-provider-build.json"))["sha256"])')
+python -m audio_backend --fragment-cpu-manifest cpu-provider.json \
+  --fragment-cpu-sha256 "$SHA" --fragment-cpu-check
+python -m audio_backend --fragment-cpu-manifest cpu-provider.json \
+  --fragment-cpu-sha256 "$SHA" --data-dir ./fragment-data --host 127.0.0.1 --port 8765
+```
+
+`--asset-root` may point to a separate existing prepared installation; its public
+model manifests must match this source checkout, and its relative native receipt
+is verified/rebased rather than reusing its old absolute settings. Runtime
+companions, model/license bytes, local interpreter, source and fixed dependency
+package roots are hashed. Actual lazy imports, OpenCC's precise dictionary chain
+and selected libsndfile/framework objects are checked without model creation.
+Expected native metadata comes from the same pure function used after the live
+provider's actual checks; no prior inference receipt or private freeze is needed.
+The manifest is fsynced and published without overwriting an existing file, then
+its exact file SHA256 is printed. If publication fails, inspect the output before
+retrying; a directory-fsync error may leave a valid but unacknowledged file.
+
+Move source/assets or change dependencies? Rebuild into a new output file and
+rerun check-only. Never edit/rebase paths in a frozen manifest. A generated pin
+records local bytes, not a new model-quality or platform certification. The
+generation command requires its installed wheel file inventories; incomplete or
+unsupported runtime closure fails closed. Keep generated manifests and receipts
+private because they contain local paths.
+
+For an already built manifest, use `python -m audio_backend --fragment-cpu-manifest FILE
 --fragment-cpu-sha256 SHA256 --fragment-cpu-check` first. Check-only performs
 local hashing and validation without models, children, a database or listener.
 Omit `--fragment-cpu-check` to serve; `--data-dir`, `--host` and `--port` remain
-available. No setup, download or implicit asset discovery is performed.
+available. Server startup performs no setup, download or implicit asset discovery.
 
 The bounded JSON manifest uses schema `fragment-cpu-provider-v1` and exactly
 `config`, `files`, `limits`, `native_provenance`. `Manifest` in

@@ -24,6 +24,267 @@ from audio_backend.fragment_cpu_provider import (
 from audio_backend.fragment_runtime_contracts import RATE, canonical, digest, StaleWork
 
 
+@pytest.fixture
+def manifest_builder(monkeypatch):
+    import importlib.util
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(root / 'scripts'))
+    spec = importlib.util.spec_from_file_location('public_cpu_manifest_builder', root / 'scripts/build_fragment_cpu_manifest.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_builder_shared_configuration_is_immutable():
+    from audio_backend.fragment_cpu_provider import ADMITTED_CONFIG, validate_limits
+    with pytest.raises(TypeError):
+        ADMITTED_CONFIG['cpu_threads'] = 99
+    source = {key: 1 for key in __import__('audio_backend.fragment_cpu_provider', fromlist=['LIMIT_KEYS']).LIMIT_KEYS}
+    copied = validate_limits(source)
+    copied['max_source_frames'] = 999
+    assert source['max_source_frames'] == 1
+
+
+@pytest.mark.parametrize('change', ['missing', 'extra', 'boolean', 'zero', 'float', 'attempts', 'deadline'])
+def test_builder_rejects_limits_before_asset_work(tmp_path, monkeypatch, manifest_builder, change):
+    limits = manifest(tmp_path).limits
+    if change == 'missing': limits.pop('scratch_bytes')
+    elif change == 'extra': limits['new_budget'] = 1
+    elif change == 'boolean': limits['max_source_frames'] = True
+    elif change == 'zero': limits['max_source_frames'] = 0
+    elif change == 'float': limits['max_source_frames'] = 12.0
+    elif change == 'attempts': limits['max_core_attempts'] = limits['max_run_attempts'] + 1
+    else: limits['request_seconds'] = limits['run_seconds'] + 1
+    monkeypatch.setattr(manifest_builder, 'assets', lambda *args: pytest.fail('invalid limits reached assets'))
+    with pytest.raises(ValueError):
+        manifest_builder.build_manifest(tmp_path, tmp_path, limits)
+
+
+@pytest.mark.parametrize('event', ['socket.__new__', 'subprocess.Popen', 'os.fork', 'os.posix_spawn', 'os.exec', 'os.system'])
+def test_builder_local_only_policy_rejects_external_actions(manifest_builder, event):
+    with pytest.raises(RuntimeError, match='forbids'):
+        manifest_builder.local_only(event, ())
+    manifest_builder.local_only('open', ())
+
+
+def test_builder_rejects_other_python_minor_before_assets(tmp_path, monkeypatch, manifest_builder):
+    limits = manifest(tmp_path).limits
+    monkeypatch.setattr(manifest_builder.sys, 'version_info', (3, 13, 0))
+    monkeypatch.setattr(manifest_builder, 'assets', lambda *args: pytest.fail('unsupported Python reached assets'))
+    with pytest.raises(ValueError, match='requires Python 3.12'):
+        manifest_builder.build_manifest(tmp_path, tmp_path, limits)
+
+
+def test_builder_hashes_exact_bytes_and_rejects_mutation(tmp_path, monkeypatch, manifest_builder):
+    path = tmp_path / 'asset'; path.write_bytes(b'abc')
+    assert manifest_builder.file_pin(path) == {'bytes': 3, 'sha256': hashlib.sha256(b'abc').hexdigest()}
+    real = hashlib.file_digest
+    def mutating(stream, kind):
+        value = real(stream, kind)
+        path.write_bytes(b'def')
+        return value
+    monkeypatch.setattr(hashlib, 'file_digest', mutating)
+    with pytest.raises(ValueError, match='changed'):
+        manifest_builder.file_pin(path)
+
+
+def test_builder_package_inventory_includes_lazy_assets(tmp_path, monkeypatch, manifest_builder):
+    names = ['numpy/lazy.py', 'numpy.libs/libblas.so', 'opencc/config/t2s.json',
+             'opencc/dictionary/TSPhrases.txt', '_soundfile_data/libsndfile.so',
+             '_cffi_backend.test.so', 'numpy/__pycache__/lazy.pyc', 'unrelated/model.onnx']
+    for name in names:
+        path = tmp_path / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b'fixture')
+    fake = SimpleNamespace(files=names, version='test', locate_file=lambda name: tmp_path / name)
+    monkeypatch.setattr(manifest_builder, 'DISTRIBUTIONS', ('fixture',))
+    monkeypatch.setattr(manifest_builder, 'REVIEWED_VERSIONS', {'fixture': 'test'})
+    monkeypatch.setattr(manifest_builder.importlib.metadata, 'distribution', lambda name: fake)
+    files = {}; assert manifest_builder.package_closure(files) == {'fixture': 'test'}
+    assert set(files) == {str((tmp_path / name).resolve()) for name in names[:6]}
+    (tmp_path / names[0]).unlink()
+    with pytest.raises(FileNotFoundError):
+        manifest_builder.package_closure({})
+    fake.version = 'unreviewed'
+    with pytest.raises(ValueError, match='Unsupported CPU dependency version'):
+        manifest_builder.package_closure({})
+
+
+def test_builder_rejects_unbounded_or_escaping_package_inventory(tmp_path, monkeypatch, manifest_builder):
+    outside = tmp_path / 'outside.py'; outside.write_text('pass')
+    root = tmp_path / 'packages'; (root / 'numpy').mkdir(parents=True)
+    (root / 'numpy/lazy.py').symlink_to(outside)
+    fake = SimpleNamespace(files=['numpy/lazy.py'], version='test', locate_file=lambda name: root / name)
+    monkeypatch.setattr(manifest_builder, 'DISTRIBUTIONS', ('fixture',))
+    monkeypatch.setattr(manifest_builder, 'REVIEWED_VERSIONS', {'fixture': 'test'})
+    monkeypatch.setattr(manifest_builder.importlib.metadata, 'distribution', lambda name: fake)
+    with pytest.raises(ValueError, match='escapes'):
+        manifest_builder.package_closure({})
+    fake.files = ['unrelated'] * 20001
+    with pytest.raises(ValueError, match='metadata exceeds'):
+        manifest_builder.package_closure({})
+
+
+def test_builder_atomic_publication_never_clobbers(tmp_path, manifest_builder):
+    mf = manifest(tmp_path)
+    output = tmp_path / 'published.json'
+    fingerprint = manifest_builder.publish(mf, output)
+    assert Manifest.load(output, fingerprint).value == mf.value
+    previous = output.read_bytes()
+    with pytest.raises(ValueError, match='new output'):
+        manifest_builder.publish(mf, output)
+    assert output.read_bytes() == previous
+    assert not list(tmp_path.glob('.fragment-manifest-*'))
+
+
+def test_builder_fsync_failure_does_not_publish(tmp_path, monkeypatch, manifest_builder):
+    mf = manifest(tmp_path); output = tmp_path / 'failed.json'
+    def failed(fd): raise OSError('injected fsync failure')
+    monkeypatch.setattr(manifest_builder.os, 'fsync', failed)
+    with pytest.raises(OSError, match='fsync'):
+        manifest_builder.publish(mf, output)
+    assert not output.exists() and not list(tmp_path.glob('.fragment-manifest-*'))
+
+
+def test_builder_rejects_duplicate_or_oversized_json(tmp_path, manifest_builder):
+    path = tmp_path / 'limits.json'; path.write_text('{"max_source_frames":1,"max_source_frames":2}')
+    with pytest.raises(ValueError, match='Duplicate'):
+        manifest_builder.read_json(path)
+    with pytest.raises(ValueError, match='oversized'):
+        manifest_builder.read_json(path, limit=2)
+
+
+@pytest.fixture
+def builder_assets(tmp_path, monkeypatch, manifest_builder):
+    from run_cpu_candidate import MODEL_FILES
+    source = tmp_path / 'source'; source.mkdir()
+    root = tmp_path / 'assets'; root.mkdir()
+    def write(name, data):
+        path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
+        return {'path': name, 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+    models = [write(name, b'model') for name in MODEL_FILES]
+    native = write('models/native-diarization/Nemotron-3-Diarization.q8_0.gguf', b'native')
+    license_pin = write('licenses/native-diarization/OpenMDW-1.1.txt', b'notice')
+    runtime = 'vendor/native-diarization/linux-x86_64-cpu'
+    library = write(runtime + '/lib/libnemo_speech_asr_c.so', b'library')
+    companion = write(runtime + '/lib/libggml-cpu.so', b'companion')
+    manifests = {'model-manifest.json': {'runtime_files': models},
+                 'native-runtime-manifest.json': {'release': '0.2.0', 'runtimes': {'linux-x86_64-cpu': {}},
+                     'model': {**native, 'destination': native['path']}, 'model_license_sha256': license_pin['sha256']}}
+    for name, value in manifests.items():
+        data = json.dumps(value).encode(); (root / name).write_bytes(data); (source / name).write_bytes(data)
+    receipt = {'runtime': 'linux-x86_64-cpu', 'version': '0.2.0', 'files': [library, companion],
+               'settings': {'native_diarization_library': 'old-relative-location-is-not-reused'}}
+    receipt_path = root / runtime / 'installation.json'; receipt_path.write_text(json.dumps(receipt))
+    monkeypatch.setattr(manifest_builder, 'ROOT', source)
+    return root, receipt_path, receipt
+
+
+def test_builder_public_asset_receipts_are_sufficient_without_inference(builder_assets, manifest_builder):
+    root, _, _ = builder_assets
+    files = {}; paths, companions = manifest_builder.assets(root, root / 'models', files)
+    assert Path(paths['library']).is_relative_to(root)
+    assert set(companions) == {'libnemo_speech_asr_c.so', 'libggml-cpu.so'}
+    assert str(root / 'models/speaker.onnx') in files
+
+
+@pytest.mark.parametrize('fault', ['manifest', 'missing', 'oversized', 'hash', 'unlisted_companion', 'escape', 'runtime'])
+def test_builder_rejects_incomplete_or_changed_asset_receipts(builder_assets, manifest_builder, fault):
+    root, receipt_path, receipt = builder_assets
+    if fault == 'manifest': (root / 'model-manifest.json').write_text('{}')
+    elif fault == 'missing': receipt_path.unlink()
+    elif fault == 'oversized': receipt_path.write_bytes(b' ' * (manifest_builder.MAX_METADATA + 1))
+    elif fault == 'unlisted_companion': (receipt_path.parent / 'lib/libggml-unknown.so').write_bytes(b'extra')
+    else:
+        if fault == 'hash': receipt['files'][0]['sha256'] = '0' * 64
+        elif fault == 'escape': receipt['files'][0]['path'] = '../outside.so'
+        else: receipt['runtime'] = 'linux-x86_64-vulkan'
+        receipt_path.write_text(json.dumps(receipt))
+    with pytest.raises((ValueError, FileNotFoundError)):
+        manifest_builder.assets(root, root / 'models', {})
+
+
+def test_builder_relocated_offline_public_roundtrip(tmp_path):
+    """Optional local-asset integration: no downloads/copies/constructors/compute.
+
+    Set FRAGMENT_CPU_BUILDER_ASSET_ROOT to an existing prepared installation.
+    Its real files are only hashed. All candidate source comes from the index,
+    in a clean relocated tree containing no private freeze or inference result.
+    """
+    asset_root = os.environ.get('FRAGMENT_CPU_BUILDER_ASSET_ROOT')
+    if not asset_root:
+        pytest.skip('Explicit existing local asset root required for offline integration')
+    import subprocess
+    root = Path(__file__).resolve().parents[1]
+    relocated = tmp_path / 'relocated'; relocated.mkdir()
+    subprocess.run(['git', 'checkout-index', '--prefix=' + str(relocated) + '/', '-a'], cwd=root, check=True)
+    assert (relocated / 'scripts/build_fragment_cpu_manifest.py').is_file()
+    assert not (relocated / 'reports').exists() and not (relocated / '.git').exists()
+    limits = {'max_source_frames': 16_000 * 3600, 'max_run_attempts': 2, 'max_core_attempts': 2,
+              'request_seconds': 180, 'handshake_seconds': 120, 'run_seconds': 7200,
+              'tree_rss_bytes': 384 * 1024**2, 'host_reserve_bytes': 2 * 1024**3,
+              'disk_reserve_bytes': 5 * 1024**3, 'scratch_bytes': 8 * 1024**2,
+              'retained_bytes': 32 * 1024**2}
+    limit_path = tmp_path / 'limits.json'; limit_path.write_text(json.dumps(limits))
+    output = tmp_path / 'manifest.json'
+    bootstrap = r'''
+import os,runpy,sys
+sys.dont_write_bytecode=True
+def deny(*args,**kwargs):raise AssertionError('No model construction is permitted')
+def audit(event,args):
+ if event in {'socket.__new__','subprocess.Popen','os.fork','os.posix_spawn','os.exec','os.system'}:
+  raise AssertionError('No network or child execution is permitted')
+sys.addaudithook(audit)
+sys.path.insert(0,os.getcwd())
+from audio_backend.inference.analyzer import AudioAnalyzer
+from audio_backend.inference.native_diarization import NativeDiarizer,_CAPI
+AudioAnalyzer.__init__=NativeDiarizer.__init__=_CAPI.__init__=deny
+import sherpa_onnx,opencc
+for name in ('OfflineRecognizer','SpeakerEmbeddingExtractor','AudioTagging'):
+ if hasattr(sherpa_onnx,name):getattr(sherpa_onnx,name).__init__=deny
+opencc.OpenCC.__init__=deny
+mode=sys.argv.pop(1)
+if mode=='build':
+ sys.path.insert(0,os.path.join(os.getcwd(),'scripts'))
+ sys.argv[0]='scripts/build_fragment_cpu_manifest.py'
+ runpy.run_path(sys.argv[0],run_name='__main__')
+else:
+ from audio_backend.__main__ import main
+ main(sys.argv[1:])
+'''
+    env = {**os.environ, 'PYTHONPATH': str(relocated), 'PYTHONDONTWRITEBYTECODE': '1',
+           'OMP_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1'}
+    old_output = tmp_path / 'old-root-manifest.json'
+    old_built = subprocess.run([sys.executable, '-B', '-c', bootstrap, 'build', '--asset-root', asset_root,
+                                '--limits', str(limit_path), '--output', str(old_output)], cwd=root,
+                               env={**env, 'PYTHONPATH': str(root)}, capture_output=True, text=True, timeout=180)
+    assert old_built.returncode == 0, old_built.stdout + old_built.stderr
+    old_receipt = json.loads(old_built.stdout)
+    rejected = subprocess.run([sys.executable, '-B', '-c', bootstrap, 'check', '--fragment-cpu-manifest', str(old_output),
+                               '--fragment-cpu-sha256', old_receipt['sha256'], '--fragment-cpu-check'],
+                              cwd=relocated, env=env, capture_output=True, text=True, timeout=180)
+    assert rejected.returncode != 0 and 'Manifest omits an actual model/runtime/interpreter asset' in rejected.stderr
+    built = subprocess.run([sys.executable, '-B', '-c', bootstrap, 'build', '--asset-root', asset_root,
+                            '--limits', str(limit_path), '--output', str(output)], cwd=relocated,
+                           env=env, capture_output=True, text=True, timeout=180)
+    assert built.returncode == 0, built.stdout + built.stderr
+    receipt = json.loads(built.stdout)
+    assert receipt['model_constructors'] == receipt['model_compute_calls'] == receipt['network_calls'] == 0
+    value = json.loads(output.read_text())
+    assert value['limits'] == limits
+    assert str(relocated / 'audio_backend/fragment_cpu_provider.py') in value['files']
+    assert str(root / 'audio_backend/fragment_cpu_provider.py') not in value['files']
+    checked = subprocess.run([sys.executable, '-B', '-c', bootstrap, 'check', '--fragment-cpu-manifest', str(output),
+                              '--fragment-cpu-sha256', receipt['sha256'], '--fragment-cpu-check'],
+                             cwd=relocated, env=env, capture_output=True, text=True, timeout=180)
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+    check = json.loads(checked.stdout)
+    assert check['status'] == 'model_free_check_only' and check['model_execution'] == 'not_run'
+    assert not (relocated / 'audio-data').exists()
+    assert not list(relocated.rglob('__pycache__'))
+    (tmp_path / 'builder-check-only-receipt.json').write_text(json.dumps(
+        {'build': receipt, 'check': check, 'old_root_build': old_receipt,
+         'old_root_rejected': True, 'old_root_check_error': rejected.stderr}, indent=2))
+
+
 # Tests use the real child framing/attestation/reservation path. These tiny
 # engines exist only in this test's explicit subprocess command; no fake option
 # is accepted by the product CLI, manifest or production child entry points.

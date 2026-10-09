@@ -184,5 +184,40 @@
       ]
     }
   ],
-  "candidate_note": "The finalized HTTP layer is a reviewed local override pinned to an exact Git blob, not an imported commit. Historical imports and prior layer rows are unchanged; expected_updated_paths counts every update occurrence."
+  "candidate_note": "The finalized HTTP layer is a reviewed local override pinned to an exact Git blob, not an imported commit. Historical imports and prior layer rows are unchanged; expected_updated_paths counts every update occurrence.",
+  "local_followups": [
+    {
+      "component": "offline-cpu-manifest-builder",
+      "reviewed_base_commit": "0de25be7b0e8983aceb1e5591f41f6cf667851fc",
+      "files": [
+        {
+          "path": "audio_backend/fragment_cpu_provider.py",
+          "bytes": 68571,
+          "sha256": "a8470a1752b7e24429dfd4a1b578c9c4d26b6102eceafc744ef0f8803942ccf7",
+          "source_blob": "2dd09b945a6dbda2655ff5a1fb3ab95a517398d4",
+          "supersedes": {
+            "source_blob": "76a6837908290e395656aef7a28c0238b21b7fc0",
+            "sha256": "79aa5be8649f8d3efa423b3f0abc8f71fcc859cbf4d40e9ad7f2c8327ddd216b"
+          }
+        },
+        {
+          "path": "audio_backend/inference/native_diarization.py",
+          "bytes": 14870,
+          "sha256": "eabc3929bc5dfa382775c79b145d84a5d7e042730e0312af8afe394049d08caf",
+          "source_blob": "b0fd60f1117898d990827241faf2c1b04f3ed048",
+          "supersedes": {
+            "source_blob": "bd9f1c3e768383600c5cf3e8eae1e14893dbabcc",
+            "sha256": "98df0a356fec06a28a4369b8389570a0abb116a1d1b23a945f2a60a9d88e7cfe"
+          }
+        },
+        {
+          "path": "scripts/build_fragment_cpu_manifest.py",
+          "bytes": 13111,
+          "sha256": "36977ecc8d6feb423a101c42afe2c34c489f585ba51530d942cc3864a9f7e3b6",
+          "source_blob": "5ba5046d62c4ec3b19c9623d7c69e7401750ea1a",
+          "base_absent": true
+        }
+      ]
+    }
+  ]
 }

@@ -96,4 +96,4 @@ python scripts/run_cpu_candidate.py --dry-run
 
 ### 实验性 finalized PCM16 HTTP 接线
 
-独立 feature 候选新增[已结束 PCM16 流的 HTTP 集成与显式 CPU manifest 启动器](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受声明连续的原始 16 kHz 单声道 PCM16 WAV；零裁剪，公共行、游标和 EOS 同事务提交。默认关闭；真实神经 HTTP 执行仍未验收。原生重叠说话轨道保留，全局身份学习和独立候选公开投影不可用。无模型测试使用实际受监督子进程传输与假模型，不下载或运行神经模型。
+独立 feature 候选新增[已结束 PCM16 流的 HTTP 集成、离线 manifest 生成命令与 CPU 启动步骤](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受声明连续的原始 16 kHz 单声道 PCM16 WAV；零裁剪，公共行、游标和 EOS 同事务提交。默认关闭；一次 12 秒真实 CPU HTTP 检查已独立审阅，覆盖输入、幂等、结果提交与清理，不代表通用准确率或长时验收。原始测试器因将正常 SIGTERM 退出视为失败而保留失败终态，独立解释与修正测试另存。原生重叠说话轨道保留，全局身份学习和独立候选公开投影不可用。新的 `scripts/build_fragment_cpu_manifest.py` 只校验已有本地资源并生成哈希，不下载、安装或构造模型；不需要私有实验文件或先跑一次推理。

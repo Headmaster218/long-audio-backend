@@ -25,6 +25,36 @@ MAX_PUSH_SECONDS = 60.
 MAX_SEGMENTS = 32768
 
 
+def build_expected_native_provenance(*, model_sha256, library_sha256,
+                                     runtime_version, epoch_max_seconds,
+                                     runtime_files_sha256):
+    """Construct expected metadata from explicit identities, without model I/O.
+
+    These are supplied expectations, not observations of a loaded runtime. The
+    live provider verifies its runtime, capacity, and cadence before calling
+    this function. Wrapper CPU observations are appended later and are not part
+    of the historical base fingerprint.
+    """
+    provenance = {
+        'diarization_backend': 'nemotron3-native', 'diarization_runtime': 'NeMo-Speech.cpp',
+        'diarization_runtime_version': runtime_version,
+        'diarization_library_sha256': library_sha256, 'diarization_model_sha256': model_sha256,
+        'diarization_model_license': 'OpenMDW-1.1',
+        'diarization_model_license_url': 'https://openmdw.ai/license/1-1/',
+        'diarization_preset': 'v3-offline', 'diarization_geometry': dict(GEOMETRY),
+        'diarization_postprocessing': dict(POSTPROCESSING), 'diarization_local_capacity': 8,
+        'diarization_epoch_input_cap_seconds': float(epoch_max_seconds),
+        'diarization_morphology_guard_seconds': MORPHOLOGY_GUARD_SECONDS,
+        'diarization_global_identity': 'separate ERes2Net evidence and identity registry',
+        'diarization_capacity_warning': 'At most 8 distinct speakers in one epoch, including replay/context; not unlimited speakers.',
+        'diarization_native_requested_threads': 4,
+        'diarization_runtime_files_sha256': dict(runtime_files_sha256),
+    }
+    provenance['diarization_fingerprint'] = hashlib.sha256(
+        json.dumps(provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return provenance
+
+
 def _sha256(path):
     with Path(path).open('rb') as source:
         return hashlib.file_digest(source, 'sha256').hexdigest()
@@ -159,20 +189,7 @@ class NativeDiarizer:
             self._api.destroy(self._model)
             self._model = None
             raise
-        self._provenance = {
-            'diarization_backend': 'nemotron3-native', 'diarization_runtime': 'NeMo-Speech.cpp',
-            'diarization_runtime_version': self._api.version,
-            'diarization_library_sha256': _sha256(library), 'diarization_model_sha256': model_sha,
-            'diarization_model_license': 'OpenMDW-1.1',
-            'diarization_model_license_url': 'https://openmdw.ai/license/1-1/',
-            'diarization_preset': 'v3-offline', 'diarization_geometry': dict(GEOMETRY),
-            'diarization_postprocessing': dict(POSTPROCESSING), 'diarization_local_capacity': 8,
-            'diarization_epoch_input_cap_seconds': self._max_seconds,
-            'diarization_morphology_guard_seconds': MORPHOLOGY_GUARD_SECONDS,
-            'diarization_global_identity': 'separate ERes2Net evidence and identity registry',
-            'diarization_capacity_warning': 'At most 8 distinct speakers in one epoch, including replay/context; not unlimited speakers.',
-            'diarization_native_requested_threads': 4,
-        }
+        library_sha = _sha256(library)
         # The C ABI library delegates inference to sibling runtime libraries.
         # Include their bytes in the checkpoint identity, not just the thin ABI.
         companions = {}
@@ -180,9 +197,10 @@ class NativeDiarizer:
             if path.is_file() and not path.is_symlink() and any(
                     name in path.name.lower() for name in ('nemo_speech_asr', 'ggml', 'llama')):
                 companions[path.name] = _sha256(path)
-        self._provenance['diarization_runtime_files_sha256'] = companions
-        self._provenance['diarization_fingerprint'] = hashlib.sha256(
-            json.dumps(self._provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        self._provenance = build_expected_native_provenance(
+            model_sha256=model_sha, library_sha256=library_sha,
+            runtime_version=self._api.version, epoch_max_seconds=self._max_seconds,
+            runtime_files_sha256=companions)
 
     def provenance(self):
         return json.loads(json.dumps(self._provenance))
