@@ -80,6 +80,8 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 `0.2.0rc2.dev4` 在独立暂存分支加入[已审阅的离线扩展](docs/FRAGMENT_EXTENSIONS_STAGING.md)：真实 provider 桥接、独立的 finalized single-island PCM16 规范化实验，以及正事件和 native 边界基准。全部默认关闭；规范化尚未接入运行时、模型桥接或 HTTP API。基础矩阵的事件为空，仅支持负事件不变性；正事件结果限于选定的合成开发样本。native P2 保留原始报告超限失败，后续分片补跑单独授权和计量。这不是发布或生产验收。
 
+`0.2.0rc2.dev5` 独立暂存候选增加默认关闭的内部规范化运行时适配器，以及独立的压缩源 receipt/rolling emitted-PCM reader 实验。规范化路径保留 native 来源坐标与 canonical 16 kHz 模型时间的区别；压缩 reader 尚未接入 SourcePlan、Alias、自动裁剪或任何运行时。AAC endpoint 仍未解决，rolling chunk 在本次 session 完成前仅为 provisional。没有 HTTP/upload/生产 worker 接线；这是源码审阅候选，不是已发布版本或长期吞吐验收。
+
 ## 测试、证据与交付
 
 ```sh
