@@ -35,6 +35,10 @@ def reset_group(store, group):
         db.execute('BEGIN IMMEDIATE')
         if db.execute("SELECT 1 FROM chunks WHERE status='running' LIMIT 1").fetchone():
             raise ValueError('Wait for worker to become idle')
+        from .verified_identity import group_policy
+        policy=group_policy(db,group)
+        if policy and policy['mode']=='verified_review_v1':
+            db.execute('INSERT OR IGNORE INTO identity_feed_suppression VALUES(?)',(group,))
         # Rotate only real groups: arbitrary reset URLs must not grow this table.
         if db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0 LIMIT 1',(group,)).fetchone():
             import uuid
@@ -95,6 +99,13 @@ def reset_group(store, group):
                 db.execute('UPDATE result_changes SET data=? WHERE cursor=?',
                            (json.dumps(safe), row['cursor']))
 
+        db.execute(f"""UPDATE result_changes SET data=json_remove(data,'$.identity_decision_id','$.identity_profile_revision','$.identity_state')
+            WHERE session_id IN ({GROUP_SESSIONS}) AND entity IN ('segments','speaker_turns') AND data IS NOT NULL""",(group,))
+        # Bank history carries evidence-space/generation links; only the latest
+        # reset snapshot remains visible, preserving monotonic feed cursors.
+        db.execute(f"""UPDATE result_changes SET operation='delete',data=NULL WHERE session_id IN ({GROUP_SESSIONS})
+            AND entity='identity_bank' AND data IS NOT NULL
+            AND json_extract(data,'$.generation') != (SELECT generation FROM speaker_identity_generations WHERE identity_group=?)""",(group,group))
         # The private correction audit also contains labels and person links.
         # Retain action/segment/example provenance, not the forgotten identity.
         query = f'''SELECT id AS cursor,detail FROM corrections
@@ -109,4 +120,5 @@ def reset_group(store, group):
                 safe['identity_reset'] = True
                 db.execute('UPDATE corrections SET detail=? WHERE id=?',
                            (json.dumps(safe), row['cursor']))
+        db.execute('DELETE FROM identity_feed_suppression WHERE identity_group=?',(group,))
     return {'identity_group': group, 'reset': True}

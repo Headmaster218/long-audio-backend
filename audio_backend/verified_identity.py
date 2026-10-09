@@ -22,8 +22,12 @@ POLICY_KEYS = {'schema_version','experimental','single_threshold','centroid_thre
 
 
 def policy_file(path):
-    raw = Path(path).read_bytes()
-    if len(raw) > 8192:
+    path=Path(path)
+    if path.stat().st_size>8192:
+        raise ValueError('Verified policy exceeds 8 KiB')
+    with path.open('rb') as source:
+        raw=source.read(8193)
+    if len(raw)>8192:
         raise ValueError('Verified policy exceeds 8 KiB')
     value = json.loads(raw)
     if (not isinstance(value, dict) or set(value) != POLICY_KEYS or type(value['schema_version']) is not int or value['schema_version'] != 1
@@ -44,6 +48,9 @@ def init_schema(db):
     db.execute('''CREATE TABLE IF NOT EXISTS identity_group_policy (
         identity_group TEXT PRIMARY KEY, mode TEXT NOT NULL, policy TEXT NOT NULL, policy_sha256 TEXT NOT NULL,
         space_id TEXT, revision INTEGER NOT NULL DEFAULT 0, availability INTEGER NOT NULL DEFAULT 0)''')
+    if 'change_reason' not in {row['name'] for row in db.execute('PRAGMA table_info(identity_group_policy)')}:
+        db.execute('ALTER TABLE identity_group_policy ADD COLUMN change_reason TEXT')
+    db.execute('CREATE TABLE IF NOT EXISTS identity_feed_suppression(identity_group TEXT PRIMARY KEY)')
     db.execute('''CREATE TRIGGER IF NOT EXISTS identity_policy_immutable BEFORE UPDATE OF mode,policy,policy_sha256 ON identity_group_policy
         BEGIN SELECT RAISE(ABORT,'Group identity mode and policy are immutable'); END''')
     db.execute('''CREATE TABLE IF NOT EXISTS identity_review_events (
@@ -54,6 +61,13 @@ def init_schema(db):
         previous_event_id TEXT, idempotency_key TEXT, request_sha256 TEXT,
         response TEXT NOT NULL, created REAL NOT NULL,
         UNIQUE(identity_group,generation,idempotency_key))''')
+    db.execute('''CREATE TABLE IF NOT EXISTS identity_review_event_order (
+        cursor INTEGER PRIMARY KEY AUTOINCREMENT,event_id TEXT NOT NULL UNIQUE REFERENCES identity_review_events(id) ON DELETE CASCADE)''')
+    db.execute('''INSERT OR IGNORE INTO identity_review_event_order(event_id) SELECT id FROM identity_review_events ORDER BY created,id''')
+    db.execute('''CREATE TRIGGER IF NOT EXISTS identity_review_order AFTER INSERT ON identity_review_events
+        BEGIN INSERT INTO identity_review_event_order(event_id) VALUES(NEW.id); END''')
+    if 'review_kind' not in {row['name'] for row in db.execute('PRAGMA table_info(identity_review_events)')}:
+        db.execute('ALTER TABLE identity_review_events ADD COLUMN review_kind TEXT')
     db.execute('CREATE INDEX IF NOT EXISTS review_events_group ON identity_review_events(identity_group,sequence)')
     db.execute('''CREATE TRIGGER IF NOT EXISTS review_events_immutable BEFORE UPDATE ON identity_review_events
         BEGIN SELECT RAISE(ABORT,'Review events are immutable'); END''')
@@ -76,12 +90,17 @@ def init_schema(db):
         decision_id TEXT PRIMARY KEY REFERENCES identity_decisions(id) ON DELETE CASCADE,
         stale INTEGER NOT NULL DEFAULT 0, reason TEXT)''')
     db.execute('CREATE INDEX IF NOT EXISTS identity_decisions_group ON identity_decisions(identity_group)')
+    db.execute('''CREATE TABLE IF NOT EXISTS identity_decision_sources (
+        decision_id TEXT NOT NULL REFERENCES identity_decisions(id) ON DELETE CASCADE,
+        chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE, PRIMARY KEY(decision_id,chunk_id))''')
+    db.execute('CREATE INDEX IF NOT EXISTS decision_sources_chunk ON identity_decision_sources(chunk_id)')
 
 
 def install_lifecycle(db):
-    # This defensive trigger covers direct SQL source erasure as well as normal
-    # session deletion. One revocation slot was reserved for every active review.
-    db.execute('''CREATE TRIGGER IF NOT EXISTS identity_review_support_expiry BEFORE DELETE ON speaker_support
+    # Revocation history is bounded by reserved slots. Public staleness is an
+    # O(1) gallery revision invalidation, never millions of result-row updates.
+    db.execute('DROP TRIGGER IF EXISTS identity_review_support_expiry')
+    db.execute('''CREATE TRIGGER identity_review_support_expiry BEFORE DELETE ON speaker_support
         WHEN EXISTS(SELECT 1 FROM identity_active_reviews WHERE support_id=OLD.id) BEGIN
         INSERT INTO identity_review_events
             (id,identity_group,generation,sequence,action,person_id,support_id,vector_id,evidence_key,
@@ -92,18 +111,20 @@ def install_lifecycle(db):
             '{}',(julianday('now')-2440587.5)*86400
         FROM identity_active_reviews a JOIN identity_group_policy p ON p.identity_group=a.identity_group
         WHERE a.support_id=OLD.id;
-        UPDATE identity_group_policy SET revision=revision+1,availability=availability+1
+        UPDATE identity_group_policy SET revision=revision+1,availability=availability+1,change_reason='source_expired'
             WHERE identity_group=OLD.identity_group;
-        UPDATE identity_decision_state SET stale=1,reason='source_expired' WHERE stale=0 AND decision_id IN
-            (SELECT id FROM identity_decisions WHERE identity_group=OLD.identity_group);
-        UPDATE segments SET speaker_id=NULL,speaker_match_score=NULL,speaker_status='identity_stale'
-            WHERE identity_decision_id IN (SELECT id FROM identity_decisions WHERE identity_group=OLD.identity_group)
-            AND speaker_status NOT LIKE 'human_%';
-        UPDATE speaker_turns SET speaker_id=NULL,speaker_match_score=NULL,speaker_status='identity_stale'
-            WHERE identity_decision_id IN (SELECT id FROM identity_decisions WHERE identity_group=OLD.identity_group)
-            AND speaker_status NOT LIKE 'human_%';
         DELETE FROM identity_active_reviews WHERE support_id=OLD.id;
         END''')
+    db.execute('DROP TRIGGER IF EXISTS identity_query_source_expiry')
+    # Once one affected current decision invalidates its gallery, subsequent
+    # deletes from the same recording cannot emit unbounded duplicate events.
+    affected = """SELECT d.identity_group FROM identity_decisions d
+        JOIN identity_decision_sources src ON src.decision_id=d.id
+        JOIN identity_group_policy p ON p.identity_group=d.identity_group
+        WHERE src.chunk_id=OLD.id AND json_extract(d.snapshot,'$.profile_revision')=p.revision"""
+    db.execute(f'''CREATE TRIGGER identity_query_source_expiry BEFORE DELETE ON chunks BEGIN
+        UPDATE identity_group_policy SET revision=revision+1,availability=availability+1,change_reason='query_source_expired'
+            WHERE identity_group IN ({affected}); END''')
 
 
 def group_policy(db, group):
@@ -124,7 +145,7 @@ def create_group(store, db, group, requested_mode):
             raise ValueError('identity_mode is immutable for an existing group')
         return
     # Old databases have no policy row: a live legacy group must never convert.
-    legacy = db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0', (group,)).fetchone()
+    legacy = db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0 UNION ALL SELECT 1 FROM speakers WHERE identity_group=? LIMIT 1', (group,group)).fetchone()
     mode = 'legacy' if legacy or requested_mode is None else requested_mode
     if requested_mode is not None and requested_mode != mode:
         raise ValueError('Existing legacy identity group cannot convert')
@@ -140,7 +161,7 @@ def create_group(store, db, group, requested_mode):
     encoded = support.canonical(policy)
     db.execute('INSERT INTO identity_group_policy(identity_group,mode,policy,policy_sha256) VALUES(?,?,?,?)',
         (group, mode, encoded.decode(), support.digest(encoded)))
-    support.generation(db, group)
+    if mode==MODE:support.generation(db, group)
 
 
 def _context(db, sid):
@@ -151,17 +172,25 @@ def _context(db, sid):
     policy = group_policy(db, group)
     if not policy or policy['mode'] != MODE:
         raise ValueError('Explicit verified_review_v1 identity group required')
-    return group, support.generation(db, group), policy
+    current=db.execute('SELECT generation FROM speaker_identity_generations WHERE identity_group=?',(group,)).fetchone()
+    if not current:raise ValueError('Identity generation unavailable')
+    return group,current['generation'],policy
 
 
 def _invalidate(db, group, reason):
-    db.execute('UPDATE identity_group_policy SET revision=revision+1,availability=availability+1 WHERE identity_group=?', (group,))
-    db.execute('''UPDATE identity_decision_state SET stale=1,reason=? WHERE stale=0 AND decision_id IN
-        (SELECT id FROM identity_decisions WHERE identity_group=?)''', (reason, group))
-    for table in ('segments', 'speaker_turns'):
-        db.execute(f'''UPDATE {table} SET speaker_id=NULL,speaker_match_score=NULL,speaker_status='identity_stale'
-            WHERE identity_decision_id IN (SELECT id FROM identity_decisions WHERE identity_group=?)
-            AND speaker_status NOT LIKE 'human_%' AND speaker_status!='identity_stale' ''', (group,))
+    db.execute('''UPDATE identity_group_policy SET revision=revision+1,availability=availability+1,
+        change_reason=? WHERE identity_group=?''', (reason,group))
+
+
+def project_result(row, policy):
+    """Bounded response projection; immutable history keeps original prediction."""
+    if row.get('identity_decision_id') is not None and policy:
+        stale=int(row['identity_profile_revision'])!=policy['revision']
+        row['identity_profile_revision']=int(row['identity_profile_revision'])
+        row['identity_state']='stale' if stale else 'current'
+        if stale and not row.get('speaker_status','').startswith('human_'):
+            row.update(speaker_id=None,speaker_match_score=None,speaker_status='identity_stale')
+    return row
 
 
 def _request(db, group, generation, policy, request, action, previous):
@@ -184,14 +213,9 @@ def _request(db, group, generation, policy, request, action, previous):
 
 def _evidence(db, sid, generation, policy, request):
     row = support._row(db, sid, request.get('support_id'), with_pcm=True)
-    manifest = json.loads(row['manifest'])
-    support.validate_manifest(manifest)
-    pcm = row['pcm']
-    if (row['generation'] != generation or row['status'] != 'available' or not support.finite_pcm(pcm)
-            or not 0 < len(pcm) <= support.MAX_PCM_BYTES or len(pcm) != row['pcm_bytes']
-            or support.digest(pcm) != manifest['support']['pooled_pcm_sha256']
-            or support.digest(support.canonical(manifest)) != row['manifest_sha256']):
-        raise ValueError('Exact retained acoustic support integrity unavailable')
+    manifest=support.validate_pcm_evidence(row,row['pcm'])
+    if row['generation']!=generation:
+        raise ValueError('Exact retained acoustic support generation unavailable')
     raw, vector = support_vectors.read(db, row['id'])
     if raw['generation'] != generation or raw['vector_sha256'] != manifest['embedding_sha256']:
         raise ValueError('Original support/vector binding unavailable')
@@ -288,13 +312,16 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
         if raw:
             prediction = db.execute('''SELECT snapshot FROM identity_decisions WHERE id IN
                 (SELECT identity_decision_id FROM segments WHERE speaker_support_id=? LIMIT 1)''', (raw['support_id'],)).fetchone()
-        db.execute('INSERT INTO identity_review_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        db.execute('''INSERT INTO identity_review_events
+            (id,identity_group,generation,sequence,action,person_id,support_id,vector_id,evidence_key,
+             fingerprints,attestation,operator_context,prior_prediction,previous_event_id,idempotency_key,
+             request_sha256,response,created,review_kind) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (event_id,group,generation,policy['revision']+1,action,person,raw['support_id'] if raw else old['support_id'],
              raw['id'] if raw else None,raw['evidence_key'] if raw else old['evidence_key'],
              support.canonical(fingerprints).decode() if fingerprints else None,
              support.canonical(request['attestation']).decode() if raw else None,operator_context,
              prediction[0] if prediction else None,previous,request['idempotency_key'],hashed,
-             support.canonical(response).decode(),time.time()))
+             support.canonical(response).decode(),time.time(),request.get('kind') if raw else None))
         if old:
             db.execute('DELETE FROM identity_active_reviews WHERE event_id=?', (old['event_id'],))
         if raw:
@@ -310,14 +337,16 @@ def reset(db, group):
     db.execute('DELETE FROM identity_active_reviews WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_review_events WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_decisions WHERE identity_group=?', (group,))
-    db.execute('UPDATE identity_group_policy SET space_id=NULL,revision=revision+1,availability=availability+1 WHERE identity_group=?', (group,))
+    db.execute("UPDATE identity_group_policy SET space_id=NULL,revision=revision+1,availability=availability+1,change_reason='identity_reset' WHERE identity_group=?", (group,))
     for table in ('segments','speaker_turns'):
-        db.execute(f'''UPDATE {table} SET identity_decision_id=NULL WHERE identity_decision_id IS NOT NULL AND chunk_id IN
+        db.execute(f'''UPDATE {table} SET identity_decision_id=NULL,identity_profile_revision=NULL,identity_state=NULL,
+            speaker_id=NULL,speaker_match_score=NULL,speaker_status='identity_reset' WHERE identity_decision_id IS NOT NULL AND chunk_id IN
             (SELECT c.id FROM chunks c JOIN sessions s ON s.id=c.session_id WHERE s.identity_group=?)''', (group,))
 
 
 def bank(store, sid):
     with store.db() as db:
+        db.execute('BEGIN')
         group, generation, policy = _context(db,sid)
         counts = {row['kind']: row['n'] for row in db.execute('''SELECT kind,COUNT(*) AS n FROM identity_active_reviews
             WHERE identity_group=? GROUP BY kind''', (group,))}
@@ -327,3 +356,161 @@ def bank(store, sid):
                 'limits': {'persons_global':MAX_PERSONS,'positives_global':MAX_POSITIVES,
                            'negatives_global':MAX_NEGATIVES,'events_global':MAX_EVENTS,'positives_per_person':MAX_PER_PERSON},
                 'experimental':True, 'warning':'Operator assertions are claims, not proof of correct identity or acoustic purity.'}
+
+
+def projection_intact(db,group,generation):
+    """The mutable active index may not rewrite immutable review ownership."""
+    return not db.execute('''SELECT 1 FROM identity_active_reviews a LEFT JOIN identity_review_events e ON e.id=a.event_id
+        WHERE a.identity_group=? AND (a.generation!=? OR e.id IS NULL OR e.identity_group!=a.identity_group
+        OR e.generation!=a.generation OR e.person_id IS NOT a.person_id OR e.support_id IS NOT a.support_id
+        OR e.evidence_key IS NOT a.evidence_key
+        OR COALESCE(e.review_kind,CASE WHEN e.action IN ('positive','negative') THEN e.action END) IS NOT a.kind)
+        LIMIT 1''',(group,generation)).fetchone()
+
+
+def reference_vector(db,active):
+    raw,vector=support_vectors.read(db,active['support_id'])
+    event=db.execute('SELECT fingerprints,vector_id FROM identity_review_events WHERE id=?',(active['event_id'],)).fetchone()
+    if event is None:raise ValueError('Missing review event')
+    fingerprints=json.loads(event['fingerprints'])
+    owner=db.execute('SELECT manifest_sha256 FROM speaker_support WHERE id=?',(active['support_id'],)).fetchone()
+    expected={'support_id':raw['support_id'],'vector_id':raw['id'],'manifest_sha256':owner['manifest_sha256'],
+              'vector_sha256':raw['vector_sha256'],'space_id':raw['space_id']}
+    if (fingerprints!=expected or event['vector_id']!=raw['id'] or raw['evidence_key']!=active['evidence_key']
+            or raw['identity_group']!=active['identity_group'] or raw['generation']!=active['generation']
+            or raw['space_id']!=active['space_id']):
+        raise ValueError('Active review differs from immutable evidence')
+    return raw,vector
+
+
+def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retained):
+    """Match a transient query; retention and learning are independent decisions."""
+    import math
+    policy = group_policy(db,group)
+    generation = support.generation(db,group)
+    params = json.loads(policy['policy'])
+    proof = None
+    reason = 'unknown_query_proof'
+    try:
+        if not isinstance(prepared,dict) or prepared.get('generation') != generation:
+            raise ValueError('Stale query generation')
+        proof = support_vectors.query_proof(prepared.get('raw_vector'),metadata,prepared)
+        for part in prepared['manifest']['source_parts']:
+            source=db.execute('SELECT session_id,digest FROM chunks WHERE id=?',(part['chunk_id'],)).fetchone()
+            if not source or source['session_id']!=chunk['session_id'] or source['digest']!=part['source_sha256']:
+                proof=None
+                raise ValueError('Query source lifecycle mismatch')
+    except (ValueError,TypeError,KeyError,AttributeError):
+        pass
+    scores=[]
+    if proof:
+        if not projection_intact(db,group,generation):
+            reason='unknown_reference_integrity'
+        elif policy['space_id'] is not None and proof['space_id'] != policy['space_id']:
+            reason='unknown_embedding_space'
+        elif proof['seconds'] < params['minimum_query_seconds']:
+            reason='unknown_insufficient_speech'
+        else:
+            person=None;vectors=[];references=[];invalid_gallery=False
+            def score_person():
+                nonlocal invalid_gallery
+                if not vectors:return
+                try:
+                    centroid,_=support_vectors.normalized_vector([math.fsum(col)/len(vectors) for col in zip(*vectors)])
+                except ValueError:
+                    invalid_gallery=True;return
+                score=max(-1.,min(1.,math.fsum(a*b for a,b in zip(centroid,proof['vector']))))
+                scores.append((score,person,list(references)))
+            for active in db.execute('''SELECT a.* FROM identity_active_reviews a JOIN speakers p ON p.id=a.person_id
+                    WHERE a.identity_group=? AND a.generation=? AND a.kind='positive' AND a.space_id=?
+                    AND p.merged_into IS NULL ORDER BY a.person_id,a.event_id''', (group,generation,proof['space_id'])):
+                if active['person_id']!=person:
+                    score_person();person=active['person_id'];vectors=[];references=[]
+                try:
+                    raw,vector=reference_vector(db,active)
+                    if raw['space_id']!=proof['space_id'] or raw['generation']!=generation or raw['identity_group']!=group:
+                        raise ValueError('Anchor binding changed')
+                    vectors.append(vector);references.append(active['event_id'])
+                except (ValueError,TypeError,KeyError):
+                    # Do not silently score a partially corrupted gallery.
+                    scores=[];vectors=[];reason='unknown_reference_integrity';break
+            else:
+                score_person();reason='unknown_no_reviewed_references'
+            if invalid_gallery:scores=[];reason='unknown_reference_integrity'
+    scores.sort(key=lambda row:(-row[0],row[1]))
+    person=None;best=None;margin=None;references=[];negative_event_id=None;candidate=None
+    if scores:
+        best, candidate, references=scores[0]
+        margin=best-scores[1][0] if len(scores)>1 else 2.
+        threshold=params['centroid_threshold'] if len(references)>1 else params['single_threshold']
+        veto=db.execute("""SELECT * FROM identity_active_reviews WHERE identity_group=? AND generation=?
+            AND kind='negative' AND person_id=? AND evidence_key=? LIMIT 1""",
+            (group,generation,candidate,proof['evidence_key'])).fetchone()
+        if veto:
+            try:
+                reference_vector(db,veto)
+                negative_event_id=veto['event_id']
+                reason='unknown_exact_negative'
+            except (ValueError,TypeError,KeyError):
+                reason='unknown_reference_integrity'
+        elif best<threshold:
+            reason='unknown_below_threshold'
+        elif margin<params['margin']:
+            reason='unknown_ambiguous'
+        else:
+            person=candidate;reason='experimental_identity_match'
+    support_id,support_status=retained
+    vector_row=db.execute('SELECT id FROM speaker_support_vectors WHERE support_id=?',(support_id,)).fetchone() if support_id else None
+    review_reason=('available' if vector_row else ('vector_proof_unavailable' if support_status=='available' else support_status))
+    decision_id=uuid.uuid4().hex
+    snapshot={'identity_mode':MODE,'basis':'reviewed_reference_bank','experimental':True,
+        'generation':generation,'profile_revision':policy['revision'],'availability_sequence':policy['availability'],
+        'policy_sha256':policy['policy_sha256'],'space_id':proof['space_id'] if proof else None,
+        'query_evidence_key':proof['evidence_key'] if proof else None,
+        'query_vector_sha256':proof['vector_sha256'] if proof else None,
+        'original_person_id':person,'candidate_person_id':candidate,'score':best,'margin':margin,'status':reason,
+        'negative_event_id':negative_event_id,
+        'reference_event_ids':references,'support_id':support_id,'review_availability':review_reason,
+        'automatic_query_is_human_verified':False}
+    db.execute('INSERT INTO identity_decisions VALUES(?,?,?,?,?,?,?)',
+        (decision_id,group,generation,chunk['id'],offset,str(local_id),support.canonical(snapshot).decode()))
+    db.execute('INSERT INTO identity_decision_state(decision_id) VALUES(?)',(decision_id,))
+    # Dependencies survive a full review quota. No raw query/PCM is retained here.
+    parts=prepared.get('manifest',{}).get('source_parts',[]) if isinstance(prepared,dict) else []
+    source_ids={chunk['id']}
+    if isinstance(parts,list) and len(parts)<=support.MAX_PARTS:
+        source_ids.update(p['chunk_id'] for p in parts if isinstance(p,dict) and isinstance(p.get('chunk_id'),str))
+    for cid in source_ids:
+        if db.execute('SELECT 1 FROM chunks WHERE id=? AND session_id=?',(cid,chunk['session_id'])).fetchone():
+            db.execute('INSERT INTO identity_decision_sources VALUES(?,?)',(decision_id,cid))
+    return person,best,reason,decision_id,policy['revision']
+
+
+def decision(store,sid,decision_id):
+    store.session(sid)
+    with store.db() as db:
+        row=db.execute('''SELECT d.snapshot,s.stale,s.reason,p.revision,p.change_reason FROM identity_decisions d JOIN identity_group_policy p ON p.identity_group=d.identity_group
+            JOIN chunks c ON c.id=d.chunk_id JOIN identity_decision_state s ON s.decision_id=d.id
+            WHERE d.id=? AND c.session_id=?''',(decision_id,sid)).fetchone()
+        if not row:raise KeyError('Identity decision not found in session')
+        snapshot=json.loads(row['snapshot'])
+        stale=bool(row['stale'] or snapshot['profile_revision']!=row['revision'])
+        return {'decision_id':decision_id,**snapshot,
+                'state':'stale' if stale else 'current','stale_reason':(row['reason'] or row['change_reason']) if stale else None}
+
+
+def events(store,sid,after=0,limit=100):
+    with store.db() as db:
+        db.execute('BEGIN')
+        group,generation,_=_context(db,sid)
+        rows=[dict(row) for row in db.execute('''SELECT o.cursor,e.id,e.sequence,e.action,e.review_kind,e.person_id,e.previous_event_id,
+            e.attestation,e.operator_context,e.created,CASE WHEN a.event_id IS NULL THEN 0 ELSE 1 END AS active
+            FROM identity_review_events e JOIN identity_review_event_order o ON o.event_id=e.id LEFT JOIN identity_active_reviews a ON a.event_id=e.id
+            WHERE e.identity_group=? AND e.generation=? AND o.cursor>? ORDER BY o.cursor LIMIT ?''',
+            (group,generation,after,limit))]
+        # Expiry may emit multiple events at one revision: use an event ID cursor
+        # for exact pagination rather than accepting a lossy revision boundary.
+        for row in rows:
+            row['attestation']=json.loads(row['attestation']) if row['attestation'] else None
+            row['active']=bool(row['active']);row['operator_assertion_is_claim']=True
+        return {'events':rows,'generation':generation,'next_cursor':rows[-1]['cursor'] if rows else after}

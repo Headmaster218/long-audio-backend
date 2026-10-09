@@ -25,13 +25,7 @@ def configured(tmp_path):
     settings,store=setup(tmp_path)
     settings.verified_identity_policy=POLICY
     change_feed.initialize(store)
-    sid=store.create_session('verified','verified')['id']
-    with store.db() as db:
-        # B1 has no public mode creation route. Fixtures install only explicit
-        # private test state; B2 tests use the actual public creation route.
-        encoded=speaker_support.canonical(POLICY)
-        db.execute('INSERT INTO identity_group_policy(identity_group,mode,policy,policy_sha256) VALUES(?,?,?,?)',
-                   ('verified',bank.MODE,encoded.decode(),speaker_support.digest(encoded)))
+    sid=store.create_session('verified','verified',bank.MODE)['id']
     return settings,store,sid
 
 
@@ -198,3 +192,25 @@ def test_query_proof_rejects_raw_mismatch_and_unknown_space(tmp_path,proven):
     changed=copy.deepcopy(proven);changed['frontend']['snip_edges']=True
     result['metadata']['speaker_embedding_space']=changed
     with pytest.raises(ValueError):support_vectors.query_proof(value['raw_vector'],result['metadata'],value)
+
+
+def test_policy_read_is_bounded_before_loading(tmp_path,monkeypatch):
+    from pathlib import Path
+    path=tmp_path/'too-large.json';path.write_bytes(b'x'*8193)
+    def unexpected(*args,**kwargs):raise AssertionError('oversized policy must not be opened')
+    monkeypatch.setattr(Path,'open',unexpected)
+    with pytest.raises(ValueError,match='8 KiB'):bank.policy_file(path)
+
+
+def test_genuine_legacy_observation_eviction_does_not_replace_original_vector(tmp_path,proven):
+    _,store=setup(tmp_path,max_matched_speaker_observations_per_group=1)
+    sid=store.create_session('Legacy capture')['id']
+    _,first,original=captured(store,sid,proven,seed=0)
+    assert first['observation_id'] is not None
+    captured(store,sid,proven,seed=1)
+    with store.db() as db:
+        assert db.execute('SELECT COUNT(*) FROM speaker_observations').fetchone()[0]==1
+        assert db.execute('SELECT 1 FROM speaker_observations WHERE id=?',(first['observation_id'],)).fetchone() is None
+        retained,_=support_vectors.read(db,first['id'])
+        assert retained['raw_vector']==original['raw_vector']
+        assert retained['vector_sha256']==original['vector_sha256']

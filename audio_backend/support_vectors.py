@@ -46,12 +46,21 @@ def query_proof(raw, metadata, prepared):
         raise ValueError('Embedding space/model mismatch')
     vector, normalized_hash = normalized_vector(raw)
     selected = manifest['support']
-    evidence_key = support.digest(support.canonical({'pcm_sha256': selected['pooled_pcm_sha256'],
-        'encoding': selected['hash_encoding'], 'sample_count': selected['pooled_sample_count'], 'space_id': space}))
+    pcm=prepared.get('query_pcm',prepared.get('pcm'))
+    if (not support.finite_pcm(pcm) or len(pcm)!=selected['pooled_sample_count']*4
+            or support.digest(pcm)!=selected['pooled_pcm_sha256']):
+        raise ValueError('Exact transient query PCM integrity mismatch')
+    key = evidence_key(manifest,space)
     return {'raw': encoded, 'vector': vector, 'vector_sha256': support.digest(encoded),
             'normalized_sha256': normalized_hash, 'space_id': space, 'space': descriptor,
-            'evidence_key': evidence_key, 'seconds': selected['pooled_sample_count'] / support.RATE,
+            'evidence_key': key, 'seconds': selected['pooled_sample_count'] / support.RATE,
             'manifest_sha256': support.digest(support.canonical(manifest))}
+
+
+def evidence_key(manifest,space):
+    selected=manifest['support']
+    return support.digest(support.canonical({'pcm_sha256':selected['pooled_pcm_sha256'],
+        'encoding':selected['hash_encoding'],'sample_count':selected['pooled_sample_count'],'space_id':space}))
 
 
 def init_schema(db):
@@ -94,6 +103,9 @@ def commit(store, db, support_id, group, proof):
 
 
 def read(db, support_id):
+    size=db.execute('SELECT length(raw_vector),length(space) FROM speaker_support_vectors WHERE support_id=?',(support_id,)).fetchone()
+    if size and (not 0<size[0]<=MAX_VECTOR_BYTES or not 0<size[1]<=16384):
+        raise ValueError('Original vector proof exceeds read limits')
     row = db.execute('SELECT * FROM speaker_support_vectors WHERE support_id=?', (support_id,)).fetchone()
     if row is None:
         raise ValueError('vector_proof_unavailable: old support cannot be enrolled from legacy observations')
@@ -104,6 +116,21 @@ def read(db, support_id):
     values = json.loads(raw)
     normalized, hashed = normalized_vector(values)
     descriptor = json.loads(row['space'])
+    owner=db.execute('''SELECT s.identity_group,s.generation,s.manifest,s.manifest_sha256 FROM speaker_support s
+        JOIN sessions sess ON sess.id=s.session_id AND sess.deleted=0 AND sess.identity_group=s.identity_group
+        JOIN chunks c ON c.id=s.chunk_id AND c.session_id=s.session_id WHERE s.id=?''',(support_id,)).fetchone()
+    if not owner:raise ValueError('Original vector source missing')
+    manifest=json.loads(owner['manifest'])
+    support.validate_manifest(manifest)
+    if (row['identity_group']!=owner['identity_group'] or row['generation']!=owner['generation']
+            or support.digest(support.canonical(manifest))!=owner['manifest_sha256']
+            or row['vector_sha256']!=manifest['embedding_sha256']
+            or row['evidence_key']!=evidence_key(manifest,row['space_id'])
+            or descriptor['model']['sha256']!=manifest['encoder']['model_sha256']
+            or descriptor['model']['version']!=manifest['encoder']['version']
+            or descriptor['model']['dimension']!=manifest['encoder']['dimension']
+            or row['dimension']!=manifest['encoder']['dimension']):
+        raise ValueError('Original vector source binding mismatch')
     if (support.canonical(values) != raw or support.digest(raw) != row['vector_sha256']
             or row['normalization'] != NORMALIZATION or hashed != row['normalized_sha256']
             or len(values) != row['dimension'] or validate_space(descriptor) != row['space_id']):

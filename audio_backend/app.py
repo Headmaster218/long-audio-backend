@@ -9,7 +9,7 @@ import os
 import shutil
 import threading
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
@@ -26,6 +26,31 @@ class SessionRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     name: str=Field(default='',max_length=200)
     identity_group: str=Field(default='default',min_length=1,max_length=100,pattern=r'^[A-Za-z0-9_.-]+$')
+    identity_mode: Literal['legacy','verified_review_v1'] | None = None
+class ReviewAttestation(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    version: Literal['all_pooled_support_single_identified_voice_v1']
+    reviewed_all_pooled_support: bool
+    single_identified_voice: bool
+    no_other_overlapping_voice: bool
+
+class ReviewMutation(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    expected_generation: str=Field(pattern=r'^[a-f0-9]{32}$')
+    expected_revision: int=Field(ge=0)
+    idempotency_key: str=Field(min_length=1,max_length=128)
+
+class IdentityReviewRequest(ReviewMutation):
+    kind: Literal['positive','negative']
+    support_id: str=Field(pattern=r'^[a-f0-9]{32}$')
+    vector_id: str=Field(pattern=r'^[a-f0-9]{32}$')
+    manifest_sha256: str=Field(pattern=r'^[a-f0-9]{64}$')
+    vector_sha256: str=Field(pattern=r'^[a-f0-9]{64}$')
+    space_id: str=Field(pattern=r'^[a-f0-9]{64}$')
+    person_id: str | None=Field(default=None,pattern=r'^[a-f0-9]{32}$')
+    new_person_name: str | None=Field(default=None,min_length=1,max_length=200)
+    attestation: ReviewAttestation
+
 class SpeakerRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     name: str | None=Field(default=None,max_length=200)
@@ -141,7 +166,7 @@ def create_app(settings=None,analyzer_factory=None):
                                   'profile_strategy':settings.speaker_profile_strategy,'automatic_template_updates':False},
                 'speaker_support_review':{'enabled':settings.speaker_support_enabled,
                     'max_records':settings.speaker_support_max_records,'total_pcm_bytes':settings.speaker_support_total_pcm_bytes,
-                    'max_pcm_bytes':settings.speaker_support_max_pcm_bytes,'identity_learning_available':False},
+                    'max_pcm_bytes':settings.speaker_support_max_pcm_bytes,'identity_learning_available':bool(settings.verified_identity_policy)},
                 'queue_limits':{'work_units':settings.max_pending_chunks,'legacy_setting_name':'max_pending_chunks',
                                 'explicit_stream_unit':'one continuous stream','independent_chunk_unit':'one chunk',
                                 'pending_fragments_per_stream':128,'minimum_nonfinal_fragment_seconds':0.5,
@@ -151,7 +176,7 @@ def create_app(settings=None,analyzer_factory=None):
                 'inference_ready': None, 'note':'Health is liveness, not model-readiness. Run model validation before ingest.'}
 
     @app.post('/sessions',status_code=201)
-    def create_session(body:SessionRequest): return store.create_session(body.name,body.identity_group)
+    def create_session(body:SessionRequest): return store.create_session(body.name,body.identity_group,body.identity_mode)
     @app.get('/sessions/{sid}')
     def get_session(sid:str): return store.session(sid)
     @app.get('/sessions/{sid}/chunks')
@@ -302,6 +327,40 @@ def create_app(settings=None,analyzer_factory=None):
         from starlette.responses import Response
         return Response(speaker_support.audio(store,sid,support_id),media_type='audio/wav',
                         headers={'Cache-Control':'private, no-store','Content-Disposition':'inline; filename="speaker-support.wav"'})
+
+    def private_json(value):
+        from starlette.responses import JSONResponse
+        return JSONResponse(value,headers={'Cache-Control':'private, no-store'})
+
+    @app.get('/sessions/{sid}/identity-bank')
+    def identity_bank(sid:str):
+        from .verified_identity import bank
+        return private_json(bank(store,sid))
+
+    @app.get('/sessions/{sid}/identity-reviews')
+    def identity_reviews(sid:str,after:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
+        from .verified_identity import events
+        return private_json(events(store,sid,after,limit))
+
+    @app.post('/sessions/{sid}/identity-reviews')
+    def add_identity_review(sid:str,body:IdentityReviewRequest):
+        from .verified_identity import mutate
+        return private_json(mutate(store,sid,body.model_dump(),operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
+
+    @app.post('/sessions/{sid}/identity-reviews/{event_id}/replace')
+    def replace_identity_review(sid:str,event_id:str,body:IdentityReviewRequest):
+        from .verified_identity import mutate
+        return private_json(mutate(store,sid,body.model_dump(),previous=event_id,operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
+
+    @app.post('/sessions/{sid}/identity-reviews/{event_id}/retract')
+    def retract_identity_review(sid:str,event_id:str,body:ReviewMutation):
+        from .verified_identity import mutate
+        return private_json(mutate(store,sid,body.model_dump(),previous=event_id,retract=True,operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
+
+    @app.get('/sessions/{sid}/identity-decisions/{decision_id}')
+    def identity_decision(sid:str,decision_id:str):
+        from .verified_identity import decision
+        return private_json(decision(store,sid,decision_id))
 
     @app.delete('/identity-groups/{group}/speakers')
     def reset_speakers(group:str):
