@@ -1,0 +1,121 @@
+"""Portable single-process launcher. CPU is the measured default; Vulkan is opt-in."""
+from __future__ import annotations
+import argparse
+import os
+from pathlib import Path
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--data-dir', type=Path, default=Path(os.getenv('AUDIO_DATA_DIR','audio-data')))
+    parser.add_argument('--model-dir', type=Path, default=Path(os.getenv('AUDIO_MODEL_DIR','models')))
+    parser.add_argument('--threads', type=int, choices=range(1,5), default=4)
+    parser.add_argument('--memory-limit-gib', type=float, default=6.0)
+    parser.add_argument('--device', choices=('cpu','vulkan'), default='cpu')
+    parser.add_argument('--asr-backend', choices=('whisper','sensevoice'), default='whisper', help='SenseVoice is opt-in with a custom model license; see README')
+    parser.add_argument('--diarization-backend',choices=('pyannote','nemotron'),default='pyannote',help='Nemotron native is opt-in;8 local speakers per bounded epoch, separate model license')
+    parser.add_argument('--native-diarization-model',type=Path)
+    parser.add_argument('--native-diarization-library',type=Path)
+    parser.add_argument('--native-diarization-threads',type=int,choices=(1,2),default=2)
+    parser.add_argument('--overlap-backend',choices=('none','mossformer2_experimental','dicow_en_experimental','moss_td_experimental'),default='none',help='Opt-in unverified source candidates; never replaces the mixture transcript')
+    parser.add_argument('--overlap-python',type=Path)
+    parser.add_argument('--dicow-python',type=Path)
+    parser.add_argument('--dicow-model-dir',type=Path)
+    parser.add_argument('--moss-td-python',type=Path)
+    parser.add_argument('--moss-td-model-dir',type=Path)
+    parser.add_argument('--moss-td-timeout-seconds',type=float,default=300.)
+    parser.add_argument('--moss-td-max-seconds',type=float,default=40.,help='Total candidate support audio per core,1–60s; each support is at most20s')
+    parser.add_argument('--moss-td-trigger',choices=('native_overlap','speech_probe'),default='native_overlap',help='Optional speech probes attempt additional native-speech supports; they are not detected overlaps')
+    parser.add_argument('--moss-td-runtime',choices=('transformers','cpp'),default='transformers')
+    parser.add_argument('--moss-td-gguf',type=Path,help='Pinned GGUF model for the optional C++ MOSS runtime')
+    parser.add_argument('--moss-td-cpp-device',choices=('cpu','vulkan'),default='cpu',help='Vulkan is opt-in and unmeasured here; RAM watchdog does not measure VRAM')
+    parser.add_argument('--overlap-source-dir',type=Path)
+    parser.add_argument('--overlap-window-mode',choices=('official_2s','direct_bounded'),default='official_2s')
+    parser.add_argument('--asr-model', default='ggml-small-q5_1.bin', help='Whisper model filename; unused by SenseVoice')
+    parser.add_argument('--whisper-cli', type=Path)
+    parser.add_argument('--language', default='auto', help='auto, zh, en, or a supported Whisper language code')
+    parser.add_argument('--window-seconds', type=float, default=30)
+    parser.add_argument('--event-threshold', type=float, default=.25)
+    parser.add_argument('--speaker-threshold', type=float, default=.75)
+    parser.add_argument('--new-speaker-threshold', type=float, default=.45)
+    parser.add_argument('--speaker-margin', type=float, default=.10)
+    parser.add_argument('--speaker-profile-strategy', choices=['max','centroid'], default='max', help='Score only explicit human-merged examples; never adapt from automatic matches')
+    parser.add_argument('--speaker-calibration', help='Opt-in model-bound policy: eres2net-ami20-v1 or a local profile JSON; controls speaker thresholds and scoring')
+    args = parser.parse_args(argv)
+    if args.moss_td_trigger=='speech_probe' and args.overlap_backend!='moss_td_experimental':
+        parser.error('--moss-td-trigger speech_probe requires --overlap-backend moss_td_experimental')
+    if (args.moss_td_runtime!='transformers' or args.moss_td_gguf) and args.overlap_backend!='moss_td_experimental':
+        parser.error('MOSS-TD C++ options require --overlap-backend moss_td_experimental')
+    if args.moss_td_gguf and args.moss_td_runtime!='cpp':
+        parser.error('--moss-td-gguf requires --moss-td-runtime cpp')
+    if args.moss_td_cpp_device!='cpu' and (args.moss_td_runtime!='cpp' or args.overlap_backend!='moss_td_experimental'):
+        parser.error('MOSS-TD Vulkan requires the enabled MOSS C++ runtime')
+    if args.speaker_calibration:
+        import sys
+        raw_args=sys.argv[1:] if argv is None else argv
+        manual={'--speaker-threshold','--new-speaker-threshold','--speaker-margin','--speaker-profile-strategy'}
+        if any(arg.split('=',1)[0] in manual for arg in raw_args):
+            parser.error('Choose --speaker-calibration or manual speaker policy flags, not both')
+    if not .25 <= args.memory_limit_gib <= 10:
+        parser.error('memory-limit-gib must be >=0.25 and <=10; leave RAM for the OS')
+    if not 1 <= args.port <= 65535:
+        parser.error('port must be in 1..65535')
+    if args.host not in {'127.0.0.1','localhost','::1'} and not os.getenv('AUDIO_API_KEY'):
+        parser.error('Set AUDIO_API_KEY before network exposure; TLS reverse proxy is your responsibility')
+    if args.device == 'vulkan':
+        import sys
+        print('WARNING: Vulkan path is untested on this CPU-only validation host. RAM watchdog does not measure VRAM; validate aggregate RAM+VRAM on target hardware.', file=sys.stderr)
+    if args.asr_backend == 'sensevoice':
+        import sys
+        print('SenseVoice uses the custom FunASR Model License: https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE . Review its attribution, name, conduct and revision terms before use or redistribution.', file=sys.stderr)
+    if args.diarization_backend=='nemotron':
+        if not args.native_diarization_model or not args.native_diarization_library:
+            parser.error('Nemotron requires --native-diarization-model and --native-diarization-library')
+        import sys
+        print('Nemotron-3 native is opt-in:8 local speaker slots per epoch;10ms output cadence is not accuracy. Model license: https://openmdw.ai/license/1-1/ .',file=sys.stderr)
+    if args.overlap_backend!='none':
+        if args.overlap_backend=='mossformer2_experimental' and not args.overlap_python:parser.error('MossFormer candidates require --overlap-python')
+        if args.overlap_backend=='dicow_en_experimental' and (not args.dicow_python or not args.dicow_model_dir):parser.error('DiCoW candidates require --dicow-python and --dicow-model-dir')
+        if args.overlap_backend=='moss_td_experimental' and (not args.moss_td_python or not args.moss_td_model_dir):parser.error('MOSS-TD candidates require --moss-td-python and --moss-td-model-dir')
+        if args.overlap_backend=='moss_td_experimental' and args.moss_td_runtime=='cpp' and not args.moss_td_gguf:parser.error('MOSS-TD C++ runtime requires --moss-td-gguf')
+        if args.overlap_backend=='moss_td_experimental' and args.moss_td_cpp_device=='vulkan':
+            import sys
+            print('WARNING: MOSS-TD Vulkan has not been executed on this CPU-only host. GPU output parity and aggregate RAM+dedicated VRAM must be measured on target hardware; the current watchdog measures RAM only.',file=sys.stderr)
+        import sys
+        print('EXPERIMENTAL overlap source candidates: quality unverified, minority speech can be missing, identities unresolved. Original mixture retained; no voice enrollment.',file=sys.stderr)
+    from .settings import Settings
+    from .app import create_app
+    import uvicorn
+    settings = Settings(data_dir=args.data_dir, model_dir=args.model_dir,
+                        cpu_threads=args.threads, process_memory_limit_bytes=int(args.memory_limit_gib*2**30),
+                        overlap_backend=args.overlap_backend,
+                        dicow_python=str(args.dicow_python) if args.dicow_python else None,
+                        dicow_model_dir=str(args.dicow_model_dir) if args.dicow_model_dir else None,
+                        moss_td_python=str(args.moss_td_python) if args.moss_td_python else None,
+                        moss_td_model_dir=str(args.moss_td_model_dir) if args.moss_td_model_dir else None,
+                        moss_td_timeout_seconds=args.moss_td_timeout_seconds,
+                        moss_td_max_seconds=args.moss_td_max_seconds,
+                        moss_td_trigger=args.moss_td_trigger,
+                        moss_td_runtime=args.moss_td_runtime,
+                        moss_td_gguf_path=str(args.moss_td_gguf) if args.moss_td_gguf else None,
+                        moss_td_cpp_device=args.moss_td_cpp_device,
+                        overlap_python=str(args.overlap_python) if args.overlap_python else None,
+                        overlap_source_dir=str(args.overlap_source_dir) if args.overlap_source_dir else None,
+                        overlap_window_mode=args.overlap_window_mode,
+                        diarization_backend=args.diarization_backend,
+                        native_diarization_model=str(args.native_diarization_model) if args.native_diarization_model else None,
+                        native_diarization_library=str(args.native_diarization_library) if args.native_diarization_library else None,
+                        native_diarization_threads=args.native_diarization_threads,
+                        inference_device=args.device, asr_backend=args.asr_backend, asr_model=args.asr_model,
+                        whisper_cli=str(args.whisper_cli) if args.whisper_cli else None,
+                        language=args.language, window_seconds=args.window_seconds,
+                        speaker_match_threshold=args.speaker_threshold, speaker_match_margin=args.speaker_margin,
+                        speaker_new_threshold=args.new_speaker_threshold, speaker_profile_strategy=args.speaker_profile_strategy,
+                        speaker_calibration_file=args.speaker_calibration,
+                        event_threshold=args.event_threshold)
+    uvicorn.run(create_app(settings), host=args.host, port=args.port, workers=1)
+
+if __name__ == '__main__':
+    main()

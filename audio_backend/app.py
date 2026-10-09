@@ -1,0 +1,296 @@
+from contextlib import asynccontextmanager
+from datetime import datetime
+import asyncio
+import hashlib
+import hmac
+import json
+import math
+import os
+import shutil
+import threading
+from pathlib import Path
+from typing import Annotated
+from fastapi import FastAPI, HTTPException, Request, Header, Query
+from pydantic import BaseModel, Field, ConfigDict
+from starlette.concurrency import run_in_threadpool
+from .settings import Settings
+from .storage import Store, ident
+from .worker import Worker
+from .resources import InstanceLock, check_resources, run_bounded, tree_rss
+from . import change_feed
+from .boundary_store import finish_stream
+
+FORMATS='wav,flac,ogg,mp3,mov,matroska,webm,aac'
+
+class SessionRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    name: str=Field(default='',max_length=200)
+    identity_group: str=Field(default='default',min_length=1,max_length=100,pattern=r'^[A-Za-z0-9_.-]+$')
+class SpeakerRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    name: str | None=Field(default=None,max_length=200)
+    merge_into: str | None=Field(default=None,pattern=r'^[a-f0-9]{32}$')
+    undo_merge: bool=False
+class EnrollmentRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    name: str=Field(min_length=1,max_length=200)
+    source_segment_id: int=Field(gt=0)
+
+class SpeakerExampleRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    source_segment_id: int=Field(gt=0)
+
+class SegmentRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    speaker_id: str | None=Field(default=None,pattern=r'^[a-f0-9]{32}$')
+
+
+def probe(path,settings):
+    output=path.with_suffix('.probe.json')
+    try:
+        run_bounded([settings.ffprobe,'-v','error','-protocol_whitelist','file,pipe',
+                     '-format_whitelist',FORMATS,'-show_entries','format=duration:stream=codec_type',
+                     '-of','json',path],settings,timeout=60,stdout_path=output)
+        result=json.loads(output.read_text())
+        duration=float(result.get('format',{}).get('duration',0))
+        if not math.isfinite(duration) or not 0<duration<=settings.max_audio_seconds: raise ValueError('Invalid or excessive audio duration')
+        if not any(s.get('codec_type')=='audio' for s in result.get('streams',[])): raise ValueError('File has no audio track')
+        return duration
+    finally: output.unlink(missing_ok=True)
+
+
+def create_app(settings=None,analyzer_factory=None):
+    settings=settings or Settings()
+    for folder in ('uploads','tmp'):
+        (settings.data_dir/folder).mkdir(parents=True,exist_ok=True)
+    store=Store(settings.data_dir/'jobs.sqlite3',settings)
+    change_feed.initialize(store)
+    worker=Worker(store,settings,analyzer_factory)
+    lock=InstanceLock(settings.data_dir/'instance.lock')
+    upload_lock=threading.Lock()
+
+    @asynccontextmanager
+    async def lifespan(app):
+        lock.acquire()
+        try:
+            from .data_paths import verify_owned_data_paths
+            verify_owned_data_paths(store)
+            from .lifecycle import cleanup_pending
+            cleanup_pending(store)
+            # Only this process owns the directory, so incomplete upload/window remnants are safe to remove.
+            with os.scandir(settings.data_dir/'tmp') as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False): shutil.rmtree(entry.path)
+                    else: os.unlink(entry.path)
+            with store.db() as db, os.scandir(settings.data_dir/'uploads') as entries:
+                for entry in entries:
+                    if entry.name.endswith('.part'):
+                        os.unlink(entry.path)
+                    elif entry.name.endswith('.audio'):
+                        path=Path(entry.path)
+                        raw=str(path.resolve())
+                        if not db.execute('SELECT 1 FROM chunks WHERE path=? LIMIT 1',(raw,)).fetchone() and not db.execute('SELECT 1 FROM session_file_cleanup WHERE path=? LIMIT 1',(str(path),)).fetchone(): path.unlink()
+            store.recover()
+            if settings.start_worker: worker.start()
+            yield
+        finally:
+            worker.stop(); lock.release()
+
+    from . import __version__
+    app=FastAPI(title='Local incremental audio analysis',version=__version__,lifespan=lifespan)
+    app.state.store=store; app.state.worker=worker; app.state.settings=settings
+
+    @app.middleware('http')
+    async def auth(request,call_next):
+        from starlette.responses import JSONResponse
+        if settings.api_key:
+            token=request.headers.get('authorization','')
+            if not hmac.compare_digest(token,'Bearer '+settings.api_key):
+                return JSONResponse({'detail':'Invalid or missing bearer token'},status_code=401)
+        return await call_next(request)
+
+    @app.exception_handler(KeyError)
+    async def missing(request,exc):
+        from starlette.responses import JSONResponse
+        return JSONResponse({'detail':str(exc)},status_code=404)
+    @app.exception_handler(ValueError)
+    async def invalid(request,exc):
+        from starlette.responses import JSONResponse
+        return JSONResponse({'detail':str(exc)},status_code=409)
+    @app.exception_handler(OverflowError)
+    async def capacity(request,exc):
+        from starlette.responses import JSONResponse
+        return JSONResponse({'detail':str(exc)},status_code=429,headers={'Retry-After':'30'})
+
+    @app.get('/health')
+    def health():
+        readiness={'ready':True,'status':'disabled','checks':'not_requested','errors':[]}
+        if settings.overlap_backend!='none':
+            from .overlap_candidates import overlap_readiness
+            readiness=overlap_readiness(settings.inference_config())
+        return {'status':'ok','worker_alive':worker.thread.is_alive(),'active_chunk':worker.current_chunk,
+                'process_tree_rss_bytes':tree_rss(),'memory_budget_bytes':settings.process_memory_limit_bytes,
+                'memory_budget_scope':'RAM process tree only; VRAM requires target-hardware measurement',
+                'asr_backend':settings.asr_backend,'diarization_backend':settings.diarization_backend,'overlap_backend':settings.overlap_backend,
+                'overlap_status':'disabled' if settings.overlap_backend=='none' else ('ready' if readiness['ready'] else 'unavailable'),
+                'overlap_experimental':settings.overlap_backend!='none','overlap_readiness':readiness,
+                'inference_device':settings.inference_device,
+                'speaker_policy':{'calibration_profile_id':settings.speaker_calibration_profile['profile_id'] if settings.speaker_calibration_profile else None,
+                                  'single_threshold':settings.speaker_match_threshold,'verified_centroid_threshold':settings.speaker_centroid_threshold,
+                                  'novelty_threshold':settings.speaker_new_threshold,'ambiguity_margin':settings.speaker_match_margin,
+                                  'profile_strategy':settings.speaker_profile_strategy,'automatic_template_updates':False},
+                'queue_limits':{'work_units':settings.max_pending_chunks,'legacy_setting_name':'max_pending_chunks',
+                                'explicit_stream_unit':'one continuous stream','independent_chunk_unit':'one chunk',
+                                'pending_fragments_per_stream':128,'minimum_nonfinal_fragment_seconds':0.5,
+                                'maximum_pending_receipts_for_new_work':128*settings.max_pending_chunks,
+                                'failed_stream_receipts_count_toward_limit':True},
+                'disk_free_bytes':shutil.disk_usage(settings.data_dir).free,
+                'inference_ready': None, 'note':'Health is liveness, not model-readiness. Run model validation before ingest.'}
+
+    @app.post('/sessions',status_code=201)
+    def create_session(body:SessionRequest): return store.create_session(body.name,body.identity_group)
+    @app.get('/sessions/{sid}')
+    def get_session(sid:str): return store.session(sid)
+    @app.get('/sessions/{sid}/chunks')
+    def chunks(sid:str,after:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
+        store.session(sid)
+        with store.db() as db:
+            rows=[dict(r) for r in db.execute('SELECT rowid AS cursor,id,status,duration,timeline_start,next_offset,recorded_at,created,error FROM chunks WHERE session_id=? AND rowid>? ORDER BY rowid LIMIT ?',(sid,after,limit))]
+        return {'chunks':rows,'next_cursor':rows[-1]['cursor'] if rows else after}
+
+    @app.put('/sessions/{sid}/chunks',status_code=202)
+    async def upload(sid:str,request:Request,
+                     idempotency_key:Annotated[str,Header(min_length=1,max_length=128)],
+                     timeline_start:float | None=Query(None,ge=0),
+                     recorded_at:datetime | None=None,
+                     stream_id:str | None=Query(None,min_length=1,max_length=128,pattern=r'^[A-Za-z0-9_.-]+$'),
+                     stream_final:bool=Query(False)):
+        """Stream raw audio bytes (not multipart). Idempotency-Key is scoped to the session."""
+        store.session(sid)
+        if stream_final and stream_id is None:
+            raise HTTPException(422,'stream_final requires stream_id')
+        if timeline_start is not None and not math.isfinite(timeline_start):
+            raise HTTPException(422,'timeline_start must be finite')
+        if not store.duplicate(sid,idempotency_key): store.capacity(sid,stream_id)
+        if not upload_lock.acquire(blocking=False): raise HTTPException(429,'Another upload is active',headers={'Retry-After':'10'})
+        path=settings.data_dir/'uploads'/f'{ident()}.part'; total=0; digest=hashlib.sha256(); final=None
+        try:
+            try: check_resources(settings)
+            except RuntimeError as e: raise HTTPException(507,str(e))
+            length=request.headers.get('content-length')
+            if length:
+                try: declared=int(length)
+                except ValueError: raise HTTPException(400,'Invalid Content-Length')
+                if declared<0 or declared>settings.max_upload_bytes: raise HTTPException(413,'Upload size limit exceeded')
+                try: check_resources(settings,declared)
+                except RuntimeError as e: raise HTTPException(507,str(e))
+            with path.open('xb') as out:
+                async for data in request.stream():
+                    total+=len(data)
+                    if total>settings.max_upload_bytes: raise HTTPException(413,'Upload size limit exceeded')
+                    try: check_resources(settings,len(data))
+                    except RuntimeError as e: raise HTTPException(507,str(e))
+                    digest.update(data)
+                    await run_in_threadpool(out.write,data)
+                await run_in_threadpool(out.flush)
+                await run_in_threadpool(os.fsync,out.fileno())
+            if not total: raise HTTPException(400,'Empty audio upload')
+            sha=digest.hexdigest(); old=store.duplicate(sid,idempotency_key)
+            if old:
+                if old['digest']!=sha: raise HTTPException(409,'Idempotency key already used for different bytes')
+                existing=store.chunk(old['id'])
+                with store.db() as db:
+                    receipt=db.execute('SELECT * FROM stream_chunks WHERE chunk_id=?',(old['id'],)).fetchone()
+                original_stream=receipt['stream_id'] if receipt else None
+                original_final=bool(receipt['upload_stream_final']) if receipt else False
+                same_recorded=(recorded_at is None and existing['recorded_at'] is None) or (
+                    recorded_at is not None and existing['recorded_at'] is not None and
+                    recorded_at==datetime.fromisoformat(existing['recorded_at']))
+                if (original_stream!=stream_id or original_final!=stream_final or not same_recorded or
+                    (timeline_start is not None and abs(existing['timeline_start']-timeline_start)>1e-8)):
+                    raise HTTPException(409,'Idempotency key already used with different upload metadata')
+                return {'chunk':existing,'duplicate':True}
+            try: duration=await run_in_threadpool(probe,path,settings)
+            except Exception as e: raise HTTPException(422,f'Cannot validate supported audio: {e}')
+            final=path.with_suffix('.audio'); path.replace(final)
+            cid,created=store.add_chunk(sid,idempotency_key,sha,final,duration,timeline_start,recorded_at.isoformat() if recorded_at else None,stream_id=stream_id,stream_final=stream_final)
+            if not created: final.unlink(missing_ok=True)
+            final=None
+            worker.notify()
+            return {'chunk':store.chunk(cid),'duplicate':not created}
+        finally:
+            path.unlink(missing_ok=True)
+            if final: final.unlink(missing_ok=True)
+            upload_lock.release()
+
+    @app.post('/sessions/{sid}/streams/{stream_id}/finish')
+    def finish(sid:str,stream_id:str):
+        result=finish_stream(store,sid,stream_id)
+        worker.notify()
+        return result
+
+    @app.get('/sessions/{sid}/changes')
+    def changes(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=1000)):
+        return change_feed.changes(store,sid,after,limit)
+
+    @app.get('/chunks/{cid}')
+    def get_chunk(cid:str): return store.chunk(cid)
+    @app.post('/chunks/{cid}/{action}')
+    def control(cid:str,action:str):
+        if action not in ('pause','resume','retry','cancel'): raise HTTPException(404,'Unknown action')
+        store.set_state(cid,action); worker.notify()
+        return store.chunk(cid)
+    @app.get('/sessions/{sid}/segments')
+    def segments(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=1000)):
+        return store.results(sid,after,limit)
+    @app.get('/sessions/{sid}/events')
+    def events(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=1000)):
+        return store.events(sid,after,limit)
+    @app.get('/sessions/{sid}/event-candidates')
+    def event_candidates(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=500)):
+        return store.event_candidates(sid,after,limit)
+    @app.get('/sessions/{sid}/overlap-candidates')
+    def overlap_candidates(sid:str,after:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
+        return store.overlap_candidates(sid,after,limit)
+    @app.get('/sessions/{sid}/speaker-turns')
+    def speaker_turns(sid:str,after:int=Query(0,ge=0),limit:int=Query(500,ge=1,le=1000)):
+        return store.speaker_turns(sid,after,limit)
+    @app.post('/sessions/{sid}/speakers',status_code=201)
+    def enroll(sid:str,body:EnrollmentRequest):
+        if not body.name.strip(): raise HTTPException(422,'Name must not be blank')
+        return store.enroll_speaker(sid,body.name.strip(),body.source_segment_id)
+
+    @app.post('/sessions/{sid}/speakers/{pid}/examples',status_code=201)
+    def add_speaker_example(sid:str,pid:str,body:SpeakerExampleRequest):
+        return store.add_speaker_example(sid,pid,body.source_segment_id)
+
+    @app.get('/sessions/{sid}/speakers')
+    def speakers(sid:str): return {'speakers':store.speakers(sid)}
+    @app.patch('/sessions/{sid}/speakers/{pid}')
+    def correction(sid:str,pid:str,body:SpeakerRequest):
+        if sum((body.name is not None,body.merge_into is not None,body.undo_merge))!=1: raise HTTPException(422,'Provide one of name, merge_into, undo_merge')
+        store.correct_speaker(sid,pid,body.name,body.merge_into,body.undo_merge)
+        return {'speakers':store.speakers(sid)}
+    @app.patch('/sessions/{sid}/segments/{segment_id}')
+    def assign(sid:str,segment_id:int,body:SegmentRequest):
+        store.assign_segment(sid,segment_id,body.speaker_id)
+        return {'updated':segment_id}
+    @app.delete('/identity-groups/{group}/speakers')
+    def reset_speakers(group:str):
+        if worker.current_chunk or upload_lock.locked(): raise HTTPException(409,'Wait for worker and upload to become idle')
+        from .identity_reset import reset_group
+        return reset_group(store,group)
+
+    @app.delete('/sessions/{sid}')
+    def delete(sid:str):
+        if worker.current_chunk:
+            with store.db() as db:
+                active=db.execute('SELECT session_id FROM chunks WHERE id=?',(worker.current_chunk,)).fetchone()
+            if active and active[0]==sid: raise HTTPException(409,'Wait until worker releases this session after pause/cancel')
+        if upload_lock.locked(): raise HTTPException(409,'Wait for upload to finish before deleting sessions')
+        result=store.delete_session(sid)
+        return {**result,'note':('Source cleanup is pending; retry this DELETE or restart after resolving file access.' if result['cleanup_pending'] else 'Application deletion is not forensic secure erasure; protect disk and backups.')}
+    return app
+
+# Importing this module has no filesystem side effects.
+# Launch with python -m audio_backend, or uvicorn audio_backend.app:create_app --factory.

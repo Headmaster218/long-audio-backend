@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "profile_id": "eres2net-ami20-v1",
+  "status": "opt_in_candidate_not_universal_accuracy_guarantee",
+  "model": {
+    "embedding_version": "eres2net-base-zh-cn-3dspeaker-16k-v1",
+    "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+    "dimension": 512
+  },
+  "policy": {
+    "single_threshold": 0.55,
+    "verified_centroid_threshold": 0.56,
+    "novelty_threshold": 0.45,
+    "ambiguity_margin": 0.1,
+    "profile_strategy": "verified_centroid",
+    "minimum_new_enrollment_seconds": 2.0,
+    "minimum_matching_query_seconds": 2.0,
+    "automatic_template_updates": false
+  },
+  "evidence": {
+    "calibration_artifact_sha256": "a971c82cc368af62286ac820567a47732083109de557155bf4149b40ec94b8fa",
+    "calibration_people": 20,
+    "enrolled_calibration_people": 16,
+    "unknown_calibration_people": 4,
+    "enrollment_strategy": "First clean exemplar for automatic identity; centroid of3 explicitly verified exemplars for research comparison. Runtime supports2\u20138 human-verified examples; those counts are not independently validated.",
+    "original_crossday_single_correct": 57,
+    "original_crossday_known_trials": 116,
+    "fresh_crossday_single_correct": 29,
+    "fresh_crossday_known_trials": 35,
+    "fresh_farfield_single_correct": 24,
+    "fresh_farfield_known_trials": 35,
+    "mandarin_within_meeting_single_correct": 251,
+    "mandarin_within_meeting_known_trials": 277
+  },
+  "limitations": [
+    "Original EN2001 cross-day and far-field recall gates fail; retain those failures alongside fresh results.",
+    "Some fresh-person source sessions supplied other calibration people, although identities were disjoint.",
+    "Unknown-person trials are small and correlated; zero errors is not a population-level1% risk guarantee.",
+    "Acted strong-style oracle trials include wrong assignments; common colds remain untested.",
+    "This policy is not a biometric authentication or high-impact decision mechanism.",
+    "Short-query duration policy remains separately experimental."
+  ]
+}

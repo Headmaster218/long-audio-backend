@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "model": "BUT-FIT/SE-DiCoW",
+  "revision": "470fce9ffff844dd53a27751cdf6c6df9efecb39",
+  "license": "Apache-2.0",
+  "license_url": "https://huggingface.co/BUT-FIT/SE-DiCoW/blob/470fce9ffff844dd53a27751cdf6c6df9efecb39/README.md",
+  "source_base_url": "https://huggingface.co/BUT-FIT/SE-DiCoW/resolve/470fce9ffff844dd53a27751cdf6c6df9efecb39/",
+  "source_files": [
+    {
+      "name": "FDDT.py",
+      "bytes": 3996,
+      "sha256": "fe8b1dec493fdae366b5474de3d1ac0004adcac80036533dacd1ea5f35e0c945"
+    },
+    {
+      "name": "README.md",
+      "bytes": 5038,
+      "sha256": "becd3765b672e9298b60aecff8389750ee35648c502688268051d4e0babfb737"
+    },
+    {
+      "name": "added_tokens.json",
+      "bytes": 34648,
+      "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0"
+    },
+    {
+      "name": "config.json",
+      "bytes": 1996,
+      "sha256": "e709395dbcb706e605b010b051246a97eb6ddbdf9fbabe42856d25cd64ea76a5"
+    },
+    {
+      "name": "config.py",
+      "bytes": 2558,
+      "sha256": "fc9eea09841fb6558e68dda42c327332005b5145b144d2fddfe463bff3e9c971"
+    },
+    {
+      "name": "decoding.py",
+      "bytes": 16250,
+      "sha256": "b713399e01804690b84eea5e4cd58d5c475d8da4217835478a364bff15243f46"
+    },
+    {
+      "name": "encoder.py",
+      "bytes": 10887,
+      "sha256": "ec63648d28e0950ed4e4b0651bf651c60aab613a3bc603b6a9a97f704dc325ef"
+    },
+    {
+      "name": "generation.py",
+      "bytes": 58446,
+      "sha256": "d766d9259b272f080b4361cf07281dee520c32bc763b8a0c043b950bee8d44e0"
+    },
+    {
+      "name": "generation_config.json",
+      "bytes": 3733,
+      "sha256": "5f16cf3f2d75b6b24946f6855455af784574c8a6098326742653ce4ea7648b47"
+    },
+    {
+      "name": "layers.py",
+      "bytes": 8518,
+      "sha256": "e91a8af1e4d62e5b112032e42b89796b3430a0c05c49f8c5031dff6e37c8a842"
+    },
+    {
+      "name": "model.safetensors",
+      "bytes": 4407276024,
+      "sha256": "7e42482cf705a422b022a6c0df84f02be60da5a2fbf454ca517001359a1b9b20"
+    },
+    {
+      "name": "modeling_dicow.py",
+      "bytes": 15126,
+      "sha256": "aa335c71078cfad5b84b5e323dd56f232289552a0052b02693819a591e1049b1"
+    },
+    {
+      "name": "normalizer.json",
+      "bytes": 52666,
+      "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd"
+    },
+    {
+      "name": "preprocessor_config.json",
+      "bytes": 357,
+      "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499"
+    },
+    {
+      "name": "special_tokens_map.json",
+      "bytes": 2186,
+      "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74"
+    },
+    {
+      "name": "tokenizer.json",
+      "bytes": 3930645,
+      "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b"
+    },
+    {
+      "name": "tokenizer_config.json",
+      "bytes": 282873,
+      "sha256": "3c75940dfce3a294fca7041a5faff011677f1b68fa85e47511bb8cf6dccaded6"
+    },
+    {
+      "name": "utils.py",
+      "bytes": 540,
+      "sha256": "f25f0617517f7ed604361643dc875fc5d2d3500376134dbbe240c82688b6714b"
+    },
+    {
+      "name": "vocab.json",
+      "bytes": 835528,
+      "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971"
+    }
+  ],
+  "runtime_files": [
+    {
+      "name": "FDDT.py",
+      "bytes": 3996,
+      "sha256": "fe8b1dec493fdae366b5474de3d1ac0004adcac80036533dacd1ea5f35e0c945"
+    },
+    {
+      "name": "README.md",
+      "bytes": 5038,
+      "sha256": "becd3765b672e9298b60aecff8389750ee35648c502688268051d4e0babfb737"
+    },
+    {
+      "name": "added_tokens.json",
+      "bytes": 34648,
+      "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0"
+    },
+    {
+      "name": "config.json",
+      "bytes": 1996,
+      "sha256": "3752a30c33949600dfa828edaa38c7a9f02fed67e37e6c30b7f87a6eaf37a30d"
+    },
+    {
+      "name": "config.py",
+      "bytes": 2558,
+      "sha256": "fc9eea09841fb6558e68dda42c327332005b5145b144d2fddfe463bff3e9c971"
+    },
+    {
+      "name": "decoding.py",
+      "bytes": 16250,
+      "sha256": "b713399e01804690b84eea5e4cd58d5c475d8da4217835478a364bff15243f46"
+    },
+    {
+      "name": "encoder.py",
+      "bytes": 10887,
+      "sha256": "ec63648d28e0950ed4e4b0651bf651c60aab613a3bc603b6a9a97f704dc325ef"
+    },
+    {
+      "name": "generation.py",
+      "bytes": 58446,
+      "sha256": "d766d9259b272f080b4361cf07281dee520c32bc763b8a0c043b950bee8d44e0"
+    },
+    {
+      "name": "generation_config.json",
+      "bytes": 3733,
+      "sha256": "5f16cf3f2d75b6b24946f6855455af784574c8a6098326742653ce4ea7648b47"
+    },
+    {
+      "name": "layers.py",
+      "bytes": 8518,
+      "sha256": "e91a8af1e4d62e5b112032e42b89796b3430a0c05c49f8c5031dff6e37c8a842"
+    },
+    {
+      "name": "model-00001.safetensors",
+      "bytes": 1147024,
+      "sha256": "473a9199b6af04472ccf48117d16fa4d84666168af2fa27a8ac6e09762072769"
+    },
+    {
+      "name": "model-00002.safetensors",
+      "bytes": 132777104,
+      "sha256": "f38043533fa09ac0a054f7d93bb87b786caed828e596ef624212c78798f38735"
+    },
+    {
+      "name": "model-00003.safetensors",
+      "bytes": 101673312,
+      "sha256": "e842ca4108f213fd8f26221aa0b8212bc6307b2fff4b153bc6cc29b60d4f93d1"
+    },
+    {
+      "name": "model-00004.safetensors",
+      "bytes": 101670696,
+      "sha256": "eb490ad6560b0358c6ff2c5233192c39bac377b8f2ce2e3d1814343055219e11"
+    },
+    {
+      "name": "model-00005.safetensors",
+      "bytes": 85254684,
+      "sha256": "eb4fe065ff0d48249e991cc1e2c50c0afd7a41dee2cc73824bcfd5969167010f"
+    },
+    {
+      "name": "model-00006.safetensors",
+      "bytes": 101614138,
+      "sha256": "cf894dafef3ed9e99c0e489aaaf22bfcccf57678922004f2bbe39050e1c503d9"
+    },
+    {
+      "name": "model-00007.safetensors",
+      "bytes": 101621916,
+      "sha256": "cce9ba31ec916f774cebcd4fc852ff07d3ea3467d96944810f7bd29d3e57f5d2"
+    },
+    {
+      "name": "model-00008.safetensors",
+      "bytes": 101621908,
+      "sha256": "aae0279c6b88948cee99fd19ca85e0698df42c9be002a59a89f1d854083034aa"
+    },
+    {
+      "name": "model-00009.safetensors",
+      "bytes": 103905682,
+      "sha256": "715971969ae1fb63cc2964f84ea7d32a5a0340b18eaf460c9290d4908cbf96b5"
+    },
+    {
+      "name": "model-00010.safetensors",
+      "bytes": 91818096,
+      "sha256": "7c549ca8b5fbb9af2cfff75c6c8479f836d67b1311f2ebb503a0ffa5de162cef"
+    },
+    {
+      "name": "model-00011.safetensors",
+      "bytes": 101659600,
+      "sha256": "ba8055edbaff4e7c96cc5e0c3f5075cb140d03d5b6aef1c367cd94f3d28c7744"
+    },
+    {
+      "name": "model-00012.safetensors",
+      "bytes": 95110728,
+      "sha256": "e891a92a3a677284699b3f282cd97f141d0d24d8693ffef7935df62886b0aa13"
+    },
+    {
+      "name": "model-00013.safetensors",
+      "bytes": 101659600,
+      "sha256": "9c963a2616b0b3a92bb3115fc4d2d74787e6bca437e7e0fafabef428740edd38"
+    },
+    {
+      "name": "model-00014.safetensors",
+      "bytes": 95110712,
+      "sha256": "b90912be1bb39615e4072de9ce08db5755dfa5539ff5491c6bce5c8aa9a3cbb5"
+    },
+    {
+      "name": "model-00015.safetensors",
+      "bytes": 101659600,
+      "sha256": "48e946e1c3557213510c80ebeffb8f2f91c54eda744670920035cbd61b839d55"
+    },
+    {
+      "name": "model-00016.safetensors",
+      "bytes": 95110728,
+      "sha256": "1ecfc47834c6a673086000162557dbff989d7b8eec3c12ec72b2c467f4231573"
+    },
+    {
+      "name": "model-00017.safetensors",
+      "bytes": 101659600,
+      "sha256": "0a836f8baf533f11da3eebc971defb025ee3e2f0a13965436222713fa615e0fc"
+    },
+    {
+      "name": "model-00018.safetensors",
+      "bytes": 95110720,
+      "sha256": "9f8032627985ccd339ae68be44826112983cf3f342a7360162ae277eb85d4e07"
+    },
+    {
+      "name": "model-00019.safetensors",
+      "bytes": 101659584,
+      "sha256": "bcff752fff4f310760e90bb833c49f9773223c20b8903e07557cdd20f0b4dc39"
+    },
+    {
+      "name": "model-00020.safetensors",
+      "bytes": 95110696,
+      "sha256": "74422825b3bee1fe55c8cd30137d1f7ba80737df8846782358c31ff5fe1348a4"
+    },
+    {
+      "name": "model-00021.safetensors",
+      "bytes": 101659560,
+      "sha256": "dc35812a7c76dcd4a2026c48b811f173fd7016d7c7fd78e110119610872512cc"
+    },
+    {
+      "name": "model-00022.safetensors",
+      "bytes": 42636344,
+      "sha256": "1be9b2ed4d456ac7f4f1206586c1c6bd905b7141824fc4e405b0e96b6444f1ea"
+    },
+    {
+      "name": "model-00023.safetensors",
+      "bytes": 132779664,
+      "sha256": "40934d0615ad7ba440f2e006e5c9e5f4b8e184051eb43c14fafe154a4736380e"
+    },
+    {
+      "name": "model-00024.safetensors",
+      "bytes": 19661064,
+      "sha256": "21d37f8465040f58b2dcde0afa9b2accf03a8c56b61bc6c33c1eeff05122fb4f"
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "bytes": 75623,
+      "sha256": "f417fa46c8c7a1cd0497076210d2cfcb5f8e9047e6e46a762db42a5577da15f4"
+    },
+    {
+      "name": "modeling_dicow.py",
+      "bytes": 15126,
+      "sha256": "aa335c71078cfad5b84b5e323dd56f232289552a0052b02693819a591e1049b1"
+    },
+    {
+      "name": "normalizer.json",
+      "bytes": 52666,
+      "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd"
+    },
+    {
+      "name": "preprocessor_config.json",
+      "bytes": 357,
+      "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499"
+    },
+    {
+      "name": "special_tokens_map.json",
+      "bytes": 2186,
+      "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74"
+    },
+    {
+      "name": "tokenizer.json",
+      "bytes": 3930645,
+      "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b"
+    },
+    {
+      "name": "tokenizer_config.json",
+      "bytes": 282873,
+      "sha256": "3c75940dfce3a294fca7041a5faff011677f1b68fa85e47511bb8cf6dccaded6"
+    },
+    {
+      "name": "utils.py",
+      "bytes": 540,
+      "sha256": "f25f0617517f7ed604361643dc875fc5d2d3500376134dbbe240c82688b6714b"
+    },
+    {
+      "name": "vocab.json",
+      "bytes": 835528,
+      "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971"
+    }
+  ],
+  "conversion": "F32 tensors rounded to BF16 and packed into deterministic <=100MiB shards except single larger tensors",
+  "torch_version": "2.6.0+cpu",
+  "transformers_version": "4.55.0",
+  "safetensors_version": "0.6.2",
+  "source_code_review": "validation/dicow-research/code-inspection.json",
+  "runtime": "CPU only, two threads, no validated Vulkan, no Windows execution test",
+  "limitations": [
+    "English-only experimental candidate path",
+    "No automatic identity or voice profile updates",
+    "Mandarin inaccurate in measured diagnostics"
+  ]
+}

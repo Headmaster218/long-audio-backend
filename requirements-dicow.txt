@@ -1,0 +1,11 @@
+# Separate environment. Install torch==2.6.0+cpu from the official CPU wheel index.
+# No CUDA/Vulkan dependency or GPU support is required/claimed by this prototype.
+transformers==4.55.0
+tokenizers==0.21.4
+safetensors==0.6.2
+huggingface-hub==0.34.4
+accelerate==1.10.1
+pandas==2.3.2
+numpy==1.26.4
+soundfile==0.13.1
+psutil==7.0.0
