@@ -20,8 +20,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 731,
-      "sha256": "42d34d9ab0e3b9e576d594be9bafd286c89e1b7b02b674929932e9ed7941c25a"
+      "bytes": 906,
+      "sha256": "e6dce1be21232092e1e07f3b09269f89d94f924720881c44b5e4aa256dbce2da"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -55,8 +55,8 @@
     },
     {
       "path": "audio_backend/__init__.py",
-      "bytes": 102,
-      "sha256": "7e18118b872c426070f21f41bd3dd2b7fa1cc85b81d01b44775d71da345c85ac"
+      "bytes": 107,
+      "sha256": "597069c198330e72752c40af21c17a81f56707275f70bd3d0a885c95e5637d26"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -385,8 +385,8 @@
     },
     {
       "path": "pyproject.toml",
-      "bytes": 823,
-      "sha256": "efa44febbc38bd40cd0586194f6fc33a334797c946c08414ace110aec8758ee8"
+      "bytes": 828,
+      "sha256": "aa475893af776eaceead98dcd98671652a5761669b52ce622fbae8de3153af3e"
     },
     {
       "path": "requirements-dicow.txt",

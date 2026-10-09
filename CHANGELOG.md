@@ -1,5 +1,10 @@
 # Change log
 
+## 0.2.0rc2.dev0 (unreleased integration)
+
+- Begin the next development series; keep package metadata and API version in sync.
+- No release, tag or model-quality acceptance.
+
 ## 0.2.0rc1 public source baseline
 
 - Import reviewed project-owned source from the verified historical snapshot with accurate present-day Git authorship.
