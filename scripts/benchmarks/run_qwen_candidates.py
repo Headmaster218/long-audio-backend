@@ -6,6 +6,16 @@ explicit authorization receipt; it never automatically retries an old attempt.
 Runtime JSON is qwen-local-runtime-v1: model/python/native_library file receipts
 {path,resolved_path,bytes,sha256}, files[] wrapper/native inventory, package_version,
 native_commit, model_id, model_revision and license. No assets are downloaded.
+Limits also require cleanup_seconds (5..30) and cleanup_write_bytes (256 KiB..1 MiB,
+at most half the artifact cap). This finite terminal-only reserve is admitted
+before model work; it does not renew a compute deadline or permit another call.
+This offline prototype accepts at most 1024 windows (5h41m20s at full 20s each);
+the 2 MiB manifest cap may bind earlier. It does not yet support a single 12h
+Qwen run. Longer jobs need separately reviewed paged/lazy inventory, not a cap
+increase or a claim borrowed from the existing primary long-audio pipeline.
+preflight_seconds is explicit (<=600) and also counts inside timeout_seconds,
+the overall preflight+compute deadline. Full source/model verification is kept;
+startup can read the same bytes repeatedly, so short-clip timing must include it.
 """
 import argparse
 import json
@@ -18,7 +28,7 @@ sys.path.insert(0, str(ROOT))
 
 from audio_backend.fragment_core import SourcePlan
 from audio_backend.fragment_runtime_contracts import digest
-from audio_backend.qwen_candidate_runner import read_json, freeze, run, atomic_json
+from audio_backend.qwen_candidate_runner import read_json, freeze, run, atomic_json, validate_limits, make_guard, preflight_scope
 from audio_backend.qwen_candidate_store import CandidateStore
 from audio_backend.qwen_candidates import public_candidate
 
@@ -46,12 +56,16 @@ def main(argv=None):
     if args.mode == 'freeze':
         if not all((args.source_plan, args.source_bindings, args.runtime_manifest, args.limits, args.source_scope)):
             parser.error('freeze requires source-plan/bindings/runtime-manifest/limits/source-scope')
-        # Bound before parsing; SourcePlan performs its own strict validation.
-        plan_value = read_json(args.source_plan)
-        plan = SourcePlan.from_json(json.dumps(plan_value))
-        value = freeze(plan, read_json(args.source_bindings), read_json(args.runtime_manifest),
-                       read_json(args.limits), source_scope=args.source_scope,
-                       source_generation=args.source_generation)
+        limits = validate_limits(read_json(args.limits))
+        guard = make_guard(ROOT, limits, read_only=True)
+        with preflight_scope(guard, limits['preflight_seconds']):
+            # Input metadata is regular-file/bounded before parsing; the same
+            # preflight guard covers full source scans and runtime hashes.
+            plan_value = read_json(args.source_plan)
+            plan = SourcePlan.from_json(json.dumps(plan_value))
+            value = freeze(plan, read_json(args.source_bindings), read_json(args.runtime_manifest),
+                           limits, source_scope=args.source_scope,
+                           source_generation=args.source_generation, guard=guard)
         import shutil
         if shutil.disk_usage(out.parent).free < 5 * 1024**3 + 2 * 1024**2:
             parser.error('Insufficient disk headroom for frozen metadata')

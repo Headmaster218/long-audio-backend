@@ -156,6 +156,14 @@ class CandidateStore:
                 self._event(db, row['request_id'], 'interrupted_outcome_unknown',
                             {'attempt_id': row['id'], 'execution_started': bool(row['started']),
                              'status': 'interrupted_outcome_unknown', 'automatic_retry': False})
+            # A crash can occur after a failed terminal result but before the
+            # remaining-window stop transaction. Recovery must close that gap.
+            blocked = db.execute("SELECT 1 FROM requests WHERE status NOT IN ('planned','returned_text','returned_empty') LIMIT 1").fetchone()
+            if blocked:
+                for row in db.execute("SELECT id FROM requests WHERE status='planned'").fetchall():
+                    db.execute("UPDATE requests SET status='not_attempted_after_stop' WHERE id=?", (row['id'],))
+                    self._event(db, row['id'], 'not_attempted_after_stop',
+                                {'status': 'not_attempted_after_stop', 'reason': 'prior_noncomplete_attempt'})
             db.execute('UPDATE run SET owner=?,generation=generation+1 WHERE id=1', (canonical(owner),))
         self.owner = owner
         return owner
@@ -229,12 +237,20 @@ class CandidateStore:
         with self._transaction() as db:
             row = db.execute('SELECT * FROM attempts WHERE id=?', (aid,)).fetchone()
             run = db.execute('SELECT * FROM run WHERE id=1').fetchone()
-            if not row or row['status'] not in ACTIVE or not self.owner or row['owner'] != canonical(self.owner):
+            cancelled_not_invoked = bool(row and row['status'] == 'cancelled_before_start' and
+                                         not row['started'] and run['cancelled'])
+            if not row or (row['status'] not in ACTIVE and not cancelled_not_invoked) or not self.owner or row['owner'] != canonical(self.owner):
                 raise StaleOwner('Terminal receipt does not belong to active attempt')
+            if cancelled_not_invoked and (returned or status in COMPLETE):
+                raise ValueError('Cancelled uninvoked attempt cannot have a native return')
+            if cancelled_not_invoked and row['evidence'] is not None:
+                if row['evidence'] != encoded:
+                    raise Conflict('Cancellation terminal evidence is immutable')
+                return
             if status in COMPLETE and (not returned or not row['started']):
                 raise ValueError('Success requires durable invocation and actual return')
             if run['cancelled'] or run['generation'] != row['generation'] or run['owner'] != row['owner']:
-                status = 'interrupted_outcome_unknown'
+                status = 'cancelled_before_start' if run['cancelled'] and not row['started'] else 'interrupted_outcome_unknown'
             sha = hashlib.sha256(encoded.encode()).hexdigest()
             self.reserve_write(len(encoded.encode()) + 16384)
             db.execute('UPDATE attempts SET status=?,returned=?,evidence=?,evidence_sha256=? WHERE id=?',
@@ -257,6 +273,14 @@ class CandidateStore:
             for row in db.execute("SELECT id FROM requests WHERE status='planned'").fetchall():
                 db.execute("UPDATE requests SET status='cancelled_before_start' WHERE id=?", (row['id'],))
                 self._event(db, row['id'], 'cancelled_before_start', {'status': 'cancelled_before_start'})
+            # Cancellation and invocation ACK are serialized by BEGIN IMMEDIATE.
+            # An unstarted reservation is therefore positively not invoked.
+            for row in db.execute("SELECT id,request_id FROM attempts WHERE status='reserved' AND started=0").fetchall():
+                db.execute("UPDATE attempts SET status='cancelled_before_start' WHERE id=?", (row['id'],))
+                db.execute("UPDATE requests SET status='cancelled_before_start' WHERE id=?", (row['request_id'],))
+                self._event(db, row['request_id'], 'cancelled_before_start',
+                            {'status': 'cancelled_before_start', 'reason_code': 'cancelled_not_invoked',
+                             'attempt_id': row['id'], 'execution_started': False})
             self._event(db, None, 'cancel_requested', {'status': 'cancel_requested'})
 
     def receipt(self, value):

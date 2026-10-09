@@ -192,7 +192,8 @@ def frozen_fixture(tmp_path, frames=16):
                    model_id='synthetic', model_revision='test', license='test')
     limits = dict(max_calls=(frames + 319999) // 320000, max_frames=frames, tree_rss_bytes=256 * 1024**2,
                   host_reserve_bytes=2 * 1024**3, disk_reserve_bytes=5 * 1024**3,
-                  artifact_bytes=1024**2, timeout_seconds=30)
+                  artifact_bytes=1024**2, timeout_seconds=30, cleanup_seconds=10,
+                  cleanup_write_bytes=256 * 1024, preflight_seconds=30)
     frozen = freeze(plan, paths, runtime, limits, source_scope='public-synthetic')
     path = tmp_path / 'frozen.json'; atomic_json(path, frozen)
     return frozen, path
@@ -396,3 +397,203 @@ def test_incomplete_implementation_manifest_rejected(tmp_path):
     frozen['implementation'] = []
     with pytest.raises(ValueError, match='implementation inventory'):
         verify_frozen(frozen, digest(frozen))
+
+
+@pytest.mark.parametrize('prior', ['invocation_started', 'output_truncated'])
+def test_noncomplete_recovery_fences_every_still_planned_window(tmp_path, prior):
+    frozen, path = frozen_fixture(tmp_path, frames=320001)
+    out = tmp_path / 'out'; store = CandidateStore(out)
+    store.initialize(digest(frozen), frozen['requests'], {k: frozen['limits'][k] for k in ('max_calls', 'max_frames')})
+    store.acquire({'pid': os.getpid()})
+    aid = store.reserve(frozen['requests'][0]['request_id']); store.started(aid)
+    if prior == 'output_truncated':
+        native = normalize_native_result(native_raw(native_status=18, native_status_name='OUTPUT_TRUNCATED', was_truncated=True))
+        store.finish(aid, prior, {'native': native}, returned=True)
+    # Both crash positions precede stop_remaining. Neither permits a new child.
+    approval = {'frozen_sha256': digest(frozen), 'authorization_reference': 'model-free-recovery-test'}
+    run(path, digest(frozen), approval, out, child_command=['/must-not-launch'])
+    remaining = store.request(frozen['requests'][1]['request_id'])
+    assert remaining['status'] == 'not_attempted_after_stop' and remaining['attempts'] == []
+    assert not [e for e in store.events()['events'] if e['kind'] == 'owner_receipt']
+
+
+def test_expired_compute_deadline_keeps_bounded_terminal_reap_receipt(tmp_path):
+    frozen, _ = frozen_fixture(tmp_path)
+    frozen['limits']['timeout_seconds'] = 1
+    path = tmp_path / 'deadline.json'; atomic_json(path, frozen)
+    code = '''import os,socket,time
+from audio_backend.qwen_candidate_runner import wire
+s=socket.socket(fileno=int(os.environ['QWEN_CONTROL_FD']))
+wire(s,{'kind':'ready','pid':os.getpid(),'runtime':{'test_double':True}})
+m=wire(s);wire(s,{'kind':'prepared','request_id':m['request_id']});wire(s);time.sleep(10)
+'''
+    out = tmp_path / 'out'
+    with pytest.raises(RuntimeError):
+        run(path, digest(frozen), {'frozen_sha256': digest(frozen), 'authorization_reference': 'deadline-test'},
+            out, child_command=[sys.executable, '-B', '-c', code])
+    store = CandidateStore(out)
+    assert store.request(frozen['requests'][0]['request_id'])['status'] == 'interrupted_outcome_unknown'
+    receipt = [e['payload'] for e in store.events()['events'] if e['kind'] == 'owner_receipt'][-1]
+    assert receipt['original_handle_waited_and_reaped'] and receipt['cleanup_verified']
+    assert receipt['cleanup_seconds_limit'] == 10
+    assert receipt['cleanup_write_bytes_limit'] == 256 * 1024
+
+
+@pytest.mark.parametrize('when,target', [('construct', 'model'), ('before_invoke', 'model'), ('before_invoke', 'source')])
+def test_child_mutation_at_load_or_actual_invocation_boundary_stops_call(tmp_path, monkeypatch, when, target):
+    import threading
+    import audio_backend.qwen_candidate_runner as runner
+    frozen, path = frozen_fixture(tmp_path); calls = []
+    result = SimpleNamespace(text='native', raw_text='native', language='en', tokens=[], timestamp_kind='none')
+    class Counted(Session):
+        def run(self, *args, **kwargs):
+            calls.append(True); return result
+    model = SimpleNamespace(session=lambda **kw: Counted(), close=lambda: None)
+    api = SimpleNamespace(_lib=SimpleNamespace(transcribe_was_truncated=lambda _: False))
+    changed = Path(frozen['runtime']['model']['path'] if target == 'model' else frozen['source_bindings']['source'])
+    def mutate():
+        data = bytearray(changed.read_bytes()); data[-1] ^= 1; changed.write_bytes(data)
+    def construct(runtime):
+        runner.verify_runtime(runtime)
+        if when == 'construct': mutate()
+        return model, api, {}
+    monkeypatch.setattr(runner, '_construct', construct)
+    parent, child = socket.socketpair(); errors = []
+    def worker():
+        try: runner.child_main(child.detach(), str(path), digest(frozen))
+        except Exception as exc: errors.append(type(exc).__name__)
+    thread = threading.Thread(target=worker); thread.start()
+    message = wire(parent)
+    if when == 'before_invoke':
+        assert message['kind'] == 'ready'
+        rid = frozen['requests'][0]['request_id']
+        wire(parent, {'kind': 'prepare', 'request_id': rid})
+        assert wire(parent)['kind'] == 'prepared'
+        mutate()
+        wire(parent, {'kind': 'invoke', 'request_id': rid})
+        message = wire(parent)
+    thread.join(3); parent.close()
+    assert not thread.is_alive() and calls == []
+    assert errors and message['kind'] == 'failure'
+
+
+def test_reserved_cancel_is_positive_not_invoked_not_unknown(tmp_path):
+    store, rid, _ = store_ready(tmp_path)
+    aid = store.reserve(rid); store.cancel()
+    assert store.request(rid)['status'] == 'cancelled_before_start'
+    with pytest.raises(StaleOwner): store.started(aid)
+    store.finish(aid, 'cancelled_before_start', {'cancelled': True})
+    row = store.request(rid)
+    assert row['status'] == 'cancelled_before_start'
+    assert row['attempts'][0]['started'] == 0 and row['attempts'][0]['returned'] == 0
+    event = next(e for e in store.events()['events'] if e['payload'].get('reason_code') == 'cancelled_not_invoked')
+    assert event['payload']['execution_started'] is False
+
+
+def test_normal_success_terminates_remembered_owned_descendant(tmp_path):
+    import psutil
+    frozen, path = frozen_fixture(tmp_path)
+    code = '''import os,socket,subprocess,sys,time
+from audio_backend.qwen_candidate_runner import wire
+from audio_backend.qwen_candidates import normalize_native_result
+s=socket.socket(fileno=int(os.environ['QWEN_CONTROL_FD']))
+child=subprocess.Popen([sys.executable,'-B','-c','import time;time.sleep(15)'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+time.sleep(.1)
+wire(s,{'kind':'ready','pid':os.getpid(),'runtime':{'test_double':True}})
+m=wire(s);rid=m['request_id'];wire(s,{'kind':'prepared','request_id':rid});wire(s)
+raw=dict(native_status=0,native_status_name='OK',result_available=True,text='',raw_text='',language=None,was_truncated=False,truncation_available=True,exception_type=None,exception_status=None,partial_result_available=False,native_token_count=0,native_timestamp_kind='none')
+wire(s,{'kind':'returned','request_id':rid,'native':normalize_native_result(raw)})
+assert wire(s)=={'kind':'close'}
+'''
+    out = tmp_path / 'out'
+    run(path, digest(frozen), {'frozen_sha256': digest(frozen), 'authorization_reference': 'owned-descendant-test'},
+        out, child_command=[sys.executable, '-B', '-c', code])
+    receipt = [e['payload'] for e in CandidateStore(out).events()['events'] if e['kind'] == 'owner_receipt'][-1]
+    assert receipt['wait_returncode'] == 0 and receipt['original_handle_waited_and_reaped']
+    assert receipt['cleanup_verified'] and receipt['remaining_live_owned'] == []
+    assert receipt['observed_live_descendants_after_direct_wait']
+    # Non-child zombies are not falsely represented as reaped by this owner.
+    assert all(p['status'] == psutil.STATUS_ZOMBIE for p in receipt['terminated_but_not_reaped_nonchild_zombies'])
+
+
+def test_caller_unrelated_sibling_is_not_owned_or_signalled(tmp_path):
+    from audio_backend.qwen_candidate_runner import CandidateGuard
+    from audio_backend.fragment_model_guard import Identity
+    sibling = subprocess.Popen([sys.executable, '-B', '-c', 'import time;time.sleep(15)'])
+    worker = subprocess.Popen([sys.executable, '-B', '-c', 'import time;time.sleep(15)'])
+    try:
+        guard = CandidateGuard(tmp_path, own_cap=256 * 1024**2, aggregate_cap=256 * 1024**2,
+                               disk_reserve=5 * 1024**3, deadline=10)
+        guard.bind_worker(Identity.bind(worker.pid))
+        sample = guard.check()
+        assert worker.pid in guard.known_own and sibling.pid not in guard.known_own
+        assert sibling.pid not in {p['pid'] for p in sample['processes']}
+        guard.terminate_owned()
+        worker.wait(timeout=3)
+        assert sibling.poll() is None
+    finally:
+        for proc in (worker, sibling):
+            if proc.poll() is None: proc.kill()
+            proc.wait(timeout=3)
+
+
+def test_recycled_worker_pid_is_not_signalled(tmp_path, monkeypatch):
+    import audio_backend.qwen_candidate_runner as runner
+    import audio_backend.fragment_model_guard as common
+    from audio_backend.fragment_model_guard import Identity, ResourceLimit
+    fake = Identity(987654321, 1.)
+    guard = runner.CandidateGuard(tmp_path, disk_reserve=5 * 1024**3)
+    guard.own_roots = (fake,); guard.known_own[fake.pid] = fake
+    monkeypatch.setattr(runner, 'process_table', lambda: {fake.pid: (1, 2.)})
+    with pytest.raises(ResourceLimit, match='reused'): guard.check()
+    killed = []
+    monkeypatch.setattr(common, 'process_table', lambda: {fake.pid: (1, 2.)})
+    monkeypatch.setattr(common.psutil, 'Process', lambda pid: SimpleNamespace(create_time=lambda: 2., kill=lambda: killed.append(pid)))
+    guard.terminate_owned()
+    assert killed == []
+
+
+@pytest.mark.parametrize('operation', ['freeze', 'run'])
+@pytest.mark.parametrize('target', ['runtime_hash', 'source_scan'])
+@pytest.mark.parametrize('failure', ['deadline', 'read_error'])
+def test_preflight_is_bounded_and_fails_before_child_or_reservation(tmp_path, monkeypatch, operation, target, failure):
+    import time
+    import audio_backend.qwen_candidate_runner as runner
+    frozen, _ = frozen_fixture(tmp_path)
+    frozen['limits']['preflight_seconds'] = 1
+    path = tmp_path / 'preflight.json'; atomic_json(path, frozen)
+    launches = []
+    monkeypatch.setattr(runner.subprocess, 'Popen', lambda *a, **k: launches.append(a))
+    def interrupt():
+        if failure == 'deadline': time.sleep(1.05)
+        else: raise OSError('synthetic bounded preflight read failure')
+    if target == 'runtime_hash':
+        original = runner._hash_read
+        def read(stream):
+            interrupt(); return original(stream)
+        monkeypatch.setattr(runner, '_hash_read', read)
+    else:
+        original = wave.Wave_read.readframes
+        def frames(self, count):
+            interrupt(); return original(self, count)
+        monkeypatch.setattr(wave.Wave_read, 'readframes', frames)
+    expected = runner.ResourceLimit if failure == 'deadline' else OSError
+    with pytest.raises(expected):
+        if operation == 'freeze':
+            runner.freeze(SourcePlan.from_json(frozen['source_plan']), frozen['source_bindings'],
+                          frozen['runtime'], frozen['limits'], source_scope='public-synthetic')
+        else:
+            runner.run(path, digest(frozen), {'frozen_sha256': digest(frozen), 'authorization_reference': 'preflight-failure-test'}, tmp_path / 'out')
+    assert launches == []
+    assert not (tmp_path / 'out/qwen-candidates.sqlite3').exists()
+    assert runner._PREFLIGHT.get() is None
+
+
+def test_unsupported_cleanup_reserve_is_rejected_before_preflight_child(tmp_path, monkeypatch):
+    import audio_backend.qwen_candidate_runner as runner
+    frozen, _ = frozen_fixture(tmp_path); frozen['limits']['cleanup_write_bytes'] = 65536
+    path = tmp_path / 'too-small-cleanup.json'; atomic_json(path, frozen)
+    launches = []; monkeypatch.setattr(runner.subprocess, 'Popen', lambda *a, **k: launches.append(a))
+    with pytest.raises(ValueError, match='cleanup reserve'):
+        runner.run(path, digest(frozen), {'frozen_sha256': digest(frozen), 'authorization_reference': 'admission-test'}, tmp_path / 'out')
+    assert launches == []

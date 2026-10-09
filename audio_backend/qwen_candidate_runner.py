@@ -4,6 +4,7 @@ The supervisor owns the original child handle. Every audio call waits for a
 durable reservation and invocation ACK; an interrupted call is never replayed.
 """
 import array
+import contextvars
 from contextlib import contextmanager
 from dataclasses import asdict
 import fcntl
@@ -12,7 +13,9 @@ import json
 import os
 from pathlib import Path
 import select
+import shutil
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -21,15 +24,112 @@ import time
 from .fragment_core import SourcePlan
 from .fragment_runtime import LogicalPCMReader
 from .fragment_runtime_contracts import canonical, digest
-from .fragment_model_guard import Identity, ResourceGuard
+from .fragment_model_guard import Identity, ResourceGuard, ResourceLimit, descendants, process_table, rss_records
 from .qwen_candidate_store import CandidateStore, COMPLETE
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_JSON = 2 * 1024**2
 LIMITS = frozenset({'max_calls', 'max_frames', 'tree_rss_bytes', 'host_reserve_bytes',
-                    'disk_reserve_bytes', 'artifact_bytes', 'timeout_seconds'})
+                    'disk_reserve_bytes', 'artifact_bytes', 'timeout_seconds',
+                    'cleanup_seconds', 'cleanup_write_bytes', 'preflight_seconds'})
 PINNED_MODEL_SHA256 = '062a7bcb18675c2fe5ffd0e8b354eac6a1ceada9b2af9ef7168746ae16b54358'
 PINNED_NATIVE_COMMIT = '63a44d9239d610b3908e8a66b384924cd4a77217'
+_PREFLIGHT = contextvars.ContextVar('qwen_candidate_preflight', default=None)
+
+
+class CandidateGuard(ResourceGuard):
+    """Caller RSS is measured separately and NEVER grants kill ownership.
+
+    Until bind_worker receives the actual Popen PID/create-time, no process is
+    owned. Only that worker root and its observed descendants can be signalled.
+    """
+    def __init__(self, root, *, caller=None, read_only=False, **limits):
+        self.caller = caller or Identity.bind(os.getpid())
+        self.read_only = read_only
+        super().__init__(root, (self.caller,), **limits)
+        self.own_roots = ()
+
+    def bind_worker(self, identity):
+        if self.own_roots or identity.pid == self.caller.pid or Identity.bind(identity.pid) != identity:
+            raise ResourceLimit('Explicit fresh owned worker identity required')
+        self.own_roots = (identity,)
+
+    def artifacts(self):
+        return 0 if self.read_only else super().artifacts()
+
+    def _check(self, projected_write=0):
+        import psutil
+        if type(projected_write) is not int or projected_write < 0 or self.read_only and projected_write:
+            raise ValueError('Invalid projected candidate write')
+        selected = descendants(self.own_roots, process_table(), self.known_own.values())
+        self.known_own.update(selected)
+        # Do not recurse from the caller: it can have unrelated existing jobs.
+        records = rss_records({self.caller.pid: self.caller, **selected})
+        total = sum(p['rss'] for p in records)
+        host, disk, size = psutil.virtual_memory().available, shutil.disk_usage(self.root).free, self.artifacts()
+        self.peak_own = max(self.peak_own, total); self.peak_aggregate = max(self.peak_aggregate, total)
+        self.minimum_host = min(self.minimum_host, host); self.minimum_disk = min(self.minimum_disk, disk)
+        for bad, reason in ((total > self.own_cap or total > self.aggregate_cap, 'Candidate caller plus owned-tree RSS limit'),
+            (host < self.host_reserve, 'Candidate host-memory floor'),
+            (disk - projected_write < self.disk_reserve, 'Candidate projected disk floor'),
+            (size + projected_write > self.artifact_cap, 'Candidate artifact cap'),
+            (time.monotonic() > self.deadline, 'Candidate job deadline')):
+            if bad:
+                raise ResourceLimit(reason)
+        return {'own_rss': total, 'aggregate_rss': total, 'host_available': host, 'disk_free': disk,
+                'artifact_bytes': size, 'processes': records,
+                'ownership': 'actual Popen worker descendants only; caller RSS accounting is not kill authority'}
+
+
+def make_guard(root, limits, *, read_only=False):
+    return CandidateGuard(root, read_only=read_only, own_cap=limits['tree_rss_bytes'],
+        aggregate_cap=limits['tree_rss_bytes'], artifact_cap=limits['artifact_bytes'],
+        host_reserve=limits['host_reserve_bytes'], disk_reserve=limits['disk_reserve_bytes'],
+        deadline=limits['timeout_seconds'])
+
+
+def _preflight_tick():
+    tick = _PREFLIGHT.get()
+    if tick:
+        tick()
+
+
+@contextmanager
+def preflight_scope(guard, seconds):
+    """Bound parent model/source hashing without changing primary readers.
+
+    Our stream hashes check each 64 KiB block. A thread-local profile callback
+    also checks the unchanged SourcePlan/PCM16 reader's bounded reads/scans.
+    There is no global monkey-patch, whole-file buffer, skipped hash, or child
+    construction during parent preflight. Existing profiling is restored.
+    """
+    from . import fragment_core
+    deadline = min(guard.deadline, time.monotonic() + seconds)
+    last = [0.]
+    previous_tick, previous_profile = _PREFLIGHT.get(), sys.getprofile()
+    def tick(force=False):
+        now = time.monotonic()
+        if now > deadline:
+            raise ResourceLimit('Candidate preflight deadline')
+        if previous_tick:
+            previous_tick()
+        if force or now - last[0] >= .02:
+            guard.check(); last[0] = now
+    source_file = str(Path(fragment_core.__file__).resolve())
+    def profile(frame, event, arg):
+        if previous_profile:
+            previous_profile(frame, event, arg)
+        if frame.f_code.co_filename == source_file:
+            tick()
+    token = _PREFLIGHT.set(tick)
+    try:
+        tick(True)
+        sys.setprofile(profile)
+        yield
+        tick(True)
+    finally:
+        sys.setprofile(previous_profile)
+        _PREFLIGHT.reset(token)
 
 
 class ChildFailure(RuntimeError):
@@ -46,7 +146,12 @@ def read_json(path):
                 raise ValueError('Duplicate JSON key')
             result[key] = value
         return result
-    with Path(path).open('rb') as stream:
+    # Reject pipes/devices and oversized metadata before any blocking read.
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'rb') as stream:
+        descriptor = os.fstat(stream.fileno())
+        if not stat.S_ISREG(descriptor.st_mode) or descriptor.st_size > MAX_JSON:
+            raise ValueError('Bounded regular Qwen manifest required')
         data = stream.read(MAX_JSON + 1)
     if len(data) > MAX_JSON:
         raise ValueError('Oversized Qwen manifest')
@@ -54,11 +159,25 @@ def read_json(path):
                       parse_constant=lambda x: (_ for _ in ()).throw(ValueError('Nonfinite JSON')))
 
 
+def _hash_read(stream):
+    return stream.read(65536)
+
+
 def file_receipt(path):
     path = Path(path).absolute()
     before = path.stat()
+    if not stat.S_ISREG(before.st_mode):
+        raise ValueError('Runtime/source hash requires a regular local file')
     with path.open('rb') as stream:
-        sha = hashlib.file_digest(stream, 'sha256').hexdigest()
+        hasher = hashlib.sha256()
+        while True:
+            _preflight_tick()
+            block = _hash_read(stream)
+            _preflight_tick()
+            if not block:
+                break
+            hasher.update(block)
+        sha = hasher.hexdigest()
     after = path.stat()
     if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
         after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
@@ -71,6 +190,8 @@ def verify_file(entry):
         or type(entry['bytes']) is not int or entry['bytes'] < 0
         or not Path(entry['path']).is_absolute()):
         raise ValueError('Exact local file receipt required')
+    if Path(entry['path']).stat().st_size != entry['bytes']:
+        raise ValueError('Frozen source/model/runtime hash changed: size mismatch before hashing')
     if file_receipt(entry['path']) != entry:
         raise ValueError('Frozen source/model/runtime hash changed')
 
@@ -86,6 +207,10 @@ def verify_runtime(runtime):
         if not isinstance(runtime[name], str) or not 0 < len(runtime[name]) <= 512:
             raise ValueError('Missing bounded runtime provenance')
     entries = [runtime[name] for name in ('model', 'python', 'native_library')] + runtime['files']
+    if any(not isinstance(e, dict) or type(e.get('bytes')) is not int or not 0 <= e['bytes'] <= 2 * 1024**3 for e in entries):
+        raise ValueError('Runtime file inventory has unbounded declared sizes')
+    if sum(e['bytes'] for e in entries) > 4 * 1024**3:
+        raise ValueError('Runtime preflight inventory exceeds 4 GiB')
     for entry in entries:
         verify_file(entry)
     paths = [e['path'] for e in runtime['files']]
@@ -110,11 +235,26 @@ def validate_limits(limits):
         raise ValueError('Disk/host safety floors cannot be lowered')
     if limits['max_calls'] > 1024 or limits['max_frames'] > 1024 * 320000:
         raise ValueError('Offline run inventory exceeds v1 bound')
+    if (not 5 <= limits['cleanup_seconds'] <= 30 or
+        not 256 * 1024 <= limits['cleanup_write_bytes'] <= min(1024**2, limits['artifact_bytes'] // 2)):
+        raise ValueError('Explicit bounded terminal cleanup reserve required')
+    if limits['preflight_seconds'] > 600:
+        raise ValueError('Preflight must have a finite <=600-second bound')
     return limits
 
 
-def freeze(plan, paths, runtime, limits, *, source_scope, source_generation=0):
+def freeze(plan, paths, runtime, limits, *, source_scope, source_generation=0, guard=None):
+    validate_limits(limits)
+    guard = guard or make_guard(ROOT, limits, read_only=True)
+    with preflight_scope(guard, limits['preflight_seconds']):
+        return _freeze(plan, paths, runtime, limits, source_scope=source_scope,
+                       source_generation=source_generation)
+
+
+def _freeze(plan, paths, runtime, limits, *, source_scope, source_generation):
     from .qwen_candidates import prepare_candidate_requests, DEFAULT_CONFIG
+    from .qwen_candidates import admit_source_plan, CORE_FRAMES
+    validate_source_inventory(plan, paths)
     verify_runtime(runtime)
     validate_limits(limits)
     paths = {key: str(Path(path).absolute()) for key, path in paths.items()}
@@ -134,6 +274,24 @@ def freeze(plan, paths, runtime, limits, *, source_scope, source_generation=0):
     return value
 
 
+def validate_source_inventory(plan, paths):
+    from .qwen_candidates import admit_source_plan, CORE_FRAMES
+    admit_source_plan(plan)
+    if plan.end_frame > 1024 * CORE_FRAMES or set(paths) != {s.fragment_id for s in plan.sources}:
+        raise ValueError('Source plan exceeds bounded preflight inventory')
+    total = 0
+    for source in plan.sources:
+        _preflight_tick()
+        st = Path(paths[source.fragment_id]).stat()
+        # V1 allows ordinary WAV metadata but rejects huge opaque padding
+        # before a full hash scan. Keep all later exact source/hash checks.
+        if not stat.S_ISREG(st.st_mode) or st.st_size > 2 * source.frames + 1024**2:
+            raise ValueError('Source container exceeds bounded PCM16/metadata inventory')
+        total += st.st_size
+    if total > 4 * 1024**3:
+        raise ValueError('Source preflight inventory exceeds 4 GiB')
+
+
 def verify_frozen(frozen, expected_sha256):
     from .qwen_candidates import prepare_candidate_requests
     if (not isinstance(frozen, dict) or set(frozen) != {'schema', 'source_plan', 'source_bindings',
@@ -141,6 +299,10 @@ def verify_frozen(frozen, expected_sha256):
         or digest(frozen) != expected_sha256):
         raise ValueError('Frozen candidate contract/hash mismatch')
     validate_limits(frozen['limits'])
+    plan = SourcePlan.from_json(frozen['source_plan'])
+    validate_source_inventory(plan, frozen['source_bindings'])
+    if not isinstance(frozen['requests'], list) or not 0 < len(frozen['requests']) <= 1024:
+        raise ValueError('Bounded nonempty frozen candidate inventory required')
     verify_runtime(frozen['runtime'])
     expected_paths = {str(p.absolute()) for p in (ROOT / 'audio_backend').rglob('*.py')}
     expected_paths.add(str(ROOT / 'scripts/benchmarks/run_qwen_candidates.py'))
@@ -153,7 +315,6 @@ def verify_frozen(frozen, expected_sha256):
     if not frozen['requests']:
         raise ValueError('Empty candidate inventory')
     first = frozen['requests'][0]
-    plan = SourcePlan.from_json(frozen['source_plan'])
     expected = prepare_candidate_requests(plan, frozen['source_bindings'],
         source_scope=first['source_scope'], source_generation=first['source_generation'],
         runtime_manifest_sha256=digest(frozen['runtime']), model_sha256=frozen['runtime']['model']['sha256'],
@@ -331,8 +492,18 @@ def child_main(fd, frozen_path, expected):
         frozen = read_json(frozen_path)
         plan = verify_frozen(frozen, expected)
         reader = LogicalPCMReader(plan, frozen['source_bindings'])
-        model, api, runtime = _construct(frozen['runtime'])
+        # Preserve the PRE-load baseline; do not bless bytes modified by the
+        # constructor by taking the first identity snapshot afterward.
         identities = runtime_stats(frozen['runtime'])
+        verify_runtime(frozen['runtime'])
+        if runtime_stats(frozen['runtime']) != identities:
+            raise ValueError('Runtime changed around preconstruction hash verification')
+        model, api, runtime = _construct(frozen['runtime'])
+        if runtime_stats(frozen['runtime']) != identities:
+            raise ValueError('Runtime changed during native model construction')
+        verify_runtime(frozen['runtime'])
+        if runtime_stats(frozen['runtime']) != identities:
+            raise ValueError('Runtime changed around postconstruction hash verification')
         wire(control, {'kind': 'ready', 'pid': os.getpid(), 'runtime': runtime})
         indexed = {r['request_id']: r for r in frozen['requests']}
         while True:
@@ -353,6 +524,12 @@ def child_main(fd, frozen_path, expected):
             wire(control, {'kind': 'prepared', 'request_id': rid})
             if wire(control) != {'kind': 'invoke', 'request_id': rid}:
                 raise ValueError('Native invocation lacks exact durable ACK')
+            # Preparation can be delayed while the parent commits its ACK.
+            # Check again at the actual native-call boundary, with no reread or
+            # substitution of the already hash-bound float32 samples.
+            reader.verify()
+            if runtime_stats(frozen['runtime']) != identities:
+                raise ValueError('Runtime changed immediately before native invocation')
             native = decode_window(model, api, samples)
             validation = None
             try:
@@ -380,8 +557,8 @@ def child_main(fd, frozen_path, expected):
 def run(frozen_path, expected, approval, output, *, child_command=None):
     """One serial owned child. child_command is a model-free testing seam only."""
     from .qwen_candidates import validate_native_result
+    job_started = time.monotonic()
     frozen = read_json(frozen_path)
-    verify_frozen(frozen, expected)
     if (not isinstance(approval, dict) or set(approval) != {'frozen_sha256', 'authorization_reference'}
         or approval['frozen_sha256'] != expected or not isinstance(approval['authorization_reference'], str)
         or not 0 < len(approval['authorization_reference']) <= 1024):
@@ -390,13 +567,17 @@ def run(frozen_path, expected, approval, output, *, child_command=None):
     if output.resolve() != output:
         raise ValueError('Unsafe candidate output directory')
     limits = frozen['limits']
-    guard = ResourceGuard(output, (Identity.bind(os.getpid()),), own_cap=limits['tree_rss_bytes'],
-        aggregate_cap=limits['tree_rss_bytes'], artifact_cap=limits['artifact_bytes'],
-        host_reserve=limits['host_reserve_bytes'], disk_reserve=limits['disk_reserve_bytes'],
-        deadline=limits['timeout_seconds'])
-    guard.check()
+    validate_limits(limits)
+    guard = make_guard(output, limits)
+    guard.deadline = job_started + limits['timeout_seconds']
+    cleanup_reserve = limits['cleanup_write_bytes']
+    def compute_check(projected=0):
+        return guard.check(projected + cleanup_reserve)
+    compute_check()
+    with preflight_scope(guard, limits['preflight_seconds']):
+        verify_frozen(frozen, expected)
     with runner_lease(output):
-        store = CandidateStore(output, reserve=guard.check)
+        store = CandidateStore(output, reserve=compute_check)
         store.initialize(expected, frozen['requests'], {k: limits[k] for k in ('max_calls', 'max_frames')})
         store.acquire({'pid': os.getpid(), 'created': Identity.bind(os.getpid()).created})
         pending = [r for r in frozen['requests'] if store.request(r['request_id'])['status'] == 'planned']
@@ -405,7 +586,7 @@ def run(frozen_path, expected, approval, output, *, child_command=None):
         parent, child = socket.socketpair()
         proc = None; aid = None; failure = None; runtime = None; receipt = {}
         def check():
-            guard.check(); store.check_owner()
+            compute_check(); store.check_owner()
         try:
             env = dict(os.environ, PYTHONPATH=str(ROOT), PYTHONDONTWRITEBYTECODE='1', PYTHONNOUSERSITE='1',
                        CUDA_VISIBLE_DEVICES='', TRANSCRIBE_BACKEND='cpu', OMP_NUM_THREADS='2',
@@ -416,9 +597,10 @@ def run(frozen_path, expected, approval, output, *, child_command=None):
                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             child.close()
             identity = Identity.bind(proc.pid)
+            guard.bind_worker(identity)
             receipt.update(pid=proc.pid, created=identity.created)
             # Positive process visibility before sending any audio invocation.
-            sampled = guard.check()
+            sampled = compute_check()
             if not any(p['pid'] == proc.pid and p['created'] == identity.created for p in sampled['processes']):
                 raise RuntimeError('Owned child is absent from psutil tree; no inference admitted')
             receipt['positive_child_rss_sample'] = next(p for p in sampled['processes'] if p['pid'] == proc.pid)
@@ -426,7 +608,7 @@ def run(frozen_path, expected, approval, output, *, child_command=None):
             if hello.get('kind') != 'ready' or hello.get('pid') != proc.pid:
                 raise ValueError('Wrong candidate child readiness')
             runtime = hello['runtime']
-            sampled = guard.check()
+            sampled = compute_check()
             receipt['ready_child_rss_sample'] = next(
                 p for p in sampled['processes'] if p['pid'] == proc.pid and p['created'] == identity.created)
             if child_command is None and (not isinstance(runtime, dict)
@@ -468,30 +650,31 @@ def run(frozen_path, expected, approval, output, *, child_command=None):
                 failure['child'] = exc.evidence
         finally:
             parent.close(); child.close()
-            if proc is not None:
-                try:
-                    if failure:
-                        guard.terminate_owned(exclude=(os.getpid(),))
-                    until = time.monotonic() + 5
-                    while True:
-                        try:
-                            code = proc.wait(timeout=.05)
-                            break
-                        except subprocess.TimeoutExpired:
-                            if time.monotonic() >= until:
-                                raise
-                            try:
-                                guard.check()
-                            except Exception:
-                                guard.terminate_owned(exclude=(os.getpid(),))
-                except subprocess.TimeoutExpired:
-                    guard.terminate_owned(exclude=(os.getpid(),))
-                    proc.kill(); code = proc.wait(timeout=5)
-                receipt.update(wait_returncode=code, original_handle_waited_and_reaped=True)
-                if code != 0 and failure is None:
-                    failure = {'type': 'ChildExitFailure', 'message': 'Owned child exited with status ' + str(code)}
+            # A separately admitted finite cleanup phase retains all original
+            # memory/host/disk/artifact floors. Only the compute deadline ends;
+            # no new model calls or unbounded recovery writes become possible.
+            cleanup = CandidateGuard(output, caller=guard.caller, own_cap=limits['tree_rss_bytes'],
+                aggregate_cap=limits['tree_rss_bytes'], artifact_cap=limits['artifact_bytes'],
+                host_reserve=limits['host_reserve_bytes'], disk_reserve=limits['disk_reserve_bytes'],
+                deadline=limits['cleanup_seconds'])
+            cleanup.own_roots = guard.own_roots
+            cleanup.known_own.update(guard.known_own)
+            baseline = cleanup.artifacts()
+            def cleanup_write(projected=0):
+                observed = cleanup.check(projected)
+                if observed['artifact_bytes'] + projected > baseline + cleanup_reserve:
+                    raise RuntimeError('Bounded terminal cleanup write reserve exhausted')
+                return observed
+            store.reserve_write = cleanup_write
+            process_cleanup(proc, cleanup, receipt, failure is not None)
+            if receipt.get('cleanup_failure') and failure is None:
+                failure = receipt['cleanup_failure']
+            if proc is not None and receipt.get('wait_returncode') != 0 and failure is None:
+                failure = {'type': 'ChildExitFailure', 'message': 'Owned child did not exit normally'}
             receipt.update(failure=failure, peak_owned_rss=guard.peak_own,
-                           minimum_host_available=guard.minimum_host, minimum_disk_free=guard.minimum_disk)
+                           minimum_host_available=guard.minimum_host, minimum_disk_free=guard.minimum_disk,
+                           cleanup_seconds_limit=limits['cleanup_seconds'], cleanup_write_bytes_limit=cleanup_reserve,
+                           cleanup_peak_owned_rss=cleanup.peak_own)
             # Child is reaped before durable failure writes; resource pressure
             # must not cause a false success or erase an earlier reservation.
             if aid is not None:
@@ -502,6 +685,76 @@ def run(frozen_path, expected, approval, output, *, child_command=None):
         if failure:
             raise RuntimeError('Candidate run stopped: ' + failure['type'])
         return store.events()
+
+
+def process_cleanup(proc, guard, receipt, stop):
+    """Same-owner PID/create-time registry; direct child uses original wait.
+
+    Remembered descendants are checked even after a normal direct-child exit.
+    Non-child zombies are identified as terminated, never falsely called reaped.
+    Two seconds of the admitted cleanup deadline are reserved for SQL receipts.
+    """
+    import psutil
+    from .fragment_model_guard import descendants, process_table, rss_records
+    end = guard.deadline - 2
+    receipt['original_handle_waited_and_reaped'] = proc is None
+    receipt['cleanup_verified'] = False
+    owned_root_proved = proc is None or any(i.pid == proc.pid for i in guard.own_roots)
+    cleanup_error = None
+    def snapshot():
+        selected = descendants(guard.own_roots, process_table(), guard.known_own.values())
+        guard.known_own.update(selected)
+        return [r for r in rss_records(selected) if r['pid'] != os.getpid()]
+    try:
+        if stop:
+            guard.terminate_owned(exclude=(os.getpid(),))
+        if proc is not None:
+            grace = min(end, time.monotonic() + 1)
+            while True:
+                try:
+                    code = proc.wait(timeout=.05)
+                    receipt.update(wait_returncode=code, original_handle_waited_and_reaped=True)
+                    break
+                except subprocess.TimeoutExpired:
+                    try:
+                        guard.check()
+                    except Exception as exc:
+                        cleanup_error = {'type': type(exc).__name__, 'message': str(exc)[:512]}
+                        guard.terminate_owned(exclude=(os.getpid(),))
+                    if time.monotonic() >= grace:
+                        guard.terminate_owned(exclude=(os.getpid(),))
+                        # This original Popen handle remains direct ownership
+                        # proof even if psutil identity binding failed. It does
+                        # not authorize signalling any unknown descendants.
+                        if not owned_root_proved:
+                            proc.kill()
+                    if time.monotonic() >= end:
+                        raise RuntimeError('Original owned child reap was not confirmed before cleanup deadline')
+        observed = snapshot()
+        live = [r for r in observed if r['status'] != psutil.STATUS_ZOMBIE]
+        receipt['observed_live_descendants_after_direct_wait'] = live
+        if live:
+            guard.terminate_owned(exclude=(os.getpid(),))
+        while True:
+            observed = snapshot()
+            live = [r for r in observed if r['status'] != psutil.STATUS_ZOMBIE]
+            if not live:
+                receipt.update(cleanup_verified=owned_root_proved, remaining_live_owned=[],
+                    terminated_but_not_reaped_nonchild_zombies=observed,
+                    cleanup_scope='same-owner observed PID/create-time descendants; no arbitrary namespace PIDs')
+                break
+            if time.monotonic() >= end:
+                receipt['remaining_live_owned'] = live
+                raise RuntimeError('Observed owned descendants remain alive; cleanup unverified')
+            guard.terminate_owned(exclude=(os.getpid(),))
+            time.sleep(.02)
+    except Exception as exc:
+        cleanup_error = {'type': type(exc).__name__, 'message': str(exc)[:512]}
+    if cleanup_error:
+        receipt['cleanup_failure'] = cleanup_error
+    elif not owned_root_proved:
+        receipt['cleanup_failure'] = {'type': 'UnverifiedOwnedTree',
+                                     'message': 'Direct handle reaped; descendant ownership could not be proved'}
 
 
 if __name__ == '__main__':
