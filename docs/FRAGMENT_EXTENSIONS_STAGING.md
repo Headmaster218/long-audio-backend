@@ -1,4 +1,4 @@
-# Reviewed fragment, canonical-person and ASR coverage composition: isolated dev7 staging
+# Reviewed offline-candidate and event-evaluation composition: isolated dev8 staging
 
 This is local development staging, not a release or active/public promotion.
 The earlier dev6 composition preserved both reviewed histories: finalized PCM16 CPU/builder
@@ -8,7 +8,7 @@ The earlier dev6 composition preserved both reviewed histories: finalized PCM16 
 remain intact. Private evidence, recordings, model assets, vectors and
 operational state are not source imports. No dependencies are installed.
 
-The current dev7 composition retains dev6
+The historical dev7 composition retains dev6
 `7e2ce6cea70c622f6979fe5b9c517ff87dfa11ff` and the independently reviewed ASR
 coverage candidate `9b44a401143ed339ff2e21e3063201e5d044d232` as separate merge
 parents, with merge base `4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb`. The new
@@ -16,7 +16,7 @@ parents, with merge base `4ab61e7d54b2365195c0e5c2cc3ad3e0ba841efb`. The new
 the historical dev6 `composition` and both local-followup records stay unchanged.
 Historical blob verification reads immutable parent trees, while the new layer
 binds the current worktree/index. Inherited paths must match the selected parent
-exactly. The current source union has 259 paths; its local budget is at most 260
+exactly. The historical dev7 source union has 259 paths; its local budget is at most 260
 files / 2,950,000 bytes, with the unchanged 250,000-byte per-file ceiling.
 
 The coverage ledger records actual integer ASR input and separates invocation
@@ -24,6 +24,54 @@ started from confirmed completion. It reports successful core support and its
 complement, without repairing recognition or automatically restoring words.
 Unsubmitted input is not silence. See [the coverage contract](ASR_INPUT_COVERAGE.md).
 The canonical/fragment identity guards and default-off modes are unchanged.
+
+## Current dev8 composition and limits
+
+This isolated composition retains event-coverage commit
+`440701a24bbef0e7053b2aa90cd2e3b03259938c` and corrected Qwen candidate commit
+`9585cd5d9afbb512e7e70f8c43c97987c066000b` as its two parent histories, with frozen
+dev7 `1cbd6e62da69b7abc0ecac6425b46401f76fc294` as their merge base. The new
+`candidate_evaluation_composition` record binds current composed blobs and every
+unchanged candidate import. All prior `composition`, `coverage_composition`,
+import and local-followup records remain unchanged and are tested against their
+immutable historical trees. The self-referential layered manifest is excluded
+from its own blob list; structural/history tests verify it separately.
+
+The 267-path exact source union has a dev8-local ceiling of 267 files and
+3,200,000 bytes, retaining the 250,000-byte per-file limit and every privacy
+exclusion. Frozen dev7 policies and reproduction pins are not rewritten.
+
+- Qwen is an explicit opt-in offline candidate CLI and review ledger. It does
+  not become default ASR, HTTP integration, automatic transcript repair, or
+  evidence of 12–48-hour validation. The corrective recovery/process-fencing
+  history is preserved. Separately authorized real-model smoke results remain
+  external evidence; this model-free integration does not establish quality.
+- The event change only adds annotation-aware evaluation coverage. The exact
+  legacy diagnostic remains separate; incompatible references cannot become a
+  zero-percent six-target accuracy claim. Production labels, thresholds, models
+  and default behavior are unchanged. Research rail candidates are not inserted.
+  See [the evaluation contract](EVENT_EVALUATION_COVERAGE.md).
+
+Dev8 model-free checks use CPU0, nice19, an owned RSS ceiling of 512 MiB, a
+5 GiB free-disk floor and 2 GiB host-available floor. Ordinary files retain a
+64 MiB worktree/scratch cap. The two unchanged decoded-source process-control
+nodes retain their explicit CPU7 synthetic-child default as a narrow exception;
+their test owner stays CPU0/nice19. No product default is changed for the harness.
+
+The single unchanged 10k/100k-row queue comparison cannot be split internally.
+Its initial 64 MiB planning block and failed 112 MiB attempt remain evidence.
+The one separately authorized retry has a 256 MiB aggregate artifact allowance,
+192 MiB early warning and 224 MiB sampled stop, admitted only with at least
+5 GiB + 256 MiB free. The runtime 5 GiB floor remains enforced. Sampling requests
+20 ms intervals; it is not an instantaneous hard quota. Per-file maxima and
+final SQLite page/WAL observations preserve the checkpoint-overlap explanation.
+Tests retain original cases, parameters and assertions. Temporary test roots are
+removed only after their results and any failure metadata are recorded.
+Resource-blocked cases remain explicitly incomplete until an authorized unchanged
+rerun succeeds. The complete default collection is executed in bounded file/case
+runs, not claimed as one whole-process invocation. Original failed attempts,
+skips and strict xfails remain evidence. No inference, download, publication or
+release is part of this composition.
 
 ## Current scope: explicit internal experiments, default off
 
@@ -87,8 +135,8 @@ Additional work requires its own audited delta. The older bridge allowlist is hi
 staging policy. The unchanged source guard remains a heuristic review aid.
 
 Historical rejected-q1 assertions retain strict expected failures; unexpected
-passes still fail. Private-input tests remain opt-in and explicit. Regression
-for this composition use CPU8, nice19, explicit temporary roots and one file per
+passes still fail. Private-input tests remain opt-in and explicit. The historical dev7 regressions
+used CPU8, nice19, explicit temporary roots and one file per
 bounded run: own process-tree RSS <=384 MiB and new generated disk <=96 MiB.
 The single 100,003-row queue-scaling test has a separately authorized 256 MiB
 disk budget. Each run starts only with at least 5 GiB plus its disk budget free.

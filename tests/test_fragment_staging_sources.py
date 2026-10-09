@@ -149,8 +149,8 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 260
-    assert policy['maximum_total_bytes'] == 2_950_000
+    assert policy['maximum_files'] == 267
+    assert policy['maximum_total_bytes'] == 3_200_000
     assert guard.MAX_BYTES == 250_000
 
 
@@ -290,7 +290,8 @@ def test_local_builder_followup_preserves_every_historical_layer():
     current.pop('local_followups')
     current.pop('composition')
     current.pop('coverage_composition')
-    assert current['target_version'] == '0.2.0rc2.dev7'
+    current.pop('candidate_evaluation_composition')
+    assert current['target_version'] == '0.2.0rc2.dev8'
     current['target_version'] = historical['target_version']
     assert current == historical
 
@@ -473,10 +474,9 @@ def verify_coverage_composition(layers, worktree_bytes, index_bytes):
                 assert parent_pin(row['source_commit'], path) == {'source_blob': blob, 'sha256': row['sha256']}
 
 
-def test_coverage_composition_exact_parent_inputs_and_index():
+def test_historical_dev7_coverage_composition_exact_parent_inputs():
     _, layers = import_records()
-    verify_coverage_composition(layers, lambda path: (ROOT / path).read_bytes(),
-        lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+    verify_coverage_composition(layers, dev7_bytes, dev7_bytes)
 
 
 @pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base',
@@ -493,8 +493,8 @@ def test_coverage_composition_rejects_unreviewed_sources(mutation):
     elif mutation == 'coverage': value['coverage_unchanged'][0]['source_commit'] = DEV7_PARENTS[0]
     with pytest.raises(AssertionError):
         verify_coverage_composition(layers,
-            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
-            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+            lambda path: dev7_bytes(path) + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: dev7_bytes(path) + (b'\n' if mutation == 'index' else b''))
 
 
 def verify_dev7_inherited_bytes(files):
@@ -507,11 +507,10 @@ def verify_dev7_inherited_bytes(files):
         assert files[path] == subprocess.check_output(['git', 'show', parent + ':' + path], cwd=ROOT), path
 
 
-def test_dev7_is_exact_reviewed_union_with_unchanged_inherited_bytes():
-    verify_dev7_inherited_bytes(guard.read_git_tree(':'))
-    verify_dev7_inherited_bytes({path: (ROOT / path).read_bytes() for path in guard.read_git_tree(':')})
+def test_historical_dev7_is_exact_reviewed_union_with_unchanged_inherited_bytes():
+    verify_dev7_inherited_bytes(guard.read_git_tree(DEV8_BASE))
     historical = json.loads(dev6_bytes(LAYER_PATH))
-    _, current = import_records()
+    current = json.loads(dev7_bytes(LAYER_PATH))
     current.pop('coverage_composition')
     current['local_followups'].pop()
     assert current['target_version'] == '0.2.0rc2.dev7'
@@ -522,6 +521,120 @@ def test_dev7_is_exact_reviewed_union_with_unchanged_inherited_bytes():
 @pytest.mark.parametrize('path', ['audio_backend/app.py', 'audio_backend/identity_canonical.py',
     'audio_backend/fragment_model_bridges.py', 'audio_backend/fragment_cpu_provider.py'])
 def test_dev7_rejects_mutation_of_inherited_identity_and_asr_sources(path):
-    files = guard.read_git_tree(':'); files[path] += b'\n'
+    files = guard.read_git_tree(DEV8_BASE); files[path] += b'\n'
     with pytest.raises(AssertionError):
         verify_dev7_inherited_bytes(files)
+
+
+DEV8_BASE = '1cbd6e62da69b7abc0ecac6425b46401f76fc294'
+DEV8_PARENTS = ['440701a24bbef0e7053b2aa90cd2e3b03259938c',
+                '9585cd5d9afbb512e7e70f8c43c97987c066000b']
+DEV8_COMPOSED_PATHS = {'audio_backend/__init__.py', 'pyproject.toml',
+    'docs/FRAGMENT_EXTENSIONS_STAGING.md', 'docs/FRAGMENT_STAGING_POLICY.json',
+    'tests/test_fragment_staging_sources.py'}
+EVENT_COVERAGE_PATHS = {'scripts/benchmarks/score_predictions.py',
+    'tests/test_event_evaluation_coverage.py', 'docs/EVENT_EVALUATION_COVERAGE.md'}
+QWEN_CANDIDATE_PATHS = {'audio_backend/qwen_candidate_runner.py',
+    'audio_backend/qwen_candidate_store.py', 'audio_backend/qwen_candidates.py',
+    'scripts/benchmarks/run_qwen_candidates.py', 'tests/test_qwen_candidate_store.py',
+    'tests/test_qwen_candidates.py'}
+DEV8_SCOPE = {
+    'qwen': 'explicit opt-in offline candidate CLI; not default ASR, HTTP or long-run acceptance',
+    'events': 'evaluation coverage only; no model, taxonomy, threshold or default change',
+    'quality': 'not established by model-free integration; no production rail candidate',
+}
+
+
+def dev7_bytes(path):
+    return subprocess.check_output(['git', 'show', DEV8_BASE + ':' + path], cwd=ROOT)
+
+
+def verify_candidate_evaluation_composition(layers, worktree_bytes, index_bytes):
+    value = layers['candidate_evaluation_composition']
+    assert set(value) == {'schema', 'parents', 'merge_base', 'composed',
+                          'event_coverage_unchanged', 'qwen_unchanged', 'scope'}
+    assert value['schema'] == 'reviewed-branch-composition-v1'
+    assert value['parents'] == DEV8_PARENTS and value['merge_base'] == DEV8_BASE
+    assert value['scope'] == DEV8_SCOPE
+    assert subprocess.check_output(['git', 'merge-base', *DEV8_PARENTS], cwd=ROOT).decode().strip() == DEV8_BASE
+    for name, expected, parent in [
+        ('composed', DEV8_COMPOSED_PATHS, None),
+        ('event_coverage_unchanged', EVENT_COVERAGE_PATHS, DEV8_PARENTS[0]),
+        ('qwen_unchanged', QWEN_CANDIDATE_PATHS, DEV8_PARENTS[1]),
+    ]:
+        rows = value[name]
+        assert len(rows) == len(expected) and {row['path'] for row in rows} == expected
+        for row in rows:
+            path = row['path']; data = worktree_bytes(path)
+            assert data == index_bytes(path), 'Dev8 worktree/index mismatch'
+            blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+            assert row['bytes'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest()
+            assert row['source_blob'] == blob
+            assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+            if parent is None:
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'parents'}
+                assert row['parents'] == {commit: parent_pin(commit, path) for commit in DEV8_PARENTS}
+                assert all(pin['sha256'] != row['sha256'] for pin in row['parents'].values())
+            else:
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'source_commit'}
+                assert row['source_commit'] == parent
+                assert parent_pin(parent, path) == {'source_blob': blob, 'sha256': row['sha256']}
+
+
+def test_dev8_composition_current_worktree_and_index():
+    _, layers = import_records()
+    verify_candidate_evaluation_composition(layers, lambda path: (ROOT / path).read_bytes(),
+        lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base',
+                                     'input', 'blob', 'qwen', 'event', 'scope', 'worktree', 'index'])
+def test_dev8_rejects_unreviewed_or_mislabelled_composition(mutation):
+    _, layers = import_records(); value = layers['candidate_evaluation_composition']
+    if mutation == 'missing': value['composed'].pop()
+    elif mutation == 'extra': value['composed'][0]['path'] = 'audio_backend/app.py'
+    elif mutation == 'duplicate': value['composed'].append(value['composed'][0])
+    elif mutation == 'parent': value['parents'][0] = '0' * 40
+    elif mutation == 'base': value['merge_base'] = '0' * 40
+    elif mutation == 'input': value['composed'][0]['parents'][DEV8_PARENTS[0]]['sha256'] = '0' * 64
+    elif mutation == 'blob': value['composed'][0]['source_blob'] = '0' * 40
+    elif mutation == 'qwen': value['qwen_unchanged'][0]['source_commit'] = DEV8_PARENTS[0]
+    elif mutation == 'event': value['event_coverage_unchanged'][0]['source_commit'] = DEV8_PARENTS[1]
+    elif mutation == 'scope': value['scope']['qwen'] = 'default ASR'
+    with pytest.raises(AssertionError):
+        verify_candidate_evaluation_composition(layers,
+            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+
+
+def verify_dev8_inherited_bytes(files):
+    union = set()
+    for commit in DEV8_PARENTS:
+        union.update(guard.read_git_tree(commit))
+    assert set(files) == union and len(union) == 267
+    for path in union - DEV8_COMPOSED_PATHS - {LAYER_PATH}:
+        parent = (DEV8_PARENTS[0] if path in EVENT_COVERAGE_PATHS else
+                  DEV8_PARENTS[1] if path in QWEN_CANDIDATE_PATHS else DEV8_BASE)
+        assert files[path] == subprocess.check_output(['git', 'show', parent + ':' + path], cwd=ROOT), path
+
+
+def test_dev8_exact_union_preserves_all_historical_provenance():
+    assert (ROOT / LAYER_PATH).read_bytes() == subprocess.check_output(['git', 'show', ':' + LAYER_PATH], cwd=ROOT)
+    verify_dev8_inherited_bytes(guard.read_git_tree(':'))
+    verify_dev8_inherited_bytes({path: (ROOT / path).read_bytes() for path in guard.read_git_tree(':')})
+    _, current = import_records()
+    current.pop('candidate_evaluation_composition')
+    assert current['target_version'] == '0.2.0rc2.dev8'
+    historical = json.loads(dev7_bytes(LAYER_PATH))
+    current['target_version'] = historical['target_version']
+    assert current == historical
+    assert (ROOT / 'docs/FRAGMENT_STAGING_IMPORTS.json').read_bytes() == dev7_bytes('docs/FRAGMENT_STAGING_IMPORTS.json')
+
+
+@pytest.mark.parametrize('path', ['audio_backend/app.py', 'audio_backend/worker.py',
+    'audio_backend/settings.py', 'audio_backend/inference/analyzer.py',
+    'audio_backend/qwen_candidate_runner.py', 'scripts/benchmarks/score_predictions.py'])
+def test_dev8_rejects_unreviewed_runtime_or_candidate_changes(path):
+    files = guard.read_git_tree(':'); files[path] += b'\n'
+    with pytest.raises(AssertionError):
+        verify_dev8_inherited_bytes(files)
