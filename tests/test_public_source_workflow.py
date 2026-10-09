@@ -77,3 +77,23 @@ def test_git_index_reader_checks_staged_bytes(tmp_path,monkeypatch):
     (tmp_path/'code.py').write_text('working = True\n')
     monkeypatch.setattr(gate,'ROOT',tmp_path)
     assert gate.read_git_tree(':')['code.py']==b'staged = True\n'
+
+
+def test_sync_from_commit_ignores_later_worktree_edits(tmp_path,monkeypatch):
+    public=tmp_path/'public';source=tmp_path/'source';out=tmp_path/'proposal'
+    public.mkdir();source.mkdir()
+    policy={'sync_allowlist':['code.py','missing.py'],'maximum_total_bytes':1024,'excluded_categories':[]}
+    (public/'PUBLIC_POLICY.json').write_text(json.dumps(policy));(public/'code.py').write_text('baseline = True\n')
+    subprocess.run(['git','init','-q',str(source)],check=True)
+    for key,value in [('user.name','dot'),('user.email','dot@users.invalid')]:
+        subprocess.run(['git','-C',str(source),'config',key,value],check=True)
+    (source/'code.py').write_text('reviewed = True\n')
+    subprocess.run(['git','-C',str(source),'add','code.py'],check=True)
+    subprocess.run(['git','-C',str(source),'commit','-qm','synthetic source fixture'],check=True)
+    commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD']).decode().strip()
+    (source/'code.py').write_text('still_changing = True\n')
+    monkeypatch.setattr(sync,'ROOT',public)
+    result=sync.prepare(source,out,'HEAD')
+    assert result['source_commit']==commit and result['missing_source_files']==['missing.py']
+    assert (out/'files/code.py').read_text()=='reviewed = True\n'
+    assert (source/'code.py').read_text()=='still_changing = True\n'

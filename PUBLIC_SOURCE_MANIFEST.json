@@ -20,23 +20,23 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1157,
-      "sha256": "b35de008039162d49d3a383d7b254fa04927c94cc91a3b71df61a0ba3bfddec6"
+      "bytes": 1295,
+      "sha256": "6d339bf281d4453088ae780b815cc7cd77ea88b879e805fd21378b1287f50a2b"
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 3141,
-      "sha256": "950f5383c4425e56f6621edfb0032c44ce9820df37e8b685bbd6ae8e51f28054"
+      "bytes": 4085,
+      "sha256": "e892c0a2b7bc380856f9efe6c55b4f07450cd9eb9843e08ea89517c663e17763"
     },
     {
       "path": "INTEGRATION_IMPORT.json",
-      "bytes": 727,
-      "sha256": "55dccb38b124205948104f7fdd843c4ecb57ff0a4562a79addd837dc6b0867cb"
+      "bytes": 819,
+      "sha256": "96ac48051aa1def91532cc5c96818c73ecbd2d7d003f366543901a303856d155"
     },
     {
       "path": "PUBLIC_POLICY.json",
-      "bytes": 11627,
-      "sha256": "a484082027e92e1b1be34df7f2a599818cd6dcdc1639fda8ade03f45f89ff321"
+      "bytes": 11665,
+      "sha256": "4080b5476c72ea8863edf37bc9d6e87a8df61a03ed24bffa68db5e843e14206b"
     },
     {
       "path": "README.md",
@@ -44,9 +44,14 @@
       "sha256": "053cb2cd83f843433085141ee7a01c122706d2bdfb9cb480366ca4769673a83a"
     },
     {
+      "path": "SOURCE_CONTROL_PROVENANCE.json",
+      "bytes": 35137,
+      "sha256": "fed92c791ff9972bc510cb9f6e0d9063972cffa3443519c2dce694ddd249c49c"
+    },
+    {
       "path": "TEST_STATUS.md",
-      "bytes": 2728,
-      "sha256": "49aeb92ef623ceb996e69885427273804f40500c1c1984ac82ca3c933b2abd21"
+      "bytes": 3464,
+      "sha256": "b092c26df2afb5c198b373e4c9a7266ccd0bd4d0eb3e2bf440c42a717ee0f395"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -480,8 +485,8 @@
     },
     {
       "path": "scripts/prepare_public_sync.py",
-      "bytes": 3294,
-      "sha256": "7ad62617cf1d8dcf5a440ff356baa57bfbc8a44df99ef579f47f3e10b09a8da2"
+      "bytes": 4612,
+      "sha256": "493bccb699ff2ac281cdfb4a61f78e2e24db045b5f4c6f0307d9619456d16309"
     },
     {
       "path": "scripts/run_cpu_candidate.py",
@@ -720,8 +725,8 @@
     },
     {
       "path": "tests/test_public_source_workflow.py",
-      "bytes": 3630,
-      "sha256": "0d9aeae9d881920e2f663cb6fc3768dedaa8431b47144ed57d24ea59c58c26f4"
+      "bytes": 4965,
+      "sha256": "e03cc4a25a073b1ff52aa555364068f11f9fb97c388b01de7280f6ab09d32060"
     },
     {
       "path": "tests/test_punctuation_boundary.py",

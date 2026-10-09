@@ -26,3 +26,11 @@ These are exact exported-source checks; no claim is made that this equals the fu
 - Python source fingerprint: `da63051c27f7483a097e0aa659854a3d53913eedb1d28f3f933a940505042cb4` using the algorithm above.
 - 22 additional synthetic tests cover exact pooled sample support, bounded incomplete metadata and coordinate projection validation.
 - No automatic enrollment, template updates, runtime support persistence or identity-quality acceptance was added.
+
+
+## Immutable-source synchronization check
+
+- Entire exported integration suite after adding committed-source sync: 591 passed, 1 optional-asset skip, one dependency deprecation warning in 24.22 seconds.
+- Python source fingerprint: `298bdd1c6900f18e58172bdc8f762247bfed7afad1cf1f5b133e0ea2977fd09a` using the algorithm above.
+- A new synthetic Git fixture proves the proposal reads the selected commit and ignores later working-file edits. Missing source files are reported, never deleted automatically.
+- `SOURCE_CONTROL_PROVENANCE.json` records the reviewed local source commit, matching file hashes and intentional public adaptations. The primary live source remains at 0.2.0rc1; this isolated public integration is 0.2.0rc2.dev0.

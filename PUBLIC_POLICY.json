@@ -12,6 +12,7 @@
     "PUBLIC_POLICY.json",
     "PUBLIC_SOURCE_MANIFEST.json",
     "README.md",
+    "SOURCE_CONTROL_PROVENANCE.json",
     "TEST_STATUS.md",
     "THIRD_PARTY_NOTICES.md",
     "VERSIONING.md",
