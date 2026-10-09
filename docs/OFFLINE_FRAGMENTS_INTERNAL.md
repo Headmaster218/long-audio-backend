@@ -59,7 +59,12 @@ provider fingerprints, endpoint handling, cancellation and finalization.
 
 ## Verification and evidence boundaries
 
-The ordinary suite uses synthetic PCM and fake providers. Real-PCM matrix tests
+The ordinary suite uses synthetic PCM and fake providers. Its two rejected-q1
+tone/jitter controls remain strict expected failures, separate from passing tests;
+an unexpected q1 pass fails the suite. All p1 assertions remain ordinary tests.
+Missing private audit/protocol inputs are reported as explicit skips. Synthetic
+fragment results default to pytest-managed temporary storage unless the caller
+supplies a result directory. Real-PCM matrix tests
 remain opt-in through explicitly reviewed local source and manifest bindings;
 a skipped real matrix is not a successful real-data run. Private raw reports,
 audio, vectors and operational state are not public-source deliverables.
