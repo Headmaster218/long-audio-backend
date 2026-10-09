@@ -1,5 +1,13 @@
 # Change log
 
+## 0.2.0rc2.dev1 (unreleased reviewed integration)
+
+- Import exact reviewed runtime/test source from local commit 86c1b7983206a8e83877a3384a91ba0b04a6316e.
+- Bind new event candidates to effective policy and actual local artifact hashes, with explicit silence/no-model execution metadata.
+- Add bounded, immutable full-acoustic-support review behind an explicit default-off option, with quotas, privacy, authentication, reset and erasure guards.
+- Preserve existing identity behavior; no learning, purity certification, automatic template updates or model promotion.
+- Keep corpus/array research helpers, media, vectors and raw reports outside the public import.
+
 ## 0.2.0rc2.dev0 (unreleased integration)
 
 - Add bounded forward-only sample-support metadata and a pure coordinate projection helper. This does not enroll speakers, certify purity, persist new references or enable automatic template updates.

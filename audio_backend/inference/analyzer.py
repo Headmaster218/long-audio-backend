@@ -12,6 +12,7 @@ import time
 import numpy as np
 import soundfile as sf
 from ..boundaries import overlap_matches
+from ..events.provenance import EventArtifactHashes, effective_event_config
 
 _LOCK = threading.Lock()
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,9 +67,21 @@ class AudioAnalyzer:
         with self.paths['speaker'].open('rb') as model:
             for block in iter(lambda:model.read(1024*1024),b''):digest.update(block)
         self._speaker_sha256=digest.hexdigest()
+        self._event_artifact_hashes = EventArtifactHashes()
+        self._support_diarization={}
+        if self.config.get('speaker_support_enabled',False) and self.config.get('diarization_backend','pyannote')=='pyannote':
+            try:
+                import importlib.metadata
+                with self.paths['segmentation'].open('rb') as model:
+                    model_hash=hashlib.file_digest(model,'sha256').hexdigest()
+                self._support_diarization={'diarization_model_sha256':model_hash,
+                    'diarization_runtime':'sherpa-onnx',
+                    'diarization_runtime_version':importlib.metadata.version('sherpa-onnx')}
+            except (OSError,ValueError,ImportError):
+                pass  # Missing optional review lineage cannot change ordinary inference.
 
-    def _metadata_provenance(self):
-        """Configured provenance only: safe to report without loading any model."""
+    def _metadata_provenance(self, *, event_artifacts_required=True):
+        """Configured policy and local artifact hashes, not evidence of inference."""
         sensevoice = self.backend == 'sensevoice'
         semantics = ('Native CTC token starts; interval ends are estimated, not forced alignment'
                      if sensevoice else 'Approximate Whisper token timestamps')
@@ -77,7 +90,14 @@ class AudioAnalyzer:
                    'Whisper token timestamps are approximate. Mixed-source word attribution is uncertain; overlapping activity is retained.')
         strategy = 'ctc_speaker_turns' if sensevoice else self.config.get('asr_strategy', 'speaker_turns')
         script = self.config.get('chinese_script', 'simplified')
+        artifacts = ({**self._event_artifact_hashes.snapshot(self.paths),
+                      'event_artifact_identity_status': 'hashed_local_files'}
+                     if event_artifacts_required else
+                     {'event_artifact_identity_status': 'not_checked_silence'})
         return {
+            **artifacts,
+            'event_policy_revision': 'audioset-window-v1',
+            'event_window_seconds': 5.0, 'event_hop_seconds': 2.5, 'event_max_seconds': 5.0,
             'inference_revision': ('0.5.0-opt-in-stateful-diarization' if self.config.get('diarization_backend')=='nemotron' else '0.4.1-overlap-union-lexical-assembly'),
             'diarization_backend': self.config.get('diarization_backend','pyannote'),
             'asr_backend': self.backend,
@@ -99,7 +119,7 @@ class AudioAnalyzer:
                                  'overlap_backend':self.config.get('overlap_backend','none'),
                                  'asr_strategy': strategy, 'chinese_script': script,
                                  'diarization_threshold': float(self.config.get('diarization_threshold', .7)),
-                                 'event_threshold': float(self.config.get('event_threshold', .25)),
+                                 **effective_event_config(self.config),
                                  'max_segment_seconds': float(self.config.get('max_segment_seconds', 5))},
             'warnings': ['Speaker identities and event thresholds require calibration; scores are not calibrated probabilities.',
                          warning],
@@ -127,19 +147,22 @@ class AudioAnalyzer:
                 raise ValueError('Audio chunk is empty or exceeds max_chunk_seconds')
             if not np.isfinite(samples).all():
                 raise ValueError('Non-finite audio samples')
-            provenance = self._metadata_provenance()
-            if float(np.max(np.abs(samples))) < float(self.config.get('event_silence_peak',1e-5)) and not (diarization and diarization.get('turns')):
+            silence_fast_path = float(np.max(np.abs(samples))) < float(self.config.get('event_silence_peak',1e-5)) and not (diarization and diarization.get('turns'))
+            provenance = self._metadata_provenance(event_artifacts_required=not silence_fast_path)
+            provenance.update(getattr(self,'_support_diarization',{}))
+            if silence_fast_path:
                 return {'segments': [], 'speaker_turns': [], 'events': [{'start': 0., 'end': duration, 'label': 'silence', 'score': 1., 'method': 'peak-amplitude fast path'}],
                         'metadata': {**provenance, 'duration_seconds': duration,
                                      'processing_seconds': round(time.monotonic()-t, 3),
                                      'stage_seconds': {'events': 0., 'diarization': 0., 'asr': 0.},
-                                     'silence_fast_path': True, 'models_executed': [], 'model_execution': 'not_run_silence',
+                                     'silence_fast_path': True, 'event_model_inference_executed': False, 'models_executed': [], 'model_execution': 'not_run_silence',
                                      'model_execution_note': 'Configured model provenance only; silence bypassed every model.',
                                      'asr_runtime': {}, 'language': None, 'languages': [],
                                      'asr_turn_batches': 0, 'asr_recovered_regions': 0,
                                      'diarization_turns': [], 'event_candidates': []}}
             stage = time.monotonic()
             events, event_details = self._events(samples)
+            self._event_artifact_hashes.verify_unchanged(self.paths)
             timings = {'events': round(time.monotonic()-stage, 3)}
             # A narrow, configurable veto against confident non-speech hallucinations.
             nonspeech = bool(self.config.get('non_speech_gate',True) and event_details
@@ -231,12 +254,13 @@ class AudioAnalyzer:
                 'overlapping_speech':overlap_summary,
                 'asr_runtime': transcript.get('_runtime',{}),
                 'speaker_embedding_dimension': dim,
+                'speaker_support_producer':getattr(self,'_speaker_support_producer',None),
                 'speaker_embedding_evidence': getattr(self,'_embedding_evidence',{}), 'speaker_embedding_metric': 'cosine (L2 normalized)',
                 'speaker_embedding_version': 'eres2net-base-zh-cn-3dspeaker-16k-v1',
                 'speaker_embedding_sha256':getattr(self,'_speaker_sha256',None),
                 'asr_turn_batches': transcript.get('asr_turn_batches',1), 'asr_strategy': strategy, 'chinese_script': script, 'language': transcript.get('result', {}).get('language'), 'languages': sorted(set([x for x in [transcript.get('result',{}).get('language'),*transcript.get('recovered_languages',[])] if x])), 'asr_recovered_regions': recovered, 'duration_seconds': duration,
                 'processing_seconds': round(time.monotonic()-t, 3), 'stage_seconds': timings, 'diarization_turns': turns,
-                'event_window_seconds': 5.0, 'event_hop_seconds': 2.5, 'event_candidates': event_details}}
+                'event_candidates': event_details}}
 
     def _diarize(self, a):
         import sherpa_onnx as s
@@ -262,6 +286,13 @@ class AudioAnalyzer:
         extractor = s.SpeakerEmbeddingExtractor(ec)
         embeddings = {}
         self._embedding_evidence = {}
+        self._speaker_support_producer = None
+        try:
+            if self.config.get('speaker_support_enabled',False):
+                from audio_backend.speaker_support import producer_provenance
+                self._speaker_support_producer = producer_provenance(a,turns,self._speaker_sha256,self.threads)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, ImportError):
+            pass  # Optional review evidence must not alter embedding/matching behavior.
         from audio_backend.speaker_evidence import clean_speaker_audio
         for sid in sorted({x['speaker_local_id'] for x in turns}):
             clean,evidence=clean_speaker_audio(a,turns,sid)

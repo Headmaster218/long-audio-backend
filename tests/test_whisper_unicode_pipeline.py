@@ -5,6 +5,7 @@ import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
 from audio_backend.inference.analyzer import AudioAnalyzer
+from audio_backend.events.provenance import EventArtifactHashes
 from audio_backend.runner import write_result
 from audio_backend.settings import Settings
 from audio_backend.app import create_app
@@ -14,7 +15,9 @@ class SplitBPEAnalyzer(AudioAnalyzer):
     def __init__(self,config=None):
         self.config=dict(config or {},asr_strategy='whole_window',recover_missing_speech=False,chinese_script='as_is')
         self.backend='whisper';self.closed=False;self.threads=2;self._sensevoice=None
-        self.paths={'asr':Path('mock-whisper.bin')}
+        # Hash a local fixture only; this analyzer never executes event models.
+        self.paths={'asr':Path('mock-whisper.bin'), 'events':Path(__file__), 'labels':Path(__file__)}
+        self._event_artifact_hashes=EventArtifactHashes()
     def _events(self,samples):return [],[]
     def _diarize(self,samples):return [{'start':0.,'end':1.,'speaker_local_id':'a'}],{},512
     def _transcribe(self,path):

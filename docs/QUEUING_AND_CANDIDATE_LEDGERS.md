@@ -47,3 +47,44 @@ The region cursor keeps all associated source tracks with the region. Responses 
 Candidate rows are immutable analysis evidence. Speaker identity reset clears transcript/turn person assignments and private templates; it does not erase unrelated acoustic evidence or turn anonymous overlap candidates into identities. Session deletion removes candidate ledgers with their source chunks and erases that session's historical public-feed payloads.
 
 Logical deletion and private file-cleanup intents commit before any file is unlinked. Interrupted/failed cleanup is retryable and reported as pending, rather than leaving live rows pointing to partially deleted files. Application deletion is not a promise of forensic secure erasure of disks or backups.
+
+## Event policy and artifact lineage
+
+New analyzer results and persisted event-candidate provenance include
+`event_model_sha256` and `event_labelmap_sha256`, computed from the actual local
+model and AudioSet CSV bytes, not a manifest or model display name. Their stable
+fingerprint also includes `event_policy_revision`, 5-second classification
+support, 2.5-second hop, 5-second maximum output interval, and the full effective
+policy: `event_threshold`, resolved per-family `event_thresholds`,
+`event_release_ratio`, and `event_silence_peak`. The silence acceptance threshold
+is always 1.0, including when a different silence override was supplied. No
+threshold, label mapping, score, or event timing behavior changes in this update.
+
+The same fields survive candidate SQLite storage, `/event-candidates`, and the
+`/changes` snapshots. Chunk stable provenance retains the artifact identities as
+well. Existing immutable evidence is not rewritten or backfilled with guessed
+identities. Missing historical hashes or execution flags mean unknown.
+
+Hashing reads bounded 1 MiB blocks and caches at most the two event artifacts per
+analyzer. Unchanged windows only inspect filesystem metadata. Size, nanosecond
+mtime/ctime, inode/device, and resolved-path changes invalidate that entry;
+missing/unstable artifacts fail rather than reuse an old identity. Event tagging
+currently loads a fresh model and labelmap on each call. A file change across
+that call rejects the analysis result, so output is not assigned the identity of
+new bytes after loading old bytes. This is a local change detector, not protection
+against an adversary able to restore all filesystem metadata. Model directories
+should remain stable during analysis. Paths and cache metadata are not public.
+
+Artifact identities describe the configured files, not proof of neural
+execution. The whole-window silence fast path does not read or require unused
+event artifacts: their hashes are omitted and
+`event_artifact_identity_status: not_checked_silence` is explicit. Constructor
+model-presence validation is unchanged. Non-silent analysis still requires both
+artifacts and reports `event_artifact_identity_status: hashed_local_files`. Each
+new candidate's `model_inference_executed` records whether that
+support window actually called the tagger. Silence-rule windows report false,
+including within mixed silent/non-silent analysis windows. The whole-window
+silence fast path continues to report `models_executed: []`,
+`model_execution: not_run_silence`, and now
+`event_model_inference_executed: false`; it does not create a non-silence stable
+provenance variant.

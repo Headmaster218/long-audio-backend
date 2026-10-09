@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "source_commit": "86c1b7983206a8e83877a3384a91ba0b04a6316e",
+  "scope": "Reviewed event provenance and default-off full-support review; no array-study helpers or real-data artifacts.",
+  "files": [
+    {
+      "path": "audio_backend/__main__.py",
+      "old_sha256": "b26703fc816668a64d259faca01f28d0cbbd4cdca8b1f199481c2a2ba0ed7142",
+      "new_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204",
+      "bytes": 10643
+    },
+    {
+      "path": "audio_backend/app.py",
+      "old_sha256": "18aaa83f9bc46702dd9c4913da28b1314efc6686f852e5af79d4608a3b8b5d28",
+      "new_sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f",
+      "bytes": 18812
+    },
+    {
+      "path": "audio_backend/event_candidate_store.py",
+      "old_sha256": "a0fa82d55bfa698c559000d6932dfefbbab2916c444a5d99d7acd3c5971b787e",
+      "new_sha256": "23b702ccafd1ffbaec56815571d492abff8867eb5b4a82c7102ec7258ae29efb",
+      "bytes": 9396
+    },
+    {
+      "path": "audio_backend/events/detector.py",
+      "old_sha256": "803a4d922e5d31573f46e17b2dabb5b9c5596f426008a531355565130a5f7340",
+      "new_sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0",
+      "bytes": 5843
+    },
+    {
+      "path": "audio_backend/events/provenance.py",
+      "old_sha256": null,
+      "new_sha256": "0e57fab110cda6ee75244b5f2ab368a01753c66c812a11791f138b1d0122f56f",
+      "bytes": 3132
+    },
+    {
+      "path": "audio_backend/identity_reset.py",
+      "old_sha256": "21d3699440c939d1d9a5d977ffb757f22b012dafeb67efa034c1234232b3d1a6",
+      "new_sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78",
+      "bytes": 6058
+    },
+    {
+      "path": "audio_backend/inference/analyzer.py",
+      "old_sha256": "37525e081e8ae96db300d185669304221d1bba28092c1571f5a77dcedbbdf842",
+      "new_sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da",
+      "bytes": 37198
+    },
+    {
+      "path": "audio_backend/lifecycle.py",
+      "old_sha256": "cf3e9afa6622a8b549be6180e4398c752ab6c8c457129b421f3a9d79c63432bc",
+      "new_sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb",
+      "bytes": 7412
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "old_sha256": "5a74dc0d2f0e6961563390318f6463a7e5de2c7f76a255bf2cdbb2230854327e",
+      "new_sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05",
+      "bytes": 14040
+    },
+    {
+      "path": "audio_backend/speaker_support.py",
+      "old_sha256": null,
+      "new_sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934",
+      "bytes": 36361
+    },
+    {
+      "path": "audio_backend/storage.py",
+      "old_sha256": "1e42b93dea2faeb4f2b1a8222e726fd21d61bbd0e0689a281d350e0d989b5cf8",
+      "new_sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c",
+      "bytes": 45574
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "old_sha256": "201837f99f4101eadaf71b14b2f2544ca9b6b0dc3cbb0c05660fc6ef5cbc83e7",
+      "new_sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91",
+      "bytes": 18113
+    },
+    {
+      "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
+      "old_sha256": "0ddaeb55bd8d1d885850a69e2b15aa8554abd824c62903d9b8a455834150ff7b",
+      "new_sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c",
+      "bytes": 8819
+    },
+    {
+      "path": "tests/test_event_provenance.py",
+      "old_sha256": null,
+      "new_sha256": "3f65c403b5f7df7c38cdf3068275cc8be8aa26f10f99d71e2238425ffdda1dd0",
+      "bytes": 14604
+    },
+    {
+      "path": "tests/test_final_audit.py",
+      "old_sha256": "227515577d9175a5f1201135d551fc7b959b274d8e1c0d21d6cf460720df74a3",
+      "new_sha256": "c84469422a5473daf7b0babad839a71482cab9e613cf7485b6f9975ac747131e",
+      "bytes": 4242
+    },
+    {
+      "path": "tests/test_inference.py",
+      "old_sha256": "fa326b0c3cf87315fd775d7aea269545f1577505e75952f95a8cf75d9ee7c88e",
+      "new_sha256": "810068dd1e1361ca185ee86838be9cb164d2226fffed28dc63f051334dcd4efc",
+      "bytes": 9001
+    },
+    {
+      "path": "tests/test_overlap_ownership.py",
+      "old_sha256": "1ceadfa6688ee6e7f9a6210025cfc85daae8ed94254b8d98c7451a04badd4d19",
+      "new_sha256": "d453108435fad81eb3fd88e0f6046d22e669b9f06b479cd5c3ddc05387020a21",
+      "bytes": 11570
+    },
+    {
+      "path": "tests/test_reviewable_support.py",
+      "old_sha256": null,
+      "new_sha256": "2669697aea922b1adae473217bae19b73cf1a708b66c3d4371875ac950366a59",
+      "bytes": 33690
+    },
+    {
+      "path": "tests/test_whisper_unicode_pipeline.py",
+      "old_sha256": "85f6bc2bfbe98cad77c17659bd688de2780c9111aea0a7e6019132e7e95fc56e",
+      "new_sha256": "c2ec80999cdd32bc20199439592de5e97ae92e1a42c8b09bda9eddfacc43df9d",
+      "bytes": 3107
+    }
+  ],
+  "documentation_adaptation": "Only the new API and event-policy sections were appended to the public-edition docs; prior public notices and repaired links remain.",
+  "state": "No identity learning, automatic template update, purity certification or release acceptance."
+}

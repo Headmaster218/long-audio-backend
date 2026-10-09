@@ -1,4 +1,5 @@
 """Candidate ownership/error isolation only; no simulated acoustic-quality claim."""
+from audio_backend.events.provenance import EventArtifactHashes
 import copy,sys
 from pathlib import Path
 import numpy as np
@@ -48,6 +49,9 @@ def analyzer(tmp_path,monkeypatch):
     a=object.__new__(AudioAnalyzer);a.closed=False;a.backend='sensevoice';a.threads=2;a._sensevoice=None
     a.config={'chinese_script':'as_is','overlap_backend':'mossformer2_experimental'}
     a.paths={'asr':tmp_path/'model.int8.onnx'}
+    a._event_artifact_hashes = EventArtifactHashes()
+    for key in ('events', 'labels'):
+        a.paths[key] = tmp_path / key; a.paths[key].write_bytes(b'synthetic artifact')
     turns=[{'start':0.,'end':4.,'speaker_local_id':'a'},{'start':1.,'end':3.,'speaker_local_id':'b'}]
     monkeypatch.setattr(a,'_events',lambda samples:([],[]))
     monkeypatch.setattr(a,'_diarize',lambda samples:(turns,{},512))
