@@ -342,6 +342,11 @@ def create_app(settings=None,analyzer_factory=None):
         from .verified_identity import events
         return private_json(events(store,sid,after,limit))
 
+    @app.get('/sessions/{sid}/identity-reviews/{event_id}')
+    def identity_review_detail(sid:str,event_id:str):
+        from .verified_identity import event_detail
+        return private_json(event_detail(store,sid,event_id))
+
     @app.post('/sessions/{sid}/identity-reviews')
     def add_identity_review(sid:str,body:IdentityReviewRequest):
         from .verified_identity import mutate

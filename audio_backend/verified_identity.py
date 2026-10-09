@@ -68,6 +68,8 @@ def init_schema(db):
         BEGIN INSERT INTO identity_review_event_order(event_id) VALUES(NEW.id); END''')
     if 'review_kind' not in {row['name'] for row in db.execute('PRAGMA table_info(identity_review_events)')}:
         db.execute('ALTER TABLE identity_review_events ADD COLUMN review_kind TEXT')
+    db.execute('CREATE INDEX IF NOT EXISTS review_events_generation ON identity_review_events(identity_group,generation)')
+    db.execute('CREATE INDEX IF NOT EXISTS review_events_previous ON identity_review_events(previous_event_id)')
     db.execute('CREATE INDEX IF NOT EXISTS review_events_group ON identity_review_events(identity_group,sequence)')
     db.execute('''CREATE TRIGGER IF NOT EXISTS review_events_immutable BEFORE UPDATE ON identity_review_events
         BEGIN SELECT RAISE(ABORT,'Review events are immutable'); END''')
@@ -359,13 +361,52 @@ def bank(store, sid):
 
 
 def projection_intact(db,group,generation):
-    """The mutable active index may not rewrite immutable review ownership."""
-    return not db.execute('''SELECT 1 FROM identity_active_reviews a LEFT JOIN identity_review_events e ON e.id=a.event_id
-        WHERE a.identity_group=? AND (a.generation!=? OR e.id IS NULL OR e.identity_group!=a.identity_group
-        OR e.generation!=a.generation OR e.person_id IS NOT a.person_id OR e.support_id IS NOT a.support_id
+    """Validate the immutable current-generation gallery before index filters.
+
+    At most MAX_EVENTS rows exist globally; the indexed ledger pass reads only
+    this group/generation. Revocation lookups use their previous-event index.
+    The second indexed pass checks only this group's active projection for extras.
+    No vectors or transcript/decision history are materialized by either pass.
+    """
+    expected="""SELECT e.* FROM identity_review_events e INDEXED BY review_events_generation
+        WHERE e.identity_group=? AND e.generation=? AND e.action IN ('positive','negative','replace')
+        AND NOT EXISTS(SELECT 1 FROM identity_review_events r WHERE r.previous_event_id=e.id
+            AND r.identity_group=e.identity_group AND r.generation=e.generation
+            AND r.action IN ('retract','replace','source_expired'))"""
+    # Scope starts with immutable ownership, so moved/missing index rows cannot
+    # hide a competitor. json_valid turns damaged metadata into an abstention.
+    invalid=db.execute(f'''SELECT 1 FROM ({expected}) e
+        LEFT JOIN identity_active_reviews a ON a.event_id=e.id
+        LEFT JOIN speakers p ON p.id=e.person_id
+        LEFT JOIN speaker_support_vectors v ON v.id=e.vector_id
+        LEFT JOIN speaker_support s ON s.id=e.support_id
+        LEFT JOIN sessions sess ON sess.id=s.session_id
+        WHERE a.event_id IS NULL OR e.identity_group IS NOT a.identity_group
+        OR e.generation IS NOT a.generation OR e.person_id IS NOT a.person_id OR e.support_id IS NOT a.support_id
         OR e.evidence_key IS NOT a.evidence_key
-        OR COALESCE(e.review_kind,CASE WHEN e.action IN ('positive','negative') THEN e.action END) IS NOT a.kind)
+        OR COALESCE(e.review_kind,CASE WHEN e.action IN ('positive','negative') THEN e.action END) IS NOT a.kind
+        OR p.id IS NULL OR p.identity_group IS NOT e.identity_group OR p.merged_into IS NOT NULL
+        OR v.id IS NULL OR v.support_id IS NOT e.support_id OR v.identity_group IS NOT e.identity_group
+        OR v.generation IS NOT e.generation OR v.space_id IS NOT a.space_id OR v.evidence_key IS NOT a.evidence_key
+        OR s.id IS NULL OR s.identity_group IS NOT e.identity_group OR s.generation IS NOT e.generation
+        OR s.status IS NOT 'available' OR s.pcm_bytes<=0 OR length(s.pcm) IS NOT s.pcm_bytes
+        OR sess.deleted IS NOT 0 OR sess.identity_group IS NOT e.identity_group
+        OR CASE WHEN json_valid(e.fingerprints) THEN json_extract(e.fingerprints,'$.space_id') END IS NOT a.space_id
+        OR CASE WHEN json_valid(e.fingerprints) THEN json_extract(e.fingerprints,'$.vector_id') END IS NOT v.id
+        OR CASE WHEN json_valid(e.fingerprints) THEN json_extract(e.fingerprints,'$.vector_sha256') END IS NOT v.vector_sha256
+        OR CASE WHEN json_valid(e.fingerprints) THEN json_extract(e.fingerprints,'$.manifest_sha256') END IS NOT s.manifest_sha256
         LIMIT 1''',(group,generation)).fetchone()
+    if invalid:return False
+    # An injected active row must not introduce evidence absent from the ledger's
+    # expected set. This index is group-leading, not a global projection scan.
+    return not db.execute('''SELECT 1 FROM identity_active_reviews a INDEXED BY active_reviews_group
+        LEFT JOIN identity_review_events e ON e.id=a.event_id WHERE a.identity_group=? AND
+        (e.id IS NULL OR e.identity_group IS NOT ? OR e.generation IS NOT ?
+        OR e.action NOT IN ('positive','negative','replace')
+        OR EXISTS(SELECT 1 FROM identity_review_events r WHERE r.previous_event_id=e.id
+            AND r.identity_group=e.identity_group AND r.generation=e.generation
+            AND r.action IN ('retract','replace','source_expired'))) LIMIT 1''',
+        (group,group,generation)).fetchone()
 
 
 def reference_vector(db,active):
@@ -421,9 +462,9 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
                     invalid_gallery=True;return
                 score=max(-1.,min(1.,math.fsum(a*b for a,b in zip(centroid,proof['vector']))))
                 scores.append((score,person,list(references)))
-            for active in db.execute('''SELECT a.* FROM identity_active_reviews a JOIN speakers p ON p.id=a.person_id
+            for active in db.execute('''SELECT a.* FROM identity_active_reviews a
                     WHERE a.identity_group=? AND a.generation=? AND a.kind='positive' AND a.space_id=?
-                    AND p.merged_into IS NULL ORDER BY a.person_id,a.event_id''', (group,generation,proof['space_id'])):
+                    ORDER BY a.person_id,a.event_id''', (group,generation,proof['space_id'])):
                 if active['person_id']!=person:
                     score_person();person=active['person_id'];vectors=[];references=[]
                 try:
@@ -513,4 +554,40 @@ def events(store,sid,after=0,limit=100):
         for row in rows:
             row['attestation']=json.loads(row['attestation']) if row['attestation'] else None
             row['active']=bool(row['active']);row['operator_assertion_is_claim']=True
+            row['detail_url']=f'/sessions/{sid}/identity-reviews/{row["id"]}'
         return {'events':rows,'generation':generation,'next_cursor':rows[-1]['cursor'] if rows else after}
+
+
+def event_detail(store,sid,event_id):
+    """Resolve one opaque decision reference back to its reviewable source."""
+    with store.db() as db:
+        db.execute('BEGIN')
+        group,generation,_=_context(db,sid)
+        row=db.execute('''SELECT e.id,e.sequence,e.action,e.review_kind,e.person_id,e.previous_event_id,
+            e.support_id,e.attestation,e.operator_context,e.created,
+            CASE WHEN a.event_id IS NULL THEN 0 ELSE 1 END AS active
+            FROM identity_review_events e LEFT JOIN identity_active_reviews a ON a.event_id=e.id
+            WHERE e.id=? AND e.identity_group=? AND e.generation=?''',(event_id,group,generation)).fetchone()
+        if row is None:raise KeyError('Review event not found in this identity group and generation')
+        result=dict(row)
+        support_id=result.pop('support_id')
+        result['attestation']=json.loads(result['attestation']) if result['attestation'] else None
+        result['active']=bool(result['active'])
+        result['operator_assertion_is_claim']=True
+        source={'support_id':support_id,'source_session_id':None,'audio_available':False,
+                'reason':'support_revoked_or_removed'}
+        owner=db.execute('''SELECT s.session_id FROM speaker_support s JOIN sessions sess ON sess.id=s.session_id
+            WHERE s.id=? AND s.identity_group=? AND s.generation=? AND sess.identity_group=? AND sess.deleted=0''',
+            (support_id,group,generation,group)).fetchone()
+        if owner:
+            source['source_session_id']=owner['session_id']
+            source['metadata_url']=f'/sessions/{owner["session_id"]}/speaker-support/{support_id}'
+            try:
+                retained=support._row(db,owner['session_id'],support_id,with_pcm=True)
+                support.validate_pcm_evidence(retained,retained['pcm'])
+                source.update(audio_available=True,reason='available',
+                    audio_url=f'/sessions/{owner["session_id"]}/speaker-support/{support_id}/audio')
+            except (ValueError,TypeError,KeyError,AttributeError):
+                source['reason']='support_integrity_unavailable'
+        result['source']=source
+        return result

@@ -83,7 +83,12 @@ vetoed query to a runner-up.
   review request. Admission and removal are atomic. A failed replacement leaves
   the old review active.
 - `GET /sessions/{sid}/identity-reviews?after=0&limit=100` is cursor-paginated.
-  Its cursor is an append order, distinct from profile revision. Source expiry
+  Each event supplies `detail_url`. `GET /sessions/{sid}/identity-reviews/{event_id}`
+  resolves a decision's opaque `reference_event_id` to its source session, support
+  metadata and full audio, including after restart. It requires the same live
+  identity group/generation. Removed source evidence is explicitly unavailable;
+  it is never reconstructed or replaced. No vector or filesystem path is exposed.
+  The listing cursor is an append order, distinct from profile revision. Source expiry
   can append several events at one atomic bank revision.
 
 Identical retries return the original event, which might subsequently have been
@@ -173,7 +178,17 @@ matching. Automatically matched queries never become anchors. Compact decisions,
 source links, transcript results and change-feed history grow on disk with
 bounded-per-window outputs; they are not an unbounded RAM cache and remain under
 the service's disk/resource guards. Read endpoints are paginated. Bank invalidation
-does not load or rewrite all historical rows.
+does not load or rewrite all historical rows. Before matching, integrity checks
+use the immutable current-group/current-generation ledger to derive expected
+active membership, then compare every eligibility field with the mutable index.
+Changed/missing competitors cause abstention, never a smaller gallery and a new
+runner-up match. This indexed pass is bounded by that group's share of the
+32,768-event cap, with indexed revocation lookups; a second indexed pass covers
+only that group's active reviews (at most 12,288 globally). It does not scan
+unrelated groups or unbounded transcript/decision history. Scoring streams at
+most 4,096 global positive references, retaining only one person's at-most-eight
+vectors at a time plus bounded person scores. These are workload bounds, not a
+real-time latency guarantee.
 
 Data are local biometric evidence. Logical deletion removes live application
 access, not bytes in SQLite freed pages/WAL, exports, archives or backups. It is
