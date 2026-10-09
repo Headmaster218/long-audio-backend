@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from .boundary_store import init_stream_schema, register_stream_chunk, check_duplicate_stream, wake_stream_successor
-from . import event_candidate_store, lifecycle, overlap_store, speaker_support
+from . import event_candidate_store, lifecycle, overlap_store, speaker_support, support_vectors, verified_identity
 
 
 STREAM_PENDING_COUNT_SQL="""SELECT COUNT(*) FROM chunks c INDEXED BY chunk_queue
@@ -136,12 +136,13 @@ class Store:
             event_candidate_store.init_schema(db)
             lifecycle.init_schema(db)
             speaker_support.init_schema(db)
+            verified_identity.init_schema(db)
             # Additive migration only. Existing rows remain NULL: a chunk's latest
             # metadata is not evidence about the backend/timings of older rows.
-            for table, additions in {'segments': ('asr_backend','timestamp_kind','raw_text','candidate_observation_id','speaker_window_start','speaker_support_id','speaker_support_status'),
+            for table, additions in {'segments': ('asr_backend','timestamp_kind','raw_text','candidate_observation_id','speaker_window_start','speaker_support_id','speaker_support_status','identity_decision_id'),
                                       'chunks': ('provenance',),
                                       'events': ('time_precision','source_label','onset_precision_seconds','method','verification_status','inference_source'),
-                                      'speaker_turns': ('speaker_window_start','speaker_support_id','speaker_support_status'),
+                                      'speaker_turns': ('speaker_window_start','speaker_support_id','speaker_support_status','identity_decision_id'),
                                       'speakers': ('embedding_version','embedding_evidence'),
                                       'speaker_observations': ('embedding_version','embedding_evidence','matched_speaker_id')}.items():
                 columns={row['name'] for row in db.execute(f'PRAGMA table_info({table})')}
@@ -149,6 +150,7 @@ class Store:
                     if column not in columns:
                         kind='REAL' if column=='speaker_window_start' or (table=='events' and column=='onset_precision_seconds') else 'TEXT'
                         db.execute(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
+            verified_identity.install_lifecycle(db)
 
     @contextmanager
     def db(self):
@@ -416,6 +418,11 @@ class Store:
                 if local_id not in support_refs:
                     value=prepared_support.get(str(local_id)) if isinstance(prepared_support,dict) else None
                     support_refs[local_id]=speaker_support.commit_support(self,db,chunk,offset,group,local_id,observation,value)
+                    try:
+                        proof=support_vectors.query_proof(value.get('raw_vector'),metadata,value)
+                    except (ValueError,TypeError,KeyError,AttributeError):
+                        proof=None
+                    support_vectors.commit(self,db,support_refs[local_id][0],group,proof)
                 return support_refs[local_id]
             raw_turns=result.get('speaker_turns',[])
             for turn in raw_turns:
@@ -466,7 +473,7 @@ class Store:
             segs=[dict(r) for r in db.execute('SELECT s.*,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL AND s.speaker_id IS NULL THEN 1 ELSE 0 END AS enrollment_available,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL THEN 1 ELSE 0 END AS profile_example_available FROM segments s JOIN chunks c ON c.id=s.chunk_id LEFT JOIN speaker_observations o ON o.id=s.candidate_observation_id WHERE c.session_id=? AND s.id>? ORDER BY s.id LIMIT ?', (sid,after,limit))]
             for s in segs:
                 s.pop('candidate_observation_id',None)
-                s.pop('speaker_support_id',None);s.pop('speaker_support_status',None)
+                s.pop('speaker_support_id',None);s.pop('speaker_support_status',None);s.pop('identity_decision_id',None)
                 s['enrollment_available']=bool(s['enrollment_available'])
                 s['profile_example_available']=bool(s['profile_example_available'])
                 speaker=s['speaker_id']; visited=set()
@@ -483,7 +490,7 @@ class Store:
         with self.db() as db:
             rows=[dict(r) for r in db.execute('SELECT t.* FROM speaker_turns t JOIN chunks c ON c.id=t.chunk_id WHERE c.session_id=? AND t.id>? ORDER BY t.id LIMIT ?',(sid,after,limit))]
             for row in rows:
-                row.pop('speaker_support_id',None);row.pop('speaker_support_status',None)
+                row.pop('speaker_support_id',None);row.pop('speaker_support_status',None);row.pop('identity_decision_id',None)
                 row['overlap']=bool(row['overlap']);speaker=row['speaker_id'];visited=set()
                 while speaker and speaker not in visited:
                     visited.add(speaker)

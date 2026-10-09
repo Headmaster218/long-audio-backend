@@ -39,6 +39,8 @@ def reset_group(store, group):
         if db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0 LIMIT 1',(group,)).fetchone():
             import uuid
             db.execute('INSERT OR REPLACE INTO speaker_identity_generations VALUES(?,?)',(group,uuid.uuid4().hex))
+        from .verified_identity import reset
+        reset(db,group)
         db.execute('DELETE FROM speaker_support WHERE identity_group=?',(group,))
         for table in ('segments', 'speaker_turns'):
             db.execute(f'''UPDATE {table} SET speaker_support_id=NULL,speaker_support_status='identity_reset'

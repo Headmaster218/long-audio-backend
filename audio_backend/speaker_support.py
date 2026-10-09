@@ -358,6 +358,7 @@ def prepare_window(result, wav, lineage, expected_generation, *, core_start, ana
                 value['status'] = 'manifest_size_limit'
                 continue
             value['manifest'] = manifest
+            value['raw_vector'] = list(embeddings[0])
             total_bytes += len(pcm)
             if total_bytes > settings.speaker_support_window_pcm_bytes:
                 value['status'] = 'window_pcm_quota'
@@ -482,7 +483,8 @@ def commit_support(store, db, chunk, offset, group, local_id, observation_id, pr
                 if not source or source['session_id'] != chunk['session_id'] or source['digest'] != part['source_sha256']:
                     status, pcm = 'source_mismatch', None
                     break
-            used = db.execute('SELECT COALESCE(SUM(pcm_bytes),0) FROM speaker_support').fetchone()[0]
+            from .support_vectors import retained_bytes
+            used = retained_bytes(db)
             if pcm and used + len(pcm) > store.settings.speaker_support_total_pcm_bytes:
                 status, pcm = 'total_pcm_quota', None
             if pcm:
