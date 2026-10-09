@@ -1,6 +1,6 @@
 # Internal logical fragment runtime
 
-This document records the dev3 internal contract. The default-OFF dev4 offline
+This document records the dev3 internal contract. The current default-OFF offline
 extensions and their separate evidence limits are described in
 [FRAGMENT_EXTENSIONS_INTERNAL.md](FRAGMENT_EXTENSIONS_INTERNAL.md).
 

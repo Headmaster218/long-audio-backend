@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "source_commit": "867a215a0578bb23885d175623a36ee3ed04d238",
+  "source_tree": "8b5c30b74da82954044b393c732bffccfd08ad42",
+  "public_base_commit": "445ed1192e78b6bdfb6807e431011f87a6e0a5a0",
+  "scope": "Default-OFF explicit normalized internal adapter plus standalone codec receipts/rolling reader. No SourcePlan/Alias codec admission or HTTP/end-to-end product acceptance.",
+  "reviewed_updates": [
+    {
+      "path": "audio_backend/fragment_model_bridges.py",
+      "bytes": 25611,
+      "sha256": "d758b4dae9591c26cceee16850bbb178bc0a8825f4ee12b27dafa783a5b13a9c",
+      "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+      "supersedes": {
+        "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+        "sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4"
+      },
+      "public_sha256": "d758b4dae9591c26cceee16850bbb178bc0a8825f4ee12b27dafa783a5b13a9c",
+      "previous_public_sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_normalized_runtime.py",
+      "bytes": 17273,
+      "sha256": "e6ef9f9ea6dd32ee5c55b39dd57d6acea654dca359d71d4d2c4e31692f3f57b0",
+      "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+      "public_sha256": "e6ef9f9ea6dd32ee5c55b39dd57d6acea654dca359d71d4d2c4e31692f3f57b0",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime_contracts.py",
+      "bytes": 16698,
+      "sha256": "12321342d990205e75fe231604514acce0add06e9d60c841fc2c85ecb44568cc",
+      "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+      "supersedes": {
+        "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+        "sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e"
+      },
+      "public_sha256": "12321342d990205e75fe231604514acce0add06e9d60c841fc2c85ecb44568cc",
+      "previous_public_sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime_store.py",
+      "bytes": 19739,
+      "sha256": "cf88bc98c30a1dc3cc62857a3058523d3ebb599f0d7ec9feece26820b932b3ee",
+      "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+      "supersedes": {
+        "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+        "sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457"
+      },
+      "public_sha256": "cf88bc98c30a1dc3cc62857a3058523d3ebb599f0d7ec9feece26820b932b3ee",
+      "previous_public_sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/FRAGMENT_NORMALIZED_RUNTIME_INTERNAL.md",
+      "bytes": 6518,
+      "sha256": "0e418ab2b4eda38b639911faa16603baac2b453fca9aa6341fb1cc3b40a775f3",
+      "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+      "public_sha256": "0e418ab2b4eda38b639911faa16603baac2b453fca9aa6341fb1cc3b40a775f3",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_normalized_runtime.py",
+      "bytes": 22352,
+      "sha256": "57420261a1657fd8a476171bca61a43855428f146538d1f39ed3c6bb101e9719",
+      "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+      "public_sha256": "57420261a1657fd8a476171bca61a43855428f146538d1f39ed3c6bb101e9719",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_decoded_source.py",
+      "bytes": 35891,
+      "sha256": "d03f8a8c21ecdc62c879efdb259d72dd07995dabfb0da2dec08f739b0ce62212",
+      "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2",
+      "public_sha256": "d03f8a8c21ecdc62c879efdb259d72dd07995dabfb0da2dec08f739b0ce62212",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_rolling_decode.py",
+      "bytes": 24711,
+      "sha256": "61bcf6ac0ec87686e63204c51093b70ac12491cbb244e90140f69c790c933cc4",
+      "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2",
+      "public_sha256": "61bcf6ac0ec87686e63204c51093b70ac12491cbb244e90140f69c790c933cc4",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_decoded_source.py",
+      "bytes": 9059,
+      "sha256": "92acb0719ac5e01a5a3efa1a64126e52478861a8ac89f6502c1916e495dda574",
+      "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2",
+      "public_sha256": "92acb0719ac5e01a5a3efa1a64126e52478861a8ac89f6502c1916e495dda574",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_rolling_decode.py",
+      "bytes": 10872,
+      "sha256": "13e8f6a0cd22eccae5ca3040f748bccd3b109df198dc4c6041e0799c45d3d507",
+      "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2",
+      "public_sha256": "13e8f6a0cd22eccae5ca3040f748bccd3b109df198dc4c6041e0799c45d3d507",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/DECODED_SOURCE_RECEIPTS.md",
+      "bytes": 8188,
+      "sha256": "2526061e59fb4d709b13bde54348c076816638d884f12bebdd04af8c399658d6",
+      "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2",
+      "public_sha256": "2526061e59fb4d709b13bde54348c076816638d884f12bebdd04af8c399658d6",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/ROLLING_DECODE_READER.md",
+      "bytes": 6639,
+      "sha256": "d94cad2511bcdd95a66324c39a5ce23513c9d63b3e0ad8be33e82062492913f4",
+      "source_commit": "b74d8674cf6fb6cb02faab5a2f3515bbe44b5ee2",
+      "public_sha256": "d94cad2511bcdd95a66324c39a5ce23513c9d63b3e0ad8be33e82062492913f4",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    }
+  ],
+  "base_manifest_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
+  "layer_manifest_sha256": "cc7ce55da38f79f957229de5c398cc04d0aa152b58f7a7087dd2b4448928ba01",
+  "public_adaptations": [
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "source_sha256": "0f845eb3a772e0257383580360c1d3f85557f0de5b279ba5fc5cdc0807285088",
+      "public_sha256": "5d155c402efb997118be97e3225f0b7a01c84f257c040659cb9593ff038a14e9",
+      "reason": "Retain all reviewed layered lineage/version/admission assertions using the unchanged public gate and portable files; preserve separate public private-output exclusion coverage."
+    }
+  ],
+  "caps_unchanged": {
+    "files": 250,
+    "total_bytes": 2500000,
+    "per_file_bytes": 250000
+  },
+  "test_scope": "Independent public-tree checks are recorded in TEST_STATUS.md. Private staging and codec-fixture runs are not substituted.",
+  "ancestry": "Only explicit immutable source objects are read; original private feature histories and evidence are excluded."
+}

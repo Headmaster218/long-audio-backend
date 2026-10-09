@@ -1,5 +1,13 @@
 # Change log
 
+## 0.2.0rc2.dev5 (unreleased normalized-runtime and standalone-codec experiments)
+
+- Import 12 exact reviewed paths from active source 867a215a0578bb23885d175623a36ee3ed04d238 without private feature ancestry, fixtures or reports.
+- Add an explicit finalized 44.1/48 kHz PCM16 normalization adapter for internal logical scheduling/provider bridges. Keep ordinary exact-PCM admission unchanged, canonical model timing separate from conservative native filter support, and all production/HTTP/upload wiring absent.
+- Add standalone decoded-source receipts and provisional rolling emitted-PCM reads. Keep AAC endpoints unresolved and compressed readers outside SourcePlan, Alias, automatic trims and runtime admission. No arbitrary seek, 48-hour or throughput acceptance.
+- Preserve the original flat import pins and record ordered reviewed overrides in a separate layered manifest; reject missing/duplicate/stale lineage and version mismatches.
+- Keep default-OFF behavior, exact private-input skips, strict rejected-q1 controls, existing public test adaptations and source/privacy caps unchanged. No release or real-model/end-to-end product acceptance.
+
 ## 0.2.0rc2.dev4 (unreleased offline extension integration)
 
 - Project exact reviewed source from staging commit 732f37698b58f00750d76ba99e4cf7599c1b97f7 without original private feature ancestry or raw evidence.

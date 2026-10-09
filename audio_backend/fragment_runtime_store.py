@@ -113,6 +113,23 @@ class RuntimeStore:
         db.execute('UPDATE fragment_runs SET ' + ','.join(k + '=?' for k in names) + ' WHERE run_id=?',
                    [value[k] for k in names] + [value['run_id']])
 
+    @staticmethod
+    def _admit(plan):
+        return admit(plan)
+
+    @staticmethod
+    def _decode_plan(text):
+        return SourcePlan.from_json(text)
+
+    @staticmethod
+    def _validate_policy(plan, policy):
+        if policy.input_fingerprint:
+            raise ValueError('Exact-PCM store does not admit transformed input policies')
+
+    @staticmethod
+    def _extend_plan(snapshot, plan):
+        PlanCheckpoint(snapshot.plan, snapshot.next_frame).extend(plan)
+
     def _snapshot(self, db, run_id):
         row = db.execute('SELECT * FROM fragment_runs WHERE run_id=?', (run_id,)).fetchone()
         if row is None:
@@ -125,8 +142,9 @@ class RuntimeStore:
                            (run_id, row['revision'])).fetchone()
         if saved is None:
             raise CorruptLedger('Missing accepted plan')
-        plan = admit(SourcePlan.from_json(saved['plan']))
+        plan = self._admit(self._decode_plan(saved['plan']))
         policy = RuntimePolicy(**json.loads(row['policy']))
+        self._validate_policy(plan, policy)
         if saved['plan_hash'] != plan.sha256 or row['plan_hash'] != plan.sha256 or policy.sha256 != row['policy_hash']:
             raise CorruptLedger('Plan or policy hash mismatch')
         if not 0 <= row['next_frame'] <= plan.end_frame or prefix_hash(plan, row['next_frame']) != row['prefix_hash']:
@@ -170,7 +188,8 @@ class RuntimeStore:
     def create(self, run_id, plan, policy=RuntimePolicy(), operation_id='initial'):
         self._id(run_id)
         self._id(operation_id)
-        admit(plan)
+        self._admit(plan)
+        self._validate_policy(plan, policy)
         with self._transaction('create') as db:
             existing = db.execute('SELECT 1 FROM fragment_runs WHERE run_id=?', (run_id,)).fetchone()
             if existing:
@@ -206,7 +225,7 @@ class RuntimeStore:
 
     def append(self, run_id, plan, *, expected_revision, operation_id):
         self._id(operation_id)
-        admit(plan)
+        self._admit(plan)
         with self._transaction('append') as db:
             snapshot, row = self._snapshot(db, run_id)
             saved = db.execute('SELECT * FROM fragment_plans WHERE run_id=? AND operation_id=?',
@@ -216,7 +235,7 @@ class RuntimeStore:
                     raise StaleWork('Import operation ID reused with a different plan')
                 return snapshot
             self._fence(snapshot, expected_revision)
-            PlanCheckpoint(snapshot.plan, snapshot.next_frame).extend(plan)
+            self._extend_plan(snapshot, plan)
             if plan.sha256 == snapshot.plan.sha256:
                 raise ValueError('Append must change plan metadata, samples, aliases or terminal state')
             revision = expected_revision + 1

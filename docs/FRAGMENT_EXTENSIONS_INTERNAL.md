@@ -1,76 +1,87 @@
-# Offline fragment extensions, 0.2.0rc2.dev4
+# Offline fragment extensions, 0.2.0rc2.dev5
 
-Default OFF and experimental. This public source projection adds offline model
-bridge contracts, a standalone PCM normalizer and benchmark-only event/native
-boundary tools. It adds no HTTP routes, date/upload glue, automatic enrollment
-or end-to-end product acceptance. Tests use synthetic PCM and fake providers.
-The source files come from immutable staging commit
-`732f37698b58f00750d76ba99e4cf7599c1b97f7`; original private experiment ancestry,
-audio, vectors, model assets and raw reports remain excluded.
+Default OFF and experimental. This source-only public projection adds an explicit
+normalized internal runtime adapter and standalone compressed-source receipts /
+rolling emitted-PCM reads. Source commit:
+`867a215a0578bb23885d175623a36ee3ed04d238`. No original private experiment ancestry,
+recordings, fixture assets, models, vectors or raw reports are imported.
+No new HTTP routes, upload/date glue or production-worker integration is added.
 
-## Precisely what the source adds
+## Current normalized internal path
 
-- [Offline model bridges](FRAGMENT_MODEL_BRIDGE_INTERNAL.md) wrap existing
-  analyzers/native processing through explicit bounded experiment admission,
-  attempt accounting, private evidence and source/runtime fingerprint checks.
-  The native process gains a no-op-by-default response observer and opt-in
-  import attestation/response bounds. These are experimental harness hooks,
-  not a new production API. The default seam matcher remains v1; experiments
-  explicitly select p1 with trusted continuity/replay declarations.
-- [Finalized PCM normalization](FRAGMENT_NORMALIZATION_EXPERIMENT.md) remains
-  a standalone import-only class. It supports a narrow finalized single-island
-  PCM16 scope with a pinned FFmpeg build. It is not connected to the logical
-  runtime, model bridge, HTTP APIs or compressed inputs.
-- [Positive-event seam protocol](POSITIVE_EVENT_SEAMS.md) and native boundary
-  probes are benchmark tools. Merely importing source or passing fake tests
-  does not authorize inference, retries or broader experiments.
+The [normalized runtime adapter](FRAGMENT_NORMALIZED_RUNTIME_INTERNAL.md) now
+connects the reviewed [PCM normalizer](FRAGMENT_NORMALIZATION_EXPERIMENT.md) to
+internal logical scheduling and provider bridges. This supersedes the historical
+dev4 statement that the normalizer had no internal runtime connection.
+Admission is explicit and limited to finalized, single continuous islands of
+same-rate 44.1/48 kHz mono/stereo PCM16 WAV with the existing minimum length.
+Ordinary exact-PCM stores/readers still admit original 16 kHz mono PCM16 only.
 
-## Historical evidence, with its limitations
+Scheduler and model timestamps remain canonical 16 kHz. The native SourcePlan,
+source coordinates and conservative many-to-many filter support remain separate.
+No invented one-to-one native sample ownership, global identity or model-quality
+claim is made. Each <=0.5-second normalization read launches a separate bounded
+FFmpeg process; synthetic correctness tests do not establish throughput.
+The provider bridges remain explicit offline/internal experiments; no HTTP or
+end-to-end product acceptance is implied.
 
-The immutable component documents preserve their original protocol-stage
-wording, including statements that inference had not yet been admitted. This
-section distinguishes the later bounded findings; it does not rewrite those
-frozen source documents or turn them into runtime permission.
+## Separate compressed-source experiments
 
-- The earlier eight-arm real base comparison and separate two-support MOSS
-  extension produced empty base event arrays. Their event result establishes
-  negative-event invariance only, not positive-event coverage.
-- A separate selected synthetic-development four-arm event experiment
-  reported equality and nonempty 30-second seam coverage using 64 Zipformer
-  calls. Selection used already-exposed model-positive development material.
-  This is not a blind test, acoustic ground truth, general event recall,
-  complete speech/diarization quality or production acceptance.
-- Native P1 passed its bounded check. The original P2 whole arm finished
-  processing but failed its report-size cap; that original failure remains
-  preserved. A separately admitted split-only remainder later matched the
-  retained whole PCM and anonymous interval evidence. This was not an
-  uninterrupted P2 success. The 300-second receipt was not EOS, ten commit
-  IDs survived the epoch-boundary restart, and the final one-sample core
-  contained no invented speaker activity. No global identity, ASR quality
-  or arbitrary crash-recovery claim follows.
+[Decoded-source receipts](DECODED_SOURCE_RECEIPTS.md) bind compressed bytes,
+pinned decoder/build and policy, then count/hash the actual emitted PCM.
+Container presentation and emitted coordinates remain distinct; original
+pre-encoding frame count and capture continuity are unproven. AAC endpoints
+remain unresolved. The baseline range reader replays the complete source.
 
-These are historical, separately scoped findings. This public export's own
-checks are reported only in [TEST_STATUS.md](../TEST_STATUS.md). Private study
-results and the earlier staging suite are not substituted for public-tree tests.
+The separate [rolling reader](ROLLING_DECODE_READER.md) reuses one sequential
+decoder with bounded forward buffering. Windows are provisional until their
+own session completes its full count/hash check; pairing requires that exact
+completed session receipt. Older windows are not silently upgraded. Cancellation,
+early close, errors, source mutation or mismatched output invalidate the session.
+There is one active session per process. No arbitrary seeking, 48-hour endurance
+or general streaming acceptance is claimed.
 
-## Public source controls
+Both readers remain outside SourcePlan, Alias, automatic trimming, the normalized
+runtime, HTTP and production workers. The source includes no automatic compressed
+ingestion. Linux/pinned-tool and trusted immutable-storage assumptions remain.
 
-[FRAGMENT_STAGING_IMPORTS.json](FRAGMENT_STAGING_IMPORTS.json) retains the exact
-component source commits, paths, byte lengths and hashes. All 30 reviewed
-component files retain their bytes. The older bridge allowlist is frozen
-provenance for its original source tree; it is not this repository's policy.
-[PUBLIC_POLICY.json](../PUBLIC_POLICY.json) is the sole public path allowlist.
+## Historical documents and evidence limits
 
-The duplicate staging scanner and private-tree staging policy are omitted.
-The eight adapted source/privacy regression cases use the existing unchanged public
-gate and portable exported files rather than a live staging Git index.
-One separate model-free case tests private-output admission and exclusion through
-the real public gate. Seven exact positive-event tests require private development
-PCM/cache bindings and explicit opt-in; one exact bridge test needs the excluded
-private packager. These eight named cases are explicit skips when unavailable;
-the original component test bytes remain unchanged.
-Public-specific dependency-pin and temporary-storage test adaptations remain
-intact. Two strict rejected-q1 historical expected failures and explicit real-PCM
-opt-ins stay separate from passing tests. The total public source budget is
-250 files / 2,500,000 bytes; the 250,000-byte per-file cap, private exclusions,
-secret checks, structured-vector checks, hooks and exact-path review remain.
+Original imported documents retain their reviewed bytes, including historical
+protocol-stage wording and references to private research reports that are not
+distributed. This current scope and the layered manifest describe the integrated
+tree. In particular, the rolling reader now exists as a separate experiment,
+although the older baseline document describes it as future work.
+
+- The original real-provider base matrix and separate MOSS extension produced
+  empty event arrays, establishing negative-event invariance only.
+- A separate four-arm selected synthetic-development event experiment reported
+  equality and nonempty 30-second seam coverage. It is not blind accuracy,
+  general recall or full speech/diarization acceptance.
+- Native P1 passed its bounded check. P2 whole processing finished but report
+  size failed; a separately admitted split-only remainder later matched the
+  retained whole PCM/anonymous intervals. This was not uninterrupted P2 success.
+  The 300-second receipt was not EOS, ten commits survived its epoch restart,
+  and the final one-sample core had no invented activity.
+- Historical codec memory measurements that counted pytest or a supervisor
+  alone are not full-tree RSS. The imported documents explicitly preserve the
+  correction and the scope of later sampled parent/child measurements.
+
+None of those private findings substitutes for this export's own results in
+[TEST_STATUS.md](../TEST_STATUS.md). A skipped frozen-fixture test is not a pass.
+
+## Exact layered lineage and public controls
+
+The original [flat import map](FRAGMENT_STAGING_IMPORTS.json) remains byte-for-byte
+unchanged. [FRAGMENT_STAGING_LAYERS.json](FRAGMENT_STAGING_LAYERS.json) pins that
+map's hash and the reviewed update order. Each overridden path names its previous
+commit/hash and new reviewed commit/hash. Tests reject duplicate/missing paths,
+stale lineage/version and changed or absent source bytes.
+
+The public provenance tests use the existing unchanged public gate and exported
+files, preserving public-specific private-input gating and exclusion coverage.
+The old bridge allowlist and private staging policy are not public authority.
+[PUBLIC_POLICY.json](../PUBLIC_POLICY.json) remains the only public path policy:
+250 files / 2,500,000 bytes, 250,000 bytes per file, unchanged private exclusions,
+secret/vector checks, hook and exact reviewed allowlist. No cap increases.
+Two historical q1 controls remain strict expected failures; p1 is ordinary tests.

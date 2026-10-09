@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "local_source_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
-  "local_source_tree": "9f18a022808ffd746c065f1286653ec4cd91e14c",
-  "local_source_version": "0.2.0rc2.dev4",
-  "public_integration_version": "0.2.0rc2.dev4",
-  "relationship": "Reviewed source-only projection from immutable dev4 staging. Original private feature ancestry/reports and staging-only policy are excluded; historical public mappings remain in Git and earlier integration manifests.",
+  "local_source_commit": "867a215a0578bb23885d175623a36ee3ed04d238",
+  "local_source_tree": "8b5c30b74da82954044b393c732bffccfd08ad42",
+  "local_source_version": "0.2.0rc2.dev5",
+  "public_integration_version": "0.2.0rc2.dev5",
+  "relationship": "Reviewed source-only dev5 projection with exact layered update lineage. Original flat pins remain immutable; private feature history and assets are excluded. Public test adaptations remain separate.",
   "byte_identical_files": [
     {
       "path": "audio_backend/__init__.py",
-      "local_source_sha256": "606684b6002590e543ddf453611194ff3488d0ece04e91d447d9348d6d8aa46c",
-      "public_sha256": "606684b6002590e543ddf453611194ff3488d0ece04e91d447d9348d6d8aa46c"
+      "local_source_sha256": "325030a22ea68db8af48e1bde0b7e689e70adb7397e34fdfdfe4654f87638561",
+      "public_sha256": "325030a22ea68db8af48e1bde0b7e689e70adb7397e34fdfdfe4654f87638561"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -102,6 +102,11 @@
       "public_sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819"
     },
     {
+      "path": "audio_backend/fragment_decoded_source.py",
+      "local_source_sha256": "d03f8a8c21ecdc62c879efdb259d72dd07995dabfb0da2dec08f739b0ce62212",
+      "public_sha256": "d03f8a8c21ecdc62c879efdb259d72dd07995dabfb0da2dec08f739b0ce62212"
+    },
+    {
       "path": "audio_backend/fragment_evidence.py",
       "local_source_sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464",
       "public_sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464"
@@ -123,8 +128,8 @@
     },
     {
       "path": "audio_backend/fragment_model_bridges.py",
-      "local_source_sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4",
-      "public_sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4"
+      "local_source_sha256": "d758b4dae9591c26cceee16850bbb178bc0a8825f4ee12b27dafa783a5b13a9c",
+      "public_sha256": "d758b4dae9591c26cceee16850bbb178bc0a8825f4ee12b27dafa783a5b13a9c"
     },
     {
       "path": "audio_backend/fragment_model_compare.py",
@@ -152,6 +157,11 @@
       "public_sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1"
     },
     {
+      "path": "audio_backend/fragment_normalized_runtime.py",
+      "local_source_sha256": "e6ef9f9ea6dd32ee5c55b39dd57d6acea654dca359d71d4d2c4e31692f3f57b0",
+      "public_sha256": "e6ef9f9ea6dd32ee5c55b39dd57d6acea654dca359d71d4d2c4e31692f3f57b0"
+    },
+    {
       "path": "audio_backend/fragment_normalizer.py",
       "local_source_sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0",
       "public_sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0"
@@ -162,19 +172,24 @@
       "public_sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545"
     },
     {
+      "path": "audio_backend/fragment_rolling_decode.py",
+      "local_source_sha256": "61bcf6ac0ec87686e63204c51093b70ac12491cbb244e90140f69c790c933cc4",
+      "public_sha256": "61bcf6ac0ec87686e63204c51093b70ac12491cbb244e90140f69c790c933cc4"
+    },
+    {
       "path": "audio_backend/fragment_runtime.py",
       "local_source_sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f",
       "public_sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f"
     },
     {
       "path": "audio_backend/fragment_runtime_contracts.py",
-      "local_source_sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e",
-      "public_sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e"
+      "local_source_sha256": "12321342d990205e75fe231604514acce0add06e9d60c841fc2c85ecb44568cc",
+      "public_sha256": "12321342d990205e75fe231604514acce0add06e9d60c841fc2c85ecb44568cc"
     },
     {
       "path": "audio_backend/fragment_runtime_store.py",
-      "local_source_sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457",
-      "public_sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457"
+      "local_source_sha256": "cf88bc98c30a1dc3cc62857a3058523d3ebb599f0d7ec9feece26820b932b3ee",
+      "public_sha256": "cf88bc98c30a1dc3cc62857a3058523d3ebb599f0d7ec9feece26820b932b3ee"
     },
     {
       "path": "audio_backend/guard.py",
@@ -357,6 +372,11 @@
       "public_sha256": "822dbfa92909b7ff4f272eedddb03116136476cccde275dacd06d2928e2040db"
     },
     {
+      "path": "docs/DECODED_SOURCE_RECEIPTS.md",
+      "local_source_sha256": "2526061e59fb4d709b13bde54348c076816638d884f12bebdd04af8c399658d6",
+      "public_sha256": "2526061e59fb4d709b13bde54348c076816638d884f12bebdd04af8c399658d6"
+    },
+    {
       "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
       "local_source_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314",
       "public_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314"
@@ -377,14 +397,29 @@
       "public_sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70"
     },
     {
+      "path": "docs/FRAGMENT_NORMALIZED_RUNTIME_INTERNAL.md",
+      "local_source_sha256": "0e418ab2b4eda38b639911faa16603baac2b453fca9aa6341fb1cc3b40a775f3",
+      "public_sha256": "0e418ab2b4eda38b639911faa16603baac2b453fca9aa6341fb1cc3b40a775f3"
+    },
+    {
       "path": "docs/FRAGMENT_STAGING_IMPORTS.json",
       "local_source_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
       "public_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5"
     },
     {
+      "path": "docs/FRAGMENT_STAGING_LAYERS.json",
+      "local_source_sha256": "cc7ce55da38f79f957229de5c398cc04d0aa152b58f7a7087dd2b4448928ba01",
+      "public_sha256": "cc7ce55da38f79f957229de5c398cc04d0aa152b58f7a7087dd2b4448928ba01"
+    },
+    {
       "path": "docs/POSITIVE_EVENT_SEAMS.md",
       "local_source_sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7",
       "public_sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7"
+    },
+    {
+      "path": "docs/ROLLING_DECODE_READER.md",
+      "local_source_sha256": "d94cad2511bcdd95a66324c39a5ce23513c9d63b3e0ad8be33e82062492913f4",
+      "public_sha256": "d94cad2511bcdd95a66324c39a5ce23513c9d63b3e0ad8be33e82062492913f4"
     },
     {
       "path": "docs/VERIFIED_IDENTITY.md",
@@ -433,8 +468,8 @@
     },
     {
       "path": "pyproject.toml",
-      "local_source_sha256": "dcf0005f5a212ea2805dea984d1f7b583b75098a9ddf2571bb55cc1e41c08604",
-      "public_sha256": "dcf0005f5a212ea2805dea984d1f7b583b75098a9ddf2571bb55cc1e41c08604"
+      "local_source_sha256": "b1d5af5bc36f94e7491c0e55ea9b38f76c596a899f40d1f4f5de3721e8b6df40",
+      "public_sha256": "b1d5af5bc36f94e7491c0e55ea9b38f76c596a899f40d1f4f5de3721e8b6df40"
     },
     {
       "path": "requirements-dicow.txt",
@@ -712,6 +747,11 @@
       "public_sha256": "01eddf8088cdf604c186b3dc8dbe27ad84d941cb66f3a36d6d02b10ee1e81882"
     },
     {
+      "path": "tests/test_fragment_decoded_source.py",
+      "local_source_sha256": "92acb0719ac5e01a5a3efa1a64126e52478861a8ac89f6502c1916e495dda574",
+      "public_sha256": "92acb0719ac5e01a5a3efa1a64126e52478861a8ac89f6502c1916e495dda574"
+    },
+    {
       "path": "tests/test_fragment_matcher_p1.py",
       "local_source_sha256": "10a3f546fd372ecc3bd476c90b1740a826fbe6391a94dd61bc54b9934ee02037",
       "public_sha256": "10a3f546fd372ecc3bd476c90b1740a826fbe6391a94dd61bc54b9934ee02037"
@@ -725,6 +765,11 @@
       "path": "tests/test_fragment_model_bridges.py",
       "local_source_sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8",
       "public_sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8"
+    },
+    {
+      "path": "tests/test_fragment_normalized_runtime.py",
+      "local_source_sha256": "57420261a1657fd8a476171bca61a43855428f146538d1f39ed3c6bb101e9719",
+      "public_sha256": "57420261a1657fd8a476171bca61a43855428f146538d1f39ed3c6bb101e9719"
     },
     {
       "path": "tests/test_fragment_normalizer.py",
@@ -745,6 +790,11 @@
       "path": "tests/test_fragment_real_pcm16_v2.py",
       "local_source_sha256": "ea78d150b8e4d4de7e33ab875c2eaae7833cc9ecc1e9647d1180c4f6c64a2f21",
       "public_sha256": "ea78d150b8e4d4de7e33ab875c2eaae7833cc9ecc1e9647d1180c4f6c64a2f21"
+    },
+    {
+      "path": "tests/test_fragment_rolling_decode.py",
+      "local_source_sha256": "13e8f6a0cd22eccae5ca3040f748bccd3b109df198dc4c6041e0799c45d3d507",
+      "public_sha256": "13e8f6a0cd22eccae5ca3040f748bccd3b109df198dc4c6041e0799c45d3d507"
     },
     {
       "path": "tests/test_fragment_runtime.py",
@@ -959,19 +1009,14 @@
   ],
   "publication_adapted_files": [
     {
-      "path": "tests/conftest.py",
-      "local_source_sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe",
-      "public_sha256": "e840277f0a0dc3d68ee9255d82eff31ea2fb57171dbd76d6fb2e83f3a0a9fd74"
-    },
-    {
       "path": ".gitignore",
       "local_source_sha256": "7cb830f46c4b65c3c41fb755600a2773960ecc5e78fc0dd95a9c48b60910d83a",
       "public_sha256": "401ab824364a52cc2ced6611e931bf8b77eb13436149d3bfb68a28d34ff1bb11"
     },
     {
       "path": "README.md",
-      "local_source_sha256": "bbca75bfa1870b288d2179c38654d56baa311ea9b2abba4480f1f9aeb5fb3870",
-      "public_sha256": "1bae00308ae10d1a2b4179580e1b6a89f5e2011c46c724a05f42948e006cc65e"
+      "local_source_sha256": "2b936294b13aabac387ca33e1fab8f379b4b8eb245322c7e5635398194da9234",
+      "public_sha256": "0a9d987bfdc91974e7b985c43b130a408a5044d189c520fc5a62223378b3cf2e"
     },
     {
       "path": "docs/API.md",
@@ -996,7 +1041,7 @@
     {
       "path": "docs/FRAGMENT_RUNTIME_INTERNAL.md",
       "local_source_sha256": "91f66ca3bd1659d16e0db96311cf74426e3464828c558f18d98bdd4204e8fce8",
-      "public_sha256": "93b55bf0e362a93cace268070411a829dfd9b76c086bedf0b6902e966a71be00"
+      "public_sha256": "a721df7d918209c6627d287741414d9cf5885e7b76a829f7d714fb29ebd4f6c7"
     },
     {
       "path": "docs/MOSS_TD_CPP_SETUP.md",
@@ -1016,7 +1061,7 @@
     {
       "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
       "local_source_sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391",
-      "public_sha256": "19ecd6c480af956e5369a9f8f560b53f02dbe82971fd097adfab675e8369fec5"
+      "public_sha256": "a2b049ec497ed701e9682a794b2966cb89d8215f859ecdc7f1fb3e75229fd582"
     },
     {
       "path": "docs/QUEUING_AND_CANDIDATE_LEDGERS.md",
@@ -1029,9 +1074,14 @@
       "public_sha256": "4a05d184dd4ad47b85a9a2883ecc4481d29e9b9dc90b47e39ddc35399e8b6241"
     },
     {
+      "path": "tests/conftest.py",
+      "local_source_sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe",
+      "public_sha256": "e840277f0a0dc3d68ee9255d82eff31ea2fb57171dbd76d6fb2e83f3a0a9fd74"
+    },
+    {
       "path": "tests/test_fragment_staging_sources.py",
-      "local_source_sha256": "139fb59d4fdfc204739592120ee62e64bf3bdcc504dcb07ba2db5789c64808b9",
-      "public_sha256": "8b6cf1ac3a9b0f110be3c5e7127297c057f3bddebfea3616e552ee7be531e505"
+      "local_source_sha256": "0f845eb3a772e0257383580360c1d3f85557f0de5b279ba5fc5cdc0807285088",
+      "public_sha256": "5d155c402efb997118be97e3225f0b7a01c84f257c040659cb9593ff038a14e9"
     },
     {
       "path": "tests/test_moss_td_runner_lifecycle.py",
