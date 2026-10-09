@@ -139,6 +139,9 @@ def create_app(settings=None,analyzer_factory=None):
                                   'single_threshold':settings.speaker_match_threshold,'verified_centroid_threshold':settings.speaker_centroid_threshold,
                                   'novelty_threshold':settings.speaker_new_threshold,'ambiguity_margin':settings.speaker_match_margin,
                                   'profile_strategy':settings.speaker_profile_strategy,'automatic_template_updates':False},
+                'speaker_support_review':{'enabled':settings.speaker_support_enabled,
+                    'max_records':settings.speaker_support_max_records,'total_pcm_bytes':settings.speaker_support_total_pcm_bytes,
+                    'max_pcm_bytes':settings.speaker_support_max_pcm_bytes,'identity_learning_available':False},
                 'queue_limits':{'work_units':settings.max_pending_chunks,'legacy_setting_name':'max_pending_chunks',
                                 'explicit_stream_unit':'one continuous stream','independent_chunk_unit':'one chunk',
                                 'pending_fragments_per_stream':128,'minimum_nonfinal_fragment_seconds':0.5,
@@ -275,6 +278,31 @@ def create_app(settings=None,analyzer_factory=None):
     def assign(sid:str,segment_id:int,body:SegmentRequest):
         store.assign_segment(sid,segment_id,body.speaker_id)
         return {'updated':segment_id}
+    @app.get('/sessions/{sid}/segments/{segment_id}/speaker-support')
+    def segment_support(sid:str,segment_id:int):
+        from . import speaker_support
+        from starlette.responses import JSONResponse
+        return JSONResponse(speaker_support.metadata(store,sid,segment_id=segment_id),headers={'Cache-Control':'private, no-store'})
+
+    @app.get('/sessions/{sid}/speaker-turns/{turn_id}/speaker-support')
+    def turn_support(sid:str,turn_id:int):
+        from . import speaker_support
+        from starlette.responses import JSONResponse
+        return JSONResponse(speaker_support.metadata(store,sid,turn_id=turn_id),headers={'Cache-Control':'private, no-store'})
+
+    @app.get('/sessions/{sid}/speaker-support/{support_id}')
+    def review_support(sid:str,support_id:str):
+        from . import speaker_support
+        from starlette.responses import JSONResponse
+        return JSONResponse(speaker_support.metadata(store,sid,support_id),headers={'Cache-Control':'private, no-store'})
+
+    @app.get('/sessions/{sid}/speaker-support/{support_id}/audio')
+    def review_support_audio(sid:str,support_id:str):
+        from . import speaker_support
+        from starlette.responses import Response
+        return Response(speaker_support.audio(store,sid,support_id),media_type='audio/wav',
+                        headers={'Cache-Control':'private, no-store','Content-Disposition':'inline; filename="speaker-support.wav"'})
+
     @app.delete('/identity-groups/{group}/speakers')
     def reset_speakers(group:str):
         if worker.current_chunk or upload_lock.locked(): raise HTTPException(409,'Wait for worker and upload to become idle')

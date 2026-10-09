@@ -38,6 +38,7 @@ def main(argv=None):
     parser.add_argument('--language', default='auto', help='auto, zh, en, or a supported Whisper language code')
     parser.add_argument('--window-seconds', type=float, default=30)
     parser.add_argument('--event-threshold', type=float, default=.25)
+    parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--speaker-threshold', type=float, default=.75)
     parser.add_argument('--new-speaker-threshold', type=float, default=.45)
     parser.add_argument('--speaker-margin', type=float, default=.10)
@@ -114,6 +115,7 @@ def main(argv=None):
                         speaker_match_threshold=args.speaker_threshold, speaker_match_margin=args.speaker_margin,
                         speaker_new_threshold=args.new_speaker_threshold, speaker_profile_strategy=args.speaker_profile_strategy,
                         speaker_calibration_file=args.speaker_calibration,
+                        speaker_support_enabled=args.speaker_support_review,
                         event_threshold=args.event_threshold)
     uvicorn.run(create_app(settings), host=args.host, port=args.port, workers=1)
 

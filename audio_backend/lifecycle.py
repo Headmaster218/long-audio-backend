@@ -64,7 +64,7 @@ def delete_session(store, sid, delete_file=None):
     """Commit logical deletion and cleanup intent before deleting any source."""
     with store.db() as db:
         db.execute('BEGIN IMMEDIATE')
-        session = db.execute('SELECT deleted FROM sessions WHERE id=?', (sid,)).fetchone()
+        session = db.execute('SELECT deleted,identity_group FROM sessions WHERE id=?', (sid,)).fetchone()
         if session is None:
             raise KeyError('Session not found')
         if not session['deleted']:
@@ -81,6 +81,9 @@ def delete_session(store, sid, delete_file=None):
             # Explicit stream and event-candidate ledgers cascade from chunks.
             db.execute('DELETE FROM chunks WHERE session_id=?', (sid,))
             db.execute('DELETE FROM corrections WHERE session_id=?', (sid,))
+            db.execute('''DELETE FROM speaker_identity_generations WHERE identity_group=?
+                AND NOT EXISTS (SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0)''',
+                (session['identity_group'],session['identity_group']))
             # Row DELETE triggers may have appended tombstones after the first
             # erasure trigger. Erase those too, within the same transaction.
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_changes'").fetchone():

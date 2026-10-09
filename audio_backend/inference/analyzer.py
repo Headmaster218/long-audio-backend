@@ -68,6 +68,17 @@ class AudioAnalyzer:
             for block in iter(lambda:model.read(1024*1024),b''):digest.update(block)
         self._speaker_sha256=digest.hexdigest()
         self._event_artifact_hashes = EventArtifactHashes()
+        self._support_diarization={}
+        if self.config.get('speaker_support_enabled',False) and self.config.get('diarization_backend','pyannote')=='pyannote':
+            try:
+                import importlib.metadata
+                with self.paths['segmentation'].open('rb') as model:
+                    model_hash=hashlib.file_digest(model,'sha256').hexdigest()
+                self._support_diarization={'diarization_model_sha256':model_hash,
+                    'diarization_runtime':'sherpa-onnx',
+                    'diarization_runtime_version':importlib.metadata.version('sherpa-onnx')}
+            except (OSError,ValueError,ImportError):
+                pass  # Missing optional review lineage cannot change ordinary inference.
 
     def _metadata_provenance(self, *, event_artifacts_required=True):
         """Configured policy and local artifact hashes, not evidence of inference."""
@@ -138,6 +149,7 @@ class AudioAnalyzer:
                 raise ValueError('Non-finite audio samples')
             silence_fast_path = float(np.max(np.abs(samples))) < float(self.config.get('event_silence_peak',1e-5)) and not (diarization and diarization.get('turns'))
             provenance = self._metadata_provenance(event_artifacts_required=not silence_fast_path)
+            provenance.update(getattr(self,'_support_diarization',{}))
             if silence_fast_path:
                 return {'segments': [], 'speaker_turns': [], 'events': [{'start': 0., 'end': duration, 'label': 'silence', 'score': 1., 'method': 'peak-amplitude fast path'}],
                         'metadata': {**provenance, 'duration_seconds': duration,
@@ -242,6 +254,7 @@ class AudioAnalyzer:
                 'overlapping_speech':overlap_summary,
                 'asr_runtime': transcript.get('_runtime',{}),
                 'speaker_embedding_dimension': dim,
+                'speaker_support_producer':getattr(self,'_speaker_support_producer',None),
                 'speaker_embedding_evidence': getattr(self,'_embedding_evidence',{}), 'speaker_embedding_metric': 'cosine (L2 normalized)',
                 'speaker_embedding_version': 'eres2net-base-zh-cn-3dspeaker-16k-v1',
                 'speaker_embedding_sha256':getattr(self,'_speaker_sha256',None),
@@ -273,6 +286,13 @@ class AudioAnalyzer:
         extractor = s.SpeakerEmbeddingExtractor(ec)
         embeddings = {}
         self._embedding_evidence = {}
+        self._speaker_support_producer = None
+        try:
+            if self.config.get('speaker_support_enabled',False):
+                from audio_backend.speaker_support import producer_provenance
+                self._speaker_support_producer = producer_provenance(a,turns,self._speaker_sha256,self.threads)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, ImportError):
+            pass  # Optional review evidence must not alter embedding/matching behavior.
         from audio_backend.speaker_evidence import clean_speaker_audio
         for sid in sorted({x['speaker_local_id'] for x in turns}):
             clean,evidence=clean_speaker_audio(a,turns,sid)
