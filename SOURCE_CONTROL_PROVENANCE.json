@@ -1,25 +1,25 @@
 {
   "schema_version": 1,
-  "local_source_commit": "86c1b7983206a8e83877a3384a91ba0b04a6316e",
-  "local_source_tree": "4c49778732b02e0187409dadf036e6984dd3b732",
-  "local_source_version": "0.2.0rc2.dev1",
-  "public_integration_version": "0.2.0rc2.dev1",
-  "relationship": "Reviewed public projection from this exact immutable local commit. Historical baseline remains in BASELINE_IMPORT.json; no raw reports, biometric values or array-study helpers are imported.",
+  "local_source_commit": "839187b89c833fe7f0457daee38edcfdb0d0f0a7",
+  "local_source_tree": "91f15cca76350242870ad10514f78d089637c5d3",
+  "local_source_version": "0.2.0rc2.dev2",
+  "public_integration_version": "0.2.0rc2.dev2",
+  "relationship": "Reviewed public projection from this exact immutable local commit. Historical public source remains in prior import manifests; no raw reports, biometric values, residual-study helpers or private provenance files are imported.",
   "byte_identical_files": [
     {
       "path": "audio_backend/__init__.py",
-      "local_source_sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099",
-      "public_sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099"
+      "local_source_sha256": "dce96752eb35323c945994ed24ccb7792f197d378fc7b87bcb700ab2437f343c",
+      "public_sha256": "dce96752eb35323c945994ed24ccb7792f197d378fc7b87bcb700ab2437f343c"
     },
     {
       "path": "audio_backend/__main__.py",
-      "local_source_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204",
-      "public_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204"
+      "local_source_sha256": "b1d397c26fea6df375de466d484045e037ab6d02bc3b6093956fd276e252bac4",
+      "public_sha256": "b1d397c26fea6df375de466d484045e037ab6d02bc3b6093956fd276e252bac4"
     },
     {
       "path": "audio_backend/app.py",
-      "local_source_sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f",
-      "public_sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f"
+      "local_source_sha256": "001029e59d7f0660eba6082fca3828dce4dcb35b241edfd3f0cbb3fcfe2ef459",
+      "public_sha256": "001029e59d7f0660eba6082fca3828dce4dcb35b241edfd3f0cbb3fcfe2ef459"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -33,8 +33,8 @@
     },
     {
       "path": "audio_backend/change_feed.py",
-      "local_source_sha256": "39167f0eb447db0d781ee22685f5e3d61301320a681575ebdc7e35d99c37a5c9",
-      "public_sha256": "39167f0eb447db0d781ee22685f5e3d61301320a681575ebdc7e35d99c37a5c9"
+      "local_source_sha256": "d21141b04d08f7583489ee5c48b353556c38cb6f24c9698fc4649c51aafced19",
+      "public_sha256": "d21141b04d08f7583489ee5c48b353556c38cb6f24c9698fc4649c51aafced19"
     },
     {
       "path": "audio_backend/data_paths.py",
@@ -55,6 +55,11 @@
       "path": "audio_backend/dicow_runner.py",
       "local_source_sha256": "848c0b9405638f51fa2886aa4bec5737c147559eada01abc7b9594b3c144f25b",
       "public_sha256": "848c0b9405638f51fa2886aa4bec5737c147559eada01abc7b9594b3c144f25b"
+    },
+    {
+      "path": "audio_backend/embedding_space.py",
+      "local_source_sha256": "e34afa07d4f41e39f379c235c751959a60f1bef5d61bb57b7723984c915dd629",
+      "public_sha256": "e34afa07d4f41e39f379c235c751959a60f1bef5d61bb57b7723984c915dd629"
     },
     {
       "path": "audio_backend/event_candidate_store.py",
@@ -98,8 +103,8 @@
     },
     {
       "path": "audio_backend/identity_reset.py",
-      "local_source_sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78",
-      "public_sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78"
+      "local_source_sha256": "12ac552a3798b11aa3ace7f6ab38d951e815753605c4fb068d1245271cf1758b",
+      "public_sha256": "12ac552a3798b11aa3ace7f6ab38d951e815753605c4fb068d1245271cf1758b"
     },
     {
       "path": "audio_backend/inference/__init__.py",
@@ -108,8 +113,8 @@
     },
     {
       "path": "audio_backend/inference/analyzer.py",
-      "local_source_sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da",
-      "public_sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da"
+      "local_source_sha256": "a43de64e5294becd7de97d4a633ae3697e3aef0a36651c72a7523ec4f4d05a6e",
+      "public_sha256": "a43de64e5294becd7de97d4a633ae3697e3aef0a36651c72a7523ec4f4d05a6e"
     },
     {
       "path": "audio_backend/inference/dicow_asr.py",
@@ -138,8 +143,8 @@
     },
     {
       "path": "audio_backend/lifecycle.py",
-      "local_source_sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb",
-      "public_sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb"
+      "local_source_sha256": "13eb44a5b3af9e7db8a882e83dbb9c0f70169889b772989b449f12e93d7f0524",
+      "public_sha256": "13eb44a5b3af9e7db8a882e83dbb9c0f70169889b772989b449f12e93d7f0524"
     },
     {
       "path": "audio_backend/moss_td_assets.py",
@@ -202,6 +207,11 @@
       "public_sha256": "670388018d7af578bc54405a27287422d54d0bd98a181f8c366c13f6d80da590"
     },
     {
+      "path": "audio_backend/profiles/verified-review-experimental-v1.json",
+      "local_source_sha256": "5217b5fe9737ba2b0348d8ec1d2ba31ccbce6da264630a7506a6f5a71b09cbff",
+      "public_sha256": "5217b5fe9737ba2b0348d8ec1d2ba31ccbce6da264630a7506a6f5a71b09cbff"
+    },
+    {
       "path": "audio_backend/resources.py",
       "local_source_sha256": "6c7c349354e09f68e1223e703cf5f16cad24213b5a708e333b12da052d1c3e89",
       "public_sha256": "6c7c349354e09f68e1223e703cf5f16cad24213b5a708e333b12da052d1c3e89"
@@ -213,8 +223,8 @@
     },
     {
       "path": "audio_backend/settings.py",
-      "local_source_sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05",
-      "public_sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05"
+      "local_source_sha256": "860de9d0d68fe9d9a8521dde63b6096d3472dd8b8e1b60ea6bdb0aa286a7b8d6",
+      "public_sha256": "860de9d0d68fe9d9a8521dde63b6096d3472dd8b8e1b60ea6bdb0aa286a7b8d6"
     },
     {
       "path": "audio_backend/speaker_calibration.py",
@@ -228,18 +238,28 @@
     },
     {
       "path": "audio_backend/speaker_support.py",
-      "local_source_sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934",
-      "public_sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934"
+      "local_source_sha256": "cdec57064a189140cb4121431ff99a8266ed2f88c1eb44a74f2f0c980fe5e12c",
+      "public_sha256": "cdec57064a189140cb4121431ff99a8266ed2f88c1eb44a74f2f0c980fe5e12c"
     },
     {
       "path": "audio_backend/storage.py",
-      "local_source_sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c",
-      "public_sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c"
+      "local_source_sha256": "3ccfda5ab8ac2d0bf9597f02c54a066e516e501e3ff68d07f5e06c7081248fde",
+      "public_sha256": "3ccfda5ab8ac2d0bf9597f02c54a066e516e501e3ff68d07f5e06c7081248fde"
+    },
+    {
+      "path": "audio_backend/support_vectors.py",
+      "local_source_sha256": "5068b5b87bef609244cd31d3c76026b9dc245b27c8fdc96a604202a62d129b6b",
+      "public_sha256": "5068b5b87bef609244cd31d3c76026b9dc245b27c8fdc96a604202a62d129b6b"
+    },
+    {
+      "path": "audio_backend/verified_identity.py",
+      "local_source_sha256": "990292ed464f8b910f58fc9a6a332535ab8414436d6d2af86bb2b29850e423a8",
+      "public_sha256": "990292ed464f8b910f58fc9a6a332535ab8414436d6d2af86bb2b29850e423a8"
     },
     {
       "path": "audio_backend/worker.py",
-      "local_source_sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91",
-      "public_sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91"
+      "local_source_sha256": "04d4eac1cc7f6a73024ac891343df0872eaedd4bcc9905d604ec505e07ace9b8",
+      "public_sha256": "04d4eac1cc7f6a73024ac891343df0872eaedd4bcc9905d604ec505e07ace9b8"
     },
     {
       "path": "dicow-model-manifest.json",
@@ -248,8 +268,13 @@
     },
     {
       "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
-      "local_source_sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c",
-      "public_sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c"
+      "local_source_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314",
+      "public_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314"
+    },
+    {
+      "path": "docs/VERIFIED_IDENTITY.md",
+      "local_source_sha256": "b835e8183c588b210d07f325fbe7ec44441eeff09016afd88e34b03c8d9d783b",
+      "public_sha256": "b835e8183c588b210d07f325fbe7ec44441eeff09016afd88e34b03c8d9d783b"
     },
     {
       "path": "licenses/clap-model-note.md",
@@ -288,8 +313,8 @@
     },
     {
       "path": "pyproject.toml",
-      "local_source_sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7",
-      "public_sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7"
+      "local_source_sha256": "7d4f67066fbd005eb446e7b4819a8611c1969e6a3df0915c1821fc361a301de2",
+      "public_sha256": "7d4f67066fbd005eb446e7b4819a8611c1969e6a3df0915c1821fc361a301de2"
     },
     {
       "path": "requirements-dicow.txt",
@@ -445,6 +470,11 @@
       "path": "tests/test_dicow_candidates.py",
       "local_source_sha256": "df2a5081d4155954ddbb58a8c84c98e170a60a903d1640a81bf8248435be9ba2",
       "public_sha256": "df2a5081d4155954ddbb58a8c84c98e170a60a903d1640a81bf8248435be9ba2"
+    },
+    {
+      "path": "tests/test_embedding_space.py",
+      "local_source_sha256": "b4f5519237e774db0476e91eff41de8e4c61644684a3ac5309766a7b9bd66fa5",
+      "public_sha256": "b4f5519237e774db0476e91eff41de8e4c61644684a3ac5309766a7b9bd66fa5"
     },
     {
       "path": "tests/test_event_provenance.py",
@@ -647,6 +677,26 @@
       "public_sha256": "aa73dbf7dc768fee0f710673660abfb127e7cd74f4c624ba496ae0d06893eee5"
     },
     {
+      "path": "tests/test_verified_identity_bank.py",
+      "local_source_sha256": "8223e11953581a5d466d30099c1137ccfd237e5930b9baa53d92995dfac3bf52",
+      "public_sha256": "8223e11953581a5d466d30099c1137ccfd237e5930b9baa53d92995dfac3bf52"
+    },
+    {
+      "path": "tests/test_verified_identity_lifecycle.py",
+      "local_source_sha256": "1681ea70c91006b263afc520834045b0769b870ae280f987e0c05c623674e577",
+      "public_sha256": "1681ea70c91006b263afc520834045b0769b870ae280f987e0c05c623674e577"
+    },
+    {
+      "path": "tests/test_verified_identity_matching.py",
+      "local_source_sha256": "9f952c4cdc1578e304217f01d31e05f6293a00b6eace65392411fe7b95630891",
+      "public_sha256": "9f952c4cdc1578e304217f01d31e05f6293a00b6eace65392411fe7b95630891"
+    },
+    {
+      "path": "tests/test_verified_identity_projection.py",
+      "local_source_sha256": "19a0618842099946c15c1fe36f86327aec02d90aeaa89b829ffc70bcd1607e61",
+      "public_sha256": "19a0618842099946c15c1fe36f86327aec02d90aeaa89b829ffc70bcd1607e61"
+    },
+    {
       "path": "tests/test_whisper_unicode_pipeline.py",
       "local_source_sha256": "c2ec80999cdd32bc20199439592de5e97ae92e1a42c8b09bda9eddfacc43df9d",
       "public_sha256": "c2ec80999cdd32bc20199439592de5e97ae92e1a42c8b09bda9eddfacc43df9d"
@@ -661,12 +711,12 @@
     {
       "path": "README.md",
       "local_source_sha256": "3095442a8a7b2f667b8058aa08b9a503b0e2ebe7dc6f1cda3005a05c14714cd0",
-      "public_sha256": "469718fbc96f5a137392c8416d778c94b9f159b65866cb1da652583c223cd4cf"
+      "public_sha256": "074352b8a1600e691a4b25752f9d72d99bb1af42c1fd87edd40bcdef89f80359"
     },
     {
       "path": "docs/API.md",
-      "local_source_sha256": "d7aed89d8df4eed6b2f07acc228c87036d896569f8cf6572a26c6dcf5efb16bd",
-      "public_sha256": "e88fd3841a6d8a66aa3cf1cc28a65bfe600cb978cdb5b4908d6a0ebe98d6f4b9"
+      "local_source_sha256": "334590cb260c1cdc1b203ffef3cbdd9ed8ef6e2dfe257e5da1631a9886f5c318",
+      "public_sha256": "e248e9798b7050ae26bb6afdf8d097e0a37fe6727278022fadc2bda646d60cfa"
     },
     {
       "path": "docs/DATA_MIGRATION.md",
@@ -677,6 +727,11 @@
       "path": "docs/DICOW_SETUP.md",
       "local_source_sha256": "5559ab7a15bf33b9d23010952333c983ec01a30eab86fb5db8dd14a886732efa",
       "public_sha256": "c2e4f8218a8c100e0a3ed30e25f3db781f930c7d5f46bd75646255593d0559af"
+    },
+    {
+      "path": "docs/EMBEDDING_SPACE_PROVENANCE.md",
+      "local_source_sha256": "97564eca69f6dbcd76f0c339941ffaaef182bf63a112c8cc2b8c2ac3e4bc784c",
+      "public_sha256": "f49ea13adec1139d85bd19e010a35fae53ab2633a5d82b70dabda602a9ce03bd"
     },
     {
       "path": "docs/MOSS_TD_CPP_SETUP.md",
@@ -712,6 +767,11 @@
       "path": "tests/test_prepare_moss_td_cpp.py",
       "local_source_sha256": "a7d2e0be06c4b5e0d39114c2e44e7ccabb11bcf22783095374bae798c6e0c71b",
       "public_sha256": "301a610cc6f9e0db12d106bdc44ce3daba3f744368318bdd36cb2518d56da644"
+    },
+    {
+      "path": "tests/test_verified_identity_integrity.py",
+      "local_source_sha256": "218b42a68307a866167f8f291b8721d3a6baa29cf47d1b81b2d44a9b21a486d1",
+      "public_sha256": "dbb68f8370b50b010d2263fd13aca987eae4407a7af842dd8b376e3853abdd9c"
     }
   ],
   "excluded_categories": [
@@ -723,5 +783,14 @@
     "operational databases, snapshots, recovery manifests and resource dumps",
     "full reports and validation output",
     "credentials, local machine paths and private service identifiers"
+  ],
+  "supplemental_document_sources": [
+    {
+      "path": "docs/VERIFIED_IDENTITY_HTTP_SMOKE.md",
+      "source_commit": "697e02e9b6c82d289a34aeb05736982fbf8c1872",
+      "source_sha256": "1d60ad371ddc282e86be75b4779e134b90c1cd615ca3d3e53f5f0c6cbec27e17",
+      "public_sha256": "1d60ad371ddc282e86be75b4779e134b90c1cd615ca3d3e53f5f0c6cbec27e17",
+      "scope": "Reviewed aggregate functional smoke summary only; no raw evidence or private artifacts."
+    }
   ]
 }

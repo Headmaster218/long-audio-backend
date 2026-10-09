@@ -1,5 +1,13 @@
 # Change log
 
+## 0.2.0rc2.dev2 (unreleased experimental verified-review integration)
+
+- Import the reviewed B1/B2 source from immutable commit 839187b89c833fe7f0457daee38edcfdb0d0f0a7; keep unrelated residual-study code and all private evidence out.
+- Add exact audited embedding-space proof, immutable original-vector bindings, explicit positive/exact-negative review events, and fixed opt-in group policy.
+- Route only explicitly created verified groups to bounded reviewed-reference matching; never fall back to legacy references, promote queries or adapt templates automatically.
+- Preserve transactional review replacement/retraction, source expiry, reset, compact client invalidation and safe public decision/source links.
+- Retain default legacy behavior and the public-only workflow. Thresholds are uncalibrated, audited platform/build coverage is narrow, and verified merge/undo remains unsupported. No release, identity-accuracy or long-recording acceptance claim.
+
 ## 0.2.0rc2.dev1 (unreleased reviewed integration)
 
 - Import exact reviewed runtime/test source from local commit 86c1b7983206a8e83877a3384a91ba0b04a6316e.

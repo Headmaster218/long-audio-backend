@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from .boundary_store import init_stream_schema, register_stream_chunk, check_duplicate_stream, wake_stream_successor
-from . import event_candidate_store, lifecycle, overlap_store, speaker_support
+from . import event_candidate_store, lifecycle, overlap_store, speaker_support, support_vectors, verified_identity
 
 
 STREAM_PENDING_COUNT_SQL="""SELECT COUNT(*) FROM chunks c INDEXED BY chunk_queue
@@ -136,19 +136,21 @@ class Store:
             event_candidate_store.init_schema(db)
             lifecycle.init_schema(db)
             speaker_support.init_schema(db)
+            verified_identity.init_schema(db)
             # Additive migration only. Existing rows remain NULL: a chunk's latest
             # metadata is not evidence about the backend/timings of older rows.
-            for table, additions in {'segments': ('asr_backend','timestamp_kind','raw_text','candidate_observation_id','speaker_window_start','speaker_support_id','speaker_support_status'),
+            for table, additions in {'segments': ('asr_backend','timestamp_kind','raw_text','candidate_observation_id','speaker_window_start','speaker_support_id','speaker_support_status','identity_decision_id','identity_profile_revision','identity_state'),
                                       'chunks': ('provenance',),
                                       'events': ('time_precision','source_label','onset_precision_seconds','method','verification_status','inference_source'),
-                                      'speaker_turns': ('speaker_window_start','speaker_support_id','speaker_support_status'),
+                                      'speaker_turns': ('speaker_window_start','speaker_support_id','speaker_support_status','identity_decision_id','identity_profile_revision','identity_state'),
                                       'speakers': ('embedding_version','embedding_evidence'),
                                       'speaker_observations': ('embedding_version','embedding_evidence','matched_speaker_id')}.items():
                 columns={row['name'] for row in db.execute(f'PRAGMA table_info({table})')}
                 for column in additions:
                     if column not in columns:
-                        kind='REAL' if column=='speaker_window_start' or (table=='events' and column=='onset_precision_seconds') else 'TEXT'
+                        kind='INTEGER' if column=='identity_profile_revision' else 'REAL' if column=='speaker_window_start' or (table=='events' and column=='onset_precision_seconds') else 'TEXT'
                         db.execute(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
+            verified_identity.install_lifecycle(db)
 
     @contextmanager
     def db(self):
@@ -169,11 +171,12 @@ class Store:
             db.execute("UPDATE chunks SET status='queued', error='Recovered after process restart' WHERE status='running'")
             lifecycle.recover_cancelled_streams(db)
 
-    def create_session(self, name, identity_group="default"):
+    def create_session(self, name, identity_group="default", identity_mode=None):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             if db.execute('SELECT COUNT(*) FROM sessions WHERE deleted=0').fetchone()[0] >= self.settings.max_sessions:
                 raise OverflowError('Session capacity reached; delete unused sessions')
+            verified_identity.create_group(self,db,identity_group,identity_mode)
             sid = ident()
             db.execute('INSERT INTO sessions(id,name,identity_group,created) VALUES(?,?,?,?)', (sid,name,identity_group,time.time()))
         return self.session(sid)
@@ -410,13 +413,32 @@ class Store:
                 metadata['speaker_identity_policy'].update(calibration_profile_id=calibration['profile_id'],calibration_profile_sha256=calibration['artifact_sha256'],verified_centroid_threshold=self.settings.speaker_centroid_threshold,model_binding=calibration['model'])
             group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(chunk['session_id'],)).fetchone()[0]
             prepared_support=result.get('_speaker_support',{})
-            support_refs={}
+            support_refs={};decision_refs={}
+            mode=verified_identity.group_policy(db,group)
+            verified=bool(mode and mode['mode']==verified_identity.MODE)
+            if verified:
+                metadata['speaker_identity_policy']={'identity_mode':verified_identity.MODE,
+                    'policy_sha256':mode['policy_sha256'],'experimental':True,'automatic_template_updates':False}
             def support_for(local_id, observation):
                 if local_id is None:return None,'no_local_speaker'
                 if local_id not in support_refs:
                     value=prepared_support.get(str(local_id)) if isinstance(prepared_support,dict) else None
                     support_refs[local_id]=speaker_support.commit_support(self,db,chunk,offset,group,local_id,observation,value)
+                    try:
+                        proof=support_vectors.query_proof(value.get('raw_vector'),metadata,value)
+                    except (ValueError,TypeError,KeyError,AttributeError):
+                        proof=None
+                    support_vectors.commit(self,db,support_refs[local_id][0],group,proof)
                 return support_refs[local_id]
+            def resolve_identity(local_id,raw):
+                if verified:
+                    retained=support_for(local_id,None)
+                    value=prepared_support.get(str(local_id)) if isinstance(prepared_support,dict) else None
+                    speaker,score,status,decision,revision=verified_identity.resolve(
+                        self,db,chunk,offset,group,local_id,metadata,value,retained)
+                    decision_refs[local_id]=(decision,revision)
+                    return speaker,score,status,None
+                return self._window_identity(db,chunk,offset,metadata,group,local_id,raw)
             raw_turns=result.get('speaker_turns',[])
             for turn in raw_turns:
                 local_id=turn.get('speaker_local_id')
@@ -424,11 +446,11 @@ class Store:
                     speaker,score,status=None,None,'unknown'
                 else:
                     if local_id not in local:
-                        local[local_id]=self._window_identity(db,chunk,offset,metadata,group,local_id,turn.get('speaker_embedding'))
+                        local[local_id]=resolve_identity(local_id,turn.get('speaker_embedding'))
                     speaker,score,status,_=local[local_id]
                 support_id,support_status=support_for(local_id,local.get(local_id,(None,None,None,None))[3])
-                turn_cursor=db.execute('INSERT INTO speaker_turns(chunk_id,start,end,speaker_id,speaker_local_id,speaker_match_score,speaker_status,overlap,speaker_window_start,speaker_support_id,speaker_support_status) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-                    (chunk['id'],chunk['timeline_start']+offset+turn['start'],chunk['timeline_start']+offset+turn['end'],speaker,local_id,score,status,int(bool(turn.get('overlap')) or any(other.get('speaker_local_id')!=local_id and min(turn['end'],other['end'])>max(turn['start'],other['start']) for other in raw_turns)),offset,support_id,support_status))
+                turn_cursor=db.execute('INSERT INTO speaker_turns(chunk_id,start,end,speaker_id,speaker_local_id,speaker_match_score,speaker_status,overlap,speaker_window_start,speaker_support_id,speaker_support_status,identity_decision_id,identity_profile_revision,identity_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                    (chunk['id'],chunk['timeline_start']+offset+turn['start'],chunk['timeline_start']+offset+turn['end'],speaker,local_id,score,status,int(bool(turn.get('overlap')) or any(other.get('speaker_local_id')!=local_id and min(turn['end'],other['end'])>max(turn['start'],other['start']) for other in raw_turns)),offset,support_id,support_status,*decision_refs.get(local_id,(None,None)),'current' if local_id in decision_refs else None))
                 if local_id is not None:local_turn_ids.setdefault(local_id,[]).append(turn_cursor.lastrowid)
             for segment in result['segments']:
                 local_id=segment.get('speaker_local_id')
@@ -439,10 +461,10 @@ class Store:
                     speaker,score,status,observation=None,None,'unknown',None
                 else:
                     if key not in local:
-                        local[key]=self._window_identity(db,chunk,offset,metadata,group,local_id,segment.get('speaker_embedding'))
+                        local[key]=resolve_identity(local_id,segment.get('speaker_embedding'))
                     speaker,score,status,observation=local[key]
                 support_id,support_status=support_for(local_id,observation)
-                db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start,speaker_support_id,speaker_support_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset,support_id,support_status))
+                db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start,speaker_support_id,speaker_support_status,identity_decision_id,identity_profile_revision,identity_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset,support_id,support_status,*decision_refs.get(local_id,(None,None)),'current' if local_id in decision_refs else None))
             for event in result['events']:
                 for key in ('time_precision','source_label','method'):
                     value=event.get(key)
@@ -453,7 +475,7 @@ class Store:
                     (chunk['id'],chunk['timeline_start']+offset+event['start'],chunk['timeline_start']+offset+event['end'],event['label'],event['score'],event.get('time_precision'),event.get('source_label'),precision,event.get('method'),'unverified_inference','rule' if event.get('method') in ('peak-amplitude fast path','signal_threshold_silence_rule') or event.get('source_label')=='digital_or_near_digital_silence' else 'model'))
             event_candidate_store.commit_candidates(db,chunk,offset,result.get('event_candidates',[]),metadata)
             overlap_store.commit_candidates(db,chunk,offset,result.get('overlap_candidates'),metadata,
-                resolved_local_identities={key:{'speaker_id':value[0],'speaker_status':value[2],'speaker_turn_ids':local_turn_ids.get(key,[])} for key,value in local.items()})
+                resolved_local_identities={key:{'speaker_id':None if verified else value[0],'speaker_status':'identity_decision_required' if verified else value[2],'speaker_turn_ids':local_turn_ids.get(key,[])} for key,value in local.items()})
             status='completed' if end>=chunk['duration']-1e-5 else current['status']
             provenance=update_provenance(current['provenance'],metadata,offset)
             db.execute('UPDATE chunks SET next_offset=?,status=?,metadata=?,provenance=? WHERE id=?',(end,status,json.dumps(metadata),json.dumps(provenance),chunk['id']))
@@ -463,10 +485,17 @@ class Store:
     def results(self, sid, after=0, limit=500):
         self.session(sid)
         with self.db() as db:
+            db.execute('BEGIN')
             segs=[dict(r) for r in db.execute('SELECT s.*,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL AND s.speaker_id IS NULL THEN 1 ELSE 0 END AS enrollment_available,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL THEN 1 ELSE 0 END AS profile_example_available FROM segments s JOIN chunks c ON c.id=s.chunk_id LEFT JOIN speaker_observations o ON o.id=s.candidate_observation_id WHERE c.session_id=? AND s.id>? ORDER BY s.id LIMIT ?', (sid,after,limit))]
+            session_group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
+            policy=verified_identity.group_policy(db,session_group)
             for s in segs:
+                verified_identity.project_result(s,policy)
                 s.pop('candidate_observation_id',None)
                 s.pop('speaker_support_id',None);s.pop('speaker_support_status',None)
+                if not verified_identity.is_verified(db,sid):
+                    for field in ('identity_decision_id','identity_profile_revision','identity_state'):s.pop(field,None)
+                else:s['enrollment_available']=s['profile_example_available']=False
                 s['enrollment_available']=bool(s['enrollment_available'])
                 s['profile_example_available']=bool(s['profile_example_available'])
                 speaker=s['speaker_id']; visited=set()
@@ -481,9 +510,15 @@ class Store:
     def speaker_turns(self,sid,after=0,limit=500):
         self.session(sid)
         with self.db() as db:
+            db.execute('BEGIN')
             rows=[dict(r) for r in db.execute('SELECT t.* FROM speaker_turns t JOIN chunks c ON c.id=t.chunk_id WHERE c.session_id=? AND t.id>? ORDER BY t.id LIMIT ?',(sid,after,limit))]
+            session_group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
+            policy=verified_identity.group_policy(db,session_group)
             for row in rows:
+                verified_identity.project_result(row,policy)
                 row.pop('speaker_support_id',None);row.pop('speaker_support_status',None)
+                if not verified_identity.is_verified(db,sid):
+                    for field in ('identity_decision_id','identity_profile_revision','identity_state'):row.pop(field,None)
                 row['overlap']=bool(row['overlap']);speaker=row['speaker_id'];visited=set()
                 while speaker and speaker not in visited:
                     visited.add(speaker)
@@ -533,6 +568,7 @@ class Store:
     def add_speaker_example(self,sid,pid,source_segment_id):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
+            if verified_identity.is_verified(db,sid):raise ValueError('review_required: use the identity-reviews route')
             target=db.execute('SELECT p.* FROM speakers p JOIN sessions s ON s.identity_group=p.identity_group WHERE p.id=? AND s.id=? AND s.deleted=0 AND p.merged_into IS NULL',(pid,sid)).fetchone()
             if not target:raise KeyError('Unmerged target speaker not found in session identity group')
             source=db.execute('SELECT s.* FROM segments s JOIN chunks c ON c.id=s.chunk_id WHERE s.id=? AND c.session_id=?',(source_segment_id,sid)).fetchone()
@@ -554,6 +590,8 @@ class Store:
     def correct_speaker(self,sid,pid,name=None,merge_into=None,undo_merge=False):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
+            verified=verified_identity.is_verified(db,sid)
+            if verified and (merge_into or undo_merge):raise ValueError('verified_merge_unsupported: merge/undo requires a future reviewed implementation')
             source=db.execute('SELECT * FROM speakers WHERE id=? AND identity_group=(SELECT identity_group FROM sessions WHERE id=?)',(pid,sid)).fetchone()
             if not source: raise KeyError('Speaker not found')
             if undo_merge:
@@ -566,12 +604,14 @@ class Store:
                     raise OverflowError('Merged speaker would exceed example capacity')
                 db.execute('UPDATE speakers SET merged_into=? WHERE id=?',(merge_into,pid))
             else:
-                db.execute("UPDATE speakers SET name=?,state='confirmed' WHERE id=?",(name,pid))
+                if verified:db.execute('UPDATE speakers SET name=? WHERE id=?',(name,pid))
+                else:db.execute("UPDATE speakers SET name=?,state='confirmed' WHERE id=?",(name,pid))
             db.execute('INSERT INTO corrections(session_id,action,detail,created) VALUES(?,?,?,?)',(sid,'speaker',json.dumps({'speaker_id':pid,'name':name,'merge_into':merge_into,'undo_merge':undo_merge}),time.time()))
 
     def enroll_speaker(self,sid,name,source_segment_id):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
+            if verified_identity.is_verified(db,sid):raise ValueError('review_required: use the identity-reviews route')
             session=db.execute('SELECT identity_group FROM sessions WHERE id=? AND deleted=0',(sid,)).fetchone()
             if not session: raise KeyError('Session not found')
             source=db.execute('SELECT s.* FROM segments s JOIN chunks c ON c.id=s.chunk_id WHERE s.id=? AND c.session_id=?',(source_segment_id,sid)).fetchone()

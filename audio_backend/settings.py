@@ -66,6 +66,8 @@ class Settings:
     max_speaker_examples_per_person: int = 8
     max_speaker_templates_total: int = 4096
     max_speaker_observations_total: int = 8192
+    verified_identity_policy_file: str | Path | None = None
+    verified_identity_policy: dict | None = field(default=None,init=False,repr=False)
     speaker_support_enabled: bool = False
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
@@ -79,6 +81,9 @@ class Settings:
     def __post_init__(self):
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
+        if self.verified_identity_policy_file is not None:
+            from .verified_identity import policy_file
+            self.verified_identity_policy=policy_file(self.verified_identity_policy_file)
         if self.speaker_calibration_file is not None:
             from .speaker_calibration import load_profile
             self.speaker_calibration_profile=load_profile(self.speaker_calibration_file)

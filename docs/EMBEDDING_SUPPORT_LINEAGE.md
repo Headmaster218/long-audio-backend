@@ -145,3 +145,12 @@ observation eviction, quotas/concurrent admission, reset/source deletion,
 transaction rollback, corruption rejection and API privacy/authentication.
 These prove covered program behavior, not acoustic purity or model quality.
 The frozen active long-run and earlier evaluation study are unchanged.
+
+## Forward-only verified review extension
+
+New captures can additionally retain original analyzer vectors and audited
+embedding-space proof. Existing Phase-A support is not backfilled from mutable
+legacy observations. Only explicitly created verified groups use the new review
+ledger and matcher; ordinary support playback/legacy identity behavior remains
+unchanged. See [verified identity mode](VERIFIED_IDENTITY.md) for operator claims,
+quotas, source invalidation, reset and required change-feed handling.

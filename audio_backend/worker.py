@@ -237,7 +237,9 @@ class Worker:
                 end=native['end'];extract_start=native['extract_start'];extract_end=native['extract_end']
             with tempfile.TemporaryDirectory(prefix='window-',dir=self.settings.data_dir/'tmp') as tmp:
                 tmp=Path(tmp); wav=tmp/'audio.wav'
-                capture_support=self.settings.speaker_support_enabled and self.settings.speaker_support_max_records>0
+                from .verified_identity import is_verified
+                with self.store.db() as db:verified_query=is_verified(db,chunk['session_id'])
+                capture_support=self.settings.speaker_support_enabled and (self.settings.speaker_support_max_records>0 or verified_query)
                 expected_generation=speaker_support.capture_generation(self.store,chunk) if capture_support else None
                 lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support)
                 options=({'candidate_core_start':offset-extract_start,'candidate_core_end':end-extract_start,

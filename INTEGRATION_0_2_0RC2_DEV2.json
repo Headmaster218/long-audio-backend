@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "source_commit": "839187b89c833fe7f0457daee38edcfdb0d0f0a7",
+  "scope": "Reviewed B1/B2 opt-in verified identity runtime, synthetic tests and public documentation only. No residual-study implementation, corpora, raw evidence, voice vectors or private provenance files.",
+  "files": [
+    {
+      "path": "audio_backend/__main__.py",
+      "old_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204",
+      "new_sha256": "b1d397c26fea6df375de466d484045e037ab6d02bc3b6093956fd276e252bac4",
+      "bytes": 10888,
+      "public_sha256": "b1d397c26fea6df375de466d484045e037ab6d02bc3b6093956fd276e252bac4",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/app.py",
+      "old_sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f",
+      "new_sha256": "001029e59d7f0660eba6082fca3828dce4dcb35b241edfd3f0cbb3fcfe2ef459",
+      "bytes": 22152,
+      "public_sha256": "001029e59d7f0660eba6082fca3828dce4dcb35b241edfd3f0cbb3fcfe2ef459",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/change_feed.py",
+      "old_sha256": "39167f0eb447db0d781ee22685f5e3d61301320a681575ebdc7e35d99c37a5c9",
+      "new_sha256": "d21141b04d08f7583489ee5c48b353556c38cb6f24c9698fc4649c51aafced19",
+      "bytes": 12223,
+      "public_sha256": "d21141b04d08f7583489ee5c48b353556c38cb6f24c9698fc4649c51aafced19",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/embedding_space.py",
+      "old_sha256": null,
+      "new_sha256": "e34afa07d4f41e39f379c235c751959a60f1bef5d61bb57b7723984c915dd629",
+      "bytes": 18703,
+      "public_sha256": "e34afa07d4f41e39f379c235c751959a60f1bef5d61bb57b7723984c915dd629",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/identity_reset.py",
+      "old_sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78",
+      "new_sha256": "12ac552a3798b11aa3ace7f6ab38d951e815753605c4fb068d1245271cf1758b",
+      "bytes": 7218,
+      "public_sha256": "12ac552a3798b11aa3ace7f6ab38d951e815753605c4fb068d1245271cf1758b",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/inference/analyzer.py",
+      "old_sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da",
+      "new_sha256": "a43de64e5294becd7de97d4a633ae3697e3aef0a36651c72a7523ec4f4d05a6e",
+      "bytes": 39703,
+      "public_sha256": "a43de64e5294becd7de97d4a633ae3697e3aef0a36651c72a7523ec4f4d05a6e",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/lifecycle.py",
+      "old_sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb",
+      "new_sha256": "13eb44a5b3af9e7db8a882e83dbb9c0f70169889b772989b449f12e93d7f0524",
+      "bytes": 8230,
+      "public_sha256": "13eb44a5b3af9e7db8a882e83dbb9c0f70169889b772989b449f12e93d7f0524",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/profiles/verified-review-experimental-v1.json",
+      "old_sha256": null,
+      "new_sha256": "5217b5fe9737ba2b0348d8ec1d2ba31ccbce6da264630a7506a6f5a71b09cbff",
+      "bytes": 195,
+      "public_sha256": "5217b5fe9737ba2b0348d8ec1d2ba31ccbce6da264630a7506a6f5a71b09cbff",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "old_sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05",
+      "new_sha256": "860de9d0d68fe9d9a8521dde63b6096d3472dd8b8e1b60ea6bdb0aa286a7b8d6",
+      "bytes": 14390,
+      "public_sha256": "860de9d0d68fe9d9a8521dde63b6096d3472dd8b8e1b60ea6bdb0aa286a7b8d6",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/speaker_support.py",
+      "old_sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934",
+      "new_sha256": "cdec57064a189140cb4121431ff99a8266ed2f88c1eb44a74f2f0c980fe5e12c",
+      "bytes": 38036,
+      "public_sha256": "cdec57064a189140cb4121431ff99a8266ed2f88c1eb44a74f2f0c980fe5e12c",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/storage.py",
+      "old_sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c",
+      "new_sha256": "3ccfda5ab8ac2d0bf9597f02c54a066e516e501e3ff68d07f5e06c7081248fde",
+      "bytes": 49175,
+      "public_sha256": "3ccfda5ab8ac2d0bf9597f02c54a066e516e501e3ff68d07f5e06c7081248fde",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/support_vectors.py",
+      "old_sha256": null,
+      "new_sha256": "5068b5b87bef609244cd31d3c76026b9dc245b27c8fdc96a604202a62d129b6b",
+      "bytes": 7909,
+      "public_sha256": "5068b5b87bef609244cd31d3c76026b9dc245b27c8fdc96a604202a62d129b6b",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/verified_identity.py",
+      "old_sha256": null,
+      "new_sha256": "990292ed464f8b910f58fc9a6a332535ab8414436d6d2af86bb2b29850e423a8",
+      "bytes": 38969,
+      "public_sha256": "990292ed464f8b910f58fc9a6a332535ab8414436d6d2af86bb2b29850e423a8",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "old_sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91",
+      "new_sha256": "04d4eac1cc7f6a73024ac891343df0872eaedd4bcc9905d604ec505e07ace9b8",
+      "bytes": 18286,
+      "public_sha256": "04d4eac1cc7f6a73024ac891343df0872eaedd4bcc9905d604ec505e07ace9b8",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/EMBEDDING_SPACE_PROVENANCE.md",
+      "old_sha256": null,
+      "new_sha256": "97564eca69f6dbcd76f0c339941ffaaef182bf63a112c8cc2b8c2ac3e4bc784c",
+      "bytes": 8773,
+      "public_sha256": "f49ea13adec1139d85bd19e010a35fae53ab2633a5d82b70dabda602a9ce03bd",
+      "import_mode": "public-edition adaptation"
+    },
+    {
+      "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
+      "old_sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c",
+      "new_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314",
+      "bytes": 9329,
+      "public_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/VERIFIED_IDENTITY.md",
+      "old_sha256": null,
+      "new_sha256": "b835e8183c588b210d07f325fbe7ec44441eeff09016afd88e34b03c8d9d783b",
+      "bytes": 10556,
+      "public_sha256": "b835e8183c588b210d07f325fbe7ec44441eeff09016afd88e34b03c8d9d783b",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_embedding_space.py",
+      "old_sha256": null,
+      "new_sha256": "b4f5519237e774db0476e91eff41de8e4c61644684a3ac5309766a7b9bd66fa5",
+      "bytes": 17206,
+      "public_sha256": "b4f5519237e774db0476e91eff41de8e4c61644684a3ac5309766a7b9bd66fa5",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_verified_identity_bank.py",
+      "old_sha256": null,
+      "new_sha256": "8223e11953581a5d466d30099c1137ccfd237e5930b9baa53d92995dfac3bf52",
+      "bytes": 11827,
+      "public_sha256": "8223e11953581a5d466d30099c1137ccfd237e5930b9baa53d92995dfac3bf52",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_verified_identity_integrity.py",
+      "old_sha256": null,
+      "new_sha256": "218b42a68307a866167f8f291b8721d3a6baa29cf47d1b81b2d44a9b21a486d1",
+      "bytes": 6266,
+      "public_sha256": "dbb68f8370b50b010d2263fd13aca987eae4407a7af842dd8b376e3853abdd9c",
+      "import_mode": "public-edition adaptation"
+    },
+    {
+      "path": "tests/test_verified_identity_lifecycle.py",
+      "old_sha256": null,
+      "new_sha256": "1681ea70c91006b263afc520834045b0769b870ae280f987e0c05c623674e577",
+      "bytes": 38103,
+      "public_sha256": "1681ea70c91006b263afc520834045b0769b870ae280f987e0c05c623674e577",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_verified_identity_matching.py",
+      "old_sha256": null,
+      "new_sha256": "9f952c4cdc1578e304217f01d31e05f6293a00b6eace65392411fe7b95630891",
+      "bytes": 10046,
+      "public_sha256": "9f952c4cdc1578e304217f01d31e05f6293a00b6eace65392411fe7b95630891",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_verified_identity_projection.py",
+      "old_sha256": null,
+      "new_sha256": "19a0618842099946c15c1fe36f86327aec02d90aeaa89b829ffc70bcd1607e61",
+      "bytes": 8572,
+      "public_sha256": "19a0618842099946c15c1fe36f86327aec02d90aeaa89b829ffc70bcd1607e61",
+      "import_mode": "byte-identical"
+    }
+  ],
+  "public_adaptations": [
+    "Retain public-only README and existing documentation/test adaptations.",
+    "Append only the new verified-mode API section to the public API document.",
+    "Remove an internal review-commit label from a synthetic test docstring; no test semantics change.",
+    "Keep the embedding audit document factual without a stale pending-release sentence.",
+    "Advance both public package version fields to 0.2.0rc2.dev2."
+  ],
+  "state": "Experimental, default-off, no automatic anchor promotion, no calibration or long-recording acceptance.",
+  "supplemental_document_sources": [
+    {
+      "path": "docs/VERIFIED_IDENTITY_HTTP_SMOKE.md",
+      "source_commit": "697e02e9b6c82d289a34aeb05736982fbf8c1872",
+      "source_sha256": "1d60ad371ddc282e86be75b4779e134b90c1cd615ca3d3e53f5f0c6cbec27e17",
+      "public_sha256": "1d60ad371ddc282e86be75b4779e134b90c1cd615ca3d3e53f5f0c6cbec27e17",
+      "scope": "Reviewed aggregate functional smoke summary only; no raw evidence or private artifacts."
+    }
+  ]
+}
