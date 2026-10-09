@@ -19,7 +19,9 @@ expansion, resampling, padding inference or full-record concatenation.
 
 The original `exact-pcm16-v1` policy remains the low-level default. The historical
 `exact-pcm16-v2q1` policy and its documented failures remain reproducible. The
-separate `exact-pcm16-v2q1p1` policy must be selected explicitly through
+separate `exact-pcm16-v2q1p1` policy is the only independently accepted quiet-
+matching candidate in this bounded offline evaluation; q1 was rejected. p1 must
+be selected explicitly through
 `build_pcm16_plan(..., policy='exact-pcm16-v2q1p1')` or
 `fragment_matcher_p1.match_boundary_p1`. Policy identities are pinned in evidence
 and checkpoints; changing policies cannot reinterpret accepted history.
@@ -38,7 +40,7 @@ explicitly demonstrates that limitation. No false-provenance guarantee is made.
 
 ## Injected-provider runtime
 
-`fragment_runtime.LogicalPCMReader`, `LogicalRunRunner`,
+`fragment_runtime.LogicalPCMReader`, `LogicalRunner`,
 `fragment_runtime_contracts.RuntimePolicy` and
 `fragment_runtime_store.RuntimeStore` consume an already-decided plan. They do
 not match seams. Admission is narrower: original 16 kHz mono PCM16 WAV and one
