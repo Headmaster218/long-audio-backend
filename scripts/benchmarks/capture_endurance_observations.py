@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Private, read-only checkpoint observer. Never changes the service database."""
-import argparse, hashlib, json, os, sqlite3, tempfile, time
+import argparse, hashlib, json, os, sqlite3, tempfile, time, contextlib, shutil
 from pathlib import Path
 
 def sha(path):
@@ -14,11 +14,12 @@ def capture(run, output):
  if output.exists() and output.stat().st_size>128*1024**2: raise RuntimeError('Private cache 128 MiB limit reached')
  os.chmod(output.parent,0o700)
  source=run/'checkpoint/jobs.sqlite3'
+ if shutil.disk_usage(output.parent).free < 5*1024**3+source.stat().st_size+16*1024**2: raise RuntimeError('Observer disk reserve would be crossed')
  with tempfile.TemporaryDirectory(dir=output.parent) as td:
   snapshot=Path(td)/'snapshot.sqlite3'
-  with sqlite3.connect(f'file:{source}?mode=ro',uri=True) as src, sqlite3.connect(snapshot) as dst: src.backup(dst)
+  with contextlib.closing(sqlite3.connect(f'file:{source}?mode=ro',uri=True)) as src, contextlib.closing(sqlite3.connect(snapshot)) as dst: src.backup(dst)
   digest=sha(snapshot)
-  with sqlite3.connect(f'file:{snapshot}?mode=ro',uri=True) as src, sqlite3.connect(output) as out:
+  with contextlib.closing(sqlite3.connect(f'file:{snapshot}?mode=ro',uri=True)) as src, contextlib.closing(sqlite3.connect(output)) as out:
    os.chmod(output,0o600)
    page_size=out.execute('pragma page_size').fetchone()[0]
    out.execute('pragma max_page_count='+str(128*1024**2//page_size))

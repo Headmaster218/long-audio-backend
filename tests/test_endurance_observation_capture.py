@@ -3,6 +3,11 @@ from pathlib import Path
 import pytest
 spec=importlib.util.spec_from_file_location('capture_observer',Path(__file__).parents[1]/'scripts/benchmarks/capture_endurance_observations.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
+@pytest.fixture(autouse=True)
+def synthetic_disk_headroom(monkeypatch):
+ from types import SimpleNamespace
+ monkeypatch.setattr(m.shutil,'disk_usage',lambda path:SimpleNamespace(free=10*1024**3))
+
 def fixture(tmp_path):
  run=tmp_path/'run';(run/'checkpoint').mkdir(parents=True)
  for name in ['run.json','effective-settings.json']:(run/name).write_text('{}')
@@ -42,3 +47,42 @@ def test_null_scope_deduplicates(tmp_path):
  with sqlite3.connect(db) as c:c.execute('update chunks set next_offset=31')
  m.capture(run,out)
  with sqlite3.connect(out) as c:assert c.execute('select count(*) from query_scopes').fetchone()[0]==2
+
+def test_snapshot_fds_closed_even_without_gc(tmp_path):
+ import gc,os
+ if not Path('/proc/self/fd').exists():pytest.skip('Linux FD inspection')
+ run,db,out=fixture(tmp_path);gc.collect();gc.disable()
+ try:
+  for _ in range(5):m.capture(run,out)
+  leaked=[]
+  for f in Path('/proc/self/fd').iterdir():
+   try:
+    target=os.readlink(f)
+    if str(tmp_path) in target and 'snapshot.sqlite3 (deleted)' in target:leaked.append(target)
+   except OSError:pass
+  assert leaked==[]
+ finally:gc.enable();gc.collect()
+
+def test_exception_closes_all_sqlite_fds(tmp_path):
+ import gc,os,contextlib
+ if not Path('/proc/self/fd').exists():pytest.skip('Linux FD inspection')
+ run,db,out=fixture(tmp_path)
+ with contextlib.closing(sqlite3.connect(db)) as c:c.execute('drop table speaker_observations');c.commit()
+ gc.collect();gc.disable()
+ try:
+  with pytest.raises(sqlite3.OperationalError):m.capture(run,out)
+  leaked=[]
+  for f in Path('/proc/self/fd').iterdir():
+   try:
+    target=os.readlink(f)
+    if str(tmp_path) in target:leaked.append(target)
+   except OSError:pass
+  assert leaked==[]
+ finally:gc.enable();gc.collect()
+
+def test_disk_reserve_refuses_before_backup(tmp_path,monkeypatch):
+ from types import SimpleNamespace
+ run,db,out=fixture(tmp_path)
+ monkeypatch.setattr(m.shutil,'disk_usage',lambda path:SimpleNamespace(free=5*1024**3))
+ with pytest.raises(RuntimeError,match='disk reserve'):m.capture(run,out)
+ assert not out.exists()
