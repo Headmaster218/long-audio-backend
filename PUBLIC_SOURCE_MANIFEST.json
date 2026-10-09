@@ -20,8 +20,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1157,
-      "sha256": "b35de008039162d49d3a383d7b254fa04927c94cc91a3b71df61a0ba3bfddec6"
+      "bytes": 1440,
+      "sha256": "c915ef4454350c1e7f28250902f30def6bfee7e62bfcff287ffa8d462c4070de"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -35,8 +35,8 @@
     },
     {
       "path": "PUBLIC_POLICY.json",
-      "bytes": 11627,
-      "sha256": "a484082027e92e1b1be34df7f2a599818cd6dcdc1639fda8ade03f45f89ff321"
+      "bytes": 11897,
+      "sha256": "90f5f6da9c7e5e0a929ff82e8d1173369de035cede48eed1c16a1f618b8acb80"
     },
     {
       "path": "README.md",
@@ -44,9 +44,14 @@
       "sha256": "053cb2cd83f843433085141ee7a01c122706d2bdfb9cb480366ca4769673a83a"
     },
     {
+      "path": "RESEARCH_IMPORT.json",
+      "bytes": 519,
+      "sha256": "9f29e37c0994ad04245e0aa6c3aaf2550b5a6238494b3d75a9b67b0487d4f705"
+    },
+    {
       "path": "TEST_STATUS.md",
-      "bytes": 2728,
-      "sha256": "49aeb92ef623ceb996e69885427273804f40500c1c1984ac82ca3c933b2abd21"
+      "bytes": 3290,
+      "sha256": "0fd622d1ddae753cb0f41469b1cf2d1b666ab6727c7a99e4cb433f9141ba3dc8"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -137,6 +142,11 @@
       "path": "audio_backend/events/temporal_decode.py",
       "bytes": 1134,
       "sha256": "21465e960174dda664fe884d87554c12db9bfb78fd1328b5f537eca5303d248f"
+    },
+    {
+      "path": "audio_backend/experimental_identity_memory.py",
+      "bytes": 13732,
+      "sha256": "dd4f300381615e066e98ea9436f6e0d91789ac5cff38e3d47a9106b01bf049ad"
     },
     {
       "path": "audio_backend/guard.py",
@@ -322,6 +332,11 @@
       "path": "docs/GOALS_AND_ACCEPTANCE.md",
       "bytes": 1206,
       "sha256": "af31e635fbc2e022950b70b40a5e7ed7de49df9b67d101c508852b4b484003e1"
+    },
+    {
+      "path": "docs/IDENTITY_DIAGNOSTICS.md",
+      "bytes": 1395,
+      "sha256": "0784755df99d74d7dd3bdd03aa1414778014bbad4f19cf4064ab84beb4e8b792"
     },
     {
       "path": "docs/MOSS_TD_CPP_SETUP.md",
@@ -582,6 +597,11 @@
       "path": "tests/test_events_temporal_decode.py",
       "bytes": 961,
       "sha256": "638daf66800b18eaf99de5d8c44ee62017dea3b6e431212b4b32889928b600d1"
+    },
+    {
+      "path": "tests/test_experimental_identity_memory.py",
+      "bytes": 7448,
+      "sha256": "1971d3b5800b5771ff566e809626cd06303852f701369385c3b03180fc6cde0b"
     },
     {
       "path": "tests/test_final_audit.py",

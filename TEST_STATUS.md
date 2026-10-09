@@ -26,3 +26,11 @@ These are exact exported-source checks; no claim is made that this equals the fu
 - Python source fingerprint: `da63051c27f7483a097e0aa659854a3d53913eedb1d28f3f933a940505042cb4` using the algorithm above.
 - 22 additional synthetic tests cover exact pooled sample support, bounded incomplete metadata and coordinate projection validation.
 - No automatic enrollment, template updates, runtime support persistence or identity-quality acceptance was added.
+
+
+## Isolated identity-diagnostics branch
+
+- Entire exported research-branch suite: 621 passed, 1 optional-asset skip, one dependency deprecation warning in 24.47 seconds.
+- Python source fingerprint: `9603f3a60f2d5e43bfb24743ba12539b57ce91e043577c9b673bba9f09750599` using the algorithm above.
+- Adds 31 model-free synthetic diagnostic cases. Some passing cases deliberately demonstrate automatic-support error amplification; this is not a safety or quality pass.
+- The experiment remains absent from runtime imports and is not merged into `develop` or `main`.

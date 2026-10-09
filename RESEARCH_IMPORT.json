@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "scope": "Offline diagnostic module and invented synthetic fixtures only; no runtime wiring or dataset artifacts.",
+  "files": [
+    {
+      "path": "audio_backend/experimental_identity_memory.py",
+      "bytes": 13732,
+      "sha256": "dd4f300381615e066e98ea9436f6e0d91789ac5cff38e3d47a9106b01bf049ad"
+    },
+    {
+      "path": "tests/test_experimental_identity_memory.py",
+      "bytes": 7448,
+      "sha256": "1971d3b5800b5771ff566e809626cd06303852f701369385c3b03180fc6cde0b"
+    }
+  ]
+}

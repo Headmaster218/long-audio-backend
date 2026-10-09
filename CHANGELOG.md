@@ -1,5 +1,10 @@
 # Change log
 
+## Isolated research: identity diagnostics
+
+- Preserve a pure offline correction-memory prototype and 31 invented synthetic tests on a separate branch.
+- Retain the demonstrated wrong-match amplification counterexample. No deployment, enrollment, template-update or accuracy claim.
+
 ## 0.2.0rc2.dev0 (unreleased integration)
 
 - Add bounded forward-only sample-support metadata and a pure coordinate projection helper. This does not enroll speakers, certify purity, persist new references or enable automatic template updates.
