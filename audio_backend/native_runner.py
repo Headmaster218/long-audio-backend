@@ -8,6 +8,9 @@ from .runner import watch_parent
 
 
 def main():
+    if sys.argv[1:] == ['--fragment-serve']:
+        from .fragment_cpu_provider import child_main
+        return child_main()
     config=json.loads(Path(sys.argv[1]).read_text())
     threads=min(2,max(1,int(config.get('native_diarization_threads',2))))
     os.environ['OMP_NUM_THREADS']=str(threads)

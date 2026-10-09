@@ -7,16 +7,20 @@
   "reviewed_layer_order": [
     "normalized-runtime",
     "compressed-receipts-rolling-reader",
-    "finalized-pcm16-http"
+    "finalized-pcm16-http",
+    "finalized-cpu-provider"
   ],
   "expected_updated_paths": [
     "audio_backend/fragment_decoded_source.py",
+    "audio_backend/fragment_model_bridges.py",
     "audio_backend/fragment_model_bridges.py",
     "audio_backend/fragment_normalized_runtime.py",
     "audio_backend/fragment_rolling_decode.py",
     "audio_backend/fragment_runtime_contracts.py",
     "audio_backend/fragment_runtime_store.py",
     "audio_backend/fragment_runtime_store.py",
+    "audio_backend/native_runner.py",
+    "audio_backend/native_worker.py",
     "docs/DECODED_SOURCE_RECEIPTS.md",
     "docs/FRAGMENT_NORMALIZED_RUNTIME_INTERNAL.md",
     "docs/ROLLING_DECODE_READER.md",
@@ -132,6 +136,49 @@
           "supersedes": {
             "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
             "sha256": "cf88bc98c30a1dc3cc62857a3058523d3ebb599f0d7ec9feece26820b932b3ee"
+          }
+        }
+      ]
+    },
+    {
+      "component": "finalized-cpu-provider",
+      "projection_reference_commit": "74b51d282c53ff0354fde52e491627a5804aa633",
+      "note": "Projection/version hunks are composed with retained normalized-support branches; managed transport is a local override, not an exact upstream import.",
+      "files": [
+        {
+          "path": "audio_backend/fragment_model_bridges.py",
+          "bytes": 28273,
+          "sha256": "d00615ef7b99ba8ba4b8225d42b52f37e3e90f7372b68026b58561a1049dc982",
+          "source_kind": "reviewed_local_override",
+          "reviewed_base_commit": "44f1019533200261fe687d6814a433a05c59bd27",
+          "source_blob": "128381ab73908249729c512d7ce3d38203824a6c",
+          "supersedes": {
+            "source_commit": "d8b4e9ec2be2ea22ff5b9c0846c5b5ea3a800585",
+            "sha256": "d758b4dae9591c26cceee16850bbb178bc0a8825f4ee12b27dafa783a5b13a9c"
+          }
+        },
+        {
+          "path": "audio_backend/native_runner.py",
+          "bytes": 3328,
+          "sha256": "3f1dd47c80aaf51c6037d1ce73023134a8193fd239eb0ddfae112bd2d9788935",
+          "source_kind": "reviewed_local_override",
+          "reviewed_base_commit": "44f1019533200261fe687d6814a433a05c59bd27",
+          "source_blob": "ee9e87f59ec58a8a45e92ba068a6824df6629f20",
+          "supersedes": {
+            "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+            "sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0"
+          }
+        },
+        {
+          "path": "audio_backend/native_worker.py",
+          "bytes": 8872,
+          "sha256": "43296ed8149bca06328fc5e261051d1b9ac33bdaf76fe7c58606b9b6e1116421",
+          "source_kind": "reviewed_local_override",
+          "reviewed_base_commit": "44f1019533200261fe687d6814a433a05c59bd27",
+          "source_blob": "079e934f728bcf7ef521af929d6dc76ec802477c",
+          "supersedes": {
+            "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+            "sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1"
           }
         }
       ]

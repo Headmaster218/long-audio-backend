@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "purpose": "isolated finalized PCM16 HTTP candidate; exact reviewed source delta; active/shared policies unchanged",
-  "maximum_files": 250,
-  "maximum_total_bytes": 2550000,
+  "purpose": "isolated supervised finalized PCM16 CPU candidate; exact source delta; active/shared policies unchanged",
+  "maximum_files": 253,
+  "maximum_total_bytes": 2700000,
   "allowed_files": [
     ".gitignore",
     "README.md",
@@ -26,6 +26,8 @@
     "audio_backend/events/temporal_decode.py",
     "audio_backend/experimental_identity_memory.py",
     "audio_backend/fragment_core.py",
+    "audio_backend/fragment_cpu_meter.py",
+    "audio_backend/fragment_cpu_provider.py",
     "audio_backend/fragment_decoded_source.py",
     "audio_backend/fragment_evidence.py",
     "audio_backend/fragment_http.py",
@@ -194,6 +196,7 @@
     "tests/test_experimental_identity_memory.py",
     "tests/test_final_audit.py",
     "tests/test_fragment_core.py",
+    "tests/test_fragment_cpu_provider.py",
     "tests/test_fragment_decoded_source.py",
     "tests/test_fragment_http.py",
     "tests/test_fragment_matcher_p1.py",

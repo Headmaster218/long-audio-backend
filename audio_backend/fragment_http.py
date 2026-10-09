@@ -4,7 +4,7 @@ The ordinary Worker cannot claim these receipts. Provider factories implement th
 existing LogicalRunner/AnalyzerBridge contracts; all public output is validated
 against durable raw evidence before its atomic core transaction can commit.
 """
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 import hashlib
 import json
 import math
@@ -63,6 +63,8 @@ def erase(db, sid):
     """Called after the session tombstone, in the same erasure transaction."""
     if not db.execute('SELECT 1 FROM fragment_http_sessions WHERE session_id=?', (sid,)).fetchone():
         return
+    from .fragment_cpu_provider import erase as erase_cpu
+    erase_cpu(db, sid)
     for table in ('fragment_core_commits', 'fragment_controls', 'fragment_plans', 'fragment_runs'):
         db.execute(f'DELETE FROM {table} WHERE run_id=?', (sid,))
     db.execute('DELETE FROM fragment_http_evidence WHERE session_id=?', (sid,))
@@ -94,6 +96,9 @@ class SQLiteEvidenceStore:
                 owner['state'] != 'running' or owner['generation'] != self.generation
             ):
                 raise StaleWork('Session was erased or controlled; stale evidence write refused')
+            provider_owner = getattr(self, 'provider_owner', None)
+            if provider_owner is not None and not db.execute('SELECT 1 FROM fragment_http_evidence WHERE session_id=? AND sha256=?', (self.sid, ref['sha256'])).fetchone():
+                provider_owner.retain(db, len(encoded))
             db.execute('INSERT OR IGNORE INTO fragment_http_evidence VALUES(?,?,?,?)',
                        (self.sid, ref['sha256'], ref['bytes'], text))
         self.read(ref)
@@ -140,7 +145,7 @@ def public_projection(payload, evidence):
     units with disagreeing attribution remain unassigned. Evidence references
     identify the original item set; they are not asserted as global identities.
     """
-    if evidence.get('projection_version') != 'real-provider-projection-v1':
+    if evidence.get('projection_version') not in {'real-provider-projection-v1', 'real-provider-projection-v2'}:
         raise ValueError('Unsupported raw provider projection version')
     expected = {key: payload[key] for key in ('segments', 'turns', 'events', 'tail')}
     if canonical(evidence.get('publication_projection')) != canonical(expected):
@@ -148,6 +153,13 @@ def public_projection(payload, evidence):
     raw = evidence.get('raw_analyzer_result')
     if not isinstance(raw, dict) or not isinstance(raw.get('segments'), list) or not isinstance(raw.get('events'), list):
         raise ValueError('Public projection requires actual raw analyzer evidence')
+    if evidence['projection_version'] == 'real-provider-projection-v2':
+        from types import SimpleNamespace
+        from .fragment_model_bridges import project_analyzer
+        _, inventory = project_analyzer(raw, SimpleNamespace(start=payload['window']['read_start'],
+            end=payload['window']['read_end']), payload['window_id'])
+        if canonical(inventory) != canonical(evidence.get('projection_index')):
+            raise ValueError('Reviewed raw lexical/nonlexical inventory differs')
     if raw.get('overlap_candidates'):
         raise ValueError('Separate overlap candidate publication is not supported by this narrow mode')
     base = payload['window']['read_start'] / RATE
@@ -235,6 +247,11 @@ class HTTPRuntimeStore(RuntimeStore):
             raise ValueError('HTTP publication requires durable raw evidence')
         evidence = self.evidence_store.verify_core(payload['evidence_ref'], payload, self.sid)
         rows = public_projection(payload, evidence)
+        provider_owner = getattr(self.evidence_store, 'provider_owner', None)
+        if provider_owner is not None:
+            size = len(canonical(rows).encode()) + len(canonical(payload).encode())
+            provider_owner.check(3 * size)
+            provider_owner.retain(db, size)
         # One plan covers a maximum of 128 receipts. Anchor only the storage FK;
         # timestamps remain on the logical session axis, never rebase to chunks.
         cid = db.execute('SELECT id FROM chunks WHERE session_id=? ORDER BY timeline_start LIMIT 1', (self.sid,)).fetchone()[0]
@@ -258,6 +275,9 @@ class ProviderContext:
     paths: dict
     evidence_store: SQLiteEvidenceStore
     temp_root: Path
+    generation: int = 0
+    stop: object = lambda: False
+    ownership: dict = field(default_factory=dict)
 
 
 class FragmentHTTP:
@@ -289,6 +309,8 @@ class FragmentHTTP:
                         WHERE s.id=OLD.run_id AND s.deleted=1)
                     BEGIN SELECT RAISE(ABORT,'immutable fragment ledger'); END''')
         store.fragment_http = self
+        if factory is not None and hasattr(factory, 'initialize'):
+            factory.initialize(store)
 
     def create_session(self, db, sid):
         if self.factory is None:
@@ -344,6 +366,8 @@ class FragmentHTTP:
             raise ValueError('Finalized stream exceeds configured audio duration limit')
         self.ledger.fault = self.fault
         self.ledger._create_in_transaction(db, sid, plan, self.factory.policy, 'http-finish-v1')
+        if hasattr(self.factory, 'admit'):
+            self.factory.admit(db, sid, plan)
         db.execute('UPDATE stream_chunks SET stream_final=1 WHERE chunk_id=?', (last[0],))
         db.execute("UPDATE fragment_http_sessions SET state='queued' WHERE session_id=?", (sid,))
         db.execute("UPDATE chunks SET status='queued',error=NULL WHERE session_id=?", (sid,))
@@ -390,6 +414,7 @@ class FragmentHTTP:
             return False
         sid = None
         analyzer = native = None
+        context = None
         factory_started = factory_returned = False
         try:
             with self.store.db() as db:
@@ -409,7 +434,15 @@ class FragmentHTTP:
             snapshot = runtime.snapshot(sid)
             if self.factory.policy != snapshot.policy:
                 raise ValueError('Configured provider policy differs from the sealed run')
-            context = ProviderContext(self.settings, snapshot, paths, runtime.evidence_store, self.settings.data_dir/'tmp')
+            def stopped():
+                if worker and worker.stop_event.is_set():
+                    return True
+                with self.store.db() as db:
+                    db.execute('PRAGMA busy_timeout=100')
+                    value = db.execute('SELECT h.generation,h.state,s.deleted FROM fragment_http_sessions h JOIN sessions s ON s.id=h.session_id WHERE h.session_id=?',(sid,)).fetchone()
+                    return value is None or value['deleted'] or value['generation'] != generation or value['state'] != 'running'
+            context = ProviderContext(self.settings, snapshot, paths, runtime.evidence_store,
+                                      self.settings.data_dir/'tmp', generation, stopped)
             factory_started = True
             analyzer, native = self.factory(context)
             factory_returned = True
@@ -446,7 +479,15 @@ class FragmentHTTP:
                             provider.close()
                         except BaseException as exc:
                             errors.append(f'{label}: {type(exc).__name__}: {exc}'[:512])
-                if factory_started and not factory_returned:
+                manager = context.ownership.get('manager') if context else None
+                if manager is not None:
+                    try:
+                        manager.close()
+                        if not errors:
+                            manager.release()
+                    except BaseException as exc:
+                        errors.append(f'managed ownership: {type(exc).__name__}: {exc}'[:512])
+                if factory_started and not factory_returned and manager is None and not (context and context.ownership.get('no_process_started')):
                     errors.append('Factory construction did not return provider ownership; independent cleanup verification required')
                 if errors:
                     self.cleanup_error = '; '.join(errors)

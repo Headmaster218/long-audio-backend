@@ -92,7 +92,11 @@ class InstanceLock:
 
 class AnalyzerProcess:
     """One request in flight, file-backed bounded response, persistent imports per chunk."""
-    def __init__(self,settings,config_path):
+    def __init__(self,settings,config_path,*,managed_transport=None):
+        self.managed_transport=managed_transport
+        if managed_transport is not None:
+            self.proc=managed_transport.proc
+            return
         import sys
         self.settings=settings
         self.busy=False
@@ -121,7 +125,12 @@ class AnalyzerProcess:
         self.busy=False
         if '_error' in result: raise RuntimeError(result['_error'])
         return result
+    def analyze_raw(self,wav,*,diarization,analysis_options):
+        if self.managed_transport is None:raise ValueError('Raw bridge requires explicit managed transport')
+        return self.managed_transport.analyze(wav,diarization=diarization,analysis_options=analysis_options)
     def close(self):
+        if getattr(self, 'managed_transport', None) is not None:
+            return self.managed_transport.close()
         if self.busy:
             kill_tree(self.proc)
         try:

@@ -123,6 +123,7 @@ class Worker:
         self.stop_event.set(); self.wake.set()
         if self.thread.is_alive(): self.thread.join(timeout=15)
         if not self.thread.is_alive() and self.native:self.native.close();self.native=None
+        return not self.thread.is_alive()
     def notify(self): self.wake.set()
     def interrupted(self,cid):
         if self.stop_event.is_set(): return True

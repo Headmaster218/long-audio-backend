@@ -1,9 +1,8 @@
 # Finalized PCM16 HTTP experiment
 
-Status: opt-in **integration slice**, model-free tested only. This is not a
-real-provider launcher, model-quality acceptance, or a replacement for the
-legacy streaming worker. No CLI flag enables it and no provider is supplied by
-default. Neural resource budgets/supervision remain the provider's responsibility.
+Status: opt-in experimental integration with a pinned local CPU launcher.
+HTTP acceptance is model-free only; real neural HTTP execution and model quality
+remain unverified. The legacy worker and default launcher remain unchanged.
 
 ## Admission and API
 
@@ -130,7 +129,7 @@ The factory must independently bind/verify the approved local model/runtime
 fingerprints, actual model-call budgets, CPU/thread/affinity limits and aggregate
 process-tree resource supervisor. This module neither installs dependencies,
 loads a default model, expands a budget, nor starts a paid API. A real-provider
-launcher and neural HTTP acceptance remain explicitly unimplemented/unverified.
+launcher is described below; neural HTTP acceptance remains unverified.
 
 ## Reproducible model-free checks
 
@@ -141,11 +140,71 @@ turns, whole/fragment PCM read hashes, fault rollback, source mutation, controls
 300-second restart/replay, pagination and erasure races. Passing these checks
 establishes software behavior only, not neural accuracy or operational readiness.
 
-Factory construction must clean up every partially constructed provider if it
-raises before returning the pair; the caller cannot close references it never
-received. Controls fence evidence/publication atomically but do not preempt an
-already blocked provider call. Until that call returns, deletion remains blocked.
-Before a real launcher is admitted, every provider must have a bounded,
-cancellable lifecycle with child-process ownership verified by its supervisor.
-No timeout, wall-clock wait, or service restart is itself proof of native EOS or
-successful child cleanup.
+Unmanaged injected factories must clean partially constructed providers and
+bound their own blocked calls. Managed CPU contexts add `generation`, `stop()`
+and an ownership scope; controls stop the transport and kill/reap owned children.
+Neither interruption nor process exit implies native EOS.
+
+## Explicit CPU launcher and recovery
+
+Use `python -m audio_backend --fragment-cpu-manifest FILE
+--fragment-cpu-sha256 SHA256 --fragment-cpu-check` first. Check-only performs
+local hashing and validation without models, children, a database or listener.
+Omit `--fragment-cpu-check` to serve; `--data-dir`, `--host` and `--port` remain
+available. No setup, download or implicit asset discovery is performed.
+
+The bounded JSON manifest uses schema `fragment-cpu-provider-v1` and exactly
+`config`, `files`, `limits`, `native_provenance`. `Manifest` in
+`audio_backend/fragment_cpu_provider.py` defines the strict field contract.
+`files` maps canonical paths to byte counts/SHA256 for every actual consumed
+model, runtime companion, imported wrapper/dependency and interpreter. Supply
+the approved local configuration and expected native provenance explicitly.
+Before any model constructor, child handshake preloads and attests the actual
+lazy inference modules. OpenCC conversion data and actual libsndfile/framework
+objects are pinned; native ABI companions are checked after library mapping and
+before model creation. Ambient LD_LIBRARY_PATH, LD_PRELOAD and LD_AUDIT overrides
+are rejected. Interpreter/OS system libraries remain the trusted platform
+boundary. Parent projection/runtime imports are pinned separately; check-only
+performs local-file validation, while actual loaded-object attestation requires
+the child handshake. Public manifest views are defensive copies.
+Settings match the evaluated SenseVoice, Nemotron, ERes2Net and Zipformer CPU
+path. Extra separation/MOSS is disabled; independent native overlap tracks are
+preserved. Mixture words are not asserted to resolve every overlapping voice.
+
+Finite source-duration, run/core-attempt, wall/request, RSS, host/disk reserve,
+scratch and retained-evidence ceilings are explicit per deployment. Total call,
+audio and replay ceilings derive from the sealed recording length and attempts;
+there is no fixed 330-second recording limit. Reservations commit before model
+construction/compute and survive pause/retry/restart without refund. Metadata
+counters are bounded logical byte accounting, not a filesystem quota. RSS/disk
+polling is not a hard OS limit; deployment admission must allow safety headroom.
+
+Linux inherited sockets require no bind/listen. Both trusted child processes
+use dedicated groups, inherited CPU affinity capped at two CPUs, thread caps and
+nice19. Stdout/stderr are discarded; bounded error/call evidence is durable in
+SQLite. Admitted sherpa/ctypes engines create threads, not helpers. Arbitrary
+plugins, daemonization and other backends are prohibited. Observed unexpected
+descendants leave ownership pending; this is not a hostile-code sandbox.
+
+Lease scratch is outside generic `tmp` cleanup. Shutdown keeps instance ownership
+when the worker or cleanup remains unresolved; health reports the blocker.
+While the API is stopped, use the same manifest options with
+`--fragment-cpu-inspect-lease LEASE`; reconciliation additionally requires
+`--fragment-cpu-reconcile INSPECTION_SHA256`. The command takes the instance lock,
+rechecks the exact lease/manifest/generation, original boot/PID namespace, known
+identities and empty groups, and refuses unknown/live ownership. Gone/reused
+identities are termination observations, never fabricated historical reaping.
+A crash between durable spawn intent and PID registration is recoverable only
+when the original owner is positively gone in the same boot/PID namespace and a
+complete bounded process scan finds no admitted child or ambiguous candidate.
+The scan binds the persisted exact command, unique process token, parent identity
+and trusted no-daemonizing topology; inaccessible or incomplete scans remain
+blocked. Observed live ownership must terminate through its original retained
+owner or a separately authorized identity-bound operator action, then be
+reinspected. There is no force-clear action or bare-PID kill. Reconciliation
+never resets attempt budgets.
+
+Provider projection v2 composes the independently reviewed `74b51d2` whitespace
+inventory with the existing normalized-source branches. Public projection
+recomputes exact lexical/nonlexical accounting and ordered raw reconstruction;
+whitespace is not classified as silence. Original v1 evidence remains readable.

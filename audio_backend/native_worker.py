@@ -18,7 +18,11 @@ from .resources import check_resources,kill_tree
 
 
 class NativeProcess:
-    def __init__(self,settings):
+    def __init__(self,settings,*,managed_transport=None):
+        self.managed_transport=managed_transport
+        if managed_transport is not None:
+            self.proc=managed_transport.proc
+            return
         self.settings=settings;self.counter=0;self.busy=False
         self.temp=tempfile.TemporaryDirectory(prefix='native-diar-',dir=settings.data_dir/'tmp')
         self.root=Path(self.temp.name);config=self.root/'config.json'
@@ -29,6 +33,11 @@ class NativeProcess:
                  'AUDIO_PARENT_CREATED':str(psutil.Process().create_time()),
                  'OMP_NUM_THREADS':'2','OMP_THREAD_LIMIT':'2','OPENBLAS_NUM_THREADS':'2'})
     def request(self,action,stop,**kwargs):
+        if getattr(self, 'managed_transport', None) is not None:
+            result=self.managed_transport.request(action,stop,**kwargs)
+            observer=getattr(self,'response_observer',None)
+            if observer is not None:observer(result)
+            return result
         if psutil.virtual_memory().available<1536*1024**2:raise RuntimeError('Native diarization requires1.5GiB free host memory safety reserve')
         if self.proc.poll() is not None:raise RuntimeError('Native diarizer process exited')
         self.counter+=1;output=self.root/f'{self.counter}.json';self.busy=True
@@ -49,6 +58,8 @@ class NativeProcess:
         if '_error' in result:raise RuntimeError(result['_error'])
         return result
     def close(self):
+        if getattr(self, 'managed_transport', None) is not None:
+            return self.managed_transport.close()
         try:
             if self.busy:kill_tree(self.proc)
             if self.proc.stdin:self.proc.stdin.close()

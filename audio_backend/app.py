@@ -123,11 +123,19 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if settings.start_worker: worker.start()
             yield
         finally:
-            worker.stop(); lock.release()
+            stopped=worker.stop()
+            if stopped and fragments.cleanup_error is None:
+                lock.release()
+            else:
+                # Keep the live instance lock referenced while ownership is
+                # unresolved. A subsequent process also sees the durable fence.
+                app.state.shutdown_blocked=True
+                raise RuntimeError('Shutdown blocked: provider cleanup is unresolved')
 
     from . import __version__
     app=FastAPI(title='Local incremental audio analysis',version=__version__,lifespan=lifespan)
     app.state.store=store; app.state.worker=worker; app.state.settings=settings; app.state.fragments=fragments
+    app.state.instance_lock=lock
 
     @app.middleware('http')
     async def auth(request,call_next):
@@ -157,7 +165,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         if settings.overlap_backend!='none':
             from .overlap_candidates import overlap_readiness
             readiness=overlap_readiness(settings.inference_config())
-        return {'status':'ok','worker_alive':worker.thread.is_alive(),'active_chunk':worker.current_chunk,
+        return {'status':'blocked' if fragments.cleanup_error else 'ok',
+                'fragment_cleanup_pending':fragments.cleanup_error,
+                'worker_alive':worker.thread.is_alive(),'active_chunk':worker.current_chunk,
                 'process_tree_rss_bytes':tree_rss(),'memory_budget_bytes':settings.process_memory_limit_bytes,
                 'memory_budget_scope':'RAM process tree only; VRAM requires target-hardware measurement',
                 'asr_backend':settings.asr_backend,'diarization_backend':settings.diarization_backend,'overlap_backend':settings.overlap_backend,

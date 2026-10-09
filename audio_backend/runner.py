@@ -43,6 +43,9 @@ def watch_parent():
 
 
 def main():
+    if sys.argv[1:] == ['--fragment-serve']:
+        from .fragment_cpu_provider import child_main
+        return child_main()
     threading.Thread(target=watch_parent,daemon=True).start()
     from audio_backend.inference import AudioAnalyzer
     if sys.argv[1]=='--serve':

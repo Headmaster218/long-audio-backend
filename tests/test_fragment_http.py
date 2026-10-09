@@ -136,8 +136,15 @@ def env(tmp_path):
     settings = Settings(data_dir=tmp_path/'data', disk_reserve_bytes=0, start_worker=False,
                         process_memory_limit_bytes=384*1024**2)
     app = create_app(settings, fragment_provider_factory=factory)
-    with TestClient(app) as client:
-        yield app, client, factory
+    client=TestClient(app);client.__enter__()
+    yield app, client, factory
+    if app.state.fragments.cleanup_error:
+        with pytest.raises(RuntimeError,match='Shutdown blocked'):
+            client.__exit__(None,None,None)
+        assert app.state.shutdown_blocked
+        app.state.instance_lock.release()  # Only this model-free fixture owns it.
+    else:
+        client.__exit__(None,None,None)
     shutil.rmtree(tmp_path)
 
 

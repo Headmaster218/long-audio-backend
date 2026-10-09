@@ -96,4 +96,4 @@ python scripts/run_cpu_candidate.py --dry-run
 
 ### 实验性 finalized PCM16 HTTP 接线
 
-独立 feature 候选新增[显式配置 provider factory 的 HTTP 集成切片](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受已声明连续、已结束的原始 16 kHz 单声道 PCM16 WAV 流；零裁剪，逻辑窗口输出、公共行、游标和 EOS 确认同事务提交。默认仍关闭，未提供真实模型启动器，不代表神经模型或上线验收；全局身份学习和独立候选公开投影暂不可用。测试使用假 provider 与实际桥接契约，不启动神经推理。
+独立 feature 候选新增[已结束 PCM16 流的 HTTP 集成与显式 CPU manifest 启动器](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受声明连续的原始 16 kHz 单声道 PCM16 WAV；零裁剪，公共行、游标和 EOS 同事务提交。默认关闭；真实神经 HTTP 执行仍未验收。原生重叠说话轨道保留，全局身份学习和独立候选公开投影不可用。无模型测试使用实际受监督子进程传输与假模型，不下载或运行神经模型。

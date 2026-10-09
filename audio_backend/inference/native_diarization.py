@@ -126,7 +126,7 @@ class NativeDiarizer:
     Optional native_diarization_epoch_max_seconds can lower the 360s input cap.
     The embedding model, global identity registry, and ASR remain separate.
     """
-    def __init__(self, config):
+    def __init__(self, config, *, before_model_create=None):
         self._model = self._stream = None
         self._closed = False
         self._failed = False
@@ -144,6 +144,8 @@ class NativeDiarizer:
         if model_sha != MODEL_SHA256:
             raise ValueError('Native diarization model hash differs from the evaluated Nemotron-3 Q8 checkpoint')
         self._api = _CAPI(library)
+        if before_model_create is not None:
+            before_model_create()
         self._model = self._api.create(model)
         try:
             self._capacity = self._api.capacity(self._model)

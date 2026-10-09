@@ -258,7 +258,9 @@ too. Neither event requires millions of per-result updates.
 
 An explicitly configured embedding application may select the experimental
 `processing_mode=fragment_pcm16_v1` when creating a session. This mode is disabled
-without an injected provider factory and has no default neural launcher. It
+without an injected provider factory or the explicit pinned CPU-manifest launcher
+described in [the experiment guide](FRAGMENT_HTTP_EXPERIMENT.md). No neural
+provider is selected by default. It
 accepts one finalized, original 16 kHz mono PCM16 stream with zero trimming.
 See [the complete experimental contract](FRAGMENT_HTTP_EXPERIMENT.md) for
 admission, evidence-backed public rows, controls, atomicity and limitations.

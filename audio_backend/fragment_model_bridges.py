@@ -17,6 +17,9 @@ from .fragment_runtime_contracts import (
 )
 from .fragment_evidence import MAX_EVIDENCE_BYTES
 
+PROJECTION_VERSION = 'real-provider-projection-v2'
+UNIT_INVENTORY_VERSION = 'raw-unit-classification-v1'
+
 TIMING = 'SenseVoice native CTC starts; estimated ends; Latin pieces may form lexical words; not forced alignment'
 
 
@@ -319,7 +322,7 @@ class AnalyzerBridge:
                    'window': asdict(window), 'revision': snapshot.revision, 'plan_hash': snapshot.plan.sha256,
                    'contract': CONTRACT, 'policy_hash': snapshot.policy.sha256, 'mapping': pcm.mapping,
                    'map_hash': pcm.map_sha256, 'pcm_hash': pcm.pcm_sha256}
-        evidence = {'binding': binding, 'projection_version': 'real-provider-projection-v1',
+        evidence = {'binding': binding, 'projection_version': PROJECTION_VERSION,
                     'provider_binding': self.provenance, 'original_transport_bindings': self.source_bindings,
                     'native': native.evidence(), 'analyzer_request': {'diarization': diarization, 'analysis_options': options},
                     'timing_semantics': TIMING, 'event_timing': 'window_support',
@@ -382,27 +385,63 @@ def project_analyzer(raw, pcm, call_id):
     from .fragment_runtime import _validate_analyzer
     if not isinstance(raw, dict) or not isinstance(raw.get('segments'), list) or not isinstance(raw.get('events'), list):
         raise ValueError('Actual analyzer omitted segments/events')
-    result, index = {'segments': [], 'events': []}, {'units': [], 'events': []}
+    result, index = {'segments': [], 'events': []}, {'units': [], 'events': [],
+        'unit_inventory_version': UNIT_INVENTORY_VERSION, 'nonlexical_units': [],
+        'raw_unit_order': [], 'raw_text_reconstruction': []}
+    # Validate support and item/text bounds before classifying anything. A
+    # whitespace token is not an excuse to omit malformed timing or extra speech.
+    validation = {'segments': [], 'events': []}
+    for segment in raw['segments']:
+        if not isinstance(segment, dict):
+            raise ValueError('Analyzer segment is not an object')
+        units = segment.get('_units')
+        if not isinstance(units, list) or not units or any(not isinstance(u, dict) for u in units):
+            raise ValueError('Analyzer segment lacks supported native units')
+        validation['segments'].append({'source_track_id': 'mixture', '_units': [
+            {**{key: unit[key] for key in ('start', 'end', 'ownership_anchor', 'text')},
+             'unit_kind': 'native_word'} for unit in units]})
+    _validate_analyzer(validation, pcm)
     for si, segment in enumerate(raw['segments']):
         units = segment.get('_units')
-        if not isinstance(units, list) or not units:
-            raise ValueError('Analyzer segment lacks supported native units')
         out = {'source_track_id': 'mixture', '_units': []}
+        order, text_parts, raw_parts = [], [], []
         for ui, unit in enumerate(units):
             # Unit_kind is a storage category only. CTC end estimates and all
             # source confidence/anchor fields remain literally in raw evidence.
             text = unit.get('text')
-            if not isinstance(text, str) or not text.strip():
-                raise ValueError('Unsupported empty/whitespace lexical unit; raw evidence retained')
+            raw_text = unit.get('raw_text', text)
+            if not isinstance(raw_text, str) or len(raw_text) > 4096:
+                raise ValueError('Unsupported raw unit text; raw evidence retained')
+            text_parts.append(text); raw_parts.append(raw_text)
+            if text.isspace():
+                if raw_text.strip():
+                    raise ValueError('Whitespace unit has nonwhitespace raw text; raw evidence retained')
+                ni = len(index['nonlexical_units'])
+                index['nonlexical_units'].append({'segment': si, 'unit': ui,
+                    'reason': 'whitespace_only_analyzer_unit',
+                    'predicate': 'nonempty str.isspace(); no silence or native CTC-blank inference',
+                    'raw_unit': copy.deepcopy(unit),
+                    'previous_raw_unit': {'segment': si, 'unit': ui-1} if ui else None,
+                    'next_raw_unit': {'segment': si, 'unit': ui+1} if ui+1 < len(units) else None})
+                order.append({'unit': ui, 'classification': 'nonlexical_whitespace', 'index': ni})
+                continue
             projected = {key: unit[key] for key in ('start', 'end', 'ownership_anchor', 'text')}
             projected['unit_kind'] = 'native_word'
             out['_units'].append(projected)
+            order.append({'unit': ui, 'classification': 'lexical', 'index': len(index['units'])})
             index['units'].append({'segment': si, 'unit': ui, 'projected_segment': len(result['segments']),
                                    'projected_unit': len(out['_units'])-1,
                                    'speaker_local_id': segment.get('speaker_local_id'),
                                    'speaker_assignment': 'uncertain' if segment.get('speaker_local_id') is None else 'epoch_local_only',
                                    'confidence': unit.get('confidence'), 'timestamp_semantics': TIMING})
-        result['segments'].append(out)
+        if out['_units']:
+            result['segments'].append(out)
+        elif any(isinstance(segment.get(key), str) and segment[key].strip() for key in ('text', 'raw_text')):
+            raise ValueError('All-whitespace units cannot account for nonblank segment text; raw evidence retained')
+        index['raw_unit_order'].append({'segment': si, 'units': order})
+        index['raw_text_reconstruction'].append({'segment': si, 'text': ''.join(text_parts),
+            'raw_text': ''.join(raw_parts),
+            'semantics': 'Exact ordered raw-unit concatenation, including nonlexical whitespace; no inserted separator'})
     for ei, event in enumerate(raw['events']):
         a, b = pcm.start+frame(event['start']), pcm.start+frame(event['end'])
         result['events'].append({'start_frame': a, 'end_frame': b, 'event': event['label'],
@@ -411,6 +450,7 @@ def project_analyzer(raw, pcm, call_id):
                                 'score': event.get('score'), 'time_precision': event.get('time_precision', 'window_support'),
                                 'instance_semantics': 'model evidence, not a proven occurrence'})
     _validate_analyzer(result, pcm)
+    bounded_json(index, MAX_EVIDENCE_BYTES)
     return result, index
 
 

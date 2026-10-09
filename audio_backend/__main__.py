@@ -9,6 +9,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--fragment-cpu-manifest', type=Path, help='Explicit pinned finalized-PCM16 CPU provider manifest')
+    parser.add_argument('--fragment-cpu-sha256', help='SHA256 of the exact manifest file bytes')
+    parser.add_argument('--fragment-cpu-check', action='store_true', help='Read-only admission check; no models, database, child or listener')
+    parser.add_argument('--fragment-cpu-inspect-lease', help='Inspect one pending owner lease while holding the instance lock')
+    parser.add_argument('--fragment-cpu-reconcile', help='Explicitly reconcile that lease using the exact prior inspection SHA256')
     parser.add_argument('--data-dir', type=Path, default=Path(os.getenv('AUDIO_DATA_DIR','audio-data')))
     parser.add_argument('--model-dir', type=Path, default=Path(os.getenv('AUDIO_MODEL_DIR','models')))
     parser.add_argument('--threads', type=int, choices=range(1,5), default=4)
@@ -66,6 +71,58 @@ def main(argv=None):
         parser.error('port must be in 1..65535')
     if args.host not in {'127.0.0.1','localhost','::1'} and not os.getenv('AUDIO_API_KEY'):
         parser.error('Set AUDIO_API_KEY before network exposure; TLS reverse proxy is your responsibility')
+    if any((args.fragment_cpu_manifest,args.fragment_cpu_sha256,args.fragment_cpu_check,
+            args.fragment_cpu_inspect_lease,args.fragment_cpu_reconcile)):
+        import sys
+        import json
+        from .fragment_cpu_provider import Manifest, CPUFactory, namespace, inspect_lease, reconcile_lease
+        allowed={'--fragment-cpu-manifest','--fragment-cpu-sha256','--fragment-cpu-check',
+                 '--fragment-cpu-inspect-lease','--fragment-cpu-reconcile','--data-dir','--host','--port'}
+        raw=sys.argv[1:] if argv is None else argv
+        if any(a.split('=',1)[0] not in allowed for a in raw if a.startswith('--')):
+            parser.error('The CPU manifest owns inference/resource settings; do not mix legacy policy flags')
+        if not args.fragment_cpu_manifest or not args.fragment_cpu_sha256:
+            parser.error('CPU provider requires the explicit manifest and its SHA256')
+        if args.fragment_cpu_reconcile and not args.fragment_cpu_inspect_lease:
+            parser.error('Reconciliation requires the exact pending lease')
+        if args.fragment_cpu_check and args.fragment_cpu_inspect_lease:
+            parser.error('Choose check-only or ownership inspection')
+        manifest=Manifest.load(args.fragment_cpu_manifest,args.fragment_cpu_sha256)
+        manifest.verify(full=True)
+        ns=namespace()
+        if args.fragment_cpu_check:
+            print(json.dumps({'schema':manifest.value['schema'],'manifest_sha256':manifest.hash,
+                  'config':manifest.config,'limits':manifest.limits,'namespace':ns,
+                  'status':'model_free_check_only','model_execution':'not_run'},sort_keys=True))
+            return
+        if args.fragment_cpu_inspect_lease:
+            from .resources import InstanceLock
+            data=args.data_dir.resolve()
+            path=data/'jobs.sqlite3'
+            if not path.is_file():raise ValueError('Ownership inspection requires the existing service database')
+            lock=InstanceLock(data/'instance.lock');lock.acquire()
+            try:
+                result=(reconcile_lease(path,args.fragment_cpu_inspect_lease,manifest,args.fragment_cpu_reconcile)
+                        if args.fragment_cpu_reconcile else inspect_lease(path,args.fragment_cpu_inspect_lease,manifest))
+                print(json.dumps(result,sort_keys=True))
+            finally:lock.release()
+            return
+        from .settings import Settings
+        from .app import create_app
+        import uvicorn
+        config=manifest.config
+        settings=Settings(data_dir=args.data_dir,model_dir=Path(config['model_dir']),cpu_threads=2,
+            process_memory_limit_bytes=manifest.limits['tree_rss_bytes'],
+            disk_reserve_bytes=manifest.limits['disk_reserve_bytes'],
+            max_audio_seconds=manifest.limits['max_source_frames']/16000,
+            asr_backend='sensevoice',diarization_backend='nemotron',overlap_backend='none',
+            native_diarization_model=config['native_diarization_model'],
+            native_diarization_library=config['native_diarization_library'],native_diarization_threads=2,
+            inference_device='cpu',language='auto',window_seconds=30,context_seconds=2,offline=True)
+        print('EXPERIMENTAL finalized PCM16 CPU providers: native overlap retained; mixture words remain uncertain. '
+              'Existing SenseVoice custom and Nemotron OpenMDW model licenses still apply.',file=sys.stderr)
+        uvicorn.run(create_app(settings,fragment_provider_factory=CPUFactory(manifest)),host=args.host,port=args.port,workers=1)
+        return
     if args.device == 'vulkan':
         import sys
         print('WARNING: Vulkan path is untested on this CPU-only validation host. RAM watchdog does not measure VRAM; validate aggregate RAM+VRAM on target hardware.', file=sys.stderr)
