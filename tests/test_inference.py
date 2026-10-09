@@ -1,3 +1,4 @@
+from audio_backend.events.provenance import EventArtifactHashes
 import numpy as np
 import pytest
 import soundfile as sf
@@ -34,6 +35,9 @@ def test_silence_fast_path_without_models_loaded(tmp_path, monkeypatch, backend)
     a=object.__new__(AudioAnalyzer);a.closed=False;a.config={}
     a.backend=backend;a.threads=2;a._sensevoice=None
     a.paths={'asr':tmp_path/('model.int8.onnx' if backend=='sensevoice' else 'ggml-small-q5_1.bin')}
+    a._event_artifact_hashes = EventArtifactHashes()
+    for key in ('events', 'labels'):
+        a.paths[key] = tmp_path / key; a.paths[key].write_bytes(b'synthetic artifact')
     for method in ('_diarize','_events','_transcribe','_transcribe_turns'):
         monkeypatch.setattr(a,method,lambda *args:pytest.fail('Silence must not load or execute models'))
     p=tmp_path/'silence.wav';sf.write(p,np.zeros(16000,dtype=np.float32),16000)
@@ -96,6 +100,9 @@ def test_segment_provenance_and_backend_warnings(tmp_path, monkeypatch, backend)
     a.config={'chinese_script':'as_is','recover_missing_speech':False}
     a.backend=backend;a.threads=2;a._sensevoice=None
     a.paths={'asr':tmp_path/('model.int8.onnx' if backend=='sensevoice' else 'ggml-small-q5_1.bin')}
+    a._event_artifact_hashes = EventArtifactHashes()
+    for key in ('events', 'labels'):
+        a.paths[key] = tmp_path / key; a.paths[key].write_bytes(b'synthetic artifact')
     monkeypatch.setattr(a,'_events',lambda samples:([],[]))
     monkeypatch.setattr(a,'_diarize',lambda samples:([{'start':0.,'end':1.,'speaker_local_id':'a'}],{},512))
     monkeypatch.setattr(a,'_transcribe',lambda path:{'transcription':[{'tokens':[
@@ -115,6 +122,9 @@ def test_sensevoice_multispeaker_routes_to_turn_decode(tmp_path, monkeypatch):
     # Routing regression test, not evidence of recognition accuracy.
     a=object.__new__(AudioAnalyzer);a.closed=False;a.backend='sensevoice';a.threads=2
     a.config={'chinese_script':'as_is'};a._sensevoice=None;a.paths={'asr':tmp_path/'model.int8.onnx'}
+    a._event_artifact_hashes = EventArtifactHashes()
+    for key in ('events', 'labels'):
+        a.paths[key] = tmp_path / key; a.paths[key].write_bytes(b'synthetic artifact')
     turns=[{'start':0.,'end':1.,'speaker_local_id':'a'}, {'start':1.,'end':2.,'speaker_local_id':'b'}]
     monkeypatch.setattr(a,'_events',lambda samples:([],[]))
     monkeypatch.setattr(a,'_diarize',lambda samples:(turns,{},512))

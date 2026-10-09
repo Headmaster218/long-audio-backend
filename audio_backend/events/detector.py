@@ -59,6 +59,12 @@ def postprocess(details, thresholds=None, *, max_seconds=5., release_ratio=1.):
             end=min(e['end'],st+max_seconds);bounded.append(dict(e,start=st,end=end));st=end
     return sorted(bounded,key=lambda x:(x['start'],x['label']))
 
+def configured_thresholds(config):
+    thresholds=dict(DEFAULT_THRESHOLDS)
+    if 'event_threshold' in config: thresholds={k:float(config['event_threshold']) for k in thresholds}
+    thresholds.update(config.get('event_thresholds',{}))
+    return thresholds
+
 def detect_events(samples, model_path, labels_path, threads=2, config=None, *, tagger=None):
     import numpy as np
     config=config or {};a=np.asarray(samples,dtype=np.float32)
@@ -72,12 +78,13 @@ def detect_events(samples, model_path, labels_path, threads=2, config=None, *, t
         chunk=a[st:st+80000];start=st/16000;end=(st+len(chunk))/16000
         peak=float(np.max(np.abs(chunk))) if len(chunk) else 0.
         rms=float(np.sqrt(np.mean(chunk*chunk))) if len(chunk) else 0.
-        w=dict(start=start,end=end,speech_score=0.,top_labels=[],category_scores={},rms=rms,peak=peak)
+        w=dict(start=start,end=end,speech_score=0.,top_labels=[],category_scores={},rms=rms,peak=peak,model_inference_executed=False)
         # Peak-based silence keeps short transients out of an RMS silence shortcut.
         if peak<=float(config.get('event_silence_peak',1e-5)):
             w['category_scores']['silence']=dict(score=1.,source_label='digital_or_near_digital_silence');details.append(w);continue
         if len(chunk)<80000: chunk=np.pad(chunk,(0,80000-len(chunk)))
         stream=tagger.create_stream();stream.accept_waveform(sample_rate=16000,waveform=chunk);result=tagger.compute(stream)
+        w['model_inference_executed']=True
         scores=sorted([dict(label=str(r.name),score=float(r.prob)) for r in result],key=lambda x:-x['score'])
         private_voice_labels={'Male speech, man speaking','Female speech, woman speaking','Child speech, kid speaking','Baby cry, infant cry','Children shouting','Children playing'}
         w['top_labels']=[x for x in scores if x['label'] not in private_voice_labels][:10];w['speech_score']=max((x['score'] for x in scores if x['label']=='Speech'),default=0.)
@@ -85,7 +92,4 @@ def detect_events(samples, model_path, labels_path, threads=2, config=None, *, t
             cat=category(item['label'])
             if cat and item['score']>w['category_scores'].get(cat,{}).get('score',-1): w['category_scores'][cat]=dict(score=item['score'],source_label=item['label'])
         details.append(w)
-    thresholds=dict(DEFAULT_THRESHOLDS)
-    if 'event_threshold' in config: thresholds={k:float(config['event_threshold']) for k in thresholds}
-    thresholds.update(config.get('event_thresholds',{}))
-    return postprocess(details,thresholds,release_ratio=float(config.get('event_release_ratio',1.))),details
+    return postprocess(details,configured_thresholds(config),release_ratio=float(config.get('event_release_ratio',1.))),details
