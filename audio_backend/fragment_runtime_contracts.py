@@ -195,8 +195,11 @@ def validate_commit(snapshot, window, payload, tail, checkpoint):
     """Defensive publication boundary; caller-supplied state cannot widen scope."""
     expected_keys = {'window_id', 'window', 'revision', 'plan_hash', 'contract', 'policy_hash',
                      'mapping', 'map_hash', 'pcm_hash', 'segments', 'turns', 'events', 'tail', 'checkpoint'}
-    if not isinstance(payload, dict) or set(payload) != expected_keys:
+    if not isinstance(payload, dict) or set(payload) not in (expected_keys, expected_keys | {'evidence_ref'}):
         raise ValueError('Unknown or missing output envelope fields')
+    if 'evidence_ref' in payload:
+        from .fragment_evidence import validate_reference
+        validate_reference(payload['evidence_ref'])
     if payload['contract'] != CONTRACT or payload['policy_hash'] != snapshot.policy.sha256:
         raise ValueError('Output canonical/provider policy differs from run')
     # Compute the immutable expected read map without opening any source file.
