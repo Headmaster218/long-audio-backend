@@ -110,6 +110,121 @@ def event_score(ref,hyp,iou=.3):
   if i not in ri and j not in hi:ri.add(i);hi.add(j)
  p=len(hi)/len(hyp) if hyp else 0;r=len(ri)/len(ref) if ref else 0
  return {'precision':p,'recall':r,'f1':2*p*r/(p+r) if p+r else 0,'matched':len(ri),'reference_events':len(ref),'hypothesis_events':len(hyp),'iou_threshold':iou,'matching':'greedy descending IoU; same source event type'}
+# Evaluation targets only. This does not change the runtime detector taxonomy.
+ENVIRONMENTAL_EVENT_TARGETS = ('rain', 'driving', 'subway', 'door', 'music', 'silence')
+
+
+def _event_coverage_intervals(coverage):
+ """Only explicit, label-specific exhaustive intervals authorize negative scoring."""
+ import math
+ if coverage is None:
+  return {}
+ if not isinstance(coverage, dict) or set(coverage) != {'schema_version', 'exhaustive_intervals'} or type(coverage['schema_version']) is not int or coverage['schema_version'] != 1:
+  raise ValueError('Expected event annotation coverage schema_version 1 and exhaustive_intervals')
+ raw = coverage['exhaustive_intervals']
+ if not isinstance(raw, dict) or any(label not in ENVIRONMENTAL_EVENT_TARGETS for label in raw):
+  raise ValueError('Coverage labels must exactly match environmental evaluation targets')
+ result = {}
+ for label, intervals in raw.items():
+  if not isinstance(intervals, list):
+   raise ValueError('Exhaustive intervals must be a list')
+  parsed = []
+  for interval in intervals:
+   if not isinstance(interval, dict) or set(interval) != {'start', 'end'}:
+    raise ValueError('Coverage interval requires start/end only')
+   a, b = interval['start'], interval['end']
+   if any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) for x in (a, b)) or not 0 <= a < b:
+    raise ValueError('Coverage intervals must be finite nonnegative positive-duration supports')
+   parsed.append((a, b))
+  merged = []
+  for a, b in sorted(parsed):
+   if merged and a <= merged[-1][1]:
+    merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
+   else:
+    merged.append((a, b))
+  if merged:
+   result[label] = merged
+ return result
+
+
+def environmental_event_score(ref, hyp, coverage=None, iou=.3):
+ """Exact-label positive recall; precision only in explicitly exhaustive support.
+
+ Non-exhaustive labels never authorize false-positive counting. Predictions that
+ cross a coverage boundary are excluded from precision without clipping them.
+ The unchanged event_score remains the historical raw diagnostic.
+ """
+ import math
+ from collections import Counter
+ if isinstance(iou, bool) or not isinstance(iou, (int, float)) or not math.isfinite(iou) or not 0 < iou <= 1:
+  raise ValueError('IoU must be finite in (0, 1]')
+ intervals = _event_coverage_intervals(coverage)
+ def positive_duration(rows):
+  kept = []
+  for row in rows:
+   if not isinstance(row, dict) or not isinstance(row.get('event'), str):
+    raise ValueError('Event annotations require an exact event string')
+   a, b = row.get('start'), row.get('end')
+   if any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) for x in (a, b)) or not 0 <= a <= b:
+    raise ValueError('Event support must be finite, nonnegative and ordered')
+   if b > a:
+    kept.append(row)
+  return kept
+ ref, hyp = positive_duration(ref), positive_duration(hyp)
+ reference_labels = Counter(x['event'] for x in ref)
+ hypothesis_labels = Counter(x['event'] for x in hyp)
+ covered = [label for label in ENVIRONMENTAL_EVENT_TARGETS if reference_labels[label] or label in intervals]
+ unsupported = [label for label in ENVIRONMENTAL_EVENT_TARGETS if label not in covered]
+ per_target = {}
+ for label in covered:
+  gold = [x for x in ref if x['event'] == label]
+  predictions = [x for x in hyp if x['event'] == label]
+  def within(x):
+   return any(a <= x['start'] and x['end'] <= b for a, b in intervals.get(label, []))
+  scoped = [x for x in predictions if within(x)]
+  recall_matches = event_score(gold, predictions, iou)['matched']
+  precision_matches = event_score(gold, scoped, iou)['matched']
+  recall = recall_matches / len(gold) if gold else None
+  precision = precision_matches / len(scoped) if scoped else None
+  same_support = label in intervals and all(within(x) for x in gold + predictions)
+  false_positives = len(scoped) - precision_matches if label in intervals else None
+  f1 = None
+  if same_support and precision is not None and recall is not None:
+   f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.
+  per_target[label] = {
+   'reference_events': len(gold), 'hypothesis_events': len(predictions),
+   'matched_reference_events': recall_matches, 'recall': recall,
+   'precision': precision, 'f1': f1,
+   'exhaustive_intervals': [{'start': a, 'end': b} for a, b in intervals.get(label, [])],
+   'precision_scored_hypotheses': len(scoped), 'precision_matched_hypotheses': precision_matches,
+   'hypotheses_outside_exhaustive_coverage': len(predictions) - len(scoped),
+   'false_positive_events': false_positives,
+   'precision_identifiable': bool(intervals.get(label)),
+   'f1_support_aligned': same_support,
+  }
+ return {
+  'schema_version': 1, 'available': bool(covered),
+  'reason': None if covered else 'no_target_reference_coverage',
+  'metric_scope': 'covered_target_subset',
+  'target_labels': list(ENVIRONMENTAL_EVENT_TARGETS),
+  'covered_targets': covered, 'unsupported_targets': unsupported,
+  'all_targets_covered': not unsupported,
+  # Deliberately no cross-class overall accuracy: missing targets/negative support
+  # cannot be turned into a six-target percentage by an averaging convention.
+  'precision': None, 'recall': None, 'f1': None,
+  'per_target': per_target,
+  'reference_label_counts': dict(sorted(reference_labels.items())),
+  'hypothesis_label_counts': dict(sorted(hypothesis_labels.items())),
+  'unsupported_target_hypotheses': {label: hypothesis_labels[label] for label in unsupported if hypothesis_labels[label]},
+  'out_of_taxonomy_reference_events': sum(n for label, n in reference_labels.items() if label not in ENVIRONMENTAL_EVENT_TARGETS),
+  'out_of_taxonomy_hypothesis_events': sum(n for label, n in hypothesis_labels.items() if label not in ENVIRONMENTAL_EVENT_TARGETS),
+  'label_mapping': 'exact strings only; no inferred aliases, ancestors or source-context labels',
+  'iou_threshold': iou,
+  'matching': 'unchanged greedy descending IoU; same exact event type',
+  'timing_scope': 'Original intervals; no clipping, shifts, collars or onset-accuracy claim',
+ }
+
+
 def score(g,p):
  out={'recording_id':g.get('recording_id'),'lexical_serialized':lexical(text(g['segments']),text(p.get('segments',[]))),'limitations':['Serialized lexical WER/CER is sensitive to overlapping turn order. It is not tcpWER/cpWER.','Native word timestamps exist only for AMI; AliMeeting TextGrid has turn-level timing.','Gold timing quality and unannotated sounds limit event/boundary claims.']}
  if 'speaker_turns' not in p:
@@ -123,6 +238,7 @@ def score(g,p):
   out['diarization']['reference_definition']='first-to-last lexical word of each AMI source turn' if g.get('dataset')=='AMI' else 'released reference speaker-turn intervals'
  if 'words' in g:out['word_boundaries']=boundaries(g['words'],p.get('words',[]))
  if 'events' in g:out['events']=event_score([e for e in g['events'] if e['end']>e['start']],p.get('events',[]))
+ out['environmental_events']=environmental_event_score(g.get('events',[]),p.get('events',[]),g.get('event_annotation_coverage'))
  return out
 if __name__=='__main__':
  ap=argparse.ArgumentParser();ap.add_argument('gold');ap.add_argument('prediction');ap.add_argument('--out');a=ap.parse_args();result=score(json.loads(pathlib.Path(a.gold).read_text()),json.loads(pathlib.Path(a.prediction).read_text()));s=json.dumps(result,indent=2,ensure_ascii=False);print(s)
