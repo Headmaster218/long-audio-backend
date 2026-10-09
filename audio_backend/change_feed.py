@@ -120,6 +120,7 @@ def initialize(store):
             SELECT id,'identity_bank',NEW.identity_group,'upsert',json_object(
                 'identity_mode',NEW.mode,'profile_revision',NEW.revision,'availability_sequence',NEW.availability,
                 'invalidate_before_revision',NEW.revision,'invalidates_automatic_assignments',json('true'),'reason',NEW.change_reason,
+                'refresh_canonical_persons',json('true'),
                 'clears_all_identity_assignments',json(CASE WHEN NEW.change_reason='identity_reset' THEN 'true' ELSE 'false' END),
                 'policy_sha256',NEW.policy_sha256,'space_id',NEW.space_id,
                 'generation',(SELECT generation FROM speaker_identity_generations WHERE identity_group=NEW.identity_group)),
@@ -141,13 +142,17 @@ def changes(store, sid, after=0, limit=500):
         from .verified_identity import group_policy
         group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(sid,)).fetchone()[0]
         policy=group_policy(db,group)
+        from . import identity_canonical
+        canonical=identity_canonical.snapshot(db,group,policy)
         high_watermark = db.execute('SELECT COALESCE(MAX(cursor),0) FROM result_changes WHERE session_id=?',(sid,)).fetchone()[0]
     for row in rows:
         if row['data'] is not None:
             row['data'] = json.loads(row['data'])
             if row['entity'] in ('segments','speaker_turns'):
                 from .verified_identity import project_result
-                project_result(row['data'],policy)
+                project_result(row['data'],policy,canonical)
+            elif row['entity']=='speakers':
+                identity_canonical.project_person(row['data'],policy,canonical)
             if row['entity']=='event_candidates':
                 payload=json.loads(row['data'].pop('payload'))
                 row['data']['provenance']=json.loads(row['data']['provenance'])

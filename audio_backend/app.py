@@ -51,6 +51,12 @@ class IdentityReviewRequest(ReviewMutation):
     new_person_name: str | None=Field(default=None,min_length=1,max_length=200)
     attestation: ReviewAttestation
 
+class IdentityRelationRequest(ReviewMutation):
+    kind: Literal['same_person','different_people']
+    person_id: str=Field(pattern=r'^[a-f0-9]{32}$')
+    other_person_id: str=Field(pattern=r'^[a-f0-9]{32}$')
+    confirmed: bool
+
 class SpeakerRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     name: str | None=Field(default=None,max_length=200)
@@ -366,6 +372,21 @@ def create_app(settings=None,analyzer_factory=None):
     def identity_decision(sid:str,decision_id:str):
         from .verified_identity import decision
         return private_json(decision(store,sid,decision_id))
+
+    @app.get('/sessions/{sid}/identity-relations')
+    def identity_relations(sid:str,after:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
+        from .identity_canonical import events
+        return private_json(events(store,sid,after,limit))
+
+    @app.post('/sessions/{sid}/identity-relations')
+    def add_identity_relation(sid:str,body:IdentityRelationRequest):
+        from .identity_canonical import mutate
+        return private_json(mutate(store,sid,body.model_dump(),operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
+
+    @app.post('/sessions/{sid}/identity-relations/{event_id}/retract')
+    def retract_identity_relation(sid:str,event_id:str,body:ReviewMutation):
+        from .identity_canonical import mutate
+        return private_json(mutate(store,sid,body.model_dump(),previous=event_id,operator_context='bearer_authenticated_local_api' if settings.api_key else 'unauthenticated_local_api'))
 
     @app.delete('/identity-groups/{group}/speakers')
     def reset_speakers(group:str):

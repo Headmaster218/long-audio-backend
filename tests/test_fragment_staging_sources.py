@@ -122,7 +122,7 @@ def test_complete_source_tree_passes_exact_allowlist():
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
     assert policy['maximum_files'] == 250
-    assert policy['maximum_total_bytes'] == 2_500_000
+    assert policy['maximum_total_bytes'] == 2_600_000
     assert guard.MAX_BYTES == 250_000
 
 

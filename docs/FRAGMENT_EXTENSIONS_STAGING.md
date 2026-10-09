@@ -52,10 +52,10 @@ page and the layered manifest describe the current integrated source tree.
 
 All reviewed source/test/docs bytes are preserved. Integration provenance,
 allowlist and tests are separately committed; version/docs changes are separate.
-The source budget remains 2,500,000 bytes, 250 files and 250,000 bytes per file.
-The exact allowlist and existing privacy exclusions are retained. No cap was
-increased or private exclusion relaxed. Additional work requires its own audited
-delta. The older bridge allowlist is historical provenance, not the current
+The original dev5 staging budget was 2,500,000 bytes, 250 files and 250,000
+bytes per file. This branch adds the separately approved canonical-person delta
+below. Original import/layer records and privacy exclusions remain unchanged.
+Additional work requires its own audited delta. The older bridge allowlist is historical provenance, not the current
 staging policy. The unchanged source guard remains a heuristic review aid.
 
 Historical rejected-q1 assertions retain strict expected failures; unexpected
@@ -74,3 +74,26 @@ pytest and live decoder children. That is sampled, not OS-hard, peak memory.
 The full correction remains in private review evidence with its byte hash;
 reports are excluded from source ancestry. These earlier measurements do not
 substitute for this staging tree's own monitored regression results.
+
+## Explicit verified canonical-person candidate
+
+This isolated candidate adds exactly `audio_backend/identity_canonical.py` and
+`tests/test_verified_identity_canonical.py` to the reviewed source allowlist. Its
+exact source inventory is 249 files, with a 2,600,000-byte ceiling; the 250-file
+maximum, 250,000-byte per-file maximum and all privacy exclusions are unchanged.
+The candidate policy is local to this worktree. Shared/public policies, source
+guard implementations and original import/layer manifests are unchanged.
+
+The delta updates the existing verified-review bank, Store, API, change feed and
+API documentation to support explicit revision-checked person relations. It
+preserves original evidence owners, requires explicit same-person/different-people
+claims, and makes merge undo reversible without reassigning later reviews.
+Verified mode remains opt-in, with no new anchor admission or automatic learning
+from merges. This does not integrate identity into experimental fragment HTTP
+processing, calibrate speaker accuracy or establish long-recording quality.
+See [the relation and invalidation contract](VERIFIED_IDENTITY.md).
+
+Verification is model-free and file-by-file on one reserved CPU, with sampled
+process-tree RSS limited to 256 MiB and this candidate's generated worktree disk
+limited to 32 MiB. Independent review and the exact allowlist/privacy gate are
+required before a local source commit; this is not publication or mainline merge.

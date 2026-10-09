@@ -99,8 +99,92 @@ through another support ID or repeated upload.
 
 In verified groups, legacy enrollment/examples return `review_required` (409).
 Rename changes only the display label. Segment assignment is an explicit output
-correction. Merge and undo return `verified_merge_unsupported` (409); reversible
-reviewed merge/undo remains required future work.
+correction. The legacy speaker PATCH merge/undo form returns
+`verified_merge_unsupported_on_legacy_route` (409); use the revision-checked
+person-relation protocol below for verified groups.
+
+## Explicit canonical-person merge and undo
+
+This opt-in workflow joins existing verified-group person IDs after a human
+asserts that they identify the same person. It does not migrate legacy groups,
+discover people automatically, verify audio, create an anchor, or enable automatic
+learning. The normal identity mode remains legacy by default. The experimental
+fragment HTTP path has no integration with this workflow.
+
+Read `GET /sessions/{sid}/identity-bank` and `GET /sessions/{sid}/speakers`.
+Each verified-mode speaker retains its original `id` and exposes the current
+`canonical_person_id`, `canonical_revision` and `canonical_state`. The legacy
+`merged_into` field is not changed or used for verified canonical resolution.
+Only distinct current canonical roots can be merged; requests naming an alias
+are rejected rather than silently choosing a different source or target.
+
+`POST /sessions/{sid}/identity-relations` accepts:
+
+```json
+{
+  "expected_generation":"<generation>",
+  "expected_revision":2,
+  "idempotency_key":"merge-review-1",
+  "kind":"same_person",
+  "person_id":"<source canonical person id>",
+  "other_person_id":"<target canonical person id>",
+  "confirmed":true
+}
+```
+
+The operator assertion joins the entire source component to the target root.
+The response records `action: "merge"`, its immutable `event_id`, the new bank
+revision, and `acoustic_support_certified: false`. Original person rows,
+observations, review event owners, support/vector bindings and decision snapshots
+are not rewritten. Only already-active explicitly reviewed positives contribute
+to the merged fixed centroid. The margin compares distinct canonical people;
+the threshold policy is unchanged and remains experimental and uncalibrated.
+
+Use the same request with `kind: "different_people"` to record an explicit
+symmetric, non-transitive constraint between the two original IDs. Constraints
+between members of one canonical component are rejected. A constraint between
+any members blocks merging their components in either direction. Predicted
+overlap, coactivity and separation tracks never create a constraint themselves.
+
+`POST /sessions/{sid}/identity-relations/{event_id}/retract` accepts only current
+`expected_generation`, `expected_revision` and `idempotency_key`. It returns
+`action: "undo_merge"` for a merge, or `"retract_constraint"` for a different-person
+claim. Undo removes that exact active edge, even in a chain. For A→B→C, undoing
+A→B separates A while preserving B→C; undoing B→C keeps A→B. No later review is
+moved or reinterpreted. A review submitted to original A while A is an alias
+continues to belong to A; a review submitted to root C continues to belong to C.
+The server cannot infer which member a human meant when choosing a canonical ID.
+Clients must show the exact original owner when requesting a new review. An
+incorrectly owned review needs explicit retraction/replacement, not merge undo.
+
+Merge rejects a positive and an exact negative for the same evidence anywhere
+in the proposed component. Every later positive/negative/replacement review is
+checked against the component too. A component may have at most eight active
+positives. Combining nine or more fails without deleting or selecting evidence;
+the operator must explicitly retract selected reviews first, or keep the people
+separate. Exact negatives owned by any current member veto the winning canonical
+identity and never select a runner-up. Undo restores the negatives' original-owner
+scope along with the mapping. Retraction/source expiry never transfers evidence
+to another original person.
+
+All relation changes share the bank transaction, generation and revision CAS.
+Review and relation idempotency keys share a group/generation namespace. An
+identical retry returns its original response, including after later undo, so
+the response is not a statement that the relation remains active. A changed
+request under the same key conflicts. Concurrent incompatible changes serialize;
+the losing stale revision must be reviewed again. Source deletion expires the
+source's trust but retains person relations and allows later undo, even with no
+remaining references. Full identity reset erases relation events/count/head,
+rotates generation and rejects old-generation retries.
+
+`GET /sessions/{sid}/identity-relations?after=0&limit=100` provides private/no-store,
+cursor-paginated audit events and their current `active` state. The maximum page
+is 500; generation and current profile revision accompany every page. Relation
+history is capped globally at 4,096 events, including a reserved undo/retraction
+slot per active relation. Admissions fail rather than evicting history. A
+hash-linked ledger and group count/head detect inconsistent or missing relation
+rows before mapping or matching; this is application integrity checking, not a
+cryptographic defense against an actor rewriting the whole database.
 
 ## Matching and result interpretation
 
@@ -121,6 +205,16 @@ Overlap candidates keep local conditioning and turn links only in verified mode;
 `identity_decision_required` instructs clients to consult the linked source turn.
 They do not copy a global identity that could outlive its decision's validity.
 
+Verified segment/turn GETs and replay feed snapshots expose `original_speaker_id`
+from the stored assignment, effective `speaker_id`, and current `canonical_revision`
+and `canonical_state`. Clear stale automatic assignments before resolving a
+current canonical ID. The original ID is provenance, not an effective assignment.
+If mapping integrity is unavailable, effective assignments are null. Stored human
+corrections remain independent and resolve through the current mapping; their
+original IDs are preserved for undo. Speaker snapshots in the feed expose the
+same canonical fields as the speaker list. Policy and mapping are captured in
+the same read transaction for each response.
+
 ## Mandatory client invalidation protocol
 
 A bank change conservatively invalidates **all** earlier automatic decisions in
@@ -133,6 +227,7 @@ Invalidation is constant-size per group. The same transaction emits a compact
 - `generation`, `profile_revision`, and `invalidate_before_revision`
 - `invalidates_automatic_assignments: true`
 - `reason` and `clears_all_identity_assignments`
+- `refresh_canonical_persons: true`
 
 **Clients must process this event.** For an ordinary bank change, clear effective
 automatic assignments whose decision revision is below the supplied revision;
@@ -141,6 +236,11 @@ per-result update events for each old row. Paginated result GETs and replayed
 segment/turn feed snapshots also project stale automatic assignments as no
 current person. Result IDs and the existing feed provide committed-result order;
 `availability_sequence` is a bank-change sequence, not a total query chronology.
+On `refresh_canonical_persons`, refresh the speaker mapping and re-project cached
+human assignments from their original IDs too. Use the returned current revision;
+do not mix an older mapping with a newer result page. Merge/undo uses
+`reason: "canonical_persons_changed"` and conservatively invalidates all old
+automatic decisions without rescoring history.
 
 For `reason: "identity_reset"`, the new generation and
 `clears_all_identity_assignments: true` require clearing **all** cached identity
@@ -162,6 +262,7 @@ output corrections in surviving sessions.
 - 8 active positives per person; 1,024 verified people globally
 - 4,096 active positives and 8,192 active exact negatives globally
 - 32,768 immutable review events globally, including reserved revocation slots
+- 4,096 immutable relation events globally, including reserved undo/retraction slots
 - 1,000 group policies globally; empty groups are reclaimed only after their
   identity state is erased and no live sessions remain
 - Existing support defaults: 4,096 records and a combined 64 MiB live PCM/vector
@@ -187,7 +288,9 @@ runner-up match. This indexed pass is bounded by that group's share of the
 only that group's active reviews (at most 12,288 globally). It does not scan
 unrelated groups or unbounded transcript/decision history. Scoring streams at
 most 4,096 global positive references, retaining only one person's at-most-eight
-vectors at a time plus bounded person scores. These are workload bounds, not a
+vectors at a time plus bounded reference metadata and person scores. Canonical
+mapping loads only the group's indexed share of the 4,096 relation events and
+at most 1,024 person IDs. These are workload bounds, not a
 real-time latency guarantee.
 
 Data are local biometric evidence. Logical deletion removes live application

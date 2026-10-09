@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "purpose": "isolated dev5 source staging; exact reviewed layered import delta; active/public policies unchanged",
+  "purpose": "isolated verified canonical-person merge candidate; exactly two new source paths; shared policies unchanged",
   "maximum_files": 250,
-  "maximum_total_bytes": 2500000,
+  "maximum_total_bytes": 2600000,
   "allowed_files": [
     ".gitignore",
     "README.md",
@@ -45,6 +45,7 @@
     "audio_backend/fragment_runtime_contracts.py",
     "audio_backend/fragment_runtime_store.py",
     "audio_backend/guard.py",
+    "audio_backend/identity_canonical.py",
     "audio_backend/identity_reset.py",
     "audio_backend/inference/__init__.py",
     "audio_backend/inference/analyzer.py",
@@ -246,6 +247,7 @@
     "tests/test_stream_boundaries.py",
     "tests/test_stream_time_index.py",
     "tests/test_verified_identity_bank.py",
+    "tests/test_verified_identity_canonical.py",
     "tests/test_verified_identity_integrity.py",
     "tests/test_verified_identity_lifecycle.py",
     "tests/test_verified_identity_matching.py",

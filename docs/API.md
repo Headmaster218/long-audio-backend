@@ -253,3 +253,22 @@ convert implicitly. See [the full review API and mandatory compact invalidation
 protocol](VERIFIED_IDENTITY.md) before using this mode. An `identity_bank` change
 invalidates prior automatic assignments by revision; reset clears human labels
 too. Neither event requires millions of per-result updates.
+
+Verified groups use `POST /sessions/{sid}/identity-relations` for explicit
+`same_person` merges or `different_people` constraints, with original person IDs,
+`confirmed: true`, current generation/revision and an idempotency key. Retract an
+exact relation event at `POST /sessions/{sid}/identity-relations/{event_id}/retract`
+to undo it. `GET /sessions/{sid}/identity-relations` is cursor-paginated audit
+history. The legacy speaker PATCH merge form is unsupported in this mode.
+Merges never verify pooled audio or enroll references. Contradictory evidence,
+explicit different-person constraints and more than eight combined active
+positives reject the operation without deleting evidence. See the full protocol
+for reversible original-owner semantics and its evidence limits.
+
+Verified speaker lists/feed snapshots include `canonical_person_id`; result
+GETs/feed snapshots include stored `original_speaker_id` and effective `speaker_id`,
+with current `canonical_revision` and `canonical_state`. On an `identity_bank`
+event with `refresh_canonical_persons: true`, refresh mappings and re-project
+cached human labels from their original IDs, as well as clearing stale automatic
+assignments. Never treat an old original ID or an idempotent mutation response as
+the current effective identity. Legacy feed alias-resolution behavior is unchanged.
