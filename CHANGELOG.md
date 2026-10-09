@@ -2,6 +2,8 @@
 
 ## 0.2.0rc2.dev0 (unreleased integration)
 
+- Add bounded forward-only sample-support metadata and a pure coordinate projection helper. This does not enroll speakers, certify purity, persist new references or enable automatic template updates.
+- Add synthetic provenance/validation regressions.
 - Begin the next development series; keep package metadata and API version in sync.
 - No release, tag or model-quality acceptance.
 
