@@ -951,3 +951,51 @@ def test_opencc_config_cannot_select_unpinned_dictionary(tmp_path,monkeypatch):
     with pytest.raises(ValueError,match='dictionary chain'):
         Manifest(value).preload('analyzer');converted.append('conversion')
     assert not converted
+
+
+def test_manifest_read_atime_does_not_mean_artifact_mutation(tmp_path,monkeypatch):
+    import audio_backend.fragment_cpu_provider as module
+    mf=manifest(tmp_path);target=Path(mf.config['native_diarization_model']);real=Path.stat;reads=[]
+    class ReadStat:
+        def __init__(self,st,n):self.st,self.st_atime,self.st_atime_ns=st,st.st_atime+n,st.st_atime_ns+n*10**9
+        def __getattr__(self,name):return getattr(self.st,name)
+    def stat(path,*args,**kw):
+        value=real(path,*args,**kw)
+        if path==target:reads.append(True);return ReadStat(value,len(reads))
+        return value
+    monkeypatch.setattr(Path,'stat',stat)
+    mf.verify(full=True);mf.verify()
+    assert len(reads)>2
+
+
+@pytest.mark.parametrize('field',['st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns','same_size_content'])
+def test_manifest_post_hash_identity_race_is_rejected(tmp_path,monkeypatch,field):
+    import audio_backend.fragment_cpu_provider as module
+    mf=manifest(tmp_path);target=Path(mf.config['native_diarization_model']);real_stat=Path.stat;real_hash=module.sha256
+    changed=[]
+    class RaceStat:
+        def __init__(self,st):self.st=st
+        def __getattr__(self,name):return getattr(self.st,name)+(1 if name==field else 0)
+    def stat(path,*args,**kw):
+        value=real_stat(path,*args,**kw)
+        return RaceStat(value) if path==target and changed and field!='same_size_content' else value
+    def hashed(path):
+        if Path(path)==target:
+            changed.append(True)
+            if field=='same_size_content':return '0'*64
+        return real_hash(path)
+    monkeypatch.setattr(Path,'stat',stat);monkeypatch.setattr(module,'sha256',hashed)
+    with pytest.raises(ValueError,match='Pinned provider file changed'):mf.verify(full=True)
+
+
+def test_same_size_content_write_with_restored_mtime_still_fails(tmp_path,monkeypatch):
+    import audio_backend.fragment_cpu_provider as module
+    mf=manifest(tmp_path);target=Path(mf.config['native_diarization_model']);real_hash=module.sha256
+    def racing_hash(path):
+        result=real_hash(path)
+        if Path(path)==target:
+            before=target.stat();target.write_bytes(b'x'*before.st_size)
+            os.utime(target,ns=(before.st_atime_ns,before.st_mtime_ns))
+        return result
+    monkeypatch.setattr(module,'sha256',racing_hash)
+    with pytest.raises(ValueError,match='Pinned provider file changed'):mf.verify(full=True)

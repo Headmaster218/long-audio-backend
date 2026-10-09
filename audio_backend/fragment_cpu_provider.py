@@ -46,6 +46,11 @@ OPENCC_T2S = {'name':'Traditional Chinese to Simplified Chinese',
         {'type':'txt','file':'TSPhrases.txt'},{'type':'txt','file':'TSCharacters.txt'}]}}]}
 
 
+def artifact_identity(st):
+    # Reading may update atime; only content/ownership-relevant identity is stable.
+    return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
 def sha256(path):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -197,11 +202,11 @@ class Manifest:
         for name, entry in self._files.items():
             path = Path(name)
             st = path.stat()
-            identity = (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+            identity = artifact_identity(st)
             if path.resolve() != path or st.st_size != entry['bytes']:
                 raise ValueError('Pinned provider file substituted')
             if full or name not in self.identities:
-                if sha256(path) != entry['sha256'] or path.stat() != st:
+                if sha256(path) != entry['sha256'] or artifact_identity(path.stat()) != identity:
                     raise ValueError('Pinned provider file changed')
                 self.identities[name] = identity
             elif self.identities[name] != identity:
