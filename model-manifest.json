@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "downloads": [
+    {
+      "id": "whisper-small-q5_1",
+      "destination": "models/ggml-small-q5_1.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin",
+      "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+      "bytes": 190085487,
+      "license": "MIT",
+      "license_source": "https://github.com/openai/whisper/blob/main/LICENSE"
+    },
+    {
+      "id": "pyannote-segmentation-3.0",
+      "destination": "models/segmentation.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+      "sha256": "24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488",
+      "bytes": 6958444,
+      "license": "MIT",
+      "license_source": "https://huggingface.co/pyannote/segmentation-3.0/blob/main/LICENSE",
+      "extract_to": "models",
+      "max_extracted_bytes": 314572800
+    },
+    {
+      "id": "eres2net-base-zh-cn",
+      "destination": "models/speaker.onnx",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "bytes": 39593761,
+      "license": "Apache-2.0",
+      "license_source": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE"
+    },
+    {
+      "id": "zipformer-small-audioset",
+      "destination": "models/events.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/audio-tagging-models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15.tar.bz2",
+      "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6",
+      "bytes": 111034072,
+      "license": "Apache-2.0",
+      "license_source": "https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+      "extract_to": "models",
+      "max_extracted_bytes": 314572800
+    },
+    {
+      "id": "whisper.cpp-v1.8.2",
+      "destination": "vendor/whisper.cpp.tar.gz",
+      "url": "https://api.github.com/repos/ggml-org/whisper.cpp/tarball/v1.8.2",
+      "sha256": "deb39eafbab81c95651c1c55a279fa0a635323c837dd23abe30358515cdbdcc7",
+      "bytes": 7585381,
+      "license": "MIT",
+      "license_source": "https://github.com/ggml-org/whisper.cpp/blob/v1.8.2/LICENSE",
+      "extract_to": "vendor/whisper.cpp",
+      "strip_root": true,
+      "max_extracted_bytes": 314572800
+    },
+    {
+      "id": "whisper-medium-q5_0",
+      "destination": "models/ggml-medium-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin",
+      "sha256": "19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f",
+      "bytes": 539212467,
+      "license": "MIT",
+      "license_source": "https://github.com/openai/whisper/blob/main/LICENSE",
+      "optional_quality_model": true
+    },
+    {
+      "id": "whisper-large-v3-turbo-q5_0",
+      "destination": "models/ggml-large-v3-turbo-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "bytes": 574041195,
+      "license": "MIT",
+      "license_source": "https://github.com/openai/whisper/blob/main/LICENSE",
+      "optional_turbo_model": true
+    },
+    {
+      "id": "sensevoice-small-int8",
+      "destination": "models/sensevoice/model.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+      "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+      "bytes": 163002883,
+      "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+      "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "optional_sensevoice_model": true,
+      "extract_to": "models/sensevoice",
+      "strip_root": true,
+      "max_extracted_bytes": 367001600
+    },
+    {
+      "id": "sensevoice-model-license",
+      "destination": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "url": "https://raw.githubusercontent.com/modelscope/FunASR/main/MODEL_LICENSE",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+      "bytes": 5306,
+      "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+      "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "optional_sensevoice_model": true
+    }
+  ],
+  "embedding": {
+    "dimension": 512,
+    "normalization": "L2",
+    "metric": "cosine",
+    "calibration_required": true
+  },
+  "notes": [
+    "Weights downloaded only by explicit setup; inference never downloads.",
+    "AudioSet classifier returns coarse 5-second window detections, not sample-precise onsets.",
+    "Model binaries excluded from source deliverable."
+  ],
+  "validation_sources": [
+    {
+      "id": "official-four-speakers-zh",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/0-four-speakers-zh.wav",
+      "sha256": "bedf036caed208386c67b4ef4b11f83d74dd0d420b102163a1c33cd09cde7010",
+      "bytes": 1819586,
+      "used_region_seconds": [
+        0,
+        30
+      ],
+      "redistributed": false,
+      "license_note": "Test-audio-specific license not established; excluded from source distribution."
+    }
+  ],
+  "runtime_files": [
+    {
+      "path": "models/ggml-small-q5_1.bin",
+      "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+      "bytes": 190085487
+    },
+    {
+      "path": "models/speaker.onnx",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "bytes": 39593761
+    },
+    {
+      "path": "models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
+      "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+      "bytes": 5992913
+    },
+    {
+      "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+      "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34",
+      "bytes": 91932865
+    },
+    {
+      "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv",
+      "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429",
+      "bytes": 14675
+    },
+    {
+      "path": "models/sensevoice/model.int8.onnx",
+      "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51",
+      "bytes": 239233841,
+      "optional_sensevoice_model": true
+    },
+    {
+      "path": "models/sensevoice/tokens.txt",
+      "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+      "bytes": 315894,
+      "optional_sensevoice_model": true
+    },
+    {
+      "path": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+      "bytes": 5306,
+      "optional_sensevoice_model": true
+    }
+  ]
+}

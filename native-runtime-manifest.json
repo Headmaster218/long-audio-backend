@@ -1,0 +1,46 @@
+{
+  "release": "0.2.0",
+  "release_source": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.2.0",
+  "runtimes": {
+    "linux-x86_64-cpu": {
+      "id": "linux-x86_64-cpu",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz",
+      "bytes": 6683477,
+      "sha256": "f396057150f1b774935c7414fd32ebc04195a795a34120d78d8c9ecefa1b7507",
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz"
+    },
+    "linux-x86_64-vulkan": {
+      "id": "linux-x86_64-vulkan",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-linux-x86_64-vulkan.tar.gz",
+      "bytes": 16618142,
+      "sha256": "c8d0ed5b9ac5fb6d5c460015ba38ea217415c44edc1e6d49120646781009aee6",
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-vulkan.tar.gz"
+    },
+    "windows-x86_64-cpu": {
+      "id": "windows-x86_64-cpu",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-windows-x86_64-cpu.zip",
+      "bytes": 5528418,
+      "sha256": "82c80451086e86194aba9af19f800da77cd66d1c28d993d0efceffd6cdb49bb8",
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-windows-x86_64-cpu.zip"
+    },
+    "windows-x86_64-vulkan": {
+      "id": "windows-x86_64-vulkan",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-windows-x86_64-vulkan.zip",
+      "bytes": 19302464,
+      "sha256": "edf15a04ba98740aa0ab75ae4681ac7ad0a488b22b35ce2cbebd10590bb1c1e1",
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-windows-x86_64-vulkan.zip"
+    }
+  },
+  "model": {
+    "url": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed7/Nemotron-3-Diarization.q8_0.gguf",
+    "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+    "bytes": 107012128,
+    "id": "nemotron3-q8",
+    "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf"
+  },
+  "model_license": "OpenMDW-1.1",
+  "model_license_url": "https://raw.githubusercontent.com/OpenMDW/OpenMDW/main/1.1/LICENSE.OpenMDW-1.1",
+  "model_license_sha256": "2ab44b68365473c112f5092211a38f231cb23e50de68b75a13369adbd76a74df",
+  "runtime_license": "Apache-2.0 with bundled third-party notices",
+  "gpu_status": "Vulkan artifacts published upstream; our provider is CPU-only and Vulkan execution remains untested"
+}
