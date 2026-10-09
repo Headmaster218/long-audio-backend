@@ -38,6 +38,10 @@ def check_pcm(pcm):
         or hashlib.sha256(pcm.pcm).hexdigest() != pcm.pcm_sha256
         or digest(pcm.mapping) != pcm.map_sha256 or not 0 < len(pcm.mapping) <= 128):
         raise ValueError('PCM window bytes, contract, bound or map hash disagree')
+    if pcm.mapping[0].get('kind') == 'native-filter-support-v1':
+        from .fragment_normalized_runtime import validate_support
+        validate_support(pcm.mapping, pcm.start, pcm.end)
+        return
     cursor = pcm.start
     for item in pcm.mapping:
         span = item['span']
@@ -428,6 +432,27 @@ def embedding_input_maps(records, pcm):
             or support['pooled_sample_count'] != receipt['sample_count']
             or support['pooled_pcm_sha256'] != receipt['pcm_sha256']):
             raise ValueError('Embedding selected support differs from actual logical read/compute input')
+        if pcm.mapping[0].get('kind') == 'native-filter-support-v1':
+            # Keep actual float32 pooled-input receipts literally. Native support
+            # is many-to-many filter context, never exact source sample selection.
+            check_pcm(pcm)
+            selected = []
+            count = 0
+            for left, right in support['intervals_samples']:
+                a, b = pcm.start+left, pcm.start+right
+                if type(left) is not int or type(right) is not int or not pcm.start <= a < b <= pcm.end:
+                    raise ValueError('Embedding selection leaves canonical read')
+                selected.append({'canonical_frames': [a, b], 'support_chunk_indexes': [
+                    i for i, part in enumerate(pcm.mapping)
+                    if part['canonical_start'] < b and part['canonical_end'] > a]})
+                count += b-a
+            if count != receipt['sample_count']:
+                raise ValueError('Embedding canonical selection count differs from actual pool')
+            item.update(source_mapping_status='canonical_selection_with_native_filter_support',
+                        canonical_selection=selected, native_filter_support=copy.deepcopy(pcm.mapping),
+                        read_pcm_sha256=pcm.pcm_sha256)
+            result.append(item)
+            continue
         mappings = []
         count = 0
         for left, right in support['intervals_samples']:
