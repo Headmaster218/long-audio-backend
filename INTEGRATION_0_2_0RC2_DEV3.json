@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+  "source_tree": "dc6f6ab947daf91f682fe7ee432f387730abc244",
+  "scope": "Default-OFF internal exact PCM planning, explicit experimental p1 matching and an injected-fake-provider logical runner. No production worker/API/model integration or release acceptance.",
+  "files": [
+    {
+      "path": "audio_backend/fragment_core.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "6e4b075b1d33a5dd65e473c7dd6ea62d4f7a21f8",
+      "sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819",
+      "bytes": 27203,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_matcher.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "8649a288339182f44f535a7c53b852a58aa9be7d",
+      "sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872",
+      "bytes": 8668,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_matcher_p1.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "4ea6d0ed3fccb77b808a9cfccfce442dc790ec8c",
+      "sha256": "2cc0014cd2c0b4be4508cd3a7debde64ed7a174ca965570df855541c5992be73",
+      "bytes": 3688,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_matcher_v2.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "dd53a6a37f80d050c695788b38a08bad02aa529f",
+      "sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3",
+      "bytes": 2713,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "815a003708490fa245229a7ab80ac540d515f201",
+      "sha256": "2f8074d9e514c7fad41a08164e9945cade1d54d16f2b381a5a9e0b694483da8f",
+      "bytes": 18038,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime_contracts.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "18d2c0f56c5b7866fc951576ca865028760eead8",
+      "sha256": "a99a5d97230d11de8cfeb498b8a9cd025a32faf8e76f5010ecbc03169f5fc089",
+      "bytes": 15042,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime_store.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "a2979a3e4eee39f121de15070738fc1db7ee323d",
+      "sha256": "59fb99630271ee0495ccc9ad58744bbd7ff017092ea9d0183b46e9cf373a86ee",
+      "bytes": 17395,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/FRAGMENT_RUNTIME_INTERNAL.md",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "b372608773cb2c905acf4fca571bdd4b4bacf3d8",
+      "sha256": "91f66ca3bd1659d16e0db96311cf74426e3464828c558f18d98bdd4204e8fce8",
+      "bytes": 8027,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "22acc64ddd530dd9df53e2129e3241b6df956f09",
+      "sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391",
+      "bytes": 4584,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "scripts/benchmarks/diagnose_fragment_anchor_layout.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "bb3a8a26a5d250c9123fde95a02729aa0f3565aa",
+      "sha256": "01a268852bc923f1419765fbeca30211127c20aa750b43e0129b9d1a854c1957",
+      "bytes": 8117,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "scripts/benchmarks/run_fragment_core_tests.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "959fecfb0829b69ed87c3dfe9473c3082c656147",
+      "sha256": "83b21ab41265576403a3439f6f6766e0c567e9450db91e727f6dcf2b2513a9c9",
+      "bytes": 6748,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/conftest.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "20053796c1e26c6d8e29acfa53cdaac3790991ee",
+      "sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe",
+      "bytes": 1222,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/fixture_recipe.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "17311a81be001f77283b9512de11ea9dcf0f87a1",
+      "sha256": "49c16ea769346cce823cdf97dfafa80b76add009287c0e070550725d03a534b2",
+      "bytes": 2579,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/freeze.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "af57d93e59bb71024b67e72d694b8deb6c6bb88c",
+      "sha256": "6c1f58fc0f3cd7b8e35ca02a007bfe0dd9be294788164bc11d8d81c9192838fe",
+      "bytes": 5425,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/frozen_hashes.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "857411e697a986956e946d10f6c2cf42069e9ea4",
+      "sha256": "a23df11a68ac502fc768406576e5876b714642d6e58cbc9304e6eebe1e2f6c5c",
+      "bytes": 6242,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/hardening_freeze.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "ba0e99ebb791411418ccd24575262f9340b08314",
+      "sha256": "9822f2bd6994c0945945404fa4419f5301fdccbbf69084a6ba0b881e92a7b424",
+      "bytes": 1129,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/p1/fixture_recipe.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "d109c86c48653d11858b4c4797835607faeff6e5",
+      "sha256": "b83b231e44db788b4fc143853325928d78b980b9466df2cab309ad7a5381f615",
+      "bytes": 1293,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/p1/freeze.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "e5eab45f0745d5c061584e5ad8d9039e3e565660",
+      "sha256": "8c471f2921e598460213cb4c5c49d22a72c7d5af06b16701a793327025113a10",
+      "bytes": 8019,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/p1/frozen_hashes.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "b3f17d2738fda2a9ac5a68bfccb2f613ae74fc2f",
+      "sha256": "126b7920483a7f0e4cd143347f537e0c0a45a7ac14f6bd92185c6463028a69a5",
+      "bytes": 5465,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/p1/q1_plan_hashes.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "dc254c7c9dc5711878a3bf44731d14e9aca52be0",
+      "sha256": "483a4745c304ecaa40576bf82099043cb9e7f07f197d948d9108de9c280a9741",
+      "bytes": 3520,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/v2/fixture_recipe.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "766215f3ec2cd15fcd6d311ef214bc7a08246406",
+      "sha256": "02f9a4a9edf8c82cae16c508ab6e94d836f8adb5618a27604eb0c004a18e317a",
+      "bytes": 4647,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/v2/freeze.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "506c734c225e0566d9539703eb48cf7631ab7217",
+      "sha256": "6f1ff8599b84de0375ce55b60fe4c19487a9d77912afab11538e6c9dab4e3d6a",
+      "bytes": 27005,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/v2/frozen_hashes.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "16447381ba8ce4a72853f64bbccc14862fc2d666",
+      "sha256": "28b502791c3eceab5c78142fc3ffb90846b135a84ced4fa5e33d8c71c9d496cd",
+      "bytes": 20267,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/fragment_core_data/v2/v1_plan_hashes.json",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "0376127f2655e22a5214e369c06888a21c63e622",
+      "sha256": "5c5ba74eb75c954ea18ca8d00bee47b810bf992ccaf5629eafb05280aae702fc",
+      "bytes": 1874,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_core.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "01c5a632a21056817c940221bec6360ccd7d934c",
+      "sha256": "01eddf8088cdf604c186b3dc8dbe27ad84d941cb66f3a36d6d02b10ee1e81882",
+      "bytes": 29532,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_matcher_p1.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "8b83e86ae67f90d929e32a2f83d07dbb42b6ba58",
+      "sha256": "10a3f546fd372ecc3bd476c90b1740a826fbe6391a94dd61bc54b9934ee02037",
+      "bytes": 7215,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_matcher_v2.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "1751ae0901758a97b82d994516a711a0fd4e5f79",
+      "sha256": "c1cdf8aa9af7330f5b2139d94cdf5f54b64408350dcb8a15d3e8f0297a574732",
+      "bytes": 9516,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_real_pcm16.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "cd419ee95f444e1f02d0a38952d2624776704408",
+      "sha256": "8ce808e938bc62394e996a69fc72fdb07698b98cccf61df0aec9240b3a23f08b",
+      "bytes": 14346,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_real_pcm16_p1.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "561759b8ad2c9d0b60ee193d1093be24995184a1",
+      "sha256": "003dea9329877adb0d8982f61f73f2aba5bc2fb36764eadeae07c9c8eac350e9",
+      "bytes": 1445,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_real_pcm16_v2.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "084ec6fc5a35887cc7dee6def5383ea808d87ca8",
+      "sha256": "ea78d150b8e4d4de7e33ab875c2eaae7833cc9ecc1e9647d1180c4f6c64a2f21",
+      "bytes": 1420,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_runtime.py",
+      "source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+      "git_blob": "2364cfabdc5d625308b092e13afe864a6bda6e26",
+      "sha256": "bec82e77f5e3b883e1958bc01d60d54d0530b33af5fab5ad5ad945e52e0cc185",
+      "bytes": 45547,
+      "import_mode": "byte-identical"
+    }
+  ],
+  "preserved_public_adaptations": [
+    "tests/test_moss_td_runner_lifecycle.py retains project-volume temporary storage independent of validation assets",
+    "tests/test_prepare_moss_td_cpp.py retains public audited dependency pins rather than private build-audit inputs",
+    "Existing public documentation, provenance and source-only exclusions remain reviewed public editions"
+  ],
+  "ancestry": "Only byte-identical source objects were read from the active source-only integration; no private feature commit ancestry or report objects were imported.",
+  "test_status": "The exact public tree is independently tested; aggregate results are documented in TEST_STATUS.md.",
+  "limitations": [
+    "Capture identity and exclusion of replay are trusted assertions, not proved by identical PCM.",
+    "Historical rejected q1 tone/jitter controls remain two strict expected failures; p1 has ordinary assertions.",
+    "Real PCM matrix arms are opt-in and skipped without explicitly supplied external fixtures.",
+    "No real-model or API integration is accepted."
+  ]
+}

@@ -1,5 +1,13 @@
 # Change log
 
+## 0.2.0rc2.dev3 (unreleased default-OFF offline fragment integration)
+
+- Import exact reviewed active source from 6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2, excluding original private feature histories and all raw reports.
+- Add bounded native-PCM source plans, immutable accepted prefixes and explicit quiet-matching p1 policy. Historical q1 remains rejected with two strict expected-failure controls.
+- Add an injected-provider logical runner with atomic ledger output/cursor/EOS updates, restart replay and full native interval/original-anchor preservation. Separate routing anchors determine ownership without clipping evidence.
+- Keep all modules import-only and default OFF. Trusted provenance cannot be inferred from equal PCM; no production worker/API/real-model integration or release acceptance is claimed.
+- Publish synthetic recipe/frozen-hash fixtures and opt-in real-PCM test code only; no audio, vectors, raw evidence, private operational paths or report ancestry.
+
 ## 0.2.0rc2.dev2 (unreleased experimental verified-review integration)
 
 - Import the reviewed B1/B2 source from immutable commit 839187b89c833fe7f0457daee38edcfdb0d0f0a7; keep unrelated residual-study code and all private evidence out.
