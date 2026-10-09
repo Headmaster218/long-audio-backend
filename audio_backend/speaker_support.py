@@ -82,11 +82,13 @@ def provenance_details(producer, metadata):
     runtime=frontend['runtimes']
     def token(value,maximum=100):
         return isinstance(value,str) and 0<len(value)<=maximum and re.fullmatch(r'[A-Za-z0-9_.+ -]+',value) is not None
-    if (frontend['schema_version']!=1 or frontend['provider']!='cpu'
+    if (not integer(frontend['schema_version'],1,1) or frontend['provider']!='cpu'
+            or not is_hash(frontend['analyzer_sha256']) or not is_hash(frontend['model_sha256'])
+            or not is_hash(selection['implementation_sha256']) or not is_hash(selection['turns_sha256'])
             or not integer(frontend['threads'],1,4) or not isinstance(runtime,dict)
             or set(runtime)!={'numpy','soundfile','sherpa-onnx'} or any(not token(v) for v in runtime.values())
             or frontend['normalization']!='extractor float32 vector / numpy.linalg.norm; cosine L2'
-            or selection['schema_version']!=1
+            or not integer(selection['schema_version'],1,1)
             or selection['policy']!='other-speaker overlap subtraction; inward rounding; first 20 seconds'
             or digest(canonical(frontend))!=producer['frontend_sha256']
             or digest(canonical(selection))!=producer['selection_sha256']):
@@ -375,7 +377,7 @@ def validate_manifest(manifest):
         'diarization_sha256','frontend_sha256','selection_sha256','selection_implementation_sha256',
         'diarization_turns_sha256','decoder_sha256','decoder_contract_sha256','float_conversion_sha256',
         'analyzer_input_pcm_sha256','source_parts','source_frame_semantics'}
-    if not isinstance(manifest,dict) or set(manifest)!=expected or manifest['schema_version']!=1:
+    if not isinstance(manifest,dict) or set(manifest)!=expected or not integer(manifest['schema_version'],1,1):
         raise ValueError('Invalid support manifest schema')
     if len(canonical(manifest))>MAX_MANIFEST_BYTES:raise ValueError('Manifest size limit')
     hashes=expected-{'schema_version','support','encoder','frontend','selection','diarization','source_parts','source_frame_semantics'}
@@ -388,7 +390,8 @@ def validate_manifest(manifest):
     projection=selected['coordinate_projection']
     projected=project_review_support(selected,core_start_seconds=projection['core_start_in_analyzer_seconds'],
                                     analyzer_chunk_start_seconds=projection['analyzer_start_in_chunk_seconds'])
-    if (canonical(projected)!=canonical(selected) or selected['complete'] is not True or selected['sample_rate']!=RATE
+    if (not integer(selected['schema_version'],1,1) or canonical(projected)!=canonical(selected)
+            or selected['complete'] is not True or selected['sample_rate']!=RATE
             or not integer(selected['pooled_sample_count'],1,MAX_PCM_BYTES//4)
             or not integer(selected['analyzer_frame_count'],1,MAX_FRAMES)):
         raise ValueError('Incomplete or inconsistent selected support')
@@ -431,7 +434,7 @@ def validate_manifest(manifest):
         for lo,hi in selected['intervals_samples']:
             a,b=max(lo,interval[0]),min(hi,interval[1])
             if a<b:expected_selected.append([a-interval[0],b-interval[0]])
-        if part['selected_decoded_frames']!=expected_selected:raise ValueError('Incorrect source selection')
+        if canonical(part['selected_decoded_frames'])!=canonical(expected_selected):raise ValueError('Incorrect source selection')
         cursor=interval[1]
     if cursor!=selected['analyzer_frame_count']:raise ValueError('Incomplete source frames')
     if manifest['source_frame_semantics']!='actual per-part decoded output frames; seeks are source-time requests, not original encoded-file sample alignment':

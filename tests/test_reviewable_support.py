@@ -579,3 +579,30 @@ def test_nested_private_fields_rejected_at_corrupted_read_boundary(tmp_path,obje
     assert failed['reason']=='manifest_integrity_mismatch' and not failed['audio_available']
     assert '/private/source' not in json.dumps(failed)
     with pytest.raises(ValueError,match='integrity'):support.audio(store,sid,meta['support_id'])
+
+
+def test_analyzer_hash_cannot_be_a_private_string_with_recomputed_frontend_hash(tmp_path):
+    _,store=setup(tmp_path)
+    sid,chunk,result,*_=prepare(store)
+    manifest=result['_speaker_support']['A']['manifest']
+    manifest['frontend']['analyzer_sha256']='/private/source'
+    manifest['frontend_sha256']=support.digest(support.canonical(manifest['frontend']))
+    assert store.commit_window(chunk,0,3,result)
+    meta=support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])
+    assert meta['reason']=='invalid_support' and '/private/source' not in json.dumps(meta)
+
+
+def test_corrupted_analyzer_hash_is_rejected_before_metadata_or_audio_output(tmp_path):
+    _,store=setup(tmp_path)
+    sid,_,_,_,_,meta=commit(store)
+    with store.db() as db:
+        db.execute('DROP TRIGGER speaker_support_immutable')
+        row=db.execute('SELECT manifest FROM speaker_support WHERE id=?',(meta['support_id'],)).fetchone()
+        manifest=json.loads(row[0]);manifest['frontend']['analyzer_sha256']='/private/source'
+        manifest['frontend_sha256']=support.digest(support.canonical(manifest['frontend']))
+        encoded=support.canonical(manifest)
+        db.execute('UPDATE speaker_support SET manifest=?,manifest_sha256=? WHERE id=?',
+                   (encoded.decode(),support.digest(encoded),meta['support_id']))
+    failed=support.metadata(store,sid,meta['support_id'])
+    assert failed['reason']=='manifest_integrity_mismatch' and '/private/source' not in json.dumps(failed)
+    with pytest.raises(ValueError):support.audio(store,sid,meta['support_id'])
