@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "experimental": true,
+  "single_threshold": 0.75,
+  "centroid_threshold": 0.75,
+  "margin": 0.10,
+  "minimum_query_seconds": 2.0,
+  "minimum_enrollment_seconds": 2.0
+}

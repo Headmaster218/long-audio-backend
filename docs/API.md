@@ -247,3 +247,12 @@ support ID. This does not certify purity or enable identity learning. Legacy
 rename/merge/assignment and enrollment semantics are unchanged. See
 [the support review contract](EMBEDDING_SUPPORT_LINEAGE.md) for endpoints, strict
 quotas, unavailable reasons, independent retention and erasure behavior.
+
+## Experimental verified-review groups
+
+New groups may explicitly select `identity_mode: verified_review_v1` when exact
+review capture and an experimental policy are enabled. Legacy groups never
+convert implicitly. See [the full review API and mandatory compact invalidation
+protocol](VERIFIED_IDENTITY.md) before using this mode. An `identity_bank` change
+invalidates prior automatic assignments by revision; reset clears human labels
+too. Neither event requires millions of per-result updates.

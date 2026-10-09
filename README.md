@@ -34,6 +34,21 @@ python scripts/run_cpu_candidate.py --data-dir ./audio-data-cpu-candidate
 
 环境声音候选同时保留真实本地模型/标签表哈希、有效策略和是否实际执行模型的标记。旧记录不补写猜测来源。
 
+## 实验性人工核验身份库
+
+[B1/B2 人工核验身份模式](docs/VERIFIED_IDENTITY.md)默认关闭。需同时显式启用声学支持回放、选择 [experimental policy](audio_backend/profiles/verified-review-experimental-v1.json)，并为新身份组指定 `verified_review_v1`。已有组不会自动转换；普通默认身份流程保持原有行为。
+
+正参考只来自操作者对全部 pooled support 的明确核验声明，包括前后上下文和贡献片段。服务记录声明，不能证明真人确实听过、标签正确或没有混声。自动结果标为 `experimental_identity_match`，不会自动成为参考，也不会自动更新模板。
+
+- 阈值尚未校准；不能套用其他前端的身份准确率结论
+- 目前仅支持[精确审计的 Linux x86_64 运行时、模型和 NumPy 组合](docs/EMBEDDING_SPACE_PROVENANCE.md)；Windows、未知构建或不兼容空间会拒绝匹配
+- 客户端必须处理 `identity_bank` 修订失效事件；reset 还要求清除旧代全部身份缓存，包括人工标签
+- verified 模式的 merge/undo 暂不支持；公开源码和单元测试不代表长期身份质量或正式 release 验收
+
+原始向量和回放证据只在启用后的本地私有数据目录中受配额保留，不属于公开源码。逻辑删除不等于 SQLite/WAL、导出和备份的取证级擦除。
+
+已完成一次 [36 秒真实 HTTP 功能门禁](docs/VERIFIED_IDENTITY_HTTP_SMOKE.md)，操作者声明使用脚本 fixture，且包含已披露的测试脚本修复。它不代表真人核验、身份准确率、跨日期或长录音验收。
+
 ## 已知边界
 
 转写时间不是已验证的逐词强制对齐。重叠、短促发言、远场及跨日期身份仍会出错。身份余弦分数不是识别概率，普通自动匹配不会更新参考声纹。身份研究不会自动成为在线功能。

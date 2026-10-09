@@ -84,6 +84,14 @@ def delete_session(store, sid, delete_file=None):
             db.execute('''DELETE FROM speaker_identity_generations WHERE identity_group=?
                 AND NOT EXISTS (SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0)''',
                 (session['identity_group'],session['identity_group']))
+            # Reclaim empty group policy only after all trust/history is explicitly
+            # erased. A group with surviving sessions retains its immutable mode.
+            if not db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0',(session['identity_group'],)).fetchone():
+                from .verified_identity import reset
+                reset(db,session['identity_group'])
+                db.execute('DELETE FROM identity_group_policy WHERE identity_group=?',(session['identity_group'],))
+                if db.execute("SELECT 1 FROM speakers WHERE identity_group=? AND state='reviewed_reference' LIMIT 1",(session['identity_group'],)).fetchone():
+                    db.execute("DELETE FROM speakers WHERE identity_group=? AND state='reviewed_reference'",(session['identity_group'],))
             # Row DELETE triggers may have appended tombstones after the first
             # erasure trigger. Erase those too, within the same transaction.
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_changes'").fetchone():

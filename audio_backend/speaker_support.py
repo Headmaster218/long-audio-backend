@@ -358,6 +358,10 @@ def prepare_window(result, wav, lineage, expected_generation, *, core_start, ana
                 value['status'] = 'manifest_size_limit'
                 continue
             value['manifest'] = manifest
+            value['raw_vector'] = list(embeddings[0])
+            # Transient proof remains available even when artifact admission is
+            # disabled/full. This bytes object is never placed in metadata.
+            value['query_pcm'] = pcm
             total_bytes += len(pcm)
             if total_bytes > settings.speaker_support_window_pcm_bytes:
                 value['status'] = 'window_pcm_quota'
@@ -482,7 +486,8 @@ def commit_support(store, db, chunk, offset, group, local_id, observation_id, pr
                 if not source or source['session_id'] != chunk['session_id'] or source['digest'] != part['source_sha256']:
                     status, pcm = 'source_mismatch', None
                     break
-            used = db.execute('SELECT COALESCE(SUM(pcm_bytes),0) FROM speaker_support').fetchone()[0]
+            from .support_vectors import retained_bytes
+            used = retained_bytes(db)
             if pcm and used + len(pcm) > store.settings.speaker_support_total_pcm_bytes:
                 status, pcm = 'total_pcm_quota', None
             if pcm:
@@ -509,10 +514,10 @@ def commit_support(store, db, chunk, offset, group, local_id, observation_id, pr
 
 
 def _row(db, sid, support_id, with_pcm=False):
-    fields = 's.id,s.generation,s.manifest,s.manifest_sha256,s.status,s.pcm_bytes,s.window_start,s.local_speaker_id,length(s.pcm) AS actual_pcm_bytes'
+    fields = f's.id,s.generation,substr(s.manifest,1,{MAX_MANIFEST_BYTES+1}) AS manifest,s.manifest_sha256,s.status,s.pcm_bytes,s.window_start,s.local_speaker_id,length(s.pcm) AS actual_pcm_bytes'
     if with_pcm:fields += f',substr(s.pcm,1,{MAX_PCM_BYTES+1}) AS pcm'
     row = db.execute(f'''SELECT {fields} FROM speaker_support s
-        JOIN sessions sess ON sess.id=s.session_id AND sess.deleted=0
+        JOIN sessions sess ON sess.id=s.session_id AND sess.deleted=0 AND sess.identity_group=s.identity_group
         JOIN speaker_identity_generations g ON g.identity_group=s.identity_group AND g.generation=s.generation
         WHERE s.session_id=? AND s.id=?''', (sid, support_id)).fetchone()
     if not row:
@@ -523,6 +528,13 @@ def _row(db, sid, support_id, with_pcm=False):
 def metadata(store, sid, support_id=None, *, segment_id=None, turn_id=None):
     store.session(sid)
     with store.db() as db:
+        from . import verified_identity, support_vectors
+        verified=verified_identity.is_verified(db,sid)
+        def unavailable_for(reason,support_id=None):
+            result=unavailable(reason,support_id)
+            if verified:
+                result.update(identity_learning_available=True,verified_review_eligible=False,verified_review_reason=reason)
+            return result
         if segment_id is not None or turn_id is not None:
             table, row_id = ('segments', segment_id) if segment_id is not None else ('speaker_turns', turn_id)
             ref = db.execute(f'''SELECT r.speaker_support_id,r.speaker_support_status FROM {table} r
@@ -531,20 +543,20 @@ def metadata(store, sid, support_id=None, *, segment_id=None, turn_id=None):
                 raise KeyError('Source result not found in session')
             support_id = ref['speaker_support_id']
             if not support_id:
-                return unavailable(ref['speaker_support_status'] or 'legacy_support_not_recorded')
+                return unavailable_for(ref['speaker_support_status'] or 'legacy_support_not_recorded')
         try:
             row = _row(db, sid, support_id)
         except KeyError:
             if segment_id is not None or turn_id is not None:
-                return unavailable('support_revoked_or_removed',support_id)
+                return unavailable_for('support_revoked_or_removed',support_id)
             raise
         manifest = json.loads(row['manifest'])
         try:
             if manifest:validate_manifest(manifest)
             if digest(canonical(manifest)) != row['manifest_sha256']:raise ValueError('Manifest integrity')
         except (ValueError,TypeError,KeyError,AttributeError):
-            return unavailable('manifest_integrity_mismatch',support_id)
-        result = unavailable(row['status'], support_id)
+            return unavailable_for('manifest_integrity_mismatch',support_id)
+        result = unavailable_for(row['status'], support_id)
         result.update(identity_generation=row['generation'], manifest_sha256=row['manifest_sha256'],
                       window_start=row['window_start'], local_speaker_id=row['local_speaker_id'],
                       manifest=manifest, support_complete=bool(manifest.get('support', {}).get('complete')))
@@ -554,6 +566,18 @@ def metadata(store, sid, support_id=None, *, segment_id=None, turn_id=None):
         result['review_eligible'] = result['audio_available'] and result['support_complete']
         if result['audio_available']:
             result['audio_url'] = f'/sessions/{sid}/speaker-support/{support_id}/audio'
+        from . import verified_identity, support_vectors
+        if verified_identity.is_verified(db,sid):
+            result['identity_learning_available']=True
+            result['verified_review_eligible']=False
+            result['verified_review_reason']='vector_proof_unavailable'
+            try:
+                vector,_=support_vectors.read(db,support_id)
+                result.update(vector_id=vector['id'],vector_sha256=vector['vector_sha256'],space_id=vector['space_id'])
+                result['verified_review_eligible']=result['review_eligible']
+                result['verified_review_reason']='available' if result['review_eligible'] else row['status']
+            except (ValueError,TypeError,KeyError):
+                pass
         return result
 
 
@@ -563,6 +587,24 @@ def unavailable(reason, support_id=None):
             'purity_status': UNVERIFIED, 'identity_learning_available': False,
             'source_bytes_semantics':'original captured PCM; source hashes were checked at capture, current source files are not revalidated for review',
             'warning': 'Review covers ALL pooled fragments, including context outside this line or turn. Byte integrity does not establish one speaker or human verification.'}
+
+
+def validate_pcm_evidence(row, pcm):
+    """Shared read-side trust gate for both playback and review admission."""
+    try:
+        manifest=json.loads(row['manifest'])
+        validate_manifest(manifest)
+        selected=manifest['support']
+        if (row['status']!='available' or digest(canonical(manifest))!=row['manifest_sha256']
+                or not isinstance(pcm,bytes) or not 0<len(pcm)<=MAX_PCM_BYTES
+                or len(pcm)!=row['pcm_bytes'] or len(pcm)!=selected['pooled_sample_count']*4
+                or selected['sample_rate']!=RATE or selected['complete'] is not True
+                or selected['hash_encoding']!=POOLED_HASH_ENCODING
+                or digest(pcm)!=selected['pooled_pcm_sha256'] or not finite_pcm(pcm)):
+            raise ValueError('Exact acoustic support integrity check failed')
+        return manifest
+    except (ValueError,TypeError,KeyError,AttributeError) as exc:
+        raise ValueError('Exact acoustic support integrity check failed') from exc
 
 
 def audio(store, sid, support_id):
@@ -575,19 +617,8 @@ def audio(store, sid, support_id):
                 or row['actual_pcm_bytes'] != row['pcm_bytes']):
             raise ValueError('Exact full acoustic support is unavailable')
         full = _row(db, sid, support_id, with_pcm=True)
-        manifest = json.loads(row['manifest'])
-        try:
-            validate_manifest(manifest)
-        except (ValueError,TypeError,KeyError,AttributeError) as exc:
-            raise ValueError('Exact acoustic support integrity check failed') from exc
-        support = manifest.get('support', {})
         pcm = full['pcm']
-        if (digest(canonical(manifest)) != row['manifest_sha256'] or not isinstance(pcm, bytes)
-                or len(pcm) != row['pcm_bytes'] or len(pcm) != support.get('pooled_sample_count', -1) * 4
-                or support.get('sample_rate') != RATE or support.get('complete') is not True
-                or support.get('hash_encoding') != POOLED_HASH_ENCODING or digest(pcm) != support.get('pooled_pcm_sha256')
-                or not finite_pcm(pcm)):
-            raise ValueError('Exact acoustic support integrity check failed')
+        validate_pcm_evidence(row,pcm)
     # IEEE float WAVE (format 3) preserves every f32 bit. No PCM16 requantization.
     fmt = struct.pack('<HHIIHH', 3, 1, RATE, RATE * 4, 4, 32)
     fact = struct.pack('<I', len(pcm) // 4)

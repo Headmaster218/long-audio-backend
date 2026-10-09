@@ -20,8 +20,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1959,
-      "sha256": "a876672ed43dbb833a067f3d9556a06aad8b9fc965462f5328134a3c2bcbfa76"
+      "bytes": 2921,
+      "sha256": "34c21d664579134c0bc24745ab2740a494c2afa164cfb65ace3aec3923aab6d4"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -34,29 +34,34 @@
       "sha256": "34c72971198e4b6f811c7e391bc6ddd29d5080fcb7b127803b1c158f08d83b77"
     },
     {
+      "path": "INTEGRATION_0_2_0RC2_DEV2.json",
+      "bytes": 9598,
+      "sha256": "f230c94d7540896b43fecac2ca06c51d23f93cfee972625b4cf6c3307c66c14a"
+    },
+    {
       "path": "INTEGRATION_IMPORT.json",
       "bytes": 819,
       "sha256": "96ac48051aa1def91532cc5c96818c73ecbd2d7d003f366543901a303856d155"
     },
     {
       "path": "PUBLIC_POLICY.json",
-      "bytes": 12023,
-      "sha256": "a1b6507807d20202808db7a8db15fdbbf83607a5428a88baa208a336a64362d4"
+      "bytes": 13231,
+      "sha256": "b81cd761f8098fa6619a2b5a9c31c9dd828ef8b0bf5cb20d23faff420abf2904"
     },
     {
       "path": "README.md",
-      "bytes": 3658,
-      "sha256": "469718fbc96f5a137392c8416d778c94b9f159b65866cb1da652583c223cd4cf"
+      "bytes": 5272,
+      "sha256": "074352b8a1600e691a4b25752f9d72d99bb1af42c1fd87edd40bcdef89f80359"
     },
     {
       "path": "SOURCE_CONTROL_PROVENANCE.json",
-      "bytes": 36117,
-      "sha256": "44518c3548bc6ee5cbb5bd4f5f09940ccb772b2516f9c4508bec35c6ed6a4134"
+      "bytes": 39676,
+      "sha256": "e23e6252c4f068de2f420312a5a32781c664ebb8dbdbaf7c0c4f72d0a8880f81"
     },
     {
       "path": "TEST_STATUS.md",
-      "bytes": 5057,
-      "sha256": "fc774c3b6ba535baea01a57c6aac25649a5b26d9f8f156a1f21b3d2dbbebf03f"
+      "bytes": 6738,
+      "sha256": "a094d5ad492d8ca4a33971a4c6aa68d0cc5dc5e02eddbd02f1e046f60732dfbc"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -66,22 +71,22 @@
     {
       "path": "VERSIONING.md",
       "bytes": 1530,
-      "sha256": "569a379211bf241d7d15fb7d6d993b985798be04fa0acd4ce3b6b964e6893589"
+      "sha256": "c6860f0aed085f4cc734315f63bce44e8e80e459174810365dd94bed6437b976"
     },
     {
       "path": "audio_backend/__init__.py",
       "bytes": 107,
-      "sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099"
+      "sha256": "dce96752eb35323c945994ed24ccb7792f197d378fc7b87bcb700ab2437f343c"
     },
     {
       "path": "audio_backend/__main__.py",
-      "bytes": 10643,
-      "sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204"
+      "bytes": 10888,
+      "sha256": "b1d397c26fea6df375de466d484045e037ab6d02bc3b6093956fd276e252bac4"
     },
     {
       "path": "audio_backend/app.py",
-      "bytes": 18812,
-      "sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f"
+      "bytes": 22152,
+      "sha256": "001029e59d7f0660eba6082fca3828dce4dcb35b241edfd3f0cbb3fcfe2ef459"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -95,8 +100,8 @@
     },
     {
       "path": "audio_backend/change_feed.py",
-      "bytes": 9930,
-      "sha256": "39167f0eb447db0d781ee22685f5e3d61301320a681575ebdc7e35d99c37a5c9"
+      "bytes": 12223,
+      "sha256": "d21141b04d08f7583489ee5c48b353556c38cb6f24c9698fc4649c51aafced19"
     },
     {
       "path": "audio_backend/data_paths.py",
@@ -117,6 +122,11 @@
       "path": "audio_backend/dicow_runner.py",
       "bytes": 3673,
       "sha256": "848c0b9405638f51fa2886aa4bec5737c147559eada01abc7b9594b3c144f25b"
+    },
+    {
+      "path": "audio_backend/embedding_space.py",
+      "bytes": 18703,
+      "sha256": "e34afa07d4f41e39f379c235c751959a60f1bef5d61bb57b7723984c915dd629"
     },
     {
       "path": "audio_backend/event_candidate_store.py",
@@ -160,8 +170,8 @@
     },
     {
       "path": "audio_backend/identity_reset.py",
-      "bytes": 6058,
-      "sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78"
+      "bytes": 7218,
+      "sha256": "12ac552a3798b11aa3ace7f6ab38d951e815753605c4fb068d1245271cf1758b"
     },
     {
       "path": "audio_backend/inference/__init__.py",
@@ -170,8 +180,8 @@
     },
     {
       "path": "audio_backend/inference/analyzer.py",
-      "bytes": 37198,
-      "sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da"
+      "bytes": 39703,
+      "sha256": "a43de64e5294becd7de97d4a633ae3697e3aef0a36651c72a7523ec4f4d05a6e"
     },
     {
       "path": "audio_backend/inference/dicow_asr.py",
@@ -200,8 +210,8 @@
     },
     {
       "path": "audio_backend/lifecycle.py",
-      "bytes": 7412,
-      "sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb"
+      "bytes": 8230,
+      "sha256": "13eb44a5b3af9e7db8a882e83dbb9c0f70169889b772989b449f12e93d7f0524"
     },
     {
       "path": "audio_backend/moss_td_assets.py",
@@ -264,6 +274,11 @@
       "sha256": "670388018d7af578bc54405a27287422d54d0bd98a181f8c366c13f6d80da590"
     },
     {
+      "path": "audio_backend/profiles/verified-review-experimental-v1.json",
+      "bytes": 195,
+      "sha256": "5217b5fe9737ba2b0348d8ec1d2ba31ccbce6da264630a7506a6f5a71b09cbff"
+    },
+    {
       "path": "audio_backend/resources.py",
       "bytes": 6171,
       "sha256": "6c7c349354e09f68e1223e703cf5f16cad24213b5a708e333b12da052d1c3e89"
@@ -275,8 +290,8 @@
     },
     {
       "path": "audio_backend/settings.py",
-      "bytes": 14040,
-      "sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05"
+      "bytes": 14390,
+      "sha256": "860de9d0d68fe9d9a8521dde63b6096d3472dd8b8e1b60ea6bdb0aa286a7b8d6"
     },
     {
       "path": "audio_backend/speaker_calibration.py",
@@ -290,18 +305,28 @@
     },
     {
       "path": "audio_backend/speaker_support.py",
-      "bytes": 36361,
-      "sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934"
+      "bytes": 38036,
+      "sha256": "cdec57064a189140cb4121431ff99a8266ed2f88c1eb44a74f2f0c980fe5e12c"
     },
     {
       "path": "audio_backend/storage.py",
-      "bytes": 45574,
-      "sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c"
+      "bytes": 49175,
+      "sha256": "3ccfda5ab8ac2d0bf9597f02c54a066e516e501e3ff68d07f5e06c7081248fde"
+    },
+    {
+      "path": "audio_backend/support_vectors.py",
+      "bytes": 7909,
+      "sha256": "5068b5b87bef609244cd31d3c76026b9dc245b27c8fdc96a604202a62d129b6b"
+    },
+    {
+      "path": "audio_backend/verified_identity.py",
+      "bytes": 38969,
+      "sha256": "990292ed464f8b910f58fc9a6a332535ab8414436d6d2af86bb2b29850e423a8"
     },
     {
       "path": "audio_backend/worker.py",
-      "bytes": 18113,
-      "sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91"
+      "bytes": 18286,
+      "sha256": "04d4eac1cc7f6a73024ac891343df0872eaedd4bcc9905d604ec505e07ace9b8"
     },
     {
       "path": "dicow-model-manifest.json",
@@ -310,8 +335,8 @@
     },
     {
       "path": "docs/API.md",
-      "bytes": 30221,
-      "sha256": "e88fd3841a6d8a66aa3cf1cc28a65bfe600cb978cdb5b4908d6a0ebe98d6f4b9"
+      "bytes": 30718,
+      "sha256": "e248e9798b7050ae26bb6afdf8d097e0a37fe6727278022fadc2bda646d60cfa"
     },
     {
       "path": "docs/BOUNDARY_ASSEMBLY.md",
@@ -334,9 +359,14 @@
       "sha256": "c2e4f8218a8c100e0a3ed30e25f3db781f930c7d5f46bd75646255593d0559af"
     },
     {
+      "path": "docs/EMBEDDING_SPACE_PROVENANCE.md",
+      "bytes": 8770,
+      "sha256": "f49ea13adec1139d85bd19e010a35fae53ab2633a5d82b70dabda602a9ce03bd"
+    },
+    {
       "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
-      "bytes": 8819,
-      "sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c"
+      "bytes": 9329,
+      "sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314"
     },
     {
       "path": "docs/GOALS_AND_ACCEPTANCE.md",
@@ -379,6 +409,16 @@
       "sha256": "1ca6c8ae5a0ae2dbfc256f0460ded49e70d101cec9973f4a97ef0632517dbe4f"
     },
     {
+      "path": "docs/VERIFIED_IDENTITY.md",
+      "bytes": 10556,
+      "sha256": "b835e8183c588b210d07f325fbe7ec44441eeff09016afd88e34b03c8d9d783b"
+    },
+    {
+      "path": "docs/VERIFIED_IDENTITY_HTTP_SMOKE.md",
+      "bytes": 1620,
+      "sha256": "1d60ad371ddc282e86be75b4779e134b90c1cd615ca3d3e53f5f0c6cbec27e17"
+    },
+    {
       "path": "licenses/clap-model-note.md",
       "bytes": 1990,
       "sha256": "d7537150e7a9ebd17f590fee4454083a6a6aead391cf6dc3d3a2a04c474e016c"
@@ -416,7 +456,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 828,
-      "sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7"
+      "sha256": "7d4f67066fbd005eb446e7b4819a8611c1969e6a3df0915c1821fc361a301de2"
     },
     {
       "path": "requirements-dicow.txt",
@@ -582,6 +622,11 @@
       "path": "tests/test_dicow_candidates.py",
       "bytes": 10907,
       "sha256": "df2a5081d4155954ddbb58a8c84c98e170a60a903d1640a81bf8248435be9ba2"
+    },
+    {
+      "path": "tests/test_embedding_space.py",
+      "bytes": 17206,
+      "sha256": "b4f5519237e774db0476e91eff41de8e4c61644684a3ac5309766a7b9bd66fa5"
     },
     {
       "path": "tests/test_event_provenance.py",
@@ -797,6 +842,31 @@
       "path": "tests/test_stream_time_index.py",
       "bytes": 4830,
       "sha256": "aa73dbf7dc768fee0f710673660abfb127e7cd74f4c624ba496ae0d06893eee5"
+    },
+    {
+      "path": "tests/test_verified_identity_bank.py",
+      "bytes": 11827,
+      "sha256": "8223e11953581a5d466d30099c1137ccfd237e5930b9baa53d92995dfac3bf52"
+    },
+    {
+      "path": "tests/test_verified_identity_integrity.py",
+      "bytes": 6275,
+      "sha256": "dbb68f8370b50b010d2263fd13aca987eae4407a7af842dd8b376e3853abdd9c"
+    },
+    {
+      "path": "tests/test_verified_identity_lifecycle.py",
+      "bytes": 38103,
+      "sha256": "1681ea70c91006b263afc520834045b0769b870ae280f987e0c05c623674e577"
+    },
+    {
+      "path": "tests/test_verified_identity_matching.py",
+      "bytes": 10046,
+      "sha256": "9f952c4cdc1578e304217f01d31e05f6293a00b6eace65392411fe7b95630891"
+    },
+    {
+      "path": "tests/test_verified_identity_projection.py",
+      "bytes": 8572,
+      "sha256": "19a0618842099946c15c1fe36f86327aec02d90aeaa89b829ffc70bcd1607e61"
     },
     {
       "path": "tests/test_whisper_unicode_pipeline.py",

@@ -53,3 +53,15 @@ These are exact exported-source checks; no claim is made that this equals the fu
 - Python source fingerprint: `d68b3045f240c8a41403a73eb255d7b81eb0cdaf414045825a5f9c96e67e34a0` using the algorithm above.
 - Source comparison verifies 129 byte-identical paths and 12 intentional public-edition adaptations.
 - No inference study/model promotion, raw reports, source recordings, voice vectors or corpus-person identifiers were imported. No tiny real integration result is claimed by this source snapshot.
+
+
+## Current 0.2.0rc2.dev2 public integration
+
+- Immutable reviewed runtime/source projection: `839187b89c833fe7f0457daee38edcfdb0d0f0a7`; only the separately reviewed public HTTP summary is taken from document commit `697e02e9b6c82d289a34aeb05736982fbf8c1872`.
+- Entire curated public suite: 793 passed, 1 optional local MOSS-TD asset skip, one installed dependency deprecation warning in 49.63 seconds. This is a new public-tree run, not the private integration suite.
+- 117 additional synthetic cases cover embedding-space proof, original-vector bindings, explicit review bank admission/integrity, matching, lifecycle and safe projections. No real model inference or downloads were run by this suite.
+- Existing Python 3.12 dependencies were reused; import resolution was verified to the public worktree. Numerical-library thread limits were set to one.
+- Python source fingerprint: `9f7532afe829121610e5f0a27bfba4002adc12d784f5efc92e13b8807d9ffdb6` using the algorithm above.
+- Public source/version/manifest guards, runtime relative imports, test fixture closure and local Markdown links pass. Public workflow hooks and source guards remain unchanged.
+- The [bounded real HTTP gate](docs/VERIFIED_IDENTITY_HTTP_SMOKE.md) is a separate functional smoke result on its explicitly named feature commit. Its scripted review attestations are not human listening, accuracy, cross-date or long-recording acceptance.
+- Verified identity remains opt-in, experimental and uncalibrated. Unknown runtime/model bindings abstain; unsupported verified merge/undo is explicit. No raw evidence, operational reports, private provenance files or unrelated residual research helpers are included.
