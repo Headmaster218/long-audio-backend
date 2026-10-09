@@ -231,6 +231,7 @@ class AudioAnalyzer:
                 'overlapping_speech':overlap_summary,
                 'asr_runtime': transcript.get('_runtime',{}),
                 'speaker_embedding_dimension': dim,
+                'speaker_support_producer':getattr(self,'_speaker_support_producer',None),
                 'speaker_embedding_evidence': getattr(self,'_embedding_evidence',{}), 'speaker_embedding_metric': 'cosine (L2 normalized)',
                 'speaker_embedding_version': 'eres2net-base-zh-cn-3dspeaker-16k-v1',
                 'speaker_embedding_sha256':getattr(self,'_speaker_sha256',None),
@@ -262,6 +263,12 @@ class AudioAnalyzer:
         extractor = s.SpeakerEmbeddingExtractor(ec)
         embeddings = {}
         self._embedding_evidence = {}
+        self._speaker_support_producer = None
+        try:
+            from audio_backend.speaker_support import producer_provenance
+            self._speaker_support_producer = producer_provenance(a,turns,self._speaker_sha256,self.threads)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, ImportError):
+            pass  # Optional review evidence must not alter embedding/matching behavior.
         from audio_backend.speaker_evidence import clean_speaker_audio
         for sid in sorted({x['speaker_local_id'] for x in turns}):
             clean,evidence=clean_speaker_audio(a,turns,sid)

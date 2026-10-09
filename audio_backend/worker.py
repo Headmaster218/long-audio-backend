@@ -1,5 +1,6 @@
 import json
 import math
+import shutil
 import sys
 import tempfile
 import threading
@@ -10,6 +11,7 @@ from .boundaries import lexical_core, safe_cut
 from .boundary_store import stream_info, context_parts, wait_for_input
 from .native_worker import NativeCoordinator
 from .overlap_ownership import own_candidates,validate_candidates
+from . import speaker_support
 
 
 def validate_result(result,duration):
@@ -114,6 +116,7 @@ class Worker:
         self.store=store; self.settings=settings; self.analyzer_factory=analyzer_factory
         self.stop_event=threading.Event(); self.wake=threading.Event(); self.current_chunk=None
         self.native=None
+        self.support_fingerprints=speaker_support.SourceFingerprints()
         self.thread=threading.Thread(target=self.loop,name='audio-worker',daemon=True)
     def start(self): self.thread.start()
     def stop(self):
@@ -150,19 +153,53 @@ class Worker:
             finally:
                 if process: process.close()
 
-    def extract_pcm(self,chunk,start,end,wav,tmp,stop):
+    def extract_pcm(self,chunk,start,end,wav,tmp,stop,*,capture_support=False):
         parts=context_parts(self.store,chunk,start,end)
+        lineage={'status':'complete','parts':[],'analyzer_frame_count':0}
+        if capture_support:
+            try:
+                if len(parts)>speaker_support.MAX_PARTS:
+                    raise ValueError('Too many source parts for review')
+                executable=shutil.which(self.settings.ffmpeg)
+                if not executable:raise ValueError('Missing decoder')
+                lineage['decoder_sha256']=self.support_fingerprints.get(executable,stop)[0]
+            except (OSError,ValueError,RuntimeError):
+                lineage['status']='decoder_or_parts_unavailable'
         with wave.open(str(wav),'wb') as output:
             output.setnchannels(1);output.setsampwidth(2);output.setframerate(16000)
             for index,part in enumerate(parts):
+                source_digest=signature=None
+                if capture_support and lineage['status']=='complete':
+                    try:
+                        source_digest,signature=self.support_fingerprints.get(part['path'],stop)
+                        with self.store.db() as db:
+                            row=db.execute('SELECT digest,session_id FROM chunks WHERE id=?',(part['id'],)).fetchone()
+                        if not row or row['digest']!=source_digest or row['session_id']!=chunk['session_id']:
+                            lineage['status']='source_content_mismatch'
+                    except (OSError,ValueError,RuntimeError):
+                        lineage['status']='source_lineage_unavailable'
                 pcm=tmp/f'part-{index}.wav'
                 run_bounded([self.settings.ffmpeg,'-nostdin','-v','error','-protocol_whitelist','file,pipe',
                     '-format_whitelist','wav,flac,ogg,mp3,mov,matroska,webm,aac','-ss',str(part['read_start']),
                     '-i',part['path'],'-t',str(part['read_duration']),'-map','0:a:0','-vn','-ac','1','-ar','16000',
                     '-c:a','pcm_s16le','-threads','1','-y',pcm],self.settings,timeout=180,stop=stop)
+                frames=0
                 with wave.open(str(pcm),'rb') as source:
-                    while block:=source.readframes(16000):output.writeframesraw(block)
+                    while block:=source.readframes(16000):
+                        output.writeframesraw(block)
+                        frames+=len(block)//2
                 pcm.unlink()
+                first=lineage['analyzer_frame_count'];lineage['analyzer_frame_count']+=frames
+                if capture_support and lineage['status']=='complete':
+                    try:
+                        if self.support_fingerprints.signature(part['path'])!=signature:
+                            raise ValueError('Source changed while decoding')
+                        lineage['parts'].append({'chunk_id':part['id'],'source_sha256':source_digest,
+                            'seek_seconds':part['read_start'],'requested_seconds':part['read_duration'],
+                            'analyzer_frames':[first,first+frames]})
+                    except (OSError,ValueError,RuntimeError):
+                        lineage['status']='source_changed_during_decode'
+        return lineage if capture_support else None
 
     def _process_windows(self,chunk,process):
         offset=chunk['next_offset']
@@ -200,7 +237,9 @@ class Worker:
                 end=native['end'];extract_start=native['extract_start'];extract_end=native['extract_end']
             with tempfile.TemporaryDirectory(prefix='window-',dir=self.settings.data_dir/'tmp') as tmp:
                 tmp=Path(tmp); wav=tmp/'audio.wav'
-                self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']))
+                capture_support=self.settings.speaker_support_max_records>0
+                expected_generation=speaker_support.capture_generation(self.store,chunk) if capture_support else None
+                lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support)
                 options=({'candidate_core_start':offset-extract_start,'candidate_core_end':end-extract_start,
                           'candidate_core_apply_safe_cut':end<chunk['duration']-1e-5,
                           'candidate_core_cut_lower':max(offset-extract_start+.5,end-extract_start-min(3.,self.settings.window_seconds*.25))}
@@ -236,7 +275,13 @@ class Worker:
                                    max(offset-extract_start+.5,end-extract_start-min(3.,self.settings.window_seconds*.25)),
                                    extract_end-extract_start)
                     end=extract_start+local
+                try:
+                    prepared=speaker_support.prepare_window(result,wav,lineage,expected_generation,
+                        core_start=offset-extract_start,analyzer_start=extract_start,settings=self.settings)
+                except (ValueError,TypeError,OSError,RuntimeError,ImportError):
+                    prepared={}
                 result=own_core(result,offset-extract_start,end-extract_start,previous,extract_start)
+                result['_speaker_support']=prepared
                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
                 previous=result['metadata'].get('boundary_tail',[])
                 if self.interrupted(chunk['id']): raise InterruptedError()

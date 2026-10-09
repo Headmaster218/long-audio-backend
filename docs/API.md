@@ -232,3 +232,14 @@ updates. `reports/stream-time-index-scale.json` records 60-second lookups agains
 10,000 and 100,000 fragments: approximately 2,400–2,600 SQLite VM instructions in
 both cases, with indexed search plans and no full scan. This validates lookup
 scaling, not recognition throughput for very small upload fragments.
+
+## Exact acoustic-support review (Phase A)
+
+Read-only support discovery is available for a segment or independent speaker
+turn under `/sessions/{sid}/segments/{id}/speaker-support` and
+`/sessions/{sid}/speaker-turns/{id}/speaker-support`. Safe immutable metadata and
+hash-checked full float-WAV audio are addressed by the returned session-scoped
+support ID. This does not certify purity or enable identity learning. Legacy
+rename/merge/assignment and enrollment semantics are unchanged. See
+[the support review contract](EMBEDDING_SUPPORT_LINEAGE.md) for endpoints, strict
+quotas, unavailable reasons, independent retention and erasure behavior.

@@ -1,0 +1,435 @@
+"""Private, bounded, immutable acoustic review evidence. Never identity training.
+
+PCM artifacts live in SQLite, making admission and logical erasure atomic. The
+byte quota bounds live payloads, not SQLite/WAL filesystem high-water marks.
+There is no re-decoding or silent replacement when an artifact is unavailable.
+"""
+from collections import OrderedDict
+import hashlib
+import importlib.metadata
+import json
+import math
+from pathlib import Path
+import struct
+import uuid
+import wave
+
+from .speaker_evidence import project_review_support, POOLED_HASH_ENCODING
+
+RATE = 16000
+MAX_FRAMES = RATE * 60 + 160
+MAX_PCM_BYTES = RATE * 20 * 4
+MAX_MANIFEST_BYTES = 128 * 1024
+MAX_PARTS = 128
+MAX_WINDOW_SUPPORTS = 64
+DECODE_CONTRACT = 'ffmpeg input seek seconds; map 0:a:0; mono 16000Hz pcm_s16le; concatenate actual decoded frames; v1'
+FLOAT_CONTRACT = 'mono PCM16 little-endian to IEEE754 float32 via signed-int16 / 32768; v1'
+UNVERIFIED = 'predicted_from_diarization_unverified'
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+
+
+def is_hash(value):
+    return isinstance(value, str) and len(value) == 64 and all(c in '0123456789abcdef' for c in value)
+
+
+def integer(value, minimum, maximum):
+    return isinstance(value, int) and not isinstance(value, bool) and minimum <= value <= maximum
+
+
+def finite(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def producer_provenance(samples, turns, model_sha256, threads):
+    """Record the actual frontend/selection implementation and analyzed samples.
+
+    Called by the analyzer that used these samples, not inferred from whatever
+    configuration happens to be current when a historical review is requested.
+    """
+    import numpy as np
+    from . import speaker_evidence
+    runtimes = {}
+    for package in ('numpy', 'soundfile', 'sherpa-onnx'):
+        runtimes[package] = importlib.metadata.version(package)
+    frontend = {'schema_version': 1, 'input_contract': FLOAT_CONTRACT,
+                'analyzer_sha256': digest((Path(__file__).parent / 'inference' / 'analyzer.py').read_bytes()),
+                'runtimes': runtimes, 'provider': 'cpu', 'threads': threads,
+                'normalization': 'extractor float32 vector / numpy.linalg.norm; cosine L2',
+                'model_sha256': model_sha256}
+    selection = {'schema_version': 1,
+                 'implementation_sha256': digest(Path(speaker_evidence.__file__).read_bytes()),
+                 'turns_sha256': digest(canonical(turns)),
+                 'policy': 'other-speaker overlap subtraction; inward rounding; first 20 seconds'}
+    return {'frontend': frontend, 'frontend_sha256': digest(canonical(frontend)),
+            'selection': selection, 'selection_sha256': digest(canonical(selection)),
+            'analyzer_input_pcm_sha256': digest(np.ascontiguousarray(samples, dtype='<f4').tobytes())}
+
+
+class SourceFingerprints:
+    """A bounded stat-keyed cache; one cold streaming read per unchanged file.
+
+    dev/ino/size/mtime/ctime are checked before and after hashing and decoding.
+    This is local-file change detection, not adversarial filesystem attestation.
+    """
+    def __init__(self, capacity=128):
+        self.capacity = capacity
+        self.cache = OrderedDict()
+
+    @staticmethod
+    def signature(path):
+        stat = Path(path).stat()
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+    def get(self, path, stop=None):
+        before = self.signature(path)
+        key = (str(Path(path).resolve()), before)
+        if key in self.cache:
+            value = self.cache.pop(key)
+            self.cache[key] = value
+            return value, before
+        hashed = hashlib.sha256()
+        with Path(path).open('rb') as source:
+            while block := source.read(1024 * 1024):
+                if stop and stop():
+                    raise InterruptedError()
+                hashed.update(block)
+        if self.signature(path) != before:
+            raise ValueError('Source changed during hashing')
+        value = hashed.hexdigest()
+        self.cache[key] = value
+        while len(self.cache) > self.capacity:
+            self.cache.popitem(last=False)
+        return value, before
+
+
+def init_schema(db):
+    db.execute('''CREATE TABLE IF NOT EXISTS speaker_identity_generations (
+        identity_group TEXT PRIMARY KEY, generation TEXT NOT NULL)''')
+    db.execute('''CREATE TABLE IF NOT EXISTS speaker_support (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+        chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+        identity_group TEXT NOT NULL, generation TEXT NOT NULL,
+        window_start REAL NOT NULL, local_speaker_id TEXT NOT NULL,
+        observation_id TEXT, manifest TEXT NOT NULL, manifest_sha256 TEXT NOT NULL,
+        status TEXT NOT NULL, pcm BLOB,
+        pcm_bytes INTEGER NOT NULL CHECK(pcm_bytes>=0 AND pcm_bytes<=1280000),
+        CHECK((pcm IS NULL AND pcm_bytes=0) OR (pcm IS NOT NULL AND length(pcm)=pcm_bytes)),
+        UNIQUE(chunk_id,window_start,local_speaker_id))''')
+    db.execute('CREATE INDEX IF NOT EXISTS support_session ON speaker_support(session_id,id)')
+    db.execute('CREATE INDEX IF NOT EXISTS support_group ON speaker_support(identity_group)')
+    db.execute('''CREATE TABLE IF NOT EXISTS speaker_support_sources (
+        support_id TEXT NOT NULL REFERENCES speaker_support(id) ON DELETE CASCADE,
+        chunk_id TEXT NOT NULL REFERENCES chunks(id), PRIMARY KEY(support_id,chunk_id))''')
+    db.execute('CREATE INDEX IF NOT EXISTS support_source_chunk ON speaker_support_sources(chunk_id)')
+    db.execute('''CREATE TRIGGER IF NOT EXISTS speaker_support_source_erasure
+        BEFORE DELETE ON chunks BEGIN DELETE FROM speaker_support
+        WHERE id IN (SELECT support_id FROM speaker_support_sources WHERE chunk_id=OLD.id); END''')
+    # No updater exists. Erasure uses DELETE, never replacement under an old ID.
+    db.execute('''CREATE TRIGGER IF NOT EXISTS speaker_support_immutable
+        BEFORE UPDATE ON speaker_support BEGIN SELECT RAISE(ABORT,'Acoustic support is immutable'); END''')
+
+
+def generation(db, group):
+    db.execute('INSERT OR IGNORE INTO speaker_identity_generations VALUES(?,?)', (group, uuid.uuid4().hex))
+    return db.execute('SELECT generation FROM speaker_identity_generations WHERE identity_group=?', (group,)).fetchone()[0]
+
+
+def capture_generation(store, chunk):
+    with store.db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        group = db.execute('SELECT identity_group FROM sessions WHERE id=? AND deleted=0', (chunk['session_id'],)).fetchone()
+        return generation(db, group[0]) if group else None
+
+
+def decoded_floats(wav):
+    import numpy as np
+    with wave.open(str(wav), 'rb') as source:
+        frames = source.getnframes()
+        if (source.getnchannels(), source.getsampwidth(), source.getframerate(), source.getcomptype()) != (1, 2, RATE, 'NONE'):
+            raise ValueError('Unsupported decoded PCM format')
+        if not integer(frames, 1, MAX_FRAMES):
+            raise ValueError('Unbounded or empty decoded PCM')
+        raw = source.readframes(frames)
+    if len(raw) != frames * 2:
+        raise ValueError('Truncated decoded PCM')
+    return np.frombuffer(raw, dtype='<i2').astype('<f4') / np.float32(32768)
+
+
+def prepare_window(result, wav, lineage, expected_generation, *, core_start, analyzer_start, settings):
+    """Return private artifacts separately; never insert PCM into public metadata.
+
+    This optional path fails closed without changing normal analysis or matching.
+    Only complete selected support can produce an artifact, never a prefix.
+    """
+    metadata = result.get('metadata', {})
+    evidence_map = metadata.get('speaker_embedding_evidence', {})
+    if not isinstance(evidence_map, dict):
+        return {}
+    candidates = list(evidence_map)[:MAX_WINDOW_SUPPORTS]
+    prepared = {}
+    samples = None
+    total_bytes = 0
+    for local_id in candidates:
+        value = {'generation': expected_generation, 'status': 'invalid_support', 'manifest': {}, 'pcm': None}
+        prepared[str(local_id)] = value
+        try:
+            evidence = evidence_map[local_id]
+            if not isinstance(evidence, dict) or not isinstance(evidence.get('pooled_support'), dict):
+                value['status'] = 'missing_support'
+                continue
+            if evidence.get('overlap_excluded') is not True or evidence.get('source') != 'overlap_subtracted_neural_turns':
+                value['status'] = 'unsupported_selection'
+                continue
+            support = project_review_support(evidence['pooled_support'], core_start_seconds=core_start,
+                                             analyzer_chunk_start_seconds=analyzer_start)
+            support = {key:support[key] for key in ('schema_version','time_axis','sample_rate','analyzer_frame_count',
+                'intervals_samples','interval_count','complete','pooled_sample_count','pooled_pcm_sha256','hash_encoding',
+                'purity_status','human_verified','coordinate_projection')}
+            if not support['complete']:
+                value['status'] = 'incomplete_intervals'
+                continue
+            if support['sample_rate'] != RATE or not integer(support['pooled_sample_count'], 1, MAX_PCM_BYTES // 4):
+                value['status'] = 'support_size_limit'
+                continue
+            if not isinstance(lineage, dict) or lineage.get('status') != 'complete':
+                value['status'] = lineage.get('status', 'missing_lineage') if isinstance(lineage, dict) else 'missing_lineage'
+                continue
+            producer = metadata.get('speaker_support_producer')
+            if not isinstance(producer, dict):
+                value['status'] = 'missing_frontend'
+                continue
+            model = metadata.get('speaker_embedding_sha256')
+            version = metadata.get('speaker_embedding_version')
+            dimension = metadata.get('speaker_embedding_dimension')
+            if not is_hash(model) or not isinstance(version, str) or not 1 <= len(version) <= 200 or not integer(dimension, 8, 2048):
+                value['status'] = 'missing_model_binding'
+                continue
+            embeddings=[item.get('speaker_embedding') for item in result.get('speaker_turns',[])+result.get('segments',[])
+                        if str(item.get('speaker_local_id'))==str(local_id) and item.get('speaker_embedding') is not None]
+            if not embeddings or any(not isinstance(vector,list) or len(vector)!=dimension
+                    or any(not finite(v) for v in vector) for vector in embeddings):
+                value['status']='embedding_dimension_mismatch'
+                continue
+            if any(vector != embeddings[0] for vector in embeddings):
+                value['status']='conflicting_embedding_binding'
+                continue
+            frontend, selection = producer.get('frontend'), producer.get('selection')
+            if (not isinstance(frontend, dict) or not isinstance(selection, dict)
+                    or frontend.get('model_sha256') != model or frontend.get('input_contract') != FLOAT_CONTRACT
+                    or producer.get('frontend_sha256') != digest(canonical(frontend))
+                    or producer.get('selection_sha256') != digest(canonical(selection))):
+                value['status'] = 'frontend_mismatch'
+                continue
+            # Store only fingerprint allowlists, never arbitrary producer strings.
+            if not is_hash(frontend.get('analyzer_sha256')) or not is_hash(selection.get('implementation_sha256')) or not is_hash(selection.get('turns_sha256')):
+                value['status'] = 'missing_frontend'
+                continue
+            turns=metadata.get('diarization_turns')
+            if not isinstance(turns,list) or digest(canonical(turns))!=selection['turns_sha256']:
+                value['status']='selection_mismatch'
+                continue
+            if samples is None:
+                samples = decoded_floats(wav)
+            if (support['analyzer_frame_count'] != len(samples) or lineage.get('analyzer_frame_count') != len(samples)
+                    or producer.get('analyzer_input_pcm_sha256') != digest(samples.astype('<f4').tobytes())):
+                value['status'] = 'analyzer_input_mismatch'
+                continue
+            parts = lineage.get('parts')
+            cursor = 0
+            if not isinstance(parts, list) or not 1 <= len(parts) <= MAX_PARTS:
+                value['status'] = 'source_parts_limit'
+                continue
+            safe_parts = []
+            for part in parts:
+                interval = part.get('analyzer_frames')
+                if (not isinstance(interval, list) or len(interval) != 2
+                        or not integer(interval[0], cursor, cursor) or not integer(interval[1], cursor, len(samples))
+                        or not is_hash(part.get('source_sha256'))
+                        or not isinstance(part.get('chunk_id'), str) or len(part['chunk_id']) != 32
+                        or not finite(part.get('seek_seconds')) or part['seek_seconds'] < 0
+                        or not finite(part.get('requested_seconds')) or not 0 < part['requested_seconds'] <= 60.01):
+                    raise ValueError('Invalid decoded source lineage')
+                cursor = interval[1]
+                selected = []
+                for lo, hi in support['intervals_samples']:
+                    a, b = max(lo, interval[0]), min(hi, interval[1])
+                    if a < b:
+                        selected.append([a - interval[0], b - interval[0]])
+                safe_parts.append({k: part[k] for k in ('chunk_id', 'source_sha256', 'seek_seconds', 'requested_seconds', 'analyzer_frames')})
+                safe_parts[-1]['selected_decoded_frames'] = selected
+            if cursor != len(samples) or not is_hash(lineage.get('decoder_sha256')):
+                raise ValueError('Incomplete decoded source lineage')
+            pcm = b''.join(samples[a:b].astype('<f4').tobytes() for a, b in support['intervals_samples'])
+            if len(pcm) != support['pooled_sample_count'] * 4 or digest(pcm) != support['pooled_pcm_sha256']:
+                value['status'] = 'pooled_pcm_mismatch'
+                continue
+            manifest = {'schema_version': 1, 'support': support,
+                'encoder': {'model_sha256': model, 'version': version, 'dimension': dimension,
+                            'metric': 'cosine_l2_normalized'},
+                'embedding_sha256':digest(canonical(embeddings[0])),
+                'frontend_sha256': producer['frontend_sha256'],
+                'selection_sha256': producer['selection_sha256'],
+                'selection_implementation_sha256': selection['implementation_sha256'],
+                'diarization_turns_sha256': selection['turns_sha256'],
+                'decoder_sha256': lineage['decoder_sha256'], 'decoder_contract_sha256': digest(DECODE_CONTRACT.encode()),
+                'float_conversion_sha256': digest(FLOAT_CONTRACT.encode()),
+                'analyzer_input_pcm_sha256': producer['analyzer_input_pcm_sha256'],
+                'source_parts': safe_parts,
+                'source_frame_semantics': 'actual per-part decoded output frames; seeks are source-time requests, not original encoded-file sample alignment'}
+            if len(canonical(manifest)) > MAX_MANIFEST_BYTES:
+                value['status'] = 'manifest_size_limit'
+                continue
+            value['manifest'] = manifest
+            total_bytes += len(pcm)
+            if total_bytes > settings.speaker_support_window_pcm_bytes:
+                value['status'] = 'window_pcm_quota'
+                continue
+            if len(pcm) > settings.speaker_support_max_pcm_bytes:
+                value['status'] = 'support_pcm_quota'
+                continue
+            value.update(status='available', pcm=pcm)
+        except (ValueError, TypeError, KeyError, OSError, RuntimeError, OverflowError):
+            value['status'] = 'invalid_support'
+    return prepared
+
+
+def commit_support(store, db, chunk, offset, group, local_id, observation_id, prepared):
+    """Independent lifetime from the legacy observation cache; no auto-eviction."""
+    if db.execute('SELECT COUNT(*) FROM speaker_support').fetchone()[0] >= store.settings.speaker_support_max_records:
+        return None, 'support_row_quota'
+    value = prepared if isinstance(prepared, dict) else {}
+    current_generation = generation(db, group)
+    status = value.get('status', 'missing_lineage')
+    manifest = value.get('manifest', {})
+    pcm = value.get('pcm')
+    if value.get('generation') != current_generation:
+        status, manifest, pcm = 'missing_or_stale_generation', {}, None
+    try:
+        encoded = canonical(manifest)
+        if len(encoded) > MAX_MANIFEST_BYTES:
+            raise ValueError('Manifest limit')
+        if status == 'available':
+            support = manifest['support']
+            projection=support['coordinate_projection']
+            project_review_support(support,core_start_seconds=projection['core_start_in_analyzer_seconds'],
+                                   analyzer_chunk_start_seconds=projection['analyzer_start_in_chunk_seconds'])
+            if support['complete'] is not True or support['sample_rate']!=RATE:
+                raise ValueError('Incomplete or unsupported support')
+            if (not isinstance(pcm, bytes) or not 0 < len(pcm) <= min(MAX_PCM_BYTES, store.settings.speaker_support_max_pcm_bytes)
+                    or len(pcm) != support['pooled_sample_count'] * 4 or digest(pcm) != support['pooled_pcm_sha256']):
+                raise ValueError('Invalid PCM artifact')
+            for part in manifest['source_parts']:
+                source = db.execute('SELECT session_id,digest FROM chunks WHERE id=?', (part['chunk_id'],)).fetchone()
+                if not source or source['session_id'] != chunk['session_id'] or source['digest'] != part['source_sha256']:
+                    status, pcm = 'source_mismatch', None
+                    break
+            used = db.execute('SELECT COALESCE(SUM(pcm_bytes),0) FROM speaker_support').fetchone()[0]
+            if pcm and used + len(pcm) > store.settings.speaker_support_total_pcm_bytes:
+                status, pcm = 'total_pcm_quota', None
+            if pcm:
+                from .resources import check_resources
+                try:
+                    # SQLite main/WAL/journal can temporarily duplicate a payload.
+                    check_resources(store.settings, 3 * len(pcm) + len(encoded) * 3)
+                except RuntimeError:
+                    status, pcm = 'resource_unavailable', None
+        else:
+            pcm = None
+    except (ValueError, TypeError, KeyError, OverflowError):
+        status, manifest, pcm = 'invalid_support', {}, None
+        encoded = canonical(manifest)
+    support_id = uuid.uuid4().hex
+    db.execute('''INSERT INTO speaker_support VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        (support_id, chunk['session_id'], chunk['id'], group, current_generation, offset, str(local_id),
+         observation_id, encoded.decode(), digest(encoded), status, pcm, len(pcm) if pcm else 0))
+    for part in manifest.get('source_parts', []):
+        # Even metadata-only records must be revoked if a contributing source is deleted.
+        if db.execute('SELECT 1 FROM chunks WHERE id=? AND session_id=?', (part['chunk_id'], chunk['session_id'])).fetchone():
+            db.execute('INSERT OR IGNORE INTO speaker_support_sources VALUES(?,?)', (support_id, part['chunk_id']))
+    return support_id, status
+
+
+def _row(db, sid, support_id, with_pcm=False):
+    fields = 's.id,s.generation,s.manifest,s.manifest_sha256,s.status,s.pcm_bytes,s.window_start,s.local_speaker_id,length(s.pcm) AS actual_pcm_bytes'
+    if with_pcm:fields += f',substr(s.pcm,1,{MAX_PCM_BYTES+1}) AS pcm'
+    row = db.execute(f'''SELECT {fields} FROM speaker_support s
+        JOIN sessions sess ON sess.id=s.session_id AND sess.deleted=0
+        JOIN speaker_identity_generations g ON g.identity_group=s.identity_group AND g.generation=s.generation
+        WHERE s.session_id=? AND s.id=?''', (sid, support_id)).fetchone()
+    if not row:
+        raise KeyError('Acoustic support is unavailable in this session')
+    return row
+
+
+def metadata(store, sid, support_id=None, *, segment_id=None, turn_id=None):
+    store.session(sid)
+    with store.db() as db:
+        if segment_id is not None or turn_id is not None:
+            table, row_id = ('segments', segment_id) if segment_id is not None else ('speaker_turns', turn_id)
+            ref = db.execute(f'''SELECT r.speaker_support_id,r.speaker_support_status FROM {table} r
+                JOIN chunks c ON c.id=r.chunk_id WHERE c.session_id=? AND r.id=?''', (sid, row_id)).fetchone()
+            if not ref:
+                raise KeyError('Source result not found in session')
+            support_id = ref['speaker_support_id']
+            if not support_id:
+                return unavailable(ref['speaker_support_status'] or 'legacy_support_not_recorded')
+        try:
+            row = _row(db, sid, support_id)
+        except KeyError:
+            if segment_id is not None or turn_id is not None:
+                return unavailable('support_revoked_or_removed',support_id)
+            raise
+        manifest = json.loads(row['manifest'])
+        if digest(canonical(manifest)) != row['manifest_sha256']:
+            return unavailable('manifest_integrity_mismatch', support_id)
+        result = unavailable(row['status'], support_id)
+        result.update(identity_generation=row['generation'], manifest_sha256=row['manifest_sha256'],
+                      window_start=row['window_start'], local_speaker_id=row['local_speaker_id'],
+                      manifest=manifest, support_complete=bool(manifest.get('support', {}).get('complete')))
+        result['audio_available'] = (row['status'] == 'available' and 0 < row['pcm_bytes'] <= MAX_PCM_BYTES
+                                     and row['actual_pcm_bytes']==row['pcm_bytes'])
+        result['playback_integrity']='full_pcm_sha256_checked_before_audio_response'
+        result['review_eligible'] = result['audio_available'] and result['support_complete']
+        if result['audio_available']:
+            result['audio_url'] = f'/sessions/{sid}/speaker-support/{support_id}/audio'
+        return result
+
+
+def unavailable(reason, support_id=None):
+    return {'support_id': support_id, 'audio_available': False, 'support_complete': False,
+            'review_eligible': False, 'reason': reason, 'human_verified': False,
+            'purity_status': UNVERIFIED, 'identity_learning_available': False,
+            'warning': 'Review covers ALL pooled fragments, including context outside this line or turn. Byte integrity does not establish one speaker or human verification.'}
+
+
+def audio(store, sid, support_id):
+    from .resources import check_resources
+    check_resources(store.settings)
+    with store.db() as db:
+        # Check stored length before requesting a BLOB into Python memory.
+        row = _row(db, sid, support_id)
+        if (row['status'] != 'available' or not 0 < row['pcm_bytes'] <= MAX_PCM_BYTES
+                or row['actual_pcm_bytes'] != row['pcm_bytes']):
+            raise ValueError('Exact full acoustic support is unavailable')
+        full = _row(db, sid, support_id, with_pcm=True)
+        manifest = json.loads(row['manifest'])
+        support = manifest.get('support', {})
+        pcm = full['pcm']
+        if (digest(canonical(manifest)) != row['manifest_sha256'] or not isinstance(pcm, bytes)
+                or len(pcm) != row['pcm_bytes'] or len(pcm) != support.get('pooled_sample_count', -1) * 4
+                or support.get('sample_rate') != RATE or support.get('complete') is not True
+                or support.get('hash_encoding') != POOLED_HASH_ENCODING or digest(pcm) != support.get('pooled_pcm_sha256')):
+            raise ValueError('Exact acoustic support integrity check failed')
+    # IEEE float WAVE (format 3) preserves every f32 bit. No PCM16 requantization.
+    fmt = struct.pack('<HHIIHH', 3, 1, RATE, RATE * 4, 4, 32)
+    fact = struct.pack('<I', len(pcm) // 4)
+    body = b'WAVEfmt ' + struct.pack('<I', len(fmt)) + fmt + b'fact' + struct.pack('<I', 4) + fact
+    body += b'data' + struct.pack('<I', len(pcm)) + pcm
+    return b'RIFF' + struct.pack('<I', len(body)) + body
