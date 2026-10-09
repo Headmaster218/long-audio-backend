@@ -20,8 +20,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 906,
-      "sha256": "e6dce1be21232092e1e07f3b09269f89d94f924720881c44b5e4aa256dbce2da"
+      "bytes": 1157,
+      "sha256": "b35de008039162d49d3a383d7b254fa04927c94cc91a3b71df61a0ba3bfddec6"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -29,9 +29,14 @@
       "sha256": "950f5383c4425e56f6621edfb0032c44ce9820df37e8b685bbd6ae8e51f28054"
     },
     {
+      "path": "INTEGRATION_IMPORT.json",
+      "bytes": 727,
+      "sha256": "55dccb38b124205948104f7fdd843c4ecb57ff0a4562a79addd837dc6b0867cb"
+    },
+    {
       "path": "PUBLIC_POLICY.json",
-      "bytes": 11424,
-      "sha256": "60e45e3447709a32f2563d57b7f0da41c3ef2461b27f7db2d7c54576a1dccd60"
+      "bytes": 11627,
+      "sha256": "a484082027e92e1b1be34df7f2a599818cd6dcdc1639fda8ade03f45f89ff321"
     },
     {
       "path": "README.md",
@@ -40,8 +45,8 @@
     },
     {
       "path": "TEST_STATUS.md",
-      "bytes": 2138,
-      "sha256": "f705c58a9dbec3cd72733267fbf5d2936d272f7f372a43889e29b5ac4d10a633"
+      "bytes": 2728,
+      "sha256": "49aeb92ef623ceb996e69885427273804f40500c1c1984ac82ca3c933b2abd21"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -265,8 +270,8 @@
     },
     {
       "path": "audio_backend/speaker_evidence.py",
-      "bytes": 2030,
-      "sha256": "871e286a09cd7df54f053f2509f558a4d86a7656a174a60482e280b946a61926"
+      "bytes": 6690,
+      "sha256": "7a0f4b72592d0669bf05748fbfb9a04104ca517297be5b2d6955997f618274f0"
     },
     {
       "path": "audio_backend/storage.py",
@@ -307,6 +312,11 @@
       "path": "docs/DICOW_SETUP.md",
       "bytes": 7294,
       "sha256": "c2e4f8218a8c100e0a3ed30e25f3db781f930c7d5f46bd75646255593d0559af"
+    },
+    {
+      "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
+      "bytes": 2236,
+      "sha256": "0ddaeb55bd8d1d885850a69e2b15aa8554abd824c62903d9b8a455834150ff7b"
     },
     {
       "path": "docs/GOALS_AND_ACCEPTANCE.md",
@@ -737,6 +747,11 @@
       "path": "tests/test_speaker_evidence.py",
       "bytes": 9251,
       "sha256": "420b1c92cced8a6112b0d1a9d94e5c25fe65ed6cc139d1840b431ed36359d7ea"
+    },
+    {
+      "path": "tests/test_speaker_support_lineage.py",
+      "bytes": 5702,
+      "sha256": "8e94cc35e5542763be25c493796024ef2995b366bde7dae9be4ad23d89def4d0"
     },
     {
       "path": "tests/test_stream_api_contract.py",

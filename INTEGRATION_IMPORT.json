@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source_label": "reviewed current development source files",
+  "snapshot_scope": "Per-file hashes verified stable across the capture; not an atomic whole-project snapshot.",
+  "files": [
+    {
+      "path": "audio_backend/speaker_evidence.py",
+      "bytes": 6690,
+      "sha256": "7a0f4b72592d0669bf05748fbfb9a04104ca517297be5b2d6955997f618274f0"
+    },
+    {
+      "path": "tests/test_speaker_support_lineage.py",
+      "bytes": 5702,
+      "sha256": "8e94cc35e5542763be25c493796024ef2995b366bde7dae9be4ad23d89def4d0"
+    },
+    {
+      "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
+      "bytes": 2236,
+      "sha256": "0ddaeb55bd8d1d885850a69e2b15aa8554abd824c62903d9b8a455834150ff7b"
+    }
+  ]
+}
