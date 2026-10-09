@@ -74,6 +74,10 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 保持 localhost。若自行对外绑定，现有 CLI 要求 `AUDIO_API_KEY`，另需 TLS、访问控制与网关限流。`identity_group` 是逻辑分组，不是多租户权限隔离。音频、转写和声纹资料都应妥善保护；应用删除不是磁盘取证意义的安全擦除，也不删除外部备份。
 
+## 内部离线分片实验
+
+`0.2.0rc2.dev3` 加入[默认关闭的离线分片 API](docs/OFFLINE_FRAGMENTS_INTERNAL.md)：精确 PCM 规划与注入假 provider 的逻辑运行时。它们未接入生产 worker、HTTP API 或真实模型；音频相同不能证明同源，也不能排除真实重放。
+
 ## 测试、证据与交付
 
 ```sh
