@@ -78,6 +78,8 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 `0.2.0rc2.dev3` 加入[默认关闭的离线分片 API](docs/OFFLINE_FRAGMENTS_INTERNAL.md)：精确 PCM 规划与注入假 provider 的逻辑运行时。它们未接入生产 worker、HTTP API 或真实模型；音频相同不能证明同源，也不能排除真实重放。
 
+`0.2.0rc2.dev4` 在独立暂存分支加入[已审阅的离线扩展](docs/FRAGMENT_EXTENSIONS_STAGING.md)：真实 provider 桥接、独立的 finalized single-island PCM16 规范化实验，以及正事件和 native 边界基准。全部默认关闭；规范化尚未接入运行时、模型桥接或 HTTP API。基础矩阵的事件为空，仅支持负事件不变性；正事件结果限于选定的合成开发样本。native P2 保留原始报告超限失败，后续分片补跑单独授权和计量。这不是发布或生产验收。
+
 ## 测试、证据与交付
 
 ```sh

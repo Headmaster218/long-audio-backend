@@ -1,6 +1,6 @@
 # Reviewed fragment extensions: isolated source staging
 
-This is local development staging, version `0.2.0rc2.dev3`, not a release or
+This is local development staging, version `0.2.0rc2.dev4`, not a release or
 promotion. The isolated branch preserves active develop `6835ec41` ancestry and adds
 source-only imports; the original experimental repositories retain their graphs
 separately. No private experimental ancestry is fetched or merged. No reports, private history,
