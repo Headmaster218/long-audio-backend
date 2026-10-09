@@ -1,0 +1,762 @@
+{
+  "schema_version": 1,
+  "status": "work_in_progress_not_accepted",
+  "scope": "Public source files only. This manifest excludes itself to avoid a recursive digest.",
+  "files": [
+    {
+      "path": ".githooks/pre-commit",
+      "bytes": 64,
+      "sha256": "8dbcf5c7e96927a9992187c1b49404e51561082db7025c769125177949752d89"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 607,
+      "sha256": "401ab824364a52cc2ced6611e931bf8b77eb13436149d3bfb68a28d34ff1bb11"
+    },
+    {
+      "path": "BASELINE_IMPORT.json",
+      "bytes": 21708,
+      "sha256": "ea40ca51cab716b7d4a04918caf22db99dc8e16007c0d2e30074125c2924220d"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 731,
+      "sha256": "42d34d9ab0e3b9e576d594be9bafd286c89e1b7b02b674929932e9ed7941c25a"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "bytes": 3141,
+      "sha256": "950f5383c4425e56f6621edfb0032c44ce9820df37e8b685bbd6ae8e51f28054"
+    },
+    {
+      "path": "PUBLIC_POLICY.json",
+      "bytes": 11424,
+      "sha256": "60e45e3447709a32f2563d57b7f0da41c3ef2461b27f7db2d7c54576a1dccd60"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3147,
+      "sha256": "053cb2cd83f843433085141ee7a01c122706d2bdfb9cb480366ca4769673a83a"
+    },
+    {
+      "path": "TEST_STATUS.md",
+      "bytes": 2138,
+      "sha256": "f705c58a9dbec3cd72733267fbf5d2936d272f7f372a43889e29b5ac4d10a633"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "bytes": 1435,
+      "sha256": "4e1e6ab99bb3d4bf0efce15cb06b326c2c25decbfa1a41c8ff993d428411aecf"
+    },
+    {
+      "path": "VERSIONING.md",
+      "bytes": 1554,
+      "sha256": "d29ab585e66187beace116bbc300d0679af993fd86a13e8b460bbaedf38e813e"
+    },
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 102,
+      "sha256": "7e18118b872c426070f21f41bd3dd2b7fa1cc85b81d01b44775d71da345c85ac"
+    },
+    {
+      "path": "audio_backend/__main__.py",
+      "bytes": 10367,
+      "sha256": "b26703fc816668a64d259faca01f28d0cbbd4cdca8b1f199481c2a2ba0ed7142"
+    },
+    {
+      "path": "audio_backend/app.py",
+      "bytes": 17046,
+      "sha256": "18aaa83f9bc46702dd9c4913da28b1314efc6686f852e5af79d4608a3b8b5d28"
+    },
+    {
+      "path": "audio_backend/boundaries.py",
+      "bytes": 8334,
+      "sha256": "737093ff0bbc575e7057ceab341ca15f82642ba0ae44095886f73e7755b1fe2b"
+    },
+    {
+      "path": "audio_backend/boundary_store.py",
+      "bytes": 11507,
+      "sha256": "9d3e688f4b95611a80d86ff38dc8c3e1e35de30b27dff85ebd4cc831b63a4f99"
+    },
+    {
+      "path": "audio_backend/change_feed.py",
+      "bytes": 9930,
+      "sha256": "39167f0eb447db0d781ee22685f5e3d61301320a681575ebdc7e35d99c37a5c9"
+    },
+    {
+      "path": "audio_backend/data_paths.py",
+      "bytes": 1164,
+      "sha256": "ad77c4dec0ec8f35f524c2cf69fb7d3b535c51ec3c925afdb4f9784b3cf16466"
+    },
+    {
+      "path": "audio_backend/dicow_assets.py",
+      "bytes": 1972,
+      "sha256": "c3a5edac830349117eb382edccfb30386a2ec9dc2942a1eaa8f0154c1ed77954"
+    },
+    {
+      "path": "audio_backend/dicow_candidates.py",
+      "bytes": 18231,
+      "sha256": "e2eb5e4bf88a04f0570e9bb4a9b0f65fde32a6d914744cc5075d90635fad5180"
+    },
+    {
+      "path": "audio_backend/dicow_runner.py",
+      "bytes": 3673,
+      "sha256": "848c0b9405638f51fa2886aa4bec5737c147559eada01abc7b9594b3c144f25b"
+    },
+    {
+      "path": "audio_backend/event_candidate_store.py",
+      "bytes": 8844,
+      "sha256": "a0fa82d55bfa698c559000d6932dfefbbab2916c444a5d99d7acd3c5971b787e"
+    },
+    {
+      "path": "audio_backend/events/__init__.py",
+      "bytes": 237,
+      "sha256": "a3cac77c5c60a086023d63acacda5ff230d4e0a878e2cc74efac8c2eb5195ffa"
+    },
+    {
+      "path": "audio_backend/events/detector.py",
+      "bytes": 5692,
+      "sha256": "803a4d922e5d31573f46e17b2dabb5b9c5596f426008a531355565130a5f7340"
+    },
+    {
+      "path": "audio_backend/events/metrics.py",
+      "bytes": 2814,
+      "sha256": "fec57c10418fe5d094481bf76ded426ddf1cf11f8f85baab32666073cea99ad4"
+    },
+    {
+      "path": "audio_backend/events/multiresolution.py",
+      "bytes": 2704,
+      "sha256": "7b6fca32ff60b7bd3b20233b3eec1434c9901510732a8cee72b1b5e352db77ca"
+    },
+    {
+      "path": "audio_backend/events/temporal_decode.py",
+      "bytes": 1134,
+      "sha256": "21465e960174dda664fe884d87554c12db9bfb78fd1328b5f537eca5303d248f"
+    },
+    {
+      "path": "audio_backend/guard.py",
+      "bytes": 1085,
+      "sha256": "4626b683546fee64c014da0698a67d0070130886eba03f7020d01c2f5b28601f"
+    },
+    {
+      "path": "audio_backend/identity_reset.py",
+      "bytes": 5318,
+      "sha256": "21d3699440c939d1d9a5d977ffb757f22b012dafeb67efa034c1234232b3d1a6"
+    },
+    {
+      "path": "audio_backend/inference/__init__.py",
+      "bytes": 190,
+      "sha256": "32acf32f287bb45c06185ae51876b48067f9e681c803eb918d0366f6fddce718"
+    },
+    {
+      "path": "audio_backend/inference/analyzer.py",
+      "bytes": 35041,
+      "sha256": "37525e081e8ae96db300d185669304221d1bba28092c1571f5a77dcedbbdf842"
+    },
+    {
+      "path": "audio_backend/inference/dicow_asr.py",
+      "bytes": 5295,
+      "sha256": "a8a62ffd124743deca6315b6bfc435869440102755d1a82dcb1e1d4663ffa129"
+    },
+    {
+      "path": "audio_backend/inference/moss_td_asr.py",
+      "bytes": 14997,
+      "sha256": "2081964e8138350428204be9bcb0e66bddc61266bb27de069dfd4072b8725daf"
+    },
+    {
+      "path": "audio_backend/inference/moss_td_cpp_asr.py",
+      "bytes": 10461,
+      "sha256": "b6222fc61054ed1b5ce40f8f4c2cf3b82fc6e4e1149d607c0a41ebbe7d89d062"
+    },
+    {
+      "path": "audio_backend/inference/mossformer_separation.py",
+      "bytes": 4601,
+      "sha256": "2c0ce9107921137f0d58a52c161dfdcb32e59ccaecf47794d63ad32455e596b8"
+    },
+    {
+      "path": "audio_backend/inference/native_diarization.py",
+      "bytes": 13956,
+      "sha256": "f8fd4c1d81e6a3121daa0b2d31871263c1ef033a03f424804b221e465aa6b5d2"
+    },
+    {
+      "path": "audio_backend/lifecycle.py",
+      "bytes": 7139,
+      "sha256": "cf3e9afa6622a8b549be6180e4398c752ab6c8c457129b421f3a9d79c63432bc"
+    },
+    {
+      "path": "audio_backend/moss_td_assets.py",
+      "bytes": 2503,
+      "sha256": "50c133f83f467ccda37e771c80f05eff467a19f7c265da81d0d0f1d64c5e844d"
+    },
+    {
+      "path": "audio_backend/moss_td_candidates.py",
+      "bytes": 12156,
+      "sha256": "19744d71911e60a04d6fe2e84ab89496598b6e803e2da3c3eb21fda75c12d32a"
+    },
+    {
+      "path": "audio_backend/moss_td_cpp_assets.py",
+      "bytes": 12076,
+      "sha256": "a74cc5006c7aff5bcfcc1222a5e93ae390aa4e539dc36b027af80c187409f0e5"
+    },
+    {
+      "path": "audio_backend/moss_td_runner.py",
+      "bytes": 10682,
+      "sha256": "69cb61192dadccf532ba0168d8e7a8af1348644dcd9674759e5fe2d8914cf16b"
+    },
+    {
+      "path": "audio_backend/native_runner.py",
+      "bytes": 2635,
+      "sha256": "9f5d99412a7222329617a7fe450167d289ab6ebfc8d4a58a634a9982cb39d241"
+    },
+    {
+      "path": "audio_backend/native_worker.py",
+      "bytes": 8188,
+      "sha256": "15ae37bcf2aea12baecd53a136447d0b87dab70c80bb8c839b8fd5597a39acb0"
+    },
+    {
+      "path": "audio_backend/overlap.py",
+      "bytes": 7947,
+      "sha256": "31982119d37071145e4f3a1f696b9cb5e336d7d5e05e815afd41d52d79935208"
+    },
+    {
+      "path": "audio_backend/overlap_candidates.py",
+      "bytes": 21362,
+      "sha256": "f83cd89d49696d6ca7fb9ab05d89fd46452d17936e8a7c927f39d1554ce3f09c"
+    },
+    {
+      "path": "audio_backend/overlap_ownership.py",
+      "bytes": 12459,
+      "sha256": "0549aa7f6f27c50751c1ea80477692f90df44ad702a327739d1d6ff24c3268d5"
+    },
+    {
+      "path": "audio_backend/overlap_runner.py",
+      "bytes": 3717,
+      "sha256": "02eb60fb4080ee090741435e546fee5263de767b2b6e8f6edf5d71f516bf7d33"
+    },
+    {
+      "path": "audio_backend/overlap_store.py",
+      "bytes": 20982,
+      "sha256": "b794b8cdac9861a732803aaa2a7d3ad3f928322adf6ad6fce4691a8719a60105"
+    },
+    {
+      "path": "audio_backend/profiles/eres2net-ami20-v1.json",
+      "bytes": 2060,
+      "sha256": "670388018d7af578bc54405a27287422d54d0bd98a181f8c366c13f6d80da590"
+    },
+    {
+      "path": "audio_backend/resources.py",
+      "bytes": 6171,
+      "sha256": "6c7c349354e09f68e1223e703cf5f16cad24213b5a708e333b12da052d1c3e89"
+    },
+    {
+      "path": "audio_backend/runner.py",
+      "bytes": 2467,
+      "sha256": "8e07643bc6cee4da133a6ba5fe34727b79645bf81f69d8f472bbba06959ea36f"
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "bytes": 13174,
+      "sha256": "5a74dc0d2f0e6961563390318f6463a7e5de2c7f76a255bf2cdbb2230854327e"
+    },
+    {
+      "path": "audio_backend/speaker_calibration.py",
+      "bytes": 2451,
+      "sha256": "bb9b5d8933e3f9955f4997357fdb786326a406aa60f2f344d03e0232ee9d895e"
+    },
+    {
+      "path": "audio_backend/speaker_evidence.py",
+      "bytes": 2030,
+      "sha256": "871e286a09cd7df54f053f2509f558a4d86a7656a174a60482e280b946a61926"
+    },
+    {
+      "path": "audio_backend/storage.py",
+      "bytes": 44234,
+      "sha256": "1e42b93dea2faeb4f2b1a8222e726fd21d61bbd0e0689a281d350e0d989b5cf8"
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "bytes": 15045,
+      "sha256": "201837f99f4101eadaf71b14b2f2544ca9b6b0dc3cbb0c05660fc6ef5cbc83e7"
+    },
+    {
+      "path": "dicow-model-manifest.json",
+      "bytes": 10585,
+      "sha256": "822dbfa92909b7ff4f272eedddb03116136476cccde275dacd06d2928e2040db"
+    },
+    {
+      "path": "docs/API.md",
+      "bytes": 29462,
+      "sha256": "7328426e7752d602480cd6d0ffe55096a1d6491b71e2d2e51a9b0ea9f3a07f6c"
+    },
+    {
+      "path": "docs/BOUNDARY_ASSEMBLY.md",
+      "bytes": 877,
+      "sha256": "21da0d613952637e0ebddb042cf4ea110a99339a11204760ca55fe29f4c8cded"
+    },
+    {
+      "path": "docs/DATA_MIGRATION.md",
+      "bytes": 3813,
+      "sha256": "ad2c15de2117d9b0c364bdc7da798dd5069fd71f2c1363287c3b1d269a4ee184"
+    },
+    {
+      "path": "docs/DEPENDENCY_SOURCE_CLOSURE.json",
+      "bytes": 1754,
+      "sha256": "2e20ab1ad14d13eb50b8c854ebf545f51b448529de6199bc593511fc8f976a12"
+    },
+    {
+      "path": "docs/DICOW_SETUP.md",
+      "bytes": 7294,
+      "sha256": "c2e4f8218a8c100e0a3ed30e25f3db781f930c7d5f46bd75646255593d0559af"
+    },
+    {
+      "path": "docs/GOALS_AND_ACCEPTANCE.md",
+      "bytes": 1206,
+      "sha256": "af31e635fbc2e022950b70b40a5e7ed7de49df9b67d101c508852b4b484003e1"
+    },
+    {
+      "path": "docs/MOSS_TD_CPP_SETUP.md",
+      "bytes": 15436,
+      "sha256": "7c0a70a6a45ea3b2b947f8fd69c819de404654dcbf543775a0f87317ebd4b859"
+    },
+    {
+      "path": "docs/MOSS_TD_SETUP.md",
+      "bytes": 8513,
+      "sha256": "e6ec24d89334274421f8a11a767846f322a745f002daaf61be8cb48678797ff4"
+    },
+    {
+      "path": "docs/NATIVE_DIARIZATION_SETUP.md",
+      "bytes": 3031,
+      "sha256": "38ffdf23c3022f7f8074a9d35fccdda013d67f8c4f876a45837e1938e4473a2f"
+    },
+    {
+      "path": "docs/OVERLAPPING_SPEECH.md",
+      "bytes": 850,
+      "sha256": "9fe378c282c170179aa230a88dd70ca6c5bb6e75db2f5edfcc3c2acd2ced52b3"
+    },
+    {
+      "path": "docs/QUEUING_AND_CANDIDATE_LEDGERS.md",
+      "bytes": 5586,
+      "sha256": "6004ade693455a3da2e758cf9c27d2b2edbb4476603e0d53b568c8d36b67b6ec"
+    },
+    {
+      "path": "docs/QUICKSTART_ZH.md",
+      "bytes": 18434,
+      "sha256": "4a05d184dd4ad47b85a9a2883ecc4481d29e9b9dc90b47e39ddc35399e8b6241"
+    },
+    {
+      "path": "docs/SPEAKER_REGISTRY.md",
+      "bytes": 1288,
+      "sha256": "1ca6c8ae5a0ae2dbfc256f0460ded49e70d101cec9973f4a97ef0632517dbe4f"
+    },
+    {
+      "path": "licenses/clap-model-note.md",
+      "bytes": 1990,
+      "sha256": "d7537150e7a9ebd17f590fee4454083a6a6aead391cf6dc3d3a2a04c474e016c"
+    },
+    {
+      "path": "licenses/native-diarization/OpenMDW-1.1.txt",
+      "bytes": 2619,
+      "sha256": "2ab44b68365473c112f5092211a38f231cb23e50de68b75a13369adbd76a74df"
+    },
+    {
+      "path": "model-manifest.json",
+      "bytes": 7144,
+      "sha256": "6835817147daca593ab65e0363cea02e81e1f5c11add5bbfe8366e346320ca22"
+    },
+    {
+      "path": "moss-td-cpp-model-manifest.json",
+      "bytes": 18130,
+      "sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a"
+    },
+    {
+      "path": "moss-td-model-manifest.json",
+      "bytes": 9189,
+      "sha256": "000693458b0d2cdb864f16eca67ff4e2000dbdfb21f874606d70f43d28384143"
+    },
+    {
+      "path": "native-runtime-manifest.json",
+      "bytes": 2521,
+      "sha256": "599f99319021eddfa7fa80a2df9ec76f4e48fd479e170b01a35ede41b01599a7"
+    },
+    {
+      "path": "overlap-model-manifest.json",
+      "bytes": 6818,
+      "sha256": "5e409a9eb5c19665412745c65ee3cfeafaae507118093bda3180d9a658d2fff3"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 823,
+      "sha256": "efa44febbc38bd40cd0586194f6fc33a334797c946c08414ace110aec8758ee8"
+    },
+    {
+      "path": "requirements-dicow.txt",
+      "bytes": 328,
+      "sha256": "1ec9e38c6a0f8361c6f2fabedb2f3ff071a6e8e3edbc2538cb867d3d697ef9ec"
+    },
+    {
+      "path": "requirements-inference.txt",
+      "bytes": 99,
+      "sha256": "fff968364fb8867fa7d2395f1c97041c95bc2387eb4ebefd902ec845da92aca0"
+    },
+    {
+      "path": "requirements-lock-linux-py312.txt",
+      "bytes": 624,
+      "sha256": "fa5d0b8ac727e19225f154dbcd9c12ab5a7c2483728f842d96e699930119ce44"
+    },
+    {
+      "path": "requirements-metrics-lock.txt",
+      "bytes": 92,
+      "sha256": "ae7b3756b58ce8d0d7fe80ea4a7400bc5bf3a2582e106ef543948e05961ec95f"
+    },
+    {
+      "path": "requirements-moss-td-cpp.txt",
+      "bytes": 1223,
+      "sha256": "af79da6a4665b32b080a2f133c37959e25711396491d3a847e47bba4525781fc"
+    },
+    {
+      "path": "requirements-moss-td.txt",
+      "bytes": 558,
+      "sha256": "cf8cfbb710cce394186d9ba2cb2e86ef1ad68161b0b64844bd9f6b760935c73b"
+    },
+    {
+      "path": "requirements-overlap.txt",
+      "bytes": 479,
+      "sha256": "6cf1b65d7b76168cc5eb135e037205247962ed98e0f1d8d09abfe92c01dd845b"
+    },
+    {
+      "path": "scripts/benchmarks/boundary_metrics.py",
+      "bytes": 2605,
+      "sha256": "16e72b88a57ea5665ddb21dac4c49556cc524c17faedfdc4a23e1de5ee27ce50"
+    },
+    {
+      "path": "scripts/benchmarks/moss_td_research/guard.py",
+      "bytes": 4680,
+      "sha256": "c56c76aa9af3bdc534871907e734510f01cc59001a7db9942a1a777ddf4800c8"
+    },
+    {
+      "path": "scripts/benchmarks/score_overlap_signal.py",
+      "bytes": 2915,
+      "sha256": "8aaa90b4029e0d1dec3be5b38617d2f6bbe29a64e7f7d2c519fc576feac4d1b1"
+    },
+    {
+      "path": "scripts/benchmarks/score_overlap_transcripts.py",
+      "bytes": 4336,
+      "sha256": "f526fe03178c969d515a56c76c1b160a5d4ccc0519812a36f9f61b4d2901b6a9"
+    },
+    {
+      "path": "scripts/benchmarks/score_predictions.py",
+      "bytes": 8286,
+      "sha256": "24d194199ccdda53f6505e95ee577ce0ab954f32968beb276027322acf8c3afd"
+    },
+    {
+      "path": "scripts/check_public_tree.py",
+      "bytes": 8420,
+      "sha256": "1542abd056d0a244ad454cc7e8a6d82501ffca582048ce006640791b8c1fa0eb"
+    },
+    {
+      "path": "scripts/measure_command.py",
+      "bytes": 5247,
+      "sha256": "785e8996a888cfdc45a06e2817c830ea765a2491db7bc72da12e6c5b2f26de06"
+    },
+    {
+      "path": "scripts/migrate_audio_data.py",
+      "bytes": 9964,
+      "sha256": "749940e2c315c19cbbcd703005f53d4667c0d53fa26e3cf16a4d607b539f5e69"
+    },
+    {
+      "path": "scripts/prepare_moss_td_cpp.py",
+      "bytes": 17553,
+      "sha256": "9f9572d3b57369589dfcd963755781cc8b6339573ae866fa23f502c984d5a0a9"
+    },
+    {
+      "path": "scripts/prepare_public_sync.py",
+      "bytes": 3294,
+      "sha256": "7ad62617cf1d8dcf5a440ff356baa57bfbc8a44df99ef579f47f3e10b09a8da2"
+    },
+    {
+      "path": "scripts/run_cpu_candidate.py",
+      "bytes": 13245,
+      "sha256": "221d0eb3f43db77cf81dc27941ae208c02e2bd970f092fe61119607164584b04"
+    },
+    {
+      "path": "scripts/setup_dicow.py",
+      "bytes": 5095,
+      "sha256": "91113054afcff8a7179b45e20fa44916d02b7cb3921069585ff9fe6671b09e30"
+    },
+    {
+      "path": "scripts/setup_models.py",
+      "bytes": 5297,
+      "sha256": "72a846aec694621bd0bd7a5f2c5e954127f5dbc3100bc955928647a88fb9549d"
+    },
+    {
+      "path": "scripts/setup_moss_td.py",
+      "bytes": 7004,
+      "sha256": "87f3c4182e07434e277ff9e423f9d43f17480ebe0947b65f1eff5ce226cb2895"
+    },
+    {
+      "path": "scripts/setup_moss_td_cpp.py",
+      "bytes": 6618,
+      "sha256": "0ed96ee5e8dfbe3c857b7a03f4f95d94f24108c9346d7219023e2294ea5670dc"
+    },
+    {
+      "path": "scripts/setup_native_diarization.py",
+      "bytes": 5216,
+      "sha256": "5498de123631f994c2efd450e96a9047e4d9ff4296154deb446f82f5dca88503"
+    },
+    {
+      "path": "scripts/setup_overlap_models.py",
+      "bytes": 2477,
+      "sha256": "5a36a29aa2b7941e402a248e6f96a6bb11393ec410ee8bb17e83e4d6d5ab8d6d"
+    },
+    {
+      "path": "tests/test_api_storage.py",
+      "bytes": 24832,
+      "sha256": "d9cdcdb9caed322d6fe061b7e230471ddf3918fb18a1ff8056f3ce6c7786a68b"
+    },
+    {
+      "path": "tests/test_boundaries.py",
+      "bytes": 8773,
+      "sha256": "6bb5f7d84ebca04d30717ac2f1875dae5df4751ee331206c6a78ed29799a8b36"
+    },
+    {
+      "path": "tests/test_candidate_core_bounds.py",
+      "bytes": 1895,
+      "sha256": "eebc6508aa99085fcbe80846ae22987c66ed944dbfe2ac1b9fa14336ac25cf81"
+    },
+    {
+      "path": "tests/test_candidate_ledger_api.py",
+      "bytes": 3565,
+      "sha256": "46f3316daa7c780da6e8213c0f60bfd0bbb6e6d23b63e68f1e428f23f06c22a0"
+    },
+    {
+      "path": "tests/test_cli.py",
+      "bytes": 2633,
+      "sha256": "3201710d4d2406ad867440c90a55877c3d7fc3de7a87f776866218cccfd06eb8"
+    },
+    {
+      "path": "tests/test_cpu_candidate_launcher.py",
+      "bytes": 15949,
+      "sha256": "326242c1150d6ef70ebedd5a14b2fd9e2eaef0b47e02755e40c5f6c771446e55"
+    },
+    {
+      "path": "tests/test_data_dir_migration.py",
+      "bytes": 7507,
+      "sha256": "8751c815561475277710b084dbff63f70c02df47aa57d1352e1e0e2c88a1bf6d"
+    },
+    {
+      "path": "tests/test_data_path_guard.py",
+      "bytes": 3339,
+      "sha256": "d7ba8b0ad156d1a7f377d04a343b06c6fae1affb721dcc80ac4be9c8d1a6e862"
+    },
+    {
+      "path": "tests/test_dicow_candidates.py",
+      "bytes": 10907,
+      "sha256": "df2a5081d4155954ddbb58a8c84c98e170a60a903d1640a81bf8248435be9ba2"
+    },
+    {
+      "path": "tests/test_events_candidate_store.py",
+      "bytes": 6815,
+      "sha256": "ceccd2a46d889b2ea5019a4ffb1c9d092e5c8cbbd712ced5091fba3d14b82329"
+    },
+    {
+      "path": "tests/test_events_detector.py",
+      "bytes": 3054,
+      "sha256": "222ea1e58f5323d566e636a68bcf7d523cb72c785a9125143c525674223c2e1e"
+    },
+    {
+      "path": "tests/test_events_multiresolution.py",
+      "bytes": 585,
+      "sha256": "4cffd56a8135add1c08cf2438231fc561dbfae895868bf1a24e73d612b216746"
+    },
+    {
+      "path": "tests/test_events_temporal_decode.py",
+      "bytes": 961,
+      "sha256": "638daf66800b18eaf99de5d8c44ee62017dea3b6e431212b4b32889928b600d1"
+    },
+    {
+      "path": "tests/test_final_audit.py",
+      "bytes": 3980,
+      "sha256": "227515577d9175a5f1201135d551fc7b959b274d8e1c0d21d6cf460720df74a3"
+    },
+    {
+      "path": "tests/test_identity_reset.py",
+      "bytes": 8218,
+      "sha256": "f2bfdbed65e741a45e9facdb445b96e1fceaa24f0e05a13ae96608cca9580bc6"
+    },
+    {
+      "path": "tests/test_inference.py",
+      "bytes": 8406,
+      "sha256": "fa326b0c3cf87315fd775d7aea269545f1577505e75952f95a8cf75d9ee7c88e"
+    },
+    {
+      "path": "tests/test_lexical_metrics_fast.py",
+      "bytes": 1400,
+      "sha256": "d81203018791932b290b987c0cc7a131d87afa497bafa648f66afb48ceedd5dd"
+    },
+    {
+      "path": "tests/test_lifecycle_durability.py",
+      "bytes": 9742,
+      "sha256": "9de8e74e0e58f6df14904c37d49734debca6e0f7a5e03bb5eb7d4d9927cbcb80"
+    },
+    {
+      "path": "tests/test_moss_cpp_public_provenance.py",
+      "bytes": 2518,
+      "sha256": "6e2d46bfb3e26b05ab51c8969c97925ea231d9e67581bed527865aa44776b96c"
+    },
+    {
+      "path": "tests/test_moss_td_candidates.py",
+      "bytes": 9245,
+      "sha256": "b0dced2cbb04ec832e7f2a4cc67b1a3ca22651f08d5f97cfee063a6d053ed16f"
+    },
+    {
+      "path": "tests/test_moss_td_configuration.py",
+      "bytes": 3606,
+      "sha256": "82b760f089ff0a0acf84ee7fef53b7981c780e7d6ca7f3ade4b9c4c2f0ee72a1"
+    },
+    {
+      "path": "tests/test_moss_td_cpp_assets_setup.py",
+      "bytes": 10073,
+      "sha256": "e19788b9ace921e802b6aa9ba91d3d3328b785a7f4fb9394e5565cbb5f3b8816"
+    },
+    {
+      "path": "tests/test_moss_td_cpp_engine.py",
+      "bytes": 8603,
+      "sha256": "ed736500d612f8d3fa13b0337d8a3d69f7c52e402f0f18d44fcd4240ffa03b35"
+    },
+    {
+      "path": "tests/test_moss_td_cpp_runner_lifecycle.py",
+      "bytes": 3345,
+      "sha256": "fe1123684ff8da725af6568cba9f765915dd7ad935aae5a38119aad31e4a1d23"
+    },
+    {
+      "path": "tests/test_moss_td_engine.py",
+      "bytes": 18291,
+      "sha256": "6c82b58385e2c108308baa6c11be494a1613488e748ab496ed3517203057e26c"
+    },
+    {
+      "path": "tests/test_moss_td_runner_lifecycle.py",
+      "bytes": 6577,
+      "sha256": "ff53020abf07b8654df0b70787d43a2d10264564b9248c21f8a609e315016cbe"
+    },
+    {
+      "path": "tests/test_moss_td_setup_resume.py",
+      "bytes": 8594,
+      "sha256": "6ca56c64ca37f7858c718e46885fca52071d3ed1e45c84a3bb08c2c502930767"
+    },
+    {
+      "path": "tests/test_moss_td_speech_probe.py",
+      "bytes": 5331,
+      "sha256": "795843fc04221c063298d6a7c8222c0cfbcb7b5ebd7544b74cf85c1b9d3c02b7"
+    },
+    {
+      "path": "tests/test_native_diarization.py",
+      "bytes": 5231,
+      "sha256": "8141f3a26bac3ff195d0d80179f907a1597ff17e787bdc258600605b83b95a39"
+    },
+    {
+      "path": "tests/test_native_overlap_api.py",
+      "bytes": 4062,
+      "sha256": "240094ffdd015fc99a411ca252bca7604b22dba8c0ff66400a27f8c72a18832a"
+    },
+    {
+      "path": "tests/test_native_scheduling.py",
+      "bytes": 5004,
+      "sha256": "ca8f9176923139dcd7802c5c4eab461c8a7eb328ff8688921e8b2ada165f34a3"
+    },
+    {
+      "path": "tests/test_native_setup.py",
+      "bytes": 1210,
+      "sha256": "e6844bbf0df3dd1473bfe4cf4fbf46e07963a674cdd16e2f2b29184daa27542f"
+    },
+    {
+      "path": "tests/test_overlap_ownership.py",
+      "bytes": 11329,
+      "sha256": "1ceadfa6688ee6e7f9a6210025cfc85daae8ed94254b8d98c7451a04badd4d19"
+    },
+    {
+      "path": "tests/test_overlap_public_contract.py",
+      "bytes": 7677,
+      "sha256": "ecbec075d66fe35a67d95834b662d9fa2b0fc53ebd3c1f69a2001f17a5701abb"
+    },
+    {
+      "path": "tests/test_overlap_readiness.py",
+      "bytes": 2394,
+      "sha256": "1d7d78be92d794b4d6e334960c011f717c14455a61f51f9d855b3de608eb1e11"
+    },
+    {
+      "path": "tests/test_overlap_sources.py",
+      "bytes": 2833,
+      "sha256": "ffb81e80f6d70019c4d2d21f120b507bb4a94db0aaf61c13fba4671b71d1a15c"
+    },
+    {
+      "path": "tests/test_overlap_store.py",
+      "bytes": 9432,
+      "sha256": "613f8fe25344c9b8a4de34982e1cd91630c2cdd60d6b1d459dc92dd066321187"
+    },
+    {
+      "path": "tests/test_overlap_transcript_metrics.py",
+      "bytes": 2194,
+      "sha256": "ca0ef500f64b54e104be166488c599461e9ce2724a22ef3330643ea1bac28ffd"
+    },
+    {
+      "path": "tests/test_prepare_moss_td_cpp.py",
+      "bytes": 13103,
+      "sha256": "301a610cc6f9e0db12d106bdc44ce3daba3f744368318bdd36cb2518d56da644"
+    },
+    {
+      "path": "tests/test_process_lifecycle.py",
+      "bytes": 7367,
+      "sha256": "ea478ddfd8c46d38f74cae0755264cd0cdc0aa539bdb81fce585a653c00dd950"
+    },
+    {
+      "path": "tests/test_public_source_workflow.py",
+      "bytes": 3630,
+      "sha256": "0d9aeae9d881920e2f663cb6fc3768dedaa8431b47144ed57d24ea59c58c26f4"
+    },
+    {
+      "path": "tests/test_punctuation_boundary.py",
+      "bytes": 2709,
+      "sha256": "75d511aafb697ddb64ad137de48bc92e50ac4564091f0753ef3e34e7a16b0a96"
+    },
+    {
+      "path": "tests/test_queue_scaling.py",
+      "bytes": 1541,
+      "sha256": "8892b74e06e99a5fe692f465f73965a006f3033ba3fbb1170c001ee238c308df"
+    },
+    {
+      "path": "tests/test_speaker_calibration_profile.py",
+      "bytes": 2348,
+      "sha256": "4937ca2b3ef3dab5633bdd438c135d7160f802ba7ee6bdd28d6968ad8a8d463a"
+    },
+    {
+      "path": "tests/test_speaker_clean_mask.py",
+      "bytes": 1068,
+      "sha256": "bb99c8e0b9bc08818e8498ac7e441deab29a56a689e596c4d2657a20e65b7df5"
+    },
+    {
+      "path": "tests/test_speaker_evidence.py",
+      "bytes": 9251,
+      "sha256": "420b1c92cced8a6112b0d1a9d94e5c25fe65ed6cc139d1840b431ed36359d7ea"
+    },
+    {
+      "path": "tests/test_stream_api_contract.py",
+      "bytes": 6757,
+      "sha256": "da633ed692cbdd1508856c63acca87d010b8bed1e5e9e8498e1cd84deeeaaafa"
+    },
+    {
+      "path": "tests/test_stream_boundaries.py",
+      "bytes": 3592,
+      "sha256": "96b841c1e6263cb2608362933cb5afa1f3b59e06bb4b911d86661fabbbd9b40e"
+    },
+    {
+      "path": "tests/test_stream_time_index.py",
+      "bytes": 4830,
+      "sha256": "aa73dbf7dc768fee0f710673660abfb127e7cd74f4c624ba496ae0d06893eee5"
+    },
+    {
+      "path": "tests/test_whisper_unicode_pipeline.py",
+      "bytes": 2855,
+      "sha256": "85f6bc2bfbe98cad77c17659bd688de2780c9111aea0a7e6019132e7e95fc56e"
+    }
+  ]
+}

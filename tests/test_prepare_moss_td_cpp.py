@@ -261,8 +261,7 @@ def test_cli_help_is_model_free_and_does_not_create_work(tmp_path):
 
 def test_public_source_pins_match_audited_closure():
     _, native = prepare.load_specs()
-    root = prepare.ROOT / 'reports/moss-td-cpp-023'
-    audits = [json.loads((root / name).read_text()) for name in ('converter-audit.json', 'quantizer-build-audit.json')]
-    rows = audits[0]['source_import_closure'] + audits[1]['source_closure']
+    closure = prepare.ROOT / 'docs/DEPENDENCY_SOURCE_CLOSURE.json'
+    rows = json.loads(closure.read_text())['files']
     assert {(r['path'], r['bytes'], r['sha256']) for r in prepare.source_rows(native)} == {
         (r['path'], r['bytes'], r['sha256']) for r in rows}

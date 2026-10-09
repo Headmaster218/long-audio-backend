@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def tmp_path():
     # The production worker intentionally requires 5 GiB disk free. /tmp may be
     # a smaller tmpfs, so these real subprocess tests use the project volume.
-    with tempfile.TemporaryDirectory(prefix='moss-td-test-', dir=ROOT / 'validation') as directory:
+    with tempfile.TemporaryDirectory(prefix='.test-runtime-', dir=ROOT) as directory:
         yield Path(directory)
 
 

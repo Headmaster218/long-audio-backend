@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "scope": "Public upstream dependency source pins only; no upstream source redistributed",
+  "files": [
+    {
+      "path": "scripts/convert-moss.py",
+      "bytes": 32053,
+      "sha256": "a3eab3a4786f38f6885e2b0dee63cb1fa05c56a7e2997723a9c0e97571dc2110"
+    },
+    {
+      "path": "scripts/lib/__init__.py",
+      "bytes": 212,
+      "sha256": "379ec0ee5610c06b37c60ed6a5d56db8f6894fad3fe7c4ed5e770d540d3ba8e5"
+    },
+    {
+      "path": "scripts/lib/hf_source.py",
+      "bytes": 2762,
+      "sha256": "e74905088050b3f7594fecf20657c843e0672e4ec34abde44d012db525d38e11"
+    },
+    {
+      "path": "scripts/lib/gguf_common.py",
+      "bytes": 14216,
+      "sha256": "5de42975fd809aae9a95a8c7759c7eee5fb5742e24c949f2d1049cb71d338e2a"
+    },
+    {
+      "path": "tools/transcribe-quantize/main.cpp",
+      "bytes": 19374,
+      "sha256": "7f33b155e3b1e8f5bef308ee0807b5d939b03314d14f23ee8a5d1509ec436e3c"
+    },
+    {
+      "path": "tools/transcribe-quantize/policy.cpp",
+      "bytes": 18095,
+      "sha256": "d50911ecb205fc6e0bd388cced261b0b088eb00482e09ec3e01e44d50385df7b"
+    },
+    {
+      "path": "tools/transcribe-quantize/policy.h",
+      "bytes": 3719,
+      "sha256": "753421f1b7301df00e3d7394e6016808b546e4549127e8f472031c0381ffa605"
+    },
+    {
+      "path": "ggml/include/ggml.h",
+      "bytes": 112215,
+      "sha256": "725ca1d9670770f7ee7e1f736983ce332c4f9f27999a5472b61002ff1fa78ea5"
+    },
+    {
+      "path": "ggml/include/ggml-alloc.h",
+      "bytes": 3753,
+      "sha256": "94e4cd069b9313b2ceb35dacec901981e0bb478d8bb31035b7126be091998c23"
+    },
+    {
+      "path": "ggml/include/gguf.h",
+      "bytes": 11355,
+      "sha256": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
+    }
+  ]
+}
