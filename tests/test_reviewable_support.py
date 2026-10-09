@@ -551,3 +551,31 @@ def test_turn_only_support_can_exist_without_legacy_observation(tmp_path):
     turn=store.speaker_turns(sid)['speaker_turns'][0]
     meta=support.metadata(store,sid,turn_id=turn['id'])
     assert meta['audio_available'] and meta['human_verified'] is False
+
+
+@pytest.mark.parametrize('object_name',['frontend','selection','diarization','encoder'])
+def test_nested_private_fields_rejected_at_store_boundary(tmp_path,object_name):
+    _,store=setup(tmp_path)
+    sid,chunk,result,*_=prepare(store)
+    result['_speaker_support']['A']['manifest'][object_name]['private_path']='/private/source'
+    assert store.commit_window(chunk,0,3,result)
+    meta=support.metadata(store,sid,segment_id=store.results(sid)['segments'][0]['id'])
+    assert meta['reason']=='invalid_support' and not meta['audio_available']
+    assert '/private/source' not in json.dumps(meta)
+
+
+@pytest.mark.parametrize('object_name',['frontend','selection','diarization','encoder'])
+def test_nested_private_fields_rejected_at_corrupted_read_boundary(tmp_path,object_name):
+    _,store=setup(tmp_path)
+    sid,_,_,_,_,meta=commit(store)
+    with store.db() as db:
+        db.execute('DROP TRIGGER speaker_support_immutable')
+        row=db.execute('SELECT manifest FROM speaker_support WHERE id=?',(meta['support_id'],)).fetchone()
+        manifest=json.loads(row[0]);manifest[object_name]['private_path']='/private/source'
+        encoded=support.canonical(manifest)
+        db.execute('UPDATE speaker_support SET manifest=?,manifest_sha256=? WHERE id=?',
+                   (encoded.decode(),support.digest(encoded),meta['support_id']))
+    failed=support.metadata(store,sid,meta['support_id'])
+    assert failed['reason']=='manifest_integrity_mismatch' and not failed['audio_available']
+    assert '/private/source' not in json.dumps(failed)
+    with pytest.raises(ValueError,match='integrity'):support.audio(store,sid,meta['support_id'])

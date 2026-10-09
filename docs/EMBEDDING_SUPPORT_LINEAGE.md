@@ -86,6 +86,8 @@ The response is a lossless mono 16 kHz IEEE float WAV. Re-decoding a deleted or
 changed source never substitutes different bytes under an old support ID. If a
 source file changes after capture, the original hash-bound retained PCM remains
 reviewable; deleting a contributing chunk through the service revokes it.
+Responses explicitly label these as original captured bytes. They do not claim
+that a current source file still matches its historical source-content hash.
 
 ## Private persistence, quotas and lifecycle
 

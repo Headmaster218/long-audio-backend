@@ -406,7 +406,8 @@ def validate_manifest(manifest):
     if 'epoch' in diar:metadata['native_diarization']=diar['epoch']
     producer={key:manifest[key] for key in ('frontend','selection','frontend_sha256','selection_sha256')}
     frontend,selection,diarization=provenance_details(producer,metadata)
-    if (canonical(diarization)!=canonical(diar) or digest(canonical(diar))!=manifest['diarization_sha256']
+    if (canonical(frontend)!=canonical(manifest['frontend']) or canonical(selection)!=canonical(manifest['selection'])
+            or canonical(diarization)!=canonical(diar) or digest(canonical(diar))!=manifest['diarization_sha256']
             or frontend['model_sha256']!=encoder['model_sha256']
             or selection['implementation_sha256']!=manifest['selection_implementation_sha256']
             or selection['turns_sha256']!=manifest['diarization_turns_sha256']
@@ -557,6 +558,7 @@ def unavailable(reason, support_id=None):
     return {'support_id': support_id, 'audio_available': False, 'support_complete': False,
             'review_eligible': False, 'reason': reason, 'human_verified': False,
             'purity_status': UNVERIFIED, 'identity_learning_available': False,
+            'source_bytes_semantics':'original captured PCM; source hashes were checked at capture, current source files are not revalidated for review',
             'warning': 'Review covers ALL pooled fragments, including context outside this line or turn. Byte integrity does not establish one speaker or human verification.'}
 
 
