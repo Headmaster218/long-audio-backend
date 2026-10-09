@@ -146,3 +146,11 @@ def test_new_experiments_are_not_http_or_production_wired():
         source = (ROOT / 'audio_backend' / path).read_text()
         for name in ('fragment_normalized_runtime', 'fragment_decoded_source', 'fragment_rolling_decode'):
             assert name not in source
+
+
+def test_codec_reader_is_not_sourceplan_or_runtime_integrated():
+    for path in ('fragment_core.py', 'fragment_runtime.py',
+                 'fragment_normalized_runtime.py', 'fragment_model_bridges.py'):
+        source = (ROOT / 'audio_backend' / path).read_text()
+        assert 'fragment_decoded_source' not in source
+        assert 'fragment_rolling_decode' not in source
