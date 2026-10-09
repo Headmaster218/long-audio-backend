@@ -20,8 +20,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 3902,
-      "sha256": "91bba82221ab71c1c9e0f3fb59ea53c86e86a1468b1820dfa969bae5c36cfc64"
+      "bytes": 4844,
+      "sha256": "b5cc46d902a326770813a57a85a0d1cb5a217fd9957bb9ab09160dc4c48a062f"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -44,29 +44,34 @@
       "sha256": "3d69f67303d334d50382cfe996be319828a861e48fc385058288954a008dcb7b"
     },
     {
+      "path": "INTEGRATION_0_2_0RC2_DEV4.json",
+      "bytes": 14901,
+      "sha256": "6f6f1aa2cd0299ed2d7342084eb8372ca878e95f0ddfbe66313e1b71fb62b510"
+    },
+    {
       "path": "INTEGRATION_IMPORT.json",
       "bytes": 819,
       "sha256": "96ac48051aa1def91532cc5c96818c73ecbd2d7d003f366543901a303856d155"
     },
     {
       "path": "PUBLIC_POLICY.json",
-      "bytes": 16342,
-      "sha256": "eab7807770aba681dd4513afa7e444fc3bb50db46b85064ab17ba88a8f2effb6"
+      "bytes": 18872,
+      "sha256": "266573b2f1a9e5f626b7bef1d282fccacfa52944cb94fcf8ef49ad2ad64c6eb4"
     },
     {
       "path": "README.md",
-      "bytes": 5929,
-      "sha256": "7084be4745a7b85df520f6d26aa0a605abd7726ee66412458c6690752d6fd268"
+      "bytes": 6256,
+      "sha256": "1bae00308ae10d1a2b4179580e1b6a89f5e2011c46c724a05f42948e006cc65e"
     },
     {
       "path": "SOURCE_CONTROL_PROVENANCE.json",
-      "bytes": 47846,
-      "sha256": "4a246a35f6b4f549f8059d3e41641a034e01a2f8b8bc6e16c3ea48190d274408"
+      "bytes": 53738,
+      "sha256": "2965c25eef0824b97f52399426850176c97e2760905ed73e932da665ce4e07b9"
     },
     {
       "path": "TEST_STATUS.md",
-      "bytes": 8678,
-      "sha256": "6063376a7d7ea2392de16fea15aa616cb1f1469b1047157bfc44f52b24597576"
+      "bytes": 12126,
+      "sha256": "55c03deb7320ba3798f9cd54527fafbc9358cf61566afe1cfca222e81783a3d3"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -75,13 +80,13 @@
     },
     {
       "path": "VERSIONING.md",
-      "bytes": 1658,
-      "sha256": "71799e43fbd3e08370011ca0ee95e7b6406377237313d9ff2f08d1ee55dc72a8"
+      "bytes": 1669,
+      "sha256": "a7c92e6a8bb91ac1797d288ff5b1ebc132ad410ab160699437dbd491ec6fffad"
     },
     {
       "path": "audio_backend/__init__.py",
       "bytes": 107,
-      "sha256": "c0d3f1488ce8039da9f3e15caa609b1cd71b23babcb26eb7a279489323c9340d"
+      "sha256": "606684b6002590e543ddf453611194ff3488d0ece04e91d447d9348d6d8aa46c"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -174,6 +179,11 @@
       "sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819"
     },
     {
+      "path": "audio_backend/fragment_evidence.py",
+      "bytes": 7175,
+      "sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464"
+    },
+    {
       "path": "audio_backend/fragment_matcher.py",
       "bytes": 8668,
       "sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872"
@@ -189,19 +199,59 @@
       "sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3"
     },
     {
+      "path": "audio_backend/fragment_model_bridges.py",
+      "bytes": 24079,
+      "sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4"
+    },
+    {
+      "path": "audio_backend/fragment_model_compare.py",
+      "bytes": 26651,
+      "sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd"
+    },
+    {
+      "path": "audio_backend/fragment_model_guard.py",
+      "bytes": 9965,
+      "sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279"
+    },
+    {
+      "path": "audio_backend/fragment_model_meter.py",
+      "bytes": 8350,
+      "sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d"
+    },
+    {
+      "path": "audio_backend/fragment_model_protocol.py",
+      "bytes": 16144,
+      "sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b"
+    },
+    {
+      "path": "audio_backend/fragment_model_score.py",
+      "bytes": 13922,
+      "sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1"
+    },
+    {
+      "path": "audio_backend/fragment_normalizer.py",
+      "bytes": 12551,
+      "sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0"
+    },
+    {
+      "path": "audio_backend/fragment_resource_feed.py",
+      "bytes": 4092,
+      "sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545"
+    },
+    {
       "path": "audio_backend/fragment_runtime.py",
-      "bytes": 18038,
-      "sha256": "2f8074d9e514c7fad41a08164e9945cade1d54d16f2b381a5a9e0b694483da8f"
+      "bytes": 18640,
+      "sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f"
     },
     {
       "path": "audio_backend/fragment_runtime_contracts.py",
-      "bytes": 15042,
-      "sha256": "a99a5d97230d11de8cfeb498b8a9cd025a32faf8e76f5010ecbc03169f5fc089"
+      "bytes": 15226,
+      "sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e"
     },
     {
       "path": "audio_backend/fragment_runtime_store.py",
-      "bytes": 17395,
-      "sha256": "59fb99630271ee0495ccc9ad58744bbd7ff017092ea9d0183b46e9cf373a86ee"
+      "bytes": 19194,
+      "sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457"
     },
     {
       "path": "audio_backend/guard.py",
@@ -274,14 +324,24 @@
       "sha256": "69cb61192dadccf532ba0168d8e7a8af1348644dcd9674759e5fe2d8914cf16b"
     },
     {
+      "path": "audio_backend/native_boundary_probe.py",
+      "bytes": 27175,
+      "sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc"
+    },
+    {
+      "path": "audio_backend/native_boundary_remainder.py",
+      "bytes": 5818,
+      "sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c"
+    },
+    {
       "path": "audio_backend/native_runner.py",
-      "bytes": 2635,
-      "sha256": "9f5d99412a7222329617a7fe450167d289ab6ebfc8d4a58a634a9982cb39d241"
+      "bytes": 3201,
+      "sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0"
     },
     {
       "path": "audio_backend/native_worker.py",
-      "bytes": 8188,
-      "sha256": "15ae37bcf2aea12baecd53a136447d0b87dab70c80bb8c839b8fd5597a39acb0"
+      "bytes": 8301,
+      "sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1"
     },
     {
       "path": "audio_backend/overlap.py",
@@ -409,9 +469,34 @@
       "sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314"
     },
     {
+      "path": "docs/FRAGMENT_BRIDGE_SOURCE_ALLOWLIST.json",
+      "bytes": 10911,
+      "sha256": "4ac9411a702d6d740c8c875b2ac6b00a4f6b2f0ffd074769ed7e6902eb6480dc"
+    },
+    {
+      "path": "docs/FRAGMENT_EXTENSIONS_INTERNAL.md",
+      "bytes": 4745,
+      "sha256": "91d009c88c2071f7c28b593a2e2898e7ddf1cd76872fb310180365b9ad4fc5b5"
+    },
+    {
+      "path": "docs/FRAGMENT_MODEL_BRIDGE_INTERNAL.md",
+      "bytes": 9539,
+      "sha256": "578956f04e2edafa47fa311b591b65f48d86a63e0784655079e817673f99e056"
+    },
+    {
+      "path": "docs/FRAGMENT_NORMALIZATION_EXPERIMENT.md",
+      "bytes": 6232,
+      "sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70"
+    },
+    {
       "path": "docs/FRAGMENT_RUNTIME_INTERNAL.md",
-      "bytes": 8027,
-      "sha256": "91f66ca3bd1659d16e0db96311cf74426e3464828c558f18d98bdd4204e8fce8"
+      "bytes": 8238,
+      "sha256": "93b55bf0e362a93cace268070411a829dfd9b76c086bedf0b6902e966a71be00"
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_IMPORTS.json",
+      "bytes": 8523,
+      "sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5"
     },
     {
       "path": "docs/GOALS_AND_ACCEPTANCE.md",
@@ -435,13 +520,18 @@
     },
     {
       "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
-      "bytes": 4584,
-      "sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391"
+      "bytes": 4795,
+      "sha256": "19ecd6c480af956e5369a9f8f560b53f02dbe82971fd097adfab675e8369fec5"
     },
     {
       "path": "docs/OVERLAPPING_SPEECH.md",
       "bytes": 850,
       "sha256": "9fe378c282c170179aa230a88dd70ca6c5bb6e75db2f5edfcc3c2acd2ced52b3"
+    },
+    {
+      "path": "docs/POSITIVE_EVENT_SEAMS.md",
+      "bytes": 8017,
+      "sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7"
     },
     {
       "path": "docs/QUEUING_AND_CANDIDATE_LEDGERS.md",
@@ -506,7 +596,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 828,
-      "sha256": "d5dc68b2b4e0f6ce507ea89e9df358ed36cdd7de354bf42c6327908dea32eb04"
+      "sha256": "dcf0005f5a212ea2805dea984d1f7b583b75098a9ddf2571bb55cc1e41c08604"
     },
     {
       "path": "requirements-dicow.txt",
@@ -549,6 +639,11 @@
       "sha256": "16e72b88a57ea5665ddb21dac4c49556cc524c17faedfdc4a23e1de5ee27ce50"
     },
     {
+      "path": "scripts/benchmarks/compare_fragment_models.py",
+      "bytes": 5976,
+      "sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e"
+    },
+    {
       "path": "scripts/benchmarks/diagnose_fragment_anchor_layout.py",
       "bytes": 8117,
       "sha256": "01a268852bc923f1419765fbeca30211127c20aa750b43e0129b9d1a854c1957"
@@ -557,6 +652,11 @@
       "path": "scripts/benchmarks/moss_td_research/guard.py",
       "bytes": 4680,
       "sha256": "c56c76aa9af3bdc534871907e734510f01cc59001a7db9942a1a777ddf4800c8"
+    },
+    {
+      "path": "scripts/benchmarks/positive_event_seams.py",
+      "bytes": 28351,
+      "sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399"
     },
     {
       "path": "scripts/benchmarks/run_fragment_core_tests.py",
@@ -640,8 +740,8 @@
     },
     {
       "path": "tests/conftest.py",
-      "bytes": 1222,
-      "sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe"
+      "bytes": 3002,
+      "sha256": "e840277f0a0dc3d68ee9255d82eff31ea2fb57171dbd76d6fb2e83f3a0a9fd74"
     },
     {
       "path": "tests/fragment_core_data/fixture_recipe.py",
@@ -799,6 +899,16 @@
       "sha256": "c1cdf8aa9af7330f5b2139d94cdf5f54b64408350dcb8a15d3e8f0297a574732"
     },
     {
+      "path": "tests/test_fragment_model_bridges.py",
+      "bytes": 31293,
+      "sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8"
+    },
+    {
+      "path": "tests/test_fragment_normalizer.py",
+      "bytes": 11365,
+      "sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc"
+    },
+    {
       "path": "tests/test_fragment_real_pcm16.py",
       "bytes": 14346,
       "sha256": "8ce808e938bc62394e996a69fc72fdb07698b98cccf61df0aec9240b3a23f08b"
@@ -817,6 +927,11 @@
       "path": "tests/test_fragment_runtime.py",
       "bytes": 45547,
       "sha256": "bec82e77f5e3b883e1958bc01d60d54d0530b33af5fab5ad5ad945e52e0cc185"
+    },
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "bytes": 3394,
+      "sha256": "8b6cf1ac3a9b0f110be3c5e7127297c057f3bddebfea3616e552ee7be531e505"
     },
     {
       "path": "tests/test_identity_reset.py",
@@ -889,6 +1004,11 @@
       "sha256": "795843fc04221c063298d6a7c8222c0cfbcb7b5ebd7544b74cf85c1b9d3c02b7"
     },
     {
+      "path": "tests/test_native_boundary_probe.py",
+      "bytes": 13086,
+      "sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec"
+    },
+    {
       "path": "tests/test_native_diarization.py",
       "bytes": 5231,
       "sha256": "8141f3a26bac3ff195d0d80179f907a1597ff17e787bdc258600605b83b95a39"
@@ -937,6 +1057,11 @@
       "path": "tests/test_overlap_transcript_metrics.py",
       "bytes": 2194,
       "sha256": "ca0ef500f64b54e104be166488c599461e9ce2724a22ef3330643ea1bac28ffd"
+    },
+    {
+      "path": "tests/test_positive_event_seams.py",
+      "bytes": 11025,
+      "sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a"
     },
     {
       "path": "tests/test_prepare_moss_td_cpp.py",

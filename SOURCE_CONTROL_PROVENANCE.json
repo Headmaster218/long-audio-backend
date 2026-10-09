@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "local_source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
-  "local_source_tree": "dc6f6ab947daf91f682fe7ee432f387730abc244",
-  "local_source_version": "0.2.0rc2.dev3",
-  "public_integration_version": "0.2.0rc2.dev3",
-  "relationship": "Reviewed source-only projection from this immutable active integration. Earlier public mappings remain in Git and prior integration manifests. Original private feature ancestry and reports are excluded.",
+  "local_source_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
+  "local_source_tree": "9f18a022808ffd746c065f1286653ec4cd91e14c",
+  "local_source_version": "0.2.0rc2.dev4",
+  "public_integration_version": "0.2.0rc2.dev4",
+  "relationship": "Reviewed source-only projection from immutable dev4 staging. Original private feature ancestry/reports and staging-only policy are excluded; historical public mappings remain in Git and earlier integration manifests.",
   "byte_identical_files": [
     {
       "path": "audio_backend/__init__.py",
-      "local_source_sha256": "c0d3f1488ce8039da9f3e15caa609b1cd71b23babcb26eb7a279489323c9340d",
-      "public_sha256": "c0d3f1488ce8039da9f3e15caa609b1cd71b23babcb26eb7a279489323c9340d"
+      "local_source_sha256": "606684b6002590e543ddf453611194ff3488d0ece04e91d447d9348d6d8aa46c",
+      "public_sha256": "606684b6002590e543ddf453611194ff3488d0ece04e91d447d9348d6d8aa46c"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -102,6 +102,11 @@
       "public_sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819"
     },
     {
+      "path": "audio_backend/fragment_evidence.py",
+      "local_source_sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464",
+      "public_sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464"
+    },
+    {
       "path": "audio_backend/fragment_matcher.py",
       "local_source_sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872",
       "public_sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872"
@@ -117,19 +122,59 @@
       "public_sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3"
     },
     {
+      "path": "audio_backend/fragment_model_bridges.py",
+      "local_source_sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4",
+      "public_sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4"
+    },
+    {
+      "path": "audio_backend/fragment_model_compare.py",
+      "local_source_sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd",
+      "public_sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd"
+    },
+    {
+      "path": "audio_backend/fragment_model_guard.py",
+      "local_source_sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279",
+      "public_sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279"
+    },
+    {
+      "path": "audio_backend/fragment_model_meter.py",
+      "local_source_sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d",
+      "public_sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d"
+    },
+    {
+      "path": "audio_backend/fragment_model_protocol.py",
+      "local_source_sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b",
+      "public_sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b"
+    },
+    {
+      "path": "audio_backend/fragment_model_score.py",
+      "local_source_sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1",
+      "public_sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1"
+    },
+    {
+      "path": "audio_backend/fragment_normalizer.py",
+      "local_source_sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0",
+      "public_sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0"
+    },
+    {
+      "path": "audio_backend/fragment_resource_feed.py",
+      "local_source_sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545",
+      "public_sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545"
+    },
+    {
       "path": "audio_backend/fragment_runtime.py",
-      "local_source_sha256": "2f8074d9e514c7fad41a08164e9945cade1d54d16f2b381a5a9e0b694483da8f",
-      "public_sha256": "2f8074d9e514c7fad41a08164e9945cade1d54d16f2b381a5a9e0b694483da8f"
+      "local_source_sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f",
+      "public_sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f"
     },
     {
       "path": "audio_backend/fragment_runtime_contracts.py",
-      "local_source_sha256": "a99a5d97230d11de8cfeb498b8a9cd025a32faf8e76f5010ecbc03169f5fc089",
-      "public_sha256": "a99a5d97230d11de8cfeb498b8a9cd025a32faf8e76f5010ecbc03169f5fc089"
+      "local_source_sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e",
+      "public_sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e"
     },
     {
       "path": "audio_backend/fragment_runtime_store.py",
-      "local_source_sha256": "59fb99630271ee0495ccc9ad58744bbd7ff017092ea9d0183b46e9cf373a86ee",
-      "public_sha256": "59fb99630271ee0495ccc9ad58744bbd7ff017092ea9d0183b46e9cf373a86ee"
+      "local_source_sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457",
+      "public_sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457"
     },
     {
       "path": "audio_backend/guard.py",
@@ -202,14 +247,24 @@
       "public_sha256": "69cb61192dadccf532ba0168d8e7a8af1348644dcd9674759e5fe2d8914cf16b"
     },
     {
+      "path": "audio_backend/native_boundary_probe.py",
+      "local_source_sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc",
+      "public_sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc"
+    },
+    {
+      "path": "audio_backend/native_boundary_remainder.py",
+      "local_source_sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c",
+      "public_sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c"
+    },
+    {
       "path": "audio_backend/native_runner.py",
-      "local_source_sha256": "9f5d99412a7222329617a7fe450167d289ab6ebfc8d4a58a634a9982cb39d241",
-      "public_sha256": "9f5d99412a7222329617a7fe450167d289ab6ebfc8d4a58a634a9982cb39d241"
+      "local_source_sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0",
+      "public_sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0"
     },
     {
       "path": "audio_backend/native_worker.py",
-      "local_source_sha256": "15ae37bcf2aea12baecd53a136447d0b87dab70c80bb8c839b8fd5597a39acb0",
-      "public_sha256": "15ae37bcf2aea12baecd53a136447d0b87dab70c80bb8c839b8fd5597a39acb0"
+      "local_source_sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1",
+      "public_sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1"
     },
     {
       "path": "audio_backend/overlap.py",
@@ -307,14 +362,29 @@
       "public_sha256": "06c81a0a620a4fdaa238a3532c8a6fbbc607ad9fe6d54fda77b63a0d5e0f4314"
     },
     {
-      "path": "docs/FRAGMENT_RUNTIME_INTERNAL.md",
-      "local_source_sha256": "91f66ca3bd1659d16e0db96311cf74426e3464828c558f18d98bdd4204e8fce8",
-      "public_sha256": "91f66ca3bd1659d16e0db96311cf74426e3464828c558f18d98bdd4204e8fce8"
+      "path": "docs/FRAGMENT_BRIDGE_SOURCE_ALLOWLIST.json",
+      "local_source_sha256": "4ac9411a702d6d740c8c875b2ac6b00a4f6b2f0ffd074769ed7e6902eb6480dc",
+      "public_sha256": "4ac9411a702d6d740c8c875b2ac6b00a4f6b2f0ffd074769ed7e6902eb6480dc"
     },
     {
-      "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
-      "local_source_sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391",
-      "public_sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391"
+      "path": "docs/FRAGMENT_MODEL_BRIDGE_INTERNAL.md",
+      "local_source_sha256": "578956f04e2edafa47fa311b591b65f48d86a63e0784655079e817673f99e056",
+      "public_sha256": "578956f04e2edafa47fa311b591b65f48d86a63e0784655079e817673f99e056"
+    },
+    {
+      "path": "docs/FRAGMENT_NORMALIZATION_EXPERIMENT.md",
+      "local_source_sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70",
+      "public_sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70"
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_IMPORTS.json",
+      "local_source_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
+      "public_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5"
+    },
+    {
+      "path": "docs/POSITIVE_EVENT_SEAMS.md",
+      "local_source_sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7",
+      "public_sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7"
     },
     {
       "path": "docs/VERIFIED_IDENTITY.md",
@@ -363,8 +433,8 @@
     },
     {
       "path": "pyproject.toml",
-      "local_source_sha256": "d5dc68b2b4e0f6ce507ea89e9df358ed36cdd7de354bf42c6327908dea32eb04",
-      "public_sha256": "d5dc68b2b4e0f6ce507ea89e9df358ed36cdd7de354bf42c6327908dea32eb04"
+      "local_source_sha256": "dcf0005f5a212ea2805dea984d1f7b583b75098a9ddf2571bb55cc1e41c08604",
+      "public_sha256": "dcf0005f5a212ea2805dea984d1f7b583b75098a9ddf2571bb55cc1e41c08604"
     },
     {
       "path": "requirements-dicow.txt",
@@ -407,6 +477,11 @@
       "public_sha256": "16e72b88a57ea5665ddb21dac4c49556cc524c17faedfdc4a23e1de5ee27ce50"
     },
     {
+      "path": "scripts/benchmarks/compare_fragment_models.py",
+      "local_source_sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e",
+      "public_sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e"
+    },
+    {
       "path": "scripts/benchmarks/diagnose_fragment_anchor_layout.py",
       "local_source_sha256": "01a268852bc923f1419765fbeca30211127c20aa750b43e0129b9d1a854c1957",
       "public_sha256": "01a268852bc923f1419765fbeca30211127c20aa750b43e0129b9d1a854c1957"
@@ -415,6 +490,11 @@
       "path": "scripts/benchmarks/moss_td_research/guard.py",
       "local_source_sha256": "c56c76aa9af3bdc534871907e734510f01cc59001a7db9942a1a777ddf4800c8",
       "public_sha256": "c56c76aa9af3bdc534871907e734510f01cc59001a7db9942a1a777ddf4800c8"
+    },
+    {
+      "path": "scripts/benchmarks/positive_event_seams.py",
+      "local_source_sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399",
+      "public_sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399"
     },
     {
       "path": "scripts/benchmarks/run_fragment_core_tests.py",
@@ -485,11 +565,6 @@
       "path": "scripts/setup_overlap_models.py",
       "local_source_sha256": "5a36a29aa2b7941e402a248e6f96a6bb11393ec410ee8bb17e83e4d6d5ab8d6d",
       "public_sha256": "5a36a29aa2b7941e402a248e6f96a6bb11393ec410ee8bb17e83e4d6d5ab8d6d"
-    },
-    {
-      "path": "tests/conftest.py",
-      "local_source_sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe",
-      "public_sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe"
     },
     {
       "path": "tests/fragment_core_data/fixture_recipe.py",
@@ -647,6 +722,16 @@
       "public_sha256": "c1cdf8aa9af7330f5b2139d94cdf5f54b64408350dcb8a15d3e8f0297a574732"
     },
     {
+      "path": "tests/test_fragment_model_bridges.py",
+      "local_source_sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8",
+      "public_sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8"
+    },
+    {
+      "path": "tests/test_fragment_normalizer.py",
+      "local_source_sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc",
+      "public_sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc"
+    },
+    {
       "path": "tests/test_fragment_real_pcm16.py",
       "local_source_sha256": "8ce808e938bc62394e996a69fc72fdb07698b98cccf61df0aec9240b3a23f08b",
       "public_sha256": "8ce808e938bc62394e996a69fc72fdb07698b98cccf61df0aec9240b3a23f08b"
@@ -732,6 +817,11 @@
       "public_sha256": "795843fc04221c063298d6a7c8222c0cfbcb7b5ebd7544b74cf85c1b9d3c02b7"
     },
     {
+      "path": "tests/test_native_boundary_probe.py",
+      "local_source_sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec",
+      "public_sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec"
+    },
+    {
       "path": "tests/test_native_diarization.py",
       "local_source_sha256": "8141f3a26bac3ff195d0d80179f907a1597ff17e787bdc258600605b83b95a39",
       "public_sha256": "8141f3a26bac3ff195d0d80179f907a1597ff17e787bdc258600605b83b95a39"
@@ -780,6 +870,11 @@
       "path": "tests/test_overlap_transcript_metrics.py",
       "local_source_sha256": "ca0ef500f64b54e104be166488c599461e9ce2724a22ef3330643ea1bac28ffd",
       "public_sha256": "ca0ef500f64b54e104be166488c599461e9ce2724a22ef3330643ea1bac28ffd"
+    },
+    {
+      "path": "tests/test_positive_event_seams.py",
+      "local_source_sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a",
+      "public_sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a"
     },
     {
       "path": "tests/test_process_lifecycle.py",
@@ -864,14 +959,19 @@
   ],
   "publication_adapted_files": [
     {
+      "path": "tests/conftest.py",
+      "local_source_sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe",
+      "public_sha256": "e840277f0a0dc3d68ee9255d82eff31ea2fb57171dbd76d6fb2e83f3a0a9fd74"
+    },
+    {
       "path": ".gitignore",
       "local_source_sha256": "7cb830f46c4b65c3c41fb755600a2773960ecc5e78fc0dd95a9c48b60910d83a",
       "public_sha256": "401ab824364a52cc2ced6611e931bf8b77eb13436149d3bfb68a28d34ff1bb11"
     },
     {
       "path": "README.md",
-      "local_source_sha256": "18ae79476541c07cdfe5603be194cd0da8571e7dd698ff709bd11f477f248c9f",
-      "public_sha256": "7084be4745a7b85df520f6d26aa0a605abd7726ee66412458c6690752d6fd268"
+      "local_source_sha256": "bbca75bfa1870b288d2179c38654d56baa311ea9b2abba4480f1f9aeb5fb3870",
+      "public_sha256": "1bae00308ae10d1a2b4179580e1b6a89f5e2011c46c724a05f42948e006cc65e"
     },
     {
       "path": "docs/API.md",
@@ -894,6 +994,11 @@
       "public_sha256": "f49ea13adec1139d85bd19e010a35fae53ab2633a5d82b70dabda602a9ce03bd"
     },
     {
+      "path": "docs/FRAGMENT_RUNTIME_INTERNAL.md",
+      "local_source_sha256": "91f66ca3bd1659d16e0db96311cf74426e3464828c558f18d98bdd4204e8fce8",
+      "public_sha256": "93b55bf0e362a93cace268070411a829dfd9b76c086bedf0b6902e966a71be00"
+    },
+    {
       "path": "docs/MOSS_TD_CPP_SETUP.md",
       "local_source_sha256": "3e885dc4b06e7e999c6a704fcec35634d501aaa4c255622f92bcb570297b505e",
       "public_sha256": "7c0a70a6a45ea3b2b947f8fd69c819de404654dcbf543775a0f87317ebd4b859"
@@ -909,6 +1014,11 @@
       "public_sha256": "38ffdf23c3022f7f8074a9d35fccdda013d67f8c4f876a45837e1938e4473a2f"
     },
     {
+      "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
+      "local_source_sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391",
+      "public_sha256": "19ecd6c480af956e5369a9f8f560b53f02dbe82971fd097adfab675e8369fec5"
+    },
+    {
       "path": "docs/QUEUING_AND_CANDIDATE_LEDGERS.md",
       "local_source_sha256": "34e3d5bfcfb929c4a27a0ff44524f6013b4908680165186b8685878d28727b63",
       "public_sha256": "4025ec3de11248d666a2f321502cec728641dc654cc649cc093f2ce02ef8aa9a"
@@ -917,6 +1027,11 @@
       "path": "docs/QUICKSTART_ZH.md",
       "local_source_sha256": "b0d321840ae67c2162b59db25376b0d84db2376369571113cf79fc78b80e0451",
       "public_sha256": "4a05d184dd4ad47b85a9a2883ecc4481d29e9b9dc90b47e39ddc35399e8b6241"
+    },
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "local_source_sha256": "139fb59d4fdfc204739592120ee62e64bf3bdcc504dcb07ba2db5789c64808b9",
+      "public_sha256": "8b6cf1ac3a9b0f110be3c5e7127297c057f3bddebfea3616e552ee7be531e505"
     },
     {
       "path": "tests/test_moss_td_runner_lifecycle.py",

@@ -42,7 +42,10 @@ class NativeProcess:
             if psutil.virtual_memory().available<1536*1024**2:raise RuntimeError('Native diarization host memory safety reserve breached')
             time.sleep(.1)
         if output.stat().st_size>8*1024**2:raise RuntimeError('Native result exceeds8MiB')
-        result=json.loads(output.read_text());output.unlink();self.busy=False
+        result=json.loads(output.read_text())
+        observer=getattr(self,'response_observer',None)
+        if observer is not None:observer(result)
+        output.unlink();self.busy=False
         if '_error' in result:raise RuntimeError(result['_error'])
         return result
     def close(self):

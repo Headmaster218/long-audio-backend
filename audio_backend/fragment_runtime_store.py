@@ -68,8 +68,9 @@ class Snapshot:
 
 
 class RuntimeStore:
-    def __init__(self, path, fault=None):
+    def __init__(self, path, fault=None, evidence_store=None):
         self.path = str(path)
+        self.evidence_store = evidence_store
         self.fault = fault or (lambda point: None)
         with self._connection() as db:
             db.executescript(SCHEMA)
@@ -156,6 +157,7 @@ class RuntimeStore:
         with self._connection() as db:
             db.execute('BEGIN')
             result, _ = self._snapshot(db, run_id)
+            self._verify_evidence(db, run_id)
             return result
 
     def _intent(self, db, run_id, revision, plan, policy):
@@ -287,6 +289,8 @@ class RuntimeStore:
             self._fence(actual, snapshot.revision, snapshot.next_frame)
             if actual != snapshot:
                 raise StaleWork('Offered snapshot differs from the durable accepted state')
+            if 'evidence_ref' in payload:
+                self._evidence().verify_core(payload['evidence_ref'], payload, snapshot.run_id)
             db.execute('INSERT INTO fragment_core_commits VALUES(?,?,?,?,?,?,?,?)',
                        (snapshot.run_id, window.island, window.core_start, window.core_end,
                         wid, snapshot.revision, payload_text, digest(payload)))
@@ -321,5 +325,32 @@ class RuntimeStore:
                 payload = json.loads(row['payload'])
                 if digest(payload) != row['payload_hash']:
                     raise CorruptLedger('Committed envelope hash mismatch')
+                if 'evidence_ref' in payload:
+                    self._evidence().verify_core(payload['evidence_ref'], payload, run_id)
                 result.append(payload)
             return result
+
+    def _evidence(self):
+        if self.evidence_store is None:
+            raise CorruptLedger('Evidence-backed ledger requires its fixed evidence store')
+        return self.evidence_store
+
+    def _verify_evidence(self, db, run_id):
+        for row in db.execute('SELECT payload,payload_hash FROM fragment_core_commits WHERE run_id=?', (run_id,)):
+            payload = json.loads(row['payload'])
+            if digest(payload) != row['payload_hash']:
+                raise CorruptLedger('Committed envelope hash mismatch')
+            if 'evidence_ref' in payload:
+                self._evidence().verify_core(payload['evidence_ref'], payload, run_id)
+
+    def cleanup_evidence_orphans(self, *, external_reference_provider=None):
+        with self._transaction('evidence_cleanup') as db:
+            refs = []
+            for row in db.execute('SELECT run_id,payload,payload_hash FROM fragment_core_commits'):
+                payload = json.loads(row['payload'])
+                if digest(payload) != row['payload_hash']:
+                    raise CorruptLedger('Committed envelope hash mismatch')
+                if 'evidence_ref' in payload:
+                    self._evidence().verify_core(payload['evidence_ref'], payload, row['run_id'])
+                    refs.append(payload['evidence_ref'])
+            return self._evidence().cleanup(refs, external_reference_provider=external_reference_provider)

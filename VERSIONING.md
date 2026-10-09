@@ -1,8 +1,8 @@
 # Versions and branches
 
 - `main`: reviewed source-only baseline, initially `0.2.0rc1`. This inherited version string does not imply release readiness or quality acceptance.
-- `develop`: current reviewed integration, `0.2.0rc2.dev3`.
-- `feature/<subject>`: reviewed, default-off additions; the dev3 fragment work is isolated on `feature/offline-fragments-dev3`.
+- `develop`: current reviewed integration, `0.2.0rc2.dev4`.
+- `feature/<subject>`: reviewed, default-off additions; the dev4 extension work is isolated on `feature/offline-fragment-extensions-dev4`.
 - `fix/<subject>`: focused corrections; merge only after the scoped tests and public-tree gate pass.
 - `research/<subject>`: isolated diagnostic work. No automatic promotion into live identity enrollment or template updates.
 

@@ -1,5 +1,9 @@
 # Internal logical fragment runtime
 
+This document records the dev3 internal contract. The default-OFF dev4 offline
+extensions and their separate evidence limits are described in
+[FRAGMENT_EXTENSIONS_INTERNAL.md](FRAGMENT_EXTENSIONS_INTERNAL.md).
+
 This is isolated, model-free groundwork. It does not enable production fragment
 processing. The existing worker, API, receipt/result tables, matcher, native
 backend and identity banks are unchanged. No real-audio overlap-quality claim or

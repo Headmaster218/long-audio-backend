@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "source_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
+  "source_tree": "9f18a022808ffd746c065f1286653ec4cd91e14c",
+  "public_base_commit": "8e4d781df08446b8f51c5cbda2a164e6c4050751",
+  "scope": "Default-OFF offline extension source projection; no HTTP/end-to-end product acceptance.",
+  "files": [
+    {
+      "path": "audio_backend/fragment_core.py",
+      "bytes": 27203,
+      "sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819",
+      "previous_public_sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_evidence.py",
+      "bytes": 7175,
+      "sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_matcher.py",
+      "bytes": 8668,
+      "sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872",
+      "previous_public_sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_matcher_p1.py",
+      "bytes": 3688,
+      "sha256": "2cc0014cd2c0b4be4508cd3a7debde64ed7a174ca965570df855541c5992be73",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "2cc0014cd2c0b4be4508cd3a7debde64ed7a174ca965570df855541c5992be73",
+      "previous_public_sha256": "2cc0014cd2c0b4be4508cd3a7debde64ed7a174ca965570df855541c5992be73",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_matcher_v2.py",
+      "bytes": 2713,
+      "sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3",
+      "previous_public_sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_model_bridges.py",
+      "bytes": 24079,
+      "sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_model_compare.py",
+      "bytes": 26651,
+      "sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_model_guard.py",
+      "bytes": 9965,
+      "sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_model_meter.py",
+      "bytes": 8350,
+      "sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_model_protocol.py",
+      "bytes": 16144,
+      "sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_model_score.py",
+      "bytes": 13922,
+      "sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_resource_feed.py",
+      "bytes": 4092,
+      "sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime.py",
+      "bytes": 18640,
+      "sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f",
+      "previous_public_sha256": "2f8074d9e514c7fad41a08164e9945cade1d54d16f2b381a5a9e0b694483da8f",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime_contracts.py",
+      "bytes": 15226,
+      "sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e",
+      "previous_public_sha256": "a99a5d97230d11de8cfeb498b8a9cd025a32faf8e76f5010ecbc03169f5fc089",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_runtime_store.py",
+      "bytes": 19194,
+      "sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457",
+      "previous_public_sha256": "59fb99630271ee0495ccc9ad58744bbd7ff017092ea9d0183b46e9cf373a86ee",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/native_runner.py",
+      "bytes": 3201,
+      "sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0",
+      "previous_public_sha256": "9f5d99412a7222329617a7fe450167d289ab6ebfc8d4a58a634a9982cb39d241",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/native_worker.py",
+      "bytes": 8301,
+      "sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1",
+      "previous_public_sha256": "15ae37bcf2aea12baecd53a136447d0b87dab70c80bb8c839b8fd5597a39acb0",
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/FRAGMENT_BRIDGE_SOURCE_ALLOWLIST.json",
+      "bytes": 10911,
+      "sha256": "4ac9411a702d6d740c8c875b2ac6b00a4f6b2f0ffd074769ed7e6902eb6480dc",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "4ac9411a702d6d740c8c875b2ac6b00a4f6b2f0ffd074769ed7e6902eb6480dc",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/FRAGMENT_MODEL_BRIDGE_INTERNAL.md",
+      "bytes": 9539,
+      "sha256": "578956f04e2edafa47fa311b591b65f48d86a63e0784655079e817673f99e056",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "578956f04e2edafa47fa311b591b65f48d86a63e0784655079e817673f99e056",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "scripts/benchmarks/compare_fragment_models.py",
+      "bytes": 5976,
+      "sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_model_bridges.py",
+      "bytes": 31293,
+      "sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8",
+      "source_commit": "957255700a8493f82750f821b65c8a2797326396",
+      "public_sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/fragment_normalizer.py",
+      "bytes": 12551,
+      "sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0",
+      "source_commit": "beb32dfa95e6bde5b4f1cbf7f1743cbe325d389e",
+      "public_sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/FRAGMENT_NORMALIZATION_EXPERIMENT.md",
+      "bytes": 6232,
+      "sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70",
+      "source_commit": "beb32dfa95e6bde5b4f1cbf7f1743cbe325d389e",
+      "public_sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_fragment_normalizer.py",
+      "bytes": 11365,
+      "sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc",
+      "source_commit": "beb32dfa95e6bde5b4f1cbf7f1743cbe325d389e",
+      "public_sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "docs/POSITIVE_EVENT_SEAMS.md",
+      "bytes": 8017,
+      "sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7",
+      "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc",
+      "public_sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "scripts/benchmarks/positive_event_seams.py",
+      "bytes": 28351,
+      "sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399",
+      "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc",
+      "public_sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_positive_event_seams.py",
+      "bytes": 11025,
+      "sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a",
+      "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc",
+      "public_sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/native_boundary_probe.py",
+      "bytes": 27175,
+      "sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc",
+      "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3",
+      "public_sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "audio_backend/native_boundary_remainder.py",
+      "bytes": 5818,
+      "sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c",
+      "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3",
+      "public_sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    },
+    {
+      "path": "tests/test_native_boundary_probe.py",
+      "bytes": 13086,
+      "sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec",
+      "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3",
+      "public_sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec",
+      "previous_public_sha256": null,
+      "import_mode": "byte-identical"
+    }
+  ],
+  "public_adaptations": [
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "source_sha256": "139fb59d4fdfc204739592120ee62e64bf3bdcc504dcb07ba2db5789c64808b9",
+      "public_sha256": "8b6cf1ac3a9b0f110be3c5e7127297c057f3bddebfea3616e552ee7be531e505",
+      "reason": "Retain the eight source/privacy cases with portable public policy/gate bindings and add one separate real-public-gate private-output exclusion case."
+    },
+    {
+      "path": "tests/conftest.py",
+      "public_sha256": "e840277f0a0dc3d68ee9255d82eff31ea2fb57171dbd76d6fb2e83f3a0a9fd74",
+      "reason": "Keep strict historical q1 xfails; explicitly gate seven named private development PCM/cache tests and one excluded-packager test without altering reviewed component assertions."
+    }
+  ],
+  "omitted_staging_controls": [
+    "docs/FRAGMENT_STAGING_POLICY.json",
+    "scripts/source_staging_guard.py",
+    "docs/FRAGMENT_EXTENSIONS_STAGING.md"
+  ],
+  "test_scope": "Fresh exact public-tree results are recorded in TEST_STATUS.md; staging results are not substituted.",
+  "ancestry": "No original private feature graphs or report objects are imported.",
+  "additional_private_input_skips": {
+    "positive_event_development": [
+      "test_actual_development_selection_and_matcher_transport",
+      "test_compute_failure_keeps_durable_partial_calls",
+      "test_compute_primary_survives_bridge_evidence_write_failure",
+      "test_full_event_only_bridge_model_free",
+      "test_model_load_failure_persisted_and_same_receipt_cannot_retry",
+      "test_reservation_persistence_failure_prevents_model_call",
+      "test_terminal_reporting_failure_preserves_primary_and_ceiling"
+    ],
+    "excluded_private_packager": [
+      "test_private_real_output_admission_and_packaging_exclusion"
+    ]
+  }
+}

@@ -1,5 +1,13 @@
 # Change log
 
+## 0.2.0rc2.dev4 (unreleased offline extension integration)
+
+- Project exact reviewed source from staging commit 732f37698b58f00750d76ba99e4cf7599c1b97f7 without original private feature ancestry or raw evidence.
+- Add explicit offline real-provider bridge contracts, bounded private evidence/accounting and opt-in native observer/import-attestation hooks.
+- Add a standalone finalized single-island PCM16 normalizer and benchmark-only positive-event/native-boundary probes. No normalizer/runtime/model/HTTP wiring or compressed-input support.
+- Preserve empty-event limitations of the base matrix, the selected synthetic-development scope of later positive-event findings, and the original native P2 reporting failure followed by a separately admitted remainder.
+- Preserve public test adaptations, exact component bytes and default-OFF status. No release, end-to-end product acceptance, identity/ASR quality or general event-recall claim.
+
 ## 0.2.0rc2.dev3 (unreleased default-OFF offline fragment integration)
 
 - Import exact reviewed active source from 6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2, excluding original private feature histories and all raw reports.

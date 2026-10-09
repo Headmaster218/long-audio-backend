@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "base_source_commit": "6835ec41c7b2c4b5bcd2da53ed4b96428b91ebe2",
+  "base_file_count": 211,
+  "base_bytes": 1974168,
+  "imports": [
+    {
+      "component": "real-provider-bridges",
+      "files": [
+        {
+          "path": "audio_backend/fragment_core.py",
+          "bytes": 27203,
+          "sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_evidence.py",
+          "bytes": 7175,
+          "sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_matcher.py",
+          "bytes": 8668,
+          "sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_matcher_p1.py",
+          "bytes": 3688,
+          "sha256": "2cc0014cd2c0b4be4508cd3a7debde64ed7a174ca965570df855541c5992be73",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_matcher_v2.py",
+          "bytes": 2713,
+          "sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_model_bridges.py",
+          "bytes": 24079,
+          "sha256": "225ef71b5d20e51993fe59e6990870d45f09c2797cf39da6a28a49b55a94aec4",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_model_compare.py",
+          "bytes": 26651,
+          "sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_model_guard.py",
+          "bytes": 9965,
+          "sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_model_meter.py",
+          "bytes": 8350,
+          "sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_model_protocol.py",
+          "bytes": 16144,
+          "sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_model_score.py",
+          "bytes": 13922,
+          "sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_resource_feed.py",
+          "bytes": 4092,
+          "sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_runtime.py",
+          "bytes": 18640,
+          "sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_runtime_contracts.py",
+          "bytes": 15226,
+          "sha256": "2303492e4a305ba8a04953004ed94aa47165d87046348b5cc0c742919fc56e7e",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/fragment_runtime_store.py",
+          "bytes": 19194,
+          "sha256": "ca80cdc7d9cec2739c3ec3f06814abad1a3fb300eb68b3eb30b1f8d2ab225457",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/native_runner.py",
+          "bytes": 3201,
+          "sha256": "79b67451520a184b5effcbfeb3e31c54f73f32afc489f7beb837e12a224e4ba0",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "audio_backend/native_worker.py",
+          "bytes": 8301,
+          "sha256": "c55f27679a65c2965b4b0c8a31e559798e6a9982235a9b4604d088981905e6e1",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "docs/FRAGMENT_BRIDGE_SOURCE_ALLOWLIST.json",
+          "bytes": 10911,
+          "sha256": "4ac9411a702d6d740c8c875b2ac6b00a4f6b2f0ffd074769ed7e6902eb6480dc",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "docs/FRAGMENT_MODEL_BRIDGE_INTERNAL.md",
+          "bytes": 9539,
+          "sha256": "578956f04e2edafa47fa311b591b65f48d86a63e0784655079e817673f99e056",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "scripts/benchmarks/compare_fragment_models.py",
+          "bytes": 5976,
+          "sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        },
+        {
+          "path": "tests/test_fragment_model_bridges.py",
+          "bytes": 31293,
+          "sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8",
+          "source_commit": "957255700a8493f82750f821b65c8a2797326396"
+        }
+      ]
+    },
+    {
+      "component": "normalizer",
+      "files": [
+        {
+          "path": "audio_backend/fragment_normalizer.py",
+          "bytes": 12551,
+          "sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0",
+          "source_commit": "beb32dfa95e6bde5b4f1cbf7f1743cbe325d389e"
+        },
+        {
+          "path": "docs/FRAGMENT_NORMALIZATION_EXPERIMENT.md",
+          "bytes": 6232,
+          "sha256": "1798f1cd5113260c3b1bb11b7b4df6833a7895f03658421350e23998d7084b70",
+          "source_commit": "beb32dfa95e6bde5b4f1cbf7f1743cbe325d389e"
+        },
+        {
+          "path": "tests/test_fragment_normalizer.py",
+          "bytes": 11365,
+          "sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc",
+          "source_commit": "beb32dfa95e6bde5b4f1cbf7f1743cbe325d389e"
+        }
+      ]
+    },
+    {
+      "component": "positive-event-seams",
+      "files": [
+        {
+          "path": "docs/POSITIVE_EVENT_SEAMS.md",
+          "bytes": 8017,
+          "sha256": "e0f0bc2030d5b3926033925c94f23f066d0e4f59a8533c818bf392f2176012a7",
+          "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc"
+        },
+        {
+          "path": "scripts/benchmarks/positive_event_seams.py",
+          "bytes": 28351,
+          "sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399",
+          "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc"
+        },
+        {
+          "path": "tests/test_positive_event_seams.py",
+          "bytes": 11025,
+          "sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a",
+          "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc"
+        }
+      ]
+    },
+    {
+      "component": "native-boundary-probes",
+      "files": [
+        {
+          "path": "audio_backend/native_boundary_probe.py",
+          "bytes": 27175,
+          "sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc",
+          "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3"
+        },
+        {
+          "path": "audio_backend/native_boundary_remainder.py",
+          "bytes": 5818,
+          "sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c",
+          "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3"
+        },
+        {
+          "path": "tests/test_native_boundary_probe.py",
+          "bytes": 13086,
+          "sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec",
+          "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3"
+        }
+      ]
+    }
+  ],
+  "note": "Exact source bytes only. Original histories and generated evidence are not imported; original repositories retain the separate graphs."
+}
