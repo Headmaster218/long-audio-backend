@@ -52,6 +52,8 @@ def bounded_json(value, limit=MAX_OUTPUT_BYTES):
 
 
 def admit(plan):
+    if type(plan) is not SourcePlan:
+        raise UnsupportedAudio('Exact-PCM runtime requires an original SourcePlan')
     plan.validate()
     if plan.sources[0].format != (RATE, 1, 2, 'wav-pcm16le'):
         raise UnsupportedAudio('Internal runtime requires original 16 kHz mono PCM16 WAV')
@@ -69,6 +71,7 @@ class RuntimePolicy:
     native_fingerprint: str = 'injected-native-v1'
     analyzer_fingerprint: str = 'injected-analyzer-v1'
     lexical_policy: str = 'native-support-end-left-routing-v1'
+    input_fingerprint: str = ''
 
     def __post_init__(self):
         if self.lexical_policy != 'native-support-end-left-routing-v1':
@@ -76,16 +79,23 @@ class RuntimePolicy:
         integer(self.context_frames, 'context')
         if self.context_frames > 15 * RATE:
             raise ValueError('Core plus context exceeds the 60 second read bound')
+        if not isinstance(self.input_fingerprint, str) or len(self.input_fingerprint) > 256:
+            raise ValueError('Bounded input transform fingerprint required')
         for value in (self.native_fingerprint, self.analyzer_fingerprint):
             if not isinstance(value, str) or not value or len(value) > 256:
                 raise ValueError('A bounded immutable provider fingerprint is required')
 
     @property
     def sha256(self):
-        return digest({'contract': CONTRACT, **asdict(self)})
+        value = asdict(self)
+        if not self.input_fingerprint:
+            value.pop('input_fingerprint')  # Preserve existing exact-PCM policy identity.
+        return digest({'contract': CONTRACT, **value})
 
 
 def next_window(plan, cursor, policy):
+    if _normalized(plan):
+        return plan.next_window(cursor, policy)
     return next(core_windows(plan, core_frames=CORE, context_frames=policy.context_frames,
                              start_frame=cursor), None)
 
@@ -98,7 +108,10 @@ def window_id(run_id, window, policy):
 
 
 def native_key(run_id, epoch, policy):
-    return (run_id, 0, epoch, policy.native_fingerprint, CONTRACT)
+    # Legacy run IDs are strings; a tagged JSON object is a distinct domain,
+    # even if a caller deliberately chooses a legacy ID equal to an input hash.
+    scope = {'normalized_run': run_id, 'input_fingerprint': policy.input_fingerprint} if policy.input_fingerprint else run_id
+    return (scope, 0, epoch, policy.native_fingerprint, CONTRACT)
 
 
 def control_id(run_id, plan, policy):
@@ -108,7 +121,9 @@ def control_id(run_id, plan, policy):
 
 
 def prefix_hash(plan, end):
-    """Hash accepted owner identities/ranges only, independent of audit aliases."""
+    """Hash owner prefix or explicitly tagged normalized input support identity."""
+    if _normalized(plan):
+        return plan.prefix_hash(end)
     integer(end, 'prefix end')
     if end > plan.end_frame:
         raise ValueError('Prefix exceeds plan')
@@ -202,19 +217,9 @@ def validate_commit(snapshot, window, payload, tail, checkpoint):
         validate_reference(payload['evidence_ref'])
     if payload['contract'] != CONTRACT or payload['policy_hash'] != snapshot.policy.sha256:
         raise ValueError('Output canonical/provider policy differs from run')
-    # Compute the immutable expected read map without opening any source file.
-    source_map = {source.fragment_id: source for source in snapshot.plan.sources}
-    mapped = []
-    for span in snapshot.plan.spans:
-        a, b = max(window.read_start, span.logical_start), min(window.read_end, span.logical_end)
-        if a >= b:
-            continue
-        part = asdict(span)
-        part.update(logical_start=a, logical_end=b, source_start=span.source_start+a-span.logical_start,
-                    source_end=span.source_start+b-span.logical_start)
-        mapped.append({'span': part, 'source_sha256': source_map[span.fragment_id].sha256})
-    if len(mapped) > MAX_PARTS or canonical(payload['mapping']) != canonical(mapped) or payload['map_hash'] != digest(mapped):
-        raise ValueError('Output read map differs from accepted owners')
+    mapped = expected_mapping(snapshot.plan, window.read_start, window.read_end)
+    if canonical(payload['mapping']) != canonical(mapped) or payload['map_hash'] != digest(mapped):
+        raise ValueError('Output read map differs from accepted owners/support')
     sha = payload['pcm_hash']
     if not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
         raise ValueError('Invalid PCM hash')
@@ -278,6 +283,35 @@ def validate_commit(snapshot, window, payload, tail, checkpoint):
             raise ValueError('Unknown native lexical unit kind')
         if not isinstance(item['raw_text'], str) or len(item['raw_text']) > 65536:
             raise ValueError('Invalid bounded raw text')
+
+
+def _normalized(plan):
+    # Exact type checks keep the default store/reader admission closed.
+    if type(plan) is SourcePlan:
+        return False
+    from .fragment_normalized_runtime import NormalizedPlan
+    if type(plan) is not NormalizedPlan:
+        raise ValueError('Unsupported runtime plan type')
+    return True
+
+
+def expected_mapping(plan, start, end):
+    """Compute the immutable expected source map/support without source reads."""
+    if _normalized(plan):
+        return plan.mapping(start, end)
+    source_map = {source.fragment_id: source for source in plan.sources}
+    mapped = []
+    for span in plan.spans:
+        a, b = max(start, span.logical_start), min(end, span.logical_end)
+        if a >= b:
+            continue
+        part = asdict(span)
+        part.update(logical_start=a, logical_end=b, source_start=span.source_start+a-span.logical_start,
+                    source_end=span.source_start+b-span.logical_start)
+        mapped.append({'span': part, 'source_sha256': source_map[span.fragment_id].sha256})
+    if len(mapped) > MAX_PARTS:
+        raise ValueError('Output read map exceeds owner bound')
+    return tuple(mapped)
 
 
 def _lexical_support(item, start, end, scope):
