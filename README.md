@@ -28,6 +28,12 @@ python scripts/run_cpu_candidate.py --data-dir ./audio-data-cpu-candidate
 - [可选 MOSS-TD](docs/MOSS_TD_SETUP.md)与 [CPP/GGUF 准备](docs/MOSS_TD_CPP_SETUP.md)
 - [声纹边界](docs/SPEAKER_REGISTRY.md)和[质量目标](docs/GOALS_AND_ACCEPTANCE.md)
 
+## 可选完整声学证据回放
+
+新增 [Phase A 声学支持回放](docs/EMBEDDING_SUPPORT_LINEAGE.md)默认关闭。显式使用 --speaker-support-review 后，可在独立配额内保留完整、哈希绑定的实际输入片段供只读复听。它不启用身份学习、自动声纹更新或纯净度认证；已有身份匹配语义保持不变。
+
+环境声音候选同时保留真实本地模型/标签表哈希、有效策略和是否实际执行模型的标记。旧记录不补写猜测来源。
+
 ## 已知边界
 
 转写时间不是已验证的逐词强制对齐。重叠、短促发言、远场及跨日期身份仍会出错。身份余弦分数不是识别概率，普通自动匹配不会更新参考声纹。身份研究不会自动成为在线功能。

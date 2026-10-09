@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from .boundary_store import init_stream_schema, register_stream_chunk, check_duplicate_stream, wake_stream_successor
-from . import event_candidate_store, lifecycle, overlap_store
+from . import event_candidate_store, lifecycle, overlap_store, speaker_support
 
 
 STREAM_PENDING_COUNT_SQL="""SELECT COUNT(*) FROM chunks c INDEXED BY chunk_queue
@@ -33,7 +33,8 @@ def normalize(values):
 PROVENANCE_KEYS=('inference_revision','asr_backend','timestamp_semantics','asr_model_license',
                  'models','effective_config','requested_device','speaker_embedding_version',
                  'speaker_embedding_metric','speaker_embedding_sha256','speaker_embedding_dimension','event_window_seconds',
-                 'event_hop_seconds','chinese_script','boundary_policy','speaker_identity_policy','warnings',
+                 'event_hop_seconds','event_max_seconds','event_policy_revision','event_model_sha256',
+                 'event_labelmap_sha256','event_artifact_identity_status','chinese_script','boundary_policy','speaker_identity_policy','warnings',
                  'diarization_backend','diarization_runtime_version','diarization_fingerprint',
                  'diarization_model_license','diarization_model_license_url','diarization_local_capacity',
                  'diarization_geometry','diarization_morphology_guard_seconds',
@@ -134,12 +135,13 @@ class Store:
             db.execute('BEGIN IMMEDIATE')
             event_candidate_store.init_schema(db)
             lifecycle.init_schema(db)
+            speaker_support.init_schema(db)
             # Additive migration only. Existing rows remain NULL: a chunk's latest
             # metadata is not evidence about the backend/timings of older rows.
-            for table, additions in {'segments': ('asr_backend','timestamp_kind','raw_text','candidate_observation_id','speaker_window_start'),
+            for table, additions in {'segments': ('asr_backend','timestamp_kind','raw_text','candidate_observation_id','speaker_window_start','speaker_support_id','speaker_support_status'),
                                       'chunks': ('provenance',),
                                       'events': ('time_precision','source_label','onset_precision_seconds','method','verification_status','inference_source'),
-                                      'speaker_turns': ('speaker_window_start',),
+                                      'speaker_turns': ('speaker_window_start','speaker_support_id','speaker_support_status'),
                                       'speakers': ('embedding_version','embedding_evidence'),
                                       'speaker_observations': ('embedding_version','embedding_evidence','matched_speaker_id')}.items():
                 columns={row['name'] for row in db.execute(f'PRAGMA table_info({table})')}
@@ -407,6 +409,14 @@ class Store:
                 calibration=self.settings.speaker_calibration_profile
                 metadata['speaker_identity_policy'].update(calibration_profile_id=calibration['profile_id'],calibration_profile_sha256=calibration['artifact_sha256'],verified_centroid_threshold=self.settings.speaker_centroid_threshold,model_binding=calibration['model'])
             group=db.execute('SELECT identity_group FROM sessions WHERE id=?',(chunk['session_id'],)).fetchone()[0]
+            prepared_support=result.get('_speaker_support',{})
+            support_refs={}
+            def support_for(local_id, observation):
+                if local_id is None:return None,'no_local_speaker'
+                if local_id not in support_refs:
+                    value=prepared_support.get(str(local_id)) if isinstance(prepared_support,dict) else None
+                    support_refs[local_id]=speaker_support.commit_support(self,db,chunk,offset,group,local_id,observation,value)
+                return support_refs[local_id]
             raw_turns=result.get('speaker_turns',[])
             for turn in raw_turns:
                 local_id=turn.get('speaker_local_id')
@@ -416,8 +426,9 @@ class Store:
                     if local_id not in local:
                         local[local_id]=self._window_identity(db,chunk,offset,metadata,group,local_id,turn.get('speaker_embedding'))
                     speaker,score,status,_=local[local_id]
-                turn_cursor=db.execute('INSERT INTO speaker_turns(chunk_id,start,end,speaker_id,speaker_local_id,speaker_match_score,speaker_status,overlap,speaker_window_start) VALUES(?,?,?,?,?,?,?,?,?)',
-                    (chunk['id'],chunk['timeline_start']+offset+turn['start'],chunk['timeline_start']+offset+turn['end'],speaker,local_id,score,status,int(bool(turn.get('overlap')) or any(other.get('speaker_local_id')!=local_id and min(turn['end'],other['end'])>max(turn['start'],other['start']) for other in raw_turns)),offset))
+                support_id,support_status=support_for(local_id,local.get(local_id,(None,None,None,None))[3])
+                turn_cursor=db.execute('INSERT INTO speaker_turns(chunk_id,start,end,speaker_id,speaker_local_id,speaker_match_score,speaker_status,overlap,speaker_window_start,speaker_support_id,speaker_support_status) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                    (chunk['id'],chunk['timeline_start']+offset+turn['start'],chunk['timeline_start']+offset+turn['end'],speaker,local_id,score,status,int(bool(turn.get('overlap')) or any(other.get('speaker_local_id')!=local_id and min(turn['end'],other['end'])>max(turn['start'],other['start']) for other in raw_turns)),offset,support_id,support_status))
                 if local_id is not None:local_turn_ids.setdefault(local_id,[]).append(turn_cursor.lastrowid)
             for segment in result['segments']:
                 local_id=segment.get('speaker_local_id')
@@ -430,7 +441,8 @@ class Store:
                     if key not in local:
                         local[key]=self._window_identity(db,chunk,offset,metadata,group,local_id,segment.get('speaker_embedding'))
                     speaker,score,status,observation=local[key]
-                db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset))
+                support_id,support_status=support_for(local_id,observation)
+                db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start,speaker_support_id,speaker_support_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset,support_id,support_status))
             for event in result['events']:
                 for key in ('time_precision','source_label','method'):
                     value=event.get(key)
@@ -454,6 +466,7 @@ class Store:
             segs=[dict(r) for r in db.execute('SELECT s.*,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL AND s.speaker_id IS NULL THEN 1 ELSE 0 END AS enrollment_available,CASE WHEN o.id IS NOT NULL AND o.enrolled_speaker_id IS NULL THEN 1 ELSE 0 END AS profile_example_available FROM segments s JOIN chunks c ON c.id=s.chunk_id LEFT JOIN speaker_observations o ON o.id=s.candidate_observation_id WHERE c.session_id=? AND s.id>? ORDER BY s.id LIMIT ?', (sid,after,limit))]
             for s in segs:
                 s.pop('candidate_observation_id',None)
+                s.pop('speaker_support_id',None);s.pop('speaker_support_status',None)
                 s['enrollment_available']=bool(s['enrollment_available'])
                 s['profile_example_available']=bool(s['profile_example_available'])
                 speaker=s['speaker_id']; visited=set()
@@ -470,6 +483,7 @@ class Store:
         with self.db() as db:
             rows=[dict(r) for r in db.execute('SELECT t.* FROM speaker_turns t JOIN chunks c ON c.id=t.chunk_id WHERE c.session_id=? AND t.id>? ORDER BY t.id LIMIT ?',(sid,after,limit))]
             for row in rows:
+                row.pop('speaker_support_id',None);row.pop('speaker_support_status',None)
                 row['overlap']=bool(row['overlap']);speaker=row['speaker_id'];visited=set()
                 while speaker and speaker not in visited:
                     visited.add(speaker)

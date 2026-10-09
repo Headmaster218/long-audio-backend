@@ -34,3 +34,13 @@ These are exact exported-source checks; no claim is made that this equals the fu
 - Python source fingerprint: `298bdd1c6900f18e58172bdc8f762247bfed7afad1cf1f5b133e0ea2977fd09a` using the algorithm above.
 - A new synthetic Git fixture proves the proposal reads the selected commit and ignores later working-file edits. Missing source files are reported, never deleted automatically.
 - `SOURCE_CONTROL_PROVENANCE.json` records the reviewed local source commit, matching file hashes and intentional public adaptations. The primary live source remains at 0.2.0rc1; this isolated public integration is 0.2.0rc2.dev0.
+
+
+## Reviewed Phase A and event-provenance import
+
+- Immutable source: `86c1b7983206a8e83877a3384a91ba0b04a6316e`.
+- Entire exported feature suite: 676 passed, 1 optional MOSS-TD local-asset skip, one dependency deprecation warning in 32.32 seconds.
+- Python source fingerprint: `60bfe2eb080611f750eaf3f1c655855f4caf12b4661fc5b283e6ad3ed51be5c0` using the algorithm above.
+- Includes 85 additional synthetic event-provenance and acoustic-support cases; excludes the local array-study implementation/tests and all raw study evidence.
+- Runtime relative-import closure and local document links pass. Public packaging guards and document adaptations remain intact.
+- Capture remains default-off. No identity learning, purity certification, model replacement or long-duration/real-model acceptance is claimed.

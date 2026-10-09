@@ -35,7 +35,15 @@ def reset_group(store, group):
         db.execute('BEGIN IMMEDIATE')
         if db.execute("SELECT 1 FROM chunks WHERE status='running' LIMIT 1").fetchone():
             raise ValueError('Wait for worker to become idle')
+        # Rotate only real groups: arbitrary reset URLs must not grow this table.
+        if db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0 LIMIT 1',(group,)).fetchone():
+            import uuid
+            db.execute('INSERT OR REPLACE INTO speaker_identity_generations VALUES(?,?)',(group,uuid.uuid4().hex))
+        db.execute('DELETE FROM speaker_support WHERE identity_group=?',(group,))
         for table in ('segments', 'speaker_turns'):
+            db.execute(f'''UPDATE {table} SET speaker_support_id=NULL,speaker_support_status='identity_reset'
+                WHERE (speaker_support_id IS NOT NULL OR speaker_support_status IS NOT 'identity_reset')
+                AND chunk_id IN (SELECT id FROM chunks WHERE session_id IN ({GROUP_SESSIONS}))''',(group,))
             db.execute(f'''UPDATE {table} SET speaker_id=NULL,
                 speaker_status='identity_reset',speaker_match_score=NULL
                 WHERE speaker_id IS NOT NULL AND chunk_id IN (

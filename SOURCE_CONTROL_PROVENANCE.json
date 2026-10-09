@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "local_source_commit": "dafc9e4c8940ebcfbb7a51c0d0a0e6d285f4ec97",
-  "local_source_tree": "cc273262e6c645abaf607781bc6c67a89acbe1c5",
-  "local_source_version": "0.2.0rc1",
+  "local_source_commit": "86c1b7983206a8e83877a3384a91ba0b04a6316e",
+  "local_source_tree": "4c49778732b02e0187409dadf036e6984dd3b732",
+  "local_source_version": "0.2.0rc2.dev1",
   "public_integration_version": "0.2.0rc2.dev0",
-  "relationship": "Reviewed public projection; not a wholesale source or private evidence mirror. Matching file hashes were verified against this later local Git checkpoint. Historical main provenance remains in BASELINE_IMPORT.json.",
+  "relationship": "Reviewed public projection from this exact immutable local commit. Historical baseline remains in BASELINE_IMPORT.json; no raw reports, biometric values or array-study helpers are imported.",
   "byte_identical_files": [
     {
       "path": "audio_backend/__main__.py",
-      "local_source_sha256": "b26703fc816668a64d259faca01f28d0cbbd4cdca8b1f199481c2a2ba0ed7142",
-      "public_sha256": "b26703fc816668a64d259faca01f28d0cbbd4cdca8b1f199481c2a2ba0ed7142"
+      "local_source_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204",
+      "public_sha256": "34819d8c217c13f740019bfe909f11aa8c21364f89362125a27bbe43db759204"
     },
     {
       "path": "audio_backend/app.py",
-      "local_source_sha256": "18aaa83f9bc46702dd9c4913da28b1314efc6686f852e5af79d4608a3b8b5d28",
-      "public_sha256": "18aaa83f9bc46702dd9c4913da28b1314efc6686f852e5af79d4608a3b8b5d28"
+      "local_source_sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f",
+      "public_sha256": "07957e31affeb1558e36be04028ede48412c4c6fd848bdfa3670af84d430667f"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -53,8 +53,8 @@
     },
     {
       "path": "audio_backend/event_candidate_store.py",
-      "local_source_sha256": "a0fa82d55bfa698c559000d6932dfefbbab2916c444a5d99d7acd3c5971b787e",
-      "public_sha256": "a0fa82d55bfa698c559000d6932dfefbbab2916c444a5d99d7acd3c5971b787e"
+      "local_source_sha256": "23b702ccafd1ffbaec56815571d492abff8867eb5b4a82c7102ec7258ae29efb",
+      "public_sha256": "23b702ccafd1ffbaec56815571d492abff8867eb5b4a82c7102ec7258ae29efb"
     },
     {
       "path": "audio_backend/events/__init__.py",
@@ -63,8 +63,8 @@
     },
     {
       "path": "audio_backend/events/detector.py",
-      "local_source_sha256": "803a4d922e5d31573f46e17b2dabb5b9c5596f426008a531355565130a5f7340",
-      "public_sha256": "803a4d922e5d31573f46e17b2dabb5b9c5596f426008a531355565130a5f7340"
+      "local_source_sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0",
+      "public_sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0"
     },
     {
       "path": "audio_backend/events/metrics.py",
@@ -75,6 +75,11 @@
       "path": "audio_backend/events/multiresolution.py",
       "local_source_sha256": "7b6fca32ff60b7bd3b20233b3eec1434c9901510732a8cee72b1b5e352db77ca",
       "public_sha256": "7b6fca32ff60b7bd3b20233b3eec1434c9901510732a8cee72b1b5e352db77ca"
+    },
+    {
+      "path": "audio_backend/events/provenance.py",
+      "local_source_sha256": "0e57fab110cda6ee75244b5f2ab368a01753c66c812a11791f138b1d0122f56f",
+      "public_sha256": "0e57fab110cda6ee75244b5f2ab368a01753c66c812a11791f138b1d0122f56f"
     },
     {
       "path": "audio_backend/events/temporal_decode.py",
@@ -88,8 +93,8 @@
     },
     {
       "path": "audio_backend/identity_reset.py",
-      "local_source_sha256": "21d3699440c939d1d9a5d977ffb757f22b012dafeb67efa034c1234232b3d1a6",
-      "public_sha256": "21d3699440c939d1d9a5d977ffb757f22b012dafeb67efa034c1234232b3d1a6"
+      "local_source_sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78",
+      "public_sha256": "1b01c9575ba112b14c171e029ad8ab5f806921d03230af496068dad2f5de2d78"
     },
     {
       "path": "audio_backend/inference/__init__.py",
@@ -98,8 +103,8 @@
     },
     {
       "path": "audio_backend/inference/analyzer.py",
-      "local_source_sha256": "37525e081e8ae96db300d185669304221d1bba28092c1571f5a77dcedbbdf842",
-      "public_sha256": "37525e081e8ae96db300d185669304221d1bba28092c1571f5a77dcedbbdf842"
+      "local_source_sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da",
+      "public_sha256": "acda7b496bd5f4b20c7c81e81d42ca656d32a47c938f3515c82780bfe6f9d5da"
     },
     {
       "path": "audio_backend/inference/dicow_asr.py",
@@ -128,8 +133,8 @@
     },
     {
       "path": "audio_backend/lifecycle.py",
-      "local_source_sha256": "cf3e9afa6622a8b549be6180e4398c752ab6c8c457129b421f3a9d79c63432bc",
-      "public_sha256": "cf3e9afa6622a8b549be6180e4398c752ab6c8c457129b421f3a9d79c63432bc"
+      "local_source_sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb",
+      "public_sha256": "de1ad0fa1dd0b9549f5b3bd44465045412b1ccab525740263040ef885df64ddb"
     },
     {
       "path": "audio_backend/moss_td_assets.py",
@@ -203,8 +208,8 @@
     },
     {
       "path": "audio_backend/settings.py",
-      "local_source_sha256": "5a74dc0d2f0e6961563390318f6463a7e5de2c7f76a255bf2cdbb2230854327e",
-      "public_sha256": "5a74dc0d2f0e6961563390318f6463a7e5de2c7f76a255bf2cdbb2230854327e"
+      "local_source_sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05",
+      "public_sha256": "55545ea333080daf26cdf23a3a9a808ee13d1cb4a33317e23b9af5497b3cad05"
     },
     {
       "path": "audio_backend/speaker_calibration.py",
@@ -217,14 +222,19 @@
       "public_sha256": "7a0f4b72592d0669bf05748fbfb9a04104ca517297be5b2d6955997f618274f0"
     },
     {
+      "path": "audio_backend/speaker_support.py",
+      "local_source_sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934",
+      "public_sha256": "61156aedb325de8a27c3bf7af7ddfe07fa89e9853b368b124d4ecde1998d1934"
+    },
+    {
       "path": "audio_backend/storage.py",
-      "local_source_sha256": "1e42b93dea2faeb4f2b1a8222e726fd21d61bbd0e0689a281d350e0d989b5cf8",
-      "public_sha256": "1e42b93dea2faeb4f2b1a8222e726fd21d61bbd0e0689a281d350e0d989b5cf8"
+      "local_source_sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c",
+      "public_sha256": "fdb633ec439a36b21a5a090d7940fdde9ec0a0f7a151c122f5a07566eb6cef9c"
     },
     {
       "path": "audio_backend/worker.py",
-      "local_source_sha256": "201837f99f4101eadaf71b14b2f2544ca9b6b0dc3cbb0c05660fc6ef5cbc83e7",
-      "public_sha256": "201837f99f4101eadaf71b14b2f2544ca9b6b0dc3cbb0c05660fc6ef5cbc83e7"
+      "local_source_sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91",
+      "public_sha256": "bb5c8cf9716209f72124ee203055ded43ac3915c7e6bcc8198d50eb4c472cb91"
     },
     {
       "path": "dicow-model-manifest.json",
@@ -233,8 +243,8 @@
     },
     {
       "path": "docs/EMBEDDING_SUPPORT_LINEAGE.md",
-      "local_source_sha256": "0ddaeb55bd8d1d885850a69e2b15aa8554abd824c62903d9b8a455834150ff7b",
-      "public_sha256": "0ddaeb55bd8d1d885850a69e2b15aa8554abd824c62903d9b8a455834150ff7b"
+      "local_source_sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c",
+      "public_sha256": "e3f4d54bece68bf37b87dd60ddb5c556672abc4ece28992acb853e84f852b49c"
     },
     {
       "path": "licenses/clap-model-note.md",
@@ -427,6 +437,11 @@
       "public_sha256": "df2a5081d4155954ddbb58a8c84c98e170a60a903d1640a81bf8248435be9ba2"
     },
     {
+      "path": "tests/test_event_provenance.py",
+      "local_source_sha256": "3f65c403b5f7df7c38cdf3068275cc8be8aa26f10f99d71e2238425ffdda1dd0",
+      "public_sha256": "3f65c403b5f7df7c38cdf3068275cc8be8aa26f10f99d71e2238425ffdda1dd0"
+    },
+    {
       "path": "tests/test_events_candidate_store.py",
       "local_source_sha256": "ceccd2a46d889b2ea5019a4ffb1c9d092e5c8cbbd712ced5091fba3d14b82329",
       "public_sha256": "ceccd2a46d889b2ea5019a4ffb1c9d092e5c8cbbd712ced5091fba3d14b82329"
@@ -448,8 +463,8 @@
     },
     {
       "path": "tests/test_final_audit.py",
-      "local_source_sha256": "227515577d9175a5f1201135d551fc7b959b274d8e1c0d21d6cf460720df74a3",
-      "public_sha256": "227515577d9175a5f1201135d551fc7b959b274d8e1c0d21d6cf460720df74a3"
+      "local_source_sha256": "c84469422a5473daf7b0babad839a71482cab9e613cf7485b6f9975ac747131e",
+      "public_sha256": "c84469422a5473daf7b0babad839a71482cab9e613cf7485b6f9975ac747131e"
     },
     {
       "path": "tests/test_identity_reset.py",
@@ -458,8 +473,8 @@
     },
     {
       "path": "tests/test_inference.py",
-      "local_source_sha256": "fa326b0c3cf87315fd775d7aea269545f1577505e75952f95a8cf75d9ee7c88e",
-      "public_sha256": "fa326b0c3cf87315fd775d7aea269545f1577505e75952f95a8cf75d9ee7c88e"
+      "local_source_sha256": "810068dd1e1361ca185ee86838be9cb164d2226fffed28dc63f051334dcd4efc",
+      "public_sha256": "810068dd1e1361ca185ee86838be9cb164d2226fffed28dc63f051334dcd4efc"
     },
     {
       "path": "tests/test_lexical_metrics_fast.py",
@@ -538,8 +553,8 @@
     },
     {
       "path": "tests/test_overlap_ownership.py",
-      "local_source_sha256": "1ceadfa6688ee6e7f9a6210025cfc85daae8ed94254b8d98c7451a04badd4d19",
-      "public_sha256": "1ceadfa6688ee6e7f9a6210025cfc85daae8ed94254b8d98c7451a04badd4d19"
+      "local_source_sha256": "d453108435fad81eb3fd88e0f6046d22e669b9f06b479cd5c3ddc05387020a21",
+      "public_sha256": "d453108435fad81eb3fd88e0f6046d22e669b9f06b479cd5c3ddc05387020a21"
     },
     {
       "path": "tests/test_overlap_public_contract.py",
@@ -582,6 +597,11 @@
       "public_sha256": "8892b74e06e99a5fe692f465f73965a006f3033ba3fbb1170c001ee238c308df"
     },
     {
+      "path": "tests/test_reviewable_support.py",
+      "local_source_sha256": "2669697aea922b1adae473217bae19b73cf1a708b66c3d4371875ac950366a59",
+      "public_sha256": "2669697aea922b1adae473217bae19b73cf1a708b66c3d4371875ac950366a59"
+    },
+    {
       "path": "tests/test_speaker_calibration_profile.py",
       "local_source_sha256": "4937ca2b3ef3dab5633bdd438c135d7160f802ba7ee6bdd28d6968ad8a8d463a",
       "public_sha256": "4937ca2b3ef3dab5633bdd438c135d7160f802ba7ee6bdd28d6968ad8a8d463a"
@@ -618,8 +638,8 @@
     },
     {
       "path": "tests/test_whisper_unicode_pipeline.py",
-      "local_source_sha256": "85f6bc2bfbe98cad77c17659bd688de2780c9111aea0a7e6019132e7e95fc56e",
-      "public_sha256": "85f6bc2bfbe98cad77c17659bd688de2780c9111aea0a7e6019132e7e95fc56e"
+      "local_source_sha256": "c2ec80999cdd32bc20199439592de5e97ae92e1a42c8b09bda9eddfacc43df9d",
+      "public_sha256": "c2ec80999cdd32bc20199439592de5e97ae92e1a42c8b09bda9eddfacc43df9d"
     }
   ],
   "publication_adapted_files": [
@@ -631,17 +651,17 @@
     {
       "path": "README.md",
       "local_source_sha256": "3095442a8a7b2f667b8058aa08b9a503b0e2ebe7dc6f1cda3005a05c14714cd0",
-      "public_sha256": "053cb2cd83f843433085141ee7a01c122706d2bdfb9cb480366ca4769673a83a"
+      "public_sha256": "469718fbc96f5a137392c8416d778c94b9f159b65866cb1da652583c223cd4cf"
     },
     {
       "path": "audio_backend/__init__.py",
-      "local_source_sha256": "7e18118b872c426070f21f41bd3dd2b7fa1cc85b81d01b44775d71da345c85ac",
+      "local_source_sha256": "1741ed5818bca994c54feeb542862c8375b79832bf275eee23f1088e665a5099",
       "public_sha256": "597069c198330e72752c40af21c17a81f56707275f70bd3d0a885c95e5637d26"
     },
     {
       "path": "docs/API.md",
-      "local_source_sha256": "a40e299bf9dc6aaeb3682ae5c84807afbd59ebabbb9711123e99af0ee6c983f5",
-      "public_sha256": "7328426e7752d602480cd6d0ffe55096a1d6491b71e2d2e51a9b0ea9f3a07f6c"
+      "local_source_sha256": "d7aed89d8df4eed6b2f07acc228c87036d896569f8cf6572a26c6dcf5efb16bd",
+      "public_sha256": "e88fd3841a6d8a66aa3cf1cc28a65bfe600cb978cdb5b4908d6a0ebe98d6f4b9"
     },
     {
       "path": "docs/DATA_MIGRATION.md",
@@ -670,8 +690,8 @@
     },
     {
       "path": "docs/QUEUING_AND_CANDIDATE_LEDGERS.md",
-      "local_source_sha256": "f0b1d6d28ae8eb4e9f3b31c190ad72dfd92612feb967806b9595f044a650322f",
-      "public_sha256": "6004ade693455a3da2e758cf9c27d2b2edbb4476603e0d53b568c8d36b67b6ec"
+      "local_source_sha256": "34e3d5bfcfb929c4a27a0ff44524f6013b4908680165186b8685878d28727b63",
+      "public_sha256": "4025ec3de11248d666a2f321502cec728641dc654cc649cc093f2ce02ef8aa9a"
     },
     {
       "path": "docs/QUICKSTART_ZH.md",
@@ -680,7 +700,7 @@
     },
     {
       "path": "pyproject.toml",
-      "local_source_sha256": "efa44febbc38bd40cd0586194f6fc33a334797c946c08414ace110aec8758ee8",
+      "local_source_sha256": "1504e60d3e1118ac16ab1e7cdf4d130f46e6a276a57e9647085fc8d21a71c8d7",
       "public_sha256": "aa475893af776eaceead98dcd98671652a5761669b52ce622fbae8de3153af3e"
     },
     {
