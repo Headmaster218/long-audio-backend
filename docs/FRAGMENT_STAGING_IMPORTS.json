@@ -180,6 +180,29 @@
           "source_commit": "ed49a3a0c18c62479438b4adf37ecd86cef3babc"
         }
       ]
+    },
+    {
+      "component": "native-boundary-probes",
+      "files": [
+        {
+          "path": "audio_backend/native_boundary_probe.py",
+          "bytes": 27175,
+          "sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc",
+          "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3"
+        },
+        {
+          "path": "audio_backend/native_boundary_remainder.py",
+          "bytes": 5818,
+          "sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c",
+          "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3"
+        },
+        {
+          "path": "tests/test_native_boundary_probe.py",
+          "bytes": 13086,
+          "sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec",
+          "source_commit": "2753dae2a0f93b39817f6141f71545d7278e43f3"
+        }
+      ]
     }
   ],
   "note": "Exact source bytes only. Original histories and generated evidence are not imported; original repositories retain the separate graphs."

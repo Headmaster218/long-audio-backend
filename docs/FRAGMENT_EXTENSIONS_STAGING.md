@@ -4,8 +4,7 @@ This is local development staging, version `0.2.0rc2.dev3`, not a release or
 promotion. The isolated branch preserves active develop `6835ec41` ancestry and adds
 source-only imports; the original experimental repositories retain their graphs
 separately. No private experimental ancestry is fetched or merged. No reports, private history,
-recordings, models, vectors, operational state or native boundary-probe harness
-are imported. No dependency changes, new HTTP interfaces, date or upload glue.
+recordings, models, vectors, operational state are imported. No dependency changes, new HTTP interfaces, date or upload glue.
 
 ## Scope remains narrow and default off
 
@@ -20,7 +19,15 @@ are imported. No dependency changes, new HTTP interfaces, date or upload glue.
 - Normalization is finalized, single-island PCM16 only. It is a standalone
   experimental class, not wired into the runtime/model bridge or HTTP APIs.
   Do not infer streaming, multi-island or compressed-input support.
-- The native boundary-probe harness is deliberately absent pending admission.
+- The independently admitted native boundary-probe and split-only continuation
+  harnesses are benchmark-only. P1 passed. The original P2 whole arm completed
+  processing but failed its report-size cap; that failure remains preserved.
+  A separately budgeted split-only remainder later matched the old whole arm's
+  exact PCM and all anonymous speaker intervals. This was not an uninterrupted
+  P2 pass. Combined native input was 808.80025 seconds within 822.400375 seconds.
+  The 300-second receipt was not EOS; ten commit IDs survived the epoch-boundary
+  restart, and the final one-sample core had no invented speaker activity.
+  This establishes no ASR quality, global identity or arbitrary crash recovery.
 
 `FRAGMENT_STAGING_IMPORTS.json` records every reviewed source import's exact
 commit, path, byte length and SHA256. Imports preserve bytes; any later change
@@ -31,8 +38,8 @@ expected failures are retained. Unexpected passes remain failures.
 ## Source guard proposal for this isolated tree
 
 The raw imports add 18 files and 248,902 bytes to the 211-file / 1,974,168-byte
-baseline, yielding 229 files / 2,223,070 bytes. Staging documentation, provenance,
-guard and tests are separately audited additions. The proposed bounded total is
+baseline, yielding 229 files / 2,223,070 bytes. The later admitted native benchmark adds three source files; staging
+documentation, provenance, guard and tests are separately audited additions. The proposed bounded total is
 2,500,000 bytes, with the existing 250-file and 250,000-byte per-file limits.
 The exact allowlist and existing privacy exclusions are retained in
 `FRAGMENT_STAGING_POLICY.json`. This does not change active or public policies.
