@@ -186,12 +186,15 @@ class Worker:
                         lineage['status']='source_lineage_unavailable'
                 pcm=tmp/f'part-{index}.wav'
                 requested_frames=round(part['read_duration']*16000)
+                # Native scheduling requires an exact canonical frame count.
+                # Legacy non-native windows retain measured resampled ranges.
                 # Only the declared end of an entire source gets an EOF check.
                 # One extra requested sample exposes an underestimated duration;
                 # a short clean decode exposes an overestimate. Neither is padded
                 # or silently clipped to the immutable declared source timeline.
                 source_end=round((part['read_start']+part['read_duration'])*16000)>=round(part['duration']*16000)
-                decode_duration=(requested_frames+1)/16000 if source_end else part['read_duration']
+                verify_source_end=source_end and self.settings.diarization_backend=='nemotron'
+                decode_duration=(requested_frames+1)/16000 if verify_source_end else part['read_duration']
                 # FFmpeg duration syntax rejects Python's scientific notation
                 # for short intervals such as the first 1/16000-second sample.
                 run_bounded([self.settings.ffmpeg,'-nostdin','-v','error','-xerror','-protocol_whitelist','file,pipe',
@@ -204,7 +207,7 @@ class Worker:
                         output.writeframesraw(block)
                         frames+=len(block)//2
                 pcm.unlink()
-                if source_end and frames!=requested_frames:
+                if verify_source_end and frames!=requested_frames:
                     raise RuntimeError(f'Source duration does not match decoded PCM: expected {requested_frames} frames, got {frames}; source timeline was not changed')
                 first=lineage['analyzer_frame_count'];lineage['analyzer_frame_count']+=frames
                 if capture_support and lineage['status']=='complete':

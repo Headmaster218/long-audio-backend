@@ -190,6 +190,29 @@ def test_aac_metadata_mismatch_fails_before_native_push(settings, tmp_path, vari
     assert not RecordingAnalyzer.inputs
 
 
+@pytest.mark.parametrize('backend', ['pyannote', 'nemotron'])
+def test_resampled_tail_keeps_legacy_behavior_but_native_remains_strict(settings, tmp_path, backend):
+    source = tmp_path / 'resampled.wav'
+    write_wav(source, 30871, 44100)
+    duration = 30871 / 44100
+    assert len(decode(source)) // 2 > round(duration * RATE)
+    settings.diarization_backend = backend
+    store, worker, cid = worker_source(settings, source, duration)
+    if backend == 'nemotron':
+        with pytest.raises(RuntimeError, match='Source duration does not match decoded PCM'):
+            worker.process(store.claim())
+        assert store.chunk(cid)['next_offset'] == 0
+        assert not RecordingAnalyzer.inputs
+    else:
+        expected = ffmpeg('-ss', '0', '-i', source, '-t', f'{duration:.9f}',
+                          '-map', '0:a:0', '-ac', '1', '-ar', RATE,
+                          '-c:a', 'pcm_s16le', '-f', 's16le', 'pipe:1')
+        worker.process(store.claim())
+        assert store.chunk(cid)['status'] == 'completed'
+        assert store.chunk(cid)['next_offset'] == duration
+        assert RecordingAnalyzer.inputs == [expected]
+
+
 def test_partial_interval_does_not_probe_past_its_end(settings, exact_source):
     store, worker, cid = worker_source(settings, exact_source, FRAMES / RATE)
     out = settings.data_dir / 'partial.wav'

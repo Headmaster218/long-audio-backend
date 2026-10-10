@@ -135,12 +135,18 @@ reset never masquerades as end-of-stream. Published prefixes remain immutable.
 Native scheduling uses integer 16 kHz frames relative to the source/stream, without
 rounding its absolute session timeline origin. Each native push must contain the
 requested frame count and advance the native input by that count. Decoding uses
-FFmpeg `-xerror`: a decoder failure is not treated as clean end-of-source. At each
-whole source's declared end (not an ordinary core/window boundary), the bounded
-decoder requests one extra sample and checks the emitted count. A short clean
+FFmpeg `-xerror`: a decoder failure is not treated as clean end-of-source. For
+stateful native processing, at each whole source's declared end (not an ordinary
+core/window boundary), the bounded decoder requests one extra sample and checks
+the emitted count. A short clean
 decode or extra emitted sample fails explicitly with a source-duration mismatch;
 it does not pad silence, silently truncate the tail, or change declared stream
 times. Committed checkpoints survive this failure and retry.
+
+Legacy non-native decoding retains its requested-duration behavior and measured
+resampled input ranges, including mixed-rate/channel source support. It does not
+gain the native path's exact-frame endpoint check. Strict decoder-error handling
+still applies to both paths.
 
 This is a fail-closed duration check, **not generic compressed endpoint
 reconciliation**. Valid AAC encoder priming/edit lists, resampling, or containers
