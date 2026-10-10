@@ -1,0 +1,55 @@
+{
+  "schema": "whisper-public-source-model-pins-v1",
+  "evaluation_base_commit": "310e0f017f5c589d36ea61a2bdf754e6f417db11",
+  "prior_model_corpus_assets": "../assets.json",
+  "prior_baseline_runtime": "../runtime.json",
+  "backend_source": "../backend-source.json",
+  "whisper_cpp": {
+    "repository": "https://github.com/ggml-org/whisper.cpp",
+    "tag": "v1.8.2",
+    "commit": "4979e04f5dcaccb36057e059bbaed8a2f5288315",
+    "archive_url": "https://api.github.com/repos/ggml-org/whisper.cpp/tarball/v1.8.2",
+    "archive_bytes": 7585381,
+    "archive_sha256": "deb39eafbab81c95651c1c55a279fa0a635323c837dd23abe30358515cdbdcc7",
+    "license": "MIT",
+    "license_url": "https://github.com/ggml-org/whisper.cpp/blob/v1.8.2/LICENSE"
+  },
+  "model": {
+    "filename": "ggml-large-v3-turbo-q5_0.bin",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+    "bytes": 574041195,
+    "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+    "license": "MIT",
+    "license_url": "https://github.com/openai/whisper/blob/main/LICENSE"
+  },
+  "historical_cpu_build": {
+    "binary_sha256": "06ca7cee5824a93e768c53adf3143742da38477621911e5641a093c870ed932e",
+    "binary_bytes": 2539440,
+    "binary_distributed": false,
+    "system": "Linux x86_64",
+    "compiler": "GCC14.2.0",
+    "libc": "glibc2.41",
+    "cmake": "3.31.10",
+    "python": "3.12.14",
+    "build_type": "Release",
+    "jobs": 1,
+    "cmake_options": [
+      "GGML_VULKAN=OFF",
+      "GGML_CUDA=OFF",
+      "GGML_METAL=OFF",
+      "GGML_BLAS=OFF",
+      "GGML_NATIVE=OFF",
+      "WHISPER_BUILD_TESTS=OFF",
+      "WHISPER_BUILD_SERVER=OFF",
+      "BUILD_SHARED_LIBS=OFF"
+    ],
+    "cpu_codegen": "Upstream x86 defaults include SSE4.2/F16C/FMA/BMI2/AVX/AVX2 despite GGML_NATIVE=OFF; not an all-x86 baseline",
+    "archive_metadata_note": "No Git metadata in source archive; authoritative provenance is pinned release archive and commit"
+  },
+  "lexical_metric_source": {
+    "public_file": "../continuous/score.py",
+    "normalization": "NFKC/lowercase; strip Unicode punctuation/symbols/whitespace; no simplified/traditional conversion",
+    "edit_ties": "diagonal,deletion,insertion"
+  },
+  "runtime_gate_note": "Portable scorer verifies lexical input/count contracts only. The original isolated runtime guard is not recreated by this snapshot."
+}

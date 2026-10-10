@@ -1,0 +1,181 @@
+{
+  "schema": "whisper-public-counts-v1",
+  "scope": "Two reused-support complete excerpts, no promotion or universal ranking",
+  "defaults_changed": false,
+  "greedy_smoke": {
+    "calls": 1,
+    "audio_seconds": 20,
+    "partial_outer_reference_support": true,
+    "cer_computed": false,
+    "beam_size": 1,
+    "best_of": 1,
+    "temperature": 0,
+    "fallback": false,
+    "detected_language": "zh",
+    "wall_seconds": 162.25085611700342,
+    "whole_call_rtf": 8.112542805850172,
+    "peak_owned_rss_bytes": 773435392,
+    "segments": 8,
+    "tokens_including_special": 98,
+    "scope": "Feasibility only, not text-quality evidence"
+  },
+  "beam5_text_diagnostic": {
+    "calls": 11,
+    "fresh_processes": 11,
+    "successful_calls": 11,
+    "failed_calls": 0,
+    "retries": 0,
+    "audio_seconds": 189.975,
+    "fixed_reference_characters": 1224,
+    "beam_size": 5,
+    "best_of": 5,
+    "temperature": 0,
+    "fallback": false,
+    "all_detected_languages": "zh",
+    "full_reference_counts": {
+      "sensevoice_first": {
+        "overall": {
+          "errors": 483,
+          "substitutions": 47,
+          "deletions": 429,
+          "insertions": 7,
+          "reference_characters": 1224,
+          "cer": 0.3946078431372549
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "errors": 394,
+            "substitutions": 33,
+            "deletions": 359,
+            "insertions": 2,
+            "reference_characters": 789,
+            "cer": 0.49936628643852976
+          },
+          "R8003_M8001_MS801": {
+            "errors": 89,
+            "substitutions": 14,
+            "deletions": 70,
+            "insertions": 5,
+            "reference_characters": 435,
+            "cer": 0.2045977011494253
+          }
+        }
+      },
+      "qwen_first": {
+        "overall": {
+          "errors": 615,
+          "substitutions": 149,
+          "deletions": 332,
+          "insertions": 134,
+          "reference_characters": 1224,
+          "cer": 0.5024509803921569
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "errors": 521,
+            "substitutions": 122,
+            "deletions": 267,
+            "insertions": 132,
+            "reference_characters": 789,
+            "cer": 0.6603295310519645
+          },
+          "R8003_M8001_MS801": {
+            "errors": 94,
+            "substitutions": 27,
+            "deletions": 65,
+            "insertions": 2,
+            "reference_characters": 435,
+            "cer": 0.2160919540229885
+          }
+        }
+      },
+      "qwen_recovered": {
+        "overall": {
+          "errors": 463,
+          "substitutions": 76,
+          "deletions": 382,
+          "insertions": 5,
+          "reference_characters": 1224,
+          "cer": 0.37826797385620914
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "errors": 369,
+            "substitutions": 49,
+            "deletions": 317,
+            "insertions": 3,
+            "reference_characters": 789,
+            "cer": 0.467680608365019
+          },
+          "R8003_M8001_MS801": {
+            "errors": 94,
+            "substitutions": 27,
+            "deletions": 65,
+            "insertions": 2,
+            "reference_characters": 435,
+            "cer": 0.2160919540229885
+          }
+        }
+      },
+      "whisper_beam5_no_fallback": {
+        "overall": {
+          "errors": 550,
+          "substitutions": 93,
+          "deletions": 451,
+          "insertions": 6,
+          "reference_characters": 1224,
+          "cer": 0.4493464052287582
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "errors": 427,
+            "substitutions": 62,
+            "deletions": 363,
+            "insertions": 2,
+            "reference_characters": 789,
+            "cer": 0.541191381495564
+          },
+          "R8003_M8001_MS801": {
+            "errors": 123,
+            "substitutions": 31,
+            "deletions": 88,
+            "insertions": 4,
+            "reference_characters": 435,
+            "cer": 0.2827586206896552
+          }
+        }
+      }
+    },
+    "sum_native_process_call_wall_seconds": 1820.7330879309957,
+    "native_call_rtf": 9.584066787372,
+    "whole_phase_wall_seconds": 1863.7223380150026,
+    "whole_phase_rtf": 9.810355773207014,
+    "peak_owned_rss_bytes": 848748544,
+    "peak_observable_aggregate_rss_bytes": 863641600,
+    "minimum_host_available_bytes": 8121790464,
+    "memory_measurement": "50ms sampled process RSS; observable namespace aggregate, not guaranteed whole-host accounting or kernel RSS cap",
+    "encoder_runs": 22,
+    "encoder_total_seconds": 1745.45227,
+    "native_temperature_fallbacks": 0,
+    "timing_validity": {
+      "lexical_tokens": 753,
+      "zero_duration_lexical_tokens": 57,
+      "out_of_range_entries": 3,
+      "affected_windows": 1,
+      "last_window_duration_ms": 3355,
+      "maximum_reported_endpoint_ms": 3360,
+      "maximum_overshoot_ms": 5,
+      "text_discarded_for_timing": false,
+      "timestamp_accuracy_measured": false
+    },
+    "decoder_completeness": "No explicit runtime failure was reported; independent proof of absent native truncation is unavailable. Do not equate process success with recognition completeness.",
+    "terminal_audit": "Independent raw-output lexical counts, provenance and original-handle cleanup checks passed"
+  },
+  "limitations": [
+    "No native model/runtime or corpus text is redistributed",
+    "No Windows or Vulkan execution and no GPU benchmark",
+    "Fresh process/load plus auto language detection costs are included; no warm/steady-state latency measurement",
+    "Two excerpts are too small for promotion or universal model ranking",
+    "No speaker attribution or word-timestamp accuracy test"
+  ]
+}
