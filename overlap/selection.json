@@ -1,0 +1,1067 @@
+{
+  "annotation_parser_sha256": "1a568dac93689f5cde68009a5bf9c75daafeff586cd08020983ec8b15e9a4d99",
+  "channel_zero_based": 0,
+  "data_manifest_sha256": "73e55e8f98b7296a3853155d542a36abea96dccbeb031c39a34718f45f892e4e",
+  "eligible_candidates": [
+    {
+      "end_frame": 23707360,
+      "meeting": "R8001_M8004_MS801",
+      "overlap_frames": 104960,
+      "start_frame": 23400320
+    },
+    {
+      "end_frame": 9223680,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 43840,
+      "start_frame": 9034000
+    },
+    {
+      "end_frame": 12273520,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 52960,
+      "start_frame": 12076160
+    },
+    {
+      "end_frame": 16795040,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 98400,
+      "start_frame": 16586160
+    },
+    {
+      "end_frame": 16875520,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 98400,
+      "start_frame": 16586160
+    },
+    {
+      "end_frame": 19224240,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 79840,
+      "start_frame": 18940640
+    },
+    {
+      "end_frame": 23575200,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 44960,
+      "start_frame": 23359440
+    },
+    {
+      "end_frame": 23973760,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 58880,
+      "start_frame": 23682880
+    },
+    {
+      "end_frame": 30726800,
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 51520,
+      "start_frame": 30476400
+    },
+    {
+      "end_frame": 14426320,
+      "meeting": "R8007_M8010_MS803",
+      "overlap_frames": 81600,
+      "start_frame": 14249520
+    },
+    {
+      "end_frame": 21735280,
+      "meeting": "R8007_M8010_MS803",
+      "overlap_frames": 88160,
+      "start_frame": 21498400
+    },
+    {
+      "end_frame": 14357920,
+      "meeting": "R8007_M8011_MS806",
+      "overlap_frames": 71040,
+      "start_frame": 14120880
+    },
+    {
+      "end_frame": 18039440,
+      "meeting": "R8007_M8011_MS806",
+      "overlap_frames": 48640,
+      "start_frame": 17839440
+    },
+    {
+      "end_frame": 25128880,
+      "meeting": "R8007_M8011_MS806",
+      "overlap_frames": 76000,
+      "start_frame": 24958880
+    },
+    {
+      "end_frame": 6492000,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 77760,
+      "start_frame": 6176240
+    },
+    {
+      "end_frame": 6492000,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 53920,
+      "start_frame": 6310720
+    },
+    {
+      "end_frame": 6522960,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 53920,
+      "start_frame": 6310720
+    },
+    {
+      "end_frame": 20321520,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 74560,
+      "start_frame": 20049360
+    },
+    {
+      "end_frame": 30192880,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 86080,
+      "start_frame": 29889040
+    },
+    {
+      "end_frame": 33970320,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 62880,
+      "start_frame": 33758080
+    },
+    {
+      "end_frame": 34496080,
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 66400,
+      "start_frame": 34201280
+    },
+    {
+      "end_frame": 13307120,
+      "meeting": "R8009_M8018_MS809",
+      "overlap_frames": 44000,
+      "start_frame": 13089040
+    },
+    {
+      "end_frame": 16262080,
+      "meeting": "R8009_M8018_MS809",
+      "overlap_frames": 52480,
+      "start_frame": 16083040
+    },
+    {
+      "end_frame": 24441040,
+      "meeting": "R8009_M8018_MS809",
+      "overlap_frames": 49440,
+      "start_frame": 24216160
+    },
+    {
+      "end_frame": 24441040,
+      "meeting": "R8009_M8018_MS809",
+      "overlap_frames": 49440,
+      "start_frame": 24249760
+    },
+    {
+      "end_frame": 457600,
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 43840,
+      "start_frame": 277360
+    },
+    {
+      "end_frame": 494960,
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 43840,
+      "start_frame": 277360
+    },
+    {
+      "end_frame": 8419840,
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 53920,
+      "start_frame": 8196160
+    },
+    {
+      "end_frame": 8458240,
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 53920,
+      "start_frame": 8196160
+    },
+    {
+      "end_frame": 30814000,
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 50240,
+      "start_frame": 30631840
+    },
+    {
+      "end_frame": 30879520,
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 50240,
+      "start_frame": 30631840
+    },
+    {
+      "end_frame": 14968480,
+      "meeting": "R8009_M8020_MS810",
+      "overlap_frames": 64000,
+      "start_frame": 14664880
+    },
+    {
+      "end_frame": 15279520,
+      "meeting": "R8009_M8020_MS810",
+      "overlap_frames": 44160,
+      "start_frame": 15085360
+    }
+  ],
+  "exclusions": [
+    {
+      "end_frame": 721600,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "3c512f85f81f6f2e1a744526b78eb26f0c1267e3ccea948da2d57d6dd64accf7",
+      "source_set": 0,
+      "start_frame": 581600
+    },
+    {
+      "end_frame": 23754080,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "aaa299fc95fd8d52a8a85b00e640a92f25b5431195fb2a994e432ba65538ad46",
+      "source_set": 0,
+      "start_frame": 23715360
+    },
+    {
+      "end_frame": 571840,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "85540c31f7635ef0dd280a65c9aa0803c18dbe1a500f78473369cf3da6050573",
+      "source_set": 0,
+      "start_frame": 399360
+    },
+    {
+      "end_frame": 17197600,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "aaaaed8db1470c37b0161244774ec26bdabb89fad980169c653cdc9db0f75ba6",
+      "source_set": 0,
+      "start_frame": 17132480
+    },
+    {
+      "end_frame": 7413440,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "167fae9683958cc49d8581133d1493f89e45dd615ed37680876d21a6f33557cd",
+      "source_set": 0,
+      "start_frame": 7230240
+    },
+    {
+      "end_frame": 3481440,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "2214402935edf4a81c57bff257db7c65141f152c6b45c41e8a24a474b8024346",
+      "source_set": 0,
+      "start_frame": 3351040
+    },
+    {
+      "end_frame": 292640,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "4b7483f142d3c0db7e0d2ec83a5efa386427cdc2ea587ece95b8ceb26c66e5d5",
+      "source_set": 0,
+      "start_frame": 110400
+    },
+    {
+      "end_frame": 24000800,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": "69b2473619139142d99dacdf48ab06a06aff6bc7bfe699c48a33481f4eede309",
+      "source_set": 0,
+      "start_frame": 23774080
+    },
+    {
+      "end_frame": 5285120,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "336ec755da82d48a1f3dee32a7e4f04d5e9644e2acb3e2a3f125511a02eb4437",
+      "source_set": 0,
+      "start_frame": 5085600
+    },
+    {
+      "end_frame": 23156000,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "4c4ae6a79e376389eecb23c151b255178fdd2cbc3f7562fe3a4021fc23896e0c",
+      "source_set": 0,
+      "start_frame": 23053440
+    },
+    {
+      "end_frame": 24928160,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "3896b10280d256bdeea2b5fcc7c6c368f42fbc9517ae81d914087b6cda0a7411",
+      "source_set": 0,
+      "start_frame": 24892800
+    },
+    {
+      "end_frame": 28006400,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "d52f19c1f81dc5c0a8b3cff1547b8b03c0379a77ecb5bd645eb0fc01fabea56c",
+      "source_set": 0,
+      "start_frame": 27887520
+    },
+    {
+      "end_frame": 17904480,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "03ce95c511ef8dfe14c967cf25a08d054fc7452411bb89f4b1512e53e737ae3b",
+      "source_set": 0,
+      "start_frame": 17868960
+    },
+    {
+      "end_frame": 32969760,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "33514c9b2a7a981f3271bd57589e3199b24d1ae934165c23f1efe9911fb63ea4",
+      "source_set": 0,
+      "start_frame": 32846720
+    },
+    {
+      "end_frame": 13862400,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "3981875e5d53831b6172942ea835852fd69088d98ea0321272c99587209beac0",
+      "source_set": 0,
+      "start_frame": 13650880
+    },
+    {
+      "end_frame": 15189120,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": "594172b22af858d3284d6a5779d7908a8553a02fba064ff82dad18bd8d383ed8",
+      "source_set": 0,
+      "start_frame": 15126080
+    },
+    {
+      "end_frame": 142560,
+      "meeting": "R8007_M8010_MS803",
+      "source_id": "38ebf07f5ae307468dd8c5b0ee0b59c091e0c71de389b5919dac0fa051616edc",
+      "source_set": 0,
+      "start_frame": 7680
+    },
+    {
+      "end_frame": 313120,
+      "meeting": "R8007_M8010_MS803",
+      "source_id": "96c2e5a4d3585b1c96649acf962ea3b697e47e375d2e278247ffa28974c9690f",
+      "source_set": 0,
+      "start_frame": 148320
+    },
+    {
+      "end_frame": 545440,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": "572c8c6c0146e4410c1ecddc867c4594339d281fae92c25c7875917f2595b79a",
+      "source_set": 0,
+      "start_frame": 389600
+    },
+    {
+      "end_frame": 24927200,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": "ce11347983ce3f5c2164ecfc82e0d1cd6fae3f10b35e482ac2bf251424cea8f8",
+      "source_set": 0,
+      "start_frame": 24815200
+    },
+    {
+      "end_frame": 25983520,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": "df1f14249b3c1641d8deccc227ca5e0cafc92620f69e0840685b21da2cfcdd0d",
+      "source_set": 0,
+      "start_frame": 25812800
+    },
+    {
+      "end_frame": 4484000,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": "44e043ef46829918b9a7a8d2e7312ed75404958cf0746d81b9b1a4fe505dc300",
+      "source_set": 0,
+      "start_frame": 4380000
+    },
+    {
+      "end_frame": 8724320,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": "63239a54d4c4a19f7f52250c9b8a2cbf5e1066606d6dfcbdd830a6b2eb96ca91",
+      "source_set": 0,
+      "start_frame": 8567840
+    },
+    {
+      "end_frame": 384000,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": "6f567ee8e3c16c28ed1c2b6811e7f87a60367530d2d4c0bd3390d5f1de3634d3",
+      "source_set": 0,
+      "start_frame": 191520
+    },
+    {
+      "end_frame": 8330880,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "17da78c83c90815df56c0c68cbe63ec9bb0a6a9350e00c29f670cf0d5b8d2636",
+      "source_set": 0,
+      "start_frame": 8262240
+    },
+    {
+      "end_frame": 6949120,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "23b3f60cb877fc2572f12790afe95d395d9788d618c7092dc4b5b0c6aafd101f",
+      "source_set": 0,
+      "start_frame": 6845280
+    },
+    {
+      "end_frame": 10513920,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "2cb7839c6bf4e2e764487ae512e9d6ba939064f43782bbd68703739eaae56252",
+      "source_set": 0,
+      "start_frame": 10454720
+    },
+    {
+      "end_frame": 15207360,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "1bc822bba635609a51b69656af9d890333949d449b38949583c3f434693404f3",
+      "source_set": 0,
+      "start_frame": 15140320
+    },
+    {
+      "end_frame": 25432640,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "016b3d99541343297bf05cebf092618445da3d87ed8609eee2c0f382c9934141",
+      "source_set": 0,
+      "start_frame": 25385760
+    },
+    {
+      "end_frame": 30558880,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "21e5853623f595b3a4dd983e8e9348dbd6e5ee6086c27a66b017499c0eefa45c",
+      "source_set": 0,
+      "start_frame": 30511840
+    },
+    {
+      "end_frame": 19193120,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "2641c962949be0a57d0ac2f62bc03e2787a3459f6dcd49a191ed72cf9bf2066e",
+      "source_set": 0,
+      "start_frame": 19142080
+    },
+    {
+      "end_frame": 28337920,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": "1b917210b195621193856dfeae5e14d0c4c9094dea9e5e4a64287f710a5f5bbb",
+      "source_set": 0,
+      "start_frame": 28232000
+    },
+    {
+      "end_frame": 877120,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "04ab17e80a05369c1c6202aa235d6f74b72a56cd7c160b654fa812270dcfa6cf",
+      "source_set": 0,
+      "start_frame": 833920
+    },
+    {
+      "end_frame": 16785920,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "1c943514bffec29fbc5c1f6fdb9b4b387529573ce391f6971130a3580fc2c580",
+      "source_set": 0,
+      "start_frame": 16729920
+    },
+    {
+      "end_frame": 1224800,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "04f4f4737a3eb5b25549fb139c66011d28f6c392c8a9baa0298349236cc0dc75",
+      "source_set": 0,
+      "start_frame": 1122240
+    },
+    {
+      "end_frame": 18331680,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "1fd985209877b742d961b82fc97b52d808743697fa4b7b9ca32a04d2c589be53",
+      "source_set": 0,
+      "start_frame": 18264320
+    },
+    {
+      "end_frame": 17770240,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "03c4f663979e2a44e347bd00829e31754aa34ab30c7858f966a3aa2fa1eefacc",
+      "source_set": 0,
+      "start_frame": 17711520
+    },
+    {
+      "end_frame": 10875200,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "0439baa5f59c995141673a063aec90bd978265bb63d411e059d4a868e9b5a09d",
+      "source_set": 0,
+      "start_frame": 10838080
+    },
+    {
+      "end_frame": 17852000,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "09676ea747bfbb675a0632ebf14382fb2077619ac4995d0c3afc6975293e2558",
+      "source_set": 0,
+      "start_frame": 17815040
+    },
+    {
+      "end_frame": 6675680,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": "0a73585c061c9491201380155b4ea88cb5eebd7bd850904cec81a4be6b596349",
+      "source_set": 0,
+      "start_frame": 6633280
+    },
+    {
+      "end_frame": 28519520,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "011a4c8ddca56e13aa157b6b49a8e20dab3ae9574671f210901ce6c871d8575a",
+      "source_set": 0,
+      "start_frame": 28487360
+    },
+    {
+      "end_frame": 24907520,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "34cfbe4ebffde6be966aca3b795f9d7f2da6fdf5252e3e98d5315d9a826c6ca1",
+      "source_set": 0,
+      "start_frame": 24866880
+    },
+    {
+      "end_frame": 17274560,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "027215eeaaec254196c62ab10633e8b404eb3388f48daba334f1fbf070d0ab00",
+      "source_set": 0,
+      "start_frame": 17222400
+    },
+    {
+      "end_frame": 26932160,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "41c65593f536db13c7625367bdaf6420f678fbf82cdbe461df622aa625b20e77",
+      "source_set": 0,
+      "start_frame": 26866880
+    },
+    {
+      "end_frame": 5506240,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "01ded2bbc9efa1d1e69e01b83f0198378ef111669d847f31647b539ecef43590",
+      "source_set": 0,
+      "start_frame": 5443680
+    },
+    {
+      "end_frame": 3289440,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "046672b18173b095fc71866fd54b391cf47ee056fa59f3e287aa00aedc9a6b5b",
+      "source_set": 0,
+      "start_frame": 3198240
+    },
+    {
+      "end_frame": 30138880,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "0499eeec6b37d41187a60b60171337058d33197086137e1e97f6419ad6ff4f7a",
+      "source_set": 0,
+      "start_frame": 30105920
+    },
+    {
+      "end_frame": 1372640,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": "0fffc8b207e9d01fbf3ceb08ee1b135f409d366828c84d5c1b391345a8faa832",
+      "source_set": 0,
+      "start_frame": 1327840
+    },
+    {
+      "end_frame": 3068960,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "00ed2ee3a840a465ef2f8cf8ad4f583919065893647a6bf19a12c43e2dd9e08a",
+      "source_set": 0,
+      "start_frame": 3034400
+    },
+    {
+      "end_frame": 2450080,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "013f1c3b5d0961d63c19aadffb774c9f93879820d08ccc5326a5db3881dda8e9",
+      "source_set": 0,
+      "start_frame": 2378880
+    },
+    {
+      "end_frame": 19251680,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "02431439d2d4f463677fa7db1340140e4cd26260d2a6389433b52fd7376eabc0",
+      "source_set": 0,
+      "start_frame": 19211840
+    },
+    {
+      "end_frame": 13109600,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "0a88027eda5e22111f1e50e018b4192e1c58526a0b60dadb064837059f034fe5",
+      "source_set": 0,
+      "start_frame": 13050560
+    },
+    {
+      "end_frame": 6953120,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "049fce49ef253cb72a14c73385671ddcb6fdb282ae7e04e5cd56b10fa3bf0da9",
+      "source_set": 0,
+      "start_frame": 6915680
+    },
+    {
+      "end_frame": 25444160,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "0e5b331d3483ed56e857c1623e2d960fca96c54c2860b92985435c94d9c4e717",
+      "source_set": 0,
+      "start_frame": 25366880
+    },
+    {
+      "end_frame": 15709760,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "11aaf2d0f20eb504bda16e2a2adbf4f5afda490358300db9865c98aec2319a1b",
+      "source_set": 0,
+      "start_frame": 15664000
+    },
+    {
+      "end_frame": 12066080,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": "1267cdd71ede01c58950c2d1589b97551479232ce3579bf9545c1e6670143ff7",
+      "source_set": 0,
+      "start_frame": 12024960
+    },
+    {
+      "end_frame": 12011120,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 10700560
+    },
+    {
+      "end_frame": 12076160,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 10263920
+    },
+    {
+      "end_frame": 7193360,
+      "meeting": "R8007_M8010_MS803",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 5860480
+    },
+    {
+      "end_frame": 11322640,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 10195920
+    },
+    {
+      "end_frame": 13066560,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 11489520
+    },
+    {
+      "end_frame": 10053200,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 8750480
+    },
+    {
+      "end_frame": 11281120,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 9703840
+    },
+    {
+      "end_frame": 11844720,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": null,
+      "source_set": 1,
+      "start_frame": 10150000
+    },
+    {
+      "end_frame": 17123520,
+      "meeting": "R8001_M8004_MS801",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 15417600
+    },
+    {
+      "end_frame": 23047120,
+      "meeting": "R8003_M8001_MS801",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 21713440
+    },
+    {
+      "end_frame": 21498400,
+      "meeting": "R8007_M8010_MS803",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 19752320
+    },
+    {
+      "end_frame": 21635760,
+      "meeting": "R8007_M8011_MS806",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 20208880
+    },
+    {
+      "end_frame": 24866720,
+      "meeting": "R8008_M8013_MS807",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 23564880
+    },
+    {
+      "end_frame": 19471760,
+      "meeting": "R8009_M8018_MS809",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 18403760
+    },
+    {
+      "end_frame": 22056400,
+      "meeting": "R8009_M8019_MS810",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 20570080
+    },
+    {
+      "end_frame": 21483280,
+      "meeting": "R8009_M8020_MS810",
+      "source_id": null,
+      "source_set": 2,
+      "start_frame": 20413600
+    }
+  ],
+  "gold_sha256": "2f239c6cc348251f7e077282800a36291c10cf922afae8bb8fcc2763f9bbd8de",
+  "meeting_counts": [
+    {
+      "disjoint_pairs": 4,
+      "duration_pairs": 14,
+      "eligible_pairs": 1,
+      "meeting": "R8001_M8004_MS801"
+    },
+    {
+      "disjoint_pairs": 62,
+      "duration_pairs": 78,
+      "eligible_pairs": 8,
+      "meeting": "R8003_M8001_MS801"
+    },
+    {
+      "disjoint_pairs": 2,
+      "duration_pairs": 2,
+      "eligible_pairs": 2,
+      "meeting": "R8007_M8010_MS803"
+    },
+    {
+      "disjoint_pairs": 13,
+      "duration_pairs": 16,
+      "eligible_pairs": 3,
+      "meeting": "R8007_M8011_MS806"
+    },
+    {
+      "disjoint_pairs": 89,
+      "duration_pairs": 121,
+      "eligible_pairs": 7,
+      "meeting": "R8008_M8013_MS807"
+    },
+    {
+      "disjoint_pairs": 91,
+      "duration_pairs": 109,
+      "eligible_pairs": 4,
+      "meeting": "R8009_M8018_MS809"
+    },
+    {
+      "disjoint_pairs": 177,
+      "duration_pairs": 202,
+      "eligible_pairs": 6,
+      "meeting": "R8009_M8019_MS810"
+    },
+    {
+      "disjoint_pairs": 81,
+      "duration_pairs": 90,
+      "eligible_pairs": 2,
+      "meeting": "R8009_M8020_MS810"
+    }
+  ],
+  "parser_function_sha256": "7a2396e9372427e4315bcb0c2c06fe37443ae39144b4e3601903da02199c8ca5",
+  "prior_sets": [
+    {
+      "count": 56,
+      "id": 0,
+      "sha256": "b14cb77fd1f150af6503606c55a78ca6af9edf3ed0229989def216d3ee603faa"
+    },
+    {
+      "count": 8,
+      "id": 1,
+      "sha256": "41b6363b019b7bf7219b17b1531500ff33c208c9a54363fac3772745930f8b92"
+    },
+    {
+      "count": 8,
+      "id": 2,
+      "sha256": "9270a73a0f115df17617c012c622f72580e3a0c0692bc76843689c0d9bbcd31f"
+    }
+  ],
+  "proof_scope": "Metadata proves eligibility, exclusion intersections and earliest choice within the published33 candidate list. Exhaustive candidate discovery and gold completeness were independently checked against source annotations; omitted source annotations are required to reproduce that enumeration.",
+  "rule": "internal >=0.5s all-speaker annotated silence-gap midpoint pairs; 10..20s inclusive; disjoint prior 56+8+8; >=20% distinct-speaker overlap; lexicographic earliest start then end per meeting",
+  "sample_rate": 16000,
+  "schema": "real-overlap-portable-selection-v1",
+  "selection_audit_sha256": "e0805e58ed9866f1bdce3f8d7e49b2c820d337f1bc2bec6d922d5f7794b7e302",
+  "supports": [
+    {
+      "annotation_sha256": "e5fe941174fe4140bb5923b7caf2cbdd68d8d2a86086e4f00c68afc90d09dbad",
+      "edge_gaps": [
+        {
+          "end": 23407520,
+          "midpoint": 23400320,
+          "start": 23393120
+        },
+        {
+          "end": 23715360,
+          "midpoint": 23707360,
+          "start": 23699360
+        }
+      ],
+      "end_frame": 23707360,
+      "frames": 307040,
+      "id": "R8001_M8004_MS801",
+      "input_wav_sha256": "6f13e1689993903034e25d486b2dd12fad48fee949447fadee72270e85092665",
+      "meeting": "R8001_M8004_MS801",
+      "overlap_frames": 104960,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "64bbdbb11ddd8508c244685ec31c0c9545a30329294d129456f5f37b54ee693b",
+      "reference_characters": 124,
+      "reference_turn_count": 11,
+      "runtime_float32_sha256": "c5fd0b3075ec050dcfc0404859361a05b285457ee048c5603c2a59841d464f4b",
+      "seconds": 19.19,
+      "source_recording_sha256_inherited": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1",
+      "speaker_reference_units": {
+        "N_SPK8013": 32,
+        "N_SPK8014": 49,
+        "N_SPK8015": 13,
+        "N_SPK8016": 30
+      },
+      "speech_union_frames": 289280,
+      "start_frame": 23400320
+    },
+    {
+      "annotation_sha256": "a015bbcc642596ad8e40de7578208510e920832d15320aa109a0e9e3256d7235",
+      "edge_gaps": [
+        {
+          "end": 9042400,
+          "midpoint": 9034000,
+          "start": 9025600
+        },
+        {
+          "end": 9237280,
+          "midpoint": 9223680,
+          "start": 9210080
+        }
+      ],
+      "end_frame": 9223680,
+      "frames": 189680,
+      "id": "R8003_M8001_MS801",
+      "input_wav_sha256": "fd3201e37c2c824eb0b2cc18aa3c7431791d1b53ab6367c5e5d03f34e275c538",
+      "meeting": "R8003_M8001_MS801",
+      "overlap_frames": 43840,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "6ca680ccb0ef3d1721265fe87ec50c11078f15fa2033d0dc574eeb5ff762a4b5",
+      "reference_characters": 69,
+      "reference_turn_count": 4,
+      "runtime_float32_sha256": "abe450c22892980b82d14f5895711fe99f92403bec68de53167b7dc7529987e5",
+      "seconds": 11.855,
+      "source_recording_sha256_inherited": "33fc940588079005bf16491527e04a0e416e62bf57d5d471a4ff46bc0d6275e4",
+      "speaker_reference_units": {
+        "N_SPK8002": 7,
+        "N_SPK8003": 56,
+        "N_SPK8004": 6
+      },
+      "speech_union_frames": 167680,
+      "start_frame": 9034000
+    },
+    {
+      "annotation_sha256": "0ab9ae505fd81a283e645ce9896610c57e34e747e5551144f98f0cbac0604e44",
+      "edge_gaps": [
+        {
+          "end": 14256320,
+          "midpoint": 14249520,
+          "start": 14242720
+        },
+        {
+          "end": 14432640,
+          "midpoint": 14426320,
+          "start": 14420000
+        }
+      ],
+      "end_frame": 14426320,
+      "frames": 176800,
+      "id": "R8007_M8010_MS803",
+      "input_wav_sha256": "5f77d5ac7c8146747bd370f0993cf29a960f808e09432880c508e4d33202bcab",
+      "meeting": "R8007_M8010_MS803",
+      "overlap_frames": 81600,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "33964993cfa0d3a6f7bcc85afabead7ccb4e38303d5b1b75269d8fd9e6e64a71",
+      "reference_characters": 71,
+      "reference_turn_count": 7,
+      "runtime_float32_sha256": "95f30db113d59809ff4583b0aed15a4fd72814471bc9e1bf09752022f21e197a",
+      "seconds": 11.05,
+      "source_recording_sha256_inherited": "d92169f2c90dde2482ec6f794588a597870f2dff51a1f123e92bcf052a7ca9b2",
+      "speaker_reference_units": {
+        "N_SPK8050": 1,
+        "N_SPK8054": 41,
+        "N_SPK8055": 24,
+        "N_SPK8056": 5
+      },
+      "speech_union_frames": 163680,
+      "start_frame": 14249520
+    },
+    {
+      "annotation_sha256": "4baea9f7b9ef4182c4fceeb3a10d0ea966359b214fa04ae54434fab084b8c316",
+      "edge_gaps": [
+        {
+          "end": 14129440,
+          "midpoint": 14120880,
+          "start": 14112320
+        },
+        {
+          "end": 14363200,
+          "midpoint": 14357920,
+          "start": 14352640
+        }
+      ],
+      "end_frame": 14357920,
+      "frames": 237040,
+      "id": "R8007_M8011_MS806",
+      "input_wav_sha256": "cc3802891d92a28d6a6877f3d4ad999d16cbc803ac2bd1b61a3ddaf5d89d31ac",
+      "meeting": "R8007_M8011_MS806",
+      "overlap_frames": 71040,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "56837f82944b6dc52635281f62e62fdd6a04b8a8ee0b2fedba37c1ec84e1e3e3",
+      "reference_characters": 91,
+      "reference_turn_count": 7,
+      "runtime_float32_sha256": "105a9f729374c6a499fd9149e461ad8e81b5c6f0b8216c0f9928dd1f7f64e232",
+      "seconds": 14.815,
+      "source_recording_sha256_inherited": "c2140f541e74c3ab5556de158a53cb70d165cee3b58762ad653855a8d18ad857",
+      "speaker_reference_units": {
+        "N_SPK8066": 44,
+        "N_SPK8067": 34,
+        "N_SPK8068": 4,
+        "N_SPK8069": 9
+      },
+      "speech_union_frames": 208480,
+      "start_frame": 14120880
+    },
+    {
+      "annotation_sha256": "b0f938c81b95728bd38f7aec655f6804ca4dcc3182bb0facb8d05a9a84293869",
+      "edge_gaps": [
+        {
+          "end": 6182400,
+          "midpoint": 6176240,
+          "start": 6170080
+        },
+        {
+          "end": 6504000,
+          "midpoint": 6492000,
+          "start": 6480000
+        }
+      ],
+      "end_frame": 6492000,
+      "frames": 315760,
+      "id": "R8008_M8013_MS807",
+      "input_wav_sha256": "88f38c7e80b4acc7aa393e4ec905a073d4837304ed985e11cbde3515aff26d3b",
+      "meeting": "R8008_M8013_MS807",
+      "overlap_frames": 77760,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "6dc716277e586ad8692d1a02d889d6ee840b2f6b016228b2aff6e33290af36ec",
+      "reference_characters": 89,
+      "reference_turn_count": 7,
+      "runtime_float32_sha256": "1e1580eda29160b53688fd2eb8ada234ec33e03ffb05cfc9ac8dfc358c4bddb5",
+      "seconds": 19.735,
+      "source_recording_sha256_inherited": "aa22327ef996a60166fe2c4d8a7fa152be8dd5246e24fc38084e61208dbc5feb",
+      "speaker_reference_units": {
+        "N_SPK8047": 16,
+        "N_SPK8048": 33,
+        "N_SPK8049": 40
+      },
+      "speech_union_frames": 274720,
+      "start_frame": 6176240
+    },
+    {
+      "annotation_sha256": "be91df9d87f0f988ade6d1b2fdba82f4533a4e994fb22f8935f27b4bd7d0300e",
+      "edge_gaps": [
+        {
+          "end": 13095040,
+          "midpoint": 13089040,
+          "start": 13083040
+        },
+        {
+          "end": 13312320,
+          "midpoint": 13307120,
+          "start": 13301920
+        }
+      ],
+      "end_frame": 13307120,
+      "frames": 218080,
+      "id": "R8009_M8018_MS809",
+      "input_wav_sha256": "b65bea403dc5c1d96b6f864ddbffebe509afc5ad2715f2f34e53b74a0b84acc5",
+      "meeting": "R8009_M8018_MS809",
+      "overlap_frames": 44000,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "723ec1059b9f528e3eae1700f514f8b7388878f29df298ec193974bc12d5be4d",
+      "reference_characters": 76,
+      "reference_turn_count": 6,
+      "runtime_float32_sha256": "f2340e7ce8a8400f29fbf7a3ccc76ee2da069ca56d6aacb8979305fb566a69af",
+      "seconds": 13.63,
+      "source_recording_sha256_inherited": "6534df2cdc7e208c043ef823befaf4cb9b80164fad577915ff7b9eef9ba22e70",
+      "speaker_reference_units": {
+        "N_SPK8021": 60,
+        "N_SPK8022": 16
+      },
+      "speech_union_frames": 186240,
+      "start_frame": 13089040
+    },
+    {
+      "annotation_sha256": "dd85bfb2b920ac064b61e1fb8a09ab378a9e10422b48d23cd3030e2f02271b7c",
+      "edge_gaps": [
+        {
+          "end": 283200,
+          "midpoint": 277360,
+          "start": 271520
+        },
+        {
+          "end": 466560,
+          "midpoint": 457600,
+          "start": 448640
+        }
+      ],
+      "end_frame": 457600,
+      "frames": 180240,
+      "id": "R8009_M8019_MS810",
+      "input_wav_sha256": "ba62b446538d4a988baa828c1637b8142401fbea8c8ec9b08f244defe043844c",
+      "meeting": "R8009_M8019_MS810",
+      "overlap_frames": 43840,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "6844be381a77668ee6358bb4e4467c60a55f499b48241c96e8a56a714b1ec20a",
+      "reference_characters": 58,
+      "reference_turn_count": 7,
+      "runtime_float32_sha256": "84a2eb812e5f81e4c924e38c1d989dbde97e0870d5f569fbb8ef600ebbaed8fc",
+      "seconds": 11.265,
+      "source_recording_sha256_inherited": "67e7c91769b289bfcc6f0d4da5992934218f4f9b70e6178a92f0cae0309b8b11",
+      "speaker_reference_units": {
+        "N_SPK8023": 28,
+        "N_SPK8024": 30
+      },
+      "speech_union_frames": 165440,
+      "start_frame": 277360
+    },
+    {
+      "annotation_sha256": "6d82a5c11a1d237b8f462aeca2844dd969b5b473e13b7fa2bb45722a2f12e032",
+      "edge_gaps": [
+        {
+          "end": 14669280,
+          "midpoint": 14664880,
+          "start": 14660480
+        },
+        {
+          "end": 14972640,
+          "midpoint": 14968480,
+          "start": 14964320
+        }
+      ],
+      "end_frame": 14968480,
+      "frames": 303600,
+      "id": "R8009_M8020_MS810",
+      "input_wav_sha256": "6261e209555c6901bbcbe1fc50bdf7fbbfc9cbf480142c6a535c3961e58d6eed",
+      "meeting": "R8009_M8020_MS810",
+      "overlap_frames": 64000,
+      "partial_outer_turns": 0,
+      "pcm16_sha256": "40f2076144bcda3b693781fbc8205e95acaa9129e6a6390caedf79ca172893e4",
+      "reference_characters": 108,
+      "reference_turn_count": 10,
+      "runtime_float32_sha256": "37ffc519de1009c29c6f287eba4b911b5fcf673048446c5455d655e13190a9d9",
+      "seconds": 18.975,
+      "source_recording_sha256_inherited": "51190a947a182294b103e37ab4a29ee6adeb3fb1ee94572769da82a96f7ce952",
+      "speaker_reference_units": {
+        "N_SPK8025": 50,
+        "N_SPK8026": 58
+      },
+      "speech_union_frames": 293920,
+      "start_frame": 14664880
+    }
+  ]
+}

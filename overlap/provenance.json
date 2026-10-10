@@ -1,0 +1,359 @@
+{
+  "corpus_attribution": {
+    "attribution_file": "ATTRIBUTION.md",
+    "derived_metadata_files": [
+      "selection.json",
+      "results.json"
+    ],
+    "license": "CC-BY-SA-4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "name": "AliMeeting (SLR119)",
+    "primary_source": "https://www.openslr.org/119/",
+    "provider": "Alibaba Group"
+  },
+  "data_license_note": "AliMeeting (SLR119), Alibaba Group; derived selection/results metadata retain CC BY-SA 4.0. No corpus audio, annotations or transcripts redistributed. Attribution, citations and adaptation details are in ATTRIBUTION.md.",
+  "evidence_digests": {
+    "data_manifest": "73e55e8f98b7296a3853155d542a36abea96dccbeb031c39a34718f45f892e4e",
+    "harness_manifest": "047632353eadcfc5ef5ac685a0b6cb08268a84f66cd7084d117e8b5b7400e80b",
+    "independent_terminal_audit": "2d64cadbae2c43e4d1ba44082d8034c02830fc0f61d9beb809344dd3b5a68c13",
+    "owner_terminal_receipt": "58ed0763fd1c02665f4ddf99f18592c8a13d5a8b13ed31c14a4d255e237f4121",
+    "scores": "67ec5d8e2814ff80ee247b4ee80a308b310307920f13f58adfdf39493205568d",
+    "terminal": "2b0a520688222e4b657a4690f9d6af493268af87cba458ac9a2e956a81b9df30"
+  },
+  "execution_date_utc": "2026-10-10",
+  "hash_verification": {
+    "model_runtime_source": "Model digest inherited during preparation; full model/runtime/source streaming hashes verified before and after authorized run and independently after terminal",
+    "selected_audio_annotation_and_gold": "Freshly checked during freeze and independent review; included digests only",
+    "source_whole_recordings": "Inherited full-file digests; current selected samples/size/header independently checked, not fresh full-recording hashes"
+  },
+  "license_notices": [
+    {
+      "file": "LICENSES/MODEL-APACHE-2.0.txt",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "LICENSES/RUNTIME-MIT.txt",
+      "sha256": "86a53633b56f6b029d3cb42158bcc7aac0cdff898aceb13e83b93e368bbc4ac6"
+    }
+  ],
+  "model_bytes": 986899616,
+  "model_id": "OpenMOSS-Team/MOSS-Transcribe-Diarize",
+  "model_license": "Apache-2.0",
+  "model_license_reference": "https://huggingface.co/OpenMOSS-Team/MOSS-Transcribe-Diarize/blob/704aa4a9c304e8520be88901e0d1960158ef5b15/README.md",
+  "model_runtime_provenance": {
+    "actual_backend": "CPU",
+    "actual_device_kind": "cpu",
+    "cpu_threads": 2,
+    "generation_budget_policy": "native_adaptive",
+    "model_revision": "704aa4a9c304e8520be88901e0d1960158ef5b15",
+    "model_sha256": "551c0a52fb0b75cb6fd85e2247554dfff84fbcd8435305ac83d06ec0c043162f",
+    "precision": "q8_0",
+    "prompt_sha256": "5696a90762c9a738598bdf62530952cb9058f0bd2da8dccc23d988b68990e22a",
+    "requested_device": "cpu",
+    "runtime_library_sha256": "f2f4e1537f1a85b59106629a5f1cd69776914866fca576e6dc25ca4bb7e35d68",
+    "runtime_manifest_sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a",
+    "runtime_provider": "transcribe_cpp",
+    "runtime_source_revision": "63a44d9239d610b3908e8a66b384924cd4a77217",
+    "runtime_version": "0.2.3",
+    "source_revision": "61bc29cd4120be7b5d3b761b64cd5dff57263642",
+    "source_weight_sha256": "9a0ceb4ab7330357db3ff583dba8d83625d5b733b00e1d55d6970e11b07026c4"
+  },
+  "omitted": [
+    "audio",
+    "gold transcription text",
+    "raw model text",
+    "private paths",
+    "process identifiers",
+    "credentials",
+    "binaries",
+    "model weights"
+  ],
+  "python_executable_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "runtime_assets": [
+    {
+      "bytes": 60935,
+      "logical_asset": "transcribe_cpp/__init__.py",
+      "sha256": "942e91c16a8a0d49e714acdcb7d00a603922c5e5ed903a01ab57bde5365008b5"
+    },
+    {
+      "bytes": 3236,
+      "logical_asset": "transcribe_cpp/_abi.py",
+      "sha256": "8f98f6015353b6851d5b6003fe3a57925ee9b1a393ca488552d945254d03c8b0"
+    },
+    {
+      "bytes": 28388,
+      "logical_asset": "transcribe_cpp/_generated.py",
+      "sha256": "25b11ee65cc455bd3e400e79216f72dd09020fe70b530f2ce85018559800dd67"
+    },
+    {
+      "bytes": 15629,
+      "logical_asset": "transcribe_cpp/_library.py",
+      "sha256": "cce7021c4cd3c2a27fdf9625646d2e0db9ac2f6442a8ac5722f97a94d1d3e7b1"
+    },
+    {
+      "bytes": 5071,
+      "logical_asset": "transcribe_cpp/errors.py",
+      "sha256": "3400bdee2748de411543896fe1ac94e266acaea297472bb017d47b01e82cf436"
+    },
+    {
+      "bytes": 0,
+      "logical_asset": "transcribe_cpp/py.typed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 5574,
+      "logical_asset": "transcribe_cpp-0.2.3.dist-info/METADATA",
+      "sha256": "c194ceedbf44784d65471816d9671ddcb20e2078ad2fd553e590db68ae484f0f"
+    },
+    {
+      "bytes": 87,
+      "logical_asset": "transcribe_cpp-0.2.3.dist-info/WHEEL",
+      "sha256": "ccec20e2307acd7da453dd7437e70c6b08e2bc3ead3bc3445af135da37b56d59"
+    },
+    {
+      "bytes": 1083,
+      "logical_asset": "transcribe_cpp-0.2.3.dist-info/licenses/LICENSE",
+      "sha256": "86a53633b56f6b029d3cb42158bcc7aac0cdff898aceb13e83b93e368bbc4ac6"
+    },
+    {
+      "bytes": 1255,
+      "logical_asset": "transcribe_cpp_native/__init__.py",
+      "sha256": "e0ec8804f2121a17a55b4c9dc8ae9b2b07eaa51534e989f8e86a7f0e5db7506d"
+    },
+    {
+      "bytes": 617,
+      "logical_asset": "transcribe_cpp_native/_contract.py",
+      "sha256": "b88b71ebff264c23806bce01d3baabe64b82989a27fc11ac2a79a8a3e50a8185"
+    },
+    {
+      "bytes": 119,
+      "logical_asset": "transcribe_cpp_native/_native/contract.json",
+      "sha256": "04dd2ed470e4358453489d256c1776a36a0a8914236a28a7663a1c9967422038"
+    },
+    {
+      "bytes": 784032,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-base.so",
+      "sha256": "1650a130b0830efad09f17e07703b0ca63647c9853a53b6a63f03e65f0885839"
+    },
+    {
+      "bytes": 1032168,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-alderlake.so",
+      "sha256": "cec141ac487100b693e1dfa10fb13b7ca2ff9599e3ed99b23b252289fd7cb26a"
+    },
+    {
+      "bytes": 1269736,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-cannonlake.so",
+      "sha256": "adedb40f7b251daa876f6d1c0271c80f6c84ad92af39e1f0cc52d60b75aced33"
+    },
+    {
+      "bytes": 1269736,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-cascadelake.so",
+      "sha256": "429d590167745aa2248aeed59e4978e05dc09a76e07a95cdee23f66afbc98fff"
+    },
+    {
+      "bytes": 1265640,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-cooperlake.so",
+      "sha256": "78682af9c142a5660f98d8dd0b82710821be8db6c54c5025f6728ed509d2ce36"
+    },
+    {
+      "bytes": 1036264,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-haswell.so",
+      "sha256": "7b635317db7402728b6cc81dc9816bfdc41d2cd788bda64d0f83a9aa40a34a9f"
+    },
+    {
+      "bytes": 1269736,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-icelake.so",
+      "sha256": "6377f56ecefeb5786ab1a32a307f5ccc9e038c2a2e300c9c50ce5d0583865e3c"
+    },
+    {
+      "bytes": 974824,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-ivybridge.so",
+      "sha256": "694dec97f849b17767d50b89841ed403a507676a1b7d00a2339da28f41a7f503"
+    },
+    {
+      "bytes": 970728,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-piledriver.so",
+      "sha256": "5687550cb31590dcead193e17c7671a050f9981d615c795d8b0a1d838baf14a6"
+    },
+    {
+      "bytes": 966632,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-sandybridge.so",
+      "sha256": "914bc0e865994a34c5865a6db0b5345031df2d22de8c45cf8cba01d0bfee3bf1"
+    },
+    {
+      "bytes": 1548472,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-sapphirerapids.so",
+      "sha256": "518359f1f5f1848b570d8d8e3344ead13ecec8033ff96d31367ea7ba63ffed0b"
+    },
+    {
+      "bytes": 1269736,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-skylakex.so",
+      "sha256": "37ea02765de8c7e1acd7ad00c0b33e8a473f227cdc26ead35714948bbaab9c7e"
+    },
+    {
+      "bytes": 815080,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-sse42.so",
+      "sha256": "0cdcd014086b09bab39445f744178e5d3400f961ffc967a18b03853fad519db4"
+    },
+    {
+      "bytes": 782312,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-x64.so",
+      "sha256": "b4a13ec240b8f5922ae8ebf45403f27bcc85cedb2faf0eb30c10e77c89f09fd5"
+    },
+    {
+      "bytes": 1265640,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-cpu-zen4.so",
+      "sha256": "622da1b883eae36bc0dad67d2075db70c39d9d10f2b7abb245fa201017bb0004"
+    },
+    {
+      "bytes": 52993320,
+      "logical_asset": "transcribe_cpp_native/_native/libggml-vulkan.so",
+      "sha256": "af01d4fbff57ac32b421ec8a52ca42182273259c9bf6106785ae59693c3601b7"
+    },
+    {
+      "bytes": 220768,
+      "logical_asset": "transcribe_cpp_native/_native/libggml.so",
+      "sha256": "c591a99ff28f15367fa93b0defe971fe99aaf3b10c2d7d78d58e40cdac515f51"
+    },
+    {
+      "bytes": 2118384,
+      "logical_asset": "transcribe_cpp_native/_native/libtranscribe.so",
+      "sha256": "f2f4e1537f1a85b59106629a5f1cd69776914866fca576e6dc25ca4bb7e35d68"
+    },
+    {
+      "bytes": 2308,
+      "logical_asset": "transcribe_cpp_native-0.2.3.dist-info/METADATA",
+      "sha256": "edb01c2978b8413a148b8d2d6c2bd5bc1e1191da929e58f66bfb4f56533c1169"
+    },
+    {
+      "bytes": 150,
+      "logical_asset": "transcribe_cpp_native-0.2.3.dist-info/WHEEL",
+      "sha256": "9f86703ef01c4437a0410c1589a8377b16b072265a58e241ca96b3fe2641ff9c"
+    },
+    {
+      "bytes": 68,
+      "logical_asset": "transcribe_cpp_native-0.2.3.dist-info/entry_points.txt",
+      "sha256": "42d2822fe3ea346731e4e88bc9675843d0adc7b37e4b273eac3e6424e8ab0198"
+    },
+    {
+      "bytes": 1083,
+      "logical_asset": "transcribe_cpp_native-0.2.3.dist-info/licenses/LICENSE",
+      "sha256": "86a53633b56f6b029d3cb42158bcc7aac0cdff898aceb13e83b93e368bbc4ac6"
+    },
+    {
+      "bytes": 1078,
+      "logical_asset": "transcribe_cpp_native-0.2.3.dist-info/licenses/ggml/LICENSE",
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+    },
+    {
+      "bytes": 1162,
+      "logical_asset": "transcribe_cpp_native-0.2.3.dist-info/licenses/src/third_party/miniz/LICENSE",
+      "sha256": "6f20fa7672b00e2e975c291df737cf227addf3ad32e36fef3fe0f416e4664d3d"
+    },
+    {
+      "bytes": 30894944,
+      "logical_asset": "python3.12",
+      "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+    },
+    {
+      "bytes": 89878,
+      "logical_asset": "psutil/__init__.py",
+      "sha256": "d138a5786b163b56ba86ea0b2d5589dfca37e1bcdf8de1057fe1e933d6ab808a"
+    },
+    {
+      "bytes": 25254,
+      "logical_asset": "psutil/_common.py",
+      "sha256": "1bbce9fd97e6f5439a0d385f28401f527c5a9d978d9d062593d7ef6fe215fc75"
+    },
+    {
+      "bytes": 10970,
+      "logical_asset": "psutil/_ntuples.py",
+      "sha256": "9b8e8b938abae2786a515f686f4d8132218be897eb6b459b9324ed17d88a31c7"
+    },
+    {
+      "bytes": 17616,
+      "logical_asset": "psutil/_psaix.py",
+      "sha256": "afe4038d5e1454559f17dac9e6c2c56ad8cf873d43880f6503e8549cc06a18ec"
+    },
+    {
+      "bytes": 29263,
+      "logical_asset": "psutil/_psbsd.py",
+      "sha256": "c1a8314a9640649c99197ff261dbeec1f0080175e4a3f6b5cb370a39332deb94"
+    },
+    {
+      "bytes": 84787,
+      "logical_asset": "psutil/_pslinux.py",
+      "sha256": "a8a09bab87848075b691c46112b00692745785a8c9d5a2c87037ae124b469749"
+    },
+    {
+      "bytes": 15913,
+      "logical_asset": "psutil/_psosx.py",
+      "sha256": "89f0ea0e9c1fe38f224b612792bf31d07c8880d79281806e5379c00514f6b3f2"
+    },
+    {
+      "bytes": 11575,
+      "logical_asset": "psutil/_psposix.py",
+      "sha256": "288887b58f5939e3b00e021f6e7b490c2f7f4852804a359918ab7d9c6fb39839"
+    },
+    {
+      "bytes": 23934,
+      "logical_asset": "psutil/_pssunos.py",
+      "sha256": "cc348442008a54cb6054299b2ecae0d9a123c07bb4ba1f8e14b319487f83cee5"
+    },
+    {
+      "bytes": 150904,
+      "logical_asset": "psutil/_psutil_linux.abi3.so",
+      "sha256": "8085c743a77f6059be6d18d54317ccce2e715425bb5f15aa8835770463d6b9fd"
+    },
+    {
+      "bytes": 35370,
+      "logical_asset": "psutil/_pswindows.py",
+      "sha256": "580ad391de734c113682200ee9f4245e34737f5e26af0a73a4e8c9b4458de220"
+    }
+  ],
+  "runtime_license": "MIT",
+  "runtime_source_repository": "https://github.com/handy-computer/transcribe.cpp",
+  "schema": "real-overlap-portable-provenance-v1",
+  "source_files": [
+    {
+      "repository_relative_path": "audio_backend/inference/moss_td_asr.py",
+      "sha256": "2081964e8138350428204be9bcb0e66bddc61266bb27de069dfd4072b8725daf"
+    },
+    {
+      "repository_relative_path": "audio_backend/inference/moss_td_cpp_asr.py",
+      "sha256": "b6222fc61054ed1b5ce40f8f4c2cf3b82fc6e4e1149d607c0a41ebbe7d89d062"
+    },
+    {
+      "repository_relative_path": "audio_backend/moss_td_candidates.py",
+      "sha256": "396b020d784d98b88e8195e0df563ac3ef4559bc0ced92e1853fa113f62c4423"
+    },
+    {
+      "repository_relative_path": "audio_backend/moss_td_recovery.py",
+      "sha256": "cb630d475fa8d6cfcb7aa17ac2a23e79ba4bb1553015c1cf8012408376ad0b72"
+    },
+    {
+      "repository_relative_path": "audio_backend/overlap_store.py",
+      "sha256": "f84b27db0e0f1a2b35df320f26ead6d404b29161f4587403fdedc77eb3ed1843"
+    },
+    {
+      "repository_relative_path": "audio_backend/moss_td_runner.py",
+      "sha256": "69cb61192dadccf532ba0168d8e7a8af1348644dcd9674759e5fe2d8914cf16b"
+    },
+    {
+      "repository_relative_path": "scripts/benchmarks/score_overlap_transcripts.py",
+      "sha256": "f526fe03178c969d515a56c76c1b160a5d4ccc0519812a36f9f61b4d2901b6a9"
+    },
+    {
+      "repository_relative_path": "scripts/benchmarks/score_predictions.py",
+      "sha256": "da365a52a221fd5cd7577f48b5a5c914c2a6e9c8e97116abecfe576147ca1149"
+    },
+    {
+      "repository_relative_path": "moss-td-cpp-model-manifest.json",
+      "sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a"
+    },
+    {
+      "repository_relative_path": "moss-td-model-manifest.json",
+      "sha256": "000693458b0d2cdb864f16eca67ff4e2000dbdfb21f874606d70f43d28384143"
+    }
+  ]
+}

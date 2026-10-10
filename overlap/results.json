@@ -1,0 +1,570 @@
+{
+  "audio_seconds": 120.515,
+  "eos_inputs": 8,
+  "errors_on_oracle_matched_tracks": 122,
+  "execution": {
+    "absolute_user_ceiling_bytes": 10737418240,
+    "all_worker_and_scorer_reap_receipts_verified": true,
+    "cleanup_reserve_seconds": 15,
+    "confirmed_generations": 8,
+    "disk_free_floor_bytes": 5368709120,
+    "elapsed_seconds": 262.85494212699996,
+    "host_available_floor_bytes": 2147483648,
+    "inference_admission_limit_seconds": 1080,
+    "maximum_calls": 8,
+    "min_sampled_disk_free_bytes": 12156764160,
+    "min_sampled_host_available_bytes": 7418744832,
+    "observable_aggregate_scope": "Visible processes in supervisor namespace; PID/starttime deduplicated internally; shared pages can double-count. No hidden-namespace or whole-host accounting claim.",
+    "observable_aggregate_stop_bytes": 6442450944,
+    "owned_rss_stop_bytes": 5368709120,
+    "peak_observable_namespace_bytes": 1590284288,
+    "peak_owned_bytes": 1575473152,
+    "postvalidation_limit_seconds": 60,
+    "retries": 0,
+    "run_artifact_bytes": 737149,
+    "scoring_limit_seconds": 45,
+    "source_runtime_model_post_hashes_verified": true,
+    "total_phase_limit_seconds": 1200
+  },
+  "extra_hypothesis_tracks": 0,
+  "inputs": 8,
+  "invalid_timestamp_rows": 0,
+  "matched_reference_tracks": 22,
+  "metric": "whole-input per-input oracle-permutation Chinese CER",
+  "overlap_seconds": 33.19,
+  "partial_recovery_inputs": 0,
+  "per_voice": [
+    {
+      "deletions": 5,
+      "error_rate": 0.5625,
+      "errors": 18,
+      "hypothesis_channel": 0,
+      "input_id": "R8001_M8004_MS801",
+      "insertions": 1,
+      "reference_id": "N_SPK8013",
+      "reference_units": 32,
+      "substitutions": 12
+    },
+    {
+      "deletions": 2,
+      "error_rate": 0.32653061224489793,
+      "errors": 16,
+      "hypothesis_channel": 1,
+      "input_id": "R8001_M8004_MS801",
+      "insertions": 0,
+      "reference_id": "N_SPK8014",
+      "reference_units": 49,
+      "substitutions": 14
+    },
+    {
+      "deletions": 4,
+      "error_rate": 0.5384615384615384,
+      "errors": 7,
+      "hypothesis_channel": 3,
+      "input_id": "R8001_M8004_MS801",
+      "insertions": 0,
+      "reference_id": "N_SPK8015",
+      "reference_units": 13,
+      "substitutions": 3
+    },
+    {
+      "deletions": 3,
+      "error_rate": 0.26666666666666666,
+      "errors": 8,
+      "hypothesis_channel": 2,
+      "input_id": "R8001_M8004_MS801",
+      "insertions": 1,
+      "reference_id": "N_SPK8016",
+      "reference_units": 30,
+      "substitutions": 4
+    },
+    {
+      "deletions": 4,
+      "error_rate": 0.5714285714285714,
+      "errors": 4,
+      "hypothesis_channel": 2,
+      "input_id": "R8003_M8001_MS801",
+      "insertions": 0,
+      "reference_id": "N_SPK8002",
+      "reference_units": 7,
+      "substitutions": 0
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.0,
+      "errors": 0,
+      "hypothesis_channel": 0,
+      "input_id": "R8003_M8001_MS801",
+      "insertions": 0,
+      "reference_id": "N_SPK8003",
+      "reference_units": 56,
+      "substitutions": 0
+    },
+    {
+      "deletions": 1,
+      "error_rate": 0.16666666666666666,
+      "errors": 1,
+      "hypothesis_channel": 1,
+      "input_id": "R8003_M8001_MS801",
+      "insertions": 0,
+      "reference_id": "N_SPK8004",
+      "reference_units": 6,
+      "substitutions": 0
+    },
+    {
+      "deletions": 1,
+      "error_rate": 1.0,
+      "errors": 1,
+      "hypothesis_channel": null,
+      "input_id": "R8007_M8010_MS803",
+      "insertions": 0,
+      "reference_id": "N_SPK8050",
+      "reference_units": 1,
+      "substitutions": 0
+    },
+    {
+      "deletions": 1,
+      "error_rate": 0.14634146341463414,
+      "errors": 6,
+      "hypothesis_channel": 0,
+      "input_id": "R8007_M8010_MS803",
+      "insertions": 2,
+      "reference_id": "N_SPK8054",
+      "reference_units": 41,
+      "substitutions": 3
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.041666666666666664,
+      "errors": 1,
+      "hypothesis_channel": 2,
+      "input_id": "R8007_M8010_MS803",
+      "insertions": 0,
+      "reference_id": "N_SPK8055",
+      "reference_units": 24,
+      "substitutions": 1
+    },
+    {
+      "deletions": 2,
+      "error_rate": 0.4,
+      "errors": 2,
+      "hypothesis_channel": 1,
+      "input_id": "R8007_M8010_MS803",
+      "insertions": 0,
+      "reference_id": "N_SPK8056",
+      "reference_units": 5,
+      "substitutions": 0
+    },
+    {
+      "deletions": 3,
+      "error_rate": 0.3181818181818182,
+      "errors": 14,
+      "hypothesis_channel": 0,
+      "input_id": "R8007_M8011_MS806",
+      "insertions": 1,
+      "reference_id": "N_SPK8066",
+      "reference_units": 44,
+      "substitutions": 10
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.029411764705882353,
+      "errors": 1,
+      "hypothesis_channel": 2,
+      "input_id": "R8007_M8011_MS806",
+      "insertions": 0,
+      "reference_id": "N_SPK8067",
+      "reference_units": 34,
+      "substitutions": 1
+    },
+    {
+      "deletions": 4,
+      "error_rate": 1.0,
+      "errors": 4,
+      "hypothesis_channel": null,
+      "input_id": "R8007_M8011_MS806",
+      "insertions": 0,
+      "reference_id": "N_SPK8068",
+      "reference_units": 4,
+      "substitutions": 0
+    },
+    {
+      "deletions": 3,
+      "error_rate": 0.6666666666666666,
+      "errors": 6,
+      "hypothesis_channel": 1,
+      "input_id": "R8007_M8011_MS806",
+      "insertions": 0,
+      "reference_id": "N_SPK8069",
+      "reference_units": 9,
+      "substitutions": 3
+    },
+    {
+      "deletions": 1,
+      "error_rate": 0.125,
+      "errors": 2,
+      "hypothesis_channel": 1,
+      "input_id": "R8008_M8013_MS807",
+      "insertions": 0,
+      "reference_id": "N_SPK8047",
+      "reference_units": 16,
+      "substitutions": 1
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.0,
+      "errors": 0,
+      "hypothesis_channel": 0,
+      "input_id": "R8008_M8013_MS807",
+      "insertions": 0,
+      "reference_id": "N_SPK8048",
+      "reference_units": 33,
+      "substitutions": 0
+    },
+    {
+      "deletions": 6,
+      "error_rate": 0.4,
+      "errors": 16,
+      "hypothesis_channel": 2,
+      "input_id": "R8008_M8013_MS807",
+      "insertions": 2,
+      "reference_id": "N_SPK8049",
+      "reference_units": 40,
+      "substitutions": 8
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.06666666666666667,
+      "errors": 4,
+      "hypothesis_channel": 0,
+      "input_id": "R8009_M8018_MS809",
+      "insertions": 2,
+      "reference_id": "N_SPK8021",
+      "reference_units": 60,
+      "substitutions": 2
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.0625,
+      "errors": 1,
+      "hypothesis_channel": 1,
+      "input_id": "R8009_M8018_MS809",
+      "insertions": 1,
+      "reference_id": "N_SPK8022",
+      "reference_units": 16,
+      "substitutions": 0
+    },
+    {
+      "deletions": 0,
+      "error_rate": 0.07142857142857142,
+      "errors": 2,
+      "hypothesis_channel": 0,
+      "input_id": "R8009_M8019_MS810",
+      "insertions": 0,
+      "reference_id": "N_SPK8023",
+      "reference_units": 28,
+      "substitutions": 2
+    },
+    {
+      "deletions": 1,
+      "error_rate": 0.16666666666666666,
+      "errors": 5,
+      "hypothesis_channel": 1,
+      "input_id": "R8009_M8019_MS810",
+      "insertions": 0,
+      "reference_id": "N_SPK8024",
+      "reference_units": 30,
+      "substitutions": 4
+    },
+    {
+      "deletions": 1,
+      "error_rate": 0.08,
+      "errors": 4,
+      "hypothesis_channel": 0,
+      "input_id": "R8009_M8020_MS810",
+      "insertions": 0,
+      "reference_id": "N_SPK8025",
+      "reference_units": 50,
+      "substitutions": 3
+    },
+    {
+      "deletions": 2,
+      "error_rate": 0.06896551724137931,
+      "errors": 4,
+      "hypothesis_channel": 1,
+      "input_id": "R8009_M8020_MS810",
+      "insertions": 1,
+      "reference_id": "N_SPK8026",
+      "reference_units": 58,
+      "substitutions": 1
+    }
+  ],
+  "primary_view": "strict_plus_partial",
+  "recovery_benefit_demonstrated": false,
+  "reference_speakers_per_input_total": 24,
+  "reference_turns": 59,
+  "reference_units": 686,
+  "schema": "real-overlap-portable-results-v1",
+  "sdi": {
+    "deletions": 44,
+    "insertions": 11,
+    "substitutions": 72
+  },
+  "sdi_tiebreak": "One optimal alignment, diagonal match/substitution then deletion then insertion; other optimal S/D/I decompositions may differ. Aggregate127errors invariant.",
+  "strict_admitted_inputs": 8,
+  "strict_admitted_phrases": 50,
+  "track_assignment_caveat": "Unmatched reference tracks are not proof their words are absent from all output; within-input speaker merging/switching can place content on another track. Errors on matched tracks may mix lexical differences with speaker attribution.",
+  "truncated_inputs": 0,
+  "unmatched_reference_track_assignment_errors": 5,
+  "unmatched_reference_tracks": [
+    {
+      "characters": 1,
+      "input_id": "R8007_M8010_MS803",
+      "reference_id": "N_SPK8050"
+    },
+    {
+      "characters": 4,
+      "input_id": "R8007_M8011_MS806",
+      "reference_id": "N_SPK8068"
+    }
+  ],
+  "views": {
+    "raw": {
+      "error_rate": 0.18513119533527697,
+      "errors": 127,
+      "inputs": [
+        {
+          "accepted_phrase_count": 10,
+          "errors": 49,
+          "failure": null,
+          "hypothesis_tracks": 4,
+          "input_id": "R8001_M8004_MS801",
+          "reference_speakers": 4,
+          "reference_units": 124
+        },
+        {
+          "accepted_phrase_count": 4,
+          "errors": 5,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8003_M8001_MS801",
+          "reference_speakers": 3,
+          "reference_units": 69
+        },
+        {
+          "accepted_phrase_count": 5,
+          "errors": 10,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8007_M8010_MS803",
+          "reference_speakers": 4,
+          "reference_units": 71
+        },
+        {
+          "accepted_phrase_count": 6,
+          "errors": 25,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8007_M8011_MS806",
+          "reference_speakers": 4,
+          "reference_units": 91
+        },
+        {
+          "accepted_phrase_count": 6,
+          "errors": 18,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8008_M8013_MS807",
+          "reference_speakers": 3,
+          "reference_units": 89
+        },
+        {
+          "accepted_phrase_count": 7,
+          "errors": 5,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8018_MS809",
+          "reference_speakers": 2,
+          "reference_units": 76
+        },
+        {
+          "accepted_phrase_count": 5,
+          "errors": 7,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8019_MS810",
+          "reference_speakers": 2,
+          "reference_units": 58
+        },
+        {
+          "accepted_phrase_count": 7,
+          "errors": 8,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8020_MS810",
+          "reference_speakers": 2,
+          "reference_units": 108
+        }
+      ],
+      "reference_units": 686
+    },
+    "strict": {
+      "error_rate": 0.18513119533527697,
+      "errors": 127,
+      "inputs": [
+        {
+          "accepted_phrase_count": 10,
+          "errors": 49,
+          "failure": null,
+          "hypothesis_tracks": 4,
+          "input_id": "R8001_M8004_MS801",
+          "reference_speakers": 4,
+          "reference_units": 124
+        },
+        {
+          "accepted_phrase_count": 4,
+          "errors": 5,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8003_M8001_MS801",
+          "reference_speakers": 3,
+          "reference_units": 69
+        },
+        {
+          "accepted_phrase_count": 5,
+          "errors": 10,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8007_M8010_MS803",
+          "reference_speakers": 4,
+          "reference_units": 71
+        },
+        {
+          "accepted_phrase_count": 6,
+          "errors": 25,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8007_M8011_MS806",
+          "reference_speakers": 4,
+          "reference_units": 91
+        },
+        {
+          "accepted_phrase_count": 6,
+          "errors": 18,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8008_M8013_MS807",
+          "reference_speakers": 3,
+          "reference_units": 89
+        },
+        {
+          "accepted_phrase_count": 7,
+          "errors": 5,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8018_MS809",
+          "reference_speakers": 2,
+          "reference_units": 76
+        },
+        {
+          "accepted_phrase_count": 5,
+          "errors": 7,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8019_MS810",
+          "reference_speakers": 2,
+          "reference_units": 58
+        },
+        {
+          "accepted_phrase_count": 7,
+          "errors": 8,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8020_MS810",
+          "reference_speakers": 2,
+          "reference_units": 108
+        }
+      ],
+      "reference_units": 686
+    },
+    "strict_plus_partial": {
+      "error_rate": 0.18513119533527697,
+      "errors": 127,
+      "inputs": [
+        {
+          "accepted_phrase_count": 10,
+          "errors": 49,
+          "failure": null,
+          "hypothesis_tracks": 4,
+          "input_id": "R8001_M8004_MS801",
+          "reference_speakers": 4,
+          "reference_units": 124
+        },
+        {
+          "accepted_phrase_count": 4,
+          "errors": 5,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8003_M8001_MS801",
+          "reference_speakers": 3,
+          "reference_units": 69
+        },
+        {
+          "accepted_phrase_count": 5,
+          "errors": 10,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8007_M8010_MS803",
+          "reference_speakers": 4,
+          "reference_units": 71
+        },
+        {
+          "accepted_phrase_count": 6,
+          "errors": 25,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8007_M8011_MS806",
+          "reference_speakers": 4,
+          "reference_units": 91
+        },
+        {
+          "accepted_phrase_count": 6,
+          "errors": 18,
+          "failure": null,
+          "hypothesis_tracks": 3,
+          "input_id": "R8008_M8013_MS807",
+          "reference_speakers": 3,
+          "reference_units": 89
+        },
+        {
+          "accepted_phrase_count": 7,
+          "errors": 5,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8018_MS809",
+          "reference_speakers": 2,
+          "reference_units": 76
+        },
+        {
+          "accepted_phrase_count": 5,
+          "errors": 7,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8019_MS810",
+          "reference_speakers": 2,
+          "reference_units": 58
+        },
+        {
+          "accepted_phrase_count": 7,
+          "errors": 8,
+          "failure": null,
+          "hypothesis_tracks": 2,
+          "input_id": "R8009_M8020_MS810",
+          "reference_speakers": 2,
+          "reference_units": 108
+        }
+      ],
+      "reference_units": 686
+    }
+  }
+}

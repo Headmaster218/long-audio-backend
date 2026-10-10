@@ -1,0 +1,25 @@
+{
+  "all_three_summary_views": {
+    "errors": 127,
+    "reference_units": 686
+  },
+  "execution_owner_cross_review": "Passed:7 portable tests, production AST parity, per-input counts, S/D/I tie rule, unmatched-track caveat, scope and private-path/exec-ID sanitation.",
+  "exhaustive_matching_cases": 1024,
+  "full_private_score_recomputation": "Exact equality verified independently before sanitization; summary tests alone cannot reproduce omitted transcript-level scoring",
+  "production_function_ast_parity": [
+    "normalize",
+    "edit",
+    "tokens",
+    "score"
+  ],
+  "publication_review_update": "Explicit AliMeeting primary source, CC BY-SA 4.0 attribution/license, citations and adaptation statement added to standalone package; model/project license scopes remain separate.",
+  "reviewer_cpu": 1,
+  "reviewer_nice": 19,
+  "sanitation": "No corpus transcript content, audio, private absolute filesystem paths, process identifier values, credentials, model weights or binaries",
+  "schema": "real-overlap-portable-validation-v1",
+  "scope": "source-only portable evidence; no Git mutation, commit, publishing or model execution",
+  "selection_metadata_validation": "33 candidate pairs and72 exclusions checked; original annotations needed to independently rediscover candidate set",
+  "status": "pass",
+  "synthetic_and_metadata_test_methods": 7,
+  "terminal_audit_preserved_unchanged": true
+}

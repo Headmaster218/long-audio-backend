@@ -1,0 +1,57 @@
+{
+  "files": [
+    {
+      "bytes": 2066,
+      "path": "ATTRIBUTION.md",
+      "sha256": "1e2a83d286b46c184b02be7e0ed8a9b6cb9286ff3f02a904eb963883fae10bb1"
+    },
+    {
+      "bytes": 11357,
+      "path": "LICENSES/MODEL-APACHE-2.0.txt",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "bytes": 1083,
+      "path": "LICENSES/RUNTIME-MIT.txt",
+      "sha256": "86a53633b56f6b029d3cb42158bcc7aac0cdff898aceb13e83b93e368bbc4ac6"
+    },
+    {
+      "bytes": 7990,
+      "path": "README.md",
+      "sha256": "2b5e2ae58976ba9a43cebaee50232369c2e0e42a255b63320df3e8ae77688453"
+    },
+    {
+      "bytes": 1405,
+      "path": "VALIDATION.json",
+      "sha256": "aae3b3da4f71635e613f42e823293dd7fe0b4d9bcb6fd0a1878e049757ae6363"
+    },
+    {
+      "bytes": 5790,
+      "path": "portable_scorer.py",
+      "sha256": "abe778182571ee77c937a3625d105e5b70d7c7f11fa7f2aefdc5211dbc311efd"
+    },
+    {
+      "bytes": 14302,
+      "path": "provenance.json",
+      "sha256": "9c65389ea33a64dfca706203180ed71bd27759ec0fdfc794e37897772a55726e"
+    },
+    {
+      "bytes": 15641,
+      "path": "results.json",
+      "sha256": "daf76a842ba3cdaec2a7a231021cf762f24364b2e055b95eb9a961e1760db0f1"
+    },
+    {
+      "bytes": 31735,
+      "path": "selection.json",
+      "sha256": "0913345809405402ebf269e83830a52c0500c2650a11aed45705e569005fb97b"
+    },
+    {
+      "bytes": 5498,
+      "path": "test_evidence.py",
+      "sha256": "5e41816fa0d8bf2240d022334cf3768757084fb6ebe4f6077ea180c8a1cd83b9"
+    }
+  ],
+  "schema": "real-overlap-portable-evidence-manifest-v1",
+  "status": "source-only; awaiting independent publication check and root GO before Git mutation",
+  "total_bytes_excluding_manifest": 96867
+}
