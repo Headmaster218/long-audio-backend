@@ -1,6 +1,7 @@
 """Durable unverified overlap candidates, isolated from transcript/voice banks."""
 import json
 import math
+from . import overlap_diagnostics as diagnostics
 
 REGION_PUBLIC=('id','chunk_id','overlap_group_id','window_start','start','end','support_start','support_end',
     'status','reason_code','detected_source_count','capacity','original_mixture_retained','continuity_status','shared_support_id','schema_error_count','raw_output_sha256','region_kind','model_label_count')
@@ -34,8 +35,18 @@ def init_schema(db):
       region_id INTEGER NOT NULL REFERENCES overlap_regions(id) ON DELETE CASCADE,
       PRIMARY KEY(track_id,region_id));
     CREATE INDEX IF NOT EXISTS overlap_track_regions_lookup ON overlap_track_regions(region_id,track_id);
+    CREATE TABLE IF NOT EXISTS overlap_support_diagnostics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+      window_start REAL NOT NULL, diagnostic_key TEXT NOT NULL,
+      shared_support_id TEXT, support_start REAL NOT NULL, support_end REAL NOT NULL,
+      retention TEXT NOT NULL, envelope_json TEXT NOT NULL,
+      retained_bytes INTEGER NOT NULL,
+      UNIQUE(chunk_id,window_start,diagnostic_key));
+    CREATE INDEX IF NOT EXISTS overlap_diagnostics_support ON overlap_support_diagnostics(chunk_id,window_start,shared_support_id);
     CREATE TABLE IF NOT EXISTS overlap_candidate_migrations (name TEXT PRIMARY KEY);
     ''')
+    db.execute("INSERT OR IGNORE INTO overlap_candidate_migrations VALUES('private_support_diagnostics_v1')")
     for table in ('overlap_regions','overlap_tracks'):
         if 'reason_code' not in {row['name'] for row in db.execute(f'PRAGMA table_info({table})')}:
             db.execute(f"ALTER TABLE {table} ADD COLUMN reason_code TEXT NOT NULL DEFAULT 'unresolved'")
@@ -175,6 +186,23 @@ def commit_candidates(db,chunk,offset,payload,metadata,resolved_local_identities
     base=float(chunk['timeline_start'])+offset
     if any(base+item['start']<0 or base+item['support_start']<-.001 for item in payload.get('regions',[])+payload.get('tracks',[])):raise ValueError('Negative absolute overlap support')
     prefix=f"{chunk['id']}@{offset:.6f}/";region_ids={}
+    # Same caller-owned transaction as candidate rows and chunk cursor. Never
+    # commit here or swallow a write failure; a retry must not skip lost evidence.
+    for item in payload.get('diagnostics',[]):
+        value=dict(item, key=prefix+item['key'], time_axis='session_absolute',
+            shared_support_id=prefix+item['shared_support_id'] if item['shared_support_id'] else None,
+            support_start=base+item['support_start'],support_end=base+item['support_end'])
+        if value['support_start'] < -.001:raise ValueError('Negative absolute diagnostic support')
+        serialized=diagnostics.encoded(value)
+        if len(serialized)>diagnostics.MAX_RECORD_BYTES:raise ValueError('Stored diagnostic exceeds byte budget')
+        prior=db.execute('SELECT envelope_json FROM overlap_support_diagnostics WHERE chunk_id=? AND window_start=? AND diagnostic_key=?',
+            (chunk['id'],offset,item['key'])).fetchone()
+        if prior and prior[0]!=serialized.decode('utf-8'):
+            raise ValueError('Conflicting diagnostic retry; original evidence retained')
+        db.execute('''INSERT OR IGNORE INTO overlap_support_diagnostics(chunk_id,window_start,diagnostic_key,
+            shared_support_id,support_start,support_end,retention,envelope_json,retained_bytes)
+            VALUES(?,?,?,?,?,?,?,?,?)''',(chunk['id'],offset,item['key'],value['shared_support_id'],
+            value['support_start'],value['support_end'],value['retention'],serialized.decode('utf-8'),len(serialized)))
     resolved_local_identities=resolved_local_identities or {}
     for region in payload.get('regions',[]):
         local=region['overlap_group_id'];gid=prefix+local
@@ -191,11 +219,14 @@ def commit_candidates(db,chunk,offset,payload,metadata,resolved_local_identities
           start,end,support_start,support_end,status,reason_code,detected_source_count,detected_speaker_local_ids_json,
           capacity,original_mixture_retained,continuity_status,shared_support_id,support_activity_json,conditioning_evidence_json,region_kind,model_label_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',values)
         row=db.execute('SELECT id FROM overlap_regions WHERE chunk_id=? AND window_start=? AND local_group_id=?',(chunk['id'],offset,local)).fetchone()
-        if region.get('schema_error_count') is not None:
-            count=region['schema_error_count'];digest=region.get('raw_output_sha256')
-            if type(count) is not int or not 0<=count<=128 or not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest):
-                raise ValueError('Invalid bounded candidate diagnostic')
-            db.execute('UPDATE overlap_regions SET schema_error_count=?,raw_output_sha256=? WHERE id=? AND schema_error_count IS NULL',(count,digest,row[0]))
+        count=region.get('schema_error_count');digest=region.get('raw_output_sha256')
+        if count is not None:
+            if type(count) is not int or not 0<=count<=128:raise ValueError('Invalid bounded candidate schema count')
+            db.execute('UPDATE overlap_regions SET schema_error_count=? WHERE id=? AND schema_error_count IS NULL',(count,row[0]))
+        if digest is not None:
+            if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest):
+                raise ValueError('Invalid bounded candidate raw hash')
+            db.execute('UPDATE overlap_regions SET raw_output_sha256=? WHERE id=? AND raw_output_sha256 IS NULL',(digest,row[0]))
         region_ids[local]=row[0]
     for track in payload.get('tracks',[]):
         group=track['overlap_group_id'];local=track['source_track_id']
@@ -266,3 +297,70 @@ def candidates(store,sid,after=0,limit=100):
     return {'regions':regions,'tracks':tracks,'next_cursor':regions[-1]['id'] if regions else after,
             'cursor_semantics':'overlap region ID; shared tracks may recur across pages with the same immutable track ID',
             'candidate_only':True,'speaker_identity_claim':False}
+
+
+def private_diagnostics(store,sid,after=0,limit=10):
+    """Explicit local/private export. Not mounted on the ordinary HTTP API.
+
+    Immutable diagnostic-ID cursor; one shared support record regardless of the
+    number of linked regions. Bounded materialization and UTF-8 response bytes.
+    """
+    store.session(sid);after=max(0,int(after));limit=max(1,min(50,int(limit)))
+    result={'diagnostics':[],'next_cursor':after,'private':True,'candidate_only':True,
+            'cursor_semantics':'immutable diagnostic ID; shared supports emitted once'}
+    with store.db() as db:
+        rows=db.execute("""SELECT d.* FROM overlap_support_diagnostics d
+            JOIN chunks c ON c.id=d.chunk_id WHERE c.session_id=? AND d.id>?
+            ORDER BY d.id LIMIT ?""",(sid,after,limit))
+        for row in rows:
+            item={'id':row['id'],'chunk_id':row['chunk_id'],'window_start':row['window_start'],
+                  'retained_bytes':row['retained_bytes'],'envelope':json.loads(row['envelope_json'])}
+            previous_cursor=result['next_cursor']
+            result['diagnostics'].append(item);result['next_cursor']=row['id']
+            if len(diagnostics.encoded(result))>diagnostics.MAX_PAGE_BYTES:
+                result['diagnostics'].pop();result['next_cursor']=previous_cursor;break
+    return result
+
+
+def private_diagnostic_status(store,sid,after=0,limit=100):
+    """Bounded region references plus truthful historical absence labels.
+
+    Historical hashes are not recoverable text. Valid phrase raw_text is not a
+    full generation envelope. This private projection changes no public fields.
+    """
+    store.session(sid);after=max(0,int(after));limit=max(1,min(500,int(limit)))
+    result={'regions':[],'next_cursor':after,'private':True}
+    with store.db() as db:
+        rows=db.execute("""SELECT r.* FROM overlap_regions r JOIN chunks c ON c.id=r.chunk_id
+            WHERE c.session_id=? AND r.id>? ORDER BY r.id LIMIT ?""",(sid,after,limit))
+        for row in rows:
+            item={'region_id':row['id'],'shared_support_id':row['shared_support_id'],
+                  'diagnostic_id':None,'batch_diagnostic_id':None,
+                  'full_raw_output_available':False,'schema_error_details_available':False,
+                  'diagnostic_phrases_available':False}
+            saved=db.execute("""SELECT id,envelope_json FROM overlap_support_diagnostics
+                WHERE chunk_id=? AND window_start=? AND shared_support_id=?""",
+                (row['chunk_id'],row['window_start'],row['shared_support_id'])).fetchone()
+            batch=db.execute("""SELECT id FROM overlap_support_diagnostics
+                WHERE chunk_id=? AND window_start=? AND diagnostic_key='batch-failure'""",
+                (row['chunk_id'],row['window_start'])).fetchone()
+            if batch:item['batch_diagnostic_id']=batch['id']
+            if saved:
+                evidence=json.loads(saved['envelope_json']);captures=evidence['captures']
+                item.update(diagnostic_id=saved['id'],diagnostic_retention=evidence['retention'],
+                    unavailability_reason=None if evidence['retention']=='complete' else 'see_private_capture_status',
+                    capture_retention={key:value['retention'] for key,value in captures.items()})
+                for field,capture in [('full_raw_output_available','raw_text'),('schema_error_details_available','schema_errors'),('diagnostic_phrases_available','diagnostic_phrases')]:
+                    item[field]=captures[capture]['retention']=='complete'
+            elif batch:
+                item.update(diagnostic_retention='batch_failure_only',unavailability_reason='support_envelope_unavailable')
+            else:
+                phrase=db.execute('SELECT 1 FROM overlap_track_regions WHERE region_id=? LIMIT 1',(row['id'],)).fetchone()
+                kind=('hash_and_counts_only' if row['raw_output_sha256'] is not None or row['schema_error_count'] is not None else
+                      'phrase_raw_text_only' if phrase else 'status_and_reason_only')
+                item.update(diagnostic_retention=kind,unavailability_reason='not_persisted_by_this_backend_version')
+            previous_cursor=result['next_cursor']
+            result['regions'].append(item);result['next_cursor']=row['id']
+            if len(diagnostics.encoded(result))>diagnostics.MAX_PAGE_BYTES:
+                result['regions'].pop();result['next_cursor']=previous_cursor;break
+    return result

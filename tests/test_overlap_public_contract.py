@@ -28,7 +28,12 @@ def candidate_payload():
                 'native_unit_kind':'native_phrase','native_time_axis':'core_relative','native_phrase_intervals':[
                     {'start':.6,'end':1.6,'ownership_anchor':.6,'text':text,'unit_kind':'native_phrase','boundary_uncertain':True}],
                 'audio_path':'/must-not-leak.wav','embedding':[1.,0.]}})
-    return {'regions':regions,'tracks':tracks,'metadata':{}}
+    from audio_backend.overlap_diagnostics import support
+    diagnostic=support({'shared_support_id':'shared-0','start':.5,'end':2.},
+        {'status':'unresolved','reason_code':'synthetic_failure','raw_text':'PRIVATE SYNTHETIC FAILURE TEXT',
+         'schema_errors':['synthetic'],'diagnostic_phrases':[]})
+    diagnostic['time_axis']='core_relative'
+    return {'regions':regions,'tracks':tracks,'metadata':{},'diagnostics':[diagnostic]}
 
 
 def test_overlap_rest_feed_scope_support_restart_and_erasure(tmp_path,monkeypatch):
@@ -76,6 +81,9 @@ def test_overlap_rest_feed_scope_support_restart_and_erasure(tmp_path,monkeypatc
         assert region_changes==rest['regions'] and track_changes==rest['tracks']
         encoded=json.dumps(rest)+json.dumps(region_changes)+json.dumps(track_changes)
         assert 'must-not-leak' not in encoded and 'private_vector' not in encoded and 'embedding' not in encoded
+        assert 'PRIVATE SYNTHETIC FAILURE TEXT' not in encoded and 'diagnostics' not in rest
+        assert len(store.overlap_diagnostics(sid)['diagnostics'])==1
+        assert client.get(f'/sessions/{sid}/overlap-diagnostics').status_code==404
         assert source.exists() and client.get(f'/sessions/{sid}/segments').json()['segments'][0]['text']=='original mixture'
         with store.db() as db:
             assert db.execute('SELECT COUNT(*) FROM speakers').fetchone()[0]==1
@@ -97,5 +105,5 @@ def test_overlap_rest_feed_scope_support_restart_and_erasure(tmp_path,monkeypatc
         assert client.delete(f'/sessions/{sid}').status_code==200
         assert not source.exists()
         with client.app.state.store.db() as db:
-            for table in ('overlap_regions','overlap_tracks','overlap_track_regions','result_changes'):
+            for table in ('overlap_regions','overlap_tracks','overlap_track_regions','overlap_support_diagnostics','result_changes'):
                 assert db.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]==0

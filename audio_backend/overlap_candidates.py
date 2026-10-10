@@ -122,6 +122,7 @@ def validate_candidates(payload,duration,*,owned=False):
         if track.get('overlap_group_id') not in ids:raise ValueError('Orphan overlap track')
         for key in ('text','raw_text'):
             if not isinstance(track.get(key,''),str) or len(track.get(key,''))>100000:raise ValueError('Oversized overlap text')
+            track.get(key,'').encode('utf-8')
         if track.get('speaker_id') is not None or track.get('profile_update_eligible') is not False or track.get('identity_status')!='unresolved':raise ValueError('Experimental source cannot claim/enroll person identity')
         if 'speaker_embedding' in track:raise ValueError('Separated source cannot supply enrollment embedding')
         if type(track.get('source_slot')) is not int or not 0<=track['source_slot']<8:raise ValueError('Invalid bounded source slot')
@@ -131,7 +132,10 @@ def validate_candidates(payload,duration,*,owned=False):
             for key in ('start','end','ownership_anchor'):
                 if not isinstance(unit.get(key),(int,float)) or not math.isfinite(unit[key]) or not 0<=unit[key]<=duration+.15:raise ValueError('Invalid source lexical timestamp')
             if unit['end']<unit['start']:raise ValueError('Reversed source lexical interval')
-    if len(json.dumps(payload,allow_nan=False))>2*1024**2:raise ValueError('Overlap candidate response exceeds2MiB')
+    if 'diagnostics' in payload:
+        from .overlap_diagnostics import validate as validate_diagnostics
+        validate_diagnostics(payload['diagnostics'],regions,owned=owned)
+    if len(json.dumps(payload,allow_nan=False).encode('utf-8'))>2*1024**2:raise ValueError('Overlap candidate response exceeds2MiB')
     return payload
 
 

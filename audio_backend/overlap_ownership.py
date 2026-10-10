@@ -53,7 +53,10 @@ def validate_candidates(bundle,duration):
             if not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=duration+.15:
                 raise ValueError('Candidate timestamp outside analyzer input')
         if item['end']<=item['start']:raise ValueError('Empty/reversed candidate interval')
-    if len(json.dumps(bundle,allow_nan=False))>2*1024**2:raise ValueError('Candidate output exceeds2MiB')
+    if 'diagnostics' in bundle:
+        from .overlap_diagnostics import validate as validate_diagnostics
+        validate_diagnostics(bundle['diagnostics'],regions)
+    if len(json.dumps(bundle,allow_nan=False).encode('utf-8'))>2*1024**2:raise ValueError('Candidate output exceeds2MiB')
     return bundle
 
 
@@ -178,4 +181,8 @@ def own_candidates(bundle,start,end,base=0.):
         boundary_policy='whole native lexical units per window-scoped source; no unverified cross-window source joining',
         source_continuity='not_established',original_mixture_retained=True,profile_update_eligible=False,
         context_policy='native interval intersection with detected overlap; anchor-owned by core; intervals and CTC ends remain approximate')
-    return {'regions':regions,'tracks':tracks,'metadata':metadata}
+    result={'regions':regions,'tracks':tracks,'metadata':metadata}
+    if 'diagnostics' in bundle:
+        from .overlap_diagnostics import own
+        result['diagnostics']=own(bundle['diagnostics'],start,end,regions)
+    return result
