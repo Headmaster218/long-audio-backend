@@ -47,6 +47,7 @@ def update_provenance(previous, metadata, offset):
     not create or replace stable model provenance. Bounds are independent of hours.
     """
     provenance=json.loads(previous) if previous else {'variants':[], 'variants_truncated':False}
+    event_candidate_store.retain_projection_diagnostics(provenance,metadata,offset)
     stable={key:metadata[key] for key in PROVENANCE_KEYS if metadata.get(key) not in (None,{},[],'')}
     if not stable or metadata.get('silence_fast_path'):
         return provenance

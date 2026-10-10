@@ -18,6 +18,16 @@ ADDED = {MAP_PATH, FOLLOWUP, 'docs/PUBLIC_REPRODUCIBILITY.md',
          'scripts/public_history.py', 'tests/test_public_history.py'}
 CHANGED = {'README.md', POLICY, 'tests/test_fragment_staging_sources.py'}
 SCOPE = 'Public Git-only dev10 provenance tooling and documentation; no runtime or acceptance changes'
+RECOVERY = '366797b5c0bba70975507b71db8b4596b6d9344f'
+RECOVERY_TREE = 'dc6c9bd493238b4b6c41b087eb668a60f1726895'
+
+
+def recovery_revision():
+    history = PublicHistory(ROOT)
+    headers = history._git('cat-file', 'commit', RECOVERY).split(b'\n\n', 1)[0].splitlines()
+    assert [line[5:].decode() for line in headers if line.startswith(b'tree ')] == [RECOVERY_TREE]
+    assert [line[7:].decode() for line in headers if line.startswith(b'parent ')] == [BASELINE]
+    return RECOVERY
 
 
 def canonical(value):
@@ -35,9 +45,9 @@ def baseline():
 
 
 @pytest.fixture(scope='module')
-def current():
-    index = guard.read_git_tree(':')
-    return guard.read_worktree(json.loads(index[POLICY])), index
+def recovery_sources():
+    historical = guard.read_git_tree(recovery_revision())
+    return historical, historical
 
 
 def verify_followup(files, index, base):
@@ -65,8 +75,8 @@ def verify_followup(files, index, base):
     assert guard.validate(files, policy, require_manifest=False)['findings'] == 0
 
 
-def test_exact_reviewed_recovery_followup(current, baseline):
-    verify_followup(*current, baseline)
+def test_historical_exact_reviewed_recovery_followup(recovery_sources, baseline):
+    verify_followup(*recovery_sources, baseline)
 
 
 @pytest.mark.parametrize('mutation', [
@@ -76,8 +86,9 @@ def test_exact_reviewed_recovery_followup(current, baseline):
     'manifest_missing', 'manifest_duplicate', 'manifest_self_pin', 'manifest_supersedes',
     'manifest_absence', 'manifest_absence_type', 'manifest_order', 'manifest_format',
 ])
-def test_unreviewed_recovery_is_rejected(mutation, current, baseline):
-    files, index = map(dict, current)
+def test_unreviewed_recovery_is_rejected(mutation, recovery_sources, baseline):
+    verify_followup(*recovery_sources, baseline)
+    files, index = map(dict, recovery_sources)
     value = json.loads(files[FOLLOWUP])
     path = 'README.md'
     if mutation == 'unknown_file': files['docs/unreviewed.md'] = b'unreviewed'
@@ -193,8 +204,8 @@ def test_unsupported_graph_operations_fail_closed():
     with pytest.raises(HistoryError): history.parents('0de25be7b0e8983aceb1e5591f41f6cf667851fc')
 
 
-def test_readme_relative_links_exist(current):
-    files, _ = current
+def test_historical_readme_relative_links_exist(recovery_sources):
+    files, _ = recovery_sources
     for target in re.findall(r'\]\(([^)]+)\)', files['README.md'].decode()):
         if '://' not in target and not target.startswith('#'):
             assert target.split('#', 1)[0] in files, target
@@ -212,16 +223,12 @@ def test_exact_recovery_file_modes():
         if entry:
             header, name = entry.decode().split('\t')
             base[name] = header.split()[0]
-    index = {}
-    for entry in history._git('ls-files', '--stage', '-z').split(b'\x00'):
+    recovered = {}
+    for entry in history._git('ls-tree', '-rz', recovery_revision()).split(b'\x00'):
         if entry:
             header, name = entry.decode().split('\t')
-            mode, _, stage = header.split()
-            assert stage == '0' and name not in index
-            index[name] = mode
-    worktree = {path: '100755' if (ROOT / path).stat().st_mode & 0o111 else '100644'
-                for path in index}
-    verify_modes(base, index, worktree)
+            recovered[name] = header.split()[0]
+    verify_modes(base, recovered, recovered)
 
 
 @pytest.mark.parametrize('mutation', ['inherited', 'added', 'worktree'])

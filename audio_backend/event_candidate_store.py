@@ -11,6 +11,10 @@ MAX_FAMILIES=6
 MAX_TEXT=256
 MAX_PAYLOAD_BYTES=8192
 MAX_PROVENANCE_BYTES=4096
+SAMPLE_RATE=16000
+MAX_PROJECTION_RECORDS=64
+MAX_PROJECTION_BYTES=64*1024
+PROJECTION_WRAPPER_RESERVE=128
 FAMILIES=frozenset({'rain','driving','subway','door','music','silence'})
 PRIVATE_VOICE_LABELS=frozenset({'Male speech, man speaking','Female speech, woman speaking','Child speech, kid speaking','Baby cry, infant cry','Children shouting','Children playing'})
 STATUS='unverified_model_candidate'
@@ -109,6 +113,94 @@ def _payload(candidate):
         if key in candidate:result[key]=_number(candidate[key],key,0,1 if key=='speech_score' else None)
     return _json(result,MAX_PAYLOAD_BYTES)
 
+def _diagnostic_evidence(candidate):
+    """Retain validated public evidence, raw timing and a hash, never private labels."""
+    evidence=json.loads(_payload(candidate))
+    for key in ('ownership','time_axis','support_semantics'):evidence.pop(key)
+    raw=json.dumps(candidate,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+    return {'candidate_evidence':evidence,'candidate_evidence_sanitized':True,
+            'raw_support_seconds':[candidate['start'],candidate['end']],
+            'raw_candidate_sha256':hashlib.sha256(raw.encode('utf-8')).hexdigest()}
+
+
+def _sample_boundary(seconds):
+    """Map a boundary with an uncertainty-aware half-up tie convention.
+
+    A half-frame time divided by SAMPLE_RATE need not multiply back to the
+    exact half frame. Allow three input roundings (two nonnegative rounded
+    terms and their rounded sum), plus multiplication rounding, in frame units.
+    This is an uncertainty-aware tie convention, not exact rounding of arbitrary
+    float histories. It changes only integer ownership, never time or duration,
+    and applies identically to either side of a shared boundary.
+    """
+    scaled=seconds*SAMPLE_RATE
+    lower=math.floor(scaled);midpoint=lower+.5
+    uncertainty=(3*math.ulp(seconds)*SAMPLE_RATE+math.ulp(scaled))/2
+    return lower+int(scaled>=midpoint or midpoint-scaled<=uncertainty)
+
+
+def own_candidates(metadata,start,end):
+    """Intersect on the detector's PCM grid; keep surviving float times unchanged.
+
+    Detector supports are integer 16 kHz sample ranges. A floating-point sliver
+    at a touching boundary cannot own a sample. This is not a duration cutoff:
+    one-frame grid supports and bounded-roundoff half-frame ties are retained.
+    Original classifier candidates remain untouched in bounded window metadata.
+    """
+    raw=metadata.get('event_candidates',[])
+    if not isinstance(raw,list) or len(raw)>MAX_WINDOWS_PER_COMMIT:raise ValueError('Candidate window limit exceeded')
+    candidates=[]
+    for index,candidate in enumerate(raw):
+        if not isinstance(candidate,dict):raise ValueError('Invalid candidate window')
+        support_start=_number(candidate.get('start'),'support start',0,120)
+        support_end=_number(candidate.get('end'),'support end',0,120)
+        if not 0<support_end-support_start<=60+1e-6:raise ValueError('Invalid candidate support interval')
+        precision=candidate.get('onset_precision_seconds')
+        if precision is not None:_number(precision,'onset precision',0,60)
+        _payload(candidate)  # Exclusion must not bypass the existing evidence validation.
+        lo=max(start,support_start);hi=min(end,support_end)
+        if hi<=lo:continue
+        # Use explicit half-up ties: round-to-even can turn an
+        # exact one-sample [1.5,2.5] frame interval into the empty [2,2].
+        first=_sample_boundary(lo);last=_sample_boundary(hi)
+        if last<=first:
+            metadata.setdefault('event_candidate_projection_diagnostics',[]).append({
+                'reason':'numeric_degenerate_sample_grid_intersection',
+                'source_candidate_index':index,**_diagnostic_evidence(candidate),
+                'raw_time_axis':'analyzer_input',
+                'core_input_seconds':[start,end],'intersection_input_seconds':[lo,hi],
+                'intersection_frames':[first,last],'sample_rate':SAMPLE_RATE})
+            continue
+        candidates.append(dict(candidate,start=lo-start,end=hi-start,
+            support_start=candidate['start']-start,support_end=candidate['end']-start,
+            time_axis='core_relative',ownership='core_intersection',
+            _source_candidate_index=index,
+            support_semantics='original model window; not verified event onset/end'))
+    return candidates
+
+
+def retain_projection_diagnostics(provenance,metadata,offset):
+    """Keep bounded first evidence across later windows in existing chunk JSON.
+
+    This runs inside the core transaction, independent of stable model variants.
+    Overflow is explicit; last-window raw metadata is never rewritten or filtered.
+    """
+    diagnostics=metadata.get('event_candidate_projection_diagnostics',[])
+    if not diagnostics:return
+    audit=provenance.setdefault('event_candidate_projection_diagnostics',
+        {'count':0,'records':[],'truncated':False})
+    for diagnostic in diagnostics:
+        audit['count']+=1
+        record=dict(diagnostic,analysis_offset=offset)
+        records=audit['records']+[record]
+        if (len(records)>MAX_PROJECTION_RECORDS or
+                # Match chunks.provenance serialization, including escaped Unicode.
+                # Reserve room for count/records/truncated and growing count digits.
+                len(json.dumps(records,allow_nan=False).encode('utf-8'))>MAX_PROJECTION_BYTES-PROJECTION_WRAPPER_RESERVE):
+            audit['truncated']=True
+        else:audit['records'].append(record)
+
+
 def commit_candidates(db,chunk,offset,candidates,provenance):
     """Insert within the caller's transaction; repeat offsets preserve first evidence.
 
@@ -121,6 +213,7 @@ def commit_candidates(db,chunk,offset,candidates,provenance):
     origin=_number(chunk['timeline_start'],'timeline start')+offset
     if offset>duration:raise ValueError('Candidate offset outside chunk')
     record_provenance=_provenance(provenance)
+    if provenance is None:provenance={}
     prepared=[]
     for index,item in enumerate(candidates):
         if not isinstance(item,dict) or item.get('time_axis')!='core_relative' or item.get('ownership')!='core_intersection':raise ValueError('Candidates must be rebased to owned core')
@@ -131,7 +224,23 @@ def commit_candidates(db,chunk,offset,candidates,provenance):
         if support_start>start+1e-6 or support_end<end-1e-6 or not 0<support_end-support_start<=60+1e-6:raise ValueError('Candidate support does not contain owned interval')
         precision=item.get('onset_precision_seconds')
         if precision is not None:precision=_number(precision,'onset precision',0,60)
-        prepared.append((chunk['id'],offset,index,origin+start,origin+end,origin+support_start,origin+support_end,STATUS,'window_support',precision,_payload(item),record_provenance))
+        payload=_payload(item)
+        absolute=[origin+start,origin+end,origin+support_start,origin+support_end]
+        if not all(math.isfinite(value) for value in absolute):raise ValueError('Nonfinite candidate projection')
+        if absolute[1]<=absolute[0] or absolute[3]<=absolute[2]:
+            source_index=item.get('_source_candidate_index',index)
+            raw=provenance.get('event_candidates',[])
+            # Replace the list so a rolled-back core cannot mutate retry input.
+            provenance['event_candidate_projection_diagnostics']=[
+                *provenance.get('event_candidate_projection_diagnostics',[]),{
+                'reason':'numeric_degenerate_absolute_projection',
+                'source_candidate_index':source_index,
+                **_diagnostic_evidence(raw[source_index] if 0<=source_index<len(raw) else item),
+                'raw_time_axis':'analyzer_input' if 0<=source_index<len(raw) else 'core_relative',
+                'owned_core_seconds':[start,end],'support_core_seconds':[support_start,support_end],
+                'absolute_seconds':absolute,'timeline_core_origin':origin}]
+            continue
+        prepared.append((chunk['id'],offset,index,*absolute,STATUS,'window_support',precision,payload,record_provenance))
     inserted=0
     for values in prepared:
         cursor=db.execute('''INSERT INTO event_candidates(chunk_id,analysis_offset,candidate_index,start,end,support_start,support_end,status,time_precision,onset_precision_seconds,payload,provenance)

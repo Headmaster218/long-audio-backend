@@ -103,3 +103,10 @@ python scripts/run_cpu_candidate.py --dry-run
 ### 实验性 finalized PCM16 HTTP 接线
 
 独立 feature 候选新增[已结束 PCM16 流的 HTTP 集成、离线 manifest 生成命令与 CPU 启动步骤](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受声明连续的原始 16 kHz 单声道 PCM16 WAV；零裁剪，公共行、游标和 EOS 同事务提交。默认关闭；一次 12 秒真实 CPU HTTP 检查已独立审阅，覆盖输入、幂等、结果提交与清理，不代表通用准确率或长时验收。原始测试器因将正常 SIGTERM 退出视为失败而保留失败终态，独立解释与修正测试另存。原生重叠说话轨道保留，全局身份学习和独立候选公开投影不可用。新的 `scripts/build_fragment_cpu_manifest.py` 只校验已有本地资源并生成哈希，不下载、安装或构造模型；不需要私有实验文件或先跑一次推理。
+
+### dev11 integration candidate
+
+`0.2.0rc2.dev11` combines the reviewed duration/EOS corrections, private overlap
+diagnostic retention, bounded event-candidate numeric fix and public Git-only
+history recovery. See [the exact integration and validation contract](docs/BACKEND_DEV11_INTEGRATION.md).
+This local candidate is not a release or model-quality acceptance.

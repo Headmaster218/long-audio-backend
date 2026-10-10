@@ -6,6 +6,8 @@ from pathlib import Path
 import os
 import json
 import stat
+import random
+from array import array
 from types import SimpleNamespace
 import pytest
 
@@ -27,17 +29,57 @@ class Watch:
     def operation(self,seconds):return nullcontext()
 
 
+def synthetic_development(tmp_path, monkeypatch):
+    """Deterministic synthetic PCM/scores; never historical model predictions.
+
+    Inputs live beside the output directory so failure cleanup assertions still
+    detect every leaked output WAV. Seeds and values are public test constants.
+    """
+    root = tmp_path.parent / (tmp_path.name + '-synthetic-inputs')
+    (root / 'pcm').mkdir(parents=True)
+    (root / 'scores').mkdir()
+    rows = []
+    for index, identifier in enumerate(m.IDS):
+        rng = random.Random(8100 + index)
+        samples = array('h', (rng.randrange(-12000, 12001) for _ in range(320000)))
+        if __import__('sys').byteorder != 'little': samples.byteswap()
+        path = root / 'pcm' / (identifier + '.wav')
+        m.write_wav(path, samples.tobytes())
+        rows.append({'id': identifier, 'project_split': 'development',
+                     'converted_path': str(path),
+                     'converted': {'samples': 320000, 'seconds': 20., 'file_sha256': m.sha256(path)}})
+        labels = ['door', 'driving', 'music'] if index == 0 else ['subway']
+        (root / 'scores' / (identifier + '.json')).write_text(json.dumps({'labels': labels}))
+    (root / 'PREPROCESSED.json').write_text(json.dumps({'rows': rows}))
+    monkeypatch.setattr(m, 'DEVELOPMENT', root)
+    return rows
+
+
+def assert_matcher_transport(tmp_path, rows):
+    assert [r['id'] for r in rows] == list(m.IDS)
+    pcm = m.pcm_sources(rows)
+    for arrangement in ('AB', 'BA'):
+        plan, paths = m.prepare(tmp_path, arrangement, 'split', pcm)
+        assert plan.end_frame == 640000
+        assert [seam.evidence.trim_frames for seam in plan.seams] == [20000, 0, 0]
+        assert len(plan.aliases) == 1
+
+
+def test_synthetic_selection_and_matcher_transport(tmp_path, monkeypatch):
+    expected = synthetic_development(tmp_path, monkeypatch)
+    rows = m.source_rows()
+    assert rows == expected
+    assert_matcher_transport(tmp_path, rows)
+
+
 def test_actual_development_selection_and_matcher_transport(tmp_path):
-    rows=m.source_rows(); assert [r['id'] for r in rows]==list(m.IDS)
-    pcm=m.pcm_sources(rows)
-    for arrangement in ('AB','BA'):
-        plan,paths=m.prepare(tmp_path,arrangement,'split',pcm)
-        assert plan.end_frame==640000
-        assert [seam.evidence.trim_frames for seam in plan.seams]==[20000,0,0]
-        assert len(plan.aliases)==1
+    if not (m.DEVELOPMENT / 'PREPROCESSED.json').exists():
+        pytest.skip('Historical private development PCM/score fixture is not distributed')
+    assert_matcher_transport(tmp_path, m.source_rows())
 
 
-def test_full_event_only_bridge_model_free(tmp_path):
+def test_full_event_only_bridge_model_free(tmp_path, monkeypatch):
+    synthetic_development(tmp_path, monkeypatch)
     guard=m.ResourceGuard(ROOT,(m.Identity.bind(os.getpid()),),own_cap=256*1024**2,deadline=120)
     budget=m.CallBudget(m.LIMITS);tagger=FakeTagger()
     result=m.execute(tmp_path,m.pcm_sources(m.source_rows()),tagger,budget,guard,lambda:{},Watch(),'fake-tagging-only')
@@ -99,6 +141,7 @@ class NoopGuard:
 
 
 def admitted_fixture(tmp_path,monkeypatch):
+    synthetic_development(tmp_path, monkeypatch)
     frozen,receipt=valid_receipt(tmp_path)
     frozen.update(files={},selected_rows=m.source_rows())
     receipt['freeze_sha256']=m.digest(frozen)

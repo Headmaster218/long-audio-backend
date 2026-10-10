@@ -99,12 +99,14 @@ def verify_target_version(layers, module_version, project_version):
     assert layers['target_version'] == module_version == project_version
 
 
-def test_reviewed_target_version_is_current():
+def test_historical_dev10_target_version_is_exact():
     import tomllib
-    from audio_backend import __version__
+    historical = immutable_tree(BASELINE)
     _, layers = import_records()
-    verify_target_version(layers, __version__,
-                          tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version'])
+    namespace = {}
+    exec(historical['audio_backend/__init__.py'], namespace)
+    verify_target_version(layers, namespace['__version__'],
+                          tomllib.loads(historical['pyproject.toml'].decode())['project']['version'])
 
 
 @pytest.mark.parametrize('stale', ['target', 'module', 'project'])
@@ -153,8 +155,8 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 277
-    assert policy['maximum_total_bytes'] == 3_200_000
+    assert policy['maximum_files'] == 283
+    assert policy['maximum_total_bytes'] == 3_400_000
     assert guard.MAX_BYTES == 250_000
 
 

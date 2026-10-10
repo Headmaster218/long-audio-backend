@@ -24,6 +24,14 @@ class TinyGuard:
         pass
 
 
+def _allowed_test_cpu():
+    """Synthetic children stay inside the test launcher's inherited CPU set."""
+    if hasattr(os, 'sched_getaffinity'):
+        return min(os.sched_getaffinity(0))
+    import psutil
+    return min(psutil.Process().cpu_affinity())
+
+
 def page(payload, seq, flags, granule, serial=42):
     lacing = bytes([255]) * (len(payload) // 255) + bytes([len(payload) % 255])
     header = struct.pack('<4sBBQIIIB', b'OggS', 0, flags, granule, serial, seq, 0, len(lacing))
@@ -111,7 +119,7 @@ def test_pull_backpressure_and_close_reaps(tmp_path):
     pidfile = tmp_path / 'pid'
     # Child writes indefinitely. Only one bounded chunk is retained on pull.
     code = "import os; print(os.getpid(), flush=True); b=b'x'*65536\nwhile True: os.write(1,b)"
-    guard = _Guard(Limits(), pidfile, None)
+    guard = _Guard(Limits(cpu=_allowed_test_cpu()), pidfile, None)
     iterator = _run(['/usr/bin/python3', '-c', code], guard, output_limit=1024**3)
     first = next(iterator)
     if b'\n' not in first:
@@ -127,7 +135,7 @@ def test_pull_backpressure_and_close_reaps(tmp_path):
 
 def test_running_cancel_and_output_caps(tmp_path):
     cancelled = False
-    guard = _Guard(Limits(), tmp_path / 'output', lambda: cancelled)
+    guard = _Guard(Limits(cpu=_allowed_test_cpu()), tmp_path / 'output', lambda: cancelled)
     iterator = _run(['/usr/bin/python3', '-c', 'import time; print("x",flush=True); time.sleep(5)'],
                     guard, output_limit=1024)
     assert next(iterator) == b'x\n'
@@ -136,10 +144,10 @@ def test_running_cancel_and_output_caps(tmp_path):
         next(iterator)
     with pytest.raises(DecodeLimit, match='output limit'):
         list(_run(['/usr/bin/python3', '-c', 'print("x"*100)'],
-                  _Guard(Limits(), tmp_path / 'output', None), output_limit=10))
+                  _Guard(Limits(cpu=_allowed_test_cpu()), tmp_path / 'output', None), output_limit=10))
     with pytest.raises(DecodeLimit, match='wall-time'):
         list(_run(['/usr/bin/python3', '-c', 'import time;time.sleep(2)'],
-                  _Guard(Limits(wall_seconds=.1), tmp_path / 'output', None), output_limit=10))
+                  _Guard(Limits(cpu=_allowed_test_cpu(), wall_seconds=.1), tmp_path / 'output', None), output_limit=10))
 
 
 @pytest.fixture

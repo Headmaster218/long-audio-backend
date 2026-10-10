@@ -160,15 +160,15 @@ def test_one_tracks_seam_does_not_delete_other_tracks_new_words():
 
 def test_event_candidates_keep_original_support_and_correct_core_axis():
     r={'segments':[],'events':[], 'metadata':{'event_candidates':[
-        {'start':0.,'end':5.,'category_scores':{'door_close':{'score':.01}}},
-        {'start':10.,'end':15.,'category_scores':{'rain':{'score':.2}}}]}}
+        {'start':0.,'end':5.,'category_scores':{'door':{'score':.01,'source_label':'Door'}}},
+        {'start':10.,'end':15.,'category_scores':{'rain':{'score':.2,'source_label':'Rain'}}}]}}
     result=own_core(r,2,12,base=28)
     a,b=result['event_candidates']
     assert (a['start'],a['end'],a['support_start'],a['support_end'])==(0.,3.,-2.,3.)
     assert (b['start'],b['end'],b['support_start'],b['support_end'])==(8.,10.,8.,13.)
     # Store adds the30s core checkpoint to both axes; originalsupport is28–33.
     assert (30+a['support_start'],30+a['support_end'])==(28.,33.)
-    assert a['category_scores']['door_close']['score']==.01  # subthreshold retained
+    assert a['category_scores']['door']['score']==.01  # subthreshold retained
 
 
 def test_overlap_metadata_is_explicit_and_chunk_relative():
