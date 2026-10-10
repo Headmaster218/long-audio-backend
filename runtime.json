@@ -1,0 +1,72 @@
+{
+  "python": "3.12",
+  "sherpa-onnx": "1.13.8",
+  "numpy": "2.5.3",
+  "transcribe-cpp": "0.2.3",
+  "transcribe-cpp-native": "0.2.3",
+  "native_commit": "63a44d9239d610b3908e8a66b384924cd4a77217",
+  "qwen_files": [
+    {
+      "path": "transcribe_cpp/__init__.py",
+      "sha256": "942e91c16a8a0d49e714acdcb7d00a603922c5e5ed903a01ab57bde5365008b5",
+      "bytes": 60935
+    },
+    {
+      "path": "transcribe_cpp/_abi.py",
+      "sha256": "8f98f6015353b6851d5b6003fe3a57925ee9b1a393ca488552d945254d03c8b0",
+      "bytes": 3236
+    },
+    {
+      "path": "transcribe_cpp/_generated.py",
+      "sha256": "25b11ee65cc455bd3e400e79216f72dd09020fe70b530f2ce85018559800dd67",
+      "bytes": 28388
+    },
+    {
+      "path": "transcribe_cpp/_library.py",
+      "sha256": "cce7021c4cd3c2a27fdf9625646d2e0db9ac2f6442a8ac5722f97a94d1d3e7b1",
+      "bytes": 15629
+    },
+    {
+      "path": "transcribe_cpp/errors.py",
+      "sha256": "3400bdee2748de411543896fe1ac94e266acaea297472bb017d47b01e82cf436",
+      "bytes": 5071
+    },
+    {
+      "path": "transcribe_cpp_native/_native/libtranscribe.so",
+      "sha256": "f2f4e1537f1a85b59106629a5f1cd69776914866fca576e6dc25ca4bb7e35d68",
+      "bytes": 2118384
+    }
+  ],
+  "wheels": [
+    {
+      "filename": "transcribe_cpp-0.2.3-py3-none-any.whl",
+      "bytes": 34910,
+      "sha256": "be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03"
+    },
+    {
+      "filename": "transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "bytes": 24329742,
+      "sha256": "8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece"
+    }
+  ],
+  "configuration": {
+    "sensevoice": {
+      "provider": "cpu",
+      "threads": 2,
+      "language": "auto",
+      "use_itn": true,
+      "fresh_stream_each_utterance": true
+    },
+    "qwen": {
+      "backend": "cpu",
+      "threads": 2,
+      "kv_type": "f16",
+      "n_ctx": 2048,
+      "task": "transcribe",
+      "language": null,
+      "timestamps": "none",
+      "fresh_session_each_utterance": true,
+      "native_max_generated_ids_including_eos": 256
+    }
+  }
+}

@@ -1,8 +1,0 @@
-# Optional isolated C++ environment only. Never upgrade the Transformers env.
-# First run scripts/setup_moss_td_cpp.py to verify the wheels and local GGUF.
-# These direct official PyPI URLs include the checked release artifact hashes.
-# The only other runtime dependency is the existing process-tree/resource guard.
-transcribe-cpp @ https://files.pythonhosted.org/packages/c6/39/832282b7d27e29ee48f2c89c243b431078dfc235ca48b59b35c74431ce55/transcribe_cpp-0.2.3-py3-none-any.whl#sha256=be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03
-transcribe-cpp-native @ https://files.pythonhosted.org/packages/cb/c9/6955026364f22db0c278629dd51478e03bc896dedba8ea04965b3c9833cd/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece ; sys_platform == 'linux' and platform_machine == 'x86_64'
-transcribe-cpp-native @ https://files.pythonhosted.org/packages/a1/55/3875745fbf7194eafccc1303f317d793bb0d67f8fb4a0b259615c5cd0c5b/transcribe_cpp_native-0.2.3-py3-none-win_amd64.whl#sha256=f29cf0e5659f4e135a0c2918a8de2141298797b921702c757e7a4c44737c9c77 ; sys_platform == 'win32' and platform_machine == 'AMD64'
-psutil==7.2.2

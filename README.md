@@ -1,121 +1,144 @@
-# 长录音音频分析后端
+# AliMeeting staged56: public ASR evaluation snapshot
 
-本地单用户 API：中文优先的中英转写、独立说话人活动、跨录音声纹关联、环境声音事件、增量上传与断点恢复。推理不调用外部 API，不上传录音，不做 LLM 总结。
+This branch is an evaluation snapshot/tool, **not an installable replacement for
+long-audio-backend**. This evaluation-only snapshot branch has the pinned public
+backend commit below as its single parent, but its tree contains only these 14
+evaluation files. It is not a backend merge target: do not merge this snapshot
+over the backend. Existing backend branches, their exact historical/current proof
+gates, defaults, API, and 3.4 MB source budget remain unchanged. Use the pinned
+backend as a separate, clean checkout when reproducing. No production runtime
+retest or quality acceptance is implied by these evaluation-tool tests.
 
-**当前仍是开发中的候选后端，整体质量尚未达标。** 两套冻结基础流程均完成同一批 12.25 小时真实录音，详见完整长录音结果（历史材料，未随公共源码提供）；其中重叠文字候选关闭，不能算作新 MOSS-TD 路径的长时验证。入口请看[中文安装与启动](docs/QUICKSTART_ZH.md)和当前验收目标（历史材料，未随公共源码提供）。`reports/FINAL_REPORT.md` 是历史 v0.1 的阶段证据，不是当前验收报告。这是可迁移源码，不是永久在线的托管服务。
+## Result (2026-10-10)
 
-## 先分清当前候选与兼容默认
+On 56 complete, annotation-nonoverlapping Mandarin utterances from the official
+AliMeeting evaluation archive, Qwen3-ASR-0.6B Q5_K_M had 129/1578 character errors
+(8.17% CER), compared with SenseVoice int8's 191/1578 (12.10%).
 
-当前实测 CPU 候选组合需要**显式选择**：
+| Stratum | Utterances | Reference characters | SenseVoice errors/CER | Qwen errors/CER |
+|---|---:|---:|---:|---:|
+| Quiet | 26 | 635 | 78 / 12.28% | 37 / 5.83% |
+| Ordinary | 30 | 943 | 113 / 11.98% | 92 / 9.76% |
+| Overall | 56 | 1578 | 191 / 12.10% | 129 / 8.17% |
 
-- ASR：SenseVoiceSmall int8，CPU 计算线程参数为 2
-- 本地说话人分离：Nemotron-3 Q8 / NeMo-Speech.cpp 0.2.0，CPU wrapper 上限参数为 2；上游 native 内部仍请求 4 线程，wrapper 使用亲和性和 OpenMP 约束。不能称为整个服务只有 2 个 OS 线程
-- 跨录音身份：ERes2Net + 模型绑定的 `eres2net-ami20-v1` 策略，单参考阈值 0.55，多个显式验证参考的质心阈值 0.56
-- 环境事件：Zipformer-small AudioSet，事件与低置信度候选分开保存
-- 重叠语音候选：`none`。原始混音、检测到的同时发声活动始终保留；这不等于已经分开转写每个人
+Qwen improved 6 meetings, tied 1, and regressed on 1; paired utterance outcomes
+were 26 wins, 22 ties, 8 losses. One meeting accounts for 38 of the 62 net fewer
+errors. There were zero failure, truncation, or repetition-suspicion flags in
+112 recognizer calls. The original independently reviewed run verified all call
+identities, frame bounds, result-record hashes, provenance and cleanup. Its actual
+model-execution phase was 318.15 seconds; peak observable owned/project RSS was
+1.406 GB. These are Linux CPU measurements with two recognizer threads, not
+portable speed/memory promises, Windows/Vulkan results, or whole-day validation.
 
-新增的 [MOSS-TD BF16 文字候选](docs/MOSS_TD_SETUP.md) 在小规模中英重叠测试中有明显词句收益，可另行显式启用；时间戳、少数发言和三人重叠仍有实测失败。它不把匿名候选自动当作全局身份。另有显式选择的 [CPP/GGUF 路径](docs/MOSS_TD_CPP_SETUP.md)，固定七片段上 Q8 与同引擎 BF16 原始输出一致，CPU 子进程树峰值约 1.445 GiB。实际 API 短测（历史材料，未随公共源码提供）的完整进程树峰值为 2.10 GiB，恢复与子模型故障隔离通过；这些结果不代表长时质量验收，Windows/Vulkan 尚未执行。
+The predeclared advance gate passed: quiet relative reduction >=15% and absolute
+reduction >=2 percentage points; no overall regression; improvement in >=6/8
+meetings; successful untruncated calls and no Qwen repetition flags. This permits
+only a larger English, overlap and end-to-end evaluation. The default is unchanged.
 
-直接运行 `python -m audio_backend` 仍保留兼容默认：Whisper small Q5_1、pyannote、4 线程和 0.75 身份匹配阈值。它不会自动切到以上候选；0.75 的大量弃判也不能解读为高识别准确率。
+### What this does and does not establish
 
-## 最小启动路径
+- 315.09 seconds total; 8 meetings overall, only 7 with selected quiet utterances.
+  The target was 64; the fixed eligibility rules yielded 56 without relaxation.
+- Prospective freeze, **not a proven unseen holdout**: historical benchmark
+  membership was unavailable.
+- Gold utterance/speaker boundaries are an oracle. This is direct recognizer
+  quality, not segmentation, diarization, identity or end-to-end accuracy.
+- Quiet means the lowest within-meeting RMS quartile; it does not prove distance.
+  Annotation nonoverlap does not establish absence of audible cross-talk.
+- Both arms were unhinted: SenseVoice `language='auto'`; Qwen `language=None`.
+  The largest quiet gain involved SenseVoice emitting Korean for Chinese audio.
+  Language identification may therefore contribute to the measured gain. This is
+  not asymmetric language hinting. A forced-Chinese rerun would be a separate,
+  post-hoc oracle-language diagnostic, not a replacement for this comparison.
+- No broad superiority, English, overlap, Windows, GPU/Vulkan or whole-day claim.
+- No raw audio, reference text, predictions, model bytes, credentials, private
+  material, or controller approval/process records are published here. Public
+  session IDs, native boundaries, hashes and error counts are retained. These
+  metadata cannot independently prove the original execution audit. Reproduction
+  must regenerate the data and predictions from official assets.
 
-要求 Python 3.12+、FFmpeg/ffprobe；当前 native 安装器固定支持 Linux/Windows x86_64。以下 Linux CPU 路径不需要构建 whisper.cpp，也不需要 Torch。首次依赖/模型准备联网，后续启动与推理使用本地文件。
+## Files and provenance
 
-先审阅 SenseVoice 的[定制 FunASR 模型许可证](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE)和 Nemotron 的 [OpenMDW-1.1](https://raw.githubusercontent.com/OpenMDW/OpenMDW/main/1.1/LICENSE.OpenMDW-1.1)，保留各模型、runtime 和第三方 notices。
+- `selection.json`: 56 ordered public selections, native boundaries, frame support,
+  exact RMS inputs/ranks, reference hashes and PCM hashes; no text/audio.
+- `results.json`: original error counts by utterance/meeting/stratum and gate.
+- `assets.json`: official archive/model URLs, exact byte/hash pins and native files.
+- `runtime.json`: original runtime versions, relevant wrapper/native hashes,
+  wheel hashes, and exact recognizer configuration. Native commit's embedded
+  short ID matches the pinned source; this is not reproducible-build attestation.
+- `backend-source.json`: required backend commit
+  `b291776174e0a8d4f74d8ca988931c7a7cba1956`, tree
+  `091a197f2da2edf3f14b75d4100f6b7bc624c275`, and reused contracts.
+- `prepare.py`, `recognize.py`, `score.py`: portable opt-in reproduction.
+- `PROTOCOL.md`, `ATTRIBUTION.md`: selection and licensing details.
+
+The original freeze SHA256 was
+`75b2866078f4802b6030f1a4fac4c9f46667ee11517b03d6cc9df8572b1a7e77`;
+execution configuration SHA256 was
+`726582f10ec8a61fd915307427a54a7c60cf3b6c2266b4bee9735c754e02009b`.
+These identify original local evidence, which is not bundled or required by the
+portable scripts. The portable scripts are a new adaptation of the original
+selection/call/scoring contracts, tested with synthetic data, **not rerun with
+real models as part of this publication preparation**.
+
+## Explicit reproduction
+
+No command in this branch automatically downloads or installs anything. Running
+synthetic tests does not access data or import recognizers. Allocate separate
+storage outside both Git checkouts; acquisition needs several GB. Read licenses
+first. You are responsible for download, extraction, disk/CPU/memory limits and
+stopping an overlong run. The portable helper is not the original resource
+supervisor; use an external timeout/resource supervisor on your own machine.
+
+1. Clone [the backend](https://github.com/Headmaster218/long-audio-backend) into
+   `$BACKEND` and checkout the exact commit above, with a clean worktree. Set
+   `PYTHONDONTWRITEBYTECODE=1` for the commands below so imports leave it clean.
+2. Obtain `Eval_Ali.tar.gz` from the publisher URL in `assets.json`. Verify
+   SHA256 and byte size against that file **before extraction**. Extract only
+   regular files under `Eval_Ali/Eval_Ali_far/{audio_dir,textgrid_dir}` into
+   `$NATIVE`, rejecting absolute/traversal paths, links and duplicate members.
+   `prepare.py` also verifies every native file before selection. Extraction is
+   manual, outside the synthetic checks; no archive extractor is bundled.
+3. Create a Python 3.12 environment for each arm. Explicitly install the versions
+   listed in `runtime.json` from their official distributions. The Qwen native
+   wheels must match its listed hashes. Upstream source is
+   [transcribe.cpp at 63a44d9](https://github.com/handy-computer/transcribe.cpp/tree/63a44d9239d610b3908e8a66b384924cd4a77217).
+   These pinned original versions are required; fail rather than silently upgrade.
+   Rebuilding on another platform is a new runtime and needs separate validation.
+4. Obtain the Qwen model and SenseVoice archive from `assets.json`; verify exact
+   sizes/hashes and extracted model/tokens before use. Qwen weights are Apache-2.0;
+   SenseVoice weights have a separate custom FunASR model license. No license is
+   accepted on your behalf by the scripts.
+5. From this evaluation checkout, with `$WORK` outside Git:
 
 ```sh
-python3.12 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e '.[inference,test]'
-python scripts/setup_models.py --sensevoice
-python scripts/setup_native_diarization.py
-python scripts/setup_models.py --sensevoice --verify-only
-python scripts/setup_native_diarization.py --verify-only
-python scripts/run_cpu_candidate.py --dry-run
-python scripts/run_cpu_candidate.py --data-dir ./audio-data-cpu-candidate
+export PYTHONDONTWRITEBYTECODE=1
+python prepare.py --native "$NATIVE" --output "$WORK/crops"
+# Run with the separately pinned SenseVoice environment's Python:
+python recognize.py sensevoice --backend "$BACKEND" --crops "$WORK/crops" \
+  --model "$SENSEVOICE_MODEL" --tokens "$SENSEVOICE_TOKENS" \
+  --output "$WORK/sensevoice.jsonl" --i-understand-model-execution
+# Then run with the separately pinned Qwen environment's Python:
+python recognize.py qwen --backend "$BACKEND" --crops "$WORK/crops" \
+  --model "$QWEN_MODEL" --output "$WORK/qwen.jsonl" --i-understand-model-execution
+python score.py --backend "$BACKEND" --references "$WORK/crops/references.json" \
+  --predictions "$WORK/sensevoice.jsonl" "$WORK/qwen.jsonl" --output "$WORK/scores.json"
 ```
 
-当前通用模型安装器还会准备兼容默认用的 Whisper/pyannote 文件，但以上候选运行不加载它们，也不需要 `--build`。启动器校验本地模型和 receipt 中的 runtime 文件，打印完整命令后调用现有 CLI；不下载、不覆盖配置、不改兼容默认。`--dry-run` 不加载模型、不监听端口、不创建数据库。模型缺失会明确失败。
+Never commit generated outputs. Each command refuses existing output paths.
+Missing prediction rows are scored as failures with empty hypotheses, retaining
+all reference characters. Failed calls are not discarded. A load/startup failure
+stops the run; retain its error and score any available output rather than calling
+it a completed experiment. No retry is automatic. Review differences from the
+historical counts, including runtime and language-ID variation, before drawing
+conclusions. The original aggregate resource/provenance gate is not recreated by
+this simplified helper.
 
-服务默认地址 `http://127.0.0.1:8765`；`/docs` 为交互接口，`/openapi.json` 为 OpenAPI。一个数据目录只允许一个服务进程；不要启用多 workers 或自动 reload。`/health` 是存活与配置查询，**不是模型质量或推理就绪证明**。
-
-Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 [QUICKSTART_ZH.md](docs/QUICKSTART_ZH.md)。Windows 执行、Vulkan 和 GPU 显存尚未验证。即使下载了 native Vulkan runtime，当前 Nemotron provider 仍明确请求 CPU（`gpu=-1`）；它和 Whisper.cpp 的独立 Vulkan 路径不是同一回事。
-
-**移动已有数据目录时，先停旧服务、完整复制，再做离线路径迁移；不要直接启动副本。**
-旧数据库保存绝对音频路径，直接启动旧版服务可能把副本音频当作孤立文件清理。
-当前启动保护会在清理前拒绝外部或不一致路径；操作步骤见[数据迁移](docs/DATA_MIGRATION.md)。
-
-## API 与客户端读取
-
-1. `POST /sessions`，JSON：`{"name":"今天的录音","identity_group":"me"}`。
-2. `PUT /sessions/{id}/chunks` 上传音频文件原始字节，设置唯一的 `Idempotency-Key`。支持本地音频/带音轨视频容器，不支持 URL 导入。
-3. `GET /chunks/{id}` 读取处理状态与持久化进度。`202` 只说明可靠入队。
-4. 分别读取 `/sessions/{id}/segments`、`speaker-turns`、`events`、`event-candidates`、`overlap-candidates`。它们各自有游标；原始说话人活动与候选不能从转写文本反推。
-5. 需要显示纠正、删除及更新时，用 `/sessions/{id}/changes` 重放，按实体 ID 更新客户端数据。
-
-默认上传彼此独立。同一 session 或相邻时间戳不会自动建立音频连续性。只有同一连续录音的真实相邻分片才设置 `stream_id`；末片设置 `stream_final=true`，或显式调用 finish。`waiting_input` 可能是在等待真实后续上下文。Native 稳定输出边界比普通 ASR 的 2 秒尾部更长，不能靠等待时间或服务重启代替结束声明。
-
-[API 契约](docs/API.md) · [队列和独立候选记录](docs/QUEUING_AND_CANDIDATE_LEDGERS.md) · 边界拼接（历史材料，未随公共源码提供）
-
-## 实际 ASR 输入覆盖账本（实验 CPU 路径）
-
-显式启用 finalized PCM16 CPU 路径后，私有 evidence 记录每次 ASR 实际输入的整数帧范围、started 与 completed 回执，以及当前 core 内成功完成输入的覆盖并集和补集。详见 [ASR 输入覆盖语义](docs/ASR_INPUT_COVERAGE.md)。此账本只揭示漏送、失败或完成状态不明的范围，不修复识别准确率，也不会自动补词。未送入 ASR 不等于静音；完成回执也不证明文字正确。它不新增公共 API 字段或改变 canonical/fragment 身份隔离。升级后需重建显式 CPU manifest，以固定新增模块与实际 provider/meter 代码。
-
-## 质量边界
-
-- `eres2net-ami20-v1` 是可运行的可选策略，不是通用准确率保证。绑定精确 ERes 模型哈希/版本与 512 维输出；候选接近、短/混杂语音等不确定证据会弃判。普通自动匹配不更新声纹参考。原始跨日期/远场和强烈表演风格仍有失败，普通感冒未验证。见声纹策略与证据（历史材料，未随公共源码提供）。
-- Nemotron 每个有界 epoch 最多 8 个本地槽位，包括回放上下文；跨 epoch 的全局身份由独立声纹证据关联。本地编号不是永久身份。短促发言、稀疏对话和重叠仍可能漏检或混淆。见[native 安装与限制](docs/NATIVE_DIARIZATION_SETUP.md)。
-- SenseVoice 时间是 CTC token 起始锚点，结束时间为估计，不是经真值验证的逐词强制对齐。普通混音 ASR 可能只识别较响的声音。
-- MossFormer2 与英语 SE-DiCoW 均需另行安装并显式选择。Moss 新鲜中文确认未达到可靠重叠转写目标；SE-DiCoW 仅路由有英语证据和足够预测干净上下文的输入，不能当作中文/混语方案。候选保持未验证、身份未解析，不自动进入声纹库。见重叠语音（历史材料，未随公共源码提供）和 [SE-DiCoW](docs/DICOW_SETUP.md)。
-- 环境标签是未验证的模型/规则推断。`driving` 表示车辆/引擎相关声类，不能据此断言人在开车；`door` 不等于确定关门。分类窗口支持范围不是真实事件起止点，分数不是校准概率。
-
-## 资源、隐私与部署边界
-
-目标是整个服务的 RAM + 独立 VRAM 合计不超过 6 GiB，部署上限 10 GiB。当前 watchdog 只测服务进程树 RAM；CPU 实测不能证明 Windows/Vulkan 的合计资源结果。轮询无法阻止瞬时超限，严格限制需操作系统进程组/容器等支持，并给宿主系统留余量。
-
-默认单次上传最多 8 GiB、时长最多 7 天，单个 session 可继续追加。队列按 work unit 计数：一个独立上传或一条未结束的显式连续流各算一个；每条流最多 128 个未完成 receipt。分窗、磁盘队列和分页保持有界内存，原音频、SQLite 与历史结果仍占用磁盘。默认磁盘保留量为 2 GiB；扩展评测应保留至少 5 GiB 余量。
-
-保持 localhost。若自行对外绑定，现有 CLI 要求 `AUDIO_API_KEY`，另需 TLS、访问控制与网关限流。`identity_group` 是逻辑分组，不是多租户权限隔离。音频、转写和声纹资料都应妥善保护；应用删除不是磁盘取证意义的安全擦除，也不删除外部备份。
-
-## 内部离线分片实验
-
-`0.2.0rc2.dev3` 加入[默认关闭的离线分片 API](docs/OFFLINE_FRAGMENTS_INTERNAL.md)：精确 PCM 规划与注入假 provider 的逻辑运行时。它们未接入生产 worker、HTTP API 或真实模型；音频相同不能证明同源，也不能排除真实重放。
-
-`0.2.0rc2.dev4` 在独立暂存分支加入[已审阅的离线扩展](docs/FRAGMENT_EXTENSIONS_STAGING.md)：真实 provider 桥接、独立的 finalized single-island PCM16 规范化实验，以及正事件和 native 边界基准。全部默认关闭；规范化尚未接入运行时、模型桥接或 HTTP API。基础矩阵的事件为空，仅支持负事件不变性；正事件结果限于选定的合成开发样本。native P2 保留原始报告超限失败，后续分片补跑单独授权和计量。这不是发布或生产验收。
-
-`0.2.0rc2.dev5` 独立暂存候选增加默认关闭的内部规范化运行时适配器，以及独立的压缩源 receipt/rolling emitted-PCM reader 实验。规范化路径保留 native 来源坐标与 canonical 16 kHz 模型时间的区别；压缩 reader 尚未接入 SourcePlan、Alias、自动裁剪或任何运行时。AAC endpoint 仍未解决，rolling chunk 在本次 session 完成前仅为 provisional。没有 HTTP/upload/生产 worker 接线；这是源码审阅候选，不是已发布版本或长期吞吐验收。
-
-## 测试、证据与交付
-
-仅从公共 Git 检出复核源码，请先看[公共历史与可复现检查](docs/PUBLIC_REPRODUCIBILITY.md)。历史材料的文字引用不表示该材料已公开。
+## Offline checks
 
 ```sh
-python -m pytest -q
-python scripts/run_cpu_candidate.py --help
-python scripts/run_cpu_candidate.py --dry-run
+PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -v
 ```
 
-单元测试含明确的假分析器；通过只证明所覆盖的程序行为，不能证明模型质量。真实 CPU 集成证据包括 21 个跨日期片段的 API 检查（历史材料，未随公共源码提供）和 native 分离试验（历史材料，未随公共源码提供），各自保留小样本、训练集关系和失败限制。`reports/endurance_v02/` 保存独立冻结运行的配置、进度和资源记录；必须检查该运行终态和评分，不能把启动器参数、短测试或部分进度说成 12–48 小时验收通过。
-
-源码包不含模型、虚拟环境、运行数据库或第三方录音。各 `*-manifest.json` 固定下载源、大小、SHA256 和许可证；新安装要显式准备资源。保留模型和 runtime notices。部分研究素材含非商业条款，不能随着商业产品无条件分发。
-
-### 实验性 finalized PCM16 HTTP 接线
-
-独立 feature 候选新增[已结束 PCM16 流的 HTTP 集成、离线 manifest 生成命令与 CPU 启动步骤](docs/FRAGMENT_HTTP_EXPERIMENT.md)。仅接受声明连续的原始 16 kHz 单声道 PCM16 WAV；零裁剪，公共行、游标和 EOS 同事务提交。默认关闭；一次 12 秒真实 CPU HTTP 检查已独立审阅，覆盖输入、幂等、结果提交与清理，不代表通用准确率或长时验收。原始测试器因将正常 SIGTERM 退出视为失败而保留失败终态，独立解释与修正测试另存。原生重叠说话轨道保留，全局身份学习和独立候选公开投影不可用。新的 `scripts/build_fragment_cpu_manifest.py` 只校验已有本地资源并生成哈希，不下载、安装或构造模型；不需要私有实验文件或先跑一次推理。
-
-### dev11 integration candidate
-
-`0.2.0rc2.dev11` combines the reviewed duration/EOS corrections, private overlap
-diagnostic retention, bounded event-candidate numeric fix and public Git-only
-history recovery. See [the exact integration and validation contract](docs/BACKEND_DEV11_INTEGRATION.md).
-This local candidate is not a release or model-quality acceptance.
-
-### dev12 partial phrase recovery candidate
-
-`0.2.0rc2.dev12` adds `partial_schema_valid_phrases_v1` for eligible failed
-overlap supports, retaining independently valid phrase timestamps without repair
-or clipping. The strict parser stays unchanged. See [the source and validation
-contract](docs/BACKEND_DEV12_PARTIAL_RECOVERY.md). This is a local synthetic-only
-source candidate, not a release or model-quality acceptance. Its published dev11 baseline has an exact-tree proof; dev12 fresh-clone
-qualification remains a separate required check.
+These synthetic tests check parser/boundary/selection/metric/failure contracts and
+metadata consistency. They do not test models, audio quality or production runtime.

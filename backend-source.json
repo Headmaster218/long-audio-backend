@@ -1,0 +1,37 @@
+{
+  "repository": "https://github.com/Headmaster218/long-audio-backend",
+  "commit": "b291776174e0a8d4f74d8ca988931c7a7cba1956",
+  "tree": "091a197f2da2edf3f14b75d4100f6b7bc624c275",
+  "files": [
+    {
+      "bytes": 39788,
+      "path": "audio_backend/qwen_candidate_runner.py",
+      "sha256": "6738ca4877746f13662d8dfcf5ff39ad61425da893e56013b0d3c7391b20b34d"
+    },
+    {
+      "bytes": 22446,
+      "path": "audio_backend/qwen_candidates.py",
+      "sha256": "f244bd8403750f48da464caf9779dabf57b88e063f65a34199d559848ace9603"
+    },
+    {
+      "bytes": 16698,
+      "path": "audio_backend/fragment_runtime_contracts.py",
+      "sha256": "12321342d990205e75fe231604514acce0add06e9d60c841fc2c85ecb44568cc"
+    },
+    {
+      "bytes": 27203,
+      "path": "audio_backend/fragment_core.py",
+      "sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819"
+    },
+    {
+      "bytes": 18640,
+      "path": "audio_backend/fragment_runtime.py",
+      "sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f"
+    },
+    {
+      "bytes": 14491,
+      "path": "scripts/benchmarks/score_predictions.py",
+      "sha256": "da365a52a221fd5cd7577f48b5a5c914c2a6e9c8e97116abecfe576147ca1149"
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "Eval_Ali.tar.gz": {
+    "bytes": 3673718355,
+    "sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+    "url": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Eval_Ali.tar.gz"
+  },
+  "Qwen3-ASR-0.6B-Q5_K_M.gguf": {
+    "bytes": 645356192,
+    "sha256": "062a7bcb18675c2fe5ffd0e8b354eac6a1ceada9b2af9ef7168746ae16b54358",
+    "url": "https://huggingface.co/handy-computer/Qwen3-ASR-0.6B-gguf/resolve/main/Qwen3-ASR-0.6B-Q5_K_M.gguf"
+  },
+  "sensevoice-model.int8.onnx": {
+    "bytes": 239233841,
+    "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+  },
+  "sensevoice-tokens.txt": {
+    "bytes": 315894,
+    "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+  },
+  "sensevoice-archive": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+    "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+    "bytes": 163002883,
+    "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+    "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE"
+  },
+  "native_files": [
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8001_M8004_MS801.wav",
+      "bytes": 402905680,
+      "sha256": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8003_M8001_MS801.wav",
+      "bytes": 529408080,
+      "sha256": "33fc940588079005bf16491527e04a0e416e62bf57d5d471a4ff46bc0d6275e4"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8007_M8010_MS803.wav",
+      "bytes": 475218496,
+      "sha256": "d92169f2c90dde2482ec6f794588a597870f2dff51a1f123e92bcf052a7ca9b2"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8007_M8011_MS806.wav",
+      "bytes": 476555856,
+      "sha256": "c2140f541e74c3ab5556de158a53cb70d165cee3b58762ad653855a8d18ad857"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8008_M8013_MS807.wav",
+      "bytes": 573304528,
+      "sha256": "aa22327ef996a60166fe2c4d8a7fa152be8dd5246e24fc38084e61208dbc5feb"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8009_M8018_MS809.wav",
+      "bytes": 423592272,
+      "sha256": "6534df2cdc7e208c043ef823befaf4cb9b80164fad577915ff7b9eef9ba22e70"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8009_M8019_MS810.wav",
+      "bytes": 505325136,
+      "sha256": "67e7c91769b289bfcc6f0d4da5992934218f4f9b70e6178a92f0cae0309b8b11"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8009_M8020_MS810.wav",
+      "bytes": 489073632,
+      "sha256": "51190a947a182294b103e37ab4a29ee6adeb3fb1ee94572769da82a96f7ce952"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8001_M8004.TextGrid",
+      "bytes": 76496,
+      "sha256": "e5fe941174fe4140bb5923b7caf2cbdd68d8d2a86086e4f00c68afc90d09dbad"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8003_M8001.TextGrid",
+      "bytes": 80400,
+      "sha256": "a015bbcc642596ad8e40de7578208510e920832d15320aa109a0e9e3256d7235"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8007_M8010.TextGrid",
+      "bytes": 129859,
+      "sha256": "0ab9ae505fd81a283e645ce9896610c57e34e747e5551144f98f0cbac0604e44"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8007_M8011.TextGrid",
+      "bytes": 89858,
+      "sha256": "4baea9f7b9ef4182c4fceeb3a10d0ea966359b214fa04ae54434fab084b8c316"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8008_M8013.TextGrid",
+      "bytes": 79663,
+      "sha256": "b0f938c81b95728bd38f7aec655f6804ca4dcc3182bb0facb8d05a9a84293869"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8009_M8018.TextGrid",
+      "bytes": 72975,
+      "sha256": "be91df9d87f0f988ade6d1b2fdba82f4533a4e994fb22f8935f27b4bd7d0300e"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8009_M8019.TextGrid",
+      "bytes": 93517,
+      "sha256": "dd85bfb2b920ac064b61e1fb8a09ab378a9e10422b48d23cd3030e2f02271b7c"
+    },
+    {
+      "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8009_M8020.TextGrid",
+      "bytes": 88614,
+      "sha256": "6d82a5c11a1d237b8f462aeca2844dd969b5b473e13b7fa2bb45722a2f12e032"
+    }
+  ]
+}

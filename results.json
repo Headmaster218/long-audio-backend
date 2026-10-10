@@ -1,0 +1,2099 @@
+{
+  "schema": "farfield-direct-asr-scores-v1",
+  "normalization": "qualified score_predictions.lexical: NFKC, lowercase, remove Unicode P/S, remove split whitespace for CER",
+  "edit_ties": "diagonal then deletion then insertion",
+  "arms": {
+    "sensevoice": {
+      "overall": {
+        "errors": 191,
+        "substitutions": 132,
+        "deletions": 48,
+        "insertions": 11,
+        "reference_characters": 1578,
+        "examples": 56,
+        "cer": 0.12103929024081116,
+        "failures": 0,
+        "truncations": 0,
+        "repetition_suspicions": 0
+      },
+      "strata": {
+        "quiet": {
+          "errors": 78,
+          "substitutions": 55,
+          "deletions": 16,
+          "insertions": 7,
+          "reference_characters": 635,
+          "examples": 26,
+          "cer": 0.12283464566929134,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "ordinary": {
+          "errors": 113,
+          "substitutions": 77,
+          "deletions": 32,
+          "insertions": 4,
+          "reference_characters": 943,
+          "examples": 30,
+          "cer": 0.11983032873807,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        }
+      },
+      "meetings": {
+        "R8001_M8004_MS801": {
+          "errors": 72,
+          "substitutions": 45,
+          "deletions": 22,
+          "insertions": 5,
+          "reference_characters": 393,
+          "examples": 8,
+          "cer": 0.183206106870229,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8003_M8001_MS801": {
+          "errors": 25,
+          "substitutions": 18,
+          "deletions": 6,
+          "insertions": 1,
+          "reference_characters": 234,
+          "examples": 8,
+          "cer": 0.10683760683760683,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8007_M8010_MS803": {
+          "errors": 3,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 103,
+          "examples": 2,
+          "cer": 0.02912621359223301,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8007_M8011_MS806": {
+          "errors": 18,
+          "substitutions": 10,
+          "deletions": 7,
+          "insertions": 1,
+          "reference_characters": 297,
+          "examples": 6,
+          "cer": 0.06060606060606061,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8008_M8013_MS807": {
+          "errors": 48,
+          "substitutions": 39,
+          "deletions": 9,
+          "insertions": 0,
+          "reference_characters": 151,
+          "examples": 8,
+          "cer": 0.31788079470198677,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8009_M8018_MS809": {
+          "errors": 4,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 1,
+          "reference_characters": 138,
+          "examples": 8,
+          "cer": 0.028985507246376812,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8009_M8019_MS810": {
+          "errors": 16,
+          "substitutions": 11,
+          "deletions": 3,
+          "insertions": 2,
+          "reference_characters": 125,
+          "examples": 8,
+          "cer": 0.128,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8009_M8020_MS810": {
+          "errors": 5,
+          "substitutions": 3,
+          "deletions": 1,
+          "insertions": 1,
+          "reference_characters": 137,
+          "examples": 8,
+          "cer": 0.0364963503649635,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "3c512f85f81f6f2e1a744526b78eb26f0c1267e3ccea948da2d57d6dd64accf7",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 48,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "aaa299fc95fd8d52a8a85b00e640a92f25b5431195fb2a994e432ba65538ad46",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 5,
+          "substitutions": 4,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 11,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "85540c31f7635ef0dd280a65c9aa0803c18dbe1a500f78473369cf3da6050573",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 4,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 2,
+          "reference_characters": 58,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "aaaaed8db1470c37b0161244774ec26bdabb89fad980169c653cdc9db0f75ba6",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 5,
+          "substitutions": 4,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "167fae9683958cc49d8581133d1493f89e45dd615ed37680876d21a6f33557cd",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 14,
+          "substitutions": 6,
+          "deletions": 8,
+          "insertions": 0,
+          "reference_characters": 78,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "2214402935edf4a81c57bff257db7c65141f152c6b45c41e8a24a474b8024346",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 14,
+          "substitutions": 10,
+          "deletions": 2,
+          "insertions": 2,
+          "reference_characters": 44,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "4b7483f142d3c0db7e0d2ec83a5efa386427cdc2ea587ece95b8ceb26c66e5d5",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 12,
+          "substitutions": 8,
+          "deletions": 4,
+          "insertions": 0,
+          "reference_characters": 66,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "69b2473619139142d99dacdf48ab06a06aff6bc7bfe699c48a33481f4eede309",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 16,
+          "substitutions": 10,
+          "deletions": 5,
+          "insertions": 1,
+          "reference_characters": 74,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "336ec755da82d48a1f3dee32a7e4f04d5e9644e2acb3e2a3f125511a02eb4437",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 11,
+          "substitutions": 10,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 60,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "4c4ae6a79e376389eecb23c151b255178fdd2cbc3f7562fe3a4021fc23896e0c",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 1,
+          "reference_characters": 22,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "3896b10280d256bdeea2b5fcc7c6c368f42fbc9517ae81d914087b6cda0a7411",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 10,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "d52f19c1f81dc5c0a8b3cff1547b8b03c0379a77ecb5bd645eb0fc01fabea56c",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 5,
+          "substitutions": 2,
+          "deletions": 3,
+          "insertions": 0,
+          "reference_characters": 40,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "03ce95c511ef8dfe14c967cf25a08d054fc7452411bb89f4b1512e53e737ae3b",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 7,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "33514c9b2a7a981f3271bd57589e3199b24d1ae934165c23f1efe9911fb63ea4",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 27,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "3981875e5d53831b6172942ea835852fd69088d98ea0321272c99587209beac0",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 55,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "594172b22af858d3284d6a5779d7908a8553a02fba064ff82dad18bd8d383ed8",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 13,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "38ebf07f5ae307468dd8c5b0ee0b59c091e0c71de389b5919dac0fa051616edc",
+          "session": "R8007_M8010_MS803",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 51,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "96c2e5a4d3585b1c96649acf962ea3b697e47e375d2e278247ffa28974c9690f",
+          "session": "R8007_M8010_MS803",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 52,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "572c8c6c0146e4410c1ecddc867c4594339d281fae92c25c7875917f2595b79a",
+          "session": "R8007_M8011_MS806",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 44,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "ce11347983ce3f5c2164ecfc82e0d1cd6fae3f10b35e482ac2bf251424cea8f8",
+          "session": "R8007_M8011_MS806",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 40,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "df1f14249b3c1641d8deccc227ca5e0cafc92620f69e0840685b21da2cfcdd0d",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 4,
+          "substitutions": 1,
+          "deletions": 3,
+          "insertions": 0,
+          "reference_characters": 61,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "44e043ef46829918b9a7a8d2e7312ed75404958cf0746d81b9b1a4fe505dc300",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 7,
+          "substitutions": 6,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 36,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "63239a54d4c4a19f7f52250c9b8a2cbf5e1066606d6dfcbdd830a6b2eb96ca91",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 4,
+          "substitutions": 0,
+          "deletions": 3,
+          "insertions": 1,
+          "reference_characters": 55,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "6f567ee8e3c16c28ed1c2b6811e7f87a60367530d2d4c0bd3390d5f1de3634d3",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 61,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "17da78c83c90815df56c0c68cbe63ec9bb0a6a9350e00c29f670cf0d5b8d2636",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 23,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "23b3f60cb877fc2572f12790afe95d395d9788d618c7092dc4b5b0c6aafd101f",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 22,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "2cb7839c6bf4e2e764487ae512e9d6ba939064f43782bbd68703739eaae56252",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 17,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1bc822bba635609a51b69656af9d890333949d449b38949583c3f434693404f3",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 15,
+          "substitutions": 13,
+          "deletions": 2,
+          "insertions": 0,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "016b3d99541343297bf05cebf092618445da3d87ed8609eee2c0f382c9934141",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 6,
+          "substitutions": 6,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "21e5853623f595b3a4dd983e8e9348dbd6e5ee6086c27a66b017499c0eefa45c",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 13,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "2641c962949be0a57d0ac2f62bc03e2787a3459f6dcd49a191ed72cf9bf2066e",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 17,
+          "substitutions": 15,
+          "deletions": 2,
+          "insertions": 0,
+          "reference_characters": 17,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1b917210b195621193856dfeae5e14d0c4c9094dea9e5e4a64287f710a5f5bbb",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 0,
+          "deletions": 2,
+          "insertions": 0,
+          "reference_characters": 29,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "04ab17e80a05369c1c6202aa235d6f74b72a56cd7c160b654fa812270dcfa6cf",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 17,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1c943514bffec29fbc5c1f6fdb9b4b387529573ce391f6971130a3580fc2c580",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 20,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "04f4f4737a3eb5b25549fb139c66011d28f6c392c8a9baa0298349236cc0dc75",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 1,
+          "reference_characters": 37,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1fd985209877b742d961b82fc97b52d808743697fa4b7b9ca32a04d2c589be53",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 20,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "03c4f663979e2a44e347bd00829e31754aa34ab30c7858f966a3aa2fa1eefacc",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 16,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0439baa5f59c995141673a063aec90bd978265bb63d411e059d4a868e9b5a09d",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 9,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "09676ea747bfbb675a0632ebf14382fb2077619ac4995d0c3afc6975293e2558",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 13,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0a73585c061c9491201380155b4ea88cb5eebd7bd850904cec81a4be6b596349",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 6,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "011a4c8ddca56e13aa157b6b49a8e20dab3ae9574671f210901ce6c871d8575a",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 11,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "34cfbe4ebffde6be966aca3b795f9d7f2da6fdf5252e3e98d5315d9a826c6ca1",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 11,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "027215eeaaec254196c62ab10633e8b404eb3388f48daba334f1fbf070d0ab00",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 4,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 2,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "41c65593f536db13c7625367bdaf6420f678fbf82cdbe461df622aa625b20e77",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 19,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "01ded2bbc9efa1d1e69e01b83f0198378ef111669d847f31647b539ecef43590",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 19,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "046672b18173b095fc71866fd54b391cf47ee056fa59f3e287aa00aedc9a6b5b",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 28,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0499eeec6b37d41187a60b60171337058d33197086137e1e97f6419ad6ff4f7a",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 6,
+          "substitutions": 6,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 8,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0fffc8b207e9d01fbf3ceb08ee1b135f409d366828c84d5c1b391345a8faa832",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "00ed2ee3a840a465ef2f8cf8ad4f583919065893647a6bf19a12c43e2dd9e08a",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 6,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "013f1c3b5d0961d63c19aadffb774c9f93879820d08ccc5326a5db3881dda8e9",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 1,
+          "reference_characters": 20,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "02431439d2d4f463677fa7db1340140e4cd26260d2a6389433b52fd7376eabc0",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0a88027eda5e22111f1e50e018b4192e1c58526a0b60dadb064837059f034fe5",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 21,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "049fce49ef253cb72a14c73385671ddcb6fdb282ae7e04e5cd56b10fa3bf0da9",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0e5b331d3483ed56e857c1623e2d960fca96c54c2860b92985435c94d9c4e717",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 31,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "11aaf2d0f20eb504bda16e2a2adbf4f5afda490358300db9865c98aec2319a1b",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 16,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1267cdd71ede01c58950c2d1589b97551479232ce3579bf9545c1e6670143ff7",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        }
+      ]
+    },
+    "qwen": {
+      "overall": {
+        "errors": 129,
+        "substitutions": 76,
+        "deletions": 46,
+        "insertions": 7,
+        "reference_characters": 1578,
+        "examples": 56,
+        "cer": 0.0817490494296578,
+        "failures": 0,
+        "truncations": 0,
+        "repetition_suspicions": 0
+      },
+      "strata": {
+        "quiet": {
+          "errors": 37,
+          "substitutions": 21,
+          "deletions": 14,
+          "insertions": 2,
+          "reference_characters": 635,
+          "examples": 26,
+          "cer": 0.05826771653543307,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "ordinary": {
+          "errors": 92,
+          "substitutions": 55,
+          "deletions": 32,
+          "insertions": 5,
+          "reference_characters": 943,
+          "examples": 30,
+          "cer": 0.0975609756097561,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        }
+      },
+      "meetings": {
+        "R8001_M8004_MS801": {
+          "errors": 76,
+          "substitutions": 47,
+          "deletions": 23,
+          "insertions": 6,
+          "reference_characters": 393,
+          "examples": 8,
+          "cer": 0.19338422391857507,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8003_M8001_MS801": {
+          "errors": 17,
+          "substitutions": 10,
+          "deletions": 7,
+          "insertions": 0,
+          "reference_characters": 234,
+          "examples": 8,
+          "cer": 0.07264957264957266,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8007_M8010_MS803": {
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 103,
+          "examples": 2,
+          "cer": 0.0,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8007_M8011_MS806": {
+          "errors": 9,
+          "substitutions": 3,
+          "deletions": 6,
+          "insertions": 0,
+          "reference_characters": 297,
+          "examples": 6,
+          "cer": 0.030303030303030304,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8008_M8013_MS807": {
+          "errors": 10,
+          "substitutions": 5,
+          "deletions": 5,
+          "insertions": 0,
+          "reference_characters": 151,
+          "examples": 8,
+          "cer": 0.06622516556291391,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8009_M8018_MS809": {
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 138,
+          "examples": 8,
+          "cer": 0.021739130434782608,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8009_M8019_MS810": {
+          "errors": 9,
+          "substitutions": 6,
+          "deletions": 2,
+          "insertions": 1,
+          "reference_characters": 125,
+          "examples": 8,
+          "cer": 0.072,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        },
+        "R8009_M8020_MS810": {
+          "errors": 5,
+          "substitutions": 3,
+          "deletions": 2,
+          "insertions": 0,
+          "reference_characters": 137,
+          "examples": 8,
+          "cer": 0.0364963503649635,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicions": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "3c512f85f81f6f2e1a744526b78eb26f0c1267e3ccea948da2d57d6dd64accf7",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 48,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "aaa299fc95fd8d52a8a85b00e640a92f25b5431195fb2a994e432ba65538ad46",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 4,
+          "substitutions": 2,
+          "deletions": 2,
+          "insertions": 0,
+          "reference_characters": 11,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "85540c31f7635ef0dd280a65c9aa0803c18dbe1a500f78473369cf3da6050573",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 1,
+          "reference_characters": 58,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "aaaaed8db1470c37b0161244774ec26bdabb89fad980169c653cdc9db0f75ba6",
+          "session": "R8001_M8004_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 6,
+          "substitutions": 5,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "167fae9683958cc49d8581133d1493f89e45dd615ed37680876d21a6f33557cd",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 17,
+          "substitutions": 8,
+          "deletions": 7,
+          "insertions": 2,
+          "reference_characters": 78,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "2214402935edf4a81c57bff257db7c65141f152c6b45c41e8a24a474b8024346",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 12,
+          "substitutions": 8,
+          "deletions": 2,
+          "insertions": 2,
+          "reference_characters": 44,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "4b7483f142d3c0db7e0d2ec83a5efa386427cdc2ea587ece95b8ceb26c66e5d5",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 11,
+          "substitutions": 7,
+          "deletions": 4,
+          "insertions": 0,
+          "reference_characters": 66,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "69b2473619139142d99dacdf48ab06a06aff6bc7bfe699c48a33481f4eede309",
+          "session": "R8001_M8004_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 23,
+          "substitutions": 15,
+          "deletions": 7,
+          "insertions": 1,
+          "reference_characters": 74,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "336ec755da82d48a1f3dee32a7e4f04d5e9644e2acb3e2a3f125511a02eb4437",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 6,
+          "substitutions": 3,
+          "deletions": 3,
+          "insertions": 0,
+          "reference_characters": 60,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "4c4ae6a79e376389eecb23c151b255178fdd2cbc3f7562fe3a4021fc23896e0c",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 22,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "3896b10280d256bdeea2b5fcc7c6c368f42fbc9517ae81d914087b6cda0a7411",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 10,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "d52f19c1f81dc5c0a8b3cff1547b8b03c0379a77ecb5bd645eb0fc01fabea56c",
+          "session": "R8003_M8001_MS801",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 4,
+          "substitutions": 1,
+          "deletions": 3,
+          "insertions": 0,
+          "reference_characters": 40,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "03ce95c511ef8dfe14c967cf25a08d054fc7452411bb89f4b1512e53e737ae3b",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 7,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "33514c9b2a7a981f3271bd57589e3199b24d1ae934165c23f1efe9911fb63ea4",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 27,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "3981875e5d53831b6172942ea835852fd69088d98ea0321272c99587209beac0",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 55,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "594172b22af858d3284d6a5779d7908a8553a02fba064ff82dad18bd8d383ed8",
+          "session": "R8003_M8001_MS801",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 13,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "38ebf07f5ae307468dd8c5b0ee0b59c091e0c71de389b5919dac0fa051616edc",
+          "session": "R8007_M8010_MS803",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 51,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "96c2e5a4d3585b1c96649acf962ea3b697e47e375d2e278247ffa28974c9690f",
+          "session": "R8007_M8010_MS803",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 52,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "572c8c6c0146e4410c1ecddc867c4594339d281fae92c25c7875917f2595b79a",
+          "session": "R8007_M8011_MS806",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 44,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "ce11347983ce3f5c2164ecfc82e0d1cd6fae3f10b35e482ac2bf251424cea8f8",
+          "session": "R8007_M8011_MS806",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 40,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "df1f14249b3c1641d8deccc227ca5e0cafc92620f69e0840685b21da2cfcdd0d",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 0,
+          "deletions": 3,
+          "insertions": 0,
+          "reference_characters": 61,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "44e043ef46829918b9a7a8d2e7312ed75404958cf0746d81b9b1a4fe505dc300",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 36,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "63239a54d4c4a19f7f52250c9b8a2cbf5e1066606d6dfcbdd830a6b2eb96ca91",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 1,
+          "deletions": 2,
+          "insertions": 0,
+          "reference_characters": 55,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "6f567ee8e3c16c28ed1c2b6811e7f87a60367530d2d4c0bd3390d5f1de3634d3",
+          "session": "R8007_M8011_MS806",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 61,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "17da78c83c90815df56c0c68cbe63ec9bb0a6a9350e00c29f670cf0d5b8d2636",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 23,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "23b3f60cb877fc2572f12790afe95d395d9788d618c7092dc4b5b0c6aafd101f",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 22,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "2cb7839c6bf4e2e764487ae512e9d6ba939064f43782bbd68703739eaae56252",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 17,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1bc822bba635609a51b69656af9d890333949d449b38949583c3f434693404f3",
+          "session": "R8008_M8013_MS807",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "016b3d99541343297bf05cebf092618445da3d87ed8609eee2c0f382c9934141",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "21e5853623f595b3a4dd983e8e9348dbd6e5ee6086c27a66b017499c0eefa45c",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 13,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "2641c962949be0a57d0ac2f62bc03e2787a3459f6dcd49a191ed72cf9bf2066e",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 2,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 17,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1b917210b195621193856dfeae5e14d0c4c9094dea9e5e4a64287f710a5f5bbb",
+          "session": "R8008_M8013_MS807",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 29,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "04ab17e80a05369c1c6202aa235d6f74b72a56cd7c160b654fa812270dcfa6cf",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 17,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1c943514bffec29fbc5c1f6fdb9b4b387529573ce391f6971130a3580fc2c580",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 20,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "04f4f4737a3eb5b25549fb139c66011d28f6c392c8a9baa0298349236cc0dc75",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 37,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1fd985209877b742d961b82fc97b52d808743697fa4b7b9ca32a04d2c589be53",
+          "session": "R8009_M8018_MS809",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 20,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "03c4f663979e2a44e347bd00829e31754aa34ab30c7858f966a3aa2fa1eefacc",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 16,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0439baa5f59c995141673a063aec90bd978265bb63d411e059d4a868e9b5a09d",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 9,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "09676ea747bfbb675a0632ebf14382fb2077619ac4995d0c3afc6975293e2558",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 13,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0a73585c061c9491201380155b4ea88cb5eebd7bd850904cec81a4be6b596349",
+          "session": "R8009_M8018_MS809",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 6,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "011a4c8ddca56e13aa157b6b49a8e20dab3ae9574671f210901ce6c871d8575a",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 11,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "34cfbe4ebffde6be966aca3b795f9d7f2da6fdf5252e3e98d5315d9a826c6ca1",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 11,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "027215eeaaec254196c62ab10633e8b404eb3388f48daba334f1fbf070d0ab00",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 1,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "41c65593f536db13c7625367bdaf6420f678fbf82cdbe461df622aa625b20e77",
+          "session": "R8009_M8019_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 19,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "01ded2bbc9efa1d1e69e01b83f0198378ef111669d847f31647b539ecef43590",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 19,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "046672b18173b095fc71866fd54b391cf47ee056fa59f3e287aa00aedc9a6b5b",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 28,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0499eeec6b37d41187a60b60171337058d33197086137e1e97f6419ad6ff4f7a",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 8,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0fffc8b207e9d01fbf3ceb08ee1b135f409d366828c84d5c1b391345a8faa832",
+          "session": "R8009_M8019_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "00ed2ee3a840a465ef2f8cf8ad4f583919065893647a6bf19a12c43e2dd9e08a",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 6,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "013f1c3b5d0961d63c19aadffb774c9f93879820d08ccc5326a5db3881dda8e9",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 20,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "02431439d2d4f463677fa7db1340140e4cd26260d2a6389433b52fd7376eabc0",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0a88027eda5e22111f1e50e018b4192e1c58526a0b60dadb064837059f034fe5",
+          "session": "R8009_M8020_MS810",
+          "stratum": "quiet",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 21,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "049fce49ef253cb72a14c73385671ddcb6fdb282ae7e04e5cd56b10fa3bf0da9",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 14,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "0e5b331d3483ed56e857c1623e2d960fca96c54c2860b92985435c94d9c4e717",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "reference_characters": 31,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "11aaf2d0f20eb504bda16e2a2adbf4f5afda490358300db9865c98aec2319a1b",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 3,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 16,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        },
+        {
+          "id": "1267cdd71ede01c58950c2d1589b97551479232ce3579bf9545c1e6670143ff7",
+          "session": "R8009_M8020_MS810",
+          "stratum": "ordinary",
+          "status": "success",
+          "truncated": false,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "reference_characters": 15,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "diagnostic_partial_errors": null
+        }
+      ]
+    }
+  },
+  "gate": {
+    "checks": {
+      "all_examples_successful_untruncated": true,
+      "quiet_nonzero_baseline": true,
+      "quiet_relative_reduction_at_least_15_percent": true,
+      "quiet_absolute_reduction_at_least_2_points": true,
+      "overall_no_regression": true,
+      "strict_overall_improvement_at_least_6_of_8_meetings": true,
+      "qwen_no_repetition_suspicions": true,
+      "reviewed_execution_manifest": true,
+      "bound_preflight_and_postflight": true,
+      "successful_bound_terminal_and_cleanup": true,
+      "all112_invocations_committed": true,
+      "no_recovered_missing_rows": true
+    },
+    "passes": true,
+    "improved_meetings": 6,
+    "permits_only": "larger evaluation; no default promotion"
+  },
+  "scope": "oracle-boundary direct recognizer quality, prospectively frozen validation; not proven unseen; no diarization, English, or overlap claim"
+}
