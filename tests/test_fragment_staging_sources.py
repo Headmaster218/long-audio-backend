@@ -1,4 +1,5 @@
 """Exact reviewed source imports and unchanged privacy gates for isolated staging."""
+from functools import lru_cache
 import hashlib
 import importlib.util
 import json
@@ -86,9 +87,9 @@ def verify_import_bytes(records, read_bytes):
             assert hashlib.sha256(before).hexdigest() == row['supersedes']['sha256'], 'Override base differs from prior imported bytes'
 
 
-def test_reviewed_import_bytes_are_exact():
+def test_historical_reviewed_import_bytes_are_exact():
     base, layers = import_records()
-    verify_import_bytes(reviewed_imports(base, layers), lambda path: (ROOT / path).read_bytes())
+    verify_import_bytes(reviewed_imports(base, layers), dev8_bytes)
 
 
 def verify_target_version(layers, module_version, project_version):
@@ -132,7 +133,7 @@ def test_unreviewed_import_bytes_are_rejected():
     base, layers = import_records()
     effective = reviewed_imports(base, layers)
     with pytest.raises(AssertionError):
-        verify_import_bytes(effective, lambda path: (ROOT / path).read_bytes() + b'\n')
+        verify_import_bytes(effective, lambda path: dev8_bytes(path) + b'\n')
 
 
 def test_missing_import_file_is_not_silently_skipped():
@@ -149,7 +150,7 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 267
+    assert policy['maximum_files'] == 268
     assert policy['maximum_total_bytes'] == 3_200_000
     assert guard.MAX_BYTES == 250_000
 
@@ -197,7 +198,7 @@ def test_candidate_override_requires_exact_reviewed_provenance(mutation):
         layers['updates'][-1]['files'].clear()
     with pytest.raises(AssertionError):
         effective = reviewed_imports(base,layers)
-        verify_import_bytes(effective,lambda path:(ROOT/path).read_bytes())
+        verify_import_bytes(effective, dev8_bytes)
 
 
 def test_candidate_layer_preserves_all_historical_import_facts():
@@ -209,10 +210,10 @@ def test_candidate_layer_preserves_all_historical_import_facts():
     assert current['reviewed_layer_order'][:-1] == historical['reviewed_layer_order']
 
 
-def test_reviewed_import_index_bytes_are_exact():
+def test_historical_reviewed_import_tree_bytes_are_exact():
     base, layers = import_records()
     verify_import_bytes(reviewed_imports(base,layers),
-                        lambda path:subprocess.check_output(['git','show',':'+path],cwd=ROOT))
+                        lambda path: immutable_tree(DEV9_BASE)[path])
 
 
 BUILDER_BASE = '0de25be7b0e8983aceb1e5591f41f6cf667851fc'
@@ -291,7 +292,8 @@ def test_local_builder_followup_preserves_every_historical_layer():
     current.pop('composition')
     current.pop('coverage_composition')
     current.pop('candidate_evaluation_composition')
-    assert current['target_version'] == '0.2.0rc2.dev8'
+    current.pop('canonical_duration_eos_followup')
+    assert current['target_version'] == '0.2.0rc2.dev9'
     current['target_version'] = historical['target_version']
     assert current == historical
 
@@ -581,10 +583,9 @@ def verify_candidate_evaluation_composition(layers, worktree_bytes, index_bytes)
                 assert parent_pin(parent, path) == {'source_blob': blob, 'sha256': row['sha256']}
 
 
-def test_dev8_composition_current_worktree_and_index():
+def test_historical_dev8_composition_exact_sources():
     _, layers = import_records()
-    verify_candidate_evaluation_composition(layers, lambda path: (ROOT / path).read_bytes(),
-        lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+    verify_candidate_evaluation_composition(layers, dev8_bytes, dev8_bytes)
 
 
 @pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base',
@@ -603,8 +604,8 @@ def test_dev8_rejects_unreviewed_or_mislabelled_composition(mutation):
     elif mutation == 'scope': value['scope']['qwen'] = 'default ASR'
     with pytest.raises(AssertionError):
         verify_candidate_evaluation_composition(layers,
-            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
-            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+            lambda path: dev8_bytes(path) + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: dev8_bytes(path) + (b'\n' if mutation == 'index' else b''))
 
 
 def verify_dev8_inherited_bytes(files):
@@ -619,10 +620,8 @@ def verify_dev8_inherited_bytes(files):
 
 
 def test_dev8_exact_union_preserves_all_historical_provenance():
-    assert (ROOT / LAYER_PATH).read_bytes() == subprocess.check_output(['git', 'show', ':' + LAYER_PATH], cwd=ROOT)
-    verify_dev8_inherited_bytes(guard.read_git_tree(':'))
-    verify_dev8_inherited_bytes({path: (ROOT / path).read_bytes() for path in guard.read_git_tree(':')})
-    _, current = import_records()
+    verify_dev8_inherited_bytes(immutable_tree(DEV9_BASE))
+    current = json.loads(dev8_bytes(LAYER_PATH))
     current.pop('candidate_evaluation_composition')
     assert current['target_version'] == '0.2.0rc2.dev8'
     historical = json.loads(dev7_bytes(LAYER_PATH))
@@ -635,6 +634,126 @@ def test_dev8_exact_union_preserves_all_historical_provenance():
     'audio_backend/settings.py', 'audio_backend/inference/analyzer.py',
     'audio_backend/qwen_candidate_runner.py', 'scripts/benchmarks/score_predictions.py'])
 def test_dev8_rejects_unreviewed_runtime_or_candidate_changes(path):
-    files = guard.read_git_tree(':'); files[path] += b'\n'
+    files = dict(immutable_tree(DEV9_BASE)); files[path] += b'\n'
     with pytest.raises(AssertionError):
         verify_dev8_inherited_bytes(files)
+
+
+DEV9_BASE = '5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2'
+DEV9_FEATURE = 'bbf46874885423cf998426d4c7cb3f451939e595'
+DEV9_FEATURE_PATHS = {'audio_backend/app.py', 'audio_backend/native_worker.py',
+    'audio_backend/worker.py', 'docs/API.md', 'tests/test_canonical_duration_eos.py'}
+DEV9_INTEGRATION_PATHS = {'audio_backend/__init__.py', 'pyproject.toml',
+    'docs/FRAGMENT_EXTENSIONS_STAGING.md', 'docs/FRAGMENT_STAGING_POLICY.json',
+    'tests/test_fragment_staging_sources.py', LAYER_PATH}
+DEV9_SCOPE = {
+    'duration': 'exact same-rate PCM/FLAC admission and source-relative native frame grid',
+    'eos': 'native duration mismatches fail closed; generic compressed/resampled reconciliation remains open',
+    'compatibility': 'legacy measured resampled ranges retained; decoder errors fail on both backends',
+    'acceptance': 'model-free source correctness only; no new long-run, ASR or speaker-quality acceptance',
+}
+
+
+@lru_cache(maxsize=None)
+def immutable_tree(commit):
+    return guard.read_git_tree(commit)
+
+
+def dev8_bytes(path):
+    return immutable_tree(DEV9_BASE)[path]
+
+
+def verify_dev9_followup(layers, files, index_files):
+    value = layers['canonical_duration_eos_followup']
+    assert set(value) == {'schema', 'reviewed_base_commit', 'reviewed_feature_commit',
+                          'feature_files', 'integration_files', 'scope'}
+    assert value['schema'] == 'reviewed-feature-integration-v1'
+    assert value['reviewed_base_commit'] == DEV9_BASE
+    assert value['reviewed_feature_commit'] == DEV9_FEATURE
+    assert value['scope'] == DEV9_SCOPE
+    historical = json.loads(dev8_bytes(LAYER_PATH))
+    prior = {key: data for key, data in layers.items() if key != 'canonical_duration_eos_followup'}
+    assert prior['target_version'] == '0.2.0rc2.dev9'
+    prior['target_version'] = historical['target_version']
+    assert prior == historical, 'Historical provenance changed'
+    base, feature = immutable_tree(DEV9_BASE), immutable_tree(DEV9_FEATURE)
+    assert subprocess.check_output(['git', 'merge-base', DEV9_BASE, DEV9_FEATURE], cwd=ROOT).decode().strip() == DEV9_BASE
+    assert set(feature) == set(base) | {'tests/test_canonical_duration_eos.py'}
+    assert {path for path in feature if feature[path] != base.get(path)} == DEV9_FEATURE_PATHS
+    assert set(files) == set(index_files) == set(feature) and len(files) == 268
+    assert files == index_files, 'Dev9 worktree/index mismatch'
+    assert json.loads(files[LAYER_PATH]) == layers
+    for name, expected in [('feature_files', DEV9_FEATURE_PATHS),
+                           ('integration_files', DEV9_INTEGRATION_PATHS - {LAYER_PATH})]:
+        rows = value[name]
+        assert len(rows) == len(expected) and {row['path'] for row in rows} == expected
+        for row in rows:
+            path = row['path']; data = files[path]
+            if name == 'feature_files':
+                assert data == feature[path], 'Feature differs from reviewed corrective commit'
+            else:
+                assert data != feature[path], 'Undeclared unchanged integration file'
+            assert row['bytes'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest()
+            blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+            assert row['source_blob'] == blob
+            assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+            if path in base:
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'supersedes'}
+                assert row['supersedes'] == parent_pin(DEV9_BASE, path)
+            else:
+                assert set(row) == {'path', 'bytes', 'sha256', 'source_blob', 'base_absent'}
+                assert row['base_absent'] is True
+    for path in set(files) - DEV9_FEATURE_PATHS - DEV9_INTEGRATION_PATHS:
+        assert files[path] == base[path], path
+    policy = json.loads(files['docs/FRAGMENT_STAGING_POLICY.json'])
+    original_policy = json.loads(base['docs/FRAGMENT_STAGING_POLICY.json'])
+    assert policy['purpose'] == 'Isolated dev9 canonical-duration/EOS feature integration; historical pins and privacy exclusions unchanged'
+    assert policy['maximum_files'] == 268
+    assert policy['allowed_files'] == sorted(original_policy['allowed_files'] + ['tests/test_canonical_duration_eos.py'])
+    for key in ('purpose', 'maximum_files', 'allowed_files'):
+        policy[key] = original_policy[key]
+    assert policy == original_policy, 'Byte/privacy policy changed'
+    assert files['scripts/source_staging_guard.py'] == base['scripts/source_staging_guard.py']
+    assert guard.MAX_BYTES == 250_000
+
+
+@pytest.fixture(scope='module')
+def dev9_sources():
+    index = guard.read_git_tree(':')
+    return {path: (ROOT / path).read_bytes() for path in index}, index
+
+
+def test_dev9_exact_feature_integration_worktree_and_index(dev9_sources):
+    _, layers = import_records()
+    verify_dev9_followup(layers, *dev9_sources)
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'duplicate', 'base', 'feature', 'blob',
+    'supersedes', 'absence', 'scope', 'history', 'extra_path', 'inherited', 'feature_bytes',
+    'worktree', 'index', 'policy'])
+def test_dev9_rejects_unreviewed_feature_or_integration_delta(mutation, dev9_sources):
+    _, layers = import_records()
+    verify_dev9_followup(layers, *dev9_sources)
+    files, index = (dict(values) for values in dev9_sources)
+    value = layers['canonical_duration_eos_followup']
+    if mutation == 'missing': value['feature_files'].pop()
+    elif mutation == 'duplicate': value['feature_files'].append(value['feature_files'][0])
+    elif mutation == 'base': value['reviewed_base_commit'] = '0' * 40
+    elif mutation == 'feature': value['reviewed_feature_commit'] = DEV9_BASE
+    elif mutation == 'blob': value['integration_files'][0]['source_blob'] = '0' * 40
+    elif mutation == 'supersedes': value['feature_files'][0]['supersedes']['sha256'] = '0' * 64
+    elif mutation == 'absence': next(row for row in value['feature_files'] if 'base_absent' in row)['base_absent'] = False
+    elif mutation == 'scope': value['scope']['acceptance'] = '12-hour native quality accepted'
+    elif mutation == 'history': layers['updates'][-1]['files'][0]['sha256'] = '0' * 64
+    elif mutation == 'extra_path': files['docs/unreviewed.md'] = index['docs/unreviewed.md'] = b'unreviewed'
+    elif mutation == 'inherited': files['audio_backend/settings.py'] = index['audio_backend/settings.py'] + b'\n'; index.update(files)
+    elif mutation == 'feature_bytes': files['audio_backend/native_worker.py'] += b'\n'; index.update(files)
+    elif mutation == 'worktree': files['audio_backend/app.py'] += b'\n'
+    elif mutation == 'index': index['audio_backend/app.py'] += b'\n'
+    elif mutation == 'policy':
+        policy = json.loads(files['docs/FRAGMENT_STAGING_POLICY.json']); policy['maximum_total_bytes'] += 1
+        files['docs/FRAGMENT_STAGING_POLICY.json'] = index['docs/FRAGMENT_STAGING_POLICY.json'] = json.dumps(policy).encode()
+    if mutation not in {'worktree', 'index'}:
+        files[LAYER_PATH] = index[LAYER_PATH] = json.dumps(layers).encode()
+    with pytest.raises(AssertionError):
+        verify_dev9_followup(layers, files, index)

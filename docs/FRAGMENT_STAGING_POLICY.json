@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "purpose": "Isolated dev8 composition of reviewed opt-in offline Qwen candidate and annotation-aware event evaluation; historical source gates/exclusions unchanged",
-  "maximum_files": 267,
+  "purpose": "Isolated dev9 canonical-duration/EOS feature integration; historical pins and privacy exclusions unchanged",
+  "maximum_files": 268,
   "maximum_total_bytes": 3200000,
   "allowed_files": [
     ".gitignore",
@@ -185,6 +185,7 @@
     "tests/test_boundaries.py",
     "tests/test_candidate_core_bounds.py",
     "tests/test_candidate_ledger_api.py",
+    "tests/test_canonical_duration_eos.py",
     "tests/test_cli.py",
     "tests/test_correction_identity_replay.py",
     "tests/test_cpu_candidate_launcher.py",

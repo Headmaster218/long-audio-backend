@@ -1,4 +1,4 @@
-# Reviewed offline-candidate and event-evaluation composition: isolated dev8 staging
+# Reviewed canonical-duration/EOS follow-up: isolated dev9 staging
 
 This is local development staging, not a release or active/public promotion.
 The earlier dev6 composition preserved both reviewed histories: finalized PCM16 CPU/builder
@@ -25,13 +25,46 @@ complement, without repairing recognition or automatically restoring words.
 Unsubmitted input is not silence. See [the coverage contract](ASR_INPUT_COVERAGE.md).
 The canonical/fragment identity guards and default-off modes are unchanged.
 
-## Current dev8 composition and limits
+## Current dev9 duration/EOS follow-up
+
+This source-only integration starts from immutable dev8
+`5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2` and pins the five-path corrective
+feature at `bbf46874885423cf998426d4c7cb3f451939e595`. The separate
+`canonical_duration_eos_followup` record identifies each feature blob, its
+original dev8 predecessor or absence, and the five non-manifest integration
+blobs. The layered manifest itself is checked by exact structure, historical
+value preservation and worktree/index equality, rather than a circular self-pin.
+All historical imports and composition records remain unchanged and are verified
+against their immutable source trees. The current tree is exactly the dev8
+inventory plus `tests/test_canonical_duration_eos.py`; every other byte change
+must belong to the five feature paths or six integration paths.
+
+The feature uses exact same-rate PCM/FLAC frame metadata when eligible and
+source-relative native frame scheduling. Stateful native terminal decoding
+rejects duration mismatches; legacy windows retain measured resampled ranges.
+Decoder errors fail both backends. Generic AAC/edit-list/resampling reconciliation,
+old accumulated rounded-receipt stream drift and whole-file sequential integrity
+remain unresolved. See [the duration and EOS contract](API.md).
+
+The earlier `a58732810e629aada258c4ae37394ecd871afd2b` full model-free baseline
+retained five failures: four current-provenance gaps and one genuine legacy
+44.1 kHz resampling regression. The corrective commit fixes only that legacy
+guard scope, with independent focused review. This provenance integration does
+not erase those results or itself establish a complete-suite pass. Long-run,
+ASR and speaker-quality acceptance remain unestablished for the changed source;
+no historical 12-hour or V03 result transfers to this native implementation.
+
+The exact dev9 allowlist has 268 paths. The 3,200,000-byte aggregate limit,
+250,000-byte per-file limit, source checker and all privacy exclusions remain
+unchanged. Version and current provenance are separate from feature behavior.
+
+## Historical dev8 composition and limits
 
 This isolated composition retains event-coverage commit
 `440701a24bbef0e7053b2aa90cd2e3b03259938c` and corrected Qwen candidate commit
 `9585cd5d9afbb512e7e70f8c43c97987c066000b` as its two parent histories, with frozen
-dev7 `1cbd6e62da69b7abc0ecac6425b46401f76fc294` as their merge base. The new
-`candidate_evaluation_composition` record binds current composed blobs and every
+dev7 `1cbd6e62da69b7abc0ecac6425b46401f76fc294` as their merge base. The historical
+`candidate_evaluation_composition` record binds the dev8 composed blobs and every
 unchanged candidate import. All prior `composition`, `coverage_composition`,
 import and local-followup records remain unchanged and are tested against their
 immutable historical trees. The self-referential layered manifest is excluded

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target_version": "0.2.0rc2.dev8",
+  "target_version": "0.2.0rc2.dev9",
   "baseline_version": "0.2.0rc2.dev4",
   "baseline_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
   "base_manifest_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
@@ -802,6 +802,118 @@
       "qwen": "explicit opt-in offline candidate CLI; not default ASR, HTTP or long-run acceptance",
       "events": "evaluation coverage only; no model, taxonomy, threshold or default change",
       "quality": "not established by model-free integration; no production rail candidate"
+    }
+  },
+  "canonical_duration_eos_followup": {
+    "schema": "reviewed-feature-integration-v1",
+    "reviewed_base_commit": "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2",
+    "reviewed_feature_commit": "bbf46874885423cf998426d4c7cb3f451939e595",
+    "feature_files": [
+      {
+        "path": "audio_backend/app.py",
+        "bytes": 26989,
+        "sha256": "a77b18723a82af4bc357e47af37d60e4aa39bf0bb285e1cc885927cbe722376a",
+        "source_blob": "f38cff5c93bff92dda923feb771759614c20dba6",
+        "supersedes": {
+          "source_blob": "90e6ebe363ff4aa8e20e60805da5d5f4cce8fa9e",
+          "sha256": "d5857a6f8092bf8c862ed62eb1a1eeb5eb3ec5ae65257c8e4adde0762a4910ec"
+        }
+      },
+      {
+        "path": "audio_backend/native_worker.py",
+        "bytes": 10188,
+        "sha256": "d11e31f44742966ea42ce1407995b22381fd85607f08a6cfc9a4b4f30afe1afb",
+        "source_blob": "2f25668befd6b855adb6dda53295639e75a667f5",
+        "supersedes": {
+          "source_blob": "079e934f728bcf7ef521af929d6dc76ec802477c",
+          "sha256": "43296ed8149bca06328fc5e261051d1b9ac33bdaf76fe7c58606b9b6e1116421"
+        }
+      },
+      {
+        "path": "audio_backend/worker.py",
+        "bytes": 19871,
+        "sha256": "1fd715ff37ed33f2b5588e44c98078fcce9982e7f44a1e23a5020735e399aa89",
+        "source_blob": "174b3dba0954d9cfe2059944b67dc7234fb85658",
+        "supersedes": {
+          "source_blob": "30115349e1f286634532804070d244b6af86e88e",
+          "sha256": "c8696c5d1619d7acfb592fe4d0475f1f653ccc13a0bd4b1d7a47bf222f45d845"
+        }
+      },
+      {
+        "path": "docs/API.md",
+        "bytes": 35722,
+        "sha256": "1d42fd6b7b2522df62b06d49d6bd0efc468ae3d405ae9c155a91aaf5bff54f15",
+        "source_blob": "8f27b8791004d80a309e6fd58e0b81137b8ac0d2",
+        "supersedes": {
+          "source_blob": "9daedfca764d4b7299314a958538b50d1077f795",
+          "sha256": "0a26e118858477a164a293b2343682416486f0b3d72f48f5d5dfc9e4f08827ef"
+        }
+      },
+      {
+        "path": "tests/test_canonical_duration_eos.py",
+        "bytes": 16620,
+        "sha256": "5f93d255a0df04f6db58efe295a263e2150d2c81d5077672abd327af858b10bf",
+        "source_blob": "64508d2756208263b050ebdbb697f5937c0234d2",
+        "base_absent": true
+      }
+    ],
+    "integration_files": [
+      {
+        "path": "audio_backend/__init__.py",
+        "bytes": 107,
+        "sha256": "4c6cfeab9c0f1e6c33be51783994c68565c177e1e022b8a0e3c3238243482363",
+        "source_blob": "9641675a32a87d3ce4f587378c5db95d4997e0bc",
+        "supersedes": {
+          "source_blob": "ba771d3b1a01f9a608a24c9bda436a6714c35609",
+          "sha256": "ab07d05f5e4a1059965063a651e62b5c628754b071029cf8609510ceee0c6ed3"
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_EXTENSIONS_STAGING.md",
+        "bytes": 14411,
+        "sha256": "c7888fe9f75a66720f7a0d608bc4b153509d56c58fd4bd945d6073cf7fa4f80a",
+        "source_blob": "9e662620a8b4213040d0995b97b75ddb1a25b46d",
+        "supersedes": {
+          "source_blob": "7b69ed5e54f321f806a3e5b3f0ebdeaed320ed69",
+          "sha256": "301c9303efcf525b2d5a81caeca5f01965d413881508e1f99fa7c51b65bb5285"
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_STAGING_POLICY.json",
+        "bytes": 12086,
+        "sha256": "9dba1875eab53ab52ca49f5306215984d8606381dc2eb7b4baee01b85f7e5177",
+        "source_blob": "b27765f9fe5daa6d3822fefe78b314c7eccec5f4",
+        "supersedes": {
+          "source_blob": "3bb5bcd8f0fa0e9a9efad4ab661036bd6e20218b",
+          "sha256": "b70ab306020d7996ce273f2e4858cef4ec4f80c75d6b559797208a1a61035669"
+        }
+      },
+      {
+        "path": "pyproject.toml",
+        "bytes": 828,
+        "sha256": "cda39159df35816304ba08a701b766290c94f3bd8feccc959a81b65cc81a9431",
+        "source_blob": "d3251fd2021d2da137b4303718189c5cc92b922d",
+        "supersedes": {
+          "source_blob": "4a2a914abd9826b07fea935f08310334eba8a242",
+          "sha256": "a35d5435f539967efc632beaa0243df64f29bf99c9a2b6c37ecab16faf049829"
+        }
+      },
+      {
+        "path": "tests/test_fragment_staging_sources.py",
+        "bytes": 41719,
+        "sha256": "95dda8423e88cf4c73aacf8a455f030cb49b03ccebeeb79b1c371401595c5adc",
+        "source_blob": "f2d310bc22cc18a1ff520c4781a224bd5eadd156",
+        "supersedes": {
+          "source_blob": "0f96fd39596fc30d6a3d1f1b1372e0dd83617b3b",
+          "sha256": "b0639c090c87f5f129ff9a7f7696bc8c72716f61e72bc016eb08e4fa0d4aadb8"
+        }
+      }
+    ],
+    "scope": {
+      "duration": "exact same-rate PCM/FLAC admission and source-relative native frame grid",
+      "eos": "native duration mismatches fail closed; generic compressed/resampled reconciliation remains open",
+      "compatibility": "legacy measured resampled ranges retained; decoder errors fail on both backends",
+      "acceptance": "model-free source correctness only; no new long-run, ASR or speaker-quality acceptance"
     }
   }
 }
