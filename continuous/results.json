@@ -1,0 +1,1259 @@
+{
+  "normalization": "NFKC, lowercase, remove Unicode P/S, remove split whitespace for CER",
+  "edit_ties": "diagonal then deletion then insertion",
+  "annotation_overlap_burden": {
+    "total_seconds": 173.07,
+    "meetings": {
+      "R8001_M8004_MS801": 31.48,
+      "R8003_M8001_MS801": 18.92,
+      "R8007_M8010_MS803": 55.8,
+      "R8007_M8011_MS806": 7.89,
+      "R8008_M8013_MS807": 23.36,
+      "R8009_M8018_MS809": 8.53,
+      "R8009_M8019_MS810": 17.96,
+      "R8009_M8020_MS810": 9.13
+    },
+    "independent_of_error_counts": true
+  },
+  "scope": "annotation-assisted outer-edge crop; overlap-order-sensitive fulltext CER; not production/end-to-end/timing/identity evaluation",
+  "error_allocation": "Meeting and total only; no utterance/window error allocation without alignment",
+  "schema": "continuous-fixed20-public-results-v1",
+  "result": "FAIL",
+  "arms": {
+    "sensevoice": {
+      "overall": {
+        "errors": 1360,
+        "substitutions": 220,
+        "deletions": 1107,
+        "insertions": 33,
+        "reference_characters": 4182,
+        "failures": 0,
+        "truncations": 0,
+        "cer": 0.3252032520325203,
+        "repetition_suspicions": 0,
+        "windows": 41,
+        "meetings": 8
+      },
+      "meetings": {
+        "R8001_M8004_MS801": {
+          "meeting": "R8001_M8004_MS801",
+          "errors": 355,
+          "substitutions": 30,
+          "deletions": 324,
+          "insertions": 1,
+          "reference_characters": 621,
+          "cer": 0.571658615136876,
+          "hypothesis_characters": 298,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8003_M8001_MS801": {
+          "meeting": "R8003_M8001_MS801",
+          "errors": 131,
+          "substitutions": 29,
+          "deletions": 96,
+          "insertions": 6,
+          "reference_characters": 583,
+          "cer": 0.22469982847341338,
+          "hypothesis_characters": 493,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 6,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8007_M8010_MS803": {
+          "meeting": "R8007_M8010_MS803",
+          "errors": 418,
+          "substitutions": 48,
+          "deletions": 353,
+          "insertions": 17,
+          "reference_characters": 709,
+          "cer": 0.5895627644569816,
+          "hypothesis_characters": 373,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8007_M8011_MS806": {
+          "meeting": "R8007_M8011_MS806",
+          "errors": 76,
+          "substitutions": 18,
+          "deletions": 58,
+          "insertions": 0,
+          "reference_characters": 425,
+          "cer": 0.17882352941176471,
+          "hypothesis_characters": 367,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 4,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8008_M8013_MS807": {
+          "meeting": "R8008_M8013_MS807",
+          "errors": 187,
+          "substitutions": 52,
+          "deletions": 131,
+          "insertions": 4,
+          "reference_characters": 455,
+          "cer": 0.41098901098901097,
+          "hypothesis_characters": 328,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8009_M8018_MS809": {
+          "meeting": "R8009_M8018_MS809",
+          "errors": 48,
+          "substitutions": 10,
+          "deletions": 36,
+          "insertions": 2,
+          "reference_characters": 455,
+          "cer": 0.1054945054945055,
+          "hypothesis_characters": 421,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8009_M8019_MS810": {
+          "meeting": "R8009_M8019_MS810",
+          "errors": 96,
+          "substitutions": 17,
+          "deletions": 78,
+          "insertions": 1,
+          "reference_characters": 447,
+          "cer": 0.21476510067114093,
+          "hypothesis_characters": 370,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8009_M8020_MS810": {
+          "meeting": "R8009_M8020_MS810",
+          "errors": 49,
+          "substitutions": 16,
+          "deletions": 31,
+          "insertions": 2,
+          "reference_characters": 487,
+          "cer": 0.10061601642710473,
+          "hypothesis_characters": 458,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 6,
+            "truncated": 0,
+            "unknown": 0
+          }
+        }
+      },
+      "windows": [
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 5,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 5,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        }
+      ]
+    },
+    "qwen": {
+      "overall": {
+        "errors": 1637,
+        "substitutions": 683,
+        "deletions": 711,
+        "insertions": 243,
+        "reference_characters": 4182,
+        "failures": 0,
+        "truncations": 2,
+        "cer": 0.3914395026303204,
+        "repetition_suspicions": 1,
+        "windows": 41,
+        "meetings": 8
+      },
+      "meetings": {
+        "R8001_M8004_MS801": {
+          "meeting": "R8001_M8004_MS801",
+          "errors": 328,
+          "substitutions": 30,
+          "deletions": 292,
+          "insertions": 6,
+          "reference_characters": 621,
+          "cer": 0.5281803542673108,
+          "hypothesis_characters": 335,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8003_M8001_MS801": {
+          "meeting": "R8003_M8001_MS801",
+          "errors": 142,
+          "substitutions": 23,
+          "deletions": 114,
+          "insertions": 5,
+          "reference_characters": 583,
+          "cer": 0.24356775300171526,
+          "hypothesis_characters": 474,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 6,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8007_M8010_MS803": {
+          "meeting": "R8007_M8010_MS803",
+          "errors": 767,
+          "substitutions": 524,
+          "deletions": 28,
+          "insertions": 215,
+          "reference_characters": 709,
+          "cer": 1.0818053596614952,
+          "hypothesis_characters": 896,
+          "failures": 0,
+          "truncations": 2,
+          "repetition_suspicion": {
+            "flagged": true,
+            "start": 33,
+            "end": 355,
+            "period": 7,
+            "repetitions": 46,
+            "coordinates": "normalized_unicode_characters"
+          },
+          "window_repetition_suspicions": 2,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 3,
+            "truncated": 2,
+            "unknown": 0
+          }
+        },
+        "R8007_M8011_MS806": {
+          "meeting": "R8007_M8011_MS806",
+          "errors": 65,
+          "substitutions": 25,
+          "deletions": 38,
+          "insertions": 2,
+          "reference_characters": 425,
+          "cer": 0.15294117647058825,
+          "hypothesis_characters": 389,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 4,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8008_M8013_MS807": {
+          "meeting": "R8008_M8013_MS807",
+          "errors": 163,
+          "substitutions": 50,
+          "deletions": 104,
+          "insertions": 9,
+          "reference_characters": 455,
+          "cer": 0.35824175824175825,
+          "hypothesis_characters": 360,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8009_M8018_MS809": {
+          "meeting": "R8009_M8018_MS809",
+          "errors": 50,
+          "substitutions": 13,
+          "deletions": 36,
+          "insertions": 1,
+          "reference_characters": 455,
+          "cer": 0.10989010989010989,
+          "hypothesis_characters": 420,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8009_M8019_MS810": {
+          "meeting": "R8009_M8019_MS810",
+          "errors": 85,
+          "substitutions": 11,
+          "deletions": 72,
+          "insertions": 2,
+          "reference_characters": 447,
+          "cer": 0.19015659955257272,
+          "hypothesis_characters": 377,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 5,
+            "truncated": 0,
+            "unknown": 0
+          }
+        },
+        "R8009_M8020_MS810": {
+          "meeting": "R8009_M8020_MS810",
+          "errors": 37,
+          "substitutions": 7,
+          "deletions": 27,
+          "insertions": 3,
+          "reference_characters": 487,
+          "cer": 0.07597535934291581,
+          "hypothesis_characters": 463,
+          "failures": 0,
+          "truncations": 0,
+          "repetition_suspicion": {
+            "flagged": false
+          },
+          "window_repetition_suspicions": 0,
+          "status_counts": {
+            "aborted": 0,
+            "infrastructure_failure": 0,
+            "model_failure": 0,
+            "not_attempted": 0,
+            "success": 6,
+            "truncated": 0,
+            "unknown": 0
+          }
+        }
+      },
+      "windows": [
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8001_M8004_MS801",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8003_M8001_MS801",
+          "index": 5,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 0,
+          "status": "truncated",
+          "truncated": true,
+          "repetition_suspicion": {
+            "flagged": true,
+            "start": 33,
+            "end": 355,
+            "period": 7,
+            "repetitions": 46,
+            "coordinates": "normalized_unicode_characters"
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 1,
+          "status": "truncated",
+          "truncated": true,
+          "repetition_suspicion": {
+            "flagged": true,
+            "start": 40,
+            "end": 340,
+            "period": 2,
+            "repetitions": 150,
+            "coordinates": "normalized_unicode_characters"
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8010_MS803",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8007_M8011_MS806",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8008_M8013_MS807",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8018_MS809",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8019_MS810",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 0,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 1,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 2,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 3,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 4,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        },
+        {
+          "meeting": "R8009_M8020_MS810",
+          "index": 5,
+          "status": "success",
+          "truncated": false,
+          "repetition_suspicion": {
+            "flagged": false
+          }
+        }
+      ]
+    }
+  },
+  "gate": {
+    "checks": {
+      "overall_no_regression": false,
+      "at_least_6_of_8_meetings_nonregressing": false,
+      "qwen_no_failures": true,
+      "qwen_no_truncations": false,
+      "qwen_no_repetition_suspicions": false,
+      "successful_bound_execution_provenance": true,
+      "reviewed_execution_manifest": true,
+      "bound_preflight_and_postflight": true,
+      "successful_bound_terminal_and_cleanup": true,
+      "all82_invocations_committed": true,
+      "all82_reservations_present": true,
+      "no_recovered_missing_rows": true
+    },
+    "lexical_checks": {
+      "overall_no_regression": false,
+      "at_least_6_of_8_meetings_nonregressing": false,
+      "qwen_no_failures": true,
+      "qwen_no_truncations": false,
+      "qwen_no_repetition_suspicions": false
+    },
+    "passes": false,
+    "provisional": false,
+    "nonregressing_meetings": 5,
+    "consequence": "FAIL: no advancement permission earned by this gate; no default promotion. Any later diagnostic is a separate experiment and cannot replace this result."
+  },
+  "resources": {
+    "elapsed_seconds": 695.8782126820006,
+    "peak_owned_rss": 1507110912,
+    "sampling_only_not_kernel_memory_cap": true,
+    "calls_total": 82,
+    "frames_per_arm": 11734160,
+    "audio_seconds_per_arm": 733.385,
+    "interpretation": "Combined two-arm phase observations; not isolated model latency or general throughput."
+  },
+  "audit_summary": {
+    "independent_terminal_audit": "passed verification; quality gate failed",
+    "all_meeting_and_total_edit_counts_recomputed": true,
+    "full_preflight_postflight_source_input_bindings_verified": true,
+    "original_model_and_supervisor_handles_waited_and_reaped": true,
+    "model_and_supervisor_exit_codes": 0,
+    "large_input_rehash_note": "Original full pre/postflight verification was evidenced; the independent terminal reviewer did not redundantly rehash the large inputs."
+  }
+}

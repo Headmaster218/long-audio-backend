@@ -1,0 +1,9 @@
+{
+  "backend_source": "../backend-source.json",
+  "source_commit": "b291776174e0a8d4f74d8ca988931c7a7cba1956",
+  "source_tree": "091a197f2da2edf3f14b75d4100f6b7bc624c275",
+  "corpus_audio_and_annotation_assets": "../assets.json",
+  "models": "../assets.json",
+  "runtime_versions_and_configuration": "../runtime.json",
+  "note": "Same qualified backend tree, exact model bytes and runtime settings as inherited Chinese/English snapshots. No runtime, default, proof-gate or version changes."
+}

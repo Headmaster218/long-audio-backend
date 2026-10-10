@@ -1,0 +1,709 @@
+{
+  "schema": "continuous-fixed20-public-selection-v1",
+  "channel": 0,
+  "sample_rate": 16000,
+  "sample_support": "start inclusive, end exclusive",
+  "excerpts": [
+    {
+      "meeting": "R8001_M8004_MS801",
+      "start_frame": 10700560,
+      "end_frame": 12011120,
+      "start_seconds": 668.785,
+      "end_seconds": 750.695,
+      "seconds": 81.91,
+      "duration_target_frames": [
+        8160000,
+        9600000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 10707520,
+          "midpoint_frame": 10700560,
+          "start_frame": 10693600
+        },
+        {
+          "end_frame": 12016160,
+          "midpoint_frame": 12011120,
+          "start_frame": 12006080
+        }
+      ],
+      "calls_per_backend": 5,
+      "reference_characters": 621,
+      "reference_turns": 35,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 77.55,
+      "annotated_nonspeech_seconds": 4.36,
+      "annotated_overlap_seconds": 31.48
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "start_frame": 10263920,
+      "end_frame": 12076160,
+      "start_seconds": 641.495,
+      "end_seconds": 754.76,
+      "seconds": 113.265,
+      "duration_target_frames": [
+        10560000,
+        12000000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 10268800,
+          "midpoint_frame": 10263920,
+          "start_frame": 10259040
+        },
+        {
+          "end_frame": 12080960,
+          "midpoint_frame": 12076160,
+          "start_frame": 12071360
+        }
+      ],
+      "calls_per_backend": 6,
+      "reference_characters": 583,
+      "reference_turns": 34,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 106.39,
+      "annotated_nonspeech_seconds": 6.875,
+      "annotated_overlap_seconds": 18.92
+    },
+    {
+      "meeting": "R8007_M8010_MS803",
+      "start_frame": 5860480,
+      "end_frame": 7193360,
+      "start_seconds": 366.28,
+      "end_seconds": 449.585,
+      "seconds": 83.305,
+      "duration_target_frames": [
+        9600000,
+        11040000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 5867040,
+          "midpoint_frame": 5860480,
+          "start_frame": 5853920
+        },
+        {
+          "end_frame": 7200160,
+          "midpoint_frame": 7193360,
+          "start_frame": 7186560
+        }
+      ],
+      "calls_per_backend": 5,
+      "reference_characters": 709,
+      "reference_turns": 64,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 82.47,
+      "annotated_nonspeech_seconds": 0.835,
+      "annotated_overlap_seconds": 55.8
+    },
+    {
+      "meeting": "R8007_M8011_MS806",
+      "start_frame": 10195920,
+      "end_frame": 11322640,
+      "start_seconds": 637.245,
+      "end_seconds": 707.665,
+      "seconds": 70.42,
+      "duration_target_frames": [
+        9600000,
+        11040000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 10200320,
+          "midpoint_frame": 10195920,
+          "start_frame": 10191520
+        },
+        {
+          "end_frame": 11327840,
+          "midpoint_frame": 11322640,
+          "start_frame": 11317440
+        }
+      ],
+      "calls_per_backend": 4,
+      "reference_characters": 425,
+      "reference_turns": 20,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 69.3,
+      "annotated_nonspeech_seconds": 1.12,
+      "annotated_overlap_seconds": 7.89
+    },
+    {
+      "meeting": "R8008_M8013_MS807",
+      "start_frame": 11489520,
+      "end_frame": 13066560,
+      "start_seconds": 718.095,
+      "end_seconds": 816.66,
+      "seconds": 98.565,
+      "duration_target_frames": [
+        11520000,
+        12960000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 11495520,
+          "midpoint_frame": 11489520,
+          "start_frame": 11483520
+        },
+        {
+          "end_frame": 13076320,
+          "midpoint_frame": 13066560,
+          "start_frame": 13056800
+        }
+      ],
+      "calls_per_backend": 5,
+      "reference_characters": 455,
+      "reference_turns": 35,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 89.58,
+      "annotated_nonspeech_seconds": 8.985,
+      "annotated_overlap_seconds": 23.36
+    },
+    {
+      "meeting": "R8009_M8018_MS809",
+      "start_frame": 8750480,
+      "end_frame": 10053200,
+      "start_seconds": 546.905,
+      "end_seconds": 628.325,
+      "seconds": 81.42,
+      "duration_target_frames": [
+        8640000,
+        10080000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 8754880,
+          "midpoint_frame": 8750480,
+          "start_frame": 8746080
+        },
+        {
+          "end_frame": 10060320,
+          "midpoint_frame": 10053200,
+          "start_frame": 10046080
+        }
+      ],
+      "calls_per_backend": 5,
+      "reference_characters": 455,
+      "reference_turns": 27,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 74.84,
+      "annotated_nonspeech_seconds": 6.58,
+      "annotated_overlap_seconds": 8.53
+    },
+    {
+      "meeting": "R8009_M8019_MS810",
+      "start_frame": 9703840,
+      "end_frame": 11281120,
+      "start_seconds": 606.49,
+      "end_seconds": 705.07,
+      "seconds": 98.58,
+      "duration_target_frames": [
+        10080000,
+        11520000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 9716160,
+          "midpoint_frame": 9703840,
+          "start_frame": 9691520
+        },
+        {
+          "end_frame": 11286240,
+          "midpoint_frame": 11281120,
+          "start_frame": 11276000
+        }
+      ],
+      "calls_per_backend": 5,
+      "reference_characters": 447,
+      "reference_turns": 56,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 88.2,
+      "annotated_nonspeech_seconds": 10.38,
+      "annotated_overlap_seconds": 17.96
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "start_frame": 10150000,
+      "end_frame": 11844720,
+      "start_seconds": 634.375,
+      "end_seconds": 740.295,
+      "seconds": 105.92,
+      "duration_target_frames": [
+        10080000,
+        11520000
+      ],
+      "edge_gaps": [
+        {
+          "end_frame": 10155840,
+          "midpoint_frame": 10150000,
+          "start_frame": 10144160
+        },
+        {
+          "end_frame": 11849920,
+          "midpoint_frame": 11844720,
+          "start_frame": 11839520
+        }
+      ],
+      "calls_per_backend": 6,
+      "reference_characters": 487,
+      "reference_turns": 51,
+      "partial_outer_turns": 0,
+      "speech_union_seconds": 100.72,
+      "annotated_nonspeech_seconds": 5.2,
+      "annotated_overlap_seconds": 9.13
+    }
+  ],
+  "windows": [
+    {
+      "meeting": "R8001_M8004_MS801",
+      "index": 0,
+      "start_frame": 10700560,
+      "end_frame": 11020560,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8001_M8004_MS801",
+      "index": 1,
+      "start_frame": 11020560,
+      "end_frame": 11340560,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8001_M8004_MS801",
+      "index": 2,
+      "start_frame": 11340560,
+      "end_frame": 11660560,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8001_M8004_MS801",
+      "index": 3,
+      "start_frame": 11660560,
+      "end_frame": 11980560,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8001_M8004_MS801",
+      "index": 4,
+      "start_frame": 11980560,
+      "end_frame": 12011120,
+      "frames": 30560,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1310560,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "index": 0,
+      "start_frame": 10263920,
+      "end_frame": 10583920,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "index": 1,
+      "start_frame": 10583920,
+      "end_frame": 10903920,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "index": 2,
+      "start_frame": 10903920,
+      "end_frame": 11223920,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "index": 3,
+      "start_frame": 11223920,
+      "end_frame": 11543920,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "index": 4,
+      "start_frame": 11543920,
+      "end_frame": 11863920,
+      "frames": 320000,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1600000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8003_M8001_MS801",
+      "index": 5,
+      "start_frame": 11863920,
+      "end_frame": 12076160,
+      "frames": 212240,
+      "relative_start_frame": 1600000,
+      "relative_end_frame": 1812240,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8007_M8010_MS803",
+      "index": 0,
+      "start_frame": 5860480,
+      "end_frame": 6180480,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8010_MS803",
+      "index": 1,
+      "start_frame": 6180480,
+      "end_frame": 6500480,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8010_MS803",
+      "index": 2,
+      "start_frame": 6500480,
+      "end_frame": 6820480,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8010_MS803",
+      "index": 3,
+      "start_frame": 6820480,
+      "end_frame": 7140480,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8010_MS803",
+      "index": 4,
+      "start_frame": 7140480,
+      "end_frame": 7193360,
+      "frames": 52880,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1332880,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8007_M8011_MS806",
+      "index": 0,
+      "start_frame": 10195920,
+      "end_frame": 10515920,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8011_MS806",
+      "index": 1,
+      "start_frame": 10515920,
+      "end_frame": 10835920,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8011_MS806",
+      "index": 2,
+      "start_frame": 10835920,
+      "end_frame": 11155920,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8007_M8011_MS806",
+      "index": 3,
+      "start_frame": 11155920,
+      "end_frame": 11322640,
+      "frames": 166720,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1126720,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8008_M8013_MS807",
+      "index": 0,
+      "start_frame": 11489520,
+      "end_frame": 11809520,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8008_M8013_MS807",
+      "index": 1,
+      "start_frame": 11809520,
+      "end_frame": 12129520,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8008_M8013_MS807",
+      "index": 2,
+      "start_frame": 12129520,
+      "end_frame": 12449520,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8008_M8013_MS807",
+      "index": 3,
+      "start_frame": 12449520,
+      "end_frame": 12769520,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8008_M8013_MS807",
+      "index": 4,
+      "start_frame": 12769520,
+      "end_frame": 13066560,
+      "frames": 297040,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1577040,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8009_M8018_MS809",
+      "index": 0,
+      "start_frame": 8750480,
+      "end_frame": 9070480,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8018_MS809",
+      "index": 1,
+      "start_frame": 9070480,
+      "end_frame": 9390480,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8018_MS809",
+      "index": 2,
+      "start_frame": 9390480,
+      "end_frame": 9710480,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8018_MS809",
+      "index": 3,
+      "start_frame": 9710480,
+      "end_frame": 10030480,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8018_MS809",
+      "index": 4,
+      "start_frame": 10030480,
+      "end_frame": 10053200,
+      "frames": 22720,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1302720,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8009_M8019_MS810",
+      "index": 0,
+      "start_frame": 9703840,
+      "end_frame": 10023840,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8019_MS810",
+      "index": 1,
+      "start_frame": 10023840,
+      "end_frame": 10343840,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8019_MS810",
+      "index": 2,
+      "start_frame": 10343840,
+      "end_frame": 10663840,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8019_MS810",
+      "index": 3,
+      "start_frame": 10663840,
+      "end_frame": 10983840,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8019_MS810",
+      "index": 4,
+      "start_frame": 10983840,
+      "end_frame": 11281120,
+      "frames": 297280,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1577280,
+      "channel": 0,
+      "final_short": true
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "index": 0,
+      "start_frame": 10150000,
+      "end_frame": 10470000,
+      "frames": 320000,
+      "relative_start_frame": 0,
+      "relative_end_frame": 320000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "index": 1,
+      "start_frame": 10470000,
+      "end_frame": 10790000,
+      "frames": 320000,
+      "relative_start_frame": 320000,
+      "relative_end_frame": 640000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "index": 2,
+      "start_frame": 10790000,
+      "end_frame": 11110000,
+      "frames": 320000,
+      "relative_start_frame": 640000,
+      "relative_end_frame": 960000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "index": 3,
+      "start_frame": 11110000,
+      "end_frame": 11430000,
+      "frames": 320000,
+      "relative_start_frame": 960000,
+      "relative_end_frame": 1280000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "index": 4,
+      "start_frame": 11430000,
+      "end_frame": 11750000,
+      "frames": 320000,
+      "relative_start_frame": 1280000,
+      "relative_end_frame": 1600000,
+      "channel": 0,
+      "final_short": false
+    },
+    {
+      "meeting": "R8009_M8020_MS810",
+      "index": 5,
+      "start_frame": 11750000,
+      "end_frame": 11844720,
+      "frames": 94720,
+      "relative_start_frame": 1600000,
+      "relative_end_frame": 1694720,
+      "channel": 0,
+      "final_short": true
+    }
+  ]
+}
