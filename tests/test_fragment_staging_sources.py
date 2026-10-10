@@ -149,7 +149,7 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 267
+    assert policy['maximum_files'] == 270
     assert policy['maximum_total_bytes'] == 3_200_000
     assert guard.MAX_BYTES == 250_000
 
@@ -527,6 +527,7 @@ def test_dev7_rejects_mutation_of_inherited_identity_and_asr_sources(path):
 
 
 DEV8_BASE = '1cbd6e62da69b7abc0ecac6425b46401f76fc294'
+HISTORICAL_DEV8 = '5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2'
 DEV8_PARENTS = ['440701a24bbef0e7053b2aa90cd2e3b03259938c',
                 '9585cd5d9afbb512e7e70f8c43c97987c066000b']
 DEV8_COMPOSED_PATHS = {'audio_backend/__init__.py', 'pyproject.toml',
@@ -547,6 +548,10 @@ DEV8_SCOPE = {
 
 def dev7_bytes(path):
     return subprocess.check_output(['git', 'show', DEV8_BASE + ':' + path], cwd=ROOT)
+
+
+def dev8_bytes(path):
+    return subprocess.check_output(['git', 'show', HISTORICAL_DEV8 + ':' + path], cwd=ROOT)
 
 
 def verify_candidate_evaluation_composition(layers, worktree_bytes, index_bytes):
@@ -581,10 +586,9 @@ def verify_candidate_evaluation_composition(layers, worktree_bytes, index_bytes)
                 assert parent_pin(parent, path) == {'source_blob': blob, 'sha256': row['sha256']}
 
 
-def test_dev8_composition_current_worktree_and_index():
+def test_historical_dev8_composition_exact_parent_inputs():
     _, layers = import_records()
-    verify_candidate_evaluation_composition(layers, lambda path: (ROOT / path).read_bytes(),
-        lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT))
+    verify_candidate_evaluation_composition(layers, dev8_bytes, dev8_bytes)
 
 
 @pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'parent', 'base',
@@ -603,8 +607,8 @@ def test_dev8_rejects_unreviewed_or_mislabelled_composition(mutation):
     elif mutation == 'scope': value['scope']['qwen'] = 'default ASR'
     with pytest.raises(AssertionError):
         verify_candidate_evaluation_composition(layers,
-            lambda path: (ROOT / path).read_bytes() + (b'\n' if mutation == 'worktree' else b''),
-            lambda path: subprocess.check_output(['git', 'show', ':' + path], cwd=ROOT) + (b'\n' if mutation == 'index' else b''))
+            lambda path: dev8_bytes(path) + (b'\n' if mutation == 'worktree' else b''),
+            lambda path: dev8_bytes(path) + (b'\n' if mutation == 'index' else b''))
 
 
 def verify_dev8_inherited_bytes(files):
@@ -618,10 +622,9 @@ def verify_dev8_inherited_bytes(files):
         assert files[path] == subprocess.check_output(['git', 'show', parent + ':' + path], cwd=ROOT), path
 
 
-def test_dev8_exact_union_preserves_all_historical_provenance():
+def test_historical_dev8_exact_union_preserves_all_historical_provenance():
     assert (ROOT / LAYER_PATH).read_bytes() == subprocess.check_output(['git', 'show', ':' + LAYER_PATH], cwd=ROOT)
-    verify_dev8_inherited_bytes(guard.read_git_tree(':'))
-    verify_dev8_inherited_bytes({path: (ROOT / path).read_bytes() for path in guard.read_git_tree(':')})
+    verify_dev8_inherited_bytes(guard.read_git_tree(HISTORICAL_DEV8))
     _, current = import_records()
     current.pop('candidate_evaluation_composition')
     assert current['target_version'] == '0.2.0rc2.dev8'
@@ -635,6 +638,129 @@ def test_dev8_exact_union_preserves_all_historical_provenance():
     'audio_backend/settings.py', 'audio_backend/inference/analyzer.py',
     'audio_backend/qwen_candidate_runner.py', 'scripts/benchmarks/score_predictions.py'])
 def test_dev8_rejects_unreviewed_runtime_or_candidate_changes(path):
-    files = guard.read_git_tree(':'); files[path] += b'\n'
+    files = guard.read_git_tree(HISTORICAL_DEV8); files[path] += b'\n'
     with pytest.raises(AssertionError):
         verify_dev8_inherited_bytes(files)
+
+
+NUMERIC_MANIFEST = 'docs/EVENT_CANDIDATE_NUMERIC_SOURCE.json'
+NUMERIC_ADDITIONS = {NUMERIC_MANIFEST, 'docs/EVENT_CANDIDATE_NUMERIC_OWNERSHIP.md',
+                     'tests/test_event_candidate_numeric_projection.py'}
+NUMERIC_PRODUCTION = {
+    'audio_backend/event_candidate_store.py': '0e8224ae8ecc7a8f56b4bd461e11e65816f04ee19370c3873dbbc2f20d7cf968',
+    'audio_backend/storage.py': 'c684d14b65e12d39ce6919323467bcc5ca8bd8c568c750520c5dd8fa24bfc401',
+    'audio_backend/worker.py': '51e56dbe04cb9bf85e1ee265744856a0257689a7f5b734299da74dbb132050af',
+}
+NUMERIC_CHANGED = set(NUMERIC_PRODUCTION) | {
+    'docs/FRAGMENT_STAGING_POLICY.json', 'tests/test_fragment_staging_sources.py'}
+NUMERIC_SCOPE = {
+    'status': 'standalone-dev8-derived-source-fix-not-a-release',
+    'production': 'event candidate numeric ownership and bounded diagnostic persistence only',
+    'unchanged': 'ASR, detector, speaker models, thresholds, schema and historical provenance',
+    'validation': 'synthetic model-free numeric and transactional checks; no quality claim',
+}
+
+
+def verify_numeric_source_followup(files, baseline):
+    """Pin only the reviewed delta while retaining every historical byte outside it."""
+    assert set(baseline) == set(json.loads(baseline['docs/FRAGMENT_STAGING_POLICY.json'])['allowed_files'])
+    assert len(baseline) == 267
+    assert set(files) == set(baseline) | NUMERIC_ADDITIONS
+    changed = {path for path in baseline if files[path] != baseline[path]}
+    assert changed == NUMERIC_CHANGED, 'Unreviewed or missing inherited-source delta'
+    manifest = json.loads(files[NUMERIC_MANIFEST])
+    assert set(manifest) == {'schema', 'base_commit', 'public_base_commit', 'base_tree',
+                            'version', 'scope', 'manifest_self_hash', 'files'}
+    assert manifest['schema'] == 'reviewed-event-numeric-source-v1'
+    assert manifest['base_commit'] == HISTORICAL_DEV8
+    assert manifest['public_base_commit'] == '4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c'
+    assert manifest['base_tree'] == 'd6729a14d0981a58d191f21b788af62772155085'
+    assert manifest['version'] == '0.2.0rc2.dev8'
+    assert manifest['scope'] == NUMERIC_SCOPE
+    assert manifest['manifest_self_hash'] == 'excluded-to-avoid-recursion; structure-validated'
+    rows = manifest['files']
+    expected = NUMERIC_CHANGED | (NUMERIC_ADDITIONS - {NUMERIC_MANIFEST})
+    assert len(rows) == len(expected) and {row['path'] for row in rows} == expected
+    for row in rows:
+        path = row['path']; data = files[path]
+        fields = {'path', 'bytes', 'sha256', 'source_blob'}
+        if path in baseline:
+            assert set(row) == fields | {'supersedes'}
+            old = baseline[path]
+            assert row['supersedes'] == {
+                'sha256': hashlib.sha256(old).hexdigest(),
+                'source_blob': hashlib.sha1(b'blob ' + str(len(old)).encode() + b'\0' + old).hexdigest()}
+        else:
+            assert set(row) == fields | {'base_absent'} and row['base_absent'] is True
+        assert row['bytes'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest()
+        assert row['source_blob'] == hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+    for path, digest in NUMERIC_PRODUCTION.items():
+        assert hashlib.sha256(files[path]).hexdigest() == digest, 'Reviewed production bytes changed'
+    previous_policy = json.loads(baseline['docs/FRAGMENT_STAGING_POLICY.json'])
+    policy = json.loads(files['docs/FRAGMENT_STAGING_POLICY.json'])
+    expected_policy = dict(previous_policy, maximum_files=270,
+                           allowed_files=sorted(set(previous_policy['allowed_files']) | NUMERIC_ADDITIONS))
+    assert policy == expected_policy, 'Policy broadened beyond the three reviewed additions'
+    assert guard.MAX_BYTES == 250_000
+    assert guard.validate(files, policy, require_manifest=False)['findings'] == 0
+
+
+def test_numeric_source_exact_worktree_index_and_historical_tree():
+    baseline = guard.read_git_tree(HISTORICAL_DEV8)
+    assert subprocess.check_output(['git', 'rev-parse', HISTORICAL_DEV8 + '^{tree}'], cwd=ROOT).decode().strip() == 'd6729a14d0981a58d191f21b788af62772155085'
+    staged = guard.read_git_tree(':')
+    worktree = {path: (ROOT / path).read_bytes() for path in staged}
+    assert worktree == staged, 'Numeric follow-up worktree/index mismatch'
+    verify_numeric_source_followup(staged, baseline)
+    verify_numeric_source_followup(worktree, baseline)
+
+
+@pytest.mark.parametrize('mutation', [
+    'missing_file', 'extra_file', 'production', 'inherited', 'manifest_key', 'manifest_self',
+    'base', 'public_base', 'base_tree', 'version', 'scope', 'missing_row', 'duplicate_row',
+    'extra_row', 'bytes', 'hash', 'blob', 'supersedes', 'absence', 'policy_budget',
+    'policy_paths', 'policy_exclusions', 'document', 'test', 'layer_history',
+])
+def test_numeric_source_rejects_unreviewed_delta(mutation):
+    baseline = guard.read_git_tree(HISTORICAL_DEV8)
+    files = guard.read_git_tree(':')
+    # A passing baseline prevents a pre-existing failure from masking a weak case.
+    verify_numeric_source_followup(files, baseline)
+    manifest = json.loads(files[NUMERIC_MANIFEST])
+    policy_path = 'docs/FRAGMENT_STAGING_POLICY.json'
+    if mutation == 'missing_file': files.pop('tests/test_event_candidate_numeric_projection.py')
+    elif mutation == 'extra_file': files['docs/unreviewed.md'] = b'synthetic'
+    elif mutation == 'production': files['audio_backend/worker.py'] += b'\n'
+    elif mutation == 'inherited': files['audio_backend/settings.py'] += b'\n'
+    elif mutation == 'manifest_key': manifest['unreviewed'] = True
+    elif mutation == 'manifest_self': manifest['manifest_self_hash'] = 'not checked'
+    elif mutation == 'base': manifest['base_commit'] = '0' * 40
+    elif mutation == 'public_base': manifest['public_base_commit'] = '0' * 40
+    elif mutation == 'base_tree': manifest['base_tree'] = '0' * 40
+    elif mutation == 'version': manifest['version'] = 'release'
+    elif mutation == 'scope': manifest['scope']['status'] = 'production-ready'
+    elif mutation == 'missing_row': manifest['files'].pop()
+    elif mutation == 'duplicate_row': manifest['files'].append(manifest['files'][0])
+    elif mutation == 'extra_row': manifest['files'][0]['path'] = NUMERIC_MANIFEST
+    elif mutation == 'bytes': manifest['files'][0]['bytes'] += 1
+    elif mutation == 'hash': manifest['files'][0]['sha256'] = '0' * 64
+    elif mutation == 'blob': manifest['files'][0]['source_blob'] = '0' * 40
+    elif mutation == 'supersedes': next(r for r in manifest['files'] if 'supersedes' in r)['supersedes']['sha256'] = '0' * 64
+    elif mutation == 'absence': next(r for r in manifest['files'] if 'base_absent' in r)['base_absent'] = False
+    elif mutation.startswith('policy_'):
+        policy = json.loads(files[policy_path])
+        if mutation == 'policy_budget': policy['maximum_total_bytes'] += 1
+        elif mutation == 'policy_paths': policy['allowed_files'].append('docs/unreviewed.md')
+        else: policy['excluded_categories'].pop()
+        files[policy_path] = json.dumps(policy).encode()
+        # Refresh this row so the policy-specific restriction must reject it.
+        row = next(r for r in manifest['files'] if r['path'] == policy_path)
+        data = files[policy_path]
+        row.update(bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
+                   source_blob=hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest())
+    elif mutation == 'document': files['docs/EVENT_CANDIDATE_NUMERIC_OWNERSHIP.md'] += b'\n'
+    elif mutation == 'test': files['tests/test_event_candidate_numeric_projection.py'] += b'\n'
+    elif mutation == 'layer_history': files[LAYER_PATH] += b'\n'
+    files[NUMERIC_MANIFEST] = json.dumps(manifest).encode()
+    with pytest.raises((AssertionError, ValueError)):
+        verify_numeric_source_followup(files, baseline)

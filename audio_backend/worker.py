@@ -11,7 +11,7 @@ from .boundaries import lexical_core, safe_cut
 from .boundary_store import stream_info, context_parts, wait_for_input
 from .native_worker import NativeCoordinator
 from .overlap_ownership import own_candidates,validate_candidates
-from . import speaker_support
+from . import speaker_support, event_candidate_store
 
 
 def validate_result(result,duration):
@@ -88,15 +88,7 @@ def own_core(result,start,end,previous=None,base=0.):
         lo=max(start,turn['start']);hi=min(end,turn['end'])
         if hi>lo:turns.append(dict(turn,start=lo-start,end=hi-start))
     result['speaker_turns']=turns
-    candidates=[]
-    for candidate in result.get('metadata',{}).get('event_candidates',[]):
-        lo=max(start,candidate['start']);hi=min(end,candidate['end'])
-        if hi>lo:
-            candidates.append(dict(candidate,start=lo-start,end=hi-start,
-                support_start=candidate['start']-start,support_end=candidate['end']-start,
-                time_axis='core_relative',ownership='core_intersection',
-                support_semantics='original model window; not verified event onset/end'))
-    result['event_candidates']=candidates
+    result['event_candidates']=event_candidate_store.own_candidates(result.setdefault('metadata',{}),start,end)
     if result.get('overlap_candidates') is not None:
         result['overlap_candidates']=own_candidates(result['overlap_candidates'],start,end,base)
     overlap=result.get('metadata',{}).get('overlapping_speech')
