@@ -2,7 +2,7 @@
 
 本地单用户 API：中文优先的中英转写、独立说话人活动、跨录音声纹关联、环境声音事件、增量上传与断点恢复。推理不调用外部 API，不上传录音，不做 LLM 总结。
 
-**当前仍是开发中的候选后端，整体质量尚未达标。** 两套冻结基础流程均完成同一批 12.25 小时真实录音，详见[完整长录音结果](reports/ENDURANCE_FINAL_COMPARISON.md)；其中重叠文字候选关闭，不能算作新 MOSS-TD 路径的长时验证。入口请看[中文安装与启动](docs/QUICKSTART_ZH.md)和[当前验收目标](docs/GOALS_AND_ACCEPTANCE.md)。`reports/FINAL_REPORT.md` 是历史 v0.1 的阶段证据，不是当前验收报告。这是可迁移源码，不是永久在线的托管服务。
+**当前仍是开发中的候选后端，整体质量尚未达标。** 两套冻结基础流程均完成同一批 12.25 小时真实录音，详见完整长录音结果（历史材料，未随公共源码提供）；其中重叠文字候选关闭，不能算作新 MOSS-TD 路径的长时验证。入口请看[中文安装与启动](docs/QUICKSTART_ZH.md)和当前验收目标（历史材料，未随公共源码提供）。`reports/FINAL_REPORT.md` 是历史 v0.1 的阶段证据，不是当前验收报告。这是可迁移源码，不是永久在线的托管服务。
 
 ## 先分清当前候选与兼容默认
 
@@ -14,7 +14,7 @@
 - 环境事件：Zipformer-small AudioSet，事件与低置信度候选分开保存
 - 重叠语音候选：`none`。原始混音、检测到的同时发声活动始终保留；这不等于已经分开转写每个人
 
-新增的 [MOSS-TD BF16 文字候选](docs/MOSS_TD_SETUP.md) 在小规模中英重叠测试中有明显词句收益，可另行显式启用；时间戳、少数发言和三人重叠仍有实测失败。它不把匿名候选自动当作全局身份。另有显式选择的 [CPP/GGUF 路径](docs/MOSS_TD_CPP_SETUP.md)，固定七片段上 Q8 与同引擎 BF16 原始输出一致，CPU 子进程树峰值约 1.445 GiB。[实际 API 短测](reports/MOSS_TD_CPP_HTTP_INTEGRATION.md)的完整进程树峰值为 2.10 GiB，恢复与子模型故障隔离通过；这些结果不代表长时质量验收，Windows/Vulkan 尚未执行。
+新增的 [MOSS-TD BF16 文字候选](docs/MOSS_TD_SETUP.md) 在小规模中英重叠测试中有明显词句收益，可另行显式启用；时间戳、少数发言和三人重叠仍有实测失败。它不把匿名候选自动当作全局身份。另有显式选择的 [CPP/GGUF 路径](docs/MOSS_TD_CPP_SETUP.md)，固定七片段上 Q8 与同引擎 BF16 原始输出一致，CPU 子进程树峰值约 1.445 GiB。实际 API 短测（历史材料，未随公共源码提供）的完整进程树峰值为 2.10 GiB，恢复与子模型故障隔离通过；这些结果不代表长时质量验收，Windows/Vulkan 尚未执行。
 
 直接运行 `python -m audio_backend` 仍保留兼容默认：Whisper small Q5_1、pyannote、4 线程和 0.75 身份匹配阈值。它不会自动切到以上候选；0.75 的大量弃判也不能解读为高识别准确率。
 
@@ -56,7 +56,7 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 默认上传彼此独立。同一 session 或相邻时间戳不会自动建立音频连续性。只有同一连续录音的真实相邻分片才设置 `stream_id`；末片设置 `stream_final=true`，或显式调用 finish。`waiting_input` 可能是在等待真实后续上下文。Native 稳定输出边界比普通 ASR 的 2 秒尾部更长，不能靠等待时间或服务重启代替结束声明。
 
-[API 契约](docs/API.md) · [队列和独立候选记录](docs/QUEUING_AND_CANDIDATE_LEDGERS.md) · [边界拼接](docs/BOUNDARY_ASSEMBLY.md)
+[API 契约](docs/API.md) · [队列和独立候选记录](docs/QUEUING_AND_CANDIDATE_LEDGERS.md) · 边界拼接（历史材料，未随公共源码提供）
 
 ## 实际 ASR 输入覆盖账本（实验 CPU 路径）
 
@@ -64,10 +64,10 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 ## 质量边界
 
-- `eres2net-ami20-v1` 是可运行的可选策略，不是通用准确率保证。绑定精确 ERes 模型哈希/版本与 512 维输出；候选接近、短/混杂语音等不确定证据会弃判。普通自动匹配不更新声纹参考。原始跨日期/远场和强烈表演风格仍有失败，普通感冒未验证。见[声纹策略与证据](docs/SPEAKER_REGISTRY.md)。
+- `eres2net-ami20-v1` 是可运行的可选策略，不是通用准确率保证。绑定精确 ERes 模型哈希/版本与 512 维输出；候选接近、短/混杂语音等不确定证据会弃判。普通自动匹配不更新声纹参考。原始跨日期/远场和强烈表演风格仍有失败，普通感冒未验证。见声纹策略与证据（历史材料，未随公共源码提供）。
 - Nemotron 每个有界 epoch 最多 8 个本地槽位，包括回放上下文；跨 epoch 的全局身份由独立声纹证据关联。本地编号不是永久身份。短促发言、稀疏对话和重叠仍可能漏检或混淆。见[native 安装与限制](docs/NATIVE_DIARIZATION_SETUP.md)。
 - SenseVoice 时间是 CTC token 起始锚点，结束时间为估计，不是经真值验证的逐词强制对齐。普通混音 ASR 可能只识别较响的声音。
-- MossFormer2 与英语 SE-DiCoW 均需另行安装并显式选择。Moss 新鲜中文确认未达到可靠重叠转写目标；SE-DiCoW 仅路由有英语证据和足够预测干净上下文的输入，不能当作中文/混语方案。候选保持未验证、身份未解析，不自动进入声纹库。见[重叠语音](docs/OVERLAPPING_SPEECH.md)和 [SE-DiCoW](docs/DICOW_SETUP.md)。
+- MossFormer2 与英语 SE-DiCoW 均需另行安装并显式选择。Moss 新鲜中文确认未达到可靠重叠转写目标；SE-DiCoW 仅路由有英语证据和足够预测干净上下文的输入，不能当作中文/混语方案。候选保持未验证、身份未解析，不自动进入声纹库。见重叠语音（历史材料，未随公共源码提供）和 [SE-DiCoW](docs/DICOW_SETUP.md)。
 - 环境标签是未验证的模型/规则推断。`driving` 表示车辆/引擎相关声类，不能据此断言人在开车；`door` 不等于确定关门。分类窗口支持范围不是真实事件起止点，分数不是校准概率。
 
 ## 资源、隐私与部署边界
@@ -88,13 +88,15 @@ Windows PowerShell、手动 CLI、可选重叠后端、迁移和排错步骤见 
 
 ## 测试、证据与交付
 
+仅从公共 Git 检出复核源码，请先看[公共历史与可复现检查](docs/PUBLIC_REPRODUCIBILITY.md)。历史材料的文字引用不表示该材料已公开。
+
 ```sh
 python -m pytest -q
 python scripts/run_cpu_candidate.py --help
 python scripts/run_cpu_candidate.py --dry-run
 ```
 
-单元测试含明确的假分析器；通过只证明所覆盖的程序行为，不能证明模型质量。真实 CPU 集成证据包括 [21 个跨日期片段的 API 检查](reports/crossday-api-native-calibrated-21-v1/REPORT.md)和 [native 分离试验](reports/nemotron-trial/README.md)，各自保留小样本、训练集关系和失败限制。`reports/endurance_v02/` 保存独立冻结运行的配置、进度和资源记录；必须检查该运行终态和评分，不能把启动器参数、短测试或部分进度说成 12–48 小时验收通过。
+单元测试含明确的假分析器；通过只证明所覆盖的程序行为，不能证明模型质量。真实 CPU 集成证据包括 21 个跨日期片段的 API 检查（历史材料，未随公共源码提供）和 native 分离试验（历史材料，未随公共源码提供），各自保留小样本、训练集关系和失败限制。`reports/endurance_v02/` 保存独立冻结运行的配置、进度和资源记录；必须检查该运行终态和评分，不能把启动器参数、短测试或部分进度说成 12–48 小时验收通过。
 
 源码包不含模型、虚拟环境、运行数据库或第三方录音。各 `*-manifest.json` 固定下载源、大小、SHA256 和许可证；新安装要显式准备资源。保留模型和 runtime notices。部分研究素材含非商业条款，不能随着商业产品无条件分发。
 
