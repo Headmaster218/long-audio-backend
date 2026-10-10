@@ -151,7 +151,7 @@ def test_boolean_slot_rejected():
     with pytest.raises(ValueError):validate_candidates(dict(regions=regions,tracks=tracks),30)
 
 
-def test_schema_failure_persists_only_bounded_diagnostic(tmp_path,monkeypatch):
+def test_schema_failure_keeps_bounded_private_diagnostic(tmp_path,monkeypatch):
     import json,hashlib,sqlite3
     import numpy as np,soundfile as sf
     from audio_backend import moss_td_candidates as m,overlap_store as store
@@ -162,11 +162,13 @@ def test_schema_failure_persists_only_bounded_diagnostic(tmp_path,monkeypatch):
     monkeypatch.setattr(m,'run_bounded',bad)
     p=m.analyze_candidates(wav,turns(),dict(data_dir=str(tmp_path),moss_td_python='/unused'))
     assert not p['tracks'] and p['regions'][0]['schema_error_count']==1
-    assert 'malformed hypothetical text' not in json.dumps(p)
+    assert p['diagnostics'][0]['captures']['raw_text']['text']=='malformed hypothetical text'
     db=sqlite3.connect(':memory:');db.row_factory=sqlite3.Row
     db.executescript('CREATE TABLE chunks(id TEXT PRIMARY KEY,session_id TEXT);INSERT INTO chunks VALUES("c","s");')
     store.init_schema(db)
     store.commit_candidates(db,dict(id='c',duration=30,timeline_start=0),0,own_candidates(p,0,30),{})
     r=store.public_region(db.execute('select * from overlap_regions').fetchone())
     assert r['schema_error_count']==1
+    assert 'malformed hypothetical text' not in json.dumps(r)
+    assert db.execute('select count(*) from overlap_support_diagnostics').fetchone()[0]==1
     assert r['raw_output_sha256']==hashlib.sha256(b'malformed hypothetical text').hexdigest()

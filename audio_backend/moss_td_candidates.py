@@ -10,10 +10,14 @@ from types import SimpleNamespace
 from .overlap import overlapping_regions
 from .overlap_candidates import validate_candidates,moss_support_activity
 from .resources import run_bounded
+from . import overlap_diagnostics
 ROOT=Path(__file__).resolve().parents[1]
 
 
 class UnsafeCppEnvironment(RuntimeError):pass
+
+
+class CandidateEnvelopeBudgetError(ValueError):pass
 
 
 def reject_cpp_loader_overrides(config):
@@ -71,6 +75,9 @@ def parse_support(plan,phrases,capacity,provenance=None):
         label=p.get('speaker_local_id');text=p.get('text');raw_text=p.get('raw_text',text);a=p.get('start');b=p.get('end')
         if not isinstance(label,str) or not label or len(label)>100 or not isinstance(text,str) or not text.strip() or len(text)>10000 or not isinstance(raw_text,str) or len(raw_text)>10000:
             raise ValueError('Invalid MOSS phrase text/local label')
+        # JSON can decode lone surrogates which cannot be bound to SQLite or
+        # emitted as UTF-8. Preserve them only in opaque diagnostic JSON.
+        for value in (label,text,raw_text):value.encode('utf-8')
         if not all(isinstance(x,(int,float)) and math.isfinite(x) for x in (a,b)) or not 0<=a<b<=duration+.001:
             raise ValueError('Invalid MOSS native phrase interval')
         if label not in labels:labels.append(label)
@@ -100,7 +107,7 @@ def analyze_candidates(wav_path,turns,config):
     info=sf.info(wav_path)
     if info.samplerate!=16000 or info.channels!=1 or not 0<info.duration<=60.01:raise ValueError('MOSS requires bounded 16 kHz mono input')
     regions,plans=plan_supports(turns,info.duration,config)
-    payload={'regions':regions,'tracks':[],'metadata':{'backend':'moss_td_experimental',
+    payload={'regions':regions,'tracks':[],'diagnostics':[],'metadata':{'backend':'moss_td_experimental',
         'association_basis':'support_not_model_timing','trigger':config.get('moss_td_trigger','native_overlap'),'original_mixture_retained':True,
         'profile_update_eligible':False,'source_continuity':'not_established',
         'boundary_policy':'disjoint core-contained supports; context truncated; native times unverified'}}
@@ -119,23 +126,48 @@ def analyze_candidates(wav_path,turns,config):
         request.write_text(json.dumps({'config':config,'supports':jobs,'output':str(output)},allow_nan=False))
         limits=SimpleNamespace(data_dir=directory,disk_reserve_bytes=int(config.get('disk_reserve_bytes',5*1024**3)),
             process_memory_limit_bytes=min(int(config.get('moss_td_memory_limit_bytes',3.5*1024**3)),int(config.get('process_memory_limit_bytes',6*1024**3))),cpu_threads=int(config.get('cpu_threads',2)))
+        result_bytes=None;association_complete=False
         try:
             reject_cpp_loader_overrides(config)
             run_bounded([str(Path(config['moss_td_python']).absolute()),str(ROOT/'audio_backend/moss_td_runner.py'),str(request)],limits,
                 timeout=float(config.get('moss_td_timeout_seconds',300)),stdout_path=directory/'runtime.log')
             if not output.is_file() or output.stat().st_size>2*1024**2:raise ValueError('Missing/oversized MOSS result')
-            result=json.loads(output.read_text());groups=result.get('supports')
-            if not isinstance(groups,list) or len(groups)!=len(plans):raise ValueError('Wrong MOSS support count')
+            result_bytes=output.read_bytes()
+            if len(result_bytes)>2*1024**2:raise ValueError('Oversized MOSS result')
+            result=json.loads(result_bytes);groups=result.get('supports')
+            if not isinstance(groups,list):raise ValueError('Wrong MOSS support count')
             indexed={p['shared_support_id']:p for p in plans};seen=set();tracks=[]
+            # Capture every safely associated group before validating usable
+            # phrases. One bad interval must not erase other raw support output.
+            association_errors=False
+            # The entire parsed result is bounded to 2 MiB; capture at most the
+            # four planned supports. An early bad/duplicate ID must not stop a
+            # scan for safely associated later supports.
             for group in groups:
+                if not isinstance(group,dict):
+                    association_errors=True;continue
                 sid=group.get('support_id')
-                if sid not in indexed or sid in seen:raise ValueError('Unexpected/duplicate MOSS support')
+                if not isinstance(sid,str) or sid not in indexed or sid in seen:
+                    association_errors=True;continue
                 seen.add(sid)
+                payload['diagnostics'].append(overlap_diagnostics.support(indexed[sid],group))
+            association_complete=not association_errors and len(groups)==len(plans)
+            if not association_complete:raise ValueError('Wrong/unexpected/duplicate MOSS supports')
+            for group in groups:
+                sid=group['support_id']
                 if group.get('status')!='ok':
-                    errors=group.get('schema_errors',[])
-                    raw=group.get('raw_text','')
-                    if not isinstance(errors,list) or len(errors)>128 or not isinstance(raw,str) or len(raw)>100000:raise ValueError('Invalid MOSS diagnostic envelope')
-                    for r in indexed[sid]['regions']:r.update(status='unresolved',reason_code=str(group.get('reason_code','candidate_schema_failure'))[:100],schema_error_count=len(errors),raw_output_sha256=hashlib.sha256(raw.encode()).hexdigest())
+                    evidence={'status':'unresolved','reason_code':overlap_diagnostics.safe_code(group.get('reason_code'),'candidate_schema_failure')}
+                    # Missing fields are not observed empty outputs. Count/hash
+                    # independently only values actually emitted by the runner.
+                    if 'schema_errors' in group:
+                        errors=group['schema_errors']
+                        if not isinstance(errors,list) or len(errors)>128:raise ValueError('Invalid MOSS schema errors')
+                        evidence['schema_error_count']=len(errors)
+                    if 'raw_text' in group:
+                        raw=group['raw_text']
+                        if not isinstance(raw,str) or len(raw)>100000:raise ValueError('Invalid MOSS raw text')
+                        evidence['raw_output_sha256']=hashlib.sha256(raw.encode('utf-8')).hexdigest()
+                    for r in indexed[sid]['regions']:r.update(evidence)
                     continue
                 published=parse_support(indexed[sid],group.get('phrases'),int(config.get('moss_td_capacity',8)),group.get('metadata'))
                 tracks.extend(published)
@@ -145,18 +177,26 @@ def analyze_candidates(wav_path,turns,config):
             for plan in plans:
                 for r in plan['regions']:
                     if r['reason_code']=='not_yet_attempted':r.update(status='unverified_hypothesis',reason_code='multi_speaker_quality_unverified' if plan['shared_support_id'] in multi_supports else 'speech_support_probe_unverified' if r.get('region_kind')=='speech_support_probe' else 'support_not_model_timing')
+            if len(json.dumps(payload,allow_nan=False).encode('utf-8'))>2*1024**2:
+                raise CandidateEnvelopeBudgetError('Candidate response exceeds byte budget')
+            # Validate every usable projection while temporary evidence still
+            # exists, including track-count and timestamp/schema constraints.
+            validate_candidates(payload,info.duration)
         except InterruptedError:
             raise
         except Exception as exc:
-            code='unsafe_cpp_loader_environment' if isinstance(exc,UnsafeCppEnvironment) else 'candidate_timeout' if isinstance(exc,TimeoutError) else 'candidate_schema_failure' if isinstance(exc,(ValueError,KeyError,TypeError)) else 'candidate_runtime_or_resource_failure'
+            payload['tracks']=[]
+            code='candidate_envelope_budget_exceeded' if isinstance(exc,CandidateEnvelopeBudgetError) else 'unsafe_cpp_loader_environment' if isinstance(exc,UnsafeCppEnvironment) else 'candidate_timeout' if isinstance(exc,TimeoutError) else 'candidate_schema_failure' if isinstance(exc,(ValueError,KeyError,TypeError)) else 'candidate_runtime_or_resource_failure'
             error_path=output.with_suffix('.error.json')
             if error_path.is_file() and error_path.stat().st_size<=8192:
                 try:
-                    detail=json.loads(error_path.read_text());reason=detail.get('reason_code')
-                    if isinstance(reason,str) and 0<len(reason)<=80 and all(c.isalnum() or c=='_' for c in reason):code='candidate_'+reason
+                    detail=json.loads(error_path.read_text())
+                    reason=overlap_diagnostics.safe_code(detail.get('reason_code'),None) if isinstance(detail,dict) else None
+                    if reason is not None and len(reason)<=80:code='candidate_'+reason
                 except (OSError,ValueError,TypeError):pass
+            payload['diagnostics'].append(overlap_diagnostics.batch_failure(plans,output,code,exc,associated=association_complete,observed_result=result_bytes))
             for plan in plans:
-                for r in plan['regions']:r.update(status='unresolved',reason_code=code,failure_reason=str(exc)[:500])
+                for r in plan['regions']:r.update(status='unresolved',reason_code=code)
     return validate_candidates(payload,info.duration)
 
 

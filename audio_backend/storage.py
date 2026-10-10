@@ -432,6 +432,14 @@ class Store:
             current=db.execute('SELECT * FROM chunks WHERE id=?',(chunk['id'],)).fetchone()
             if not current or current['status'] not in ('running','paused'): return False
             if abs(current['next_offset']-offset)>1e-5: return False
+            diagnostic_rows=(result.get('overlap_candidates') or {}).get('diagnostics',[])
+            if diagnostic_rows:
+                from .overlap_diagnostics import encoded, MAX_WINDOW_BYTES
+                from .resources import check_resources
+                size=len(encoded(diagnostic_rows))
+                if size>MAX_WINDOW_BYTES:raise ValueError('Diagnostic window exceeds byte budget')
+                # Allow for SQLite pages, WAL, indexes and transaction overhead.
+                check_resources(self.settings,additional_disk=4*size+65536)
             local={};local_turn_ids={}
             metadata=dict(result.get('metadata',{}))
             metadata['speaker_identity_policy']={'profile_strategy':self.settings.speaker_profile_strategy,
@@ -564,6 +572,13 @@ class Store:
                     speaker=target[0]
                 row['speaker_id']=speaker
             return {'speaker_turns':rows,'next_cursor':rows[-1]['id'] if rows else after}
+
+    def overlap_diagnostics(self,sid,after=0,limit=10):
+        """Explicit private/local export; not exposed by ordinary result routes."""
+        return overlap_store.private_diagnostics(self,sid,after,limit)
+
+    def overlap_diagnostic_status(self,sid,after=0,limit=100):
+        return overlap_store.private_diagnostic_status(self,sid,after,limit)
 
     def overlap_candidates(self,sid,after=0,limit=100):
         return overlap_store.candidates(self,sid,after,limit)
