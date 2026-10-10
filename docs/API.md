@@ -10,6 +10,7 @@ Run **exactly one** Uvicorn process, bound to `127.0.0.1`; never use `--workers 
 - Identical bytes with the same key/session return the original chunk without duplicate processing. Changed bytes, stream membership, original stream_final, recorded_at, or a different explicit timeline_start with that key return 409. Omitting timeline_start on a retry uses the original allocated interval, never a new append position. Retrying requires retransmitting bytes so the hash can be verified. Keys are not filenames and cannot influence filesystem paths.
 - Uploads stream directly to a random `.part` file, with incremental SHA-256, byte and disk-reserve checks. Default maximum is **8 GiB per uploaded file**, not per session. A 48-hour mono PCM16/16kHz file is approximately 5.15 GiB. Multi-day/stereo/high-sample-rate sources should be compressed or split into incremental uploads.
 - Supported FFmpeg demuxers: WAV, FLAC, Ogg, MP3, MP4/MOV, Matroska/WebM, AAC. Local audio playlists are not accepted. File type and finite duration are validated with ffprobe; input protocol/demux allowlists prevent playlist-driven remote/local fetches.
+- For a single 16 kHz PCM WAV or FLAC audio track, admission uses the exact rational sample count rather than the rounded six-decimal container duration. Other codec/rate/container durations remain estimates. Admission does not perform a whole-recording PCM decode or rewrite existing receipts.
 - A successfully returned 202 means durable enqueue, not completed analysis. `/health` only verifies API liveness and reports worker/memory/disk state. Validate downloaded models before accepting work.
 
 ## Progress and results
@@ -130,6 +131,27 @@ to 21.2 seconds of preroll and at most 360 seconds of total input including boun
 lookahead. Restart recreates only that epoch from original disk-backed audio;
 model/runtime fingerprints must match. A file boundary, ASR core boundary, or epoch
 reset never masquerades as end-of-stream. Published prefixes remain immutable.
+
+Native scheduling uses integer 16 kHz frames relative to the source/stream, without
+rounding its absolute session timeline origin. Each native push must contain the
+requested frame count and advance the native input by that count. Decoding uses
+FFmpeg `-xerror`: a decoder failure is not treated as clean end-of-source. At each
+whole source's declared end (not an ordinary core/window boundary), the bounded
+decoder requests one extra sample and checks the emitted count. A short clean
+decode or extra emitted sample fails explicitly with a source-duration mismatch;
+it does not pad silence, silently truncate the tail, or change declared stream
+times. Committed checkpoints survive this failure and retry.
+
+This is a fail-closed duration check, **not generic compressed endpoint
+reconciliation**. Valid AAC encoder priming/edit lists, resampling, or containers
+whose duration differs from their audio track can still cause a mismatch and
+require an explicitly prepared, verified 16 kHz source. The bounded seek decoder
+also does not certify whole-file sequential decode integrity or reconstruct
+discontinuous packet timestamps. Old continuous-stream receipts can accumulate
+sub-sample rounding drift across many files and also fail the exact frame-count
+check; their already allocated timeline intervals are not rewritten. Those cases
+remain unresolved; a successful upload alone is not proof of a complete decoded
+timeline.
 
 Native output has eight local speaker slots per epoch. These are not eight global
 people or an unlimited simultaneous-speaker claim. Ten-millisecond native frame

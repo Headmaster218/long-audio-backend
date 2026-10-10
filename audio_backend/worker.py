@@ -185,9 +185,18 @@ class Worker:
                     except (OSError,ValueError,RuntimeError):
                         lineage['status']='source_lineage_unavailable'
                 pcm=tmp/f'part-{index}.wav'
-                run_bounded([self.settings.ffmpeg,'-nostdin','-v','error','-protocol_whitelist','file,pipe',
-                    '-format_whitelist','wav,flac,ogg,mp3,mov,matroska,webm,aac','-ss',str(part['read_start']),
-                    '-i',part['path'],'-t',str(part['read_duration']),'-map','0:a:0','-vn','-ac','1','-ar','16000',
+                requested_frames=round(part['read_duration']*16000)
+                # Only the declared end of an entire source gets an EOF check.
+                # One extra requested sample exposes an underestimated duration;
+                # a short clean decode exposes an overestimate. Neither is padded
+                # or silently clipped to the immutable declared source timeline.
+                source_end=round((part['read_start']+part['read_duration'])*16000)>=round(part['duration']*16000)
+                decode_duration=(requested_frames+1)/16000 if source_end else part['read_duration']
+                # FFmpeg duration syntax rejects Python's scientific notation
+                # for short intervals such as the first 1/16000-second sample.
+                run_bounded([self.settings.ffmpeg,'-nostdin','-v','error','-xerror','-protocol_whitelist','file,pipe',
+                    '-format_whitelist','wav,flac,ogg,mp3,mov,matroska,webm,aac','-ss',f"{part['read_start']:.9f}",
+                    '-i',part['path'],'-t',f'{decode_duration:.9f}','-map','0:a:0','-vn','-ac','1','-ar','16000',
                     '-c:a','pcm_s16le','-threads','1','-y',pcm],self.settings,timeout=180,stop=stop)
                 frames=0
                 with wave.open(str(pcm),'rb') as source:
@@ -195,6 +204,8 @@ class Worker:
                         output.writeframesraw(block)
                         frames+=len(block)//2
                 pcm.unlink()
+                if source_end and frames!=requested_frames:
+                    raise RuntimeError(f'Source duration does not match decoded PCM: expected {requested_frames} frames, got {frames}; source timeline was not changed')
                 first=lineage['analyzer_frame_count'];lineage['analyzer_frame_count']+=frames
                 if capture_support and lineage['status']=='complete':
                     try:

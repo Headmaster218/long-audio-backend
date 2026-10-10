@@ -6,13 +6,13 @@ No opaque native state, complete waveform, or whole-recording posterior is saved
 """
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import time
+import wave
 import psutil
 from .resources import check_resources,kill_tree
 
@@ -84,17 +84,21 @@ class NativeCoordinator:
         `offset/end` are current-upload-relative. `extract` reads a bounded
         absolute source interval from this explicit stream or isolated upload.
         """
-        origin=chunk['timeline_start'];context=self.settings.context_seconds
+        origin=chunk['timeline_start'];context=round(self.settings.context_seconds*16000)
         scope_start=info['start'] if info else origin
-        available_end=info['end'] if info else origin+chunk['duration']
+        # All scheduling bounds are integer frames relative to this source/stream.
+        # Absolute timeline origins need not lie on the 16 kHz sample grid, and
+        # old six-decimal duration receipts may fall just below a sample edge.
+        origin_frame=round((origin-scope_start)*16000)
+        available_end=round((info['end']-scope_start)*16000) if info else round(chunk['duration']*16000)
         final=info['final'] if info else True
         scope=('stream',chunk['session_id'],info['stream_id']) if info else ('upload',chunk['session_id'],chunk['id'])
-        absolute_offset=origin+offset
-        epoch_index=int(round((absolute_offset-scope_start)*16000)//round(self.EPOCH_SECONDS*16000))
-        owned_start=scope_start+epoch_index*self.EPOCH_SECONDS
-        owned_end=owned_start+self.EPOCH_SECONDS
-        replay_start=max(scope_start,owned_start-self.PREROLL_SECONDS)
-        desired_end=min(origin+end,owned_end)
+        absolute_offset=origin_frame+round(offset*16000)
+        epoch_index=absolute_offset//round(self.EPOCH_SECONDS*16000)
+        owned_start=epoch_index*round(self.EPOCH_SECONDS*16000)
+        owned_end=owned_start+round(self.EPOCH_SECONDS*16000)
+        replay_start=max(0,owned_start-round(self.PREROLL_SECONDS*16000))
+        desired_end=min(origin_frame+round(end*16000),owned_end)
         epoch_key=hashlib.sha256(json.dumps([scope,epoch_index]).encode()).hexdigest()[:32]
         if self.key!=epoch_key:
             if self.process is None:self.process=self.factory(self.settings)
@@ -112,34 +116,44 @@ class NativeCoordinator:
             if prior.get('diarization_fingerprint') and prior['diarization_fingerprint']!=self.provenance.get('diarization_fingerprint'):
                 raise RuntimeError('Native diarization fingerprint changed; resume requires original model/runtime')
         target_context_end=min(available_end,desired_end+context)
-        while (replay_start+self.state['processed_seconds']<target_context_end-1e-5 or
-               replay_start+self.state['stable_seconds']<desired_end-1e-5):
-            input_end=replay_start+self.state['input_seconds']
-            if input_end>=available_end-1e-5:
+        while (replay_start+round(self.state['processed_seconds']*16000)<target_context_end or
+               replay_start+round(self.state['stable_seconds']*16000)<desired_end):
+            input_end=replay_start+round(self.state['input_seconds']*16000)
+            if input_end>=available_end:
                 if final and not self.state.get('finished'):
                     self.state=self.process.request('finish',stop)
                 break
-            push_end=min(available_end,input_end+self.PUSH_SECONDS)
-            if push_end-replay_start>360.+1e-5:raise RuntimeError('Native epoch replay exceeded360seconds')
+            push_end=min(available_end,input_end+round(self.PUSH_SECONDS*16000))
+            if push_end-replay_start>360*16000:raise RuntimeError('Native epoch replay exceeded360seconds')
             with tempfile.TemporaryDirectory(prefix='native-pcm-',dir=self.settings.data_dir/'tmp') as td:
-                wav=Path(td)/'audio.wav';self.extract(chunk,input_end,push_end,wav,Path(td),stop)
+                wav=Path(td)/'audio.wav'
+                self.extract(chunk,scope_start+input_end/16000,scope_start+push_end/16000,wav,Path(td),stop)
+                with wave.open(str(wav),'rb') as source:
+                    if (source.getframerate(),source.getnchannels(),source.getsampwidth())!=(16000,1,2):
+                        raise RuntimeError('Native input must be canonical 16 kHz mono PCM16')
+                    frames=source.getnframes()
+                if frames!=push_end-input_end:
+                    raise RuntimeError(f'Source duration does not match decoded PCM: expected {push_end-input_end} native frames, got {frames}')
                 self.state=self.process.request('push',stop,wav=str(wav))
-        processed=replay_start+self.state['processed_seconds'];stable=replay_start+self.state['stable_seconds']
+                if replay_start+round(self.state['input_seconds']*16000)!=push_end:
+                    raise RuntimeError('Native input did not advance by decoded frame count')
+        processed=replay_start+round(self.state['processed_seconds']*16000)
+        stable=replay_start+round(self.state['stable_seconds']*16000)
         # At true EOS all actual samples are finalized; no fictional right context.
         eos=bool(self.state.get('finished'))
         core_end=min(desired_end,stable,processed if eos else processed-context)
-        core_end=math.floor(core_end*16000+1e-7)/16000
-        if core_end<=absolute_offset+1e-5:return None
-        extract_start=max(scope_start,absolute_offset-context)
+        if core_end<=absolute_offset:return None
+        extract_start=max(0,absolute_offset-context)
         extract_end=min(available_end,core_end+context,processed)
-        response=self.process.request('turns',stop,start=max(0.,extract_start-replay_start),end=extract_end-replay_start)
+        response=self.process.request('turns',stop,start=max(0.,(extract_start-replay_start)/16000),end=(extract_end-replay_start)/16000)
         turns=[]
         for t in response['turns']:
-            a=max(extract_start,replay_start+t['start']);b=min(extract_end,replay_start+t['end'])
-            if b>a:turns.append(dict(t,start=a-extract_start,end=b-extract_start))
-        return {'end':core_end-origin,'extract_start':extract_start-origin,'extract_end':extract_end-origin,
+            a=max(extract_start/16000,replay_start/16000+t['start']);b=min(extract_end/16000,replay_start/16000+t['end'])
+            if b>a:turns.append(dict(t,start=a-extract_start/16000,end=b-extract_start/16000))
+        return {'end':(core_end-origin_frame)/16000,'extract_start':(extract_start-origin_frame)/16000,'extract_end':(extract_end-origin_frame)/16000,
                 'turns':turns,'provenance':self.provenance,
-                'state':{'epoch_id':epoch_key,'epoch_index':epoch_index,'owned_start':owned_start,
-                    'owned_end':owned_end,'replay_start':replay_start,'input_until':replay_start+self.state['input_seconds'],
-                    'processed_until':processed,'stable_until':stable,'finished':eos,
+                'state':{'epoch_id':epoch_key,'epoch_index':epoch_index,'owned_start':scope_start+owned_start/16000,
+                    'owned_end':scope_start+owned_end/16000,'replay_start':scope_start+replay_start/16000,
+                    'input_until':scope_start+replay_start/16000+self.state['input_seconds'],
+                    'processed_until':scope_start+processed/16000,'stable_until':scope_start+stable/16000,'finished':eos,
                     'provenance':self.provenance}}

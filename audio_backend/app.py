@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
+from fractions import Fraction
 import asyncio
 import hashlib
 import hmac
@@ -81,12 +82,24 @@ def probe(path,settings):
     output=path.with_suffix('.probe.json')
     try:
         run_bounded([settings.ffprobe,'-v','error','-protocol_whitelist','file,pipe',
-                     '-format_whitelist',FORMATS,'-show_entries','format=duration:stream=codec_type',
+                     '-format_whitelist',FORMATS,'-show_entries',
+                     'format=format_name,duration:stream=codec_type,codec_name,sample_rate,duration_ts,time_base',
                      '-of','json',path],settings,timeout=60,stdout_path=output)
         result=json.loads(output.read_text())
         duration=float(result.get('format',{}).get('duration',0))
+        audio=[s for s in result.get('streams',[]) if s.get('codec_type')=='audio']
+        # WAV/FLAC at the canonical rate have an exact sample-count time base.
+        # The six-decimal format duration can round down across a sample edge.
+        # Compressed codecs/container edit lists are not exact decoded counts.
+        if len(audio)==1 and result.get('format',{}).get('format_name') in ('wav','flac'):
+            stream=audio[0]
+            if stream.get('sample_rate')=='16000' and (stream.get('codec_name','').startswith('pcm_') or stream.get('codec_name')=='flac'):
+                try:
+                    frames=Fraction(stream['duration_ts'])*Fraction(stream['time_base'])*16000
+                    if frames.denominator==1 and frames>0:duration=int(frames)/16000
+                except (KeyError,ValueError,TypeError,ZeroDivisionError):pass
         if not math.isfinite(duration) or not 0<duration<=settings.max_audio_seconds: raise ValueError('Invalid or excessive audio duration')
-        if not any(s.get('codec_type')=='audio' for s in result.get('streams',[])): raise ValueError('File has no audio track')
+        if not audio: raise ValueError('File has no audio track')
         return duration
     finally: output.unlink(missing_ok=True)
 
