@@ -119,3 +119,5 @@ or clipping. The strict parser stays unchanged. See [the source and validation
 contract](docs/BACKEND_DEV12_PARTIAL_RECOVERY.md). This is a local synthetic-only
 source candidate, not a release or model-quality acceptance. Its published dev11 baseline has an exact-tree proof; dev12 fresh-clone
 qualification remains a separate required check.
+
+Experimental model-free [Qwen bounded split recovery](docs/QWEN_BOUNDED_RECOVERY.md) is explicitly opt-in and not wired into native execution or primary ASR.

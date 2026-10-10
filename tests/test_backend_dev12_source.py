@@ -127,17 +127,11 @@ def verify_source(files, index, modes, index_modes):
 
 @pytest.fixture(scope='module')
 def current_sources():
-    index = guard.read_git_tree(':')
-    files = guard.read_worktree(json.loads(index[POLICY]))
-    index_modes = {}
-    for entry in git('ls-files', '--stage', '-z').split(b'\0'):
-        if entry:
-            header, path = entry.decode().split('\t')
-            mode, _, stage = header.split()
-            assert stage == '0' and path not in index_modes
-            index_modes[path] = mode
-    modes = {path: '100755' if (ROOT / path).stat().st_mode & 0o111 else '100644' for path in files}
-    return files, index, modes, index_modes
+    # Preserve the immutable public dev12 proof; dev13 has its own current gate.
+    revision = 'b291776174e0a8d4f74d8ca988931c7a7cba1956'
+    files = guard.read_git_tree(revision)
+    modes = tree_modes(revision)
+    return files, dict(files), modes, dict(modes)
 
 
 def test_dev12_exact_current_source(current_sources):
@@ -149,7 +143,8 @@ def test_dev12_lineage_and_committed_tree(current_sources):
     merge_path = Path(git('rev-parse', '--git-path', 'MERGE_HEAD').decode().strip())
     if not merge_path.is_absolute(): merge_path = ROOT / merge_path
     assert not merge_path.exists(), 'Dev12 must retain exactly one baseline parent'
-    head = git('rev-parse', 'HEAD').decode().strip()
+    head = 'b291776174e0a8d4f74d8ca988931c7a7cba1956'
+    git('merge-base', '--is-ancestor', head, 'HEAD')
     if head == BASE:  # Exact staged candidate before its one-parent commit.
         return
     headers = git('cat-file', 'commit', head).split(b'\n\n', 1)[0].splitlines()
