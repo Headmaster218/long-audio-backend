@@ -150,7 +150,7 @@ def test_complete_source_tree_passes_exact_allowlist():
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0
-    assert policy['maximum_files'] == 268
+    assert policy['maximum_files'] == 272
     assert policy['maximum_total_bytes'] == 3_200_000
     assert guard.MAX_BYTES == 250_000
 
@@ -293,7 +293,8 @@ def test_local_builder_followup_preserves_every_historical_layer():
     current.pop('coverage_composition')
     current.pop('candidate_evaluation_composition')
     current.pop('canonical_duration_eos_followup')
-    assert current['target_version'] == '0.2.0rc2.dev9'
+    current.pop('overlap_diagnostic_retention_composition')
+    assert current['target_version'] == '0.2.0rc2.dev10'
     current['target_version'] = historical['target_version']
     assert current == historical
 
@@ -719,12 +720,12 @@ def verify_dev9_followup(layers, files, index_files):
 
 @pytest.fixture(scope='module')
 def dev9_sources():
-    index = guard.read_git_tree(':')
-    return {path: (ROOT / path).read_bytes() for path in index}, index
+    historical = immutable_tree(DEV10_PARENTS[0])
+    return historical, historical
 
 
-def test_dev9_exact_feature_integration_worktree_and_index(dev9_sources):
-    _, layers = import_records()
+def test_historical_dev9_exact_feature_integration(dev9_sources):
+    layers = json.loads(immutable_tree(DEV10_PARENTS[0])[LAYER_PATH])
     verify_dev9_followup(layers, *dev9_sources)
 
 
@@ -732,7 +733,7 @@ def test_dev9_exact_feature_integration_worktree_and_index(dev9_sources):
     'supersedes', 'absence', 'scope', 'history', 'extra_path', 'inherited', 'feature_bytes',
     'worktree', 'index', 'policy'])
 def test_dev9_rejects_unreviewed_feature_or_integration_delta(mutation, dev9_sources):
-    _, layers = import_records()
+    layers = json.loads(immutable_tree(DEV10_PARENTS[0])[LAYER_PATH])
     verify_dev9_followup(layers, *dev9_sources)
     files, index = (dict(values) for values in dev9_sources)
     value = layers['canonical_duration_eos_followup']
@@ -757,3 +758,149 @@ def test_dev9_rejects_unreviewed_feature_or_integration_delta(mutation, dev9_sou
         files[LAYER_PATH] = index[LAYER_PATH] = json.dumps(layers).encode()
     with pytest.raises(AssertionError):
         verify_dev9_followup(layers, files, index)
+
+
+DEV10_PARENTS = ['3b7f5a9dcee0d626348d5354531d1a8bad6bed7b',
+                 '9ba755a87f599c1b3743388594da6ae431e82a64']
+DEV10_BASE = '5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2'
+DEV10_MERGE = '117e8414c4f524477db83886ab3731a5c3afc0b4'
+DEV10_FEATURE_PATHS = {'audio_backend/moss_td_candidates.py', 'audio_backend/overlap_candidates.py',
+    'audio_backend/overlap_diagnostics.py', 'audio_backend/overlap_ownership.py',
+    'audio_backend/overlap_store.py', 'audio_backend/storage.py',
+    'docs/OVERLAP_DIAGNOSTIC_RETENTION.md', 'tests/fixtures/overlap_schema_dev8.sql',
+    'tests/test_moss_td_candidates.py', 'tests/test_overlap_diagnostics.py',
+    'tests/test_overlap_public_contract.py'}
+DEV10_NEW_PATHS = {'audio_backend/overlap_diagnostics.py', 'docs/OVERLAP_DIAGNOSTIC_RETENTION.md',
+    'tests/fixtures/overlap_schema_dev8.sql', 'tests/test_overlap_diagnostics.py'}
+DEV10_INTEGRATION_PATHS = {'audio_backend/__init__.py', 'pyproject.toml',
+    'docs/FRAGMENT_EXTENSIONS_STAGING.md', 'docs/FRAGMENT_STAGING_POLICY.json',
+    'tests/test_fragment_staging_sources.py', LAYER_PATH}
+DEV10_SCOPE = {
+    'retention': 'prospective bounded private overlap diagnostics; historical missing output is not recovered',
+    'durability': 'atomic candidate evidence and cursor persistence; shared-support deduplication and deletion cascade',
+    'privacy': 'private local export only; unchanged public API, transcript and identity semantics',
+    'compatibility': 'reviewed dev9 duration/EOS and retention feature blobs preserved exactly',
+    'acceptance': 'focused model-free source validation only; no inherited full-suite, model-quality or long-run acceptance',
+}
+DEV10_PURPOSE = 'Isolated dev10 private overlap diagnostic-retention composition; immutable historical pins and privacy exclusions unchanged'
+
+
+def verify_dev10_composition(layers, files, index_files):
+    import tomllib
+    key = 'overlap_diagnostic_retention_composition'
+    value = layers[key]
+    assert set(value) == {'schema', 'parents', 'merge_base', 'merge_commit',
+                          'feature_files', 'integration_files', 'scope'}
+    assert value['schema'] == 'reviewed-branch-feature-integration-v1'
+    assert value['parents'] == DEV10_PARENTS and value['merge_base'] == DEV10_BASE
+    assert value['merge_commit'] == DEV10_MERGE and value['scope'] == DEV10_SCOPE
+    base, first, feature, merged = (immutable_tree(ref) for ref in
+        (DEV10_BASE, *DEV10_PARENTS, DEV10_MERGE))
+    assert subprocess.check_output(['git', 'merge-base', *DEV10_PARENTS], cwd=ROOT).decode().strip() == DEV10_BASE
+    assert subprocess.check_output(['git', 'show', '-s', '--format=%P', DEV10_MERGE], cwd=ROOT).decode().split() == DEV10_PARENTS
+    assert set(feature) == set(base) | DEV10_NEW_PATHS
+    assert {path for path in feature if feature[path] != base.get(path)} == DEV10_FEATURE_PATHS
+    assert not ({path for path in first if first[path] != base.get(path)} & DEV10_FEATURE_PATHS)
+    expected = dict(first)
+    expected.update({path: feature[path] for path in DEV10_FEATURE_PATHS})
+    assert merged == expected, 'Merge was not the exact disjoint reviewed union'
+    assert len(merged) == 272 and sum(map(len, merged.values())) == 3_149_704
+    assert set(files) == set(index_files) == set(merged)
+    assert files == index_files, 'Dev10 worktree/index mismatch'
+    assert json.loads(files[LAYER_PATH]) == layers
+    historical = json.loads(first[LAYER_PATH])
+    prior = {name: data for name, data in layers.items() if name != key}
+    assert prior['target_version'] == '0.2.0rc2.dev10'
+    prior['target_version'] = historical['target_version']
+    assert prior == historical, 'Dev9 or older historical provenance changed'
+    assert tomllib.loads(files['pyproject.toml'].decode())['project']['version'] == '0.2.0rc2.dev10'
+    assert "__version__ = '0.2.0rc2.dev10'" in files['audio_backend/__init__.py'].decode()
+    assert {path for path in files if files[path] != merged[path]} == DEV10_INTEGRATION_PATHS
+    for path in DEV10_FEATURE_PATHS:
+        assert files[path] == feature[path], 'Retention feature blob changed'
+    for path in DEV9_FEATURE_PATHS:
+        assert files[path] == first[path], 'Duration/EOS feature blob changed'
+    for name, expected_paths in [('feature_files', DEV10_FEATURE_PATHS),
+                                 ('integration_files', DEV10_INTEGRATION_PATHS - {LAYER_PATH})]:
+        rows = value[name]
+        assert len(rows) == len(expected_paths) and {row['path'] for row in rows} == expected_paths
+        for row in rows:
+            path = row['path']; data = files[path]
+            fields = {'path', 'bytes', 'sha256', 'source_blob'} | ({'parents'} if name == 'feature_files' else {'supersedes'})
+            assert set(row) == fields
+            assert row['bytes'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest()
+            blob = subprocess.check_output(['git', 'hash-object', '--stdin'], input=data, cwd=ROOT).decode().strip()
+            assert row['source_blob'] == blob
+            assert subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT) == data
+            if name == 'feature_files':
+                assert row['parents'] == {ref: parent_pin(ref, path) for ref in (DEV10_BASE, DEV10_PARENTS[0])}
+                assert parent_pin(DEV10_PARENTS[1], path) == {'source_blob': blob, 'sha256': row['sha256']}
+            else:
+                assert row['supersedes'] == parent_pin(DEV10_MERGE, path)
+    policy = json.loads(files['docs/FRAGMENT_STAGING_POLICY.json'])
+    original_policy = json.loads(first['docs/FRAGMENT_STAGING_POLICY.json'])
+    assert policy['purpose'] == DEV10_PURPOSE and policy['maximum_files'] == 272
+    assert policy['allowed_files'] == sorted(set(original_policy['allowed_files']) | DEV10_NEW_PATHS)
+    for field in ('purpose', 'maximum_files', 'allowed_files'):
+        policy[field] = original_policy[field]
+    assert policy == original_policy, 'Byte/privacy policy changed'
+    assert files['scripts/source_staging_guard.py'] == first['scripts/source_staging_guard.py']
+    assert guard.MAX_BYTES == 250_000
+    assert 0 < sum(map(len, files.values())) - sum(map(len, merged.values())) <= 30_000
+    assert guard.validate(files, json.loads(files['docs/FRAGMENT_STAGING_POLICY.json']), require_manifest=False)['findings'] == 0
+
+
+@pytest.fixture(scope='module')
+def dev10_sources():
+    index = guard.read_git_tree(':')
+    return {path: (ROOT / path).read_bytes() for path in index}, index
+
+
+def test_dev10_exact_reviewed_union_and_current_integration(dev10_sources):
+    _, layers = import_records()
+    verify_dev10_composition(layers, *dev10_sources)
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'duplicate', 'parent_order', 'base', 'merge',
+    'blob', 'prior_pin', 'absence', 'scope', 'extra_claim', 'historical_dev9', 'historical_dev8',
+    'self_pin', 'extra_path', 'missing_path', 'inherited', 'retention_bytes', 'duration_bytes',
+    'worktree', 'index', 'policy_bytes', 'policy_exclusions', 'stale_version'])
+def test_dev10_rejects_unreviewed_composition_or_acceptance(mutation, dev10_sources):
+    _, layers = import_records()
+    verify_dev10_composition(layers, *dev10_sources)
+    files, index = (dict(values) for values in dev10_sources)
+    value = layers['overlap_diagnostic_retention_composition']
+    if mutation == 'missing': value['feature_files'].pop()
+    elif mutation == 'duplicate': value['feature_files'].append(value['feature_files'][0])
+    elif mutation == 'parent_order': value['parents'].reverse()
+    elif mutation == 'base': value['merge_base'] = '0' * 40
+    elif mutation == 'merge': value['merge_commit'] = DEV10_PARENTS[0]
+    elif mutation == 'blob': value['integration_files'][0]['source_blob'] = '0' * 40
+    elif mutation == 'prior_pin': value['feature_files'][0]['parents'][DEV10_BASE]['sha256'] = '0' * 64
+    elif mutation == 'absence':
+        next(row for row in value['feature_files'] if row['path'] in DEV10_NEW_PATHS)['parents'][DEV10_BASE] = {'absent': False}
+    elif mutation == 'scope': value['scope']['acceptance'] = 'historical endurance accepted'
+    elif mutation == 'extra_claim': value['quality_accepted'] = True
+    elif mutation == 'historical_dev9': layers['canonical_duration_eos_followup']['feature_files'][0]['sha256'] = '0' * 64
+    elif mutation == 'historical_dev8': layers['candidate_evaluation_composition']['merge_base'] = '0' * 40
+    elif mutation == 'self_pin': value['integration_files'].append({'path': LAYER_PATH})
+    elif mutation == 'extra_path': files['docs/unreviewed.md'] = index['docs/unreviewed.md'] = b'unreviewed'
+    elif mutation == 'missing_path':
+        files.pop('audio_backend/overlap_diagnostics.py'); index.pop('audio_backend/overlap_diagnostics.py')
+    elif mutation in {'inherited', 'retention_bytes', 'duration_bytes', 'worktree', 'index'}:
+        path = {'inherited': 'audio_backend/settings.py', 'retention_bytes': 'audio_backend/overlap_store.py',
+                'duration_bytes': 'audio_backend/native_worker.py', 'worktree': 'audio_backend/storage.py',
+                'index': 'audio_backend/storage.py'}[mutation]
+        if mutation != 'index': files[path] += b'\n'
+        if mutation != 'worktree': index[path] += b'\n'
+    elif mutation in {'policy_bytes', 'policy_exclusions'}:
+        policy = json.loads(files['docs/FRAGMENT_STAGING_POLICY.json'])
+        if mutation == 'policy_bytes': policy['maximum_total_bytes'] += 1
+        else: policy['excluded_categories'].pop()
+        files['docs/FRAGMENT_STAGING_POLICY.json'] = index['docs/FRAGMENT_STAGING_POLICY.json'] = json.dumps(policy).encode()
+    elif mutation == 'stale_version':
+        files['pyproject.toml'] = index['pyproject.toml'] = files['pyproject.toml'].replace(b'0.2.0rc2.dev10', b'0.2.0rc2.dev9')
+    if mutation not in {'worktree', 'index'}:
+        files[LAYER_PATH] = index[LAYER_PATH] = json.dumps(layers).encode()
+    with pytest.raises(AssertionError):
+        verify_dev10_composition(layers, files, index)

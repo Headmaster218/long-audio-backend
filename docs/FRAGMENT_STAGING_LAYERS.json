@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target_version": "0.2.0rc2.dev9",
+  "target_version": "0.2.0rc2.dev10",
   "baseline_version": "0.2.0rc2.dev4",
   "baseline_commit": "732f37698b58f00750d76ba99e4cf7599c1b97f7",
   "base_manifest_sha256": "eb6337f69b8ae1981addf7fe4a0134cbf4fdf2dca59124752d8fc2122b9e50e5",
@@ -914,6 +914,244 @@
       "eos": "native duration mismatches fail closed; generic compressed/resampled reconciliation remains open",
       "compatibility": "legacy measured resampled ranges retained; decoder errors fail on both backends",
       "acceptance": "model-free source correctness only; no new long-run, ASR or speaker-quality acceptance"
+    }
+  },
+  "overlap_diagnostic_retention_composition": {
+    "schema": "reviewed-branch-feature-integration-v1",
+    "parents": [
+      "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b",
+      "9ba755a87f599c1b3743388594da6ae431e82a64"
+    ],
+    "merge_base": "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2",
+    "merge_commit": "117e8414c4f524477db83886ab3731a5c3afc0b4",
+    "feature_files": [
+      {
+        "path": "audio_backend/moss_td_candidates.py",
+        "bytes": 14653,
+        "sha256": "cc50a3a100f6e0440bc12624934c68d5843ee1c43d24456b6d6f61c1de50e40c",
+        "source_blob": "6d8593acadb7e445903aeed9d1291a2580629323",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "6204a95cf8ca46b6218056f16c7d1c6b453c29c2",
+            "sha256": "19744d71911e60a04d6fe2e84ab89496598b6e803e2da3c3eb21fda75c12d32a"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "6204a95cf8ca46b6218056f16c7d1c6b453c29c2",
+            "sha256": "19744d71911e60a04d6fe2e84ab89496598b6e803e2da3c3eb21fda75c12d32a"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/overlap_candidates.py",
+        "bytes": 21604,
+        "sha256": "1b52314f981a0ec7d778b6d03b586cfc3ee8a2dbe448e89bc1f1af71738369a8",
+        "source_blob": "4d3d50456370844ab8e4495108f269d369ce406d",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "a59377f459d12271c87ff13f754da808038ed44e",
+            "sha256": "f83cd89d49696d6ca7fb9ab05d89fd46452d17936e8a7c927f39d1554ce3f09c"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "a59377f459d12271c87ff13f754da808038ed44e",
+            "sha256": "f83cd89d49696d6ca7fb9ab05d89fd46452d17936e8a7c927f39d1554ce3f09c"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/overlap_diagnostics.py",
+        "bytes": 14628,
+        "sha256": "9e8e2f2c41a971f5533ac455b08a5eb20b1189ef926820259d8ed92a98b0c54a",
+        "source_blob": "a918657555adf4ec4159887c0795a2fad2d50d7f",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "absent": true
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "absent": true
+          }
+        }
+      },
+      {
+        "path": "audio_backend/overlap_ownership.py",
+        "bytes": 12811,
+        "sha256": "a29eddb46f370b1f475cd328f6684d61a4c3cc8c3237173456e9a7f1f2daa61b",
+        "source_blob": "9ee32a03c8d61978467de4ef3d072a5d544380e3",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "12e76014bf4db4bc4ee315bd183d89dd0357481f",
+            "sha256": "0549aa7f6f27c50751c1ea80477692f90df44ad702a327739d1d6ff24c3268d5"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "12e76014bf4db4bc4ee315bd183d89dd0357481f",
+            "sha256": "0549aa7f6f27c50751c1ea80477692f90df44ad702a327739d1d6ff24c3268d5"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/overlap_store.py",
+        "bytes": 27905,
+        "sha256": "1e159078da7bf15a8699761f07d160a904bbd5c5f956b2673103e2c71e48805c",
+        "source_blob": "e9ac3b80bd452fd2d83356edfa8ebbe25341fc8e",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "796f861aabba2ce9ed9160399ca2fe5c1679f081",
+            "sha256": "b794b8cdac9861a732803aaa2a7d3ad3f928322adf6ad6fce4691a8719a60105"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "796f861aabba2ce9ed9160399ca2fe5c1679f081",
+            "sha256": "b794b8cdac9861a732803aaa2a7d3ad3f928322adf6ad6fce4691a8719a60105"
+          }
+        }
+      },
+      {
+        "path": "audio_backend/storage.py",
+        "bytes": 53080,
+        "sha256": "e2ddc381c487577534387e6e70bf63ccf8664841a6d1b767eccaac6c868e1dfa",
+        "source_blob": "e30ff27055772d9fe8054eef8443471a4691ce9d",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "a212c69708fe2248f2e6c4a9c46ecb45cabb9ece",
+            "sha256": "5fc1d0970be2215fde8996a7254365790510002d19b112e6ffd4ef6bc703f798"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "a212c69708fe2248f2e6c4a9c46ecb45cabb9ece",
+            "sha256": "5fc1d0970be2215fde8996a7254365790510002d19b112e6ffd4ef6bc703f798"
+          }
+        }
+      },
+      {
+        "path": "docs/OVERLAP_DIAGNOSTIC_RETENTION.md",
+        "bytes": 7615,
+        "sha256": "a71cbbf0abf38cff2104cf96d14be32d2c88b94a232d48a784c81d0b6d6934af",
+        "source_blob": "fe9244e62ce8d8f29b0866d9beb3dd18c8f1f7fd",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "absent": true
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "absent": true
+          }
+        }
+      },
+      {
+        "path": "tests/fixtures/overlap_schema_dev8.sql",
+        "bytes": 2534,
+        "sha256": "6d5f79426122b58864cb6fdf27c80d6539d4aeca010bbf51040e581c97fa5d7a",
+        "source_blob": "dcafb2a4faaf6e20af6e2ecb69eb4ee759d0fb7e",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "absent": true
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "absent": true
+          }
+        }
+      },
+      {
+        "path": "tests/test_moss_td_candidates.py",
+        "bytes": 9430,
+        "sha256": "1cc81497abafe0d87db7da1fe56930efe7a2672cf4a7b261bba64440f014e52a",
+        "source_blob": "a1af13065cd48252028ac22f3a2aaf8dfeeabee6",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "dfcff9b7267fbb066f12ba54893aa3bec3afd529",
+            "sha256": "b0dced2cbb04ec832e7f2a4cc67b1a3ca22651f08d5f97cfee063a6d053ed16f"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "dfcff9b7267fbb066f12ba54893aa3bec3afd529",
+            "sha256": "b0dced2cbb04ec832e7f2a4cc67b1a3ca22651f08d5f97cfee063a6d053ed16f"
+          }
+        }
+      },
+      {
+        "path": "tests/test_overlap_diagnostics.py",
+        "bytes": 28803,
+        "sha256": "9936a4f0377b36ba623bd824a242a0e4c5541d699764041bc7c9174c723d50ac",
+        "source_blob": "b7166c619b129bd5fa7901553be001a0d21a8349",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "absent": true
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "absent": true
+          }
+        }
+      },
+      {
+        "path": "tests/test_overlap_public_contract.py",
+        "bytes": 8333,
+        "sha256": "4241f64d6c086bb4c074e5e6187c04208dd56e7ceb74ae91776b8ff3e47c7915",
+        "source_blob": "8be7348ea456deb8890af34c350e9c460423234f",
+        "parents": {
+          "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2": {
+            "source_blob": "af524705a7fae370602668ad4b738f66c73ec122",
+            "sha256": "ecbec075d66fe35a67d95834b662d9fa2b0fc53ebd3c1f69a2001f17a5701abb"
+          },
+          "3b7f5a9dcee0d626348d5354531d1a8bad6bed7b": {
+            "source_blob": "af524705a7fae370602668ad4b738f66c73ec122",
+            "sha256": "ecbec075d66fe35a67d95834b662d9fa2b0fc53ebd3c1f69a2001f17a5701abb"
+          }
+        }
+      }
+    ],
+    "integration_files": [
+      {
+        "path": "audio_backend/__init__.py",
+        "bytes": 108,
+        "sha256": "0009873f8a76e9c0b44efa4e06421c4f9c764d94f84581d9d21a476bc90089a6",
+        "source_blob": "e39cf0b5de53e438d30435d85cfcf82a05ee1559",
+        "supersedes": {
+          "source_blob": "9641675a32a87d3ce4f587378c5db95d4997e0bc",
+          "sha256": "4c6cfeab9c0f1e6c33be51783994c68565c177e1e022b8a0e3c3238243482363"
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_EXTENSIONS_STAGING.md",
+        "bytes": 17039,
+        "sha256": "be62c9e68cf61c6c1dbc3aac1ee96817dd47e4168cc90fd333683479c867fe8b",
+        "source_blob": "40fe4f11437788fd9d9ed4ff4003e6c299107858",
+        "supersedes": {
+          "source_blob": "9e662620a8b4213040d0995b97b75ddb1a25b46d",
+          "sha256": "c7888fe9f75a66720f7a0d608bc4b153509d56c58fd4bd945d6073cf7fa4f80a"
+        }
+      },
+      {
+        "path": "docs/FRAGMENT_STAGING_POLICY.json",
+        "bytes": 12278,
+        "sha256": "b3a83eced88828f4a0077963303687f5cdd1cfe11cfc5b8a2d35529c7386dcf8",
+        "source_blob": "d391215cf3c81867b4b3ce311a82ceded11346f8",
+        "supersedes": {
+          "source_blob": "b27765f9fe5daa6d3822fefe78b314c7eccec5f4",
+          "sha256": "9dba1875eab53ab52ca49f5306215984d8606381dc2eb7b4baee01b85f7e5177"
+        }
+      },
+      {
+        "path": "pyproject.toml",
+        "bytes": 829,
+        "sha256": "fd36d60b2e0c04e569562aa81355bf9f8fac3eb586c4f83ac3165c6c49834cd2",
+        "source_blob": "f000c97586bd47fb58a9045b1c89b7d209ef2aba",
+        "supersedes": {
+          "source_blob": "d3251fd2021d2da137b4303718189c5cc92b922d",
+          "sha256": "cda39159df35816304ba08a701b766290c94f3bd8feccc959a81b65cc81a9431"
+        }
+      },
+      {
+        "path": "tests/test_fragment_staging_sources.py",
+        "bytes": 51827,
+        "sha256": "6a5f3588605d73f4ed576de8e1b04ab7b55a8b0d08e88799f061dd83ccc6b65f",
+        "source_blob": "3175df5caf33a6e2042711c947ab72390649de1a",
+        "supersedes": {
+          "source_blob": "f2d310bc22cc18a1ff520c4781a224bd5eadd156",
+          "sha256": "95dda8423e88cf4c73aacf8a455f030cb49b03ccebeeb79b1c371401595c5adc"
+        }
+      }
+    ],
+    "scope": {
+      "retention": "prospective bounded private overlap diagnostics; historical missing output is not recovered",
+      "durability": "atomic candidate evidence and cursor persistence; shared-support deduplication and deletion cascade",
+      "privacy": "private local export only; unchanged public API, transcript and identity semantics",
+      "compatibility": "reviewed dev9 duration/EOS and retention feature blobs preserved exactly",
+      "acceptance": "focused model-free source validation only; no inherited full-suite, model-quality or long-run acceptance"
     }
   }
 }

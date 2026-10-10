@@ -1,4 +1,4 @@
-# Reviewed canonical-duration/EOS follow-up: isolated dev9 staging
+# Reviewed private overlap-retention composition: isolated dev10 staging
 
 This is local development staging, not a release or active/public promotion.
 The earlier dev6 composition preserved both reviewed histories: finalized PCM16 CPU/builder
@@ -25,7 +25,47 @@ complement, without repairing recognition or automatically restoring words.
 Unsubmitted input is not silence. See [the coverage contract](ASR_INPUT_COVERAGE.md).
 The canonical/fragment identity guards and default-off modes are unchanged.
 
-## Current dev9 duration/EOS follow-up
+## Current dev10 private overlap-retention composition
+
+This source-only composition preserves the two reviewed branch histories with
+merge `117e8414c4f524477db83886ab3731a5c3afc0b4`: dev9 first parent
+`3b7f5a9dcee0d626348d5354531d1a8bad6bed7b`, retention feature second parent
+`9ba755a87f599c1b3743388594da6ae431e82a64`, and immutable dev8 merge base
+`5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2`. The disjoint pure union contains
+272 paths and 3,149,704 bytes, without conflict resolutions or feature edits.
+
+The `overlap_diagnostic_retention_composition` record pins the actual ordered
+merge parents, merge base and merge commit, all eleven retention feature blobs
+with dev8/dev9 predecessor or absence pins, and five non-manifest integration
+blobs. Current version, policy, staging documentation and source tests are the
+only six provenance-integration paths. The layered manifest is not self-hashed;
+exact structure, immutable historical records and worktree/index equality
+constrain it. Every dev9/historical record stays unchanged except the explicit
+current target version; historical tests continue checking immutable source trees.
+Both the duration/EOS and retention feature blobs stay byte-identical to their
+reviewed commits. See [private retention semantics](OVERLAP_DIAGNOSTIC_RETENTION.md).
+
+Retention is prospective and bounded. Failed raw text, schema details and opaque
+model phrase evidence remain private, with truthful missing/truncated/redacted
+labels. Invalid evidence never becomes usable text or identity/profile state.
+This does not recover historical output that was never persisted. Ordinary public
+API shapes, original-mixture text and identity isolation remain unchanged. A live
+or frozen run is not upgraded merely because this local source composition exists.
+
+The exact current allowlist has 272 paths: the immutable dev9 inventory plus the
+four reviewed retention module/document/synthetic-fixture/test additions. The
+3,200,000-byte aggregate limit, 250,000-byte per-file limit, common source checker
+and all privacy exclusions remain unchanged. Provenance-only growth is capped
+at 30,000 bytes relative to the pure merge.
+
+Focused model-free feature/provenance tests and independent review establish only
+their checked source behavior. Prior failing review cases remain in their original
+evidence; corrections do not rewrite those outcomes. No complete-suite, real-model,
+recognition-quality, speaker-quality or long-run acceptance transfers from dev8,
+dev9 or historical endurance results to dev10. No model call, active-run migration
+or public deployment is part of this composition.
+
+## Historical dev9 duration/EOS follow-up
 
 This source-only integration starts from immutable dev8
 `5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2` and pins the five-path corrective
