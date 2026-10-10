@@ -116,6 +116,8 @@ def validate_candidates(payload,duration,*,owned=False):
         elif not 0<=item['start']<item['end']<=duration+.15:raise ValueError('Overlap timestamp outside analyzer window')
         if not 0<=item['support_end']-item['support_start']<=60.01 or item['support_start'] < -60 or item['support_end']>duration+60:raise ValueError('Invalid overlap support')
     for track in tracks:
+        from .overlap_store import validate_partial_track
+        validate_partial_track(track, regions)
         tid=track.get('source_track_id')
         if not isinstance(tid,str) or not tid or len(tid)>300 or tid in tids:raise ValueError('Invalid source track ID')
         tids.add(tid)

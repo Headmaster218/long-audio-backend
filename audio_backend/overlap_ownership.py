@@ -26,6 +26,8 @@ def validate_candidates(bundle,duration):
         if region.get('original_mixture_retained') is not True:raise ValueError('Original mixture must be retained')
     track_ids=set()
     for track in tracks:
+        from .overlap_store import validate_partial_track
+        validate_partial_track(track, regions)
         tid=track.get('source_track_id')
         if not isinstance(tid,str) or not tid or len(tid)>256 or tid in track_ids:
             raise ValueError('Invalid or duplicate candidate track')

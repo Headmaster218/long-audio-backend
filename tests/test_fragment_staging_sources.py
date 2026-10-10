@@ -150,8 +150,11 @@ def test_missing_import_file_is_not_silently_skipped():
 
 
 def test_complete_source_tree_passes_exact_allowlist():
-    policy = json.loads((ROOT / 'docs/FRAGMENT_STAGING_POLICY.json').read_text())
-    files = guard.read_git_tree(':')
+    # Preserve this dev11 proof; the exact dev12 current-tree gate is separate.
+    from test_backend_dev11_integration import dev11_revision
+    files = guard.read_git_tree(dev11_revision())
+    policy = json.loads(files['docs/FRAGMENT_STAGING_POLICY.json'])
+    assert len(files) == 283
     assert set(files) == set(policy['allowed_files'])
     result = guard.validate(files, policy, require_manifest=False)
     assert result['findings'] == 0

@@ -11,6 +11,7 @@ from .overlap import overlapping_regions
 from .overlap_candidates import validate_candidates,moss_support_activity
 from .resources import run_bounded
 from . import overlap_diagnostics
+from .moss_td_recovery import partial_phrases
 ROOT=Path(__file__).resolve().parents[1]
 
 
@@ -102,6 +103,30 @@ def parse_support(plan,phrases,capacity,provenance=None):
     return tracks
 
 
+def partial_support(plan, group, capacity):
+    """Project selected unchanged phrases without renumbering their provenance."""
+    recovered = partial_phrases(group, frame_count=plan['frame_count'],
+        sample_rate=plan['sample_rate'], start_frame=plan['start_frame'], capacity=capacity)
+    if recovered is None:
+        return []
+    phrases, slots, common = recovered
+    tracks = parse_support(plan, phrases, capacity, group['metadata'])
+    for track, phrase in zip(tracks, phrases):
+        index = phrase['native_phrase_index']
+        track_id = f"{plan['shared_support_id']}-phrase-{index}"
+        track.update(source_track_id=track_id, source_slot=slots[phrase['speaker_local_id']],
+                     reason_code='partial_support_schema_valid_phrase')
+        for unit in track['_units']:
+            unit['source_track_id'] = track_id
+        track['provenance'].update(common)
+        track['provenance'].update({key: phrase[key] for key in
+            ('native_phrase_index', 'native_phrase_sha256', 'original_start_timestamp', 'original_end_timestamp')})
+        track['provenance'].update(emitted_label_count=len(slots),
+            multi_speaker_quality_unverified=len(slots)>=3 or plan.get('native_distinct_speakers',0)>=3,
+            count_mismatch_uncertain=len(slots)!=plan.get('native_distinct_speakers',len(slots)))
+    return tracks
+
+
 def analyze_candidates(wav_path,turns,config):
     import soundfile as sf
     info=sf.info(wav_path)
@@ -118,8 +143,10 @@ def analyze_candidates(wav_path,turns,config):
         for plan in plans:
             path=directory/(plan['shared_support_id']+'.wav')
             with sf.SoundFile(wav_path) as source:
-                source.seek(round(plan['start']*info.samplerate))
+                start_frame=round(plan['start']*info.samplerate)
+                source.seek(start_frame)
                 samples=source.read(round(plan['end']*info.samplerate)-round(plan['start']*info.samplerate),dtype='float32')
+            plan.update(start_frame=start_frame,frame_count=len(samples),sample_rate=info.samplerate)
             sf.write(path,samples,info.samplerate,subtype='FLOAT')
             jobs.append({'support_id':plan['shared_support_id'],'path':str(path)})
         output=directory/'result.json';request=directory/'request.json'
@@ -168,6 +195,11 @@ def analyze_candidates(wav_path,turns,config):
                         if not isinstance(raw,str) or len(raw)>100000:raise ValueError('Invalid MOSS raw text')
                         evidence['raw_output_sha256']=hashlib.sha256(raw.encode('utf-8')).hexdigest()
                     for r in indexed[sid]['regions']:r.update(evidence)
+                    if config.get('moss_td_runtime')=='cpp':
+                        published=partial_support(indexed[sid],group,int(config.get('moss_td_capacity',8)))
+                        tracks.extend(published)
+                        if published:
+                            for r in indexed[sid]['regions']:r['model_label_count']=published[0]['provenance']['emitted_label_count']
                     continue
                 published=parse_support(indexed[sid],group.get('phrases'),int(config.get('moss_td_capacity',8)),group.get('metadata'))
                 tracks.extend(published)

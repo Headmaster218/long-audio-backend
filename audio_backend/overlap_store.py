@@ -1,7 +1,10 @@
 """Durable unverified overlap candidates, isolated from transcript/voice banks."""
 import json
 import math
+import re
+from fractions import Fraction
 from . import overlap_diagnostics as diagnostics
+from .moss_td_recovery import POLICY, TIMESTAMP_ERROR, MAX_TIMESTAMP_CHARS
 
 REGION_PUBLIC=('id','chunk_id','overlap_group_id','window_start','start','end','support_start','support_end',
     'status','reason_code','detected_source_count','capacity','original_mixture_retained','continuity_status','shared_support_id','schema_error_count','raw_output_sha256','region_kind','model_label_count')
@@ -9,6 +12,93 @@ TRACK_PUBLIC=('id','chunk_id','region_id','source_track_id','overlap_group_id','
     'support_start','support_end','text','raw_text','scope_id','source_slot','identity_status','quality_status','reason_code')
 PROVENANCE_PUBLIC=('model_id','model_revision','source_revision','weights_sha256','license','sample_rate',
     'capacity','device','window_mode','conditioning_local_id','conditioning_source','language_gate','source_identity_semantics','output_normalization','asr_backend','timestamp_semantics','enrollment_seconds','enrollment_source','enrollment_start','enrollment_end','enrollment_identity_verified','weights','runtime','asr_language','shared_support_id','related_overlap_group_ids','native_unit_kind','native_phrase_intervals','native_time_axis','boundary_uncertain','evidence_routing_note','association_basis','support_owner_anchor','model_local_speaker_label','multi_speaker_quality_unverified','possible_missing_minority','capacity_semantics','emitted_label_count','native_detected_label_count','count_mismatch_uncertain','model_sha256','dtype','cpu_threads','attention_implementation','prompt_sha256','audio_sha256','inference_run','native_peak_simultaneous_count','runtime_provider','runtime_version','runtime_source_revision','runtime_manifest_sha256','runtime_library_sha256','source_weight_sha256','requested_device','actual_backend','actual_device_kind','actual_device_name','generation_budget','generated_tokens','generation_token_count_known','native_output_truncated','precision','generation_budget_policy','fixed_512_token_parity','session_n_ctx','audio_token_count','prompt_token_count','finish_reason')
+
+RECOVERY_PUBLIC = ('recovery_policy', 'support_parse_status', 'support_evidence_status',
+    'native_phrase_index', 'native_phrase_count', 'recovered_phrase_count', 'rejected_phrase_count',
+    'raw_output_sha256', 'native_phrase_sha256', 'support_sample_rate', 'support_frame_count',
+    'support_start_frame', 'support_end_frame', 'support_frame_axis', 'original_start_timestamp',
+    'original_end_timestamp', 'original_timestamp_axis', 'timestamp_adjustment')
+PROVENANCE_PUBLIC += RECOVERY_PUBLIC + ('token_limit_reached',)
+
+
+def _recovery_provenance(value):
+    """New provenance is an all-or-nothing typed contract; old rows stay old."""
+    if not any(key in value for key in RECOVERY_PUBLIC):
+        return None
+    if any(key not in value for key in RECOVERY_PUBLIC):
+        raise ValueError('Incomplete partial recovery provenance')
+    constants = {'recovery_policy': POLICY, 'support_parse_status': 'unresolved',
+        'support_evidence_status': 'partial', 'support_sample_rate': 16000,
+        'support_frame_axis': 'analyzer_window', 'original_timestamp_axis': 'support_relative',
+        'timestamp_adjustment': 'none', 'runtime_provider': 'transcribe_cpp',
+        'inference_run': True, 'finish_reason': 'eos', 'native_output_truncated': False,
+        'token_limit_reached': False}
+    if any(type(value.get(k)) is not type(v) or value.get(k) != v for k,v in constants.items()):
+        raise ValueError('Invalid partial recovery policy or axes')
+    bounds = {'native_phrase_index': (0,127), 'native_phrase_count': (2,128),
+        'recovered_phrase_count': (1,127), 'rejected_phrase_count': (1,127),
+        'support_frame_count': (1,320000), 'support_start_frame': (0,960000),
+        'support_end_frame': (1,960000)}
+    for key,(lo,hi) in bounds.items():
+        if type(value[key]) is not int or not lo <= value[key] <= hi:
+            raise ValueError('Invalid bounded partial recovery count')
+    if (value['native_phrase_index'] >= value['native_phrase_count'] or
+            value['recovered_phrase_count'] + value['rejected_phrase_count'] != value['native_phrase_count'] or
+            value['support_end_frame'] - value['support_start_frame'] != value['support_frame_count']):
+        raise ValueError('Inconsistent partial recovery counts or frames')
+    for key in ('raw_output_sha256', 'native_phrase_sha256'):
+        if not isinstance(value[key], str) or not re.fullmatch('[0-9a-f]{64}', value[key]):
+            raise ValueError('Invalid partial recovery hash')
+    for key in ('original_start_timestamp', 'original_end_timestamp'):
+        if (not isinstance(value[key], str) or not 1 <= len(value[key]) <= MAX_TIMESTAMP_CHARS or
+                not re.fullmatch(r'(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)', value[key])):
+            raise ValueError('Invalid original partial recovery timestamp')
+    a,b = (Fraction(value[key]) for key in ('original_start_timestamp','original_end_timestamp'))
+    if not 0 <= a < b <= Fraction(value['support_frame_count'],16000):
+        raise ValueError('Partial recovery timestamp outside exact extracted frames')
+    return {key:value[key] for key in RECOVERY_PUBLIC}
+
+
+def validate_partial_track(track, regions):
+    """Validate partial-only invariants before ownership and transactional writes."""
+    provenance = track.get('provenance', {})
+    recovery = _recovery_provenance(provenance)
+    if recovery is None:
+        if track.get('reason_code') == 'partial_support_schema_valid_phrase':
+            raise ValueError('Partial candidate missing recovery provenance')
+        return
+    if (track.get('scope_id') != f"support-{recovery['support_start_frame']}" or
+            provenance.get('shared_support_id') != track.get('scope_id') or
+            track.get('source_track_id') != f"{track.get('scope_id')}-phrase-{recovery['native_phrase_index']}"):
+        raise ValueError('Partial candidate support/frame/index lineage mismatch')
+    if (track.get('quality_status') != 'unverified' or
+            track.get('reason_code') != 'partial_support_schema_valid_phrase' or
+            provenance.get('association_basis') != 'support_not_model_timing' or
+            provenance.get('runtime_provider') != 'transcribe_cpp' or
+            provenance.get('inference_run') is not True or
+            provenance.get('finish_reason') != 'eos' or
+            provenance.get('native_output_truncated') is not False or
+            provenance.get('token_limit_reached') is not False):
+        raise ValueError('Partial candidate cannot claim complete or verified evidence')
+    links = provenance.get('related_overlap_group_ids', [track['overlap_group_id']])
+    if (not isinstance(links,list) or not 0 < len(links) <= 32 or
+            any(not isinstance(gid,str) for gid in links) or
+            len(set(links)) != len(links) or track['overlap_group_id'] not in links):
+        raise ValueError('Partial candidate must retain its primary region link')
+    indexed = {r['overlap_group_id']:r for r in regions}
+    for gid in links:
+        region = indexed.get(gid)
+        if (region is None or region.get('status') != 'unresolved' or
+                region.get('reason_code') != TIMESTAMP_ERROR or region.get('schema_error_count') != 1 or
+                region.get('raw_output_sha256') != recovery['raw_output_sha256']):
+            raise ValueError('Partial candidate must retain original unresolved region evidence')
+    for key, lexical in (('start','original_start_timestamp'), ('end','original_end_timestamp')):
+        # This only checks coordinate translation; exact support admission above
+        # uses the original lexical timestamps, with no tolerance or clamping.
+        expected = track['support_start'] + float(recovery[lexical])
+        if (type(track[key]) not in (int,float) or not math.isfinite(track[key]) or
+                not math.isclose(track[key], expected, rel_tol=0, abs_tol=1e-12)):
+            raise ValueError('Partial candidate timestamp changed')
 
 
 def init_schema(db):
@@ -91,15 +181,18 @@ def _native_intervals(rows):
 
 
 def _provenance(value):
+    recovery = _recovery_provenance(value)
     if value.get('generation_token_count_known') is False and value.get('generated_tokens') is not None:
         raise ValueError('Unknown generation token count must remain null/unavailable')
     result={}
     for key in PROVENANCE_PUBLIC:
+        if key == 'token_limit_reached' and recovery is None:
+            continue
         v=value.get(key)
         if v is None:
             if key=='generated_tokens' and key in value:result[key]=None
             continue
-        if key in ('generation_token_count_known','native_output_truncated','fixed_512_token_parity') and type(v) is not bool:raise ValueError('Invalid runtime boolean provenance')
+        if key in ('generation_token_count_known','native_output_truncated','fixed_512_token_parity','token_limit_reached') and type(v) is not bool:raise ValueError('Invalid runtime boolean provenance')
         if key in ('session_n_ctx','audio_token_count','prompt_token_count') and (type(v) is not int or not 0<=v<=2048):raise ValueError('Invalid bounded native token metadata')
         if key=='generation_budget' and (type(v) is not int or not 1<=v<=512):raise ValueError('Invalid generation budget provenance')
         if key=='generated_tokens' and (type(v) is not int or not 0<=v<=512):raise ValueError('Invalid known generation count provenance')

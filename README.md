@@ -110,3 +110,12 @@ python scripts/run_cpu_candidate.py --dry-run
 diagnostic retention, bounded event-candidate numeric fix and public Git-only
 history recovery. See [the exact integration and validation contract](docs/BACKEND_DEV11_INTEGRATION.md).
 This local candidate is not a release or model-quality acceptance.
+
+### dev12 partial phrase recovery candidate
+
+`0.2.0rc2.dev12` adds `partial_schema_valid_phrases_v1` for eligible failed
+overlap supports, retaining independently valid phrase timestamps without repair
+or clipping. The strict parser stays unchanged. See [the source and validation
+contract](docs/BACKEND_DEV12_PARTIAL_RECOVERY.md). This is a local synthetic-only
+source candidate, not a release or model-quality acceptance. Its published dev11 baseline has an exact-tree proof; dev12 fresh-clone
+qualification remains a separate required check.

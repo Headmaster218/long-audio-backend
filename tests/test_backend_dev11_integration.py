@@ -1,4 +1,4 @@
-"""Exact public dev11 composition and synthetic cross-feature transaction checks."""
+"""Immutable published dev11 composition and current synthetic transaction checks."""
 from functools import lru_cache
 import hashlib
 import json
@@ -14,6 +14,8 @@ from scripts import source_staging_guard as guard
 from scripts.public_history import PublicHistory
 
 ROOT = Path(__file__).resolve().parents[1]
+DEV11 = '5b71122f17e4a72cac6ad4120d1c707d9b2133fb'
+DEV11_TREE = '7e7547e1b49473dd24c69887e772b4580014c236'
 PARENTS = ['366797b5c0bba70975507b71db8b4596b6d9344f',
            '5cca518467e5d03eaced884f73798917542f79fd']
 BASE = '4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c'
@@ -158,53 +160,32 @@ def verify_integration(files, index, modes, index_modes):
             assert target.split('#', 1)[0] in files, target
 
 
+def dev11_revision():
+    headers = git('cat-file', 'commit', DEV11).split(b'\n\n', 1)[0].splitlines()
+    assert [line[5:].decode() for line in headers if line.startswith(b'tree ')] == [DEV11_TREE]
+    assert [line[7:].decode() for line in headers if line.startswith(b'parent ')] == PARENTS
+    assert git('cat-file', '-t', DEV11_TREE).strip() == b'tree'
+    return DEV11
+
+
 @pytest.fixture(scope='module')
 def integrated_sources():
-    index = guard.read_git_tree(':')
-    files = guard.read_worktree(json.loads(index[POLICY]))
-    index_modes = {}
-    for entry in git('ls-files', '--stage', '-z').split(b'\0'):
-        if entry:
-            header, name = entry.decode().split('\t')
-            mode, _, stage = header.split()
-            assert stage == '0' and name not in index_modes
-            index_modes[name] = mode
-    modes = {path: '100755' if (ROOT / path).stat().st_mode & 0o111 else '100644' for path in files}
-    return files, index, modes, index_modes
+    # Historical proof retains its exact 19-path composition and mutations.
+    files = guard.read_git_tree(dev11_revision())
+    modes = tree_modes(DEV11)
+    assert len(files) == 283 and sum(map(len, files.values())) == 3317327
+    return files, files, modes, modes
 
 
-def test_dev11_exact_current_integration(integrated_sources):
+def test_dev11_exact_historical_integration(integrated_sources):
     verify_integration(*integrated_sources)
 
 
 def test_dev11_actual_two_parent_merge():
+    dev11_revision()
     for ref in [BASE, *PARENTS]:
         verified_revision(ref)
     assert git('merge-base', '--all', *PARENTS).decode().splitlines() == [BASE]
-    # A staged merge is testable before committing; the final commit must retain
-    # exactly the same ordered parents, and the committed tree must equal index.
-    merge_path = Path(git('rev-parse', '--git-path', 'MERGE_HEAD').decode().strip())
-    if not merge_path.is_absolute():
-        merge_path = ROOT / merge_path
-    if merge_path.exists():
-        assert git('rev-parse', 'HEAD').decode().strip() == PARENTS[0]
-        assert merge_path.read_text().splitlines() == [PARENTS[1]]
-    else:
-        headers = git('cat-file', 'commit', 'HEAD').split(b'\n\n', 1)[0].splitlines()
-        assert [line[7:].decode() for line in headers if line.startswith(b'parent ')] == PARENTS
-        assert guard.read_git_tree('HEAD') == guard.read_git_tree(':')
-        assert tree_modes('HEAD') == {path: mode for path, mode in integrated_modes().items()}
-
-
-def integrated_modes():
-    result = {}
-    for entry in git('ls-files', '--stage', '-z').split(b'\0'):
-        if entry:
-            header, name = entry.decode().split('\t')
-            mode, _, stage = header.split()
-            assert stage == '0'
-            result[name] = mode
-    return result
 
 
 @pytest.mark.parametrize('mutation', [

@@ -1,0 +1,158 @@
+{
+  "schema": "reviewed-backend-dev12-partial-recovery-v1",
+  "version": "0.2.0rc2.dev12",
+  "base_commit": "5b71122f17e4a72cac6ad4120d1c707d9b2133fb",
+  "base_tree": "7e7547e1b49473dd24c69887e772b4580014c236",
+  "scope": {
+    "feature": "partial_schema_valid_phrases_v1",
+    "normalization": "none; no timestamp repair or clipping",
+    "history": "Exact dev11 baseline and all earlier public-only historical proofs retained",
+    "acceptance": "Synthetic model-free source candidate; no release or real-model quality acceptance"
+  },
+  "source_budget": {
+    "maximum_files": 288,
+    "maximum_total_bytes": 3400000,
+    "maximum_file_bytes": 250000
+  },
+  "manifest_self_hash": "excluded-to-avoid-recursion; exact schema and canonical serialization validated",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 13664,
+      "sha256": "3fe390538823f03aced61914a88c46a3a650ec41478707a1cb02adeb42994d4d",
+      "source_blob": "7c303467853e840a875fbf8de0bff4a1894c8038",
+      "supersedes": {
+        "bytes": 13118,
+        "sha256": "20eecabc5f513b37d6897f074bf078f3f8a3406bfd752bf11fcd27a27ce51e04",
+        "source_blob": "7c934d981b2812128c3d7e771edd5431b47a9fe1"
+      }
+    },
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 108,
+      "sha256": "9fe54da9a34fb1e591f08583a29df0cbd63fd527b49ed36182f180cd65256ca1",
+      "source_blob": "fc0b98d72dcfa9be8dfea37c1178a2416296428b",
+      "supersedes": {
+        "bytes": 108,
+        "sha256": "53c85f4721ef526e1d4485df991bce251ba987820b3f8966d9b292ba02c683e1",
+        "source_blob": "6f70f0915e6497263f3ec57af481645f672f26f9"
+      }
+    },
+    {
+      "path": "audio_backend/moss_td_candidates.py",
+      "bytes": 16598,
+      "sha256": "396b020d784d98b88e8195e0df563ac3ef4559bc0ced92e1853fa113f62c4423",
+      "source_blob": "424923571d6c0b167b6f4ef9e580dd82ac76bd65",
+      "supersedes": {
+        "bytes": 14653,
+        "sha256": "cc50a3a100f6e0440bc12624934c68d5843ee1c43d24456b6d6f61c1de50e40c",
+        "source_blob": "6d8593acadb7e445903aeed9d1291a2580629323"
+      }
+    },
+    {
+      "path": "audio_backend/moss_td_recovery.py",
+      "bytes": 5083,
+      "sha256": "cb630d475fa8d6cfcb7aa17ac2a23e79ba4bb1553015c1cf8012408376ad0b72",
+      "source_blob": "6b871f2bf896d983fb9532539dcd4b8728226e9b",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/overlap_candidates.py",
+      "bytes": 21709,
+      "sha256": "a539c4adaa1b9b5616ff7fd5b6a6ea543f7c664040498aef3b78e5be82cbbb31",
+      "source_blob": "188960373ce8587f3058252060bede82072d9418",
+      "supersedes": {
+        "bytes": 21604,
+        "sha256": "1b52314f981a0ec7d778b6d03b586cfc3ee8a2dbe448e89bc1f1af71738369a8",
+        "source_blob": "4d3d50456370844ab8e4495108f269d369ce406d"
+      }
+    },
+    {
+      "path": "audio_backend/overlap_ownership.py",
+      "bytes": 12916,
+      "sha256": "5d579adebec2bf7d7f153131c8f06e772af1d516efba8ec43946778c5b900e75",
+      "source_blob": "cf5b8bf2ef80c170d45a6d893028d90ece6013c1",
+      "supersedes": {
+        "bytes": 12811,
+        "sha256": "a29eddb46f370b1f475cd328f6684d61a4c3cc8c3237173456e9a7f1f2daa61b",
+        "source_blob": "9ee32a03c8d61978467de4ef3d072a5d544380e3"
+      }
+    },
+    {
+      "path": "audio_backend/overlap_store.py",
+      "bytes": 34123,
+      "sha256": "f84b27db0e0f1a2b35df320f26ead6d404b29161f4587403fdedc77eb3ed1843",
+      "source_blob": "703d0a002e23d1573d66ae8a2d4a6304b9e3c807",
+      "supersedes": {
+        "bytes": 27905,
+        "sha256": "1e159078da7bf15a8699761f07d160a904bbd5c5f956b2673103e2c71e48805c",
+        "source_blob": "e9ac3b80bd452fd2d83356edfa8ebbe25341fc8e"
+      }
+    },
+    {
+      "path": "docs/BACKEND_DEV12_PARTIAL_RECOVERY.md",
+      "bytes": 4592,
+      "sha256": "b20b67ca3c3fa0efafdc7fb61c433f45e4a5f1a4760427f59345cda951014e9c",
+      "source_blob": "51a814c09b7b0802f61473403d837a4ad9205b84",
+      "base_absent": true
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 12973,
+      "sha256": "08bf3b8bd3d6be4ae775c8dfe6b38561bf6dd59771584ca28748cc69549c6738",
+      "source_blob": "15668cbd5f938fa8bd537ebf5a9e76e841795d54",
+      "supersedes": {
+        "bytes": 12768,
+        "sha256": "3a081a457b077fa1b4341e225b18bed7ca7807dbbf421d3a53a02304c57788d2",
+        "source_blob": "762a3a4eda3c74790577642bd162962615ef5f66"
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 829,
+      "sha256": "17d309939b13eaa5f6292f434be2dde6b7d64d9218d0920e69c5b9e7adf3fa74",
+      "source_blob": "1fdc4bbd03b1909bac729475949448155a218a0c",
+      "supersedes": {
+        "bytes": 829,
+        "sha256": "ccba4964f14e835d4b7927a1dfac95a726af90442cdb9b6283103c6bc7ff608c",
+        "source_blob": "38a2c3aafabe7733bdf0c823446296fce3a23065"
+      }
+    },
+    {
+      "path": "tests/test_backend_dev11_integration.py",
+      "bytes": 45783,
+      "sha256": "3c59adf5254b6722becb1c3ee6ebdbb362caf0fa414f21ddbab3087573a16768",
+      "source_blob": "243f7a1a0511e76ebbd73ead6666e61e47e36333",
+      "supersedes": {
+        "bytes": 46699,
+        "sha256": "dae9da05bc87910f637871be079adb95ceb8c24a2063aa74005082c68b90fe5c",
+        "source_blob": "3b523b7aa244b6def991e255e179d41cc6f3e887"
+      }
+    },
+    {
+      "path": "tests/test_backend_dev12_source.py",
+      "bytes": 13425,
+      "sha256": "45ad99a7a3c8e534dbb6a29349b4ff173e33e5ed063ea97fc347d8d0da7159d1",
+      "source_blob": "e114b664cfe6d84c25c287854bd2ec4a45516e72",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "bytes": 50920,
+      "sha256": "6ff58045702ef0d1b6630a8de6230b44ec907edf24d9395928cd30fd0a8f78b9",
+      "source_blob": "88a8486d460f69449f0a7a2a2f35d9b7682e94d3",
+      "supersedes": {
+        "bytes": 50750,
+        "sha256": "44afad52a388c31b3a11f42993407bb9045d93726b080aac8146a85324f9ad11",
+        "source_blob": "233e24b2624b9d82a2d788ce8bd5f91bed407023"
+      }
+    },
+    {
+      "path": "tests/test_moss_td_partial_recovery.py",
+      "bytes": 22049,
+      "sha256": "d550dc7f02f97039182fa7147b756da4f4f4470e0861c5ee4479257999b9af62",
+      "source_blob": "5021771f1fa63ea62ab2bf0401746e6a14242952",
+      "base_absent": true
+    }
+  ]
+}
