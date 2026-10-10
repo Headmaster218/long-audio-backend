@@ -1,0 +1,1467 @@
+{
+  "schema": "bounded-recovery-public-selection-v1",
+  "sample_rate": 16000,
+  "channel": 0,
+  "sample_support": "start inclusive, end exclusive",
+  "posthoc_A": {
+    "original_selection": "../continuous/selection.json",
+    "parents": [
+      {
+        "meeting": "R8007_M8010_MS803",
+        "parent_window_index": 0,
+        "parent_start_frame": 5860480,
+        "parent_end_frame": 6180480,
+        "children": [
+          {
+            "index": 0,
+            "frames": 160000,
+            "parent_relative_start_frame": 0,
+            "parent_relative_end_frame": 160000,
+            "source_start_frame": 5860480,
+            "source_end_frame": 6020480
+          },
+          {
+            "index": 1,
+            "frames": 160000,
+            "parent_relative_start_frame": 160000,
+            "parent_relative_end_frame": 320000,
+            "source_start_frame": 6020480,
+            "source_end_frame": 6180480
+          }
+        ]
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "parent_window_index": 1,
+        "parent_start_frame": 6180480,
+        "parent_end_frame": 6500480,
+        "children": [
+          {
+            "index": 0,
+            "frames": 160000,
+            "parent_relative_start_frame": 0,
+            "parent_relative_end_frame": 160000,
+            "source_start_frame": 6180480,
+            "source_end_frame": 6340480
+          },
+          {
+            "index": 1,
+            "frames": 160000,
+            "parent_relative_start_frame": 160000,
+            "parent_relative_end_frame": 320000,
+            "source_start_frame": 6340480,
+            "source_end_frame": 6500480
+          }
+        ]
+      }
+    ]
+  },
+  "prospective_B": {
+    "excerpts": [
+      {
+        "meeting": "R8001_M8004_MS801",
+        "start_frame": 15417600,
+        "end_frame": 17123520,
+        "seconds": 106.62,
+        "source_frames": 25181600,
+        "target_frames": [
+          16320000,
+          17760000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 15424320,
+            "midpoint_frame": 15417600,
+            "start_frame": 15410880
+          },
+          {
+            "end_frame": 17132480,
+            "midpoint_frame": 17123520,
+            "start_frame": 17114560
+          }
+        ],
+        "reference_characters": 789,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 103.4,
+        "annotated_nonspeech_seconds": 3.22,
+        "annotated_overlap_seconds": 33.41
+      },
+      {
+        "meeting": "R8003_M8001_MS801",
+        "start_frame": 21713440,
+        "end_frame": 23047120,
+        "seconds": 83.355,
+        "source_frames": 33088000,
+        "target_frames": [
+          21600000,
+          23040000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 21724640,
+            "midpoint_frame": 21713440,
+            "start_frame": 21702240
+          },
+          {
+            "end_frame": 23053440,
+            "midpoint_frame": 23047120,
+            "start_frame": 23040800
+          }
+        ],
+        "reference_characters": 435,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 79.01,
+        "annotated_nonspeech_seconds": 4.345,
+        "annotated_overlap_seconds": 15.76
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "start_frame": 19752320,
+        "end_frame": 21498400,
+        "seconds": 109.13,
+        "source_frames": 29701151,
+        "target_frames": [
+          19680000,
+          21120000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 19758400,
+            "midpoint_frame": 19752320,
+            "start_frame": 19746240
+          },
+          {
+            "end_frame": 21503040,
+            "midpoint_frame": 21498400,
+            "start_frame": 21493760
+          }
+        ],
+        "reference_characters": 904,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 106.16,
+        "annotated_nonspeech_seconds": 2.97,
+        "annotated_overlap_seconds": 65.31
+      },
+      {
+        "meeting": "R8007_M8011_MS806",
+        "start_frame": 20208880,
+        "end_frame": 21635760,
+        "seconds": 89.18,
+        "source_frames": 29784736,
+        "target_frames": [
+          19680000,
+          21120000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 20213760,
+            "midpoint_frame": 20208880,
+            "start_frame": 20204000
+          },
+          {
+            "end_frame": 21645280,
+            "midpoint_frame": 21635760,
+            "start_frame": 21626240
+          }
+        ],
+        "reference_characters": 535,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 87.74,
+        "annotated_nonspeech_seconds": 1.44,
+        "annotated_overlap_seconds": 24.96
+      },
+      {
+        "meeting": "R8008_M8013_MS807",
+        "start_frame": 23564880,
+        "end_frame": 24866720,
+        "seconds": 81.365,
+        "source_frames": 35831528,
+        "target_frames": [
+          23520000,
+          24960000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 23575200,
+            "midpoint_frame": 23564880,
+            "start_frame": 23554560
+          },
+          {
+            "end_frame": 24876000,
+            "midpoint_frame": 24866720,
+            "start_frame": 24857440
+          }
+        ],
+        "reference_characters": 239,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 64.73,
+        "annotated_nonspeech_seconds": 16.635,
+        "annotated_overlap_seconds": 9.47
+      },
+      {
+        "meeting": "R8009_M8018_MS809",
+        "start_frame": 18403760,
+        "end_frame": 19471760,
+        "seconds": 66.75,
+        "source_frames": 26474512,
+        "target_frames": [
+          17280000,
+          18720000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 18411520,
+            "midpoint_frame": 18403760,
+            "start_frame": 18396000
+          },
+          {
+            "end_frame": 19475840,
+            "midpoint_frame": 19471760,
+            "start_frame": 19467680
+          }
+        ],
+        "reference_characters": 312,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 57.5,
+        "annotated_nonspeech_seconds": 9.25,
+        "annotated_overlap_seconds": 3.28
+      },
+      {
+        "meeting": "R8009_M8019_MS810",
+        "start_frame": 20570080,
+        "end_frame": 22056400,
+        "seconds": 92.895,
+        "source_frames": 31582816,
+        "target_frames": [
+          20640000,
+          22080000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 20574720,
+            "midpoint_frame": 20570080,
+            "start_frame": 20565440
+          },
+          {
+            "end_frame": 22060800,
+            "midpoint_frame": 22056400,
+            "start_frame": 22052000
+          }
+        ],
+        "reference_characters": 451,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 85.54,
+        "annotated_nonspeech_seconds": 7.355,
+        "annotated_overlap_seconds": 11.91
+      },
+      {
+        "meeting": "R8009_M8020_MS810",
+        "start_frame": 20413600,
+        "end_frame": 21483280,
+        "seconds": 66.855,
+        "source_frames": 30567097,
+        "target_frames": [
+          20160000,
+          21600000
+        ],
+        "edge_gaps": [
+          {
+            "end_frame": 20423040,
+            "midpoint_frame": 20413600,
+            "start_frame": 20404160
+          },
+          {
+            "end_frame": 21489120,
+            "midpoint_frame": 21483280,
+            "start_frame": 21477440
+          }
+        ],
+        "reference_characters": 335,
+        "partial_outer_turns": 0,
+        "prior_support_intersections": 0,
+        "speech_union_seconds": 61.48,
+        "annotated_nonspeech_seconds": 5.375,
+        "annotated_overlap_seconds": 8.93
+      }
+    ],
+    "windows": [
+      {
+        "meeting": "R8001_M8004_MS801",
+        "index": 0,
+        "start_frame": 15417600,
+        "end_frame": 15737600,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8001_M8004_MS801",
+        "index": 1,
+        "start_frame": 15737600,
+        "end_frame": 16057600,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8001_M8004_MS801",
+        "index": 2,
+        "start_frame": 16057600,
+        "end_frame": 16377600,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8001_M8004_MS801",
+        "index": 3,
+        "start_frame": 16377600,
+        "end_frame": 16697600,
+        "frames": 320000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1280000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8001_M8004_MS801",
+        "index": 4,
+        "start_frame": 16697600,
+        "end_frame": 17017600,
+        "frames": 320000,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1600000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8001_M8004_MS801",
+        "index": 5,
+        "start_frame": 17017600,
+        "end_frame": 17123520,
+        "frames": 105920,
+        "relative_start_frame": 1600000,
+        "relative_end_frame": 1705920,
+        "final_short": true
+      },
+      {
+        "meeting": "R8003_M8001_MS801",
+        "index": 0,
+        "start_frame": 21713440,
+        "end_frame": 22033440,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8003_M8001_MS801",
+        "index": 1,
+        "start_frame": 22033440,
+        "end_frame": 22353440,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8003_M8001_MS801",
+        "index": 2,
+        "start_frame": 22353440,
+        "end_frame": 22673440,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8003_M8001_MS801",
+        "index": 3,
+        "start_frame": 22673440,
+        "end_frame": 22993440,
+        "frames": 320000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1280000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8003_M8001_MS801",
+        "index": 4,
+        "start_frame": 22993440,
+        "end_frame": 23047120,
+        "frames": 53680,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1333680,
+        "final_short": true
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "index": 0,
+        "start_frame": 19752320,
+        "end_frame": 20072320,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "index": 1,
+        "start_frame": 20072320,
+        "end_frame": 20392320,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "index": 2,
+        "start_frame": 20392320,
+        "end_frame": 20712320,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "index": 3,
+        "start_frame": 20712320,
+        "end_frame": 21032320,
+        "frames": 320000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1280000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "index": 4,
+        "start_frame": 21032320,
+        "end_frame": 21352320,
+        "frames": 320000,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1600000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8010_MS803",
+        "index": 5,
+        "start_frame": 21352320,
+        "end_frame": 21498400,
+        "frames": 146080,
+        "relative_start_frame": 1600000,
+        "relative_end_frame": 1746080,
+        "final_short": true
+      },
+      {
+        "meeting": "R8007_M8011_MS806",
+        "index": 0,
+        "start_frame": 20208880,
+        "end_frame": 20528880,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8011_MS806",
+        "index": 1,
+        "start_frame": 20528880,
+        "end_frame": 20848880,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8011_MS806",
+        "index": 2,
+        "start_frame": 20848880,
+        "end_frame": 21168880,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8011_MS806",
+        "index": 3,
+        "start_frame": 21168880,
+        "end_frame": 21488880,
+        "frames": 320000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1280000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8007_M8011_MS806",
+        "index": 4,
+        "start_frame": 21488880,
+        "end_frame": 21635760,
+        "frames": 146880,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1426880,
+        "final_short": true
+      },
+      {
+        "meeting": "R8008_M8013_MS807",
+        "index": 0,
+        "start_frame": 23564880,
+        "end_frame": 23884880,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8008_M8013_MS807",
+        "index": 1,
+        "start_frame": 23884880,
+        "end_frame": 24204880,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8008_M8013_MS807",
+        "index": 2,
+        "start_frame": 24204880,
+        "end_frame": 24524880,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8008_M8013_MS807",
+        "index": 3,
+        "start_frame": 24524880,
+        "end_frame": 24844880,
+        "frames": 320000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1280000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8008_M8013_MS807",
+        "index": 4,
+        "start_frame": 24844880,
+        "end_frame": 24866720,
+        "frames": 21840,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1301840,
+        "final_short": true
+      },
+      {
+        "meeting": "R8009_M8018_MS809",
+        "index": 0,
+        "start_frame": 18403760,
+        "end_frame": 18723760,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8018_MS809",
+        "index": 1,
+        "start_frame": 18723760,
+        "end_frame": 19043760,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8018_MS809",
+        "index": 2,
+        "start_frame": 19043760,
+        "end_frame": 19363760,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8018_MS809",
+        "index": 3,
+        "start_frame": 19363760,
+        "end_frame": 19471760,
+        "frames": 108000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1068000,
+        "final_short": true
+      },
+      {
+        "meeting": "R8009_M8019_MS810",
+        "index": 0,
+        "start_frame": 20570080,
+        "end_frame": 20890080,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8019_MS810",
+        "index": 1,
+        "start_frame": 20890080,
+        "end_frame": 21210080,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8019_MS810",
+        "index": 2,
+        "start_frame": 21210080,
+        "end_frame": 21530080,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8019_MS810",
+        "index": 3,
+        "start_frame": 21530080,
+        "end_frame": 21850080,
+        "frames": 320000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1280000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8019_MS810",
+        "index": 4,
+        "start_frame": 21850080,
+        "end_frame": 22056400,
+        "frames": 206320,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1486320,
+        "final_short": true
+      },
+      {
+        "meeting": "R8009_M8020_MS810",
+        "index": 0,
+        "start_frame": 20413600,
+        "end_frame": 20733600,
+        "frames": 320000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 320000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8020_MS810",
+        "index": 1,
+        "start_frame": 20733600,
+        "end_frame": 21053600,
+        "frames": 320000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 640000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8020_MS810",
+        "index": 2,
+        "start_frame": 21053600,
+        "end_frame": 21373600,
+        "frames": 320000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 960000,
+        "final_short": false
+      },
+      {
+        "meeting": "R8009_M8020_MS810",
+        "index": 3,
+        "start_frame": 21373600,
+        "end_frame": 21483280,
+        "frames": 109680,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1069680,
+        "final_short": true
+      }
+    ],
+    "potential_children": [
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 15417600,
+        "end_frame": 15577600,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 15577600,
+        "end_frame": 15737600,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 15737600,
+        "end_frame": 15897600,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 15897600,
+        "end_frame": 16057600,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": true,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 16057600,
+        "end_frame": 16217600,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": true,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 16217600,
+        "end_frame": 16377600,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 16377600,
+        "end_frame": 16537600,
+        "frames": 160000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1120000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 16537600,
+        "end_frame": 16697600,
+        "frames": 160000,
+        "relative_start_frame": 1120000,
+        "relative_end_frame": 1280000
+      },
+      {
+        "parent_window_index": 4,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 16697600,
+        "end_frame": 16857600,
+        "frames": 160000,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1440000
+      },
+      {
+        "parent_window_index": 4,
+        "attempted": false,
+        "meeting": "R8001_M8004_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 16857600,
+        "end_frame": 17017600,
+        "frames": 160000,
+        "relative_start_frame": 1440000,
+        "relative_end_frame": 1600000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 21713440,
+        "end_frame": 21873440,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21873440,
+        "end_frame": 22033440,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 22033440,
+        "end_frame": 22193440,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 22193440,
+        "end_frame": 22353440,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 22353440,
+        "end_frame": 22513440,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 22513440,
+        "end_frame": 22673440,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 22673440,
+        "end_frame": 22833440,
+        "frames": 160000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1120000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8003_M8001_MS801",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 22833440,
+        "end_frame": 22993440,
+        "frames": 160000,
+        "relative_start_frame": 1120000,
+        "relative_end_frame": 1280000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": true,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 19752320,
+        "end_frame": 19912320,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": true,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 19912320,
+        "end_frame": 20072320,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20072320,
+        "end_frame": 20232320,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20232320,
+        "end_frame": 20392320,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20392320,
+        "end_frame": 20552320,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20552320,
+        "end_frame": 20712320,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20712320,
+        "end_frame": 20872320,
+        "frames": 160000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1120000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20872320,
+        "end_frame": 21032320,
+        "frames": 160000,
+        "relative_start_frame": 1120000,
+        "relative_end_frame": 1280000
+      },
+      {
+        "parent_window_index": 4,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 21032320,
+        "end_frame": 21192320,
+        "frames": 160000,
+        "relative_start_frame": 1280000,
+        "relative_end_frame": 1440000
+      },
+      {
+        "parent_window_index": 4,
+        "attempted": false,
+        "meeting": "R8007_M8010_MS803",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21192320,
+        "end_frame": 21352320,
+        "frames": 160000,
+        "relative_start_frame": 1440000,
+        "relative_end_frame": 1600000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20208880,
+        "end_frame": 20368880,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20368880,
+        "end_frame": 20528880,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20528880,
+        "end_frame": 20688880,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20688880,
+        "end_frame": 20848880,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20848880,
+        "end_frame": 21008880,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21008880,
+        "end_frame": 21168880,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 21168880,
+        "end_frame": 21328880,
+        "frames": 160000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1120000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8007_M8011_MS806",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21328880,
+        "end_frame": 21488880,
+        "frames": 160000,
+        "relative_start_frame": 1120000,
+        "relative_end_frame": 1280000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 23564880,
+        "end_frame": 23724880,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 23724880,
+        "end_frame": 23884880,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 23884880,
+        "end_frame": 24044880,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 24044880,
+        "end_frame": 24204880,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 24204880,
+        "end_frame": 24364880,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 24364880,
+        "end_frame": 24524880,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 24524880,
+        "end_frame": 24684880,
+        "frames": 160000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1120000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8008_M8013_MS807",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 24684880,
+        "end_frame": 24844880,
+        "frames": 160000,
+        "relative_start_frame": 1120000,
+        "relative_end_frame": 1280000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8009_M8018_MS809",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 18403760,
+        "end_frame": 18563760,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8009_M8018_MS809",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 18563760,
+        "end_frame": 18723760,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8009_M8018_MS809",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 18723760,
+        "end_frame": 18883760,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8009_M8018_MS809",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 18883760,
+        "end_frame": 19043760,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8009_M8018_MS809",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 19043760,
+        "end_frame": 19203760,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8009_M8018_MS809",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 19203760,
+        "end_frame": 19363760,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20570080,
+        "end_frame": 20730080,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20730080,
+        "end_frame": 20890080,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20890080,
+        "end_frame": 21050080,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21050080,
+        "end_frame": 21210080,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 21210080,
+        "end_frame": 21370080,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21370080,
+        "end_frame": 21530080,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 21530080,
+        "end_frame": 21690080,
+        "frames": 160000,
+        "relative_start_frame": 960000,
+        "relative_end_frame": 1120000
+      },
+      {
+        "parent_window_index": 3,
+        "attempted": false,
+        "meeting": "R8009_M8019_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21690080,
+        "end_frame": 21850080,
+        "frames": 160000,
+        "relative_start_frame": 1120000,
+        "relative_end_frame": 1280000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8009_M8020_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20413600,
+        "end_frame": 20573600,
+        "frames": 160000,
+        "relative_start_frame": 0,
+        "relative_end_frame": 160000
+      },
+      {
+        "parent_window_index": 0,
+        "attempted": false,
+        "meeting": "R8009_M8020_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20573600,
+        "end_frame": 20733600,
+        "frames": 160000,
+        "relative_start_frame": 160000,
+        "relative_end_frame": 320000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8009_M8020_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 20733600,
+        "end_frame": 20893600,
+        "frames": 160000,
+        "relative_start_frame": 320000,
+        "relative_end_frame": 480000
+      },
+      {
+        "parent_window_index": 1,
+        "attempted": false,
+        "meeting": "R8009_M8020_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 20893600,
+        "end_frame": 21053600,
+        "frames": 160000,
+        "relative_start_frame": 480000,
+        "relative_end_frame": 640000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8009_M8020_MS810",
+        "child_index": 0,
+        "depth": 1,
+        "start_frame": 21053600,
+        "end_frame": 21213600,
+        "frames": 160000,
+        "relative_start_frame": 640000,
+        "relative_end_frame": 800000
+      },
+      {
+        "parent_window_index": 2,
+        "attempted": false,
+        "meeting": "R8009_M8020_MS810",
+        "child_index": 1,
+        "depth": 1,
+        "start_frame": 21213600,
+        "end_frame": 21373600,
+        "frames": 160000,
+        "relative_start_frame": 800000,
+        "relative_end_frame": 960000
+      }
+    ]
+  }
+}

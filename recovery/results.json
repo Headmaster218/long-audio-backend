@@ -1,0 +1,1453 @@
+{
+  "schema": "bounded-recovery-public-evidence-v1",
+  "headline": "No clean pass: original continuous FAIL remains immutable; prospective recovery quality gate FAIL.",
+  "posthoc_A": {
+    "classification": "Known-failure post-hoc counterfactual only",
+    "original_scores": "../continuous/results.json",
+    "original_gate_remains_FAIL": true,
+    "clean_first_pass_gate_eligible": false,
+    "reference_characters": 4182,
+    "counterfactual_arms": {
+      "sensevoice": {
+        "overall": {
+          "errors": 1360,
+          "substitutions": 220,
+          "deletions": 1107,
+          "insertions": 33,
+          "reference_characters": 4182,
+          "failures": 0,
+          "truncations": 0,
+          "cer": 0.3252032520325203,
+          "repetition_suspicions": 0,
+          "windows": 41,
+          "meetings": 8
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "meeting": "R8001_M8004_MS801",
+            "errors": 355,
+            "substitutions": 30,
+            "deletions": 324,
+            "insertions": 1,
+            "reference_characters": 621,
+            "cer": 0.571658615136876,
+            "hypothesis_characters": 298,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8003_M8001_MS801": {
+            "meeting": "R8003_M8001_MS801",
+            "errors": 131,
+            "substitutions": 29,
+            "deletions": 96,
+            "insertions": 6,
+            "reference_characters": 583,
+            "cer": 0.22469982847341338,
+            "hypothesis_characters": 493,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8010_MS803": {
+            "meeting": "R8007_M8010_MS803",
+            "errors": 418,
+            "substitutions": 48,
+            "deletions": 353,
+            "insertions": 17,
+            "reference_characters": 709,
+            "cer": 0.5895627644569816,
+            "hypothesis_characters": 373,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8011_MS806": {
+            "meeting": "R8007_M8011_MS806",
+            "errors": 76,
+            "substitutions": 18,
+            "deletions": 58,
+            "insertions": 0,
+            "reference_characters": 425,
+            "cer": 0.17882352941176471,
+            "hypothesis_characters": 367,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8008_M8013_MS807": {
+            "meeting": "R8008_M8013_MS807",
+            "errors": 187,
+            "substitutions": 52,
+            "deletions": 131,
+            "insertions": 4,
+            "reference_characters": 455,
+            "cer": 0.41098901098901097,
+            "hypothesis_characters": 328,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8018_MS809": {
+            "meeting": "R8009_M8018_MS809",
+            "errors": 48,
+            "substitutions": 10,
+            "deletions": 36,
+            "insertions": 2,
+            "reference_characters": 455,
+            "cer": 0.1054945054945055,
+            "hypothesis_characters": 421,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8019_MS810": {
+            "meeting": "R8009_M8019_MS810",
+            "errors": 96,
+            "substitutions": 17,
+            "deletions": 78,
+            "insertions": 1,
+            "reference_characters": 447,
+            "cer": 0.21476510067114093,
+            "hypothesis_characters": 370,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8020_MS810": {
+            "meeting": "R8009_M8020_MS810",
+            "errors": 49,
+            "substitutions": 16,
+            "deletions": 31,
+            "insertions": 2,
+            "reference_characters": 487,
+            "cer": 0.10061601642710473,
+            "hypothesis_characters": 458,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          }
+        }
+      },
+      "qwen": {
+        "overall": {
+          "errors": 1272,
+          "substitutions": 206,
+          "deletions": 1017,
+          "insertions": 49,
+          "reference_characters": 4182,
+          "failures": 0,
+          "truncations": 0,
+          "cer": 0.30416068866571017,
+          "repetition_suspicions": 0,
+          "windows": 41,
+          "meetings": 8
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "meeting": "R8001_M8004_MS801",
+            "errors": 328,
+            "substitutions": 30,
+            "deletions": 292,
+            "insertions": 6,
+            "reference_characters": 621,
+            "cer": 0.5281803542673108,
+            "hypothesis_characters": 335,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8003_M8001_MS801": {
+            "meeting": "R8003_M8001_MS801",
+            "errors": 142,
+            "substitutions": 23,
+            "deletions": 114,
+            "insertions": 5,
+            "reference_characters": 583,
+            "cer": 0.24356775300171526,
+            "hypothesis_characters": 474,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8010_MS803": {
+            "meeting": "R8007_M8010_MS803",
+            "errors": 402,
+            "substitutions": 47,
+            "deletions": 334,
+            "insertions": 21,
+            "reference_characters": 709,
+            "cer": 0.5669957686882934,
+            "hypothesis_characters": 396,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8011_MS806": {
+            "meeting": "R8007_M8011_MS806",
+            "errors": 65,
+            "substitutions": 25,
+            "deletions": 38,
+            "insertions": 2,
+            "reference_characters": 425,
+            "cer": 0.15294117647058825,
+            "hypothesis_characters": 389,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8008_M8013_MS807": {
+            "meeting": "R8008_M8013_MS807",
+            "errors": 163,
+            "substitutions": 50,
+            "deletions": 104,
+            "insertions": 9,
+            "reference_characters": 455,
+            "cer": 0.35824175824175825,
+            "hypothesis_characters": 360,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8018_MS809": {
+            "meeting": "R8009_M8018_MS809",
+            "errors": 50,
+            "substitutions": 13,
+            "deletions": 36,
+            "insertions": 1,
+            "reference_characters": 455,
+            "cer": 0.10989010989010989,
+            "hypothesis_characters": 420,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8019_MS810": {
+            "meeting": "R8009_M8019_MS810",
+            "errors": 85,
+            "substitutions": 11,
+            "deletions": 72,
+            "insertions": 2,
+            "reference_characters": 447,
+            "cer": 0.19015659955257272,
+            "hypothesis_characters": 377,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8020_MS810": {
+            "meeting": "R8009_M8020_MS810",
+            "errors": 37,
+            "substitutions": 7,
+            "deletions": 27,
+            "insertions": 3,
+            "reference_characters": 487,
+            "cer": 0.07597535934291581,
+            "hypothesis_characters": 463,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          }
+        }
+      }
+    },
+    "descriptive_lexical_checks_only": {
+      "overall_no_regression": true,
+      "at_least_6_of_8_meetings_nonregressing": true,
+      "qwen_no_failures": true,
+      "qwen_no_truncations": true,
+      "qwen_no_repetition_suspicions": true
+    },
+    "nonregressing_meetings": 6,
+    "calls": {
+      "new_qwen_children": 4,
+      "known_truncated_parents": 2,
+      "new_qwen_audio_seconds": 40
+    },
+    "child_statuses": {
+      "success": 4
+    },
+    "repetition_flags": {
+      "children": 0,
+      "counterfactual_windows": 0,
+      "counterfactual_meetings": 0
+    },
+    "resources": {
+      "phase_wall_seconds": 59.33948740000051,
+      "peak_owned_rss_bytes": 1310871552,
+      "peak_aggregate_rss_bytes": 1327812608,
+      "sampling_only_not_kernel_memory_cap": true,
+      "interpretation": "Observed inference/execution phase only, not total preparation/audit wall time or isolated-model latency. Bytes are exact; divide by 1e9 for GB, 2**30 for GiB."
+    }
+  },
+  "prospective_B": {
+    "classification": "Pre-output frozen new-support screen in same eight meetings",
+    "result": "FAIL",
+    "reference_characters": 4000,
+    "first_pass": {
+      "sensevoice": {
+        "overall": {
+          "errors": 1416,
+          "substitutions": 193,
+          "deletions": 1204,
+          "insertions": 19,
+          "reference_characters": 4000,
+          "failures": 0,
+          "truncations": 0,
+          "cer": 0.354,
+          "repetition_suspicions": 0,
+          "windows": 40,
+          "meetings": 8
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "meeting": "R8001_M8004_MS801",
+            "errors": 394,
+            "substitutions": 33,
+            "deletions": 359,
+            "insertions": 2,
+            "reference_characters": 789,
+            "cer": 0.49936628643852976,
+            "hypothesis_characters": 432,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8003_M8001_MS801": {
+            "meeting": "R8003_M8001_MS801",
+            "errors": 89,
+            "substitutions": 14,
+            "deletions": 70,
+            "insertions": 5,
+            "reference_characters": 435,
+            "cer": 0.2045977011494253,
+            "hypothesis_characters": 370,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8010_MS803": {
+            "meeting": "R8007_M8010_MS803",
+            "errors": 490,
+            "substitutions": 57,
+            "deletions": 429,
+            "insertions": 4,
+            "reference_characters": 904,
+            "cer": 0.5420353982300885,
+            "hypothesis_characters": 479,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8011_MS806": {
+            "meeting": "R8007_M8011_MS806",
+            "errors": 141,
+            "substitutions": 18,
+            "deletions": 121,
+            "insertions": 2,
+            "reference_characters": 535,
+            "cer": 0.2635514018691589,
+            "hypothesis_characters": 416,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8008_M8013_MS807": {
+            "meeting": "R8008_M8013_MS807",
+            "errors": 86,
+            "substitutions": 22,
+            "deletions": 63,
+            "insertions": 1,
+            "reference_characters": 239,
+            "cer": 0.3598326359832636,
+            "hypothesis_characters": 177,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8018_MS809": {
+            "meeting": "R8009_M8018_MS809",
+            "errors": 28,
+            "substitutions": 5,
+            "deletions": 19,
+            "insertions": 4,
+            "reference_characters": 312,
+            "cer": 0.08974358974358974,
+            "hypothesis_characters": 297,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8019_MS810": {
+            "meeting": "R8009_M8019_MS810",
+            "errors": 110,
+            "substitutions": 23,
+            "deletions": 87,
+            "insertions": 0,
+            "reference_characters": 451,
+            "cer": 0.24390243902439024,
+            "hypothesis_characters": 364,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8020_MS810": {
+            "meeting": "R8009_M8020_MS810",
+            "errors": 78,
+            "substitutions": 21,
+            "deletions": 56,
+            "insertions": 1,
+            "reference_characters": 335,
+            "cer": 0.23283582089552238,
+            "hypothesis_characters": 280,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          }
+        }
+      },
+      "qwen": {
+        "overall": {
+          "errors": 1718,
+          "substitutions": 510,
+          "deletions": 935,
+          "insertions": 273,
+          "reference_characters": 4000,
+          "failures": 0,
+          "truncations": 2,
+          "cer": 0.4295,
+          "repetition_suspicions": 2,
+          "windows": 40,
+          "meetings": 8
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "meeting": "R8001_M8004_MS801",
+            "errors": 521,
+            "substitutions": 122,
+            "deletions": 267,
+            "insertions": 132,
+            "reference_characters": 789,
+            "cer": 0.6603295310519645,
+            "hypothesis_characters": 654,
+            "failures": 0,
+            "truncations": 1,
+            "repetition_suspicion": {
+              "flagged": true,
+              "start": 236,
+              "end": 437,
+              "period": 3,
+              "repetitions": 67,
+              "coordinates": "normalized_unicode_characters"
+            },
+            "window_repetition_suspicions": 1,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 1,
+              "unknown": 0
+            }
+          },
+          "R8003_M8001_MS801": {
+            "meeting": "R8003_M8001_MS801",
+            "errors": 94,
+            "substitutions": 27,
+            "deletions": 65,
+            "insertions": 2,
+            "reference_characters": 435,
+            "cer": 0.2160919540229885,
+            "hypothesis_characters": 372,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8010_MS803": {
+            "meeting": "R8007_M8010_MS803",
+            "errors": 662,
+            "substitutions": 287,
+            "deletions": 246,
+            "insertions": 129,
+            "reference_characters": 904,
+            "cer": 0.7323008849557522,
+            "hypothesis_characters": 787,
+            "failures": 0,
+            "truncations": 1,
+            "repetition_suspicion": {
+              "flagged": true,
+              "start": 68,
+              "end": 380,
+              "period": 3,
+              "repetitions": 104,
+              "coordinates": "normalized_unicode_characters"
+            },
+            "window_repetition_suspicions": 1,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 1,
+              "unknown": 0
+            }
+          },
+          "R8007_M8011_MS806": {
+            "meeting": "R8007_M8011_MS806",
+            "errors": 162,
+            "substitutions": 7,
+            "deletions": 153,
+            "insertions": 2,
+            "reference_characters": 535,
+            "cer": 0.30280373831775703,
+            "hypothesis_characters": 384,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8008_M8013_MS807": {
+            "meeting": "R8008_M8013_MS807",
+            "errors": 76,
+            "substitutions": 18,
+            "deletions": 57,
+            "insertions": 1,
+            "reference_characters": 239,
+            "cer": 0.3179916317991632,
+            "hypothesis_characters": 183,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8018_MS809": {
+            "meeting": "R8009_M8018_MS809",
+            "errors": 34,
+            "substitutions": 13,
+            "deletions": 17,
+            "insertions": 4,
+            "reference_characters": 312,
+            "cer": 0.10897435897435898,
+            "hypothesis_characters": 299,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8019_MS810": {
+            "meeting": "R8009_M8019_MS810",
+            "errors": 117,
+            "substitutions": 24,
+            "deletions": 91,
+            "insertions": 2,
+            "reference_characters": 451,
+            "cer": 0.25942350332594233,
+            "hypothesis_characters": 362,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8020_MS810": {
+            "meeting": "R8009_M8020_MS810",
+            "errors": 52,
+            "substitutions": 12,
+            "deletions": 39,
+            "insertions": 1,
+            "reference_characters": 335,
+            "cer": 0.15522388059701492,
+            "hypothesis_characters": 297,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          }
+        }
+      }
+    },
+    "recovered": {
+      "sensevoice": {
+        "overall": {
+          "errors": 1416,
+          "substitutions": 193,
+          "deletions": 1204,
+          "insertions": 19,
+          "reference_characters": 4000,
+          "failures": 0,
+          "truncations": 0,
+          "cer": 0.354,
+          "repetition_suspicions": 0,
+          "windows": 40,
+          "meetings": 8
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "meeting": "R8001_M8004_MS801",
+            "errors": 394,
+            "substitutions": 33,
+            "deletions": 359,
+            "insertions": 2,
+            "reference_characters": 789,
+            "cer": 0.49936628643852976,
+            "hypothesis_characters": 432,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8003_M8001_MS801": {
+            "meeting": "R8003_M8001_MS801",
+            "errors": 89,
+            "substitutions": 14,
+            "deletions": 70,
+            "insertions": 5,
+            "reference_characters": 435,
+            "cer": 0.2045977011494253,
+            "hypothesis_characters": 370,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8010_MS803": {
+            "meeting": "R8007_M8010_MS803",
+            "errors": 490,
+            "substitutions": 57,
+            "deletions": 429,
+            "insertions": 4,
+            "reference_characters": 904,
+            "cer": 0.5420353982300885,
+            "hypothesis_characters": 479,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8011_MS806": {
+            "meeting": "R8007_M8011_MS806",
+            "errors": 141,
+            "substitutions": 18,
+            "deletions": 121,
+            "insertions": 2,
+            "reference_characters": 535,
+            "cer": 0.2635514018691589,
+            "hypothesis_characters": 416,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8008_M8013_MS807": {
+            "meeting": "R8008_M8013_MS807",
+            "errors": 86,
+            "substitutions": 22,
+            "deletions": 63,
+            "insertions": 1,
+            "reference_characters": 239,
+            "cer": 0.3598326359832636,
+            "hypothesis_characters": 177,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8018_MS809": {
+            "meeting": "R8009_M8018_MS809",
+            "errors": 28,
+            "substitutions": 5,
+            "deletions": 19,
+            "insertions": 4,
+            "reference_characters": 312,
+            "cer": 0.08974358974358974,
+            "hypothesis_characters": 297,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8019_MS810": {
+            "meeting": "R8009_M8019_MS810",
+            "errors": 110,
+            "substitutions": 23,
+            "deletions": 87,
+            "insertions": 0,
+            "reference_characters": 451,
+            "cer": 0.24390243902439024,
+            "hypothesis_characters": 364,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8020_MS810": {
+            "meeting": "R8009_M8020_MS810",
+            "errors": 78,
+            "substitutions": 21,
+            "deletions": 56,
+            "insertions": 1,
+            "reference_characters": 335,
+            "cer": 0.23283582089552238,
+            "hypothesis_characters": 280,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          }
+        }
+      },
+      "qwen": {
+        "overall": {
+          "errors": 1370,
+          "substitutions": 207,
+          "deletions": 1146,
+          "insertions": 17,
+          "reference_characters": 4000,
+          "failures": 0,
+          "truncations": 0,
+          "cer": 0.3425,
+          "repetition_suspicions": 0,
+          "windows": 40,
+          "meetings": 8
+        },
+        "meetings": {
+          "R8001_M8004_MS801": {
+            "meeting": "R8001_M8004_MS801",
+            "errors": 369,
+            "substitutions": 49,
+            "deletions": 317,
+            "insertions": 3,
+            "reference_characters": 789,
+            "cer": 0.467680608365019,
+            "hypothesis_characters": 475,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8003_M8001_MS801": {
+            "meeting": "R8003_M8001_MS801",
+            "errors": 94,
+            "substitutions": 27,
+            "deletions": 65,
+            "insertions": 2,
+            "reference_characters": 435,
+            "cer": 0.2160919540229885,
+            "hypothesis_characters": 372,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8010_MS803": {
+            "meeting": "R8007_M8010_MS803",
+            "errors": 466,
+            "substitutions": 57,
+            "deletions": 407,
+            "insertions": 2,
+            "reference_characters": 904,
+            "cer": 0.5154867256637168,
+            "hypothesis_characters": 499,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 6,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8007_M8011_MS806": {
+            "meeting": "R8007_M8011_MS806",
+            "errors": 162,
+            "substitutions": 7,
+            "deletions": 153,
+            "insertions": 2,
+            "reference_characters": 535,
+            "cer": 0.30280373831775703,
+            "hypothesis_characters": 384,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8008_M8013_MS807": {
+            "meeting": "R8008_M8013_MS807",
+            "errors": 76,
+            "substitutions": 18,
+            "deletions": 57,
+            "insertions": 1,
+            "reference_characters": 239,
+            "cer": 0.3179916317991632,
+            "hypothesis_characters": 183,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8018_MS809": {
+            "meeting": "R8009_M8018_MS809",
+            "errors": 34,
+            "substitutions": 13,
+            "deletions": 17,
+            "insertions": 4,
+            "reference_characters": 312,
+            "cer": 0.10897435897435898,
+            "hypothesis_characters": 299,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8019_MS810": {
+            "meeting": "R8009_M8019_MS810",
+            "errors": 117,
+            "substitutions": 24,
+            "deletions": 91,
+            "insertions": 2,
+            "reference_characters": 451,
+            "cer": 0.25942350332594233,
+            "hypothesis_characters": 362,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 5,
+              "truncated": 0,
+              "unknown": 0
+            }
+          },
+          "R8009_M8020_MS810": {
+            "meeting": "R8009_M8020_MS810",
+            "errors": 52,
+            "substitutions": 12,
+            "deletions": 39,
+            "insertions": 1,
+            "reference_characters": 335,
+            "cer": 0.15522388059701492,
+            "hypothesis_characters": 297,
+            "failures": 0,
+            "truncations": 0,
+            "repetition_suspicion": {
+              "flagged": false
+            },
+            "window_repetition_suspicions": 0,
+            "status_counts": {
+              "aborted": 0,
+              "infrastructure_failure": 0,
+              "model_failure": 0,
+              "not_attempted": 0,
+              "success": 4,
+              "truncated": 0,
+              "unknown": 0
+            }
+          }
+        }
+      }
+    },
+    "gate": {
+      "checks": {
+        "recovered_qwen_overall_cer_no_worse_than_sensevoice": true,
+        "at_least_6_of_8_meetings_nonregressing": false,
+        "all_final_qwen_windows_resolved": true,
+        "no_remaining_qwen_truncations": true,
+        "no_remaining_qwen_repetition_suspicions": true,
+        "successful_bound_execution_provenance": true,
+        "reviewed_execution_manifest": true,
+        "qualified_exact_recovery_source_commit": true,
+        "bound_preflight_and_postflight": true,
+        "successful_bound_terminal_and_cleanup": true,
+        "both_bound_worker_readiness_events": true,
+        "all80_base_and_exact_triggered_child_invocations": true,
+        "all_expected_reservations_present": true,
+        "terminal_rows_match_committed_calls": true,
+        "no_missing_terminal_rows": true,
+        "all_planned_recovery_outcomes_present": true,
+        "every_planned_outcome_replayed_by_actual_module": true,
+        "exact_native_status_only_trigger_coverage": true,
+        "all_qwen_calls_have_distinct_observed_sessions": true
+      },
+      "lexical_checks": {
+        "recovered_qwen_overall_cer_no_worse_than_sensevoice": true,
+        "at_least_6_of_8_meetings_nonregressing": false,
+        "all_final_qwen_windows_resolved": true,
+        "no_remaining_qwen_truncations": true,
+        "no_remaining_qwen_repetition_suspicions": true
+      },
+      "passes": false,
+      "provisional": false,
+      "nonregressing_meetings": 4
+    },
+    "calls": {
+      "sensevoice": 40,
+      "qwen_base": 40,
+      "qwen_children": 4,
+      "total": 84
+    },
+    "audio_seconds": {
+      "sensevoice": 696.15,
+      "qwen_base": 696.15,
+      "qwen_children": 40,
+      "qwen_total": 736.15
+    },
+    "potential_children": 64,
+    "untriggered_potential_children": 60,
+    "untriggered_children_semantics": "Not attempted because parent did not trigger; not failed calls.",
+    "recovered_parent_pairs": 2,
+    "observed_distinct_qwen_sessions": 44,
+    "repetition_meeting_counts": {
+      "first_pass": {
+        "sensevoice": 0,
+        "qwen": 2
+      },
+      "recovered": {
+        "sensevoice": 0,
+        "qwen": 0
+      }
+    },
+    "child_repetition_flags": 0,
+    "annotation_overlap_burden": {
+      "total_seconds": 173.03,
+      "meetings": {
+        "R8001_M8004_MS801": 33.41,
+        "R8003_M8001_MS801": 15.76,
+        "R8007_M8010_MS803": 65.31,
+        "R8007_M8011_MS806": 24.96,
+        "R8008_M8013_MS807": 9.47,
+        "R8009_M8018_MS809": 3.28,
+        "R8009_M8019_MS810": 11.91,
+        "R8009_M8020_MS810": 8.93
+      },
+      "independent_of_error_counts": true
+    },
+    "resources": {
+      "phase_wall_seconds": 846.858583428002,
+      "peak_owned_rss_bytes": 1513394176,
+      "peak_aggregate_rss_bytes": 1531228160,
+      "sampling_only_not_kernel_memory_cap": true,
+      "interpretation": "Observed inference/execution phase only, not total preparation/audit wall time or isolated-model latency. Bytes are exact; divide by 1e9 for GB, 2**30 for GiB."
+    }
+  },
+  "audit_summary": {
+    "independent_terminal_audits_verified_counts_provenance_and_cleanup": true,
+    "original_raw_records_retained_privately": true,
+    "prospective_actual_recovery_module_evidence_replay_passes": 2,
+    "prospective_all_qwen_fresh_sessions_observed": 44,
+    "large_input_hashes": "Full bound pre/postflight verification evidenced; independent reviewer did not redundantly rehash large model/audio inputs.",
+    "public_limit": "Private execution receipts are not shipped; these are reported audit facts, not complete publicly verifiable execution attestations."
+  },
+  "scope": "Annotation-assisted outer-edge, overlap-order-sensitive whole-excerpt CER; not production-adapter/end-to-end, timing, identity, independent-meeting or unseen-training proof."
+}

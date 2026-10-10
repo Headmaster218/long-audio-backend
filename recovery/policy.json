@@ -1,0 +1,41 @@
+{
+  "children": {
+    "contiguous": true,
+    "count_exactly": 2,
+    "cover_parent_exactly": true,
+    "frames_each": 160000,
+    "max_depth": 1,
+    "no_other_attempts": true
+  },
+  "execution_scope": "same-meeting new-support prospective screen, not production/end-to-end or independent-meeting/training holdout",
+  "final_short_truncation": "unresolved_no_recovery",
+  "gold_access": "evaluation only; no inference routing, triggering, stitching or output selection",
+  "opt_in": true,
+  "parent_eligibility": {
+    "all_conditions_required": true,
+    "frames_exactly": 320000,
+    "native_status_equals": 18,
+    "was_truncated_is": true
+  },
+  "quality_gates": {
+    "all_final_windows_success_or_valid_recovery": true,
+    "meeting_count": 8,
+    "meeting_nonregressions_at_least": 6,
+    "no_escalation_on_failure": true,
+    "no_final_repetition_flags": true,
+    "no_final_truncation": true,
+    "recovered_qwen_whole_excerpt_cer_lte_sensevoice": true,
+    "repetition_detector": "First normalized-character span with minimal period 1..8, at least eight copies and at least 32 characters, extended by complete copies. Same frozen criterion; detection is not an output-selection filter.",
+    "report_all_trigger_and_actual_call_counts": true,
+    "report_first_pass_and_recovered_scores": true
+  },
+  "replacement": {
+    "both_children_native_status": 0,
+    "both_children_untruncated": true,
+    "child_repetition_is_quality_failure_not_selection_filter": true,
+    "eligibility_uses_native_status_only": true,
+    "no_mixing_parent_and_child_text": true
+  },
+  "retention": "all original parent and triggered child raw outputs/statuses; fixed reference denominator; never drop failures",
+  "schema": "qwen-bounded-recovery-prospective-policy-v1"
+}

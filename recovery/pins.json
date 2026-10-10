@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/Headmaster218/long-audio-backend",
+  "posthoc_A_backend": "../backend-source.json",
+  "prospective_B_recovery_source": {
+    "public_commit": "d72ccfc3b606931c8d0ec689cdb880effbf8f7eb",
+    "tree": "cb24084ac612dca93cea348743afe8e17c5c353d",
+    "module": "audio_backend/qwen_recovery.py",
+    "module_sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f",
+    "note": "Public commit identifies the exact qualified source tree used by the prospective pure recovery module; local execution commit identity is intentionally not distributed. Runtime API unchanged; production adapter not evaluated."
+  },
+  "model_and_corpus_assets": "../assets.json",
+  "runtime_versions_and_configuration": "../runtime.json",
+  "baseline_backend_source": "../backend-source.json",
+  "models_note": "Exact same SenseVoice int8 and Qwen3-ASR-0.6B Q5_K_M bytes; both automatic language, native Qwen cap 256 including EOS; no cap increase."
+}
