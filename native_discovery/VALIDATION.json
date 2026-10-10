@@ -1,0 +1,33 @@
+{
+  "all_three_cached_views": {
+    "errors": 188,
+    "reference_units": 686
+  },
+  "cross_reviews": [
+    "Execution owner: counts/protocol/native-vs-cached layers/cache-container/thread/cadence/EOF/resources passed",
+    "Independent native auditor: every published count/cache error matches full audit;7tests and65536maskpairs passed"
+  ],
+  "exhaustive_eight_sample_binary_mask_pairs": 65536,
+  "independent_audit_unchanged": true,
+  "no_Git_mutation": true,
+  "no_new_model_calls": true,
+  "portable_test_methods": 7,
+  "privacy_scan": {
+    "absolute_private_paths": false,
+    "cjk_five_character_source_spans_checked": 489,
+    "corpus_text_fields": false,
+    "model_runtime_binaries": false,
+    "process_identifiers": false,
+    "source_span_matches": 0
+  },
+  "reproducibility_limit": "Published synthetic/metadata tests reproduce arithmetic only; raw audio/timelines/transcripts and live model/harness are omitted. Full saved-result pure replay verified privately and hash-bound.",
+  "review_cpu": 1,
+  "review_nice": 19,
+  "sample_totals": {
+    "false_negative": 223792,
+    "false_positive": 63696,
+    "true_positive": 307248
+  },
+  "schema": "native-discovery-portable-validation-v1",
+  "status": "pass"
+}

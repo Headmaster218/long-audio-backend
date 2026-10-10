@@ -1,0 +1,92 @@
+{
+  "cache_gate": [
+    "Actual native trigger and production plan required",
+    "Exactly one full-input support; native core and extract endpoints equal actual complete input",
+    "Exact integer support bounds and decoded float32 sample hash",
+    "Frozen MOSS model/runtime/prompt/precision/backend/native adaptive budget",
+    "Original cached generation metadata and PCM16 encoded hash unchanged",
+    "Hypothetical production FLOAT container not created or consumed; its encoded hash remains null",
+    "No transcript clipping/label joining/new decoding/cache selection by score"
+  ],
+  "context_seconds": 2.0,
+  "coordinator_max_push_seconds": 21.2,
+  "cpu_affinity": [
+    2,
+    4
+  ],
+  "fixed_profile": {
+    "GEOMETRY": {
+      "chunk": 264,
+      "fifo": 0,
+      "frame_seconds": 0.08,
+      "left_context": 1,
+      "right_context": 1,
+      "spkcache": 264,
+      "update_period": 188
+    },
+    "MAX_EPOCH_INPUT_SECONDS": 360.0,
+    "MAX_PUSH_SECONDS": 60.0,
+    "MAX_SEGMENTS": 32768,
+    "MODEL_SHA256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+    "MORPHOLOGY_GUARD_SECONDS": 2.0,
+    "POSTPROCESSING": {
+      "min_duration_off": 0.296,
+      "min_duration_on": 0.511,
+      "offset": 0.561,
+      "onset": 0.641,
+      "pad_offset": 0.079,
+      "pad_onset": 0.229
+    },
+    "RUNTIME_VERSION": "0.2.0"
+  },
+  "geometry_frame_seconds_not_scoring_grid": 0.08,
+  "limits": {
+    "admission_seconds": 1080,
+    "artifact_cap_bytes": 16777216,
+    "disk_free_floor_bytes": 5368709120,
+    "host_available_floor_bytes": 2147483648,
+    "inputs": 8,
+    "observable_aggregate_stop_bytes": 6442450944,
+    "per_call_seconds": 120,
+    "post_seconds": 60,
+    "scoring_seconds": 45,
+    "terminal_reserve_seconds": 15,
+    "total_artifact_bytes": 33554432,
+    "whole_process_stop_rss_bytes": 5368709120,
+    "whole_process_warn_rss_bytes": 4294967296,
+    "whole_seconds": 1200
+  },
+  "maximum_supports_per_input": 4,
+  "model_capacity": 8,
+  "native_internal_push_samples": 32000,
+  "native_lifecycle": [
+    "reset",
+    "push",
+    "finish",
+    "turns",
+    "close"
+  ],
+  "native_provenance_requested_threads": 4,
+  "planner": {
+    "moss_td_capacity": 8,
+    "moss_td_max_seconds": 40.0,
+    "moss_td_max_support_seconds": 20.0,
+    "moss_td_trigger": "native_overlap",
+    "overlap_backend": "moss_td_experimental"
+  },
+  "runtime_frame_samples": 160,
+  "runtime_frame_seconds": 0.01,
+  "runtime_version": "0.2.0",
+  "sample_rate": 16000,
+  "schema": "native-discovery-portable-policy-v1",
+  "scope": "Eight independent finalized inputs; origin0/offset0/exact requested frame duration; no continuous stream state",
+  "score": {
+    "collar_samples": 0,
+    "overlap_definition": "At least two DISTINCT native labels active; duplicate intervals of the same label do not create overlap",
+    "reference_axis": "Original recording absolute frames shifted by support start to input-local samples",
+    "three_or_more_speakers": "Retained in binary overlap even if a separate capacity2 diagnostic flags capacity exceeded",
+    "unit": "16kHz integer samples, exact half-open interval unions"
+  },
+  "window_seconds": 30.0,
+  "wrapper_requested_threads": 2
+}

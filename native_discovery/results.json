@@ -1,0 +1,430 @@
+{
+  "aggregate_counts": {
+    "false_negative_frames": 223792,
+    "false_positive_frames": 63696,
+    "input_frames": 1928240,
+    "predicted_overlap_frames": 370944,
+    "reference_overlap_frames": 531040,
+    "true_positive_frames": 307248
+  },
+  "all_inputs_overlap_positive": true,
+  "cached_composition": {
+    "availability_penalized_error_rate": 0.27405247813411077,
+    "available_cached_errors": 117,
+    "available_cached_phrase_count": 45,
+    "available_reference_characters": 615,
+    "conditional_available_error_rate": 0.1902439024390244,
+    "formula": "127 - 10 + 71 = 188; available117 + unavailable71 =188",
+    "fresh_MOSS_calls": 0,
+    "historical_oracle_denominator": 686,
+    "historical_oracle_errors": 127,
+    "increase": 61,
+    "interpretation": "Changed candidate-path availability over unchanged historical generations, not new MOSS recognition degradation; ordinary ASR was not run and may cover the untriggered input.",
+    "missed_input_historical_errors": 10,
+    "unavailable_reference_characters": 71,
+    "views": {
+      "raw": {
+        "error_rate": 0.27405247813411077,
+        "errors": 188,
+        "reference_units": 686
+      },
+      "strict": {
+        "error_rate": 0.27405247813411077,
+        "errors": 188,
+        "reference_units": 686
+      },
+      "strict_plus_partial": {
+        "error_rate": 0.27405247813411077,
+        "errors": 188,
+        "reference_units": 686
+      }
+    }
+  },
+  "execution": {
+    "MOSS_calls": 0,
+    "all8_worker_groups_and_scorer_reaped": true,
+    "embedding_calls": 0,
+    "event_model_calls": 0,
+    "min_sampled_disk_free_bytes": 12148203520,
+    "min_sampled_host_available_bytes": 8875401216,
+    "native_independent_input_scopes": 8,
+    "ordinary_ASR_calls": 0,
+    "peak_sampled_owned_plus_supervisor_rss_bytes": 199036928,
+    "peak_sampled_visible_namespace_rss_bytes": 213405696,
+    "phase_seconds": 17.80150682900421,
+    "resource_coverage": "Sampled process-tree and visible-namespace RSS, not whole-host/cross-namespace or instantaneous hard-cap proof"
+  },
+  "failed_inputs": 0,
+  "false_negative_diagnostic": {
+    "interpretation": "Most missed overlap has one active native label. This does not identify the cause (cold state, threshold/postprocessing, or representation/model error) and does not justify threshold tuning on these outputs.",
+    "one_active_native_label_seconds": 13.429,
+    "zero_active_native_labels_seconds": 0.558
+  },
+  "full_input_EOF_all8": true,
+  "input_level_false_positive_rate": null,
+  "limitations": [
+    "All8 clips are oracle-selected overlap positives; no negative-input trigger specificity.",
+    "Local model labels and per-clip oracle lexical assignment do not prove person identity.",
+    "Cached scores are availability-penalized prior generations; no fresh MOSS or full API/DB/ASR/events/embedding inference.",
+    "The untriggered input is unavailable to this overlap candidate path, not proof that an unexecuted ordinary ASR path would omit its words.",
+    "Resource values are sampled owned-tree and visible-namespace receipts, not whole-host/cross-namespace or instantaneous hard-cap proof.",
+    "Postprocessed turn boundaries include frozen onset/offset padding and are on16k sample grid;80ms preset geometry is not the scoring grid."
+  ],
+  "negative_input_count": 0,
+  "no_trigger_inputs": 1,
+  "nonoverlap_frames": 1397200,
+  "nonoverlap_seconds": 87.325,
+  "population_inputs": 8,
+  "precision": 0.8282867494824017,
+  "recall": 0.5785778849050919,
+  "reference_characters": 686,
+  "rows": [
+    {
+      "accepted_cached_phrases": {
+        "raw": 10,
+        "strict": 10,
+        "strict_plus_partial": 10
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "c5fd0b3075ec050dcfc0404859361a05b285457ee048c5603c2a59841d464f4b",
+        "frames": 307040,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 307040,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "6f13e1689993903034e25d486b2dd12fad48fee949447fadee72270e85092665",
+        "pcm16_sha256": "64bbdbb11ddd8508c244685ec31c0c9545a30329294d129456f5f37b54ee693b"
+      },
+      "cached_gated_errors": {
+        "raw": 49,
+        "strict": 49,
+        "strict_plus_partial": 49
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 10480,
+        "false_positive_frames": 20176,
+        "input_frames": 307040,
+        "predicted_overlap_frames": 114656,
+        "reference_overlap_frames": 104960,
+        "true_positive_frames": 94480
+      },
+      "expected_decoded_float32_sha256": "c5fd0b3075ec050dcfc0404859361a05b285457ee048c5603c2a59841d464f4b",
+      "frames": 307040,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 49,
+      "input_id": "R8001_M8004_MS801",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "6f13e1689993903034e25d486b2dd12fad48fee949447fadee72270e85092665",
+      "reference_characters": 124,
+      "selected_frames": 307040,
+      "triggered": true
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 4,
+        "strict": 4,
+        "strict_plus_partial": 4
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "abe450c22892980b82d14f5895711fe99f92403bec68de53167b7dc7529987e5",
+        "frames": 189680,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 189680,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "fd3201e37c2c824eb0b2cc18aa3c7431791d1b53ab6367c5e5d03f34e275c538",
+        "pcm16_sha256": "6ca680ccb0ef3d1721265fe87ec50c11078f15fa2033d0dc574eeb5ff762a4b5"
+      },
+      "cached_gated_errors": {
+        "raw": 5,
+        "strict": 5,
+        "strict_plus_partial": 5
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 14592,
+        "false_positive_frames": 3968,
+        "input_frames": 189680,
+        "predicted_overlap_frames": 33216,
+        "reference_overlap_frames": 43840,
+        "true_positive_frames": 29248
+      },
+      "expected_decoded_float32_sha256": "abe450c22892980b82d14f5895711fe99f92403bec68de53167b7dc7529987e5",
+      "frames": 189680,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 5,
+      "input_id": "R8003_M8001_MS801",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "fd3201e37c2c824eb0b2cc18aa3c7431791d1b53ab6367c5e5d03f34e275c538",
+      "reference_characters": 69,
+      "selected_frames": 189680,
+      "triggered": true
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 0,
+        "strict": 0,
+        "strict_plus_partial": 0
+      },
+      "cache_available": false,
+      "cache_sample_receipt": null,
+      "cached_gated_errors": {
+        "raw": 71,
+        "strict": 71,
+        "strict_plus_partial": 71
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 81600,
+        "false_positive_frames": 0,
+        "input_frames": 176800,
+        "predicted_overlap_frames": 0,
+        "reference_overlap_frames": 81600,
+        "true_positive_frames": 0
+      },
+      "expected_decoded_float32_sha256": "95f30db113d59809ff4583b0aed15a4fd72814471bc9e1bf09752022f21e197a",
+      "frames": 176800,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 10,
+      "input_id": "R8007_M8010_MS803",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "5f77d5ac7c8146747bd370f0993cf29a960f808e09432880c508e4d33202bcab",
+      "reference_characters": 71,
+      "selected_frames": 0,
+      "triggered": false
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 6,
+        "strict": 6,
+        "strict_plus_partial": 6
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "105a9f729374c6a499fd9149e461ad8e81b5c6f0b8216c0f9928dd1f7f64e232",
+        "frames": 237040,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 237040,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "cc3802891d92a28d6a6877f3d4ad999d16cbc803ac2bd1b61a3ddaf5d89d31ac",
+        "pcm16_sha256": "56837f82944b6dc52635281f62e62fdd6a04b8a8ee0b2fedba37c1ec84e1e3e3"
+      },
+      "cached_gated_errors": {
+        "raw": 25,
+        "strict": 25,
+        "strict_plus_partial": 25
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 34944,
+        "false_positive_frames": 7328,
+        "input_frames": 237040,
+        "predicted_overlap_frames": 43424,
+        "reference_overlap_frames": 71040,
+        "true_positive_frames": 36096
+      },
+      "expected_decoded_float32_sha256": "105a9f729374c6a499fd9149e461ad8e81b5c6f0b8216c0f9928dd1f7f64e232",
+      "frames": 237040,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 25,
+      "input_id": "R8007_M8011_MS806",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "cc3802891d92a28d6a6877f3d4ad999d16cbc803ac2bd1b61a3ddaf5d89d31ac",
+      "reference_characters": 91,
+      "selected_frames": 237040,
+      "triggered": true
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 6,
+        "strict": 6,
+        "strict_plus_partial": 6
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "1e1580eda29160b53688fd2eb8ada234ec33e03ffb05cfc9ac8dfc358c4bddb5",
+        "frames": 315760,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 315760,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "88f38c7e80b4acc7aa393e4ec905a073d4837304ed985e11cbde3515aff26d3b",
+        "pcm16_sha256": "6dc716277e586ad8692d1a02d889d6ee840b2f6b016228b2aff6e33290af36ec"
+      },
+      "cached_gated_errors": {
+        "raw": 18,
+        "strict": 18,
+        "strict_plus_partial": 18
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 12640,
+        "false_positive_frames": 10400,
+        "input_frames": 315760,
+        "predicted_overlap_frames": 75520,
+        "reference_overlap_frames": 77760,
+        "true_positive_frames": 65120
+      },
+      "expected_decoded_float32_sha256": "1e1580eda29160b53688fd2eb8ada234ec33e03ffb05cfc9ac8dfc358c4bddb5",
+      "frames": 315760,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 18,
+      "input_id": "R8008_M8013_MS807",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "88f38c7e80b4acc7aa393e4ec905a073d4837304ed985e11cbde3515aff26d3b",
+      "reference_characters": 89,
+      "selected_frames": 315760,
+      "triggered": true
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 7,
+        "strict": 7,
+        "strict_plus_partial": 7
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "f2340e7ce8a8400f29fbf7a3ccc76ee2da069ca56d6aacb8979305fb566a69af",
+        "frames": 218080,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 218080,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "b65bea403dc5c1d96b6f864ddbffebe509afc5ad2715f2f34e53b74a0b84acc5",
+        "pcm16_sha256": "723ec1059b9f528e3eae1700f514f8b7388878f29df298ec193974bc12d5be4d"
+      },
+      "cached_gated_errors": {
+        "raw": 5,
+        "strict": 5,
+        "strict_plus_partial": 5
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 32672,
+        "false_positive_frames": 8928,
+        "input_frames": 218080,
+        "predicted_overlap_frames": 20256,
+        "reference_overlap_frames": 44000,
+        "true_positive_frames": 11328
+      },
+      "expected_decoded_float32_sha256": "f2340e7ce8a8400f29fbf7a3ccc76ee2da069ca56d6aacb8979305fb566a69af",
+      "frames": 218080,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 5,
+      "input_id": "R8009_M8018_MS809",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "b65bea403dc5c1d96b6f864ddbffebe509afc5ad2715f2f34e53b74a0b84acc5",
+      "reference_characters": 76,
+      "selected_frames": 218080,
+      "triggered": true
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 5,
+        "strict": 5,
+        "strict_plus_partial": 5
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "84a2eb812e5f81e4c924e38c1d989dbde97e0870d5f569fbb8ef600ebbaed8fc",
+        "frames": 180240,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 180240,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "ba62b446538d4a988baa828c1637b8142401fbea8c8ec9b08f244defe043844c",
+        "pcm16_sha256": "6844be381a77668ee6358bb4e4467c60a55f499b48241c96e8a56a714b1ec20a"
+      },
+      "cached_gated_errors": {
+        "raw": 7,
+        "strict": 7,
+        "strict_plus_partial": 7
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 2176,
+        "false_positive_frames": 5312,
+        "input_frames": 180240,
+        "predicted_overlap_frames": 46976,
+        "reference_overlap_frames": 43840,
+        "true_positive_frames": 41664
+      },
+      "expected_decoded_float32_sha256": "84a2eb812e5f81e4c924e38c1d989dbde97e0870d5f569fbb8ef600ebbaed8fc",
+      "frames": 180240,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 7,
+      "input_id": "R8009_M8019_MS810",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "ba62b446538d4a988baa828c1637b8142401fbea8c8ec9b08f244defe043844c",
+      "reference_characters": 58,
+      "selected_frames": 180240,
+      "triggered": true
+    },
+    {
+      "accepted_cached_phrases": {
+        "raw": 7,
+        "strict": 7,
+        "strict_plus_partial": 7
+      },
+      "cache_available": true,
+      "cache_sample_receipt": {
+        "FLOAT_container_materialized": false,
+        "float32_sha256": "37ffc519de1009c29c6f287eba4b911b5fcf673048446c5455d655e13190a9d9",
+        "frames": 303600,
+        "fresh_MOSS_call": false,
+        "hypothetical_production_FLOAT_container_sha256": null,
+        "input_end_frame": 303600,
+        "input_start_frame": 0,
+        "original_full_input_encoded_PCM16_sha256": "6261e209555c6901bbcbe1fc50bdf7fbbfc9cbf480142c6a535c3961e58d6eed",
+        "pcm16_sha256": "40f2076144bcda3b693781fbc8205e95acaa9129e6a6390caedf79ca172893e4"
+      },
+      "cached_gated_errors": {
+        "raw": 8,
+        "strict": 8,
+        "strict_plus_partial": 8
+      },
+      "core_tail_frames": 0,
+      "counts": {
+        "false_negative_frames": 34688,
+        "false_positive_frames": 7584,
+        "input_frames": 303600,
+        "predicted_overlap_frames": 36896,
+        "reference_overlap_frames": 64000,
+        "true_positive_frames": 29312
+      },
+      "expected_decoded_float32_sha256": "37ffc519de1009c29c6f287eba4b911b5fcf673048446c5455d655e13190a9d9",
+      "frames": 303600,
+      "full_input_EOF": true,
+      "historical_oracle_errors": 8,
+      "input_id": "R8009_M8020_MS810",
+      "native_failure": false,
+      "original_PCM16_encoded_sha256": "6261e209555c6901bbcbe1fc50bdf7fbbfc9cbf480142c6a535c3961e58d6eed",
+      "reference_characters": 108,
+      "selected_frames": 303600,
+      "triggered": true
+    }
+  ],
+  "sample_rate": 16000,
+  "schema": "native-discovery-portable-results-v1",
+  "scope": "Independent finalized oracle-selected mixed inputs; sample-level native overlap discovery and explicitly cached candidate composition",
+  "selected_audio_seconds": 109.465,
+  "time_seconds": {
+    "false_negative_seconds": 13.987,
+    "false_positive_seconds": 3.981,
+    "input_seconds": 120.515,
+    "predicted_overlap_seconds": 23.184,
+    "reference_overlap_seconds": 33.19,
+    "true_positive_seconds": 19.203
+  },
+  "triggered_inputs": 7
+}
