@@ -1,0 +1,83 @@
+{
+  "meetings": [
+    "IS1008b",
+    "ES2003c",
+    "IS1004b",
+    "EN2004a",
+    "ES2006d"
+  ],
+  "channel": "original Array1-01 only; no gain, normalization, beamforming, channel search or resampling",
+  "scorer": {
+    "normalization": "Unicode NFKC, lowercase, remove Unicode categories P/S; whitespace split",
+    "portable_helper": "score.py",
+    "qualified_source": "../backend-source.json"
+  },
+  "support": "complete official speaker segment href-resolved lexical words; first lexical start to last lexical end; decimal arithmetic floor(start*16000), ceil(end*16000); no added padding; no splitting or joining",
+  "eligibility": "all referenced lexical words present; finite nonnegative monotone starts and ends, each end >= start; duration 2 through 19.6 seconds inclusive after outward sample rounding; at least 8 normalized words; no gap, transformerror or undecipherable text; unknown tags/attributes stop review",
+  "annotation_only_marker_inventory": {
+    "disfmarker": "omit empty disfluency annotation node, retain lexical disfluencies/repetitions",
+    "vocalsound": [
+      "cough",
+      "exaggerated sigh",
+      "exasperated sigh",
+      "figurative ooh sound",
+      "imitates stammering",
+      "imitating laughter",
+      "laugh",
+      "loud exhale",
+      "loud out-breath",
+      "other",
+      "pause indicating non-recognition",
+      "phonetic sound for a",
+      "phonetic sound for d",
+      "phonetic sound for d repeated four times",
+      "phonetic sound for schwa",
+      "phonetic sound for w",
+      "sigh",
+      "singing",
+      "sneeze",
+      "sound imitating background recording noise",
+      "sound indicating ambiguity",
+      "sound indicating apprehension",
+      "sound indicating frustration",
+      "vocal noise"
+    ],
+    "punctuation_w": [
+      ",",
+      ".",
+      "?"
+    ]
+  },
+  "lexical_attributes": "trunc=true, mispronounced=true, pron=foreign retained as transcribed, never corrected; punc=true only explicit inventory",
+  "overlap": "exclude sample-rounded support with positive intersection against any other speaker official transcriber segment containing w lexical, gap or transformerror; no word-level narrowing of other-speaker segments; lexical/gap/error nonoverlap only, NOT acoustically clean: competing pure laughter/nonverbal sound remains allowed under unchanged v1 policy",
+  "strata": "per meeting original-channel PCM RMS across every eligible segment. Order by (RMS, SHA256 selection key) ascending; quiet ranks [0,floor(N/4)), ordinary ranks [floor(N/4),floor(3N/4)); top quartile excluded. Rank convention explicitly handles ties deterministically.",
+  "selection": "seed ami-english-farfield-v2-20261010; SHA256(seed|meeting|stratum|segment_id), UTF-8. Within each stratum select minimum current speaker count among speakers with a remaining feasible candidate, then smallest candidate hash. Alternate quiet then ordinary one at a time until 6 each or no feasible candidates. Selected sample supports mutually nonoverlapping within meeting.",
+  "admission": "all five fixed meetings; >=4 quiet and >=4 ordinary each; >=480 total normalized reference words; at most60. Shortfalls stop inference; never substitute meetings or loosen rules.",
+  "metrics": "qualified lexical WER and fixed N; deterministic Levenshtein S/D/I (prefer match, substitution, deletion, insertion on backtrace ties) with sum checked against lexical; pooled overall, quiet, ordinary; per meeting; equal-meeting macro; five leave-one-meeting-out pooled deltas; utterance wins/ties/losses; raw failures/truncations/repetition suspicion/status language",
+  "language": "both Qwen candidate and SenseVoice baseline retain automatic language settings",
+  "engineering_advance_gate": "all calls successful and untruncated; no Qwen repetition suspicion; Qwen overall/quiet/ordinary WER each <= baseline; >=4/5 meetings nonregressing; no meeting >3 percentage-point degradation; every leave-one-meeting-out pooled result nonregressing",
+  "interpretation": "conservative engineering screen, not population statistical noninferiority. Pass permits continuous end-to-end evaluation only, never default promotion. Historical model training overlap unknown; some meetings appeared in old repository evaluations; prospectively frozen comparison, NOT unseen holdout. Word timings forced-aligned, annotation-assisted/oracle crops, NOT manually exact word-boundary gold. Segment overlap exclusion conservatively rejects some non-simultaneous speech. Original failed v1 is separately retained as failed-cohort evidence, never pooled into v2 primary gates. No punctuation-based sentence slicing.",
+  "licence": "See ATTRIBUTION.md.",
+  "meeting_screen": {
+    "universe": "All 171 meetings with words XML in the official annotations ZIP pinned in pins.json; metadata from that same ZIP.",
+    "eligibility": "exclude original5; >=20 complete strict segment candidates; zero mutually overlapping candidate pairs; no unknown node tags; metadata.duration exists; no parse errors; exact v1 attribute/Decimal validation must confirm proposed5 before acquisition",
+    "original_failed_five": [
+      "ES2004a",
+      "IS1009a",
+      "TS3003a",
+      "IB4001",
+      "IN1016"
+    ],
+    "ordering": "ascending SHA256 UTF-8 of ami-english-v2-supplement-20261010|<meeting>; take first5; no alternate seeds tried; no audio/output-based swaps",
+    "eligible_universe_count": 115,
+    "screening_bias": "annotation-only sufficiency selects meetings with more complete solo segments and valid annotations, not random/population representativeness; historical training overlap remains unknown",
+    "later_failure": "stop and report if metadata/header duration discrepancy, invalid source/channel/crop, or insufficient frozen counts; never silently replace meetings or loosen rules"
+  },
+  "amendments": [
+    {
+      "version": "duration-authority-v1",
+      "timing": "Declared and independently reviewed before RMS selection or inference",
+      "rule": "Verified original RIFF frame count and sample rate govern crop bounds; summary metadata duration remains provenance. Exclude entire out-of-bounds candidates. Never clip, shift, stretch, pad, split, change XML timings or replace meetings. A duration discrepancy is not evidence of an offset, and no acoustic alignment correction was made."
+    }
+  ]
+}

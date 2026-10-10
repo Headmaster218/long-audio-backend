@@ -1,0 +1,82 @@
+{
+  "backend_source": "../backend-source.json",
+  "backend_tree": "091a197f2da2edf3f14b75d4100f6b7bc624c275",
+  "models": "../assets.json",
+  "models_note": "Same exact SenseVoice int8 and Qwen3-ASR-0.6B Q5_K_M bytes as the inherited Chinese snapshot. Both automatic language.",
+  "audio_sources": [
+    {
+      "name": "IS1008b.Array1-01.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1008b/audio/IS1008b.Array1-01.wav",
+      "bytes": 56594535,
+      "sha256": "037e723a01725fe5119c006bd153c06c3025186710979180c068a81a484e3789"
+    },
+    {
+      "name": "ES2003c.Array1-01.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2003c/audio/ES2003c.Array1-01.wav",
+      "bytes": 72221740,
+      "sha256": "16a169cef2f75cf95834ddacd1434f2f76332435552c5a949aec56356632baab"
+    },
+    {
+      "name": "IS1004b.Array1-01.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1004b/audio/IS1004b.Array1-01.wav",
+      "bytes": 69819153,
+      "sha256": "c9509dc9db6616569d01d2b80e0a4f379cedd31d96d29c1e21f0cd93df3d4759"
+    },
+    {
+      "name": "EN2004a.Array1-01.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2004a/audio/EN2004a.Array1-01.wav",
+      "bytes": 110261634,
+      "sha256": "d49331e51b9e0744ad1ed4af4bca34b8f9bd34950c71f487dfc36a0ea646b954"
+    },
+    {
+      "name": "ES2006d.Array1-01.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2006d/audio/ES2006d.Array1-01.wav",
+      "bytes": 62958296,
+      "sha256": "e4a5b8995e8cc47ae4fb25eda51087382bcffd1e1ffba0e8489d195b32c66c69"
+    }
+  ],
+  "annotations": {
+    "name": "annotations.zip",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+    "bytes": 22887865,
+    "sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d"
+  },
+  "duration_provenance": {
+    "IS1008b": {
+      "summary_duration_seconds": "1764",
+      "riff_frames": 28296533,
+      "sample_rate": 16000,
+      "riff_duration_seconds": "1768.5333125",
+      "riff_minus_summary_seconds": "4.5333125"
+    },
+    "ES2003c": {
+      "summary_duration_seconds": "2251",
+      "riff_frames": 36110848,
+      "sample_rate": 16000,
+      "riff_duration_seconds": "2256.928",
+      "riff_minus_summary_seconds": "5.928"
+    },
+    "IS1004b": {
+      "summary_duration_seconds": "2166",
+      "riff_frames": 34908842,
+      "sample_rate": 16000,
+      "riff_duration_seconds": "2181.802625",
+      "riff_minus_summary_seconds": "15.802625"
+    },
+    "EN2004a": {
+      "summary_duration_seconds": "3445.717",
+      "riff_frames": 55130795,
+      "sample_rate": 16000,
+      "riff_duration_seconds": "3445.6746875",
+      "riff_minus_summary_seconds": "-0.0423125"
+    },
+    "ES2006d": {
+      "summary_duration_seconds": "1991",
+      "riff_frames": 31479126,
+      "sample_rate": 16000,
+      "riff_duration_seconds": "1967.445375",
+      "riff_minus_summary_seconds": "-23.554625"
+    }
+  },
+  "runtime_versions_and_configuration": "../runtime.json"
+}
