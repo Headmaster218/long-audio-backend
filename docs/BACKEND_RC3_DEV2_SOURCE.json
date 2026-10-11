@@ -1,0 +1,108 @@
+{
+  "schema": "reviewed-backend-rc3-dev2-source-v1",
+  "version": "0.2.0rc3.dev2",
+  "base_commit": "e6824ea44f591b22be767a3a1794e8fb2b9d04b1",
+  "base_tree": "6441a3d1c5242b20122f66a593f15cf0263e1a68",
+  "base_files": 298,
+  "base_bytes": 3468645,
+  "base_source_inventory_sha256": "d52a89c251b345c4d760c93d1baa8434a0422310e1d79b1f4125a4fb75ab8fc7",
+  "scope": "Explicit offline Qwen 1.7B profile with unchanged implicit 0.6B default, bounded selector admission and frozen identity; no decoder, provider, API, Worker or store changes",
+  "qualification": "Focused stdlib source/profile checks with synthetic fixtures and mocked model-file boundaries; no historical full-suite, real model, ABI, resource or acoustic qualification",
+  "source_budget": {
+    "maximum_files": 303,
+    "maximum_total_bytes": 3560000,
+    "maximum_file_bytes": 250000
+  },
+  "historical_proof": "Immutable published rc3.dev1 current_snapshot/docstring adapter only; original verifier and mutation bodies preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins both this manifest and the source gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "c7d0e77bdb4544057340deb0152e040fdb4e78060625406cf2a30dd96dd81804",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "b5713fb3cbcf9ee9646e6bd95a2bee6fcc53940112b81ff2184c56856b815783"
+      }
+    },
+    {
+      "path": "audio_backend/qwen_candidate_runner.py",
+      "bytes": 41334,
+      "sha256": "a4a151d8fc3aa7b9e80463542ca796c1bd5b1b300de0d3be275af4172c9e9ccb",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 39788,
+        "sha256": "6738ca4877746f13662d8dfcf5ff39ad61425da893e56013b0d3c7391b20b34d"
+      }
+    },
+    {
+      "path": "audio_backend/qwen_profiles.py",
+      "bytes": 3347,
+      "sha256": "0ff2775973ac69d71d7ceaf1e703a214d198a7386f8bbfe83cf34383a5bd1beb",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 13601,
+      "sha256": "b875a707004dbbf553bc48c0ba514df2d1e83e15a89357454783eaae8cb766fc",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 13419,
+        "sha256": "b6d1879731c03fcaa122aa82fae5caa71fe021225c1f3b107f79dcff5a7a591c"
+      }
+    },
+    {
+      "path": "docs/QWEN_OPTIONAL_PROFILES.md",
+      "bytes": 4705,
+      "sha256": "641c78b2bbc2edfdd421d43d3976c9162665c79601a7680729bd91c8c5ad4aa6",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "9c8dce32978d6591459c4aa4fec6c0f765651d9d6e5b2e4ea7cfae35eda953a9",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "49193d3ee1f802178aadb6fbaad68636c59163d9478ceb9e5b7331f17b58fb89"
+      }
+    },
+    {
+      "path": "scripts/benchmarks/run_qwen_candidates.py",
+      "bytes": 6934,
+      "sha256": "7325883fac08cb7337f9a2b572beed9dba31828fb0c3e681b11edca51c4a9f1b",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 6439,
+        "sha256": "6ca8fd4943b149bab513c2998f2ffbeac3d46de9b12d56e110678c801f148af9"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev1_source.py",
+      "bytes": 24310,
+      "sha256": "3a6d464cc7d7e9126832999601d5e8782066dc3da3ddc464d64d23c27dc4183d",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 24597,
+        "sha256": "9411b3b174463332523f0b3be567e9abcac9fc29aa4f5c60942588a56cf56c1f"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev2_source.py",
+      "bytes": 25650,
+      "sha256": "6894af451db6f8e41230deac5f119a908b11d05e04399732ee9b7bfbced3d45a",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_qwen_profiles.py",
+      "bytes": 28155,
+      "sha256": "bac88a493188e4be4c232c44d1dc1295038adc2b199de4cf3466b022b555513c",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

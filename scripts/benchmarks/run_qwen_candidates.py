@@ -31,6 +31,7 @@ from audio_backend.fragment_runtime_contracts import digest
 from audio_backend.qwen_candidate_runner import read_json, freeze, run, atomic_json, validate_limits, make_guard, preflight_scope
 from audio_backend.qwen_candidate_store import CandidateStore
 from audio_backend.qwen_candidates import public_candidate
+from audio_backend.qwen_profiles import OPTIONAL_PROFILE
 
 
 def main(argv=None):
@@ -43,6 +44,8 @@ def main(argv=None):
     parser.add_argument('--limits', type=Path)
     parser.add_argument('--source-scope')
     parser.add_argument('--source-generation', type=int, default=0)
+    parser.add_argument('--model-profile', choices=(OPTIONAL_PROFILE,),
+                        help='freeze only: explicit optional 1.7B profile; omitted keeps default 0.6B')
     parser.add_argument('--frozen', type=Path)
     parser.add_argument('--expected-sha256')
     parser.add_argument('--approval', type=Path)
@@ -50,6 +53,8 @@ def main(argv=None):
     parser.add_argument('--after', type=int, default=0)
     parser.add_argument('--limit', type=int, default=100)
     args = parser.parse_args(argv)
+    if args.model_profile is not None and args.mode != 'freeze':
+        parser.error('--model-profile is only valid when freezing a new inventory')
     out = args.output.absolute()
     if out.resolve() != out:
         parser.error('Output directory must not contain symlinks')
@@ -63,9 +68,10 @@ def main(argv=None):
             # preflight guard covers full source scans and runtime hashes.
             plan_value = read_json(args.source_plan)
             plan = SourcePlan.from_json(json.dumps(plan_value))
+            selection = {} if args.model_profile is None else {'model_profile': args.model_profile}
             value = freeze(plan, read_json(args.source_bindings), read_json(args.runtime_manifest),
                            limits, source_scope=args.source_scope,
-                           source_generation=args.source_generation, guard=guard)
+                           source_generation=args.source_generation, guard=guard, **selection)
         import shutil
         if shutil.disk_usage(out.parent).free < 5 * 1024**3 + 2 * 1024**2:
             parser.error('Insufficient disk headroom for frozen metadata')

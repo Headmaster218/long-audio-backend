@@ -26,6 +26,7 @@ from .fragment_runtime import LogicalPCMReader
 from .fragment_runtime_contracts import canonical, digest
 from .fragment_model_guard import Identity, ResourceGuard, ResourceLimit, descendants, process_table, rss_records
 from .qwen_candidate_store import CandidateStore, COMPLETE
+from .qwen_profiles import DEFAULT_PROFILE, admit_optional_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_JSON = 2 * 1024**2
@@ -243,17 +244,18 @@ def validate_limits(limits):
     return limits
 
 
-def freeze(plan, paths, runtime, limits, *, source_scope, source_generation=0, guard=None):
+def freeze(plan, paths, runtime, limits, *, source_scope, source_generation=0, guard=None, model_profile=None):
     validate_limits(limits)
     guard = guard or make_guard(ROOT, limits, read_only=True)
     with preflight_scope(guard, limits['preflight_seconds']):
         return _freeze(plan, paths, runtime, limits, source_scope=source_scope,
-                       source_generation=source_generation)
+                       source_generation=source_generation, model_profile=model_profile)
 
 
-def _freeze(plan, paths, runtime, limits, *, source_scope, source_generation):
+def _freeze(plan, paths, runtime, limits, *, source_scope, source_generation, model_profile=None):
     from .qwen_candidates import prepare_candidate_requests, DEFAULT_CONFIG
     from .qwen_candidates import admit_source_plan, CORE_FRAMES
+    profile = admit_optional_runtime(runtime, model_profile) if model_profile is not None else None
     validate_source_inventory(plan, paths)
     verify_runtime(runtime)
     validate_limits(limits)
@@ -262,13 +264,16 @@ def _freeze(plan, paths, runtime, limits, *, source_scope, source_generation):
         raise ValueError('Exact source binding inventory required')
     requests = prepare_candidate_requests(plan, paths, source_scope=source_scope,
         source_generation=source_generation, runtime_manifest_sha256=digest(runtime),
-        model_sha256=runtime['model']['sha256'], config=DEFAULT_CONFIG)
+        model_sha256=runtime['model']['sha256'], config=profile.config() if profile is not None else DEFAULT_CONFIG)
     # Metadata, not source copies. Pin the package closure used by the runner.
     implementation = [file_receipt(p) for p in sorted((ROOT / 'audio_backend').rglob('*.py'))]
     implementation.append(file_receipt(ROOT / 'scripts/benchmarks/run_qwen_candidates.py'))
     value = {'schema': 'qwen-frozen-candidates-v1', 'source_plan': plan.to_json(),
              'source_bindings': paths, 'runtime': runtime, 'limits': limits,
              'requests': list(requests), 'implementation': implementation}
+    if profile is not None:
+        value.update(schema='qwen-frozen-candidates-v2', model_profile=profile.name,
+                     model_profile_sha256=profile.sha256)
     if len(canonical(value).encode()) > MAX_JSON:
         raise ValueError('Frozen run exceeds metadata bound')
     return value
@@ -294,10 +299,19 @@ def validate_source_inventory(plan, paths):
 
 def verify_frozen(frozen, expected_sha256):
     from .qwen_candidates import prepare_candidate_requests
-    if (not isinstance(frozen, dict) or set(frozen) != {'schema', 'source_plan', 'source_bindings',
-        'runtime', 'limits', 'requests', 'implementation'} or frozen['schema'] != 'qwen-frozen-candidates-v1'
+    fields = {'schema', 'source_plan', 'source_bindings', 'runtime', 'limits', 'requests', 'implementation'}
+    if not isinstance(frozen, dict):
+        raise ValueError('Frozen candidate contract/hash mismatch')
+    explicit = frozen.get('schema') == 'qwen-frozen-candidates-v2'
+    if explicit:
+        fields |= {'model_profile', 'model_profile_sha256'}
+    if (set(frozen) != fields or frozen['schema'] not in {'qwen-frozen-candidates-v1', 'qwen-frozen-candidates-v2'}
         or digest(frozen) != expected_sha256):
         raise ValueError('Frozen candidate contract/hash mismatch')
+    profile = admit_optional_runtime(frozen['runtime'], frozen['model_profile']) if explicit else None
+    if profile is not None and (type(frozen['model_profile_sha256']) is not str or
+                                frozen['model_profile_sha256'] != profile.sha256):
+        raise ValueError('Frozen model profile digest mismatch')
     validate_limits(frozen['limits'])
     plan = SourcePlan.from_json(frozen['source_plan'])
     validate_source_inventory(plan, frozen['source_bindings'])
@@ -315,6 +329,8 @@ def verify_frozen(frozen, expected_sha256):
     if not frozen['requests']:
         raise ValueError('Empty candidate inventory')
     first = frozen['requests'][0]
+    if profile is not None and canonical(first['config']) != canonical(profile.config()):
+        raise ValueError('Frozen decode config differs from selected model profile')
     expected = prepare_candidate_requests(plan, frozen['source_bindings'],
         source_scope=first['source_scope'], source_generation=first['source_generation'],
         runtime_manifest_sha256=digest(frozen['runtime']), model_sha256=frozen['runtime']['model']['sha256'],
@@ -439,12 +455,13 @@ def decode_window(model, api, samples):
     return normalize_native_result(raw)
 
 
-def _construct(runtime):
+def _construct(runtime, *, model_profile=None):
     # No import occurs until a real, explicitly admitted run enters its child.
     if any(os.environ.get(k) for k in ('LD_PRELOAD', 'LD_LIBRARY_PATH')):
         raise ValueError('Native loader overrides are not admitted')
+    profile = DEFAULT_PROFILE if model_profile is None else admit_optional_runtime(runtime, model_profile)
     verify_runtime(runtime)
-    if (runtime['model']['sha256'] != PINNED_MODEL_SHA256 or runtime['model']['bytes'] != 645356192
+    if (runtime['model']['sha256'] != profile.model_sha256 or runtime['model']['bytes'] != profile.model_bytes
         or runtime['package_version'] != '0.2.3' or runtime['native_commit'] != PINNED_NATIVE_COMMIT):
         raise ValueError('Only the reviewed local Qwen Q5/runtime profile is admitted')
     if str(Path(sys.executable).resolve()) != runtime['python']['resolved_path']:
@@ -471,7 +488,7 @@ def _construct(runtime):
     model = api.Model(runtime['model']['path'], backend='cpu')
     try:
         if (model.backend.casefold() != 'cpu' or model.device.kind != 'cpu' or model.device.device_type != 'cpu'
-            or model.arch != 'qwen3_asr' or model.variant != 'qwen3-asr-0.6b'):
+            or model.arch != 'qwen3_asr' or model.variant != profile.variant):
             raise ValueError('Qwen actual backend/device is not CPU')
         device = {k: v for k, v in asdict(model.device).items() if k != '_handle'}
         receipt = {'package_version': api.__version__, 'native_version': api.native_version(),
@@ -498,7 +515,10 @@ def child_main(fd, frozen_path, expected):
         verify_runtime(frozen['runtime'])
         if runtime_stats(frozen['runtime']) != identities:
             raise ValueError('Runtime changed around preconstruction hash verification')
-        model, api, runtime = _construct(frozen['runtime'])
+        if frozen['schema'] == 'qwen-frozen-candidates-v1':
+            model, api, runtime = _construct(frozen['runtime'])
+        else:
+            model, api, runtime = _construct(frozen['runtime'], model_profile=frozen['model_profile'])
         if runtime_stats(frozen['runtime']) != identities:
             raise ValueError('Runtime changed during native model construction')
         verify_runtime(frozen['runtime'])

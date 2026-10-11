@@ -1,9 +1,10 @@
-"""Fresh focused source closure; stdlib only, with externally sealed evidence.
+"""Immutable rc3.dev1 source proof against published e6824ea4; stdlib only.
 
-Run only after independent execution/source readiness approval. Set absolute
-RC3_DEV1_INDEX and RC3_DEV1_SOURCE_SEAL paths outside this source checkout.
-The seal must be frozen independently before invocation; it is not produced by
-this test. No production module or historical pytest gate is imported or run.
+The current_snapshot adapter reads that exact Git commit, verifies its tree and
+sole parent, and derives the historical seal solely from those immutable bytes.
+Original verifier and mutation bodies are preserved. This is a focused source
+proof, not an execution of the old full suite or renewed acoustic qualification.
+The separate rc3.dev2 gate owns current worktree/index/external-seal checks.
 """
 from __future__ import annotations
 
@@ -277,20 +278,15 @@ def check_isolation():
 
 def current_snapshot():
     check_isolation()
-    index_path, seal_path = external_file('RC3_DEV1_INDEX'), external_file('RC3_DEV1_SOURCE_SEAL')
-    require(index_path != seal_path, 'Index and seal must be separate files')
-    names = git('ls-files', '--cached', '--others', '--exclude-standard', '-z', index=index_path)
-    names = [name.decode('utf-8') for name in names.split(b'\0') if name]
-    files, modes = read_paths(ROOT, names)
-    index, index_modes = read_git_snapshot(':', index_path)
-    head = git('rev-parse', 'HEAD').decode().strip()
-    if head != BASE:
-        headers = git('cat-file', 'commit', head).split(b'\n\n', 1)[0].splitlines()
-        require([line[7:].decode() for line in headers if line.startswith(b'parent ')] == [BASE],
-                'Fresh candidate must have exactly the published base as parent')
-        committed, committed_modes = read_git_snapshot(head)
-        require((committed, committed_modes) == (files, modes), 'Committed candidate differs from source')
-    return files, index, modes, index_modes, seal_path.read_bytes()
+    revision = 'e6824ea44f591b22be767a3a1794e8fb2b9d04b1'
+    headers = git('cat-file', 'commit', revision).split(b'\n\n', 1)[0].splitlines()
+    require([line[5:].decode() for line in headers if line.startswith(b'tree ')] ==
+            ['6441a3d1c5242b20122f66a593f15cf0263e1a68'], 'Historical rc3.dev1 tree differs')
+    require([line[7:].decode() for line in headers if line.startswith(b'parent ')] ==
+            [BASE], 'Historical rc3.dev1 sole parent differs')
+    git('merge-base', '--is-ancestor', revision, 'HEAD')
+    files, modes = read_git_snapshot(revision)
+    return files, dict(files), modes, dict(modes), canonical(expected_seal(files))
 
 
 class SourceClosureTests(unittest.TestCase):
