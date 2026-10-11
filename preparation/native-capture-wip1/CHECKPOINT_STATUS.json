@@ -1,0 +1,61 @@
+{
+  "acquisition_snapshot": "SUPERSEDED v4 reference only; not actual acquisition-readiness authority",
+  "acquisition_v4_caveats": {
+    "actual_acquisition_readiness_authority": false,
+    "correction_scope": "Corrected timeout and bounded-redirect helper preparation is outside this source snapshot.",
+    "known_limitations": [
+      "Inherited urllib redirect-body drain had no byte bound despite a socket timeout.",
+      "Initial 5-second network timeout proved too short."
+    ],
+    "superseded": true
+  },
+  "base_commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+  "base_repository": "Headmaster218/long-audio-backend",
+  "base_tree": "bb31c31a9411ea4c0ec5e185cc9bae57ac31a1f0",
+  "controller_fixture_identifiers": 29,
+  "controller_preparation_freeze_sha256": "a04c65220445aacab00c0dd37833a32c548f75b04913f67cc564b085afab2a32",
+  "execution_gates_remaining": [
+    "Independent snapshot/privacy review and target-specific preparation/fixture qualification",
+    "Installed-closure and actual SDK compatibility verification",
+    "Complete approved design/input/runtime/spec pins and fresh guard authorization",
+    "Physical finite Store proof and posthash budget measurement",
+    "Explicit actual-capture authorization and resource admission"
+  ],
+  "omissions": [
+    "installation scripts (under revision)",
+    "acquisition continuation (separate active-work family)",
+    "original guarded launch specs and execution/approval receipts",
+    "design manifests and original pinned metadata inputs",
+    "historical README/review/conversation text",
+    "raw transcripts, audio, model files, native archives, wheels, binaries",
+    "host inventories, environment or real proxy values",
+    "guard/build_guard.py (historical textual builder is not the current full guard reproducer)"
+  ],
+  "prior_source_validation": {
+    "controller_fake_provider_cases_passed": 29,
+    "not_established": [
+      "Installed SDK compatibility",
+      "Physical production Store/SQLite envelope",
+      "Real native capture",
+      "Portable-layout execution"
+    ],
+    "pure_admission_cases_passed": 19,
+    "scope": "Exact guarded fake-controller/pure-admission union, separate from packaging; no actual models or audio.",
+    "source_hashes_match_snapshot": true,
+    "total_passed": 48
+  },
+  "proposed_branch": "preparation/rc3-dev3-native-capture-wip1",
+  "proposed_repository_prefix": "preparation/native-capture-wip1",
+  "schema": "native-capture-source-checkpoint-v1",
+  "status": "SOURCE_ONLY_WIP_PREPARATION_REFERENCE_NOT_REAL_RUNTIME_QUALIFIED",
+  "validation": {
+    "model_calls": 0,
+    "model_imports": 0,
+    "network_requests": 0,
+    "portability_equivalence_claim": false,
+    "runtime_qualification_claim": false,
+    "scope": "Packaging metadata and static source parse only",
+    "source_scripts_executed": 0,
+    "test_suites_run": 0
+  }
+}

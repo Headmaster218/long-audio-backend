@@ -1,0 +1,189 @@
+{
+  "algorithm": "sha256",
+  "covered_file_count": 36,
+  "covered_logical_bytes": 428469,
+  "files": [
+    {
+      "bytes": 2579,
+      "path": "ALLOWLIST.json",
+      "sha256": "abd5db5e3938200171e9c9c96508c4f2504e27aee2a39d1b5404286b4868b62c"
+    },
+    {
+      "bytes": 2867,
+      "path": "CHECKPOINT_STATUS.json",
+      "sha256": "b1bce5898ffd345192a359af297dc86a64a5e76eb3e29382c62c2b07ec89ddc2"
+    },
+    {
+      "bytes": 3174,
+      "path": "METADATA_PROJECTIONS.json",
+      "sha256": "a1a1a0a99e21639d1c1e784960dd3c52689a3b2e7a446026042816ecadedce93"
+    },
+    {
+      "bytes": 3169,
+      "path": "PRIVACY_REVIEW.json",
+      "sha256": "200909bb694f23db26c70acf60bbcaf03ebd8e057bf5f6bdd628cf94c50b8e2e"
+    },
+    {
+      "bytes": 7041,
+      "path": "README.md",
+      "sha256": "f561868c84f4e6a8fa39e13fc059f5318ef7465ce40bc3ecfaf143f14b14fa96"
+    },
+    {
+      "bytes": 14405,
+      "path": "SOURCE_MAP.json",
+      "sha256": "6a0b520a69ed85460c84d172d9f568faacfea70d8819a602c692b53159c4d730"
+    },
+    {
+      "bytes": 3505,
+      "path": "STATIC_REVIEW.json",
+      "sha256": "d7925cb2f6f0f88f2a182411f93a7f592f3a89d3d3d000be1aad073293841ccc"
+    },
+    {
+      "bytes": 1336,
+      "path": "metadata/FIXED_INPUT.public.json",
+      "sha256": "25e401638faaf6a175ac19485e81b6ffd7cafac09a36aadfff157faac7517411"
+    },
+    {
+      "bytes": 44434,
+      "path": "metadata/WHEEL_CLOSURE.public.json",
+      "sha256": "ad39ac41c3e4689b793f1c7d711858a74d528c94faca3342feb7af6214e1d4f9"
+    },
+    {
+      "bytes": 6267,
+      "path": "metadata/native_smoke_asset_inventory.public.json",
+      "sha256": "bf21acc7d415bceaa77e057e1683a2161bdc268e98ba08f14fc7b392d3420300"
+    },
+    {
+      "bytes": 2027,
+      "path": "reference-source/preparation/acquisition/TEST_IDS.json",
+      "sha256": "f843146f9b347fc90e0638a5d45b4cebc523b0417241c2b9b972678176c2eb06"
+    },
+    {
+      "bytes": 51463,
+      "path": "reference-source/preparation/acquisition/acquire.py",
+      "sha256": "5e8af20729cff37b06b539110cc2feddc5a6b86e43d6a29cc18c28c9567c4ea0"
+    },
+    {
+      "bytes": 19235,
+      "path": "reference-source/preparation/acquisition/test_acquire.py",
+      "sha256": "71b6eaf14c52711edb84862928c532e2d79b4ab0d7f47cc97c1e33343141db91"
+    },
+    {
+      "bytes": 3832,
+      "path": "reference-source/preparation/controller-readiness/TEST_IDS.json",
+      "sha256": "0060c30a4b099fa9b58cec5a9c32dab7135381f4012d384b3fbaf9bdb28fdd36"
+    },
+    {
+      "bytes": 3053,
+      "path": "reference-source/preparation/controller-readiness/run_fixtures.py",
+      "sha256": "f1bc8b252b1afeb16ed63fba94bccca811e9056ff1868a84594b0c2e7da10062"
+    },
+    {
+      "bytes": 2404,
+      "path": "reference-source/preparation/controller/TEST_IDS.json",
+      "sha256": "e7546f8f86ee327baf565d64277152c531a736bc073172e80ce5ec083fa1727c"
+    },
+    {
+      "bytes": 12533,
+      "path": "reference-source/preparation/controller/bootstrap.py",
+      "sha256": "2c34302673348798520941426189f2982e6f7be8829a673af4d336582bcfa219"
+    },
+    {
+      "bytes": 24456,
+      "path": "reference-source/preparation/controller/capture.py",
+      "sha256": "14f23a0863d8b4eb67664544a70822ba89aa5ff0bae60ee15e62f870df807dd3"
+    },
+    {
+      "bytes": 11873,
+      "path": "reference-source/preparation/controller/common.py",
+      "sha256": "7c83f247a225c3befa12b1ce2849f079405d8ec70389928cf1e63d6f8ae6af9c"
+    },
+    {
+      "bytes": 15081,
+      "path": "reference-source/preparation/controller/instrumentation.py",
+      "sha256": "85b433c7189a0eb545c3b45ed3ccc0eaa84a9cf453d598ccc21987fbdfc863a7"
+    },
+    {
+      "bytes": 9409,
+      "path": "reference-source/preparation/controller/ownership.py",
+      "sha256": "c0650bd586bbd9b9f5ad1d668a4aef65117b71f9c3be1c4c378c89aebc49f8c1"
+    },
+    {
+      "bytes": 22464,
+      "path": "reference-source/preparation/controller/server.py",
+      "sha256": "7652ed51a366f6ec118a832db99174fe8801f13e829a8d6ea59ebc3a0e094741"
+    },
+    {
+      "bytes": 25246,
+      "path": "reference-source/preparation/controller/test_controller.py",
+      "sha256": "3623fabdd24bdc8c47f8786d71b50238d6c987812240188e84ffd09ab59f837d"
+    },
+    {
+      "bytes": 663,
+      "path": "reference-source/preparation/guard/NETWORK_TEST_IDS.json",
+      "sha256": "6e5eec442480f26df5486f1bd81460930c74c521d20f47811aea93e5fdacb5b8"
+    },
+    {
+      "bytes": 32648,
+      "path": "reference-source/preparation/guard/acquisition_guard.py",
+      "sha256": "3934eb162fc61ba06f4c9e740016e0da04f7eba62e41d5d5e77bbc399971b305"
+    },
+    {
+      "bytes": 613,
+      "path": "reference-source/preparation/guard/fixtures/owned_probe.py",
+      "sha256": "9a5c47040cd1d2e4f70d1332d00cc65e27da7158c71dd1bf4c1ca4f001bbf6ee"
+    },
+    {
+      "bytes": 12012,
+      "path": "reference-source/preparation/guard/fixtures/test_guard_delta.py",
+      "sha256": "d7d9ececeed7e02d591178bdee61b14d6b5ac57a6af997867583cfede2771a49"
+    },
+    {
+      "bytes": 1054,
+      "path": "reference-source/preparation/guard/guard-test-ids.json",
+      "sha256": "37429d330116b4bcf670b9d0f9462995ff6ec4d7523fc5cf9523c3a9e7e34acb"
+    },
+    {
+      "bytes": 31623,
+      "path": "reference-source/preparation/guard/history/network-v1/acquisition_guard.py",
+      "sha256": "8683b7638ed4c73df0e55b579915c42300bc2965dc7e5099e00b6f14e473d64f"
+    },
+    {
+      "bytes": 1439,
+      "path": "reference-source/preparation/guard/network_launch.py",
+      "sha256": "e0aec8b2e81a608530f1cc477b91296023260360c4489a235e0a4feaf158ce9c"
+    },
+    {
+      "bytes": 3902,
+      "path": "reference-source/preparation/guard/pin_spec.py",
+      "sha256": "8415043568d440ceb26712dc76a76b8d5c023c7821cf646048092f9cafff2003"
+    },
+    {
+      "bytes": 28759,
+      "path": "reference-source/preparation/guard/qualified_guard.snapshot.py",
+      "sha256": "d8d1ed44bd5f46f40c7cfeda32a0e961c8f38ed4fbb17a566b7245a38ebf6e6d"
+    },
+    {
+      "bytes": 5237,
+      "path": "reference-source/preparation/guard/test_network_environment.py",
+      "sha256": "93855373fcbe9ddb15e530f10a0c70803e2dcabba711b08862b003154dc18e03"
+    },
+    {
+      "bytes": 5250,
+      "path": "reference-source/preparation/storage-proof/admission.py",
+      "sha256": "a58ed8bf654b422f647bab93e8bdd4ec1bdef72ba58b8056499de5d9b96965af"
+    },
+    {
+      "bytes": 8942,
+      "path": "reference-source/preparation/storage-proof/prove_store.py",
+      "sha256": "cffa2bd5a000c008ff1fbf45e450e79866bc2c7f6db50ee5d151f75426af7035"
+    },
+    {
+      "bytes": 4474,
+      "path": "reference-source/preparation/storage-proof/test_admission.py",
+      "sha256": "1d4cf17fd217c57219ac9074e183d0d80bceae0c57cf9069cf99aeec7d4c1973"
+    }
+  ],
+  "schema": "source-checkpoint-file-inventory-v1",
+  "self_excluded": "FILE_INVENTORY.json hash and size are supplied to the reviewer separately to avoid self-reference."
+}

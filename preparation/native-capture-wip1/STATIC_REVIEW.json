@@ -1,0 +1,116 @@
+{
+  "controller_fixture_identifier_count": 29,
+  "controller_preparation_freeze_sha256": "a04c65220445aacab00c0dd37833a32c548f75b04913f67cc564b085afab2a32",
+  "counts_are_not_test_results": true,
+  "imports_or_execution": false,
+  "parse_only": true,
+  "python_files": [
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/acquisition/acquire.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/acquisition/test_acquire.py",
+      "test_methods_static": 36
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/acquisition_guard.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/qualified_guard.snapshot.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/pin_spec.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/fixtures/owned_probe.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/fixtures/test_guard_delta.py",
+      "test_methods_static": 18
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/network_launch.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/test_network_environment.py",
+      "test_methods_static": 10
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/guard/history/network-v1/acquisition_guard.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/bootstrap.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/capture.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/common.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/instrumentation.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/ownership.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/server.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller/test_controller.py",
+      "test_methods_static": 29
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/storage-proof/admission.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/storage-proof/test_admission.py",
+      "test_methods_static": 19
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/storage-proof/prove_store.py",
+      "test_methods_static": 0
+    },
+    {
+      "parse": "PASS",
+      "path": "reference-source/preparation/controller-readiness/run_fixtures.py",
+      "test_methods_static": 0
+    }
+  ],
+  "schema": "source-checkpoint-static-review-v1",
+  "source_pin_checks": "All controller source files match the supplied exact freeze. Acquisition v4 and current network guard match explicit pins. All selected source inputs were rehashed after copying."
+}

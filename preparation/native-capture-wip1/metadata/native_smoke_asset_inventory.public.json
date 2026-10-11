@@ -1,0 +1,145 @@
+{
+  "downloads": [
+    {
+      "bytes": 39593761,
+      "destination": "models/speaker.onnx",
+      "id": "eres2net-base-zh-cn",
+      "license": "Apache-2.0",
+      "license_source": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+    },
+    {
+      "bytes": 111034072,
+      "destination": "models/events.tar.bz2",
+      "extract_to": "models",
+      "id": "zipformer-small-audioset",
+      "license": "Apache-2.0",
+      "license_source": "https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+      "max_extracted_bytes": 314572800,
+      "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/audio-tagging-models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15.tar.bz2"
+    },
+    {
+      "bytes": 163002883,
+      "destination": "models/sensevoice/model.tar.bz2",
+      "extract_to": "models/sensevoice",
+      "id": "sensevoice-small-int8",
+      "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+      "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "max_extracted_bytes": 367001600,
+      "optional_sensevoice_model": true,
+      "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+      "strip_root": true,
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+    },
+    {
+      "bytes": 5306,
+      "destination": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "id": "sensevoice-model-license",
+      "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+      "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "optional_sensevoice_model": true,
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+      "url": "https://raw.githubusercontent.com/modelscope/FunASR/main/MODEL_LICENSE"
+    },
+    {
+      "bytes": 107012128,
+      "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+      "id": "nemotron3-q8",
+      "license": "OpenMDW-1.1",
+      "license_source": "https://raw.githubusercontent.com/OpenMDW/OpenMDW/main/1.1/LICENSE.OpenMDW-1.1",
+      "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+      "url": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed7/Nemotron-3-Diarization.q8_0.gguf"
+    },
+    {
+      "bytes": 6683477,
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz",
+      "id": "linux-x86_64-cpu",
+      "license": "Apache-2.0 with bundled third-party notices",
+      "sha256": "f396057150f1b774935c7414fd32ebc04195a795a34120d78d8c9ecefa1b7507",
+      "source_commit": "6a3ca369370782acee0dd155e34394ba60b920c4",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz"
+    }
+  ],
+  "fixed_input": {
+    "archive_bytes": 3673718355,
+    "archive_sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+    "canonical_wav_bytes": 614124,
+    "channel": 0,
+    "duration_seconds": 19.19,
+    "frames": 307040,
+    "recording": "R8001_M8004_MS801",
+    "source_frame_interval": [
+      23400320,
+      23707360
+    ],
+    "source_wav_bytes": 402905680,
+    "source_wav_sha256": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1"
+  },
+  "limits": [
+    "No asset bytes are included or verified by packaging.",
+    "These public metadata fields are a reference, not the original pinned acquisition manifest.",
+    "Licenses must be reviewed for intended use before acquisition."
+  ],
+  "mandatory_runtime_model_files": [
+    {
+      "bytes": 39593761,
+      "path": "models/speaker.onnx",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+    },
+    {
+      "bytes": 91932865,
+      "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+      "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34"
+    },
+    {
+      "bytes": 14675,
+      "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv",
+      "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429"
+    },
+    {
+      "bytes": 239233841,
+      "optional_sensevoice_model": true,
+      "path": "models/sensevoice/model.int8.onnx",
+      "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+    },
+    {
+      "bytes": 315894,
+      "optional_sensevoice_model": true,
+      "path": "models/sensevoice/tokens.txt",
+      "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+    },
+    {
+      "bytes": 5306,
+      "optional_sensevoice_model": true,
+      "path": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8"
+    },
+    {
+      "bytes": 107012128,
+      "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+      "id": "nemotron3-q8",
+      "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+      "url": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed7/Nemotron-3-Diarization.q8_0.gguf"
+    }
+  ],
+  "path": {
+    "asr_backend": "sensevoice",
+    "diarization_backend": "nemotron",
+    "inference_device": "cpu",
+    "native_owned_support_enabled": true,
+    "overlap_backend": "none"
+  },
+  "schema": "native-assets-public-reference-v1",
+  "source": {
+    "commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+    "tree": "bb31c31a9411ea4c0ec5e185cc9bae57ac31a1f0"
+  },
+  "status": "PUBLIC_METADATA_REFERENCE_ONLY",
+  "upstream_revisions": {
+    "native_runtime": "6a3ca369370782acee0dd155e34394ba60b920c4",
+    "nemotron_model": "f667ed73aee57d40cc39428eb768b4fd87a0a29e",
+    "whisper_cpp_alternative": "4979e04f5dcaccb36057e059bbaed8a2f5288315"
+  }
+}

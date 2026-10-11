@@ -1,0 +1,130 @@
+{
+  "FIXED_INPUT.json": {
+    "source_fields": [
+      "annotation_sha256",
+      "end_frame",
+      "frames",
+      "id",
+      "input_wav_sha256",
+      "pcm16_sha256",
+      "runtime_float32_sha256",
+      "seconds",
+      "source_recording_sha256_inherited",
+      "start_frame"
+    ],
+    "top_fields": [
+      "public_commit",
+      "channel_zero_based",
+      "future_origin_frame",
+      "future_source_frames",
+      "sample_rate",
+      "future_native_positive_guaranteed",
+      "no_fallback_or_threshold_tuning"
+    ]
+  },
+  "WHEEL_CLOSURE.json": {
+    "build_backend_source": "build_dependencies.backend",
+    "build_packages_fields": [
+      "name",
+      "version",
+      "filename",
+      "url",
+      "bytes",
+      "sha256",
+      "all_wheel_tags",
+      "requires_python",
+      "requires_dist",
+      "metadata_url",
+      "metadata_bytes",
+      "metadata_sha256",
+      "metadata_advertised_sha256",
+      "official_pypi_json_url",
+      "official_pypi_json_sha256",
+      "license_expression",
+      "yanked"
+    ],
+    "build_packages_source": "build_dependencies.selected_build_tools",
+    "build_requirements_source": "build_dependencies.requirements",
+    "packages_fields": [
+      "name",
+      "version",
+      "filename",
+      "url",
+      "bytes",
+      "sha256",
+      "all_wheel_tags",
+      "requires_python",
+      "requires_dist",
+      "metadata_url",
+      "metadata_bytes",
+      "metadata_sha256",
+      "metadata_advertised_sha256",
+      "official_pypi_json_url",
+      "official_pypi_json_sha256",
+      "license_expression",
+      "yanked"
+    ],
+    "top_fields": [
+      "source_commit",
+      "source_tree",
+      "requirements_lock_sha256",
+      "root_requirements"
+    ]
+  },
+  "added_fields": "Projection-specific schema, status, and limits are newly authored documentation; they assert no execution result.",
+  "native_smoke_asset_inventory.json": {
+    "downloads_fields": [
+      "id",
+      "destination",
+      "url",
+      "sha256",
+      "bytes",
+      "license",
+      "license_source",
+      "extract_to",
+      "max_extracted_bytes",
+      "strip_root",
+      "optional_sensevoice_model",
+      "source_commit"
+    ],
+    "fixed_input_fields": [
+      "recording",
+      "channel",
+      "source_frame_interval",
+      "frames",
+      "duration_seconds",
+      "canonical_wav_bytes",
+      "archive_bytes",
+      "archive_sha256",
+      "source_wav_bytes",
+      "source_wav_sha256"
+    ],
+    "mandatory_runtime_model_files_fields": [
+      "path",
+      "destination",
+      "id",
+      "url",
+      "sha256",
+      "bytes",
+      "optional_sensevoice_model"
+    ],
+    "path_fields": [
+      "asr_backend",
+      "diarization_backend",
+      "inference_device",
+      "overlap_backend",
+      "native_owned_support_enabled"
+    ],
+    "source_fields": [
+      "commit",
+      "tree"
+    ],
+    "upstream_revisions_fields": [
+      "native_runtime",
+      "nemotron_model",
+      "whisper_cpp_alternative"
+    ]
+  },
+  "schema": "checkpoint-public-metadata-projections-v1",
+  "serialization": "UTF-8 JSON, sorted keys, two-space indentation, trailing newline. Every field not explicitly listed is omitted."
+}

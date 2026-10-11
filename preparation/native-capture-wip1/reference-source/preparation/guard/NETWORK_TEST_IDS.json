@@ -1,0 +1,12 @@
+[
+  "__main__.NetworkEnvironment.test_all_authorized_keys_keep_existing_value",
+  "__main__.NetworkEnvironment.test_exact_allowlist",
+  "__main__.NetworkEnvironment.test_only_present_keys",
+  "__main__.NetworkEnvironment.test_ownership_helpers_unchanged",
+  "__main__.NetworkEnvironment.test_recording_does_not_include_values",
+  "__main__.NetworkEnvironment.test_resource_constants_unchanged",
+  "__main__.NetworkEnvironment.test_strict_value_bounds",
+  "__main__.NetworkEnvironment.test_synthetic_stage_has_no_network_environment",
+  "__main__.NetworkEnvironment.test_unknown_stage_rejected",
+  "__main__.NetworkEnvironment.test_unrelated_variables_excluded"
+]

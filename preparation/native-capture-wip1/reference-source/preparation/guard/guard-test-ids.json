@@ -1,0 +1,20 @@
+[
+  "__main__.GuardDelta.test_free_floor_bad_charge",
+  "__main__.GuardDelta.test_free_floor_full_remaining_scope",
+  "__main__.GuardDelta.test_owned_helper_ast_parity",
+  "__main__.GuardDelta.test_owned_negative_quick_nonzero",
+  "__main__.GuardDelta.test_owned_positive_quick_child",
+  "__main__.GuardDelta.test_read_regular_nofollow_and_cap",
+  "__main__.GuardDelta.test_sample_exact_aggregate_boundary",
+  "__main__.GuardDelta.test_sample_exact_free_boundary",
+  "__main__.GuardDelta.test_scope_alias_escape_and_fifo_fail",
+  "__main__.GuardDelta.test_scope_missing_required_fails",
+  "__main__.GuardDelta.test_scope_new_future_root_charged",
+  "__main__.GuardDelta.test_scope_symlink_root_fails",
+  "__main__.GuardDelta.test_spec_rejects_cwd_and_runtime",
+  "__main__.GuardDelta.test_spec_rejects_unpinned_entrypoint",
+  "__main__.GuardDelta.test_stage_deadlines_exact",
+  "__main__.GuardDelta.test_stage_invalid_or_widened",
+  "__main__.GuardDelta.test_walk_failure_is_not_empty_scope",
+  "__main__.GuardDelta.test_work_includes_cleanup_reserve"
+]

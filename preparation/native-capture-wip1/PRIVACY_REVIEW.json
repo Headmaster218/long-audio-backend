@@ -1,0 +1,68 @@
+{
+  "documentation_amendment_screen": {
+    "change": "Added superseded acquisition-v4 timeout/redirect caveats and excluded readiness authority; no source changes.",
+    "result": "No new private data or secret patterns found.",
+    "scope": [
+      "README.md",
+      "CHECKPOINT_STATUS.json"
+    ]
+  },
+  "excluded_by_construction": [
+    "All execution and approval receipts",
+    "Absolute-path launch specs and raw freeze files",
+    "Local host/package inventories and real routing/proxy values",
+    "Audio, transcripts, models, native archives, wheels and binaries",
+    "Historical or internal conversation/review prose"
+  ],
+  "explicit_synthetic_exceptions": [
+    {
+      "category": "synthetic_credential_rejection_fixture",
+      "decision": "Keep exact source; explicit non-secret sentinel used only in tests.",
+      "line": 140,
+      "path": "reference-source/preparation/acquisition/test_acquire.py"
+    },
+    {
+      "category": "synthetic_credential_rejection_fixture",
+      "decision": "Keep exact source; explicit non-secret sentinel used only in tests.",
+      "line": 191,
+      "path": "reference-source/preparation/acquisition/test_acquire.py"
+    }
+  ],
+  "limitations": [
+    "Pattern matching and source/field inspection are not a mathematical proof that a text file contains no secret.",
+    "Reference code retains historical workspace-relative directory labels; no machine-absolute workspace path is included.",
+    "Independent review must inspect this exact allowlist and inventory before any publication."
+  ],
+  "other_nonsecret_source_literals": [
+    "Environment variable names, fixed clean PATH/locale defaults, and synthetic environment-dictionary values; no runtime environment was read for publication.",
+    "Synthetic signed-URL marker signed-SENTINEL is a rejection/redaction fixture, not a captured signed URL.",
+    "Generic Linux process paths, localhost interfaces and negative path-validation fixtures are source literals.",
+    "Non-ASCII strings are visibly labeled fake/synthetic fixtures, not transcripts."
+  ],
+  "schema": "source-checkpoint-privacy-review-v1",
+  "scope": "All final allowlisted source, public metadata, documentation and manifest files. The final inventory is checked after generation.",
+  "screening": {
+    "all_files_regular_utf8_text": true,
+    "all_mapped_output_hashes_verified": true,
+    "binary_payloads": 0,
+    "blocked_findings": [],
+    "common_credential_patterns": 0,
+    "final_allowlisted_files": 37,
+    "machine_absolute_workspace_paths": 0,
+    "public_metadata_url_hosts": [
+      "files.pythonhosted.org",
+      "github.com",
+      "huggingface.co",
+      "pypi.org",
+      "raw.githubusercontent.com"
+    ],
+    "public_metadata_urls_checked": 96,
+    "public_metadata_urls_require": "HTTPS; approved public source hostname; no userinfo, query string, or fragment",
+    "python_sources_static_parsed": 21,
+    "source_code_copies_byte_exact": true,
+    "source_snapshot_rechecked_after_copy": true,
+    "unclassified_email_or_url_userinfo_hits": 0
+  },
+  "status": "LOCAL_SCREEN_PASSED_PENDING_INDEPENDENT_REVIEW",
+  "tests_or_scripts_executed_by_packaging": false
+}

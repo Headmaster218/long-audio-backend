@@ -1,0 +1,28 @@
+{
+  "channel_zero_based": 0,
+  "future_native_positive_guaranteed": false,
+  "future_origin_frame": 0,
+  "future_source_frames": 307040,
+  "limits": [
+    "Historical public fixed-clip selection only; no accuracy-population claim and no guaranteed future positive native capture.",
+    "No audio, transcript, speaker-reference labels, historical execution receipt, or cached model result is included.",
+    "This projection cannot replace the original pinned FIXED_INPUT.json."
+  ],
+  "no_fallback_or_threshold_tuning": true,
+  "public_commit": "ab61c1890d558de70d712705c842779305e7189b",
+  "sample_rate": 16000,
+  "schema": "fixed-input-public-reference-v1",
+  "source": {
+    "annotation_sha256": "e5fe941174fe4140bb5923b7caf2cbdd68d8d2a86086e4f00c68afc90d09dbad",
+    "end_frame": 23707360,
+    "frames": 307040,
+    "id": "R8001_M8004_MS801",
+    "input_wav_sha256": "6f13e1689993903034e25d486b2dd12fad48fee949447fadee72270e85092665",
+    "pcm16_sha256": "64bbdbb11ddd8508c244685ec31c0c9545a30329294d129456f5f37b54ee693b",
+    "runtime_float32_sha256": "c5fd0b3075ec050dcfc0404859361a05b285457ee048c5603c2a59841d464f4b",
+    "seconds": 19.19,
+    "source_recording_sha256_inherited": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1",
+    "start_frame": 23400320
+  },
+  "status": "PUBLIC_METADATA_REFERENCE_ONLY"
+}
