@@ -1,0 +1,89 @@
+{
+  "schema": "native-capture-wip3-source-inventory-v1",
+  "base_commit": "4758f37a91166addbf6ed557866c6048bd6a89bb",
+  "base_tree": "415e4c9982826fe1aefffb8804e0dc3d5b6af6ff",
+  "qualified_runtime_commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+  "status": "SOURCE_ONLY_REFERENCE_NOT_REAL_NATIVE_CAPTURE_QUALIFIED",
+  "source_transformations": [],
+  "source_file_count": 8,
+  "source_bytes": 57867,
+  "self_excluded": "preparation/native-capture-wip3/SOURCE_INVENTORY.json",
+  "files": [
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/common.py",
+      "sha256": "98225798e5398fa4c6d0764f6bc4177eb3f85446ac65d38c38ecb039a974d316",
+      "bytes": 14162,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/complete_offline.v8.py",
+      "sha256": "e5ff22d15ea7c83a69d936c3f99675921bb3ff845cc67df30aa2a5062c6244d9",
+      "bytes": 6297,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/step.py",
+      "sha256": "56b88f7889e498e8a16cb68ab0090d76d5744a6a26d7dc0cc6e5d4c222fab922",
+      "bytes": 11462,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/prepare_environment.py",
+      "sha256": "3a3109ddcb8139e211d9c65c07fd5aca80935ebb03418a81b29bf4a903838c60",
+      "bytes": 9045,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/import_smoke.py",
+      "sha256": "660a2d231876bd4764937f5a99880507dbae5a2b1ed9b891d425beaa74b268b8",
+      "bytes": 5381,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/controller-readiness/sdk_compatibility.py",
+      "sha256": "bce04c539be0ed43d8fcc6e2225c81b022d3eb67210175d5ea8e4e09ca9da4e9",
+      "bytes": 5677,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/test_category_delta.v10.py",
+      "sha256": "63ff9d4bab21ac0bf4f959e916f3d98ece0c2885fc9962c0f4d60b2a82f2a776",
+      "bytes": 2000,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/reference-source/preparation/installation/test_offline.v8.py",
+      "sha256": "2f72f1a55461ea18a70ae81ce84ac5675473ba5130b6205916af7d4b63a9dea1",
+      "bytes": 3843,
+      "transformation": "byte_exact"
+    },
+    {
+      "repo_path": "preparation/native-capture-wip3/README.md",
+      "sha256": "fbeb4d6026ae8784c6794073874835b7bb5de423f183ecaa251fbfb358aaae0d",
+      "bytes": 3492,
+      "transformation": "new_checkpoint_documentation"
+    }
+  ],
+  "validation": {
+    "prior_offline_install_and_file_verification": "PASS",
+    "prior_installed_import_count": 14,
+    "prior_sdk_descriptor_wrapper_compatibility": "PASS_INSTALLED_SYMBOL_COMPATIBILITY_ONLY",
+    "prior_fake_offline_correction_cases": 7,
+    "current_common_category_boundary_cases": 4,
+    "current_common_category_revision": "v10",
+    "current_common_bookkeeping_limit_bytes": 7340032,
+    "current_common_build_limit_bytes": 15728640,
+    "current_snapshot_install_import_sdk_rerun": false,
+    "prior_checks_used_earlier_common_identity": true,
+    "models_requested_by_recorded_checks": 0,
+    "physical_sqlite_qualified": false,
+    "native_c_abi_qualified": false,
+    "actual_returned_stream_type_qualified": false,
+    "inference_qualified": false,
+    "real_native_capture_qualified": false,
+    "packaging_tests_run": 0,
+    "packaging_source_imports_run": 0,
+    "packaging_network_requests": 0
+  },
+  "portability": "Byte-exact reference source. Relative preparation-run identifiers and pins remain unavailable dependencies; restore and review approved inputs before execution."
+}
