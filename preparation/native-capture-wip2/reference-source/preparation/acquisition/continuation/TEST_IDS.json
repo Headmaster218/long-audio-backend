@@ -1,0 +1,20 @@
+{
+  "schema": "continuation-test-ids-v1",
+  "test_ids": [
+    "__main__.Tests.test_all_nine_prior_files_verified",
+    "__main__.Tests.test_changed_old_part_rejected",
+    "__main__.Tests.test_duplicate_prior_pin_rejected",
+    "__main__.Tests.test_exact_five_artifact_filter_preserves_full_verify",
+    "__main__.Tests.test_extracted_tree_collision_rejected",
+    "__main__.Tests.test_final_prior_pin_change_fails_and_records",
+    "__main__.Tests.test_launcher_load_and_closed_stage",
+    "__main__.Tests.test_launcher_wrong_absolute_budget",
+    "__main__.Tests.test_launcher_wrong_entrypoint",
+    "__main__.Tests.test_launcher_wrong_prior_stage_map",
+    "__main__.Tests.test_launcher_wrong_stage_or_adapter_pin",
+    "__main__.Tests.test_launcher_wrong_work_budget",
+    "__main__.Tests.test_new_destination_collision_blocks_runner",
+    "__main__.Tests.test_success_receipt_new_and_reused_scope",
+    "__main__.Tests.test_wrong_reused_hash_rejected"
+  ]
+}

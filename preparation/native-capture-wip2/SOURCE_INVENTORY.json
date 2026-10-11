@@ -1,0 +1,66 @@
+{
+  "base_commit": "b1c11dc940d99e8fa5e427ed75d42b2650f1104e",
+  "files": [
+    {
+      "bytes": 53119,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/acquire.py",
+      "sha256": "a79053fae502ed0621c94aa94aafc634fed7997a423d210fb806a2587ea391c1",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 27744,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/test_acquire.py",
+      "sha256": "e1c08c2ab20dbc9a569f629dc5d8c3333b107cd0ba8779f3712ee289099ca508",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 2975,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/TEST_IDS.json",
+      "sha256": "b85b7b417843cf0fb48ee10a8587786bcd1b7bcaf23ca299ee77d7f37470f79a",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 11066,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/continuation/continue_models.py",
+      "sha256": "b4a40c706d713b4f363e2a7ed3369a78aee298e5d2a5d359e98fbe08f8ff41f4",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 3011,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/continuation/launch.py",
+      "sha256": "b3774a6223e8f3a2acdbfb08c6c14fe76af68eb3f29215d42b48f63fa78628f1",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 10205,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/continuation/test_continuation.py",
+      "sha256": "04993a611ba0c82c0355f54241a9a0d4afc7187545e93f9d2ce1d400efda7d3e",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 963,
+      "repo_path": "preparation/native-capture-wip2/reference-source/preparation/acquisition/continuation/TEST_IDS.json",
+      "sha256": "b5699c3dc779e314aaf6337175675929c73ef4fc0e815840bd645fc3a298fe0e",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 3057,
+      "repo_path": "preparation/native-capture-wip2/README.md",
+      "sha256": "f2a7bd2972829280d37a37878c03bb67559935f0b879660f1ce20382c3775036",
+      "transformation": "new_checkpoint_documentation"
+    }
+  ],
+  "qualified_runtime_commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+  "schema": "native-capture-wip2-source-inventory-v1",
+  "self_excluded": "preparation/native-capture-wip2/SOURCE_INVENTORY.json",
+  "source_transformations": [],
+  "status": "SOURCE_ONLY_REFERENCE_SYNTHETICALLY_TESTED_NOT_REAL_ACQUISITION_QUALIFIED",
+  "validation": {
+    "acquisition_synthetic_pass": 49,
+    "continuation_synthetic_pass": 15,
+    "corpus_first_prepared_unrun_excluded": 18,
+    "live_model_acquisition_qualified": false,
+    "packaging_tests_run": 0,
+    "real_native_capture_qualified": false
+  }
+}
