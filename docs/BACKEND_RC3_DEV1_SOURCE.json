@@ -1,0 +1,88 @@
+{
+  "schema": "reviewed-backend-rc3-dev1-source-v1",
+  "version": "0.2.0rc3.dev1",
+  "base_commit": "d72ccfc3b606931c8d0ec689cdb880effbf8f7eb",
+  "base_tree": "cb24084ac612dca93cea348743afe8e17c5c353d",
+  "base_files": 293,
+  "base_bytes": 3412765,
+  "base_source_inventory_sha256": "8bdb8ca75b263f22f5844b96ee4ce0f2fafeccbc560a3d82e38db689a8fe1854",
+  "scope": "Fresh pure untimed whole-support Qwen/MOSS alternatives contract; no production import, provider, API, Worker, storage or model changes",
+  "qualification": "Focused stdlib-only source/contract checks; no historical-suite or acoustic qualification",
+  "source_budget": {
+    "maximum_files": 298,
+    "maximum_total_bytes": 3500000,
+    "maximum_file_bytes": 250000
+  },
+  "historical_proof": "Immutable published dev13 fixture and lineage adapter only; original proof bodies preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins both this manifest and the source gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "b5713fb3cbcf9ee9646e6bd95a2bee6fcc53940112b81ff2184c56856b815783",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 108,
+        "sha256": "d5ba020afc8a4e51fc1882da38d8ae0bf6d8b6db137f194d145e498bcf601cc1"
+      }
+    },
+    {
+      "path": "audio_backend/native_lexical_alternatives.py",
+      "bytes": 10505,
+      "sha256": "321745aa3bef2462cb5b2b196d16f9ffe78d70c8bf20aeaf36e701ffc45d708f",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 13419,
+      "sha256": "b6d1879731c03fcaa122aa82fae5caa71fe021225c1f3b107f79dcff5a7a591c",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 13165,
+        "sha256": "caf9c697b60772884e5a3734fc7eb92cc9588151139cb51b3bd27135fce567ad"
+      }
+    },
+    {
+      "path": "docs/NATIVE_LEXICAL_ALTERNATIVES.md",
+      "bytes": 3929,
+      "sha256": "118d6c83e7d83a0d2b72506931140400756ef4e3ad1cc141947018692662a9c9",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "49193d3ee1f802178aadb6fbaad68636c59163d9478ceb9e5b7331f17b58fb89",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 829,
+        "sha256": "1b905b59b5ee34ca0530b5024e8f9748cea5b60878eb8cb747aeed8aebf64965"
+      }
+    },
+    {
+      "path": "tests/test_backend_dev13_source.py",
+      "bytes": 7553,
+      "sha256": "f10c36c73f37a6e28f093f705c20013b45bf325ac258835e2b238afdcff6e60d",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 7744,
+        "sha256": "41618077e6268795be5f25e8aebfa945856733a27013eac14a6f6bd5686667b1"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev1_source.py",
+      "bytes": 24597,
+      "sha256": "9411b3b174463332523f0b3be567e9abcac9fc29aa4f5c60942588a56cf56c1f",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_lexical_alternatives.py",
+      "bytes": 13601,
+      "sha256": "d7bc20ffb8d6e7d4f264b00822538a302704869abb6fe1f9f85177f801915d2b",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

@@ -80,16 +80,11 @@ def verify(files, index, modes, index_modes):
 
 @pytest.fixture(scope='module')
 def current():
-    index = guard.read_git_tree(':')
-    files = guard.read_worktree(json.loads(index[POLICY]))
-    modes = {p: '100755' if (ROOT/p).stat().st_mode & 0o111 else '100644' for p in files}
-    index_modes = {}
-    for row in git('ls-files', '--stage', '-z').split(b'\0'):
-        if row:
-            header, path = row.decode().split('\t'); mode, _, stage = header.split()
-            assert stage == '0' and path not in index_modes
-            index_modes[path] = mode
-    return files, index, modes, index_modes
+    # Preserve published dev13 proof; rc3.dev1 has a separate current-source gate.
+    revision = 'd72ccfc3b606931c8d0ec689cdb880effbf8f7eb'
+    files = guard.read_git_tree(revision)
+    modes = tree_modes(revision)
+    return files, dict(files), modes, dict(modes)
 
 
 def test_dev13_exact_source(current):
@@ -100,7 +95,8 @@ def test_dev13_lineage(current):
     git('merge-base', '--is-ancestor', BASE, 'HEAD')
     merge = Path(git('rev-parse', '--git-path', 'MERGE_HEAD').decode().strip())
     assert not (merge if merge.is_absolute() else ROOT/merge).exists()
-    head = git('rev-parse', 'HEAD').decode().strip()
+    head = 'd72ccfc3b606931c8d0ec689cdb880effbf8f7eb'
+    git('merge-base', '--is-ancestor', head, 'HEAD')
     if head == BASE: return  # Exact staged precommit candidate.
     headers = git('cat-file', 'commit', head).split(b'\n\n', 1)[0].splitlines()
     assert [r[7:].decode() for r in headers if r.startswith(b'parent ')] == [BASE]
