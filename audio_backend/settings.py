@@ -69,6 +69,7 @@ class Settings:
     verified_identity_policy_file: str | Path | None = None
     verified_identity_policy: dict | None = field(default=None,init=False,repr=False)
     speaker_support_enabled: bool = False
+    native_owned_support_enabled: bool = False
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
     speaker_support_total_pcm_bytes: int = 64 * 1024**2
@@ -100,6 +101,8 @@ class Settings:
         for name in ('max_upload_bytes','max_pending_chunks','max_sessions','max_speakers_per_session','max_speaker_observations_per_group','max_matched_speaker_observations_per_group','max_speaker_examples_per_person','max_speaker_templates_total','max_speaker_observations_total'):
             if not isinstance(getattr(self,name),int) or getattr(self,name)<=0: raise ValueError(f'{name} must be a positive integer')
         if not isinstance(self.speaker_support_enabled,bool):raise ValueError('speaker_support_enabled must be boolean')
+        if type(self.native_owned_support_enabled) is not bool:
+            raise ValueError('native_owned_support_enabled must be boolean')
         for name, cap in (('speaker_support_max_records',8192), ('speaker_support_max_pcm_bytes',1280000),
                           ('speaker_support_total_pcm_bytes',256*1024**2), ('speaker_support_window_pcm_bytes',8*1024**2)):
             value=getattr(self,name)

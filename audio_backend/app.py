@@ -23,6 +23,40 @@ from .boundary_store import finish_stream
 
 FORMATS='wav,flac,ogg,mp3,mov,matroska,webm,aac'
 
+
+def _assign_native_read_lease(scope,lease):
+    # A sync endpoint can finish on its thread after ASGI cancellation. Setting
+    # then rechecking the close event covers both sides of the handoff race.
+    scope['_native_support_read_lease']=lease
+    done=scope.get('_native_support_read_done')
+    if done is not None and done.is_set():
+        if scope.get('_native_support_read_lease') is lease:
+            scope.pop('_native_support_read_lease',None)
+        lease.release()
+        return False
+    return True
+
+
+class _NativeSupportReadLifetime:
+    """Hold bounded response buffers until the outer ASGI send has finished."""
+    def __init__(self,app):self.app=app
+    async def __call__(self,scope,receive,send):
+        private=scope.get('type')=='http' and '/native-owned-supports' in scope.get('path','')
+        if not private:return await self.app(scope,receive,send)
+        done=threading.Event()
+        scope['_native_support_read_done']=done
+        async def private_send(message):
+            if private and message['type']=='http.response.start':
+                headers=[(k,v) for k,v in message.get('headers',[])
+                         if k.lower() not in (b'cache-control',b'pragma')]
+                message=dict(message,headers=headers+[(b'cache-control',b'private, no-store'),(b'pragma',b'no-cache')])
+            await send(message)
+        try:await self.app(scope,receive,private_send)
+        finally:
+            done.set()
+            lease=scope.pop('_native_support_read_lease',None)
+            if lease is not None:lease.release()
+
 class SessionRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     name: str=Field(default='',max_length=200)
@@ -120,6 +154,13 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     async def lifespan(app):
         lock.acquire()
         try:
+            if settings.native_owned_support_enabled:
+                try:
+                    from .native_owned_support_cache import register
+                    worker.native_owned_support_cache=register(store)
+                except Exception:
+                    # Optional capture has no authority to reject primary startup.
+                    worker.native_owned_support_cache=None
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
             from .lifecycle import cleanup_pending
@@ -142,6 +183,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if settings.start_worker: worker.start()
             yield
         finally:
+            if worker.native_owned_support_cache is not None:
+                try:worker.native_owned_support_cache.close()
+                except Exception:pass
             stopped=worker.stop()
             if stopped and fragments.cleanup_error is None:
                 lock.release()
@@ -385,6 +429,59 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         from starlette.responses import JSONResponse
         return JSONResponse(value,headers={'Cache-Control':'private, no-store'})
 
+    def owned_support_response(request,sid,kind,cid=None):
+        from starlette.responses import JSONResponse,Response,StreamingResponse
+        headers={'Cache-Control':'private, no-store'}
+        if not settings.native_owned_support_enabled:
+            return JSONResponse({'detail':'native_owned_support_disabled'},status_code=409,headers=headers)
+        from .native_owned_support_cache import parse_query,ReadError
+        cache=worker.native_owned_support_cache
+        if cache is None:
+            return JSONResponse({'detail':'native_owned_support_unavailable'},status_code=503,headers=headers)
+        result=None
+        try:
+            query=parse_query(request.scope.get('query_string',b''),kind)
+            if kind=='list':result=cache.read_list(sid,**query)
+            elif kind=='detail':result=cache.read_detail(sid,cid,**query)
+            else:result=cache.read_audio(sid,cid,**query)
+            done=request.scope.get('_native_support_read_done')
+            if done is not None and done.is_set():
+                result.lease.release()
+                result=None
+                return JSONResponse({'detail':'native_owned_support_read_closed'},status_code=503,headers=headers)
+            if kind=='audio':
+                # Header and retained immutable PCM are sent separately. A second
+                # complete WAV copy would exceed the response's byte reservation.
+                chunks=result.body
+                async def audio_chunks():
+                    for block in chunks:yield block
+                response=StreamingResponse(audio_chunks(),status_code=result.status_code,media_type=result.media_type,
+                    headers={**headers,'Content-Length':str(sum(map(len,chunks)))})
+            else:
+                response=Response(result.body,status_code=result.status_code,media_type=result.media_type,headers=headers)
+            if not _assign_native_read_lease(request.scope,result.lease):
+                result=None;response=None
+                return JSONResponse({'detail':'native_owned_support_read_closed'},status_code=503,headers=headers)
+            return response
+        except ReadError as exc:
+            if result is not None:result.lease.release()
+            return JSONResponse({'detail':exc.reason},status_code=exc.status_code,headers=headers)
+        except Exception:
+            if result is not None:result.lease.release()
+            return JSONResponse({'detail':'native_owned_support_unavailable'},status_code=503,headers=headers)
+
+    @app.get('/sessions/{sid}/native-owned-supports')
+    def owned_supports(request:Request,sid:str):
+        return owned_support_response(request,sid,'list')
+
+    @app.get('/sessions/{sid}/native-owned-supports/{cid}')
+    def owned_support(request:Request,sid:str,cid:str):
+        return owned_support_response(request,sid,'detail',cid)
+
+    @app.get('/sessions/{sid}/native-owned-supports/{cid}/audio')
+    def owned_support_audio(request:Request,sid:str,cid:str):
+        return owned_support_response(request,sid,'audio',cid)
+
     @app.get('/sessions/{sid}/identity-bank')
     def identity_bank(sid:str):
         from .verified_identity import bank
@@ -457,6 +554,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         if upload_lock.locked(): raise HTTPException(409,'Wait for upload to finish before deleting sessions')
         result=store.delete_session(sid)
         return {**result,'note':('Source cleanup is pending; retry this DELETE or restart after resolving file access.' if result['cleanup_pending'] else 'Application deletion is not forensic secure erasure; protect disk and backups.')}
+    # Added last so this lifetime gate encloses the auth/streaming middleware.
+    app.add_middleware(_NativeSupportReadLifetime)
     return app
 
 # Importing this module has no filesystem side effects.

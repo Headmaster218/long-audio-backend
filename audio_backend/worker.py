@@ -108,10 +108,16 @@ class Worker:
         self.store=store; self.settings=settings; self.analyzer_factory=analyzer_factory
         self.stop_event=threading.Event(); self.wake=threading.Event(); self.current_chunk=None
         self.native=None
+        self.native_owned_support_cache=None
+        self._native_capture=None;self._native_capture_token=None
+        self._native_capture_observation=None
         self.support_fingerprints=speaker_support.SourceFingerprints()
         self.thread=threading.Thread(target=self.loop,name='audio-worker',daemon=True)
     def start(self): self.thread.start()
     def stop(self):
+        if self.native_owned_support_cache is not None:
+            try:self.native_owned_support_cache.close()
+            except Exception:pass
         self.stop_event.set(); self.wake.set()
         if self.thread.is_alive(): self.thread.join(timeout=15)
         if not self.thread.is_alive() and self.native:self.native.close();self.native=None
@@ -128,17 +134,97 @@ class Worker:
                 self.wake.wait(1); self.wake.clear(); continue
             if fragments and fragments.process_next(self):
                 continue
+            watermark=None
+            if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
+                try:
+                    self.native_owned_support_cache.drain()
+                    watermark=self.native_owned_support_cache.preclaim()
+                except Exception:
+                    # Optional observation never takes authority over primary work.
+                    pass
             chunk=self.store.claim()
             if chunk is None:
                 self.wake.wait(1); self.wake.clear(); continue
             self.current_chunk=chunk['id']
-            try: self.process(chunk)
+            try:
+                self._begin_native_support(chunk,watermark)
+                self.process(chunk)
             except InterruptedError:
                 if self.stop_event.is_set():
                     with self.store.db() as db:
                         db.execute("UPDATE chunks SET status='queued' WHERE id=? AND status='running'",(chunk['id'],))
             except Exception as exc: self.store.fail(chunk['id'],f'{type(exc).__name__}: {exc}')
-            finally: self.current_chunk=None
+            finally:
+                self._finish_native_support()
+                self.current_chunk=None
+
+    def _begin_native_support(self,chunk,watermark):
+        cache=self.native_owned_support_cache
+        if not getattr(self.settings,'native_owned_support_enabled',False) or cache is None or watermark is None:
+            return
+        try:
+            if self.settings.diarization_backend!='nemotron':return
+            token=cache.begin(chunk,watermark)
+            if token is None:return
+            self._native_capture_token=token
+            from .native_owned_support import SourceMaterial,NativeWitness
+            self._native_capture=NativeWitness(SourceMaterial.inspect(chunk))
+        except Exception:
+            self._finish_native_support()
+
+    def _finish_native_support(self):
+        token=self._native_capture_token
+        self._native_capture=None;self._native_capture_token=None
+        self._native_capture_observation=None
+        if token is not None:
+            try:self.native_owned_support_cache.fail(token,'capture_unavailable')
+            except Exception:pass
+
+    def _native_response(self,response):
+        observation=self._native_capture_observation
+        if observation is not None:
+            token,witness=observation
+            if token is not self._native_capture_token or witness is not self._native_capture:return
+            try:witness.observe(response)
+            except Exception:
+                try:witness.fail('response_observation_unavailable')
+                except Exception:self._native_capture=None
+
+    def _native_process_factory(self,settings):
+        from .native_worker import NativeProcess
+        process=NativeProcess(settings)
+        # Construction is never retried if optional attachment fails.
+        try:
+            prior=getattr(process,'response_observer',None)
+            def observe(response):
+                if prior is not None:prior(response)
+                self._native_response(response)
+            process.response_observer=observe
+        except Exception:
+            self._finish_native_support()
+        return process
+
+    def _observe_native_pcm(self,kind,wav,start,end):
+        witness=self._native_capture
+        if witness is not None:
+            try:witness.observe_pcm(kind,wav,start,end)
+            except Exception:
+                try:witness.fail('material_observation_unavailable')
+                except Exception:self._native_capture=None
+
+    def _native_extract(self,chunk,start,end,wav,tmp,stop,**kwargs):
+        result=self.extract_pcm(chunk,start,end,wav,tmp,stop,**kwargs)
+        self._observe_native_pcm('native',wav,start,end)
+        return result
+
+    def _publish_native_support(self,native,offset,end):
+        witness=self._native_capture;token=self._native_capture_token
+        if witness is None or token is None:return
+        try:
+            artifact=witness.finalize(native,offset,end)
+            self.native_owned_support_cache.publish(token,artifact)
+        except Exception:pass
+        finally:self._finish_native_support()
     def process(self,chunk):
         with tempfile.TemporaryDirectory(prefix='analyzer-',dir=self.settings.data_dir/'tmp') as tmp:
             config=Path(tmp)/'config.json'
@@ -241,8 +327,14 @@ class Worker:
             extract_end=min(info['end']-origin if info else chunk['duration'],end+self.settings.context_seconds)
             native=None
             if self.settings.diarization_backend=='nemotron':
-                if self.native is None:self.native=NativeCoordinator(self.settings,self.extract_pcm)
-                native=self.native.prepare(chunk,offset,end,info,lambda:self.interrupted(chunk['id']))
+                if self.native is None:
+                    if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
+                        self.native=NativeCoordinator(self.settings,self._native_extract,process_factory=self._native_process_factory)
+                    else:self.native=NativeCoordinator(self.settings,self.extract_pcm)
+                if self._native_capture is not None:
+                    self._native_capture_observation=(self._native_capture_token,self._native_capture)
+                try:native=self.native.prepare(chunk,offset,end,info,lambda:self.interrupted(chunk['id']))
+                finally:self._native_capture_observation=None
                 if native is None:
                     if not info:raise RuntimeError('Finalized native source did not produce a stable core')
                     wait_for_input(self.store,chunk['id'],info['end'],info['final']);return
@@ -254,6 +346,7 @@ class Worker:
                 capture_support=self.settings.speaker_support_enabled and (self.settings.speaker_support_max_records>0 or verified_query)
                 expected_generation=speaker_support.capture_generation(self.store,chunk) if capture_support else None
                 lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support)
+                self._observe_native_pcm('analyzer',wav,extract_start+origin,extract_end+origin)
                 options=({'candidate_core_start':offset-extract_start,'candidate_core_end':end-extract_start,
                           'candidate_core_apply_safe_cut':end<chunk['duration']-1e-5,
                           'candidate_core_cut_lower':max(offset-extract_start+.5,end-extract_start-min(3.,self.settings.window_seconds*.25))}
@@ -300,4 +393,5 @@ class Worker:
                 previous=result['metadata'].get('boundary_tail',[])
                 if self.interrupted(chunk['id']): raise InterruptedError()
                 if not self.store.commit_window(chunk,offset,end,result): return
+                self._publish_native_support(native,offset,end)
             offset=end

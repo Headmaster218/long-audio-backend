@@ -100,7 +100,12 @@ def delete_session(store, sid, delete_file=None):
             # erasure trigger. Erase those too, within the same transaction.
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_changes'").fetchone():
                 db.execute('DELETE FROM result_changes WHERE session_id=?', (sid,))
+    # Primary deletion is already committed before optional memory is touched.
+    from .native_owned_support_cache import notify_deleted
+    optional_pending=notify_deleted(store,sid)
     result = cleanup_pending(store, delete_file, sid)
+    if optional_pending is not None:
+        result['native_owned_support_cleanup_pending']=optional_pending
     return {'deleted': sid, **result}
 
 
