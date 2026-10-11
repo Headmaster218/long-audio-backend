@@ -1,0 +1,85 @@
+{
+  "files": [
+    {
+      "bytes": 29161,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/controller/bootstrap.py",
+      "sha256": "e87a897a289e4a85146fbe6adb636bd0b9692030efdc9cfc34ea3e899efd567d",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 22738,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/controller/server.py",
+      "sha256": "2fed9ef622d60999905ea152b11b67b1ec17b0fc0b1d06a53cf80875e7f3afb0",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 18566,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/controller-readiness/test_provenance.py",
+      "sha256": "231c8762605a5569044ae18b8e3bc613fdaac0f699e6f95c9524a7113774fd8e",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 2101,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/controller-readiness/run_provenance_fixtures.py",
+      "sha256": "406ba40aac31bc3e8cfef8dce6cbdf6e999344bb01725b01ca6c7bb455f362b8",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 23493,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/acquisition/corpus-first-verified/corpus_first.py",
+      "sha256": "8b81c419fff6a2f5d9f8bb20b176f96b60e71d87fb4b71782861e793ad1874af",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 9088,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/acquisition/corpus-first-verified/launch.py",
+      "sha256": "8d36594cad7e45e0a0b9ccb7366a60a30561a21c3747b0d7a02d1d89672bc8f0",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 2039,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/acquisition/corpus-first-verified/synthetic_launch.py",
+      "sha256": "29a00575547034082698edaf035961dbe386e1239c54b4b6398d2592c3f407fe",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 21160,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/acquisition/corpus-first-verified/test_corpus_first.py",
+      "sha256": "4c1aaba9d5de7a6012605080fb8d5aeac10b83e9e39a2e8cd185819d62feb163",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 9561,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/storage-proof/geometry.py",
+      "sha256": "c7456c05a9d7bdd958b99d6ff8b2a88350f7856a7bf8d1b793a9f0f3f61a57a9",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 17005,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/storage-proof/prove_store.py",
+      "sha256": "e4a72c17aeb12b8070b6ccdfd2e71aa8c2b13218b8a5ef1cde3ffb0c2332a9cc",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 10458,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/storage-proof/test_geometry.py",
+      "sha256": "4c3178076d1409a9d060f1f350d9a6292e5c8da74d7dfa747d6c054dea9c0fc2",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 1624,
+      "repo_path": "preparation/native-capture-wip4/reference-source/preparation/storage-proof/pin_precheck.py",
+      "sha256": "6b4d6a73c67563fd4d137b5197ca8105b818a789ff23db9a0f56944ca2fe0981",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 3757,
+      "repo_path": "preparation/native-capture-wip4/README.md",
+      "sha256": "1997c5192e33fd70a14a3df1b97b950f9f4632ee7047e89d9d1621b41994f0c3",
+      "transformation": "new_public_metadata"
+    }
+  ],
+  "runtime_commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+  "schema": 1,
+  "status": "SOURCE_ONLY_PREPARATION_BACKUP"
+}
