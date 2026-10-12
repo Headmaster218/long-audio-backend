@@ -1,0 +1,201 @@
+"""Pinned, text-only start-order CER diagnostic. No inference or database access."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import resource
+import signal
+import stat
+import sys
+import time
+import unicodedata
+from decimal import Decimal
+
+HERE=Path(__file__).resolve().parent
+W=HERE.parent.parent
+OLD=W/'__LOCAL_BASE_PREPARATION_ROOT__'
+Q=HERE.parent
+INPUTS=(
+    (OLD/'__LOCAL_REFERENCE_ANNOTATION_RELATIVE_PATH__','__LOCAL_REFERENCE_ANNOTATION_BYTES__',
+     '__LOCAL_REFERENCE_ANNOTATION_SHA256__'),
+    (OLD/'__LOCAL_PRIMARY_SNAPSHOT_RELATIVE_PATH__','__LOCAL_PRIMARY_SNAPSHOT_BYTES__',
+     '__LOCAL_PRIMARY_SNAPSHOT_SHA256__'),
+    (Q/'__LOCAL_CANDIDATE_EVIDENCE_RELATIVE_PATH__','__LOCAL_CANDIDATE_EVIDENCE_BYTES__',
+     '__LOCAL_CANDIDATE_EVIDENCE_SHA256__'))
+START=Decimal('__LOCAL_START_FRAME__')/16000
+END=Decimal('__LOCAL_END_FRAME__')/16000
+CHUNK='__LOCAL_CHUNK_ID__'
+CANDIDATE='__LOCAL_CANDIDATE_ID__'
+MAX_CHARS=4096
+MAX_CELLS=2000000
+DEADLINE=0
+
+
+def require(ok,reason):
+    if not ok: raise ValueError(reason)
+
+
+def check():
+    require(time.monotonic()<DEADLINE,'wall_deadline')
+
+
+def normalize(text):
+    require(type(text) is str and len(text)<=65536,'text_bound')
+    text=unicodedata.normalize('NFKC',text).casefold()
+    return ''.join(c for c in text if not c.isspace() and not unicodedata.category(c).startswith('P'))
+
+
+def read_pin(path,size,digest):
+    check();before=path.lstat()
+    require(stat.S_ISREG(before.st_mode) and path.resolve()==path and before.st_size==size,'input_kind_size')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        data=os.read(fd,size+1);after=os.fstat(fd)
+    finally: os.close(fd)
+    signature=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+    require(len(data)==size and signature(before)==signature(after)==signature(path.lstat())
+            and hashlib.sha256(data).hexdigest()==digest,'input_pin')
+    return data
+
+
+def textgrid(raw):
+    text=raw.decode('utf-8')
+    require(text.startswith('File type = "ooTextFile"\nObject class = "TextGrid"'),'textgrid_header')
+    tiers=re.split(r'(?m)^\s*item \[(\d+)\]:\s*$',text)
+    require(len(tiers)==9,'four_speaker_tiers')
+    rows=[];names=[]
+    pattern=re.compile(r'intervals \[(\d+)\]:\s*xmin = ([0-9.]+)\s*xmax = ([0-9.]+)\s*text = "((?:[^"]|"")*)"')
+    for k in range(1,len(tiers),2):
+        tier=int(tiers[k]);body=tiers[k+1]
+        name=re.search(r'name = "([^"]+)"',body).group(1)
+        require('class = "IntervalTier"' in body and name not in names,'tier_type_name');names.append(name)
+        declared=int(re.search(r'intervals: size = (\d+)',body).group(1));matches=list(pattern.finditer(body))
+        require(len(matches)==declared and declared<=4096,'interval_count')
+        previous=Decimal(-1)
+        for match in matches:
+            check();index=int(match[1]);start=Decimal(match[2]);end=Decimal(match[3]);value=match[4].replace('""','"')
+            require(start<=end and start>=previous,'tier_interval_order');previous=start
+            if end>START and start<END and value.strip():
+                rows.append({'tier':name,'tier_index':tier,'interval_index':index,'start':str(start),
+                    'end':str(end),'text':value,'normalized':normalize(value),
+                    'fully_contained':start>=START and end<=END,'edge_straddling':start<START or end>END})
+    rows.sort(key=lambda r:(Decimal(r['start']),r['tier_index'],r['interval_index']))
+    for row in rows:
+        row['overlaps_other_tier']=any(other['tier']!=row['tier'] and
+            max(START,Decimal(row['start']),Decimal(other['start']))<min(END,Decimal(row['end']),Decimal(other['end']))
+            for other in rows)
+    require(rows and len(rows)<=256,'reference_selection_bound')
+    return names,rows
+
+
+def snapshot_segments(raw):
+    prefix=b'SQLITE-LOGICAL-SNAPSHOT-V1\n';require(raw.startswith(prefix),'snapshot_header');at=len(prefix)
+    def until(delimiter):
+        nonlocal at
+        end=raw.find(delimiter,at);require(end>=at,'snapshot_delimiter');part=raw[at:end];at=end+len(delimiter);return part
+    def value():
+        nonlocal at
+        kind=raw[at:at+1];at+=1
+        if kind==b'N':require(raw[at:at+1]==b';','null');at+=1;return None
+        if kind in (b'I',b'F'):
+            token=until(b';');return int(token) if kind==b'I' else float.fromhex(token.decode('ascii'))
+        require(kind in (b'T',b'B') and raw[at:at+1]==b':','snapshot_type');at+=1;parts=[]
+        while True:
+            length=int(until(b':'));require(0<=length<=16384,'snapshot_field_chunk')
+            if not length:require(raw[at:at+1]==b';','snapshot_string_end');at+=1;break
+            require(at+length<=len(raw),'snapshot_chunk_extent');parts.append(raw[at:at+length]);at+=length
+        data=b''.join(parts);return data.decode('utf-8') if kind==b'T' else data
+    table=None;columns=[];segments=[];count=0
+    while at<len(raw):
+        check();require(raw[at:at+1]==b'R','snapshot_row');at+=1
+        n=int(until(b':'));require(1<=n<=130,'snapshot_columns');row=[value() for _ in range(n)]
+        require(raw[at:at+1]==b'\n','snapshot_row_end');at+=1;count+=1;require(count<=10000,'snapshot_rows')
+        if row[0]=='TABLE':table=row[1];columns=row[2:]
+        elif table=='segments':
+            require(len(columns)==len(row),'segment_shape');item=dict(zip(columns,row))
+            if item['chunk_id']==CHUNK:
+                require(type(item['text']) is str and 0<=item['start']<=item['end']<=float(END-START)+.001,'segment_support')
+                segments.append({k:item[k] for k in ('id','start','end','text','speaker_local_id')})
+    require(0<len(segments)<=1024,'primary_segments')
+    segments.sort(key=lambda r:(r['start'],r['end'],r['id']))
+    return segments
+
+
+def cer(reference,hypothesis,rows):
+    n,m=len(reference),len(hypothesis);require(0<n<=MAX_CHARS and m<=MAX_CHARS and (n+1)*(m+1)<=MAX_CELLS,'DP_bound')
+    width=m+1;trace=bytearray((n+1)*width);previous=list(range(width))
+    for j in range(1,width):trace[j]=2
+    for i in range(1,n+1):
+        check();current=[i]+[0]*m;trace[i*width]=1
+        for j in range(1,width):
+            choices=(previous[j-1]+(reference[i-1]!=hypothesis[j-1]),previous[j]+1,current[j-1]+1)
+            best=min(choices);direction=choices.index(best);current[j]=best;trace[i*width+j]=direction
+        previous=current
+    i,j=n,m;operations=[];counts={'S':0,'D':0,'I':0,'N':n,'matches':0}
+    while i or j:
+        d=trace[i*width+j]
+        if i and j and d==0:
+            op='M' if reference[i-1]==hypothesis[j-1] else 'S';i-=1;j-=1
+        elif i and (not j or d==1):op='D';i-=1
+        else:op='I';j-=1
+        counts['matches' if op=='M' else op]+=1
+        operations.append((op,i,j))
+    operations.reverse();errors=[];per_row=[];offset=0
+    for row in rows:
+        size=len(row['normalized']);per_row.append({'tier':row['tier'],'interval_index':row['interval_index'],
+            'ref_start':offset,'ref_end':offset+size,'S':0,'D':0,'overlaps_other_tier':row['overlaps_other_tier']});offset+=size
+    for op,i,j in operations:
+        if op=='M':continue
+        errors.append({'op':op,'ref_index':i,'hyp_index':j,'ref_char':reference[i] if op!='I' else '',
+                       'hyp_char':hypothesis[j] if op!='D' else ''})
+        if op in ('S','D'):
+            for row in per_row:
+                if row['ref_start']<=i<row['ref_end']:row[op]+=1;break
+    counts['distance']=counts['S']+counts['D']+counts['I'];counts['CER']=counts['distance']/n
+    require(counts['distance']==previous[m],'trace_distance')
+    return {'counts':counts,'reference_normalized':reference,'hypothesis_normalized':hypothesis,
+            'alignment_errors':errors,'reference_interval_errors':per_row}
+
+
+def main():
+    global DEADLINE
+    DEADLINE=time.monotonic()+60
+    def timeout(*args):raise TimeoutError('evaluation_deadline')
+    signal.signal(signal.SIGALRM,timeout);signal.alarm(60)
+    resource.setrlimit(resource.RLIMIT_CPU,(60,60));resource.setrlimit(resource.RLIMIT_AS,(256*2**20,256*2**20))
+    resource.setrlimit(resource.RLIMIT_FSIZE,(2**20,2**20));resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+    require(len(sys.argv)==3 and sys.argv[1]=='--contract-sha256','exact_argv')
+    contract_raw=(HERE/'CONTRACT.json').read_bytes();require(hashlib.sha256(contract_raw).hexdigest()==sys.argv[2],'contract_pin')
+    contract=json.loads(contract_raw);require(hashlib.sha256(Path(__file__).read_bytes()).hexdigest()==contract['source_sha256'],'source_pin')
+    raw=[read_pin(*item) for item in INPUTS]
+    tiers,refs=textgrid(raw[0]);segments=snapshot_segments(raw[1]);stored=json.loads(raw[2])
+    require(stored['request']['candidate_id']==CANDIDATE and len(stored['attempts'])==1,'one_candidate')
+    native=stored['attempts'][0]['evidence']['native']
+    require(native['execution_returned'] is True and native['native_status']==0,'returned_native_record')
+    hypotheses={'primary':''.join(r['text'] for r in segments),'qwen17':native['text']}
+    result={'schema':'start-order-CER-diagnostic-v1','contract_sha256':sys.argv[2],'unicode_version':unicodedata.unidata_version,
+        'source_frames':['__LOCAL_START_FRAME__','__LOCAL_END_FRAME__'],'sample_rate':16000,'channel':0,'speaker_tiers':tiers,
+        'reference_intervals':refs,'primary_segments':segments,'hypotheses_exact':hypotheses,
+        'qwen_raw_text_exact':native['raw_text'],'normalization':contract['normalization'],'scores':{},
+        'caveats':contract['caveats'],'model_calls':0,'audio_reads':0}
+    for name,rows in [('all_intersecting',refs),('fully_contained',[r for r in refs if r['fully_contained']])]:
+        reference=''.join(r['normalized'] for r in rows)
+        result['scores'][name]={key:cer(reference,normalize(text),rows) for key,text in hypotheses.items()} if reference else {'unscored':'empty reference'}
+    for item in INPUTS:read_pin(*item)
+    check();result['wall_seconds']=60-(DEADLINE-time.monotonic());result['peak_rss_bytes']=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*1024
+    require(result['peak_rss_bytes']<=256*2**20,'RSS_cap')
+    output=(json.dumps(result,ensure_ascii=False,sort_keys=True,indent=2,allow_nan=False)+'\n').encode()
+    require(len(output)<=900*1024,'result_byte_cap')
+    existing=sum(p.stat().st_size for p in HERE.iterdir() if p.is_file());require(existing+len(output)+8192<=2**20,'evaluation_component_cap')
+    with (HERE/'result.json').open('xb') as stream:stream.write(output)
+    print(json.dumps({'status':'EVALUATED','result_sha256':hashlib.sha256(output).hexdigest(),
+                      'result_bytes':len(output),'scores':{a:{k:v.get('counts') if isinstance(v,dict) else v for k,v in b.items()} for a,b in result['scores'].items()},
+                      'model_calls':0,'audio_reads':0},sort_keys=True))
+    return 0
+
+
+if __name__=='__main__':
+    try:raise SystemExit(main())
+    except Exception as exc:
+        print(json.dumps({'status':'FAILED','error_type':type(exc).__name__}));raise SystemExit(1) from None

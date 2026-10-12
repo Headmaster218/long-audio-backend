@@ -1,0 +1,381 @@
+"""Fixed MOSS acquisition adapter and inherited pacing fixtures; no network or model assets."""
+from email.message import Message
+import hashlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest import mock
+
+HERE = Path(__file__).resolve().parent
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    value = importlib.util.module_from_spec(spec); spec.loader.exec_module(value)
+    return value
+
+
+p = module('moss_q8_fixed_parent', HERE/'prepare.py')
+h, a = p.load_helpers()
+OUTER = p.new_context(a, os.environ)
+
+
+class Clock:
+    def __init__(self): self.now = 1.; self.slept = 0.
+    def __call__(self): return self.now
+    def sleep(self, seconds):
+        if seconds < 0: raise ValueError('sleep length must be non-negative')
+        self.now += seconds; self.slept += seconds
+
+
+class Response:
+    def __init__(self, data, sizes, on_read=None):
+        self.stream = io.BytesIO(data); self.sizes = iter(sizes); self.on_read = on_read
+        self.headers = Message(); self.status = 200; self.requests = []; self.read_sizes = []
+        self.sock = mock.Mock(spec=a.socket.socket)
+        self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self.sock))
+    def geturl(self): return 'https://files.pythonhosted.org/fixture'
+    def read1(self, size):
+        self.requests.append(size)
+        value = self.stream.read(min(size, next(self.sizes, size)))
+        self.read_sizes.append(len(value))
+        if self.on_read is not None: self.on_read(value)
+        return value
+    def __enter__(self): return self
+    def __exit__(self, *args): self.stream.close()
+
+
+class Opener:
+    def __init__(self, response): self.response = response; self.calls = 0
+    def open(self, req, timeout): self.calls += 1; return self.response
+
+
+class Tests(unittest.TestCase):
+    def setUp(self):
+        OUTER.check()
+        self.root = Path(tempfile.mkdtemp(dir=OUTER.temp_root, prefix='pacing-case-'))
+        self.clock = Clock()
+        self.ctx = a.Context(self.root, 1000., self.root/'STOP', self.clock, self.clock.sleep)
+    def tearDown(self):
+        self.assertLessEqual(p.component_bytes(a, OUTER.temp_root, OUTER.check), 16*2**20)
+        OUTER.check()
+    def item(self, data):
+        return {'id':'fixture','destination':'asset.bin','url':'https://files.pythonhosted.org/fixture',
+                'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}
+    def receipt(self):
+        return json.loads((self.root/'receipts/download-fixture.json').read_text())
+    def check_receipt(self, received, retained):
+        r = self.receipt()
+        self.assertEqual(r['received_bytes'], len(received))
+        self.assertEqual(r['received_sha256'], hashlib.sha256(received).hexdigest())
+        self.assertEqual(r['retained_bytes'], len(retained))
+        self.assertEqual(r['retained_accounted_write_bytes'], len(retained))
+        self.assertTrue(r['retained_hash_complete'])
+        self.assertEqual(r['retained_sha256'], hashlib.sha256(retained).hexdigest())
+        self.assertEqual(self.ctx.network_bytes, len(received))
+    def test_01_one_byte_reads_charge_only_payload(self):
+        data = b'x'*4096; response = Response(data, [1]*len(data))
+        a.download(self.item(data), self.ctx, Opener(response))
+        self.assertAlmostEqual(self.clock.slept, len(data)/a.RATE, places=9)
+        self.check_receipt(data, data)
+        self.assertGreater(sum(response.requests), len(data)*100)
+    def test_02_variable_reads_charge_only_payload(self):
+        data = b'abcdefgh'*4096
+        sizes = [1, 7, 257, 13, 4096, 3, 16384, 2, 10000]
+        response = Response(data, sizes)
+        a.download(self.item(data), self.ctx, Opener(response))
+        self.assertAlmostEqual(self.clock.slept, len(data)/a.RATE, places=9)
+        self.assertLessEqual(max(response.requests), a.BLOCK)
+        self.check_receipt(data, data)
+    def test_03_eof_is_not_charged(self):
+        data = b'a'; response = Response(data, [1,1])
+        a.download(self.item(data), self.ctx, Opener(response))
+        self.assertEqual(response.read_sizes, [1,0])
+        self.assertAlmostEqual(self.clock.slept, 1/a.RATE, places=9)
+    def test_04_idle_credit_does_not_accumulate(self):
+        data = b'abcdefghijklmnop'
+        def idle(block):
+            if block: self.clock.now += 100.
+        response = Response(data, [4,4,4,4], idle)
+        a.download(self.item(data), self.ctx, Opener(response))
+        self.assertAlmostEqual(self.clock.slept, len(data)/a.RATE, places=9)
+        self.assertAlmostEqual(self.clock.now-1., 400.+len(data)/a.RATE, places=9)
+    def test_05_stop_during_read_preserves_consumed_block(self):
+        data = b'consumed'
+        def stop(block):
+            if block: (self.root/'STOP').write_bytes(b'')
+        with self.assertRaises(a.Refused): a.download(self.item(data), self.ctx, Opener(Response(data,[len(data)],stop)))
+        self.check_receipt(data, data)
+        self.assertFalse((self.root/'asset.bin').exists())
+    def test_06_deadline_during_read_preserves_consumed_block(self):
+        data = b'consumed'
+        def expire(block):
+            if block: self.clock.now = self.ctx.deadline-a.CLEANUP
+        with self.assertRaises(a.Refused): a.download(self.item(data), self.ctx, Opener(Response(data,[len(data)],expire)))
+        self.check_receipt(data, data)
+    def test_07_deadline_during_pacing_preserves_block(self):
+        self.ctx = a.Context(self.root, 61.000001, self.root/'STOP', self.clock, self.clock.sleep)
+        data = b'x'*128
+        with self.assertRaises(a.Refused): a.download(self.item(data), self.ctx, Opener(Response(data,[len(data)])))
+        self.check_receipt(data, data)
+    def test_08_stop_before_read_consumes_nothing(self):
+        (self.root/'STOP').write_bytes(b'')
+        opener = Opener(Response(b'x',[1]))
+        with self.assertRaises(a.Refused): a.download(self.item(b'x'), self.ctx, opener)
+        self.assertEqual(opener.calls, 0); self.assertEqual(self.ctx.network_bytes, 0)
+    def test_09_oversize_consumed_not_retained(self):
+        data = b'abcde'
+        with self.assertRaises(a.Refused): a.download(self.item(b'abcd'), self.ctx, Opener(Response(data,[5])))
+        self.check_receipt(data, b'')
+        self.assertFalse(self.receipt()['received_hash_complete'])
+    def test_10_short_body_has_true_hashes(self):
+        with self.assertRaises(a.Refused): a.download(self.item(b'abcdef'), self.ctx, Opener(Response(b'abc',[3])))
+        self.check_receipt(b'abc', b'abc')
+        self.assertAlmostEqual(self.clock.slept, 3/a.RATE, places=9)
+    def test_11_bad_hash_never_promotes(self):
+        data = b'hello'; item = self.item(data); item['sha256'] = '0'*64
+        with self.assertRaises(a.Refused): a.download(item, self.ctx, Opener(Response(data,[5])))
+        self.check_receipt(data, data)
+        self.assertFalse((self.root/'asset.bin').exists())
+    def test_12_short_write_counts_only_written_prefix(self):
+        original = a.exclusive; body = self.ctx.part(self.root/'asset.bin')
+        class Writer:
+            def __init__(self, stream): self.stream = stream
+            def __enter__(self): return self
+            def __exit__(self, *args): self.stream.close()
+            def write(self, block): return self.stream.write(block[:2])
+            def flush(self): return self.stream.flush()
+            def fileno(self): return self.stream.fileno()
+        def exclusive(path):
+            stream = original(path)
+            return Writer(stream) if path == body else stream
+        with mock.patch.object(a, 'exclusive', side_effect=exclusive):
+            with self.assertRaises(a.Refused): a.download(self.item(b'hello'), self.ctx, Opener(Response(b'hello',[5])))
+        self.check_receipt(b'hello', b'he')
+    def test_13_one_block_burst_bound(self):
+        data = b'x'*(a.BLOCK+17)
+        response = Response(data,[a.BLOCK,17])
+        observations = []
+        tick = self.ctx.tick_rate
+        def observe(size):
+            observations.append((size, self.ctx.network_bytes, self.clock.slept))
+            return tick(size)
+        self.ctx.tick_rate = observe
+        a.download(self.item(data), self.ctx, Opener(response))
+        self.assertEqual([x[0] for x in observations], [a.BLOCK,17])
+        self.assertTrue(all(received-a.RATE*slept <= a.BLOCK+.001 for _, received, slept in observations))
+    def test_15_reason_codes_are_exact_literals(self):
+        for reason, code in [('download short body','short_body'),
+            ('bounded response socket unavailable','socket_state'),
+            ('absolute deadline reserve reached','deadline'),('STOP requested','stop'),
+            ('component_cap','component_cap'),('prospective_component_reservation','component_cap'),
+            ('short body write','short_write')]:
+            value = a.failure_summary(a.Refused(reason))
+            self.assertEqual(value['reason_code'],code)
+            self.assertEqual(set(value),{'error_type','reason_code'})
+    def test_16_unknown_reason_and_exception_text_never_escape(self):
+        class Other(a.Refused): pass
+        for error in (a.Refused('download short body SENTINEL?secret=1'),
+                      a.Refused('SENTINEL'),RuntimeError('download short body'),
+                      Other('download short body')):
+            value = a.failure_summary(error,'https://us.aws.cdn.hf.co/private?SENTINEL=secret')
+            self.assertNotIn('reason_code',value)
+            self.assertNotIn('SENTINEL',json.dumps(value)); self.assertNotIn('private',json.dumps(value))
+    def test_17_http_policy_status_is_explicit_not_retried(self):
+        for code in (401,403,429):
+            error = a.urllib.error.HTTPError('https://huggingface.co/?SENTINEL=secret',code,
+                                            'SENTINEL',Message(),None)
+            value = a.failure_summary(error,'https://huggingface.co/?SENTINEL=secret')
+            self.assertEqual(value['http_status'],code)
+            self.assertNotIn('SENTINEL',json.dumps(value))
+    def test_18_socket_state_failure_receipt_has_code(self):
+        response = Response(b'hello',[5]); response.fp = SimpleNamespace(raw=object())
+        with self.assertRaises(a.Refused): a.download(self.item(b'hello'),self.ctx,Opener(response))
+        self.assertEqual(self.receipt()['failure']['reason_code'],'socket_state')
+        self.assertEqual(response.read_sizes,[])
+        self.check_receipt(b'',b'')
+    def test_19_metadata_limit_exact_type_is_coded(self):
+        driver = module('pacing_driver_fixture',HERE/'prepare.py')
+        hh, aa = driver.load_helpers(OUTER.check)
+        value = aa.failure_summary(hh.MetadataLimit('SENTINEL'))
+        self.assertEqual(value,{'error_type':'MetadataLimit','reason_code':'metadata_limit'})
+        self.assertNotIn('SENTINEL',json.dumps(value))
+    def test_20_launcher_keeps_original_guard_ownership(self):
+        launch = module('pacing_launcher_fixture',HERE/'launch.py')
+        guard = launch.load_guard()
+        original = {name:getattr(guard.Guard,name) for name in launch.OWNERSHIP}
+        launch.extend(guard)
+        self.assertTrue(all(getattr(guard.Guard,name) is fn for name,fn in original.items()))
+        self.assertEqual(guard.CHECKS,HERE); self.assertEqual(guard.MAX_DISK,12*2**30)
+        spec = json.loads((HERE/'synthetic.spec.json').read_text())
+        self.assertEqual(launch.validate(guard,spec,HERE/'synthetic.spec.json'),300)
+
+    def test_22_new_tick_check_crosses_due_without_negative_sleep(self):
+        original = self.ctx.check
+        def expensive_check(cleanup=False):
+            self.clock.now += .01
+            original(cleanup=cleanup)
+        self.ctx.check = expensive_check
+        self.ctx.tick_rate(16336)
+        self.assertEqual(self.clock.slept,0.)
+        self.assertGreater(self.clock.now,self.ctx.next_network_slot)
+    def test_23_small_socket_reads_through_download_with_slow_check(self):
+        data = b'x'*50321
+        original = self.ctx.check
+        def expensive_check(cleanup=False):
+            self.clock.now += .01
+            original(cleanup=cleanup)
+        self.ctx.check = expensive_check
+        response = Response(data,[16336,1024,7,16336,16336,282])
+        response.headers['Content-Length'] = str(len(data))
+        opener = Opener(response)
+        a.download(self.item(data),self.ctx,opener)
+        self.assertEqual(opener.calls,1)
+        self.assertEqual(response.read_sizes[0],16336)
+        self.assertTrue(response.sock.settimeout.called)
+        self.assertEqual(self.clock.slept,0.)
+        self.check_receipt(data,data)
+        self.assertEqual(self.receipt()['status'],'VERIFIED')
+        self.assertEqual((self.root/'asset.bin').read_bytes(),data)
+    def test_24_check_lands_exactly_on_due_does_not_sleep(self):
+        original = self.ctx.check
+        def exact_check(cleanup=False):
+            self.clock.now = self.ctx.next_network_slot
+            original(cleanup=cleanup)
+        self.ctx.check = exact_check
+        with mock.patch.object(self.ctx,'sleep',side_effect=AssertionError('sleep forbidden')):
+            self.ctx.tick_rate(16336)
+        self.assertEqual(self.clock.now,self.ctx.next_network_slot)
+    def checked_abort_download(self, reason):
+        data = b'x'*16336
+        original_check, original_tick = self.ctx.check, self.ctx.tick_rate
+        in_tick = [False]
+        def checked(cleanup=False):
+            if in_tick[0] and not cleanup:
+                self.clock.now += .01
+                if reason == 'stop': (self.root/'STOP').write_bytes(b'')
+                else: self.clock.now = self.ctx.deadline-a.CLEANUP
+            original_check(cleanup=cleanup)
+        def tick(size):
+            in_tick[0] = True
+            try: return original_tick(size)
+            finally: in_tick[0] = False
+        self.ctx.check, self.ctx.tick_rate = checked, tick
+        with self.assertRaises(a.Refused):
+            a.download(self.item(data),self.ctx,Opener(Response(data,[len(data)])))
+        self.check_receipt(data,data)
+        self.assertEqual(self.receipt()['failure']['reason_code'],reason)
+        self.assertFalse((self.root/'asset.bin').exists())
+    def test_25_stop_during_expensive_check_preserves_consumed_bytes(self):
+        self.checked_abort_download('stop')
+    def test_26_deadline_during_expensive_check_preserves_consumed_bytes(self):
+        self.checked_abort_download('deadline')
+
+    def test_27_fixed_single_asset_profile(self):
+        value = a.small_json(HERE/'ASSETS.json',p.ASSETS_SHA,16384)
+        rows = p.closed_assets(a,value)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['bytes'],986899616)
+        self.assertEqual(rows[0]['sha256'],'64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039')
+        self.assertIn('/bfa3d24438711391d8713c6ab0efd6264527757c/',rows[0]['url'])
+        self.assertEqual(p.COMPONENT_CAP,17*2**26)
+        self.assertEqual(p.BOOKKEEPING,64*2**20)
+    def test_28_extra_or_changed_assets_refused(self):
+        original = a.small_json(HERE/'ASSETS.json',p.ASSETS_SHA,16384)
+        for change in ('extra','sha','size','url'):
+            value = json.loads(json.dumps(original))
+            if change == 'extra': value['artifacts'].append(dict(value['artifacts'][0]))
+            elif change == 'sha': value['artifacts'][0]['sha256']='0'*64
+            elif change == 'size': value['artifacts'][0]['bytes']+=1
+            else: value['artifacts'][0]['url']='https://huggingface.co/wrong'
+            with self.assertRaises(a.Refused):p.closed_assets(a,value)
+    def test_29_other_root_refused(self):
+        with self.assertRaises(a.Refused):p.new_context(a,os.environ,self.root)
+    def test_30_component_cap_counts_allocated_bytes(self):
+        (self.root/'small.bin').write_bytes(b'x')
+        value=p.component_bytes(a,self.root,self.ctx.check)
+        self.assertGreaterEqual(value,(self.root/'small.bin').stat().st_blocks*512)
+        with mock.patch.object(p,'COMPONENT_CAP',1):
+            with self.assertRaises(a.Refused):p.component_bytes(a,self.root,self.ctx.check)
+    def test_31_prospective_cap_refuses_before_claim(self):
+        with mock.patch.object(p,'COMPONENT_CAP',p.TOTAL_DOWNLOAD):
+            with self.assertRaises(a.Refused):p.acquire(h,a,self.ctx,p.ARTIFACTS)
+        self.assertFalse((self.root/'receipts/moss-q8-acquisition.spent').exists())
+        self.assertEqual(self.ctx.network_bytes,0)
+    def test_32_durable_claim_cannot_be_reused(self):
+        p.claim_once(a,self.ctx)
+        claim=self.root/'receipts/moss-q8-acquisition.spent'
+        before=claim.read_bytes()
+        with self.assertRaises(FileExistsError):p.claim_once(a,self.ctx)
+        self.assertEqual(claim.read_bytes(),before)
+    def test_33_existing_asset_never_overwritten(self):
+        target=self.root/p.ARTIFACTS[0]['destination'];target.parent.mkdir()
+        target.write_bytes(b'preserved')
+        with self.assertRaises(a.Refused):p.acquire(h,a,self.ctx,p.ARTIFACTS)
+        self.assertEqual(target.read_bytes(),b'preserved')
+        self.assertFalse((self.root/'receipts/moss-q8-acquisition.spent').exists())
+    def test_34_metadata_scope_and_budget_fail_closed(self):
+        budget=p.MetadataBudget(h,a,self.ctx)
+        with self.assertRaises(a.Refused):budget.write(self.root/'wrong.json',{},self.ctx)
+        with self.assertRaises(h.MetadataLimit):
+            budget.write(self.root/'acquisition-result.json',{'bad':'x'*8193},self.ctx)
+        self.assertFalse((self.root/'wrong.json').exists())
+        self.assertFalse((self.root/'acquisition-result.json').exists())
+    def test_35_retained_metadata_proves_selected_asset(self):
+        evidence=a.small_json(HERE/'PROVENANCE.json',max_bytes=16384)
+        self.assertEqual(evidence['model_payload_requests'],0)
+        selected=next(x for x in evidence['responses'] if x['path']=='provenance/handy-pinned-api.json')
+        value=a.small_json(HERE/selected['path'],selected['sha256'],65536)
+        self.assertEqual(value['sha'],'bfa3d24438711391d8713c6ab0efd6264527757c')
+        row=next(x for x in value['siblings'] if x['rfilename']=='MOSS-Transcribe-Diarize-Q8_0.gguf')
+        self.assertEqual(row['size'],p.ARTIFACTS[0]['bytes'])
+        self.assertEqual(row['lfs']['sha256'],p.ARTIFACTS[0]['sha256'])
+        self.assertNotEqual(row['lfs']['sha256'],evidence['prior_local_q8_sha256'])
+    def test_36_no_claim_or_download_on_manifest_mismatch(self):
+        with self.assertRaises(a.Refused):a.small_json(HERE/'ASSETS.json','0'*64,16384)
+        self.assertEqual(self.ctx.network_bytes,0)
+    def test_37_launcher_closed_caps_and_clock(self):
+        launch=module('moss_q8_closed_caps_fixture',HERE/'launch.py')
+        guard=launch.load_guard();launch.extend(guard)
+        value=json.loads((HERE/'acquisition.spec.json').read_text())
+        self.assertEqual(launch.validate(guard,value,HERE/'acquisition.spec.json'),1800)
+        self.assertEqual((value['absolute_seconds'],value['work_seconds']),(1800,1740))
+        for key in ('absolute_seconds','work_seconds','scratch_cap_bytes','rss_cap_bytes','address_space_cap_bytes'):
+            invalid=dict(value);invalid[key]+=1
+            with self.assertRaises(guard.Refused):launch.validate(guard,invalid,HERE/'acquisition.spec.json')
+        self.assertEqual(guard.MIN_FREE,6241124352)
+        self.assertEqual(guard.MIN_AVAILABLE,2952790016)
+
+    def test_38_original_and_closed_stage_maps_are_distinct(self):
+        launch=module('moss_q8_stage_map_fixture',HERE/'launch.py')
+        self.assertEqual(launch.OLD_STAGES,{'synthetic':300,'model_runtime':600,'corpus':1800,'wheels_env':600})
+        self.assertEqual(launch.STAGES,{'synthetic':(300,240,'test_acquisition.py','synthetic.spec.json'),
+            'moss_q8_acquire':(1800,1740,'prepare.py','acquisition.spec.json')})
+        guard=launch.load_guard()
+        self.assertEqual(guard.STAGES,launch.OLD_STAGES)
+        launch.extend(guard)
+        for name,seconds in [('synthetic.spec.json',300),('acquisition.spec.json',1800)]:
+            self.assertEqual(launch.validate(guard,json.loads((HERE/name).read_text()),HERE/name),seconds)
+
+
+def main():
+    with mock.patch.object(a.urllib.request.OpenerDirector, 'open', side_effect=AssertionError('network forbidden')):
+        result = unittest.TestResult()
+        unittest.defaultTestLoader.loadTestsFromTestCase(Tests).run(result)
+    value = {'schema':'moss-q8-acquisition-fixtures-v1','tests_run':result.testsRun,
+        'failures':[t._testMethodName for t,_ in result.failures],
+        'errors':[t._testMethodName for t,_ in result.errors], 'skipped':len(result.skipped),
+        'status':'PASS' if result.wasSuccessful() and result.testsRun == 36 else 'FAIL',
+        'network_requests':0,'model_calls':0,'model_loads':0,'retained_fixture_files':True}
+    h.bounded_json_size(value,32768,lambda:OUTER.check(cleanup=True))
+    a.write_json(OUTER.run_directory/'acquisition-fixtures.json',value,OUTER,cleanup=True)
+    return 0 if value['status']=='PASS' else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(a.cli_boundary(main))

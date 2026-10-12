@@ -1,0 +1,21 @@
+{
+  "acquisition_integrity_independently_accepted": true,
+  "artifact": {
+    "bytes": 986899616,
+    "filename": "MOSS-Transcribe-Diarize-Q8_0.gguf",
+    "sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039",
+    "url": "https://huggingface.co/handy-computer/moss-transcribe-diarize-gguf/resolve/bfa3d24438711391d8713c6ab0efd6264527757c/MOSS-Transcribe-Diarize-Q8_0.gguf"
+  },
+  "license": "Apache-2.0",
+  "license_url": "https://huggingface.co/handy-computer/moss-transcribe-diarize-gguf/blob/bfa3d24438711391d8713c6ab0efd6264527757c/README.md",
+  "model_id": "handy-computer/moss-transcribe-diarize-gguf",
+  "model_payload_included": false,
+  "new_experimental_conversion_profile": true,
+  "original_model": "OpenMOSS-Team/MOSS-Transcribe-Diarize",
+  "quantization_publisher": "handy-computer",
+  "revision": "bfa3d24438711391d8713c6ab0efd6264527757c",
+  "runtime_inference_qualified": false,
+  "schema": "moss-q8-public-asset-v1",
+  "structural_prompt_compatibility_qualified": false,
+  "upstream_model_revision": "d7231bbae2587a4af278735eb765b318c4f64edd"
+}

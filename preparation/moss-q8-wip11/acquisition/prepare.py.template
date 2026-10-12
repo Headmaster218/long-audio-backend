@@ -1,0 +1,195 @@
+"""Closed one-asset MOSS acquisition only. No installation or runtime/model import."""
+import hashlib
+import importlib.util
+import json
+import math
+import os
+from pathlib import Path
+import stat
+import time
+
+HERE = Path(__file__).resolve().parent
+WORKSPACE = HERE.parent
+OLD = WORKSPACE / '__LOCAL_BASE_PREPARATION_ROOT__'
+HELPER = OLD / '__LOCAL_METADATA_HELPER_RELATIVE_PATH__'
+HELPER_SHA = '__LOCAL_METADATA_HELPER_SHA256__'
+ASSETS_SHA = '__LOCAL_ASSET_MANIFEST_SHA256__'
+COMPONENT_CAP = 17 * 2**26  # 1.0625 GiB, including failed-attempt metadata headroom.
+BOOKKEEPING = 64 * 2**20
+TOTAL_DOWNLOAD = 986899616
+ARTIFACTS = ({'id': 'moss-q8-handy-presplit', 'destination': 'models/MOSS-Transcribe-Diarize-Q8_0.gguf', 'bytes': 986899616, 'sha256': '64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039', 'url': 'https://huggingface.co/handy-computer/moss-transcribe-diarize-gguf/resolve/bfa3d24438711391d8713c6ab0efd6264527757c/MOSS-Transcribe-Diarize-Q8_0.gguf'},)
+
+ACQUIRE = WORKSPACE/'__LOCAL_WIP8_DOWNLOADER_PATH__'
+ACQUIRE_SHA = '62eb377286b78ddb156e1f51ebf50c8f64d7851e57168743c63d8b6968154908'
+
+
+def bootstrap_check():
+    end = float(os.environ['GUARD_WORK_END'])
+    stop = Path(os.environ['GUARD_STOP_PATH'])
+    if not math.isfinite(end) or time.monotonic() >= end or stop.exists() or stop.is_symlink():
+        raise RuntimeError()
+
+
+def load(name, path, size, expected, check):
+    check()
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or before.st_size != size: raise RuntimeError()
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        raw = os.read(fd, size+1)
+        key = lambda s: (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+        if (len(raw) != size or hashlib.sha256(raw).hexdigest() != expected or
+            key(before) != key(os.fstat(fd)) or key(before) != key(path.lstat())): raise RuntimeError()
+    finally:
+        os.close(fd)
+    spec = importlib.util.spec_from_file_location(name, path)
+    value = importlib.util.module_from_spec(spec); spec.loader.exec_module(value)
+    check()
+    return value
+
+
+def load_helpers(check=bootstrap_check):
+    h = load('moss_q8_metadata_helpers', HELPER, 19586, HELPER_SHA, check)
+    a = load('moss_q8_proven_acquire', ACQUIRE, 55628, ACQUIRE_SHA, check)
+    h.extend_hosts(a)
+    original = a.failure_summary
+    def summary(error, target_url=None):
+        if type(error) is h.MetadataLimit:
+            value = {'error_type':'MetadataLimit','reason_code':'metadata_limit'}
+            if target_url is not None: value['target'] = a.public_url(target_url)
+            return value
+        return original(error, target_url)
+    a.failure_summary = summary
+    return h, a
+
+
+def closed_assets(a, value):
+    a.require(type(value) is dict and value.get('schema') == 'moss-q8-fixed-one-asset-design-v1', 'asset_schema')
+    rows = value.get('artifacts')
+    a.require(type(rows) is list and len(rows) == 1, 'one_asset_only')
+    fields = set(ARTIFACTS[0])
+    actual = tuple({k: row.get(k) for k in fields} for row in rows if type(row) is dict)
+    a.require(actual == ARTIFACTS and sum(x['bytes'] for x in actual) == TOTAL_DOWNLOAD, 'exact_artifact_identity')
+    return ARTIFACTS
+
+
+def component_bytes(a, root, check):
+    root = Path(root)
+    total = count = 0
+    def charge(path):
+        nonlocal total, count
+        check()
+        info = path.lstat()
+        a.require(stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode), 'component_regular_files_only')
+        count += 1
+        a.require(count <= 4096, 'component_entry_cap')
+        total += max(info.st_size, info.st_blocks * 512)
+        a.require(total <= COMPONENT_CAP, 'component_cap')
+    charge(root)
+    def fail(error): raise error
+    for base, dirs, files in os.walk(root, followlinks=False, onerror=fail):
+        for name in dirs + files:
+            charge(Path(base) / name)
+    return total
+
+
+def new_context(a, environment, root=HERE):
+    root = Path(root).absolute()
+    a.require(root == HERE and root.name == '__LOCAL_MOSS_PREPARATION_ROOT__', 'fixed_new_root')
+    end = float(environment['GUARD_ABSOLUTE_END'])
+    work = float(environment['GUARD_WORK_END'])
+    a.require(math.isfinite(end) and math.isfinite(work) and 59.99 <= end-work <= 60.01, 'single_cleanup_reserve')
+    run = Path(environment['GUARD_RUN_DIRECTORY']).absolute()
+    stop = Path(environment['GUARD_STOP_PATH']).absolute()
+    a.require(run.parent == root/'runs' and run.name.startswith('run-') and run.is_dir() and
+              stop == run/'STOP', 'original_guard_paths')
+    class ComponentContext(a.Context):
+        def __init__(self, *args):
+            super().__init__(*args)
+            self.component_next = 0.0
+        def check(self, cleanup=False):
+            super().check(cleanup=cleanup)
+            now = self.clock()
+            if now >= self.component_next:
+                self.component_next = now + .25
+                component_bytes(a, self.root, lambda: super(ComponentContext, self).check(cleanup=cleanup))
+    ctx = ComponentContext(root, end, stop)
+    ctx.run_directory = run
+    ctx.temp_root = run/'tmp'
+    a.require(ctx.temp_root.is_dir(), 'original_guard_tmp_missing')
+    ctx.checked(run); ctx.checked(stop); ctx.checked(ctx.temp_root)
+    ctx.check()
+    return ctx
+
+
+def claim_once(a, ctx):
+    path = ctx.parents(ctx.root/'receipts/moss-q8-acquisition.spent')
+    with a.exclusive(path) as stream:
+        stream.write(b'moss-q8-one-asset-v1\n')
+        stream.flush(); os.fsync(stream.fileno())
+    a.fsync_dir(path.parent)
+
+
+class MetadataBudget:
+    def __init__(self, h, a, ctx):
+        self.h, self.a, self.ctx = h, a, ctx
+        self.original = a.write_json
+        self.used = 0
+        self.seen = set()
+        self.allowed = {ctx.run_directory/'acquisition-result.json'}
+        self.allowed.update(ctx.run_directory/'receipts'/('download-'+x['id']+'.json') for x in ARTIFACTS)
+    def write(self, path, value, ctx, cleanup=False):
+        path = Path(path)
+        self.a.require(ctx is self.ctx and path in self.allowed and path not in self.seen, 'fixed_receipt_destination')
+        size = self.h.bounded_json_size(value, min(32768, 131072-self.used), lambda: ctx.check(cleanup=cleanup))
+        self.seen.add(path); self.used += size
+        return self.original(path, value, ctx, cleanup=cleanup)
+
+
+def acquire(h, a, ctx, assets):
+    a.require(tuple(assets) == ARTIFACTS, 'fixed_download_set')
+    ctx.check()
+    charged = component_bytes(a, ctx.root, ctx.check)
+    a.require(charged + TOTAL_DOWNLOAD + BOOKKEEPING <= COMPONENT_CAP, 'prospective_component_reservation')
+    for item in assets:
+        path = ctx.checked(ctx.root/item['destination'])
+        a.require(not path.exists() and not path.is_symlink(), 'asset_already_present')
+    claim_once(a, ctx)
+    budget = MetadataBudget(h, a, ctx)
+    a.write_json = budget.write
+    done, failure = [], None
+    try:
+        for item in assets:
+            a.download(item, ctx)
+            done.append({'path': str(ctx.root/item['destination']), 'bytes': item['bytes'], 'sha256': item['sha256']})
+    except BaseException as error:
+        failure = error
+    result = {'schema': 'moss-q8-acquisition-result-v1', 'status': 'VERIFIED' if failure is None else 'FAILED',
+              'verified_artifacts': done, 'expected_artifact_count': 1,
+              'network_payload_bytes_observed': ctx.network_bytes, 'model_calls': 0, 'model_loads': 0,
+              'installs': 0, 'runtime_imports': 0, 'retry_policy': 'none; partials retained; spent claim immutable',
+              'outer_terminal_receipt_required': True}
+    if failure is not None:
+        result['failure'] = a.failure_summary(failure)
+    a.write_json(ctx.run_directory/'acquisition-result.json', result, ctx, cleanup=True)
+    if failure is not None:
+        raise failure
+    return 0
+
+
+def main():
+    h, a = load_helpers()
+    ctx = new_context(a, os.environ)
+    assets = closed_assets(a, a.small_json(HERE/'ASSETS.json', ASSETS_SHA, 16384))
+    return acquire(h, a, ctx, assets)
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except BaseException as error:
+        if type(error) is SystemExit and error.code == 0:
+            raise
+        # Bootstrap failures also avoid exception text or chained tracebacks.
+        print(json.dumps({'status': 'FAILED', 'failure': {'error_type': 'AcquisitionRefused'}}))
+        raise SystemExit(1) from None
