@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "bytes": 19550,
+      "repo_path": "preparation/native-capture-wip5/reference-source/preparation/build/runtime-inventory-prep/inspect_runtime.py",
+      "sha256": "8332483cdc28bdba134f2793d13e9c6c593d3af7b531d7f329ad080b45b7c1dd",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 18829,
+      "repo_path": "preparation/native-capture-wip5/reference-source/preparation/build/runtime-inventory-prep/inspect_runtime_guarded.py",
+      "sha256": "77a708ffbaf024420914584835518bc5bb080077a52dd77c8126277d8a92ed04",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 3754,
+      "repo_path": "preparation/native-capture-wip5/reference-source/preparation/build/runtime-inventory-prep/test_guarded_source.py",
+      "sha256": "bd9ecb1bc78b556abee1da803a09d1290e4f51d3e6c62d42737f32514176d2e7",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 22741,
+      "repo_path": "preparation/native-capture-wip5/reference-source/preparation/build/runtime-loader-prep/loader_probe.py",
+      "sha256": "7a3aa308b409283925057ddac48cc23ce1dc66a467db775aa0f335fc1eaba4c0",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 5671,
+      "repo_path": "preparation/native-capture-wip5/reference-source/preparation/build/runtime-loader-prep/test_loader_source.py",
+      "sha256": "f23cbf7f0a0d0e026df6f6efda23564f35f402825d77b1c244e490c3c1351f93",
+      "transformation": "byte_exact"
+    },
+    {
+      "bytes": 4336,
+      "repo_path": "preparation/native-capture-wip5/README.md",
+      "sha256": "2488830a1ddfb31a2f506c175cee7a1539171f1785f0dee7d69351f29cce357d",
+      "transformation": "new_public_metadata"
+    }
+  ],
+  "runtime_commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+  "schema": 1,
+  "status": "SOURCE_ONLY_PREPARATION_BACKUP"
+}
