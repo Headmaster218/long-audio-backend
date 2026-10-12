@@ -1,0 +1,871 @@
+"""Optional serialized cell storage; all SQLite mutation belongs to one owner.
+
+UNQUALIFIED: the production runtime profile registry is intentionally empty.
+The 58 MiB envelope requires pinned SQLite/VFS qualification; 64 MiB working
+memory is an unmeasured reservation, never a hard RSS claim. No caller runs a
+rollback, recovery, checkpoint or fsync. There is no publication retry queue.
+"""
+from __future__ import annotations
+
+from contextlib import contextmanager
+from dataclasses import dataclass, asdict
+import hashlib
+import json
+import os
+from pathlib import Path
+import sqlite3
+import stat
+import sys
+import threading
+import time
+
+from .native_owned_cells import (Unavailable, Cell, SourceSupport, canonical, digest,
+    integer, text, POLICY_SHA256, PROOF_BYTES, CELL_PCM_BYTES, MAX_PARTS,
+    BATCH_CELLS, HANDOFF_BYTES, IO_BYTES, validate_document)
+
+TOTAL_BYTES = 64 * 1024**2
+DATABASE_BYTES = 24 * 1024**2
+JOURNAL_BYTES = 32 * 1024**2
+ANCILLARY_BYTES = 2 * 1024**2
+RESERVED_ENVELOPE_BYTES = 58 * 1024**2
+WORKING_RESERVATION_BYTES = 64 * 1024**2
+PAGE_SIZE = 4096
+MAX_PAGE_COUNT = 6144
+MAX_CELLS = 1024
+MAX_RECEIPTS = 4096
+RECEIPT_BYTES = 1024
+MAX_PINS = 2
+PIN_RESERVATION_BYTES = 768 * 1024
+PAGE_ROWS = 20
+OP_SECONDS = .5
+LOCK_SECONDS = .005
+SQL_STEPS = 150000
+SQL_PROJECTION_BYTES = 256 * 1024
+SOURCE_READ_BYTES = 40 * 1024**2
+SCHEMA = 'native-owned-cell-store-v1'
+ALLOWED_FILES = frozenset(('cells.sqlite3', 'cells.sqlite3-journal',
+                          'cells.sqlite3-wal', 'cells.sqlite3-shm'))
+
+
+class Budget:
+    """Finite cooperative work, not a hard bound on individual OS calls."""
+    def __init__(self):
+        self.elapsed = 0.; self.read_bytes = 0; self.sql_bytes = 0; self.steps = 0
+        self._began = None
+
+    @contextmanager
+    def phase(self):
+        if self._began is not None:
+            self.check(); yield self; self.check(); return
+        self._began = time.monotonic()
+        try:
+            self.check(); yield self; self.check()
+        finally:
+            self.elapsed += time.monotonic() - self._began
+            self._began = None
+
+    def check(self):
+        elapsed = self.elapsed + (time.monotonic() - self._began if self._began is not None else 0.)
+        if elapsed > OP_SECONDS:
+            raise Unavailable('cooperative_deadline')
+        if self.read_bytes > SOURCE_READ_BYTES or self.sql_bytes > SQL_PROJECTION_BYTES or self.steps > SQL_STEPS:
+            raise Unavailable('operation_work_capacity')
+
+    def read(self, count):
+        integer(count, IO_BYTES); self.read_bytes += count; self.check()
+
+    def projection(self, count):
+        integer(count, SQL_PROJECTION_BYTES); self.sql_bytes += count; self.check()
+
+    def progress(self):
+        self.steps += 100
+        try:self.check()
+        except Unavailable:return 1
+        return 0
+
+
+def _runtime_hash(path, budget, maximum=64 * 1024**2):
+    resolved = Path(path).resolve(strict=True)
+    fd = os.open(resolved, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, 'O_CLOEXEC', 0))
+    try:
+        before = os.fstat(fd)
+        signature = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+        if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= maximum:
+            raise Unavailable('runtime_binary_file_capacity')
+        h = hashlib.sha256(); remaining = before.st_size
+        while remaining:
+            count = min(IO_BYTES, remaining); budget.read(count)
+            block = os.read(fd, count); budget.check()
+            if not block:raise Unavailable('runtime_binary_truncated')
+            h.update(block); remaining -= len(block)
+        for current in (os.fstat(fd), os.stat(resolved, follow_symlinks=False)):
+            if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns) != signature:
+                raise Unavailable('runtime_binary_changed')
+        return resolved, before, h.hexdigest()
+    finally:os.close(fd)
+
+
+def runtime_fingerprints(budget=None):
+    """One observed built-in form; mapping absence is not a static-link proof."""
+    import _sqlite3
+    from importlib.machinery import BuiltinImporter
+    budget = budget or Budget()
+    with budget.phase():
+        if sys.platform != 'linux':raise Unavailable('runtime_mapping_platform')
+        spec = _sqlite3.__spec__
+        if (spec is None or spec.name != '_sqlite3' or spec.origin != 'built-in'
+                or spec.loader is not BuiltinImporter or getattr(_sqlite3, '__file__', None) is not None):
+            raise Unavailable('unqualified_sqlite_binding_form')
+        executable, executable_info, executable_hash = _runtime_hash(sys.executable, budget)
+        actual = os.stat('/proc/self/exe')
+        if (actual.st_dev, actual.st_ino, actual.st_size) != (
+                executable_info.st_dev, executable_info.st_ino, executable_info.st_size):
+            raise Unavailable('runtime_interpreter_container_mismatch')
+        package = Path(sqlite3.__file__).resolve(strict=True).parent
+        if (Path(sqlite3.__file__).name != '__init__.py'
+                or Path(sqlite3.dbapi2.__file__).resolve(strict=True) != package / 'dbapi2.py'):
+            raise Unavailable('sqlite_package_origin_mismatch')
+        inventory = {}; entry_count = 0
+        for directory in (package, package / '__pycache__'):
+            if directory.name == '__pycache__' and not os.path.lexists(directory):continue
+            info = directory.lstat()
+            if not stat.S_ISDIR(info.st_mode):raise Unavailable('sqlite_package_directory_alias')
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    entry_count += 1
+                    if entry_count > 32:raise Unavailable('sqlite_package_entry_capacity')
+                    suffix = '.pyc' if directory.name == '__pycache__' else '.py'
+                    if not entry.name.endswith(suffix):continue
+                    if len(inventory) >= 16:raise Unavailable('sqlite_package_file_capacity')
+                    _, info, hashed = _runtime_hash(entry.path, budget, 256 * 1024)
+                    name = str(Path(entry.path).relative_to(package))
+                    inventory[name] = {'bytes': info.st_size, 'sha256': hashed}
+        if not {'__init__.py', 'dbapi2.py'}.issubset(inventory):raise Unavailable('sqlite_package_missing')
+        mappings = bytearray()
+        with open('/proc/self/maps', 'rb', buffering=0) as stream:
+            while True:
+                budget.read(IO_BYTES)
+                block = stream.read(IO_BYTES); budget.check()
+                if not block:break
+                mappings.extend(block)
+                if len(mappings) > 256 * 1024:raise Unavailable('runtime_mapping_capacity')
+        for line in mappings.splitlines():
+            fields = line.split(None, 5)
+            if len(fields) == 6 and b'libsqlite3' in fields[5]:
+                raise Unavailable('unexpected_separate_sqlite_mapping')
+        return {'interpreter_bytes': executable_info.st_size,
+            'interpreter_sha256': executable_hash,
+            'interpreter_realpath_sha256': hashlib.sha256(os.fsencode(executable)).hexdigest(),
+            'sqlite3_package_sha256': hashlib.sha256(canonical(inventory)).hexdigest(),
+            'sqlite3_binding': 'observed-built-in-no-separate-sqlite-mapping-v1',
+            'sqlite3_extension_sha256': None, 'sqlite3_library_sha256': None,
+            'sqlite3_library_realpath_sha256': None}
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeQualification:
+    """Reviewed evidence for one exact runtime + local allocation/VFS profile.
+
+    Constructing this record is not qualification. Production accepts only a
+    record shipped in QUALIFIED_RUNTIMES after the independent finite gate.
+    Fixtures may inject a simulated record into the private store constructor.
+    """
+    sqlite_source_id: str
+    sqlite_version: str
+    compile_options_sha256: str
+    platform: str
+    vfs: str
+    filesystem_device: int
+    sector_bytes_max: int
+    journal_headers_max: int
+    allocation_slack_bytes_max: int
+    evidence_sha256: str
+    interpreter_bytes: int
+    interpreter_sha256: str
+    interpreter_realpath_sha256: str
+    sqlite3_package_sha256: str
+    sqlite3_binding: str
+    sqlite3_extension_sha256: str | None
+    sqlite3_library_sha256: str | None
+    sqlite3_library_realpath_sha256: str | None
+
+    def __post_init__(self):
+        text(self.sqlite_source_id, 256); text(self.sqlite_version, 64)
+        digest(self.compile_options_sha256); digest(self.evidence_sha256)
+        integer(self.interpreter_bytes, 64 * 1024**2, 1)
+        for name in ('interpreter_sha256', 'interpreter_realpath_sha256', 'sqlite3_package_sha256'):
+            digest(getattr(self, name))
+        if (self.sqlite3_binding != 'observed-built-in-no-separate-sqlite-mapping-v1'
+                or self.sqlite3_extension_sha256 is not None or self.sqlite3_library_sha256 is not None
+                or self.sqlite3_library_realpath_sha256 is not None):
+            raise Unavailable('unqualified_sqlite_binding_form')
+        if self.platform != 'linux' or self.vfs != 'unix':
+            raise Unavailable('unqualified_platform_vfs')
+        integer(self.filesystem_device)
+        integer(self.sector_bytes_max, 65536, 512)
+        integer(self.journal_headers_max, 1024, 1)
+        integer(self.allocation_slack_bytes_max, ANCILLARY_BYTES)
+        # Every DB page can appear once; no cache-spill journal segmentation.
+        journal_bound = MAX_PAGE_COUNT * (PAGE_SIZE + 8) + self.sector_bytes_max * self.journal_headers_max
+        if journal_bound > JOURNAL_BYTES or DATABASE_BYTES + JOURNAL_BYTES + self.allocation_slack_bytes_max > RESERVED_ENVELOPE_BYTES:
+            raise Unavailable('unproved_rollback_allocation_envelope')
+
+    def verify(self, db, directory, budget=None):
+        budget = budget or Budget()
+        with budget.phase():
+            if (sys.platform != self.platform or directory.stat().st_dev != self.filesystem_device
+                    or db.execute('SELECT sqlite_source_id()').fetchone()[0] != self.sqlite_source_id
+                    or sqlite3.sqlite_version != self.sqlite_version):
+                raise Unavailable('runtime_qualification_mismatch')
+            options = [r[0] for r in db.execute('PRAGMA compile_options')]
+            if len(options) > 512 or hashlib.sha256(canonical(sorted(options))).hexdigest() != self.compile_options_sha256:
+                raise Unavailable('sqlite_build_qualification_mismatch')
+            self.verify_binaries(budget)
+
+    def verify_binaries(self, budget):
+        fingerprints = runtime_fingerprints(budget)
+        if any(getattr(self, name) != value for name, value in fingerprints.items()):
+            raise Unavailable('runtime_binary_qualification_mismatch')
+
+
+QUALIFIED_RUNTIMES: tuple[RuntimeQualification, ...] = ()
+
+
+def qualified_runtime(data_dir):
+    # No inferred Linux/default-VFS qualification and no user override flag.
+    return next((q for q in QUALIFIED_RUNTIMES if q.platform == sys.platform
+                 and q.filesystem_device == Path(data_dir).stat().st_dev), None)
+
+
+@dataclass(frozen=True, slots=True)
+class Receipt:
+    session_id: str
+    chunk_id: str
+    digest: str
+    frames: int
+    data_offset: int
+    size: int
+    signature: tuple[int, int, int, int, int]
+    timeline_start: float
+    stream_id: str | None
+
+    def __post_init__(self):
+        text(self.session_id); text(self.chunk_id); digest(self.digest)
+        integer(self.frames, (1 << 32) // 2, 1)
+        integer(self.data_offset, IO_BYTES, 44); integer(self.size, (1 << 32) + 8, 46)
+        if self.data_offset + self.frames * 2 != self.size:
+            raise Unavailable('receipt_riff_extent')
+        if (type(self.signature) is not tuple or len(self.signature) != 5
+                or any(type(n) is not int or not 0 <= n < (1 << 64) for n in self.signature)
+                or self.signature[2] != self.size):
+            raise Unavailable('receipt_signature')
+        if type(self.timeline_start) not in (int, float) or not 0 <= self.timeline_start <= (1 << 53) / 16000:
+            raise Unavailable('receipt_timeline')
+        if self.stream_id is not None:text(self.stream_id)
+        canonical(asdict(self), RECEIPT_BYTES)
+
+    @property
+    def encoded(self):return canonical(asdict(self), RECEIPT_BYTES)
+
+    @property
+    def receipt_id(self):return hashlib.sha256(self.encoded).hexdigest()
+
+    @classmethod
+    def decode(cls, value):
+        if type(value) is not bytes or len(value) > RECEIPT_BYTES:
+            raise Unavailable('receipt_length')
+        item = json.loads(value); item['signature'] = tuple(item['signature'])
+        result = cls(**item)
+        if result.encoded != value:raise Unavailable('noncanonical_receipt')
+        return result
+
+
+class Operation:
+    """One bounded handoff, whose ownership remains with the owner until done."""
+    def __init__(self, kind, payload, epoch):
+        self.kind = kind; self.payload = payload; self.epoch = epoch
+        self.done = threading.Event(); self.result = {'status': 'publication_pending'}
+
+    def wait(self, timeout=.5):
+        # Internal model-free/read callers only. Worker/upload never call wait.
+        if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
+            raise ValueError('Bounded wait required')
+        self.done.wait(timeout)
+        return self.result if self.done.is_set() else {'status': 'pending'}
+
+
+class Pin:
+    """Copied material, no SQLite transaction or owner lock spans this lease."""
+    def __init__(self, owner, cell_id, document, pcm):
+        self.owner = owner; self.cell_id = cell_id; self.document = document
+        self._pcm = pcm; self._released = False; self.cancelled = threading.Event()
+        self._release_lock = threading.Lock(); self._release_requested = False
+
+    def read(self):
+        if self._released or self.cancelled.is_set():raise Unavailable('pin_cancelled')
+        budget = Budget()
+        with budget.phase():
+            if not self.owner.authority.cell_valid(self.document, budget, publishing=False):
+                self.cancelled.set(); raise Unavailable('source_authority_unavailable')
+            data = self._pcm
+            if self._released or self.cancelled.is_set():raise Unavailable('pin_cancelled')
+            return data
+
+    def release(self):
+        self.cancelled.set(); self._release_requested = True
+        if not self._release_lock.acquire(timeout=LOCK_SECONDS):
+            self.owner._wake.set(); return False
+        try:
+            if self._released:return False
+            self._released = True; self._pcm = b''
+        finally:self._release_lock.release()
+        self.owner._release_pin(self)
+        return True
+
+    def __enter__(self):return self
+    def __exit__(self, *args):self.release()
+
+
+class CellStore:
+    """No growing thread set, active+pending queue, or retained omitted-row log."""
+    def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None):
+        self.directory = Path(directory)
+        self.path = self.directory / 'cells.sqlite3'
+        self.authority = authority; self.enabled = enabled; self.qualification = qualification
+        self.instance_lock = instance_lock  # Retained while owner cleanup is unresolved.
+        self._lock = threading.Lock(); self._wake = threading.Event(); self._stop = threading.Event()
+        self._reconcile = threading.Event(); self._ready = threading.Event()
+        self._slot = None; self._epoch = object(); self._pins = {}; self._receipts = {}
+        self._thread = None; self._db = None; self._namespace_identity = None; self._db_identity = None
+        self._ancestor_identity = None
+        self.configuration_reason = None
+        self._closed = False; self._cleanup_pending = False; self._status = 'initializing'
+        self._accepted = 0; self._dropped = 0; self._durable = 0; self._charge = 0
+        self._sweep_cell = 0; self._sweep_source = ''; self._sweep_generation = None
+
+    def start(self):
+        if self._thread is not None:return self
+        if self.configuration_reason:
+            self._status = self.configuration_reason; self._cleanup_pending = os.path.lexists(self.directory); return self
+        if not self.enabled and not os.path.lexists(self.directory):
+            self._status = 'disabled_absent'; return self
+        if os.path.lexists(self.directory) and not stat.S_ISDIR(self.directory.lstat().st_mode):
+            self._status = 'unsafe_cell_namespace'; self._cleanup_pending = True; return self
+        if self.qualification is None:
+            self._status = 'runtime_unqualified'
+            self._cleanup_pending = os.path.lexists(self.directory)
+            return self
+        self._thread = threading.Thread(target=self._run, name='native-owned-cell-owner', daemon=True)
+        self._thread.start()
+        return self
+
+    def health(self):
+        # Fixed-size in-memory projection; no path, SQL, filesystem or lease.
+        return {'enabled': self.enabled, 'status': self._status,
+            'ready': self._ready.is_set() and not self._closed,
+            'handoffs_active_or_pending': int(self._slot is not None),
+            'pins': len(self._pins), 'cleanup_pending': self._cleanup_pending,
+            'owner_alive': bool(self._thread and self._thread.is_alive()),
+            'accepted': self._accepted, 'dropped': self._dropped, 'durable': self._durable,
+            'last_observed_allocated_bytes': self._charge, 'total_bytes_limit': TOTAL_BYTES,
+            'working_reservation_bytes': WORKING_RESERVATION_BYTES,
+            'working_memory_measured': False, 'quota_qualification': 'pinned-runtime-only' if self.qualification else 'unqualified'}
+
+    def receipt(self, cid):
+        if not self._ready.is_set() or self._closed:return None
+        # Receipt objects are immutable and only installed after durable commit.
+        return self._receipts.get(cid)
+
+    def submit(self, kind, payload):
+        if not self._ready.is_set() or self._closed or not self.enabled:
+            return {'status': 'optional_unavailable', 'reason': self._status}
+        if kind == 'receipt':
+            if type(payload) is not Receipt:raise Unavailable('receipt_required')
+        elif kind == 'publish':
+            if type(payload) is not tuple or not 1 <= len(payload) <= BATCH_CELLS or any(type(c) is not Cell for c in payload):
+                raise Unavailable('publication_batch_capacity')
+            if sum(len(c.proof) + len(c.pcm) for c in payload) > HANDOFF_BYTES:
+                raise Unavailable('publication_material_capacity')
+        elif kind not in ('list', 'detail', 'read', 'expire', 'delete'):
+            raise Unavailable('unknown_optional_operation')
+        if not self._lock.acquire(timeout=LOCK_SECONDS):return {'status': 'busy', 'reason': 'owner_lock_busy'}
+        try:
+            if self._closed or self._slot is not None:
+                self._dropped = min(self._dropped + 1, (1 << 31) - 1)
+                return {'status': 'busy', 'reason': 'one_total_handoff_slot'}
+            op = Operation(kind, payload, self._epoch); self._slot = op
+            self._accepted = min(self._accepted + 1, (1 << 31) - 1)
+            self._wake.set(); return op
+        finally:self._lock.release()
+
+    def revoked(self):
+        # A single generation/event, not an unbounded per-session cleanup queue.
+        self._epoch = object(); self._cleanup_pending = True; self._reconcile.set()
+        for pin in tuple(self._pins.values()):pin.cancelled.set()
+        self._wake.set()
+        return True
+
+    def close(self, timeout=.5):
+        if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
+            raise ValueError('Bounded shutdown wait required')
+        self._closed = True; self._epoch = object(); self._ready.clear()
+        for pin in tuple(self._pins.values()):pin.cancelled.set()
+        self._stop.set(); self._wake.set()
+        if self._thread and self._thread.is_alive():self._thread.join(timeout)
+        unresolved = bool(self._thread and self._thread.is_alive()) or self._db is not None
+        if unresolved:
+            self._cleanup_pending = True; self._status = 'shutdown_pending'
+            return False
+        self.instance_lock = None
+        return True
+
+    def _release_pin(self, pin):
+        # A contended release remains cancelled and accounted until drained.
+        if not self._lock.acquire(timeout=LOCK_SECONDS):
+            self._wake.set(); return False
+        try:
+            if self._pins.get(id(pin)) is pin:self._pins.pop(id(pin))
+        finally:self._lock.release()
+        self._wake.set(); return True
+
+    def _drain_released_pins(self):
+        for pin in tuple(self._pins.values()):
+            if pin._released:self._release_pin(pin)
+            elif pin._release_requested:pin.release()
+
+    def _check_parents(self, budget=None):
+        """Finite private-namespace fence, not an atomic SQLite path open."""
+        budget = budget or Budget(); directory = self.directory.parent
+        if (not directory.is_absolute() or '..' in directory.parts or len(directory.parts) > 33
+                or len(os.fsencode(directory)) > 4096):
+            raise Unavailable('cell_ancestor_path_capacity')
+        if not all(hasattr(os, name) for name in ('O_NOFOLLOW', 'O_NONBLOCK', 'O_DIRECTORY')):
+            raise Unavailable('cell_ancestor_primitives_unavailable')
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, 'O_CLOEXEC', 0)
+        with budget.phase():
+            fd = os.open('/', flags); identities = []
+            try:
+                def accepted(info):
+                    if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.getuid())
+                            or info.st_mode & 0o022):
+                        raise Unavailable('unsafe_cell_ancestor')
+                    return info.st_dev, info.st_ino
+                identities.append(accepted(os.fstat(fd)))
+                for name in directory.parts[1:]:
+                    budget.check(); child = os.open(name, flags, dir_fd=fd)
+                    try:
+                        info = os.fstat(child); entry = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                        identity = accepted(info)
+                        if identity != accepted(entry):raise Unavailable('cell_ancestor_replaced')
+                    except BaseException:
+                        os.close(child); raise
+                    os.close(fd); fd = child; identities.append(identity)
+                if os.fstat(fd).st_uid != os.getuid():raise Unavailable('cell_data_directory_not_owned')
+                identities = tuple(identities)
+                if self._ancestor_identity is not None and identities != self._ancestor_identity:
+                    raise Unavailable('cell_ancestor_replaced')
+                self._ancestor_identity = identities; budget.check()
+            finally:os.close(fd)
+
+    def _scan(self, budget=None):
+        self._check_parents(budget)
+        root = self.directory.lstat()
+        if (not stat.S_ISDIR(root.st_mode) or stat.S_ISLNK(root.st_mode) or root.st_uid != os.getuid()
+                or root.st_mode & 0o077):
+            raise Unavailable('unsafe_cell_namespace')
+        identity = (root.st_dev, root.st_ino)
+        if self._namespace_identity is not None and identity != self._namespace_identity:
+            raise Unavailable('cell_namespace_replaced')
+        self._namespace_identity = identity
+        if not hasattr(root, 'st_blocks'):raise Unavailable('unqualified_directory_allocation')
+        directory_charge = max(root.st_size, root.st_blocks * 512)
+        total = directory_charge; charges = {}; identities = {}; sizes = {}
+        with os.scandir(self.directory) as entries:
+            for entry in entries:
+                if entry.name not in ALLOWED_FILES:raise Unavailable('unexpected_namespace_entry')
+                st = entry.stat(follow_symlinks=False)
+                if (not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.getuid() or st.st_dev != root.st_dev
+                        or not hasattr(st, 'st_blocks')):
+                    raise Unavailable('unsafe_namespace_file')
+                charged = max(st.st_size, st.st_blocks * 512)
+                charges[entry.name] = charged; sizes[entry.name] = st.st_size; total += charged
+                identities[entry.name] = (st.st_dev, st.st_ino)
+        self._charge = total
+        if any(name in charges for name in ('cells.sqlite3-wal', 'cells.sqlite3-shm')):
+            raise Unavailable('unexpected_wal_shm_counted')
+        slack = total - sum(sizes.values())
+        allowed_slack = self.qualification.allocation_slack_bytes_max if self.qualification else 0
+        if (total > TOTAL_BYTES or total > RESERVED_ENVELOPE_BYTES
+                or sizes.get('cells.sqlite3', 0) > DATABASE_BYTES
+                or sizes.get('cells.sqlite3-journal', 0) > JOURNAL_BYTES
+                or slack > allowed_slack):
+            raise Unavailable('allocated_namespace_capacity')
+        if self._db_identity is not None and identities.get('cells.sqlite3') != self._db_identity:
+            raise Unavailable('cell_database_replaced')
+        return identities
+
+    def _open(self):
+        budget = Budget()
+        self._check_parents(budget)
+        # Verify build and actual loaded binaries before any on-disk connection
+        # could inspect or recover an existing rollback journal.
+        with budget.phase():
+            qualification_directory = self.directory if os.path.lexists(self.directory) else self.directory.parent
+            probe = sqlite3.connect(':memory:', timeout=0., isolation_level=None)
+            try:
+                probe.set_progress_handler(budget.progress, 100)
+                self.qualification.verify(probe, qualification_directory, budget)
+            finally:probe.close()
+        with budget.phase():
+            if not os.path.lexists(self.directory):
+                if not self.enabled:raise Unavailable('disabled_absent')
+                self.directory.mkdir(mode=0o700)
+            identities = self._scan(budget)  # Charge hot-journal evidence before opening.
+            existing = 'cells.sqlite3' in identities
+            if not existing and not self.enabled:raise Unavailable('missing_optional_database')
+            uri = self.path.as_uri() + ('?mode=rw&vfs=unix' if existing else '?mode=rwc&vfs=unix')
+            db = sqlite3.connect(uri, uri=True, timeout=0., isolation_level=None)
+            self._db = db; db.row_factory = sqlite3.Row
+            # Detect observed drift immediately. This cannot prevent a hostile
+            # same-UID race during Python SQLite's absolute-path open/recovery.
+            self._scan(budget)
+            db.set_progress_handler(budget.progress, 100)
+            if db.execute('PRAGMA journal_mode').fetchone()[0].lower() != 'delete':
+                raise Unavailable('incompatible_existing_journal_mode')
+            if not existing:db.execute('PRAGMA page_size=4096')
+            for pragma in ('PRAGMA synchronous=FULL', 'PRAGMA temp_store=MEMORY', 'PRAGMA busy_timeout=0',
+                    'PRAGMA cache_spill=OFF', 'PRAGMA cache_size=-4096', 'PRAGMA mmap_size=0',
+                    'PRAGMA foreign_keys=ON', 'PRAGMA trusted_schema=OFF', 'PRAGMA max_page_count=6144'):
+                db.execute(pragma)
+            expected = {'page_size': PAGE_SIZE, 'max_page_count': MAX_PAGE_COUNT, 'synchronous': 2,
+                        'temp_store': 2, 'busy_timeout': 0, 'cache_spill': 0, 'mmap_size': 0,
+                        'foreign_keys': 1, 'trusted_schema': 0, 'auto_vacuum': 0}
+            for name, value in expected.items():
+                if db.execute('PRAGMA ' + name).fetchone()[0] != value:
+                    raise Unavailable('pragma_readback_mismatch')
+            db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, HANDOFF_BYTES)
+            db.setlimit(sqlite3.SQLITE_LIMIT_SQL_LENGTH, SQL_PROJECTION_BYTES)
+            db.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
+            binding = (SCHEMA, POLICY_SHA256, self.authority.identity,
+                       hashlib.sha256(canonical(asdict(self.qualification))).hexdigest(),
+                       canonical({'namespace': list(self._namespace_identity),
+                                  'ancestors': [list(item) for item in self._ancestor_identity]}).decode('ascii'),
+                       canonical(list(self._scan(budget)['cells.sqlite3'])).decode('ascii'))
+            if existing:
+                tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 6")}
+                if tables != {'store_meta', 'sources', 'cells', 'dependencies'}:
+                    raise Unavailable('optional_schema_mismatch')
+                row = db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
+                if row is None or tuple(row) != binding:
+                    raise Unavailable('optional_primary_binding_mismatch')
+            else:
+                self._schema(db)
+                db.execute('INSERT INTO store_meta(id,schema,policy,primary_identity,qualification,namespace_identity,database_identity) VALUES(1,?,?,?,?,?,?)',
+                           binding)
+            if db.execute('SELECT COUNT(*) FROM cells').fetchone()[0] > MAX_CELLS or db.execute('SELECT COUNT(*) FROM sources').fetchone()[0] > MAX_RECEIPTS:
+                raise Unavailable('existing_row_capacity')
+            self._db_identity = self._scan(budget)['cells.sqlite3']
+        db.set_progress_handler(None, 0)
+        # Paged startup; each batch has its own finite owner operation budget.
+        after = ''
+        while True:
+            if self._stop.is_set():raise Unavailable('shutdown_pending')
+            budget = Budget()
+            with budget.phase():
+                self._scan(budget); db.set_progress_handler(budget.progress, 100)
+                rows = db.execute('SELECT cid,length(receipt) AS n FROM sources WHERE cid>? ORDER BY cid LIMIT 20', (after,)).fetchall()
+                if not rows:break
+                for row in rows:
+                    after = row['cid']
+                    if not 1 <= row['n'] <= RECEIPT_BYTES:raise Unavailable('stored_receipt_length')
+                    raw = db.execute('SELECT receipt FROM sources WHERE cid=?', (after,)).fetchone()[0]
+                    budget.projection(len(raw)); receipt = Receipt.decode(raw)
+                    if receipt.chunk_id != after:raise Unavailable('stored_receipt_identity')
+                    self._receipts[after] = receipt
+                self._scan(budget)
+            db.set_progress_handler(None, 0)
+        db.set_progress_handler(None, 0)
+        self._reconcile.set(); self._cleanup_pending = True
+
+    @staticmethod
+    def _schema(db):
+        statements = (
+            'CREATE TABLE store_meta(id INTEGER PRIMARY KEY CHECK(id=1),schema TEXT NOT NULL,policy TEXT NOT NULL,primary_identity TEXT NOT NULL,qualification TEXT NOT NULL,namespace_identity TEXT NOT NULL,database_identity TEXT NOT NULL)',
+            'CREATE TABLE sources(cid TEXT PRIMARY KEY,sid TEXT NOT NULL,digest TEXT NOT NULL,receipt BLOB NOT NULL CHECK(length(receipt)<=1024))',
+            'CREATE INDEX sources_session ON sources(sid,cid)',
+            '''CREATE TABLE cells(seq INTEGER PRIMARY KEY AUTOINCREMENT,cell_id TEXT NOT NULL UNIQUE,
+                ownership TEXT NOT NULL UNIQUE,sid TEXT NOT NULL,cid TEXT NOT NULL,proof BLOB NOT NULL CHECK(length(proof)<=65536),
+                pcm BLOB CHECK(length(pcm)<=640000),state TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1)''',
+            'CREATE INDEX cells_session ON cells(sid,seq)',
+            '''CREATE TABLE dependencies(cell_id TEXT NOT NULL REFERENCES cells(cell_id) ON DELETE CASCADE,
+                position INTEGER NOT NULL,cid TEXT NOT NULL,digest TEXT NOT NULL,receipt_id TEXT NOT NULL,
+                source_start INTEGER NOT NULL,source_end INTEGER NOT NULL,logical_start INTEGER NOT NULL,logical_end INTEGER NOT NULL,
+                PRIMARY KEY(cell_id,position))''',
+            'CREATE INDEX dependencies_source ON dependencies(cid,cell_id)')
+        db.execute('BEGIN IMMEDIATE')
+        try:
+            for sql in statements:db.execute(sql)
+            db.execute('COMMIT')
+        except BaseException:
+            if db.in_transaction:db.execute('ROLLBACK')
+            raise
+
+    @contextmanager
+    def _transaction(self, budget):
+        self._scan(budget); budget.check()
+        self._db.execute('BEGIN IMMEDIATE')
+        try:
+            yield
+            budget.check(); self._scan(budget); self._db.execute('COMMIT')
+            # A slow commit may already be durable. Late completion is unknown,
+            # resolved by exact ID; never blindly retry or claim successful fsync.
+            budget.check(); self._scan(budget)
+        except BaseException:
+            if self._db.in_transaction:
+                self._db.set_progress_handler(None, 0)
+                self._db.execute('ROLLBACK')
+                self._db.set_progress_handler(budget.progress, 100)
+            raise
+
+    def _generation(self, op):
+        if self._closed or op.epoch is not self._epoch:raise Unavailable('publication_generation_revoked')
+
+    def _receipt(self, op, budget):
+        receipt = op.payload; self._generation(op)
+        if not self.authority.receipt_valid(receipt, budget):raise Unavailable('source_authority_unavailable')
+        old = self._receipts.get(receipt.chunk_id)
+        if old:
+            if old != receipt:raise Unavailable('conflicting_ingestion_receipt')
+            return {'status': 'existing_receipt', 'receipt_id': old.receipt_id}
+        with self._transaction(budget):
+            if self._db.execute('SELECT COUNT(*) FROM sources').fetchone()[0] >= MAX_RECEIPTS:
+                raise Unavailable('source_receipt_capacity')
+            self._db.execute('INSERT INTO sources(cid,sid,digest,receipt) VALUES(?,?,?,?)',
+                (receipt.chunk_id, receipt.session_id, receipt.digest, receipt.encoded))
+            self._generation(op)
+            if not self.authority.receipt_valid(receipt, budget):raise Unavailable('source_changed_before_receipt_commit')
+        self._generation(op)
+        if not self.authority.receipt_valid(receipt, budget):
+            self.revoked(); raise Unavailable('source_changed_after_receipt_commit')
+        self._receipts[receipt.chunk_id] = receipt
+        return {'status': 'receipt_retained', 'receipt_id': receipt.receipt_id}
+
+    def _publish(self, op, budget):
+        # Validate the whole batch before the first retention decision.
+        for cell in op.payload:
+            cell.__post_init__(); self._generation(op)
+            if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
+                raise Unavailable('primary_commit_or_source_unavailable')
+        results = []
+        for cell in op.payload:
+            self._generation(op)
+            old = self._db.execute('SELECT cell_id,length(proof) AS n FROM cells WHERE ownership=?', (cell.ownership,)).fetchone()
+            if old:
+                if old['cell_id'] != cell.cell_id or not 1 <= old['n'] <= PROOF_BYTES:
+                    raise Unavailable('conflicting_committed_ownership')
+                proof = self._db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell.cell_id,)).fetchone()[0]
+                budget.projection(len(proof))
+                if proof != cell.proof:raise Unavailable('conflicting_committed_proof')
+                results.append({'cell_id': cell.cell_id, 'status': 'existing'})
+                continue
+            if self._db.execute('SELECT COUNT(*) FROM cells').fetchone()[0] >= MAX_CELLS:
+                results.append({'cell_id': cell.cell_id, 'status': 'not_retained_metadata_capacity'})
+                continue
+            budget.projection(len(cell.proof))
+            # Finite conservative preflight. SQLITE_FULL still rolls back and
+            # falls back to metadata once, without evicting an earlier selection.
+            page_count = self._db.execute('PRAGMA page_count').fetchone()[0]
+            free_pages = self._db.execute('PRAGMA freelist_count').fetchone()[0]
+            room = (MAX_PAGE_COUNT - page_count + free_pages) * PAGE_SIZE
+            with_pcm = room >= len(cell.pcm) + len(cell.proof) * 2 + 65536
+            status = self._insert_cell(op, cell, budget, with_pcm)
+            results.append({'cell_id': cell.cell_id, 'status': status})
+        self._generation(op)
+        for cell in op.payload:
+            if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
+                self.revoked(); raise Unavailable('source_changed_after_publication_commit')
+        self._durable = min(self._durable + sum(r['status'] in ('retained', 'not_retained_pcm', 'existing') for r in results), (1 << 31) - 1)
+        return {'status': 'durable', 'cells': results}
+
+    def _insert_cell(self, op, cell, budget, with_pcm):
+        state = 'retained' if with_pcm else 'not_retained_pcm'
+        try:
+            with self._transaction(budget):
+                self._db.execute('INSERT INTO cells(cell_id,ownership,sid,cid,proof,pcm,state) VALUES(?,?,?,?,?,?,?)',
+                    (cell.cell_id, cell.ownership, cell.session_id, cell.chunk_id, cell.proof, cell.pcm if with_pcm else None, state))
+                for pos, p in enumerate(cell.parts):
+                    self._db.execute('INSERT INTO dependencies VALUES(?,?,?,?,?,?,?,?,?)',
+                        (cell.cell_id, pos, p.chunk_id, p.source_sha256, p.receipt_sha256,
+                         p.source_start, p.source_end, p.logical_start, p.logical_end))
+                self._generation(op)
+                if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
+                    raise Unavailable('source_changed_before_publication_commit')
+            return state
+        except sqlite3.Error as exc:
+            if getattr(exc, 'sqlite_errorcode', None) == sqlite3.SQLITE_FULL:
+                budget.check()
+                if with_pcm:return self._insert_cell(op, cell, budget, False)
+                return 'not_retained_metadata_capacity'
+            raise
+
+    def _document(self, cell_id, budget):
+        digest(cell_id)
+        row = self._db.execute('SELECT seq,sid,cid,state,revision,length(proof) AS pn,length(pcm) AS n FROM cells WHERE cell_id=?', (cell_id,)).fetchone()
+        if row is None:raise Unavailable('cell_unavailable')
+        if not 1 <= row['pn'] <= PROOF_BYTES or row['n'] is not None and not 1 <= row['n'] <= CELL_PCM_BYTES:
+            raise Unavailable('stored_cell_length')
+        proof = self._db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
+        budget.projection(len(proof)); doc, support, _ = validate_document(proof)
+        if (canonical(doc) != proof or doc.get('policy') != POLICY_SHA256
+                or type(doc.get('dependencies')) is not list or not 1 <= len(doc['dependencies']) <= MAX_PARTS
+                or doc['commit']['chunk_id'] != row['cid']
+                or any(p['session_id'] != row['sid'] for p in doc['dependencies'])
+                or hashlib.sha256(canonical({'policy': POLICY_SHA256, 'support': support.to_dict()})).hexdigest() != cell_id):
+            raise Unavailable('stored_cell_proof')
+        return row, doc, proof
+
+    def _read(self, op, budget):
+        cell_id = op.payload; row, doc, proof = self._document(cell_id, budget)
+        if not self.authority.cell_valid(doc, budget, publishing=False):raise Unavailable('source_authority_unavailable')
+        if op.kind == 'detail':
+            self._generation(op)
+            if not self.authority.cell_valid(doc, budget, publishing=False):raise Unavailable('source_changed_after_read')
+            # The detail itself is the admitted <=64 KiB proof, no large wrapper.
+            return {'status': 'available', 'detail': proof, 'regeneration_eligible': True}
+        if row['n'] is None:raise Unavailable('pcm_not_retained')
+        if len(self._pins) >= MAX_PINS:raise Unavailable('read_pin_capacity')
+        pcm = self._db.execute('SELECT pcm FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
+        if len(pcm) != row['n'] or hashlib.sha256(pcm).hexdigest() != doc['support']['pcm16le_sha256']:
+            raise Unavailable('stored_pcm_mismatch')
+        self._generation(op)
+        if not self.authority.cell_valid(doc, budget, publishing=False):raise Unavailable('source_changed_after_read')
+        if not self._lock.acquire(timeout=LOCK_SECONDS):raise Unavailable('pin_lock_busy')
+        try:
+            self._generation(op)
+            if len(self._pins) >= MAX_PINS:raise Unavailable('read_pin_capacity')
+            pin = Pin(self, cell_id, doc, pcm); self._pins[id(pin)] = pin
+        finally:self._lock.release()
+        return {'status': 'available', 'pin': pin, 'regeneration_eligible': True}
+
+    def _list(self, op, budget):
+        sid, after = op.payload; text(sid); integer(after)
+        if not self.authority.session_valid(sid, budget):raise Unavailable('session_unavailable')
+        rows = self._db.execute('SELECT seq,cell_id,state,revision FROM cells WHERE sid=? AND seq>? ORDER BY seq LIMIT 20', (sid, after)).fetchall()
+        result = []; checks = []; cursor = after
+        for item in rows:
+            if budget.sql_bytes > 256 * 1024 - PROOF_BYTES - 8192:break
+            _, doc, _ = self._document(item['cell_id'], budget)
+            if self.authority.cell_valid(doc, budget, publishing=False):
+                result.append(dict(item)); checks.append(doc)
+            cursor = item['seq']
+        encoded = canonical(result, PROOF_BYTES); budget.projection(len(encoded))
+        self._generation(op)
+        if any(not self.authority.cell_valid(doc, budget, publishing=False) for doc in checks):
+            raise Unavailable('source_changed_after_list_read')
+        self._generation(op)
+        if not self.authority.session_valid(sid, budget):raise Unavailable('session_deleted_after_read')
+        return {'status': 'available', 'cells': result, 'next_cursor': cursor}
+
+    def _expire(self, op, budget):
+        cell_id = digest(op.payload)
+        if any(p.cell_id == cell_id and not p._released for p in tuple(self._pins.values())):
+            raise Unavailable('cell_pinned')
+        with self._transaction(budget):
+            self._generation(op)
+            if op.kind == 'expire':
+                self._db.execute("UPDATE cells SET pcm=NULL,state='not_retained_pcm',revision=revision+1 WHERE cell_id=? AND pcm IS NOT NULL", (cell_id,))
+            else:self._db.execute('DELETE FROM cells WHERE cell_id=?', (cell_id,))
+        return {'status': 'expired' if op.kind == 'expire' else 'deleted', 'cell_id': cell_id}
+
+    def _sweep(self, budget):
+        if self._sweep_generation is not self._epoch:
+            self._sweep_cell = 0; self._sweep_source = ''; self._sweep_generation = self._epoch
+        rows = self._db.execute('SELECT seq,cell_id FROM cells WHERE seq>? ORDER BY seq LIMIT 20', (self._sweep_cell,)).fetchall()
+        if rows:
+            for item in rows:
+                # Length-first one-at-a-time projections keep the 256 KiB cap.
+                if budget.sql_bytes > SQL_PROJECTION_BYTES - PROOF_BYTES:break
+                row, doc, _ = self._document(item['cell_id'], budget)
+                if not self.authority.cell_valid(doc, budget, publishing=False):
+                    for pin in tuple(self._pins.values()):
+                        if pin.cell_id == item['cell_id']:pin.cancelled.set()
+                    with self._transaction(budget):self._db.execute('DELETE FROM cells WHERE cell_id=?', (item['cell_id'],))
+                self._sweep_cell = item['seq']
+            return
+        rows = self._db.execute('SELECT cid FROM sources WHERE cid>? ORDER BY cid LIMIT 20', (self._sweep_source,)).fetchall()
+        if rows:
+            for item in rows:
+                receipt = self._receipts.get(item['cid'])
+                if receipt is None or not self.authority.receipt_valid(receipt, budget):
+                    with self._transaction(budget):self._db.execute('DELETE FROM sources WHERE cid=?', (item['cid'],))
+                    self._receipts.pop(item['cid'], None)
+                self._sweep_source = item['cid']
+            return
+        if self._sweep_generation is self._epoch:
+            self._reconcile.clear(); self._cleanup_pending = False
+            # A deletion may land between the first token check and clearing.
+            # Recheck after clearing; a later notifier sets both flags itself.
+            if self._sweep_generation is not self._epoch:
+                self._cleanup_pending = True; self._reconcile.set()
+
+    def _run(self):
+        try:
+            self._open(); self._status = 'ready' if self.enabled else 'cleanup_only'; self._ready.set()
+            while not self._stop.is_set():
+                self._wake.wait(.05); self._wake.clear()
+                self._drain_released_pins()
+                op = self._slot
+                if op is not None and op.payload is None:
+                    if self._lock.acquire(timeout=LOCK_SECONDS):
+                        try:
+                            if self._slot is op:self._slot = None
+                        finally:self._lock.release()
+                        op.done.set()
+                    continue
+                if op is None and not self._reconcile.is_set():continue
+                budget = Budget()
+                try:
+                    with budget.phase():
+                        self._db.set_progress_handler(budget.progress, 100)
+                        self._scan(budget)
+                        if op is None:self._sweep(budget)
+                        elif op.kind == 'receipt':op.result = self._receipt(op, budget)
+                        elif op.kind == 'publish':op.result = self._publish(op, budget)
+                        elif op.kind in ('read', 'detail'):op.result = self._read(op, budget)
+                        elif op.kind == 'list':op.result = self._list(op, budget)
+                        else:op.result = self._expire(op, budget)
+                        self._scan(budget)
+                except Exception as exc:
+                    reason = str(exc) if isinstance(exc, Unavailable) else 'optional_sql_or_io_failure'
+                    self._status = reason
+                    if op is not None:
+                        leaked_pin = op.result.get('pin')
+                        if leaked_pin is not None:leaked_pin.release()
+                        op.result = {'status': 'unknown' if op.kind in ('publish', 'receipt') else 'unavailable', 'reason': reason}
+                        self._dropped = min(self._dropped + 1, (1 << 31) - 1)
+                    else:self._cleanup_pending = True
+                finally:
+                    self._db.set_progress_handler(None, 0)
+                    if op is not None:
+                        op.payload = None
+                        if self._lock.acquire(timeout=LOCK_SECONDS):
+                            try:
+                                if self._slot is op:self._slot = None
+                            finally:self._lock.release()
+                            op.done.set()
+                        else:self._status = 'handoff_release_pending'
+        except Exception as exc:
+            self._status = str(exc) if isinstance(exc, Unavailable) else 'optional_startup_unavailable'
+            self._cleanup_pending = os.path.lexists(self.directory)
+        finally:
+            self._ready.clear()
+            if self._slot is not None:
+                self._slot.result = {'status': 'unknown', 'reason': 'owner_shutdown'}
+                self._slot.payload = None; self._slot.done.set(); self._slot = None
+            if self._db is not None:
+                try:
+                    if self._db.in_transaction:self._db.execute('ROLLBACK')
+                    self._db.close(); self._db = None
+                except Exception:
+                    self._cleanup_pending = True; self._status = 'cleanup_pending'
+            if self._closed and not self._cleanup_pending:self._status = 'closed'
