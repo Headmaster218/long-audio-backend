@@ -17,6 +17,8 @@ def tree_rss():
 
 
 def check_resources(settings, additional_disk=0):
+    permit=getattr(settings, '_native_execution_permit', None)
+    if permit is not None: permit.observe_primary()
     if shutil.disk_usage(settings.data_dir).free < settings.disk_reserve_bytes + additional_disk:
         raise RuntimeError('Disk reserve reached; free space or delete retained sessions')
     if tree_rss() >= settings.process_memory_limit_bytes:
@@ -41,6 +43,14 @@ def kill_tree(proc):
 
 
 def run_bounded(args, settings, *, timeout=600, stdout_path=None, stop=None):
+    permit=getattr(settings, '_native_execution_permit', None)
+    if permit is None:
+        return _run_bounded(args, settings, timeout=timeout, stdout_path=stdout_path, stop=stop)
+    with permit.primary_span('probe', stop):
+        return _run_bounded(args, settings, timeout=timeout, stdout_path=stdout_path, stop=stop)
+
+
+def _run_bounded(args, settings, *, timeout=600, stdout_path=None, stop=None):
     """Poll RSS and free space; OS-level memory limit is still needed for a hard cap."""
     check_resources(settings)
     out=open(stdout_path,'wb') if stdout_path else subprocess.DEVNULL
@@ -51,6 +61,8 @@ def run_bounded(args, settings, *, timeout=600, stdout_path=None, stop=None):
                               env={**os.environ,'AUDIO_PARENT_PID':str(os.getpid()),'AUDIO_PARENT_CREATED':str(psutil.Process().create_time()),
                                    'OMP_NUM_THREADS':str(settings.cpu_threads),
                                    'OPENBLAS_NUM_THREADS':str(settings.cpu_threads)})
+        permit=getattr(settings, '_native_execution_permit', None)
+        if permit is not None: permit.bind_primary(proc)
         started=time.monotonic()
         try:
             while proc.poll() is None:
@@ -66,6 +78,8 @@ def run_bounded(args, settings, *, timeout=600, stdout_path=None, stop=None):
         except BaseException:
             kill_tree(proc)
             raise
+        finally:
+            if permit is not None: permit.finish_primary(proc)
     finally:
         if stdout_path: out.close()
 

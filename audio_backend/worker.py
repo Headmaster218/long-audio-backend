@@ -130,9 +130,12 @@ class Worker:
     def loop(self):
         while not self.stop_event.is_set():
             fragments=getattr(self.store,'fragment_http',None)
+            permit=getattr(self.settings, '_native_execution_permit', None)
+            if permit is not None and fragments and fragments.factory is not None:
+                permit.close_admission()
             if fragments and fragments.cleanup_error is not None:
                 self.wake.wait(1); self.wake.clear(); continue
-            if fragments and fragments.process_next(self):
+            if permit is None and fragments and fragments.process_next(self):
                 continue
             watermark=None
             if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
@@ -142,13 +145,24 @@ class Worker:
                 except Exception:
                     # Optional observation never takes authority over primary work.
                     pass
-            chunk=self.store.claim()
+            intent=None
+            if permit is None:
+                chunk=self.store.claim()
+            else:
+                with permit.claim_probe():
+                    chunk=self.store.claim()
+                    if chunk is not None:
+                        self.current_chunk=chunk['id']
+                        intent=permit.primary_intent('worker')
             if chunk is None:
                 self.wake.wait(1); self.wake.clear(); continue
             self.current_chunk=chunk['id']
+            normal=False
             try:
+                if intent is not None:intent.wait(lambda:self.interrupted(chunk['id']))
                 self._begin_native_support(chunk,watermark)
                 self.process(chunk)
+                normal=True
             except InterruptedError:
                 if self.stop_event.is_set():
                     with self.store.db() as db:
@@ -156,6 +170,9 @@ class Worker:
             except Exception as exc: self.store.fail(chunk['id'],f'{type(exc).__name__}: {exc}')
             finally:
                 self._finish_native_support()
+                if intent is not None:
+                    if intent.entered:permit.finish_cohort(normal=normal)
+                    intent.release()
                 self.current_chunk=None
 
     def _begin_native_support(self,chunk,watermark):
@@ -193,6 +210,11 @@ class Worker:
     def _native_process_factory(self,settings):
         from .native_worker import NativeProcess
         process=NativeProcess(settings)
+        permit=getattr(settings, '_native_execution_permit', None)
+        if permit is not None:
+            permit.bind_primary(process, resident=lambda: self.native is not None
+                and self.native.process is process and self.native.key is not None
+                and self.native.state is not None and not process.busy)
         # Construction is never retried if optional attachment fails.
         try:
             prior=getattr(process,'response_observer',None)
@@ -230,12 +252,17 @@ class Worker:
             config=Path(tmp)/'config.json'
             config.write_text(json.dumps(self.settings.inference_config()))
             process=None if self.analyzer_factory else AnalyzerProcess(self.settings,config)
+            permit=getattr(self.settings, '_native_execution_permit', None)
+            if process and permit is not None:permit.bind_primary(process)
             try: self._process_windows(chunk,process)
             except BaseException:
                 if self.native:self.native.close();self.native=None
                 raise
             finally:
-                if process: process.close()
+                if process:
+                    try:process.close()
+                    finally:
+                        if permit is not None:permit.finish_primary(process)
 
     def extract_pcm(self,chunk,start,end,wav,tmp,stop,*,capture_support=False):
         parts=context_parts(self.store,chunk,start,end)

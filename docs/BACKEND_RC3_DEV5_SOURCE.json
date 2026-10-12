@@ -1,0 +1,304 @@
+{
+  "schema": "reviewed-backend-rc3-dev5-source-v1",
+  "version": "0.2.0rc3.dev5",
+  "base_commit": "762509bddf4c3f1604c446d485034be8882de6f7",
+  "base_tree": "8ce9f6fc4a70cb018175c742e9ead04c136c4148",
+  "base_files": 322,
+  "base_bytes": 3865952,
+  "base_source_inventory_sha256": "2f9ecd3f9607ec49578398d63cb887d4c5d2e91c21c4025ff34b3f3dd14c7a60",
+  "scope": "Explicit default-OFF legacy CPU/native-support/overlap-none Handy MOSS jobs; one slot, zero backlog, bounded source/response leases and shared primary/optional permit; no fragment provider coexistence",
+  "qualification": "Source-only preparation is not test execution; model-free fixtures and tiny stdlib fake children require separately reported frozen-source authorization/results; no acoustic, live native service concurrency, long optional recording, full-suite, Windows/Vulkan or production qualification",
+  "design_package_sha256": "765e7f1b4c53069518ff64f67f02d2c1452ec09749ca51177a98f5952a30ac11",
+  "startup_addendum_sha256": "ae52e30843dc8015491bdb6a4296550e594b8440c7a398cde9e9a6ab6ba9c4f4",
+  "composed_inventory": {
+    "added": [
+      "audio_backend/moss_handy_http.py",
+      "audio_backend/moss_handy_jobs.py",
+      "audio_backend/native_execution_permit.py",
+      "docs/BACKEND_RC3_DEV5_SOURCE.json",
+      "docs/MOSS_HANDY_JOBS.md",
+      "tests/test_backend_rc3_dev5_source.py",
+      "tests/test_moss_handy_jobs.py",
+      "tests/test_moss_handy_jobs_api.py",
+      "tests/test_native_execution_permit.py"
+    ],
+    "changed": [
+      "audio_backend/__init__.py",
+      "audio_backend/__main__.py",
+      "audio_backend/app.py",
+      "audio_backend/fragment_http.py",
+      "audio_backend/lifecycle.py",
+      "audio_backend/moss_handy_controller.py",
+      "audio_backend/native_owned_support_cache.py",
+      "audio_backend/resources.py",
+      "audio_backend/settings.py",
+      "audio_backend/worker.py",
+      "docs/FRAGMENT_STAGING_POLICY.json",
+      "docs/MOSS_HANDY_EXPERIMENTAL.md",
+      "docs/NATIVE_OWNED_SUPPORT_CAPTURE.md",
+      "pyproject.toml",
+      "tests/test_backend_rc3_dev4_source.py",
+      "tests/test_moss_handy_controller.py",
+      "tests/test_native_owned_support_cache.py"
+    ],
+    "total": 26
+  },
+  "default_off_startup_exception": "Noncreating ownership check even when OFF; missing descriptor primitives allow only bounded symlink/reparse-free namespace absence and refuse existing/uncertain ownership; enabled jobs require Linux primitives; configured fragment factory initialize/store-schema hook executes once under InstanceLock after authoritative ownership fence, preserving SQL body but changing startup timing; no-factory ordinary legacy adds no provider call or SQL",
+  "runtime_bounds": {
+    "accepted_keys_per_epoch": 64,
+    "backlog": 0,
+    "service_threads": 1,
+    "support_frames": 320000,
+    "support_pcm_bytes": 640000,
+    "dispatch_pin_bytes": 786432,
+    "response_leases": 2,
+    "shared_response_bytes": 1572864,
+    "retained_result_bytes": 1048576,
+    "raw_bytes": 131072,
+    "result_bytes": 262144,
+    "ttl_seconds_from_acceptance": 900,
+    "scratch_bytes": 2097152,
+    "mutation_bytes": 1024,
+    "query_bytes": 1024,
+    "query_fields": 4,
+    "list_page_rows": 20,
+    "list_page_bytes": 32768,
+    "detail_bytes": 16384,
+    "wrapper_working_reserve_bytes": 16777216
+  },
+  "source_budget": {
+    "maximum_files": 331,
+    "maximum_total_bytes": 4300000,
+    "maximum_file_bytes": 250000
+  },
+  "historical_proof": "Immutable published rc3.dev4 current_snapshot/docstring adapter only; original verifier and mutation bodies preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins both this manifest and the source gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "802bd15f0bc545c6960e547f7855097ec5648aba90c263c547521616142ffb8d",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "49adf2c2ac4af5b5b61f461e2552f8dc21a0049ddc9890c6f833aae990a217d8"
+      }
+    },
+    {
+      "path": "audio_backend/__main__.py",
+      "bytes": 16785,
+      "sha256": "ffb869138ef883a23d71af29009fdb99198f8dfc9172c276f3013da2e72936b7",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 15678,
+        "sha256": "137e461bfdc98beb2c2d4184019c00ba68b46b056fadc4a0bd5aaa6c182cadb7"
+      }
+    },
+    {
+      "path": "audio_backend/app.py",
+      "bytes": 34923,
+      "sha256": "6882a360ec3b392acd749cb414d9dcf6e1f65801d5acad54a3b16e67daeb09f4",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 32299,
+        "sha256": "dc2ac03ac65fcb64d389ad4ecba03a85b386788bae720a801703f717301ed2c2"
+      }
+    },
+    {
+      "path": "audio_backend/fragment_http.py",
+      "bytes": 32597,
+      "sha256": "8c489ece2bee3c8599d52afaa81ca4847ef025e51e7b6ad4c659dfc9bc6fb597",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 31426,
+        "sha256": "b90e50127a0dce92673492172e62d2828a52fbcc07a40563b029227219889408"
+      }
+    },
+    {
+      "path": "audio_backend/lifecycle.py",
+      "bytes": 9233,
+      "sha256": "17435c2c94cffee3c8c2b97c4458e1353702038248c8cbafae53420d9e318f90",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 9024,
+        "sha256": "4b653d352d44141cb170cba97b404e104c8f9f77c79a744c593729cf747af481"
+      }
+    },
+    {
+      "path": "audio_backend/moss_handy_controller.py",
+      "bytes": 20845,
+      "sha256": "3513fe12fc3a2f719ed1636b4f20373abbe1b451bd3f506c4b85ff1d3fc9a930",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 18853,
+        "sha256": "a635ff029096841e5b5653e4ba59d1787cdb49e023c1eec7bbb439e25fb5ae34"
+      }
+    },
+    {
+      "path": "audio_backend/moss_handy_http.py",
+      "bytes": 10178,
+      "sha256": "4e5835c1dc77abf083c61848f29be8746e6f3a44fefe3ec2101193ac8ab85b01",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/moss_handy_jobs.py",
+      "bytes": 24736,
+      "sha256": "a4d9dc71a81e83e847ce9c1a0edf6d3717e961c1658d31dc32c8a56d39d1a8d0",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/native_execution_permit.py",
+      "bytes": 16234,
+      "sha256": "05b4c6d7a9b9bc42847b80a2517a1728b65288acdae33772492de1914a60586d",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/native_owned_support_cache.py",
+      "bytes": 51299,
+      "sha256": "3be95c062a8922c620705b5a005501ba937a05311173dde896311c71172405fb",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 44448,
+        "sha256": "43fa6fecdeea5d822f3ba9227739fb35ba21f500ae2e249e0b5fa0bd6fb79a29"
+      }
+    },
+    {
+      "path": "audio_backend/resources.py",
+      "bytes": 7471,
+      "sha256": "d5c1c6be1bca596fbeca464a2968cd789b08a391f5b6ad5dee4be6ab4320a91c",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 6746,
+        "sha256": "9eafcf49f1619dfe42e49f3b15435a41d3ca035aceb0126aac1db8af6f9cf857"
+      }
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "bytes": 15580,
+      "sha256": "8e334059ebe83fad083c66bec94442c00109e9b03a3622bd57d0c0658e9315a0",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 14578,
+        "sha256": "a0b30e0f64278992221bb9a5eee2f2b665cdcb9b2350ed1df86a2b80430547df"
+      }
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "bytes": 25447,
+      "sha256": "c5fa6e1b9efa25d9f08dbdd01e6af059c2cd6bd024d403e8f10961536a66d265",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 23996,
+        "sha256": "79eb04db126effdeb2c2a226729d91f79cba77044ab8459df2c00c79b7bce932"
+      }
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 14818,
+      "sha256": "4bf090c42a1463c5a7c240bc63d158ee15b1a31a515b22844ba2d0ae8f90bd12",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 14415,
+        "sha256": "2997096df5fad171e10422002d72de35b50b06a2a58e17125b3b4fa196cf9e84"
+      }
+    },
+    {
+      "path": "docs/MOSS_HANDY_EXPERIMENTAL.md",
+      "bytes": 8689,
+      "sha256": "e660b81d08a8ed29f446e75be77b0e039f814cb90a65fce24efada011cf16782",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 8327,
+        "sha256": "c92bfeebf8ea9b943d1abbcc0739be8c3d4101a185c149aec800337e895589a7"
+      }
+    },
+    {
+      "path": "docs/MOSS_HANDY_JOBS.md",
+      "bytes": 15769,
+      "sha256": "6e4bad4cd94ab5dc8cca86c0d587f9afc32197dcf35ac6380e0c98a791fd65af",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "docs/NATIVE_OWNED_SUPPORT_CAPTURE.md",
+      "bytes": 8434,
+      "sha256": "64206d237a8d97266f9534d7fd299179d5999965d327b39391723573ac53205f",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 6217,
+        "sha256": "2eff5e48c60dd1a5c9fb7ca39868b93922ea8a2ab431d2da8596b96ba5268410"
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "55d6775b0458737a659e0c16da9d108a9c275f8a3300a3b1e67db66c3bc30087",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "f0ec4ef0b65fe0f36e8a3e93fcf018db31692138a53028924b57f6e1acc4764a"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev4_source.py",
+      "bytes": 25813,
+      "sha256": "d8f43b4f6b8102653ff915dee73e4040938cf33ea5bccee9ea3ab6338438ae74",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 26013,
+        "sha256": "b0ead22f080a5ef23b700ee1baffaf4bda200f7494c117adf9d48f12ea46f63f"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev5_source.py",
+      "bytes": 63079,
+      "sha256": "0bcea469d656246bc02a7a8a8f1d733c9da750318006fed4cf8f700317bdb807",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_handy_controller.py",
+      "bytes": 22099,
+      "sha256": "2a60f175868f171e0bb54dbffd25f3bd8ac84ed48d4279f237498eed2161954f",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 20423,
+        "sha256": "fc82fa9d6765adf14196f8b8804b82e4ec7a996c59fcac3553b30854ea75d2be"
+      }
+    },
+    {
+      "path": "tests/test_moss_handy_jobs.py",
+      "bytes": 23015,
+      "sha256": "7dcef86fdc7289de695d307d2031945ed7a7c7c94e749892aa0c5a015d7b8bb0",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_handy_jobs_api.py",
+      "bytes": 23849,
+      "sha256": "2cee5fe2cf9f1a19ab666ef60c8e4c7d17a9ea23e34ab81bfefcc68433cca3fe",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_execution_permit.py",
+      "bytes": 15149,
+      "sha256": "8a20d179fa61e49407b161a9a6a415d6a82b823b32253a49381e2a5a84be3c75",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_support_cache.py",
+      "bytes": 40968,
+      "sha256": "6038bc62dd762e05bc876501e429a66c2283d01dec632b91d3cd8fce9c06550b",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 33028,
+        "sha256": "f880e2cae448ebdb320e361ec192958996c31eea2079579193ac7aed2d0fe528"
+      }
+    }
+  ]
+}

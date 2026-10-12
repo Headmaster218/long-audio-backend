@@ -1,10 +1,16 @@
-# Handy MOSS one-job source checkpoint
+# Historical rc3.dev4 Handy MOSS one-job source checkpoint
 
-Version 0.2.0rc3.dev4 adds an explicit experimental local developer profile and
-one-job controller. It does not start from the app or Worker. Default settings,
-the old MOSS model manifest, public routes, SQL, scheduling, and the unrestricted
-primary long-recording path are unchanged. This is fresh reconstructed source;
-it does not claim lost commits or earlier qualification were restored.
+Version 0.2.0rc3.dev4 introduced an explicit experimental local developer profile
+and one-job controller, without app/Worker dispatch or public routes. That
+published checkpoint preserved default settings, the old MOSS model manifest,
+SQL, scheduling and the unrestricted primary long-recording path. Its source
+and qualification remain historical, without claiming lost commits or earlier
+qualification were restored.
+
+The separate [rc3.dev5 explicit jobs integration](MOSS_HANDY_JOBS.md) adds a
+default-OFF service entry with a shared primary/optional execution permit. The
+direct controller contracts below still apply; this page does not qualify
+those service routes or their concurrency.
 
 ## Closed profile and separate entry
 
@@ -117,7 +123,7 @@ of abandoned ownership is a separate action.
 
 ## Qualification boundary
 
-The new tests cover profile and source closure, raw/UTF-8/projection bounds,
+The rc3.dev4 tests cover profile and source closure, raw/UTF-8/projection bounds,
 unknown EOS, one-call exception/close behavior, queue occupancy, cancellation,
 restart refusal, marker tampering and identity cleanup negatives. Most are
 injected standard-library fixtures. Two small admitted stdlib process fixtures
@@ -128,6 +134,6 @@ Test artifacts and per-case failures are retained by the external guard.
 Source-only preparation is not evidence that these tests ran. Execution results
 must be reported separately against a frozen source/index/seal. There is no new
 acoustic, long-recording, Windows, Vulkan, full-suite or production-concurrency
-qualification here. A public route and shared execution permit remain later
-design work; independent source/privacy review and verified publication precede
-any expansion.
+qualification here. Public routes and a shared execution permit are documented
+separately for rc3.dev5; this historical checkpoint provides no evidence that
+those additions were run, qualified or published.

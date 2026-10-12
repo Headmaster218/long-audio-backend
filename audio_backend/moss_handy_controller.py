@@ -1,4 +1,4 @@
-"""Volatile one-job MOSS owner, deliberately not wired into app or Worker.
+"""Volatile one-job MOSS owner with private optional service gates.
 
 No backlog, replay, retry after a possible invocation, or automatic abandoned
 claim removal. Cleanup reuses the reviewed PID/create-time/original-handle
@@ -44,6 +44,7 @@ class OwnedDriver:
         if psutil.__version__ != '7.2.2':
             raise ValueError('The experimental owner requires psutil==7.2.2')
         self.directory, self.request_sha, self.proc = directory, request_sha, None
+        self._service_gate = None
         self.identity = directory_identity(directory)
         self.limits = dict(own_cap=int(3.5 * 1024**3), aggregate_cap=int(3.5 * 1024**3),
             artifact_cap=SCRATCH_BYTES, host_reserve=2 * 1024**3, disk_reserve=int(5.5 * 1024**3))
@@ -51,6 +52,7 @@ class OwnedDriver:
 
     def start(self, cancelled):
         from .fragment_model_guard import Identity
+        if self._service_gate is not None:self._service_gate.check('before_spawn')
         check_loader_context()
         check_directory(self.directory, self.identity)
         self.guard.check()
@@ -68,11 +70,13 @@ class OwnedDriver:
             raise RuntimeError('Owned child visibility unconfirmed')
         if cancelled.is_set():
             raise Cancelled('Cancelled before invocation admission')
+        if self._service_gate is not None:self._service_gate.check('before_admission')
         self.proc.stdin.write(b'1')
         self.proc.stdin.close()
 
     def wait(self, cancelled):
         while self.proc.poll() is None:
+            if self._service_gate is not None:self._service_gate.check('running')
             if cancelled.is_set():
                 raise Cancelled('Publication cancelled')
             self.guard.check()
@@ -86,7 +90,15 @@ class OwnedDriver:
 
     def cleanup(self, stop):
         from .qwen_candidate_runner import CandidateGuard, process_cleanup
-        cleanup = CandidateGuard(self.directory, caller=self.guard.caller, deadline=60, **self.limits)
+        service = self._service_gate
+        class CleanupGuard(CandidateGuard):
+            def check(inner, *args, **kwargs):
+                if service is not None:
+                    # Aggregate evidence cannot abort positive owned cleanup.
+                    try:service.cleanup_sample()
+                    except Exception:pass
+                return super().check(*args, **kwargs)
+        cleanup = CleanupGuard(self.directory, caller=self.guard.caller, deadline=60, **self.limits)
         cleanup.own_roots = self.guard.own_roots
         cleanup.known_own.update(self.guard.known_own)
         receipt = {}
@@ -106,7 +118,8 @@ class MossController:
     _driver_factory is an injected model-free fixture seam, not a public route
     or an alternate command mechanism. Production callers use OwnedDriver.
     """
-    def __init__(self, directory, *, profile_name, model_path, _driver_factory=OwnedDriver):
+    def __init__(self, directory, *, profile_name, model_path, _driver_factory=OwnedDriver,
+                 _service_gate=None, _service_context=None):
         self.directory = Path(directory)
         if (not self.directory.is_absolute() or self.directory.resolve() != self.directory
                 or any(p.is_symlink() for p in (self.directory, *self.directory.parents))):
@@ -123,6 +136,14 @@ class MossController:
         self.model_path, self._factory = model_path, _driver_factory
         self._lock, self._cancel = threading.RLock(), threading.Event()
         self._job = self._driver = self._claim_identity = None
+        self._service_gate = _service_gate
+        if _service_context is not None:
+            if (type(_service_context) is not dict or set(_service_context) != {'jobs_epoch', 'capture_epoch', 'source_binding'}
+                    or any(type(_service_context[k]) is not str or len(_service_context[k]) != width
+                           or any(c not in '0123456789abcdef' for c in _service_context[k])
+                           for k, width in (('jobs_epoch', 32), ('capture_epoch', 32), ('source_binding', 64)))):
+                raise ValueError('Invalid service claim context')
+        self._service_context = dict(_service_context) if _service_context is not None else None
 
     def submit(self, support, pcm16le):
         with self._lock:
@@ -144,7 +165,8 @@ class MossController:
             claim = canonical({'schema': 'moss-owned-claim-v1', 'owner': uuid.uuid4().hex,
                 'job_id': job_id, 'support_id': support.support_id, 'profile_sha256': self.profile.sha256,
                 'source_generation': support.source_generation, 'parent_identity': process_identity(os.getpid()),
-                'directory_identity': self._directory_identity})
+                'directory_identity': self._directory_identity,
+                **({'service_context': self._service_context} if self._service_context is not None else {})})
             write_owned(self.directory, 'owner.json', claim, identity=self._directory_identity)
             info = (self.directory / 'owner.json').lstat()
             self._claim_identity = (info.st_dev, info.st_ino, claim)
@@ -186,6 +208,7 @@ class MossController:
                 raise Busy('A started or terminal job is never replayed')
             job['state'] = 'running'
         try:
+            if self._service_gate is not None:self._service_gate.check('before_input')
             if self._cancel.is_set():
                 raise Cancelled('Publication cancelled before start')
             self._claim_matches()
@@ -201,7 +224,11 @@ class MossController:
             write_owned(self.directory, 'support.wav', buffer.getvalue(), identity=self._directory_identity)
             write_owned(self.directory, 'request.json', request, identity=self._directory_identity)
             job['pcm'] = None
+            if self._service_gate is not None:self._service_gate.inputs_written()
             self._driver = self._factory(self.directory, hashlib.sha256(request).hexdigest())
+            if self._service_gate is not None:
+                self._driver._service_gate = self._service_gate
+                self._service_gate.check('before_spawn')
             # Conservative: start can send admission and then fail. No retry.
             job['invocation_possible'] = True
             self._driver.start(self._cancel)
@@ -226,6 +253,9 @@ class MossController:
                 job['result'] = None
         finally:
             job['pcm'] = None
+            if self._service_gate is not None:
+                try:self._service_gate.cleaning()
+                except Exception:pass
             try:
                 confirmed = self._cleanup(bool(job['error_type']) or self._cancel.is_set())
             except Exception as exc:

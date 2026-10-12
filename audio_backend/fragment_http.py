@@ -287,7 +287,7 @@ class FragmentHTTP:
     own their resource supervisors and must close all children when close() is
     called. No neural work occurs during session creation, upload or finish.
     """
-    def __init__(self, store, settings, factory=None):
+    def __init__(self, store, settings, factory=None, *, defer_factory_initialization=False):
         self.store, self.settings, self.factory = store, settings, factory
         self.active_sid = None
         self.cleanup_error = None
@@ -309,8 +309,29 @@ class FragmentHTTP:
                         WHERE s.id=OLD.run_id AND s.deleted=1)
                     BEGIN SELECT RAISE(ABORT,'immutable fragment ledger'); END''')
         store.fragment_http = self
-        if factory is not None and hasattr(factory, 'initialize'):
-            factory.initialize(store)
+        self.factory_initialization_state = 'pending'
+        self._factory_initialization_error = None
+        self._factory_initialization_lock = threading.RLock()
+        if not defer_factory_initialization:
+            self.initialize_factory_once()
+
+    def initialize_factory_once(self):
+        with self._factory_initialization_lock:
+            if self.factory_initialization_state == 'returned':
+                return
+            if self.factory_initialization_state == 'failed':
+                raise self._factory_initialization_error
+            if self.factory_initialization_state == 'started':
+                raise RuntimeError('Factory initialization is already in progress')
+            self.factory_initialization_state = 'started'
+            try:
+                if self.factory is not None and hasattr(self.factory, 'initialize'):
+                    self.factory.initialize(self.store)
+            except BaseException as exc:
+                self._factory_initialization_error = exc
+                self.factory_initialization_state = 'failed'
+                raise
+            self.factory_initialization_state = 'returned' 
 
     def create_session(self, db, sid):
         if self.factory is None:
@@ -410,6 +431,8 @@ class FragmentHTTP:
             db.execute("UPDATE fragment_http_sessions SET state='queued',generation=generation+1 WHERE state='running'")
 
     def process_next(self, worker=None):
+        if self.factory_initialization_state != 'returned':
+            return False
         if self.factory is None or self.cleanup_error is not None or not self.processing.acquire(blocking=False):
             return False
         sid = None

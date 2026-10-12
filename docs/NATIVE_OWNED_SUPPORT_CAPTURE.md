@@ -3,8 +3,10 @@
 `--native-owned-support` enables an optional read-only bridge on the ordinary
 legacy Worker. It is OFF by default and excluded from inference configuration.
 It does not change the primary transcript, primary scheduling, model arguments,
-SQL schema, or source-control behavior. There is no lexical candidate dispatch,
-automatic winner, word alignment, speaker identity assignment, or enrollment.
+SQL schema, or source-control behavior. Capture alone does not dispatch lexical
+jobs. The separate default-OFF [MOSS jobs integration](MOSS_HANDY_JOBS.md) can
+explicitly consume one already-current selected support. Neither feature adds
+an automatic winner, word alignment, speaker identity assignment or enrollment.
 The existing optional shared Bearer token applies when configured.
 
 ## Current scope
@@ -65,7 +67,11 @@ List pages are bounded by rows and128 KiB serialized bytes; a cursor never
 silently skips an eligible result. Detail is at most16 KiB. Audio is a canonical
 PCM16 WAV (at most640,044 bytes) sent as a44-byte header and the retained
 immutable PCM, without a second full WAV buffer, resampling or temporary files.
-`lexical_dispatch_available` is always false.
+With native-support capture alone, `lexical_dispatch_available` remains false.
+Only in explicitly jobs-enabled mode does it describe whether the fixed MOSS
+feature is configured for this selected support. It does not reserve a permit,
+job slot, idempotency capacity or resources, and is not a promise that a submit
+will be accepted. All list/detail projections use the same meaning.
 
 ## Lifetime and bounds
 
@@ -80,7 +86,8 @@ unavailable and reports optional cleanup pending. Switching OFF does not hide
 previously enabled cleanup obligations.
 
 Exactly two global read leases share1.5 MiB for simultaneously live response
-buffers. List/audio reserve768 KiB and detail128 KiB before copying or retaining
+buffers, including MOSS jobs responses when explicitly enabled. Support
+list/audio reserve768 KiB and detail128 KiB before copying or retaining
 response-owned material. Leases last through outer ASGI completion, disconnect
 or send failure. Already authorized responses may finish after a later delete;
 this is not forensic memory erasure. Server/kernel transport buffers are a
@@ -93,13 +100,40 @@ do not reset per result. Files are opened as bounded regular files without
 following links or blocking on FIFOs. Slow OS operations can delay detection;
 a late result is rejected rather than represented as a hard real-time bound.
 
+## Optional internal dispatch lease
+
+Explicit MOSS submission acquires one internal immutable DispatchLease, with a
+separate maximum768 KiB charge. Its token binds the database/cache owner,
+capture epoch, session/chunk, revision, deletion generation, expiry, support and
+source identities. The lease pins the original matching immutable PCM; it
+does not expose private paths or retained proof bytes, re-decode audio or call
+the native coordinator again. Acquisition, post-reservation dispatch,
+post-cleanup publication and result/raw reads each freshly reuse the bounded
+source and change-feed authorization gate. One phase shares the existing read
+budget across all its targets.
+
+Deletion, expiry, epoch close and feature shutdown invalidate publication before
+releasing cache entries and request cancellation of an outstanding job. A
+retained pin remains charged until its owner releases it; PCM is released after
+child-input writing. No cache lock or SQLite transaction spans execution, a
+thread join or process cleanup. Direct deletion and alternate Store objects for
+the same database reach the registered owner after the unchanged primary
+deletion commit. When applicable, `moss_jobs_cleanup_pending` reports a remaining
+optional obligation without changing the never-enabled deletion response.
+
+Historical support/profile identities identify an invocation, not current
+source authorization. Stale or unavailable evidence suppresses result/raw; an
+already-authorized ASGI response may finish under its original lease. MOSS still
+accepts only a single support at most20 seconds; it does not extend long-input
+support or change primary long-recording processing.
+
 ## Next extensions
 
 The core evidence and SourceSupport contract can be reused by durable per-cell
 storage. Longer/streamed inputs require bounded multi-source mappings, each
 actual native safe-cut/core/EOF, and a paged persistent inventory. Restart
 persistence additionally requires an independently qualified physical quota,
-owner lifetime and crash-cleanup policy. Explicit Qwen and MOSS jobs can later
-consume the same support while preserving primary and both alternatives. These
-extensions are not enabled here. Focused fake-provider tests establish control
+owner lifetime and crash-cleanup policy. The explicit MOSS service entry is
+documented separately; Qwen dispatch, durable storage and longer-input support
+remain future extensions. Focused fake-provider tests establish control
 and evidence behavior only; positive real overlap needs separate qualification.

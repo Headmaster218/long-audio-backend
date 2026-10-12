@@ -31,7 +31,10 @@ MAX_PCM_BYTES = 640000
 MAX_PROOF_BYTES = 65536
 MAX_PUBLIC_BYTES = 16384
 STAGE_BYTES = MAX_PCM_BYTES + MAX_PROOF_BYTES + MAX_PUBLIC_BYTES + 2048
-READ_RESERVATIONS = {'list': 768 * 1024, 'detail': 128 * 1024, 'audio': 768 * 1024}
+READ_RESERVATIONS = {'list': 768 * 1024, 'detail': 128 * 1024, 'audio': 768 * 1024,
+    'jobs_result': 768 * 1024, 'jobs_raw': 256 * 1024, 'jobs_detail': 128 * 1024,
+    'jobs_list': 256 * 1024, 'jobs_mutation': 128 * 1024}
+MAX_DISPATCH_BYTES = 768 * 1024
 MAX_REGISTRY_OWNERS = 8
 MAX_READ_LEASES = 2
 MAX_READ_BYTES = 1536 * 1024
@@ -316,6 +319,45 @@ class ReadResult:
     status_code: int = 200
 
 
+@dataclass(frozen=True, slots=True)
+class DispatchToken:
+    owner: str
+    database_identity: tuple
+    epoch: str
+    invalidation_serial: int
+    support_id: str
+    target: _ReadTarget
+
+
+class DispatchLease:
+    """One immutable support/PCM pin, charged through positive job cleanup."""
+    def __init__(self, owner, token, support, pcm):
+        self.owner, self.token, self.support = owner, token, support
+        self.pcm = pcm
+        self.cancelled = threading.Event()
+        self.released = False
+        self._release_requested = threading.Event()
+
+    def release_pcm(self):
+        self.pcm = None
+
+    def release(self):
+        self._release_requested.set()
+        self.release_pcm()
+        if not self.owner._lock.acquire(timeout=LOCK_SECONDS):
+            self.cancelled.set()
+            self.owner._dispatch_cleanup_pending.set()
+            return False
+        try:
+            if self.owner._dispatch is self:
+                self.owner._dispatch = None
+            self.released = True
+            self.owner._dispatch_cleanup_pending.clear()
+            return True
+        finally:
+            self.owner._lock.release()
+
+
 class NativeOwnedSupportCache:
     def __init__(self, store, *, clock=time.monotonic):
         self.store = store
@@ -338,6 +380,10 @@ class NativeOwnedSupportCache:
         self._lease_count = self._lease_bytes = 0
         self._leases = []
         self._lease_cleanup_pending = threading.Event()
+        self._dispatch = None
+        self._dispatch_owner = uuid.uuid4().hex
+        self._dispatch_cleanup_pending = threading.Event()
+        self.jobs_owner = None
 
     def _enabled(self):
         return bool(getattr(self.store.settings, 'native_owned_support_enabled', False))
@@ -356,13 +402,27 @@ class NativeOwnedSupportCache:
         finally:
             self._lock.release()
 
+    def _drain_dispatch_locked(self):
+        lease = self._dispatch
+        if lease is not None and lease._release_requested.is_set():
+            lease.released = True
+            self._dispatch = None
+            self._dispatch_cleanup_pending.clear()
+
     def _expire(self):
+        self._drain_dispatch_locked()
         now = self.clock()
+        dispatch = self._dispatch
+        if dispatch is not None and (now >= dispatch.token.target.expires or not self._enabled()):
+            dispatch.cancelled.set()
         for key, entry in tuple(self._entries.items()):
             if now >= entry.expires:
                 self._remove(key)
 
     def _remove(self, key):
+        dispatch = self._dispatch
+        if dispatch is not None and key == (dispatch.token.target.sid, dispatch.token.target.cid):
+            dispatch.cancelled.set()
         entry = self._entries.pop(key)
         if entry.selected:
             self._retained -= entry.charged
@@ -743,7 +803,7 @@ class NativeOwnedSupportCache:
                   'selected': entry.selected, 'experimental': True,
                   'selection_policy_sha256': entry.policy,
                   'retention': {'kind': 'volatile', 'ttl_seconds': TTL_SECONDS},
-                  'lexical_dispatch_available': False}
+                  'lexical_dispatch_available': self._jobs_configured() and entry.selected}
         if entry.selected:
             support = json.loads(entry.support)
             result['support'] = support
@@ -817,7 +877,7 @@ class NativeOwnedSupportCache:
                     row = self._envelope(entry)
                     candidate = {'schema': 'native-owned-support-list-v1', 'capture_epoch': self.epoch,
                                  'supports': rows + [row], 'next_cursor': entry.revision,
-                                 'has_more': more, 'lexical_dispatch_available': False, 'experimental': True}
+                                 'has_more': more, 'lexical_dispatch_available': self._jobs_configured(), 'experimental': True}
                     if len(_json(candidate)) > 128 * 1024:
                         more = True
                         break
@@ -826,7 +886,7 @@ class NativeOwnedSupportCache:
                 targets = emitted
                 body = _json({'schema': 'native-owned-support-list-v1', 'capture_epoch': self.epoch,
                               'supports': rows, 'next_cursor': targets[-1].revision if targets else after,
-                              'has_more': more, 'lexical_dispatch_available': False, 'experimental': True})
+                              'has_more': more, 'lexical_dispatch_available': self._jobs_configured(), 'experimental': True})
                 media = 'application/json'
             budget.check()
             with self._gate(budget):
@@ -842,6 +902,81 @@ class NativeOwnedSupportCache:
         except BaseException:
             lease.release()
             raise
+
+    def _jobs_configured(self):
+        return (self.jobs_owner is not None and
+                bool(getattr(self.store.settings, 'moss_jobs_enabled', False)))
+
+    def reserve_jobs_response(self, kind):
+        return self._lease('jobs_' + kind, ReadBudget(self.clock))
+
+    def authorize_session(self, sid):
+        _identifier(sid)
+        budget = ReadBudget(self.clock)
+        with self._database(budget) as db:
+            self._session(db, sid, budget)
+
+    def acquire_dispatch(self, sid, cid, *, expected_capture_epoch, expected_revision, support_id):
+        from .native_lexical_alternatives import SourceSupport
+        _identifier(sid)
+        _identifier(cid)
+        if (type(expected_revision) is not int or not 0 <= expected_revision < 10**19
+                or type(support_id) is not str or _HASH.fullmatch(support_id) is None):
+            raise ReadError(409, 'invalid_source_binding')
+        budget = ReadBudget(self.clock)
+        with self._gate(budget):
+            self._expire()
+            if not self._enabled() or not self._jobs_configured():
+                raise ReadError(409, 'feature_disabled')
+            if expected_capture_epoch != self.epoch:
+                raise ReadError(409, 'capture_epoch_changed')
+            if self._dispatch is not None:
+                raise ReadError(503, 'dispatch_pin_occupied')
+            entry = self._entries.get((sid, cid))
+            if entry is None or not entry.selected:
+                raise ReadError(409, 'selected_support_unavailable')
+            if expected_revision != entry.revision:
+                raise ReadError(409, 'capture_revision_changed')
+            target = _read_target(entry)
+            support = SourceSupport.from_dict(json.loads(entry.support))
+            if (support.canonical_bytes() != entry.support or support.support_id != support_id
+                    or support.source_generation != entry.source_generation
+                    or support.start_frame != 0 or support.end_frame != entry.frames
+                    or len(entry.pcm) != 2 * entry.frames
+                    or hashlib.sha256(entry.pcm).hexdigest() != support.pcm16le_sha256
+                    or len(entry.support) + len(entry.pcm) + 4096 > MAX_DISPATCH_BYTES):
+                raise ReadError(409, 'support_binding_changed')
+            token = DispatchToken(self._dispatch_owner, self.database_identity, self.epoch,
+                                  self._invalidation_serial, support_id, target)
+            lease = DispatchLease(self, token, support, entry.pcm)
+            self._dispatch = lease
+        try:
+            self.revalidate_dispatch(token, budget=budget)
+            return lease
+        except BaseException:
+            lease.cancelled.set()
+            lease.release()
+            raise
+
+    def revalidate_dispatch(self, token, *, budget=None):
+        budget = budget or ReadBudget(self.clock)
+        target = token.target
+        if (token.owner != self._dispatch_owner or token.database_identity != self.database_identity
+                or token.epoch != self.epoch):
+            raise ReadError(409, 'dispatch_binding_changed')
+        with self._database(budget) as db:
+            self._validate_targets(db, target.sid, [target], budget)
+        with self._gate(budget):
+            self._expire()
+            if (not self._enabled() or not self._jobs_configured()
+                    or token.invalidation_serial != self._invalidation_serial
+                    or target.generation != self._generations.get(target.sid, 0)
+                    or not target.selected or not self._matches(target)
+                    or self.clock() >= target.expires
+                    or hashlib.sha256(target.support).hexdigest() != token.support_id):
+                raise ReadError(409, 'capture_invalidated')
+            budget.check()
+        return True
 
     def _matches(self, projection):
         # The temporary entry reference dies before the cache gate is released.
@@ -860,6 +995,9 @@ class NativeOwnedSupportCache:
         return self._read('audio', sid, cid, **kwargs)
 
     def invalidate(self, sid):
+        dispatch = self._dispatch
+        if dispatch is not None and dispatch.token.target.sid == sid:
+            dispatch.cancelled.set()
         try:
             with self._gate(allow_blocked=True):
                 # Global serial produces session deletion generations without unbounded tombstones.
@@ -876,7 +1014,7 @@ class NativeOwnedSupportCache:
                 # No pending/entry survives this notification; identity checks also
                 # prevent old tokens from being adopted after tombstone pruning.
                 self._generations.pop(sid, None)
-                return False
+                return bool(dispatch is not None and not dispatch.released)
         except ReadError:
             # Never report successful purge when the bytes are still charged.
             self._blocked.set()
@@ -884,6 +1022,8 @@ class NativeOwnedSupportCache:
             return True
 
     def _clear(self):
+        self._drain_dispatch_locked()
+        if self._dispatch is not None:self._dispatch.cancelled.set()
         self._entries.clear()
         self._generations.clear()
         self._pending = None
@@ -898,16 +1038,17 @@ class NativeOwnedSupportCache:
                 else:
                     self._expire()
         except ReadError:
-            return self._cleanup_pending.is_set() or self._lease_cleanup_pending.is_set()
+            return self._cleanup_pending.is_set() or self._lease_cleanup_pending.is_set() or self._dispatch is not None
         if not self._lease_lock.acquire(timeout=LOCK_SECONDS):
             return self._lease_cleanup_pending.is_set()
         try:
             self._drain_leases_locked()
         finally:
             self._lease_lock.release()
-        return False
+        return self._dispatch is not None or self._dispatch_cleanup_pending.is_set()
 
     def close(self):
+        if self._dispatch is not None:self._dispatch.cancelled.set()
         self._blocked.set()
         self._cleanup_pending.set()
         return self.drain()
@@ -936,7 +1077,7 @@ def register(store):
                 if stale._lease_lock.acquire(timeout=LOCK_SECONDS):
                     try:
                         stale._drain_leases_locked()
-                        if stale._lease_count == 0 and stale._pending is None:
+                        if stale._lease_count == 0 and stale._pending is None and stale._dispatch is None and (stale.jobs_owner is None or stale.jobs_owner.stopped):
                             _registry.pop(stale_key, None)
                     finally:
                         stale._lease_lock.release()
@@ -944,6 +1085,8 @@ def register(store):
         if old is not None and not old._blocked.is_set():
             raise ReadError(409, 'capture_owner_already_registered')
         if old is not None:
+            if old._dispatch is not None or (old.jobs_owner is not None and not old.jobs_owner.stopped):
+                raise ReadError(503, 'jobs_cleanup_pending')
             if old.drain():
                 raise ReadError(503, 'cleanup_pending')
             if not old._lease_lock.acquire(timeout=LOCK_SECONDS):
@@ -996,5 +1139,6 @@ def notify_deleted(store, sid):
         for candidate in tuple(_registry.values()):
             candidate._blocked.set()
             candidate._cleanup_pending.set()
+            if candidate._dispatch is not None:candidate._dispatch.cancelled.set()
         return True
     return cache.invalidate(sid) if cache is not None else None

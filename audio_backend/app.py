@@ -8,6 +8,7 @@ import json
 import math
 import os
 import shutil
+import sys
 import threading
 from pathlib import Path
 from typing import Annotated, Literal
@@ -20,6 +21,9 @@ from .worker import Worker
 from .resources import InstanceLock, check_resources, run_bounded, tree_rss
 from . import change_feed
 from .boundary_store import finish_stream
+from .fragment_cpu_provider import CPUFactory as _CPUFactory
+
+_CPU_INITIALIZE = _CPUFactory.initialize
 
 FORMATS='wav,flac,ogg,mp3,mov,matroska,webm,aac'
 
@@ -41,7 +45,7 @@ class _NativeSupportReadLifetime:
     """Hold bounded response buffers until the outer ASGI send has finished."""
     def __init__(self,app):self.app=app
     async def __call__(self,scope,receive,send):
-        private=scope.get('type')=='http' and '/native-owned-supports' in scope.get('path','')
+        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/moss-jobs'))
         if not private:return await self.app(scope,receive,send)
         done=threading.Event()
         scope['_native_support_read_done']=done
@@ -140,20 +144,28 @@ def probe(path,settings):
 
 def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=None):
     settings=settings or Settings()
+    from .moss_handy_jobs import ownership_fence
+    ownership_fence(settings.data_dir)  # Early diagnostic only; repeated under lock.
+    if settings.moss_jobs_enabled and fragment_provider_factory is not None:
+        raise ValueError('MOSS jobs does not support fragment provider coexistence')
     for folder in ('uploads','tmp'):
         (settings.data_dir/folder).mkdir(parents=True,exist_ok=True)
     store=Store(settings.data_dir/'jobs.sqlite3',settings)
     from .fragment_http import FragmentHTTP, is_experimental, no_identity_mutation
-    fragments=FragmentHTTP(store,settings,fragment_provider_factory)
+    fragments=FragmentHTTP(store,settings,fragment_provider_factory,defer_factory_initialization=True)
     change_feed.initialize(store)
     worker=Worker(store,settings,analyzer_factory)
     lock=InstanceLock(settings.data_dir/'instance.lock')
     upload_lock=threading.Lock()
+    jobs=None
 
     @asynccontextmanager
     async def lifespan(app):
+        nonlocal jobs
         lock.acquire()
         try:
+            ownership_fence(settings.data_dir)
+            fragments.initialize_factory_once()
             if settings.native_owned_support_enabled:
                 try:
                     from .native_owned_support_cache import register
@@ -161,6 +173,19 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 except Exception:
                     # Optional capture has no authority to reject primary startup.
                     worker.native_owned_support_cache=None
+            if settings.moss_jobs_enabled:
+                from .native_execution_permit import NativeExecutionPermit
+                from .moss_handy_jobs import MossJobs
+                if worker.native_owned_support_cache is None:
+                    raise RuntimeError('MOSS jobs requires native support owner')
+                permit=NativeExecutionPermit(settings)
+                permit._configuration_current=lambda: (fragments.factory is None
+                    and settings.moss_jobs_enabled and settings.native_owned_support_enabled
+                    and settings.diarization_backend=='nemotron' and settings.inference_device=='cpu'
+                    and settings.overlap_backend=='none' and settings.start_worker)
+                settings._native_execution_permit=permit
+                jobs=MossJobs(store,worker.native_owned_support_cache,permit)
+                app.state.moss_jobs=jobs
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
             from .lifecycle import cleanup_pending
@@ -183,22 +208,35 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if settings.start_worker: worker.start()
             yield
         finally:
+            unwinding=sys.exc_info()[0] is not None
+            if jobs is not None:jobs.close_admission()
             if worker.native_owned_support_cache is not None:
                 try:worker.native_owned_support_cache.close()
                 except Exception:pass
             stopped=worker.stop()
-            if stopped and fragments.cleanup_error is None:
+            jobs_stopped=jobs is None or jobs.stop()
+            initializer_safe=fragments.factory_initialization_state!='failed'
+            if not initializer_safe:
+                factory=fragments.factory
+                initializer_safe=(type(factory) is _CPUFactory and 'initialize' not in vars(factory)
+                    and getattr(factory.initialize,'__self__',None) is factory
+                    and getattr(factory.initialize,'__func__',None) is _CPU_INITIALIZE)
+            if stopped and jobs_stopped and fragments.cleanup_error is None and initializer_safe:
+                if jobs is not None and getattr(settings,'_native_execution_permit',None) is jobs.permit:
+                    del settings._native_execution_permit
                 lock.release()
             else:
                 # Keep the live instance lock referenced while ownership is
                 # unresolved. A subsequent process also sees the durable fence.
                 app.state.shutdown_blocked=True
-                raise RuntimeError('Shutdown blocked: provider cleanup is unresolved')
+                if not unwinding:
+                    raise RuntimeError('Shutdown blocked: provider cleanup is unresolved')
 
     from . import __version__
     app=FastAPI(title='Local incremental audio analysis',version=__version__,lifespan=lifespan)
     app.state.store=store; app.state.worker=worker; app.state.settings=settings; app.state.fragments=fragments
     app.state.instance_lock=lock
+    app.state.moss_jobs=None
 
     @app.middleware('http')
     async def auth(request,call_next):
@@ -228,7 +266,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         if settings.overlap_backend!='none':
             from .overlap_candidates import overlap_readiness
             readiness=overlap_readiness(settings.inference_config())
-        return {'status':'blocked' if fragments.cleanup_error else 'ok',
+        return {'status':'blocked' if fragments.cleanup_error or (jobs is not None and jobs.health()['cleanup_pending']) else 'ok',
+                **({'moss_jobs':jobs.health()} if jobs is not None else {}),
                 'fragment_cleanup_pending':fragments.cleanup_error,
                 'worker_alive':worker.thread.is_alive(),'active_chunk':worker.current_chunk,
                 'process_tree_rss_bytes':tree_rss(),'memory_budget_bytes':settings.process_memory_limit_bytes,
@@ -555,6 +594,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         result=store.delete_session(sid)
         return {**result,'note':('Source cleanup is pending; retry this DELETE or restart after resolving file access.' if result['cleanup_pending'] else 'Application deletion is not forensic secure erasure; protect disk and backups.')}
     # Added last so this lifetime gate encloses the auth/streaming middleware.
+    from .moss_handy_http import register_routes
+    register_routes(app, lambda:jobs, _assign_native_read_lease)
     app.add_middleware(_NativeSupportReadLifetime)
     return app
 

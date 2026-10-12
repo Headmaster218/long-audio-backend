@@ -345,13 +345,39 @@ class CaptureAndReadTests(CacheFixture):
     def test_fifo_and_symlink_source_replacements_reject_without_read(self):
         chunk, _, _, _ = self.capture()
         path = Path(chunk['path'])
-        target = self.root / 'elsewhere'
-        path.rename(target)
-        path.symlink_to(target)
-        self.failure('source_changed', self.cache.read_detail, 'session', chunk['id'], status=409)
-        path.unlink()
-        os.mkfifo(path)
-        self.failure('source_changed', self.cache.read_detail, 'session', chunk['id'], status=409)
+        original = path.read_bytes()
+        observations = []
+        evidence = self.root / 'mocked-source-types.json'
+        # Mocked metadata coverage: retain the ordinary source; never leave a
+        # FIFO or symlink in the retained test root. Only this module's os
+        # binding changes, so unrelated filesystem operations remain real.
+        def source_open(candidate, *args, **kwargs):
+            if os.fspath(candidate) == str(path):
+                self.fail('nonregular source must be rejected before open')
+            return os.open(candidate, *args, **kwargs)
+
+        for kind, mode in (('symlink', mod.stat.S_IFLNK | 0o777),
+                           ('fifo', mod.stat.S_IFIFO | 0o600)):
+            observation = {'kind': kind, 'st_mode': mode, 'lstat_calls': 0}
+            observations.append(observation)
+
+            def source_lstat(candidate, *args, **kwargs):
+                if os.fspath(candidate) == str(path):
+                    observation['lstat_calls'] += 1
+                    return SimpleNamespace(st_mode=mode)
+                return os.lstat(candidate, *args, **kwargs)
+
+            scoped_os = SimpleNamespace(**dict(vars(os), lstat=source_lstat,
+                                               open=source_open))
+            try:
+                with patch.object(mod, 'os', scoped_os):
+                    self.failure('source_changed', self.cache.read_detail,
+                                 'session', chunk['id'], status=409)
+                self.assertEqual(1, observation['lstat_calls'])
+            finally:
+                evidence.write_text(json.dumps({'coverage': 'mocked_source_types',
+                                                'observations': observations}, sort_keys=True))
+        self.assertEqual(original, path.read_bytes())
 
     def test_missing_and_deleted_primary_entities_are_404(self):
         chunk, _, _, _ = self.capture()
@@ -551,10 +577,43 @@ class CapacityAndLifetimeTests(CacheFixture):
     def test_registry_aliases_restart_and_old_epoch(self):
         first = mod.register(self.store)
         alias = self.root / 'alias.sqlite'
-        alias.symlink_to(self.path)
-        self.assertIs(first, mod.lookup(SimpleNamespace(path=alias)))
-        os.link(self.path, self.root / 'hard.sqlite')
-        self.assertIs(first, mod.lookup(SimpleNamespace(path=self.root / 'hard.sqlite')))
+        hard = self.root / 'hard.sqlite'
+        canonical = self.path.resolve()
+        original_stat = os.stat(canonical)
+        observations = {'alias_resolves': 0, 'hardlink_stats': 0}
+        evidence = self.root / 'mocked-registry-aliases.json'
+        # Positive alias-identity coverage uses scoped resolve/stat metadata.
+        # No actual symlink or hardlink is created in the retained fixture.
+        def alias_path(candidate):
+            observed = Path(candidate)
+            if observed == alias:
+                def resolve():
+                    observations['alias_resolves'] += 1
+                    return canonical
+                return SimpleNamespace(resolve=resolve)
+            return observed
+
+        def alias_stat(candidate, *args, **kwargs):
+            if os.fspath(candidate) == str(hard):
+                observations['hardlink_stats'] += 1
+                return original_stat
+            return os.stat(candidate, *args, **kwargs)
+
+        scoped_os = SimpleNamespace(**dict(vars(os), stat=alias_stat))
+        try:
+            with patch.object(mod, 'Path', alias_path), patch.object(mod, 'os', scoped_os):
+                self.assertIs(first, mod.lookup(SimpleNamespace(path=alias)))
+                self.assertIs(first, mod.lookup(SimpleNamespace(path=hard)))
+            self.assertEqual(2, observations['alias_resolves'])
+            self.assertEqual(1, observations['hardlink_stats'])
+        finally:
+            evidence.write_text(json.dumps({
+                'coverage': 'mocked_positive_alias_identity',
+                'injected_identity': {'st_dev': original_stat.st_dev,
+                                      'st_ino': original_stat.st_ino},
+                'observations': observations}, sort_keys=True))
+        self.assertFalse(alias.exists())
+        self.assertFalse(hard.exists())
         with self.assertRaises(mod.ReadError):
             mod.register(self.store)
         first.close()
@@ -673,3 +732,72 @@ class BudgetAndPaginationTests(CacheFixture):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DispatchLeaseTests(CacheFixture):
+    def setUp(self):
+        from test_moss_handy_profile import retained_directory
+        retained=SimpleNamespace(name=str(retained_directory('dispatch-fixture')),cleanup=lambda:None)
+        with patch.object(tempfile,'TemporaryDirectory',return_value=retained):super().setUp()
+    def enabled(self):
+        self.store.settings.moss_jobs_enabled = True
+        self.cache.jobs_owner = SimpleNamespace(stopped=False)
+    def acquire(self, chunk, artifact):
+        return self.cache.acquire_dispatch(chunk['session_id'],chunk['id'],
+            expected_capture_epoch=self.cache.epoch,
+            expected_revision=self.cache._entries[(chunk['session_id'],chunk['id'])].revision,
+            support_id=artifact.support.support_id)
+    def test_dispatch_pins_exact_immutable_selected_support_and_pcm_once(self):
+        self.enabled();chunk,pcm,_,artifact=self.capture()
+        lease=self.acquire(chunk,artifact)
+        self.assertIs(lease.pcm,self.cache._entries[('session',chunk['id'])].pcm)
+        self.assertEqual(lease.support.canonical_bytes(),artifact.support.canonical_bytes())
+        with self.assertRaises(mod.ReadError):self.acquire(chunk,artifact)
+        self.cache.revalidate_dispatch(lease.token)
+        lease.release_pcm();self.assertIsNone(lease.pcm);self.assertIs(self.cache._dispatch,lease)
+        self.assertTrue(lease.release());self.assertTrue(lease.release());self.assertIsNone(self.cache._dispatch)
+    def test_dispatch_invalidation_sets_event_before_pcm_purge_and_charges_pin(self):
+        self.enabled();chunk,pcm,_,artifact=self.capture();lease=self.acquire(chunk,artifact)
+        self.assertTrue(self.cache.invalidate('session'))
+        self.assertTrue(lease.cancelled.is_set());self.assertIs(lease.pcm,pcm)
+        self.assertIs(self.cache._dispatch,lease);self.assertEqual(self.cache._retained,0)
+        with self.assertRaises(mod.ReadError):self.cache.revalidate_dispatch(lease.token)
+        lease.release()
+    def test_dispatch_fresh_source_gate_before_dispatch_after_cleanup_and_read(self):
+        self.enabled();chunk,_,_,artifact=self.capture();lease=self.acquire(chunk,artifact)
+        for change in ('pause','trigger','source'):
+            with self.subTest(change=change):
+                if change=='pause':
+                    self.db.execute("UPDATE chunks SET status='paused' WHERE id=?",(chunk['id'],));self.db.commit()
+                elif change=='trigger':self.db.execute('DROP TRIGGER feed_chunks_update');self.db.commit()
+                else:Path(chunk['path']).write_bytes(b'changed')
+                with self.assertRaises(mod.ReadError):self.cache.revalidate_dispatch(lease.token)
+        lease.release()
+    def test_dispatch_epoch_revision_and_selected_are_exact(self):
+        self.enabled();chunk,_,_,artifact=self.capture()
+        for field,value in (('expected_capture_epoch','0'*32),('expected_revision',True),('support_id','0'*64)):
+            args={'expected_capture_epoch':self.cache.epoch,'expected_revision':1,'support_id':artifact.support.support_id}
+            args[field]=value
+            with self.subTest(field=field),self.assertRaises(mod.ReadError):self.cache.acquire_dispatch('session',chunk['id'],**args)
+        self.assertIsNone(self.cache._dispatch)
+    def test_jobs_support_response_pool_is_one_shared_two_lease_pool(self):
+        self.enabled();chunk,_,_,_=self.capture()
+        audio=self.cache.read_audio('session',chunk['id'])
+        result=self.cache.reserve_jobs_response('result')
+        self.assertEqual(self.cache._lease_bytes,1536*1024)
+        with self.assertRaises(mod.ReadError):self.cache.reserve_jobs_response('raw')
+        audio.lease.release();result.release()
+        self.assertEqual(self.cache._lease_bytes,0)
+    def test_lexical_dispatch_shape_changes_only_when_jobs_configured(self):
+        chunk,_,_,_=self.capture()
+        old=self.cache.read_detail('session',chunk['id']);self.assertFalse(json.loads(old.body)['lexical_dispatch_available']);old.lease.release()
+        self.enabled()
+        detail=self.cache.read_detail('session',chunk['id']);self.assertTrue(json.loads(detail.body)['lexical_dispatch_available']);detail.lease.release()
+        page=self.cache.read_list('session');self.assertTrue(json.loads(page.body)['lexical_dispatch_available']);page.lease.release()
+    def test_dispatch_expiry_and_feature_off_invalidate_before_release(self):
+        for off in (False,True):
+            self.enabled();chunk,_,_,artifact=self.capture(sid='off' if off else 'expired');lease=self.acquire(chunk,artifact)
+            if off:self.store.settings.native_owned_support_enabled=False
+            else:self.clock.now+=901
+            self.cache.drain();self.assertTrue(lease.cancelled.is_set());self.assertIs(self.cache._dispatch,lease)
+            lease.release();self.store.settings.native_owned_support_enabled=True

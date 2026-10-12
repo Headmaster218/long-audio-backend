@@ -70,6 +70,8 @@ class Settings:
     verified_identity_policy: dict | None = field(default=None,init=False,repr=False)
     speaker_support_enabled: bool = False
     native_owned_support_enabled: bool = False
+    moss_jobs_enabled: bool = False
+    moss_jobs_model_path: str | None = None
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
     speaker_support_total_pcm_bytes: int = 64 * 1024**2
@@ -82,6 +84,17 @@ class Settings:
     def __post_init__(self):
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
+        if type(self.moss_jobs_enabled) is not bool:
+            raise ValueError('moss_jobs_enabled must be boolean')
+        if self.moss_jobs_model_path is not None and not self.moss_jobs_enabled:
+            raise ValueError('MOSS jobs model requires explicit enablement')
+        if self.moss_jobs_enabled:
+            if (not self.native_owned_support_enabled or self.diarization_backend != 'nemotron'
+                    or self.inference_device != 'cpu' or self.overlap_backend != 'none' or not self.start_worker):
+                raise ValueError('MOSS jobs requires legacy native support, CPU, overlap none and Worker startup')
+            if (type(self.moss_jobs_model_path) is not str or len(self.moss_jobs_model_path.encode('utf-8')) > 4096
+                    or not Path(self.moss_jobs_model_path).is_absolute()):
+                raise ValueError('MOSS jobs requires an explicit absolute local model path')
         if self.verified_identity_policy_file is not None:
             from .verified_identity import policy_file
             self.verified_identity_policy=policy_file(self.verified_identity_policy_file)

@@ -366,3 +366,34 @@ class ProcessWiringTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ServiceGateTests(unittest.TestCase):
+    make = ControllerTests.make
+    def test_service_preflight_failure_still_cleans_original_owner(self):
+        owner,jid,drivers=self.make()
+        class Gate:
+            def check(self,phase):raise RuntimeError('aggregate_unavailable')
+            def cleaning(self):pass
+        owner._service_gate=Gate()
+        status=owner.run(jid)
+        self.assertEqual(status['state'],'failed');self.assertEqual(drivers,[])
+        self.assertTrue(status['cleanup']['cleanup_verified']);self.assertFalse((owner.directory/'owner.json').exists())
+    def test_service_input_release_precedes_driver_and_pre_spawn_check(self):
+        owner,jid,drivers=self.make();events=[]
+        class Gate:
+            def check(self,phase):events.append(phase)
+            def inputs_written(self):
+                self_outer.assertIsNone(owner._job['pcm']);events.append('released')
+            def cleaning(self):events.append('cleaning')
+        self_outer=self;owner._service_gate=Gate();status=owner.run(jid)
+        self.assertEqual(events[:3],['before_input','released','before_spawn'])
+        self.assertEqual(status['state'],'returned_diagnostic');self.assertEqual(drivers[0].starts,1)
+    def test_cleanup_callback_failure_cannot_bypass_positive_cleanup(self):
+        owner,jid,drivers=self.make()
+        class Gate:
+            def check(self,phase):pass
+            def inputs_written(self):pass
+            def cleaning(self):raise RuntimeError('diagnostic unavailable')
+        owner._service_gate=Gate();status=owner.run(jid)
+        self.assertTrue(status['cleanup']['cleanup_verified']);self.assertEqual(drivers[0].cleanups,1)
