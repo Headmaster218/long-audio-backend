@@ -1,0 +1,133 @@
+"""Two-stage closed adapter; every process ownership method remains inherited."""
+import argparse
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import stat
+
+HERE = Path(__file__).resolve().parent
+WORKSPACE = HERE.parent
+OLD = WORKSPACE/'reconstruction-rc3-dev3-real-prep'
+GUARD = OLD/'guard/acquisition_guard.py'
+GUARD_SHA = '3934eb162fc61ba06f4c9e740016e0da04f7eba62e41d5d5e77bbc399971b305'
+BASE = OLD/'acquisition/continuation/model_runtime.timeout30.spec.json'
+BASE_SHA = '12bcf30b77f693f35925bb0d3ec18e5ef61d3a61e64f7db7ce75ff821753256b'
+PYTHON = '__LOCAL_PINNED_PYTHON_EXECUTABLE__'
+PYTHON_SHA = 'fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7'
+OLD_STAGES = {'synthetic': 300, 'model_runtime': 600, 'corpus': 1800, 'wheels_env': 600}
+STAGES = {'synthetic': (300, 240, 'test_acquisition.py', 'synthetic.spec.json'),
+          'qwen17_acquire': (5400, 5340, 'prepare.py', 'acquisition.spec.json')}
+LOCAL = ('launch.py', 'prepare.py', 'test_acquisition.py', 'ASSETS.json', 'REUSE.json',
+         'GEOMETRY.json', 'FIXTURES.json', 'IMPLEMENTATION_INVENTORY.md', 'DESIGN_FREEZE.json', 'STAGED_ADDENDUM.md')
+OLD_FILES = ('guard/acquisition_guard.py', 'acquisition/acquire.py',
+             'acquisition/remaining-native/remaining.py',
+             'acquisition/remaining-native/SYNTHETIC_TERMINAL_QUALIFICATION.json',
+             'acquisition/header-diagnostic/OFFICIAL_CDN_PROVENANCE.json',
+             'acquisition/continuation/model_runtime.timeout30.spec.json')
+OWNERSHIP = ('remember', 'census', 'sample', 'verify_pin', 'dispatch', 'signal_owned', 'reap', 'cleanup', 'run_command')
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    value = importlib.util.module_from_spec(spec); spec.loader.exec_module(value)
+    return value
+
+
+def load_guard():
+    s = GUARD.lstat()
+    if not stat.S_ISREG(s.st_mode) or s.st_size != 32648 or hashlib.sha256(GUARD.read_bytes()).hexdigest() != GUARD_SHA:
+        raise RuntimeError()
+    return module('qwen17_immutable_guard', GUARD)
+
+
+def extend(g):
+    expected = {'CHECKS': OLD, 'WORKSPACE': WORKSPACE, 'HERE': OLD/'guard',
+                'MAX_DISK': 7*2**30, 'MAX_RSS': 256*2**20, 'MAX_AS': 2**30,
+                'CLEANUP_RESERVE': 60, 'ORDINARY_FREE_FLOOR': 11*2**29,
+                'OLD_UNKNOWN_DISK': 320*2**20, 'MIN_AVAILABLE': 2952790016,
+                'MIN_FREE': 11*2**29+320*2**20, 'POLL': .05}
+    g.require(all(getattr(g, k) == v for k, v in expected.items()) and
+              g.STAGES == OLD_STAGES and g.ABSOLUTE_END == g.START+300 and
+              Path(g.__file__) == GUARD, 'exact_old_guard_constants')
+    g.CHECKS = HERE
+    g.MAX_DISK = 9*2**30
+    g.STAGES = {**OLD_STAGES, 'qwen17_acquire': 5400}
+
+
+def validate(g, value, path):
+    fields = {'schema', 'stage', 'absolute_seconds', 'work_seconds', 'address_space_cap_bytes',
+              'rss_cap_bytes', 'scratch_cap_bytes', 'argv', 'cwd', 'guard_sha256', 'external_files'}
+    g.require(type(value) is dict and set(value) == fields and value['schema'] == 2, 'closed_spec_fields')
+    g.require(value['stage'] in STAGES, 'closed_stage')
+    absolute, work, entry, name = STAGES[value['stage']]
+    g.require(path == HERE/name and type(value['absolute_seconds']) is int and
+              value['absolute_seconds'] == absolute and type(value['work_seconds']) is int and
+              value['work_seconds'] == work, 'closed_phase_clock')
+    g.require(value['address_space_cap_bytes'] == 2**30 and value['rss_cap_bytes'] == 256*2**20 and
+              value['scratch_cap_bytes'] == 9*2**30 and value['guard_sha256'] == GUARD_SHA, 'closed_caps')
+    g.require(value['argv'] == [PYTHON, '-I', '-B', '-S', str(HERE/entry)] and value['cwd'] == str(HERE), 'closed_entry')
+    required = {str(HERE/x) for x in LOCAL} | {str(OLD/x) for x in OLD_FILES}
+    pins = value['external_files']
+    g.require(type(pins) is dict and set(pins) == required and all(type(v) is str and len(v) == 64 for v in pins.values()),
+              'closed_external_membership')
+    return absolute
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--spec', type=Path, required=True)
+    parser.add_argument('--spec-sha256', required=True)
+    args = parser.parse_args()
+    g = load_guard()
+    original = {name: getattr(g.Guard, name) for name in OWNERSHIP}
+    raw = g.read_regular(args.spec, 16384, g.ABSOLUTE_END)
+    g.require(hashlib.sha256(raw).hexdigest() == args.spec_sha256, 'spec_pin')
+    value = json.loads(raw)
+    seconds = validate(g, value, args.spec.absolute())
+    for name, expected in value['external_files'].items():
+        path = Path(name)
+        g.require(path.resolve() == path and path.is_relative_to(WORKSPACE) and
+                  g.digest(path, g.ABSOLUTE_END) == expected, 'preimport_external_pin')
+    base_raw = g.read_regular(BASE, 65536, g.ABSOLUTE_END)
+    g.require(hashlib.sha256(base_raw).hexdigest() == BASE_SHA, 'base_spec_pin')
+    base = json.loads(base_raw)
+    extend(g)
+    g.ABSOLUTE_END = g.START + seconds
+    worker = module('qwen17_sanitizer', HERE/'prepare.py')
+    h, a = worker.load_helpers(lambda: g.clock_check(g.ABSOLUTE_END))
+    original_write = g.write_json
+    written = set()
+    def bounded_write(path, data):
+        path = Path(path)
+        g.require(path.name in ('index.json', 'receipt.json') and path not in written, 'fixed_guard_receipts')
+        h.bounded_json_size(data, 8192 if path.name == 'index.json' else 32768,
+                            lambda: g.clock_check(g.ABSOLUTE_END))
+        written.add(path)
+        return original_write(path, data)
+    g.write_json = bounded_write
+    class ClosedGuard(g.Guard):
+        def __init__(self, config, sha):
+            expanded = dict(config)
+            expanded.update({k: base[k] for k in ('source_root', 'source_files', 'runtime_files')})
+            g.require(expanded['runtime_files'] == {PYTHON: PYTHON_SHA}, 'exact_interpreter')
+            super().__init__(expanded, sha)
+            self.receipt['qwen17_adapter'] = {'root': str(HERE), 'aggregate_cap_bytes': 9*2**30,
+                'component_cap_bytes': 2*2**30, 'ownership_helpers': 'unchanged inherited methods',
+                'model_calls': 0, 'installs': 0, 'guard_source_sha256': GUARD_SHA}
+        def note_error(self, error):
+            item = a.failure_summary(error)
+            if len(self.receipt['errors']) < 16 and item not in self.receipt['errors']:
+                self.receipt['errors'].append(item)
+    g.require(all(getattr(ClosedGuard, name) is method for name, method in original.items()), 'ownership_method_changed')
+    g.Guard = ClosedGuard
+    return g.main()
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception:
+        print(json.dumps({'status': 'REFUSED_BEFORE_DISPATCH', 'failure': {'error_type': 'AdapterRefused'}}))
+        raise SystemExit(2) from None

@@ -1,0 +1,270 @@
+{
+  "additional_record_files": 2,
+  "artifacts": [
+    {
+      "bytes": 1517290464,
+      "destination": "models/Qwen3-ASR-1.7B-Q5_K_M.gguf",
+      "filename": "Qwen3-ASR-1.7B-Q5_K_M.gguf",
+      "id": "qwen17-q5-k-m",
+      "license": "apache-2.0",
+      "model_id": "handy-computer/Qwen3-ASR-1.7B-gguf",
+      "provenance": "Named third-party Handy GGUF conversion; exact bytes/hash from reviewed immutable product profile; fresh pinned API metadata retrieval unavailable.",
+      "revision": "3555bd238a8572bbace3ebf60d23b036dc0a5dbe",
+      "sha256": "034c557fe92ff8fcd9a9c041cbdaad347be0a86a58d3a348f63cf3f0180879d0",
+      "url": "https://huggingface.co/handy-computer/Qwen3-ASR-1.7B-gguf/resolve/3555bd238a8572bbace3ebf60d23b036dc0a5dbe/Qwen3-ASR-1.7B-Q5_K_M.gguf"
+    },
+    {
+      "bytes": 34910,
+      "destination": "wheels/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "filename": "transcribe_cpp-0.2.3-py3-none-any.whl",
+      "id": "transcribe-cpp",
+      "installed_files": [
+        {
+          "bytes": 60935,
+          "name": "transcribe_cpp/__init__.py",
+          "sha256": "942e91c16a8a0d49e714acdcb7d00a603922c5e5ed903a01ab57bde5365008b5"
+        },
+        {
+          "bytes": 3236,
+          "name": "transcribe_cpp/_abi.py",
+          "sha256": "8f98f6015353b6851d5b6003fe3a57925ee9b1a393ca488552d945254d03c8b0"
+        },
+        {
+          "bytes": 28388,
+          "name": "transcribe_cpp/_generated.py",
+          "sha256": "25b11ee65cc455bd3e400e79216f72dd09020fe70b530f2ce85018559800dd67"
+        },
+        {
+          "bytes": 15629,
+          "name": "transcribe_cpp/_library.py",
+          "sha256": "cce7021c4cd3c2a27fdf9625646d2e0db9ac2f6442a8ac5722f97a94d1d3e7b1"
+        },
+        {
+          "bytes": 5071,
+          "name": "transcribe_cpp/errors.py",
+          "sha256": "3400bdee2748de411543896fe1ac94e266acaea297472bb017d47b01e82cf436"
+        },
+        {
+          "bytes": 0,
+          "name": "transcribe_cpp/py.typed",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 5574,
+          "name": "transcribe_cpp-0.2.3.dist-info/METADATA",
+          "sha256": "c194ceedbf44784d65471816d9671ddcb20e2078ad2fd553e590db68ae484f0f"
+        },
+        {
+          "bytes": 87,
+          "name": "transcribe_cpp-0.2.3.dist-info/WHEEL",
+          "sha256": "ccec20e2307acd7da453dd7437e70c6b08e2bc3ead3bc3445af135da37b56d59"
+        },
+        {
+          "bytes": 1083,
+          "name": "transcribe_cpp-0.2.3.dist-info/licenses/LICENSE",
+          "sha256": "86a53633b56f6b029d3cb42158bcc7aac0cdff898aceb13e83b93e368bbc4ac6"
+        }
+      ],
+      "license": "MIT",
+      "package": "transcribe-cpp",
+      "platform": "any",
+      "record_name": "transcribe_cpp-0.2.3.dist-info/RECORD",
+      "sha256": "be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03",
+      "url": "https://files.pythonhosted.org/packages/c6/39/832282b7d27e29ee48f2c89c243b431078dfc235ca48b59b35c74431ce55/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "version": "0.2.3"
+    },
+    {
+      "bytes": 24329742,
+      "destination": "wheels/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "filename": "transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "id": "transcribe-cpp-native",
+      "installed_files": [
+        {
+          "bytes": 1255,
+          "name": "transcribe_cpp_native/__init__.py",
+          "sha256": "e0ec8804f2121a17a55b4c9dc8ae9b2b07eaa51534e989f8e86a7f0e5db7506d"
+        },
+        {
+          "bytes": 617,
+          "name": "transcribe_cpp_native/_contract.py",
+          "sha256": "b88b71ebff264c23806bce01d3baabe64b82989a27fc11ac2a79a8a3e50a8185"
+        },
+        {
+          "bytes": 119,
+          "name": "transcribe_cpp_native/_native/contract.json",
+          "sha256": "04dd2ed470e4358453489d256c1776a36a0a8914236a28a7663a1c9967422038"
+        },
+        {
+          "bytes": 784032,
+          "name": "transcribe_cpp_native/_native/libggml-base.so",
+          "sha256": "1650a130b0830efad09f17e07703b0ca63647c9853a53b6a63f03e65f0885839"
+        },
+        {
+          "bytes": 1032168,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-alderlake.so",
+          "sha256": "cec141ac487100b693e1dfa10fb13b7ca2ff9599e3ed99b23b252289fd7cb26a"
+        },
+        {
+          "bytes": 1269736,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-cannonlake.so",
+          "sha256": "adedb40f7b251daa876f6d1c0271c80f6c84ad92af39e1f0cc52d60b75aced33"
+        },
+        {
+          "bytes": 1269736,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-cascadelake.so",
+          "sha256": "429d590167745aa2248aeed59e4978e05dc09a76e07a95cdee23f66afbc98fff"
+        },
+        {
+          "bytes": 1265640,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-cooperlake.so",
+          "sha256": "78682af9c142a5660f98d8dd0b82710821be8db6c54c5025f6728ed509d2ce36"
+        },
+        {
+          "bytes": 1036264,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-haswell.so",
+          "sha256": "7b635317db7402728b6cc81dc9816bfdc41d2cd788bda64d0f83a9aa40a34a9f"
+        },
+        {
+          "bytes": 1269736,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-icelake.so",
+          "sha256": "6377f56ecefeb5786ab1a32a307f5ccc9e038c2a2e300c9c50ce5d0583865e3c"
+        },
+        {
+          "bytes": 974824,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-ivybridge.so",
+          "sha256": "694dec97f849b17767d50b89841ed403a507676a1b7d00a2339da28f41a7f503"
+        },
+        {
+          "bytes": 970728,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-piledriver.so",
+          "sha256": "5687550cb31590dcead193e17c7671a050f9981d615c795d8b0a1d838baf14a6"
+        },
+        {
+          "bytes": 966632,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-sandybridge.so",
+          "sha256": "914bc0e865994a34c5865a6db0b5345031df2d22de8c45cf8cba01d0bfee3bf1"
+        },
+        {
+          "bytes": 1548472,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-sapphirerapids.so",
+          "sha256": "518359f1f5f1848b570d8d8e3344ead13ecec8033ff96d31367ea7ba63ffed0b"
+        },
+        {
+          "bytes": 1269736,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-skylakex.so",
+          "sha256": "37ea02765de8c7e1acd7ad00c0b33e8a473f227cdc26ead35714948bbaab9c7e"
+        },
+        {
+          "bytes": 815080,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-sse42.so",
+          "sha256": "0cdcd014086b09bab39445f744178e5d3400f961ffc967a18b03853fad519db4"
+        },
+        {
+          "bytes": 782312,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-x64.so",
+          "sha256": "b4a13ec240b8f5922ae8ebf45403f27bcc85cedb2faf0eb30c10e77c89f09fd5"
+        },
+        {
+          "bytes": 1265640,
+          "name": "transcribe_cpp_native/_native/libggml-cpu-zen4.so",
+          "sha256": "622da1b883eae36bc0dad67d2075db70c39d9d10f2b7abb245fa201017bb0004"
+        },
+        {
+          "bytes": 52993320,
+          "name": "transcribe_cpp_native/_native/libggml-vulkan.so",
+          "sha256": "af01d4fbff57ac32b421ec8a52ca42182273259c9bf6106785ae59693c3601b7"
+        },
+        {
+          "bytes": 220768,
+          "name": "transcribe_cpp_native/_native/libggml.so",
+          "sha256": "c591a99ff28f15367fa93b0defe971fe99aaf3b10c2d7d78d58e40cdac515f51"
+        },
+        {
+          "bytes": 2118384,
+          "name": "transcribe_cpp_native/_native/libtranscribe.so",
+          "sha256": "f2f4e1537f1a85b59106629a5f1cd69776914866fca576e6dc25ca4bb7e35d68"
+        },
+        {
+          "bytes": 2308,
+          "name": "transcribe_cpp_native-0.2.3.dist-info/METADATA",
+          "sha256": "edb01c2978b8413a148b8d2d6c2bd5bc1e1191da929e58f66bfb4f56533c1169"
+        },
+        {
+          "bytes": 150,
+          "name": "transcribe_cpp_native-0.2.3.dist-info/WHEEL",
+          "sha256": "9f86703ef01c4437a0410c1589a8377b16b072265a58e241ca96b3fe2641ff9c"
+        },
+        {
+          "bytes": 68,
+          "name": "transcribe_cpp_native-0.2.3.dist-info/entry_points.txt",
+          "sha256": "42d2822fe3ea346731e4e88bc9675843d0adc7b37e4b273eac3e6424e8ab0198"
+        },
+        {
+          "bytes": 1083,
+          "name": "transcribe_cpp_native-0.2.3.dist-info/licenses/LICENSE",
+          "sha256": "86a53633b56f6b029d3cb42158bcc7aac0cdff898aceb13e83b93e368bbc4ac6"
+        },
+        {
+          "bytes": 1078,
+          "name": "transcribe_cpp_native-0.2.3.dist-info/licenses/ggml/LICENSE",
+          "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+        },
+        {
+          "bytes": 1162,
+          "name": "transcribe_cpp_native-0.2.3.dist-info/licenses/src/third_party/miniz/LICENSE",
+          "sha256": "6f20fa7672b00e2e975c291df737cf227addf3ad32e36fef3fe0f416e4664d3d"
+        }
+      ],
+      "license": "MIT",
+      "package": "transcribe-cpp-native",
+      "platform": "linux-x86_64",
+      "record_name": "transcribe_cpp_native-0.2.3.dist-info/RECORD",
+      "sha256": "8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece",
+      "url": "https://files.pythonhosted.org/packages/cb/c9/6955026364f22db0c278629dd51478e03bc896dedba8ea04965b3c9833cd/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "0.2.3"
+    }
+  ],
+  "download_bytes_exact": 1541655116,
+  "downloads_authorized_now": false,
+  "expected_total_wheel_files": 38,
+  "extras": [],
+  "known_installed_payload_bytes_exact": 71981051,
+  "known_payload_files": 36,
+  "mandatory_dependency": "transcribe-cpp-native==0.2.3.*",
+  "metadata_sources": [
+    {
+      "observed": "Exact wrapper URL, 34910 B, wheel SHA, requires_dist, MIT and Python >=3.9 confirmed by official PyPI JSON.",
+      "url": "https://pypi.org/pypi/transcribe-cpp/0.2.3/json"
+    },
+    {
+      "observed": "Exact Linux x86_64 filename/URL/SHA, MIT and publishing commit confirmed by official PyPI project release page; exact byte size 24329742 retained from the reviewed product manifest; JSON endpoint failed in web reader.",
+      "url": "https://pypi.org/project/transcribe-cpp-native/0.2.3/"
+    },
+    {
+      "observed": "Official tree displays full revision in commit link, exact Q5_K_M filename, rounded 1.52 GB and Apache-2.0.",
+      "url": "https://huggingface.co/handy-computer/Qwen3-ASR-1.7B-gguf/tree/main"
+    },
+    {
+      "observed": "Official card confirms third-party conversion, base model Qwen/Qwen3-ASR-1.7B and inherited Apache-2.0.",
+      "url": "https://huggingface.co/handy-computer/Qwen3-ASR-1.7B-gguf/blob/main/README.md"
+    },
+    {
+      "observed": "Unavailable in permitted web reader during this preparation; not a new independent exact-size/hash check.",
+      "url": "https://huggingface.co/api/models/handy-computer/Qwen3-ASR-1.7B-gguf/revision/3555bd238a8572bbace3ebf60d23b036dc0a5dbe?blobs=true"
+    }
+  ],
+  "model_profile_source": {
+    "bytes": 3347,
+    "sha256": "0ff2775973ac69d71d7ceaf1e703a214d198a7386f8bbfe83cf34383a5bd1beb"
+  },
+  "no_asset_bodies_downloaded": true,
+  "product_manifest": {
+    "bytes": 18130,
+    "sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a"
+  },
+  "record_bytes_cap_each": 16384,
+  "runtime_license": "MIT",
+  "runtime_source_repository": "https://github.com/handy-computer/transcribe.cpp",
+  "runtime_source_revision": "63a44d9239d610b3908e8a66b384924cd4a77217",
+  "schema": "qwen17-fixed-three-assets-design-v1"
+}

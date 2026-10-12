@@ -1,0 +1,275 @@
+"""Pure projection of one already-admitted historical Qwen attempt.
+
+No I/O, database, runtime import, model call, authorization or supervision.
+Inputs come from the unchanged frozen runner and CandidateStore.request().
+Failures preserve caller-owned input objects and return no Alternative.
+Raw means the full canonical normalized native record, not ABI/wire bytes.
+"""
+from __future__ import annotations
+
+import hashlib
+
+from audio_backend.fragment_core import SourcePlan
+from audio_backend.fragment_runtime_contracts import canonical, expected_mapping
+from audio_backend.native_lexical_alternatives import Alternative, SourceSupport
+from audio_backend.qwen_candidates import validate_candidate_request, validate_native_result
+from audio_backend.qwen_profiles import admit_optional_runtime
+
+LINEAGE_SHA256 = '__LOCAL_REVIEWED_LINEAGE_SHA256__'
+MAX_INPUT_BYTES = 2 * 1024 * 1024
+MAX_RAW_BYTES = 131072
+_FROZEN_FIELDS = {
+    'schema', 'source_plan', 'source_bindings', 'runtime', 'limits', 'requests',
+    'implementation', 'model_profile', 'model_profile_sha256',
+}
+_LIMIT_FIELDS = {
+    'max_calls', 'max_frames', 'tree_rss_bytes', 'host_reserve_bytes',
+    'disk_reserve_bytes', 'artifact_bytes', 'timeout_seconds', 'cleanup_seconds',
+    'cleanup_write_bytes', 'preflight_seconds',
+}
+_ATTEMPT_FIELDS = {
+    'id', 'request_id', 'owner', 'generation', 'retry_of', 'retry_key',
+    'started', 'returned', 'status', 'evidence', 'evidence_sha256',
+}
+_RUNTIME_FIELDS = {
+    'package_version', 'native_version', 'native_commit', 'actual_backend',
+    'device', 'library_sha256', 'model_sha256', 'runtime_manifest_sha256',
+}
+
+
+class ProjectionError(ValueError):
+    """Bounded diagnostic; original evidence stays with the caller."""
+
+
+def _require(condition, reason):
+    if not condition:
+        raise ProjectionError(reason)
+
+
+def _hash(value):
+    return (type(value) is str and len(value) == 64
+            and all(c in '0123456789abcdef' for c in value))
+
+
+def _exact(value, names, reason):
+    _require(type(value) is dict and set(value) == names, reason)
+
+
+def _bounded(value, maximum, reason):
+    """Bound JSON structure/scalars before existing canonical serialization."""
+    budget = [0, 0]
+
+    def walk(item, depth):
+        budget[0] += 1
+        _require(depth <= 24 and budget[0] <= 20000, reason)
+        if type(item) is str:
+            _require(len(item) <= maximum, reason)
+            try:
+                budget[1] += len(item.encode('utf-8'))
+            except UnicodeError:
+                raise ProjectionError(reason) from None
+        elif type(item) is dict:
+            _require(len(item) <= 2048, reason)
+            for key, val in item.items():
+                _require(type(key) is str, reason)
+                walk(key, depth + 1)
+                walk(val, depth + 1)
+        elif type(item) in (list, tuple):
+            _require(len(item) <= 2048, reason)
+            for val in item:
+                walk(val, depth + 1)
+        else:
+            _require(item is None or type(item) in (bool, int, float), reason)
+            if type(item) is int:
+                _require(item.bit_length() <= 64, reason)
+        _require(budget[1] <= maximum, reason)
+
+    walk(value, 0)
+    try:
+        data = canonical(value).encode('utf-8')
+    except (TypeError, ValueError, UnicodeError, OverflowError):
+        raise ProjectionError(reason) from None
+    _require(len(data) <= maximum, reason)
+    return data
+
+
+def _digest(value, maximum=MAX_INPUT_BYTES):
+    return hashlib.sha256(_bounded(value, maximum, 'json_bounds')).hexdigest()
+
+
+def validate_lineage(lineage):
+    """Pin the accepted metadata value without opening the historical files."""
+    _require(type(lineage) is dict and _digest(lineage, 12 * 1024) == LINEAGE_SHA256,
+             'lineage_commitment')
+    try:
+        support = SourceSupport.from_dict(lineage['support'])
+        plan = SourcePlan.from_json(canonical(lineage['source_plan']))
+    except (TypeError, ValueError, KeyError):
+        raise ProjectionError('lineage_contract') from None
+    _require(support.support_id == lineage['expected_support_id']
+             and plan.sha256 == lineage['expected_plan_sha256'] == support.plan_sha256,
+             'historical_plan_or_support')
+    return support, plan
+
+
+def _frozen_request(lineage, frozen, expected_frozen_sha256, support, plan):
+    _exact(frozen, _FROZEN_FIELDS, 'frozen_fields')
+    _require(_hash(expected_frozen_sha256)
+             and _digest(frozen) == expected_frozen_sha256, 'frozen_commitment')
+    _require(frozen['schema'] == 'qwen-frozen-candidates-v2'
+             and frozen['model_profile'] == lineage['model_profile']
+             and frozen['model_profile_sha256'] == lineage['expected_model_profile_sha256'],
+             'model_profile_binding')
+    _require(type(frozen['source_plan']) is str
+             and frozen['source_plan'] == plan.to_json()
+             and frozen['source_bindings'] == lineage['source_bindings'],
+             'historical_source_binding')
+    _require(type(frozen['requests']) is list and len(frozen['requests']) == 1,
+             'one_frozen_request')
+    _exact(frozen['limits'], _LIMIT_FIELDS, 'limit_fields')
+    _require(all(type(v) is int and v > 0 for v in frozen['limits'].values())
+             and frozen['limits']['max_calls'] == 1
+             and frozen['limits']['max_frames'] == support.end_frame - support.start_frame,
+             'one_call_frame_budget')
+    # These pure checks do not replace verify_frozen's complete file attestation.
+    _require(type(frozen['implementation']) is list
+             and 1 <= len(frozen['implementation']) <= 2048, 'implementation_inventory')
+    try:
+        profile = admit_optional_runtime(frozen['runtime'], frozen['model_profile'])
+        request = validate_candidate_request(frozen['requests'][0])
+    except (TypeError, ValueError, KeyError):
+        raise ProjectionError('frozen_request_contract') from None
+    generation = lineage['generation_mapping']
+    _require(profile.sha256 == lineage['expected_model_profile_sha256']
+             and request['profile_sha256'] == lineage['expected_config_sha256']
+             and canonical(request['config']) == canonical(profile.config()),
+             'profile_config_digest')
+    _require(request['source_scope'] == generation['cli_source_scope']
+             and type(request['source_generation']) is int
+             and request['source_generation'] == generation['cli_source_generation']
+             and support.source_generation == generation['historical_support_source_generation'],
+             'generation_mapping')
+    interval = {'start_frame': support.start_frame, 'end_frame': support.end_frame}
+    _require(request['plan_sha256'] == support.plan_sha256
+             and request['plan_end_frame'] == support.source_frames
+             and request['ownership'] == request['read'] == interval
+             and request['pcm16_sha256'] == support.pcm16le_sha256
+             and request['float32_sha256'] == support.float32le_sha256
+             and request['float32_count'] == support.end_frame - support.start_frame
+             and canonical(request['source_mapping'])
+             == canonical(expected_mapping(plan, support.start_frame, support.end_frame)),
+             'historical_input_binding')
+    _require(request['model_sha256'] == lineage['model_sha256']
+             and request['runtime_manifest_sha256'] == _digest(frozen['runtime']),
+             'runtime_manifest_binding')
+    return request
+
+
+def _stored_native(stored, request, frozen):
+    _exact(stored, {'request', 'status', 'attempts'}, 'stored_request_fields')
+    _bounded(stored, MAX_INPUT_BYTES, 'stored_evidence_bounds')
+    _require(canonical(stored['request']) == canonical(request), 'stored_request_binding')
+    _require(type(stored['attempts']) is list and len(stored['attempts']) == 1,
+             'one_stored_attempt')
+    attempt = stored['attempts'][0]
+    _exact(attempt, _ATTEMPT_FIELDS, 'attempt_fields')
+    # First CandidateStore.acquire increments its OWNERSHIP epoch to 1. This
+    # is distinct from CLI source_generation=0 and the historical source hash.
+    _require(type(attempt['id']) is int and attempt['id'] >= 1
+             and attempt['request_id'] == request['request_id']
+             and type(attempt['generation']) is int and attempt['generation'] == 1
+             and type(attempt['owner']) is str and 0 < len(attempt['owner']) <= 1024
+             and attempt['retry_of'] is None and attempt['retry_key'] is None,
+             'attempt_binding_or_retry')
+    # CandidateStore returns exact SQLite integer flags. Do not coerce booleans.
+    _require(type(attempt['started']) is int and attempt['started'] == 1
+             and type(attempt['returned']) is int and attempt['returned'] == 1,
+             'attempt_not_confirmed_returned')
+    evidence = attempt['evidence']
+    _require(type(evidence) is dict and _hash(attempt['evidence_sha256'])
+             and _digest(evidence) == attempt['evidence_sha256'], 'evidence_commitment')
+    _exact(evidence, {'native', 'runtime'}, 'missing_native_or_postvalidation_failure')
+    native = evidence['native']
+    _require(type(native) is dict, 'native_record_required')
+    # Validate complete stored record, never the token-elided CLI show projection.
+    raw = _bounded(native, MAX_RAW_BYTES, 'native_raw_limit')
+    try:
+        validate_native_result(native)
+    except (TypeError, ValueError, KeyError):
+        raise ProjectionError('native_record_contract') from None
+    _require(native['execution_returned'] is True
+             and stored['status'] == attempt['status'] == native['status'],
+             'terminal_status_or_execution_mismatch')
+    _require(type(native['text']) is str, 'native_text_unavailable')
+    runtime = evidence['runtime']
+    _exact(runtime, _RUNTIME_FIELDS, 'runtime_receipt_fields')
+    manifest = frozen['runtime']
+    _require(runtime['runtime_manifest_sha256'] == request['runtime_manifest_sha256']
+             and runtime['model_sha256'] == request['model_sha256']
+             and runtime['library_sha256'] == manifest['native_library']['sha256']
+             and runtime['package_version'] == manifest['package_version']
+             and type(runtime['native_commit']) is str
+             and len(runtime['native_commit']) >= 7
+             and manifest['native_commit'].startswith(runtime['native_commit'])
+             and type(runtime['native_version']) is str
+             and 0 < len(runtime['native_version']) <= 512
+             and type(runtime['actual_backend']) is str
+             and runtime['actual_backend'].casefold() == 'cpu'
+             and type(runtime['device']) is dict
+             and runtime['device'].get('kind') == 'cpu'
+             and runtime['device'].get('device_type') == 'cpu', 'runtime_attestation_binding')
+    return attempt, native, raw
+
+
+def project_candidate(lineage, frozen, stored, *, expected_frozen_sha256):
+    """Return (Alternative, receipt); raise a diagnostic without mutating inputs.
+
+    expected_frozen_sha256 must come from the independently admitted freeze.
+    This function cannot establish file integrity, live attestation, call counts,
+    cleanup or posthash; the existing runner/outer receipts establish those.
+    """
+    support, plan = validate_lineage(lineage)
+    request = _frozen_request(lineage, frozen, expected_frozen_sha256, support, plan)
+    try:
+        attempt, native, raw = _stored_native(stored, request, frozen)
+    except (KeyError, TypeError, UnicodeError):
+        raise ProjectionError('malformed_stored_receipt') from None
+    if native['native_status'] is None:
+        outcome = 'unknown'
+    elif native['status'] in ('returned_text', 'returned_empty'):
+        _require(native['exception_type'] is None and not native['partial_result_available']
+                 and not native['issues'], 'unexpected_returned_diagnostic')
+        outcome = 'returned'
+    else:
+        outcome = 'failed'
+    alternative = Alternative(
+        support=support, provider='qwen', model_sha256=request['model_sha256'],
+        runtime_sha256=request['runtime_manifest_sha256'], config_sha256=request['profile_sha256'],
+        text=native['text'], outcome=outcome, native_status=native['native_status'],
+        eos=None, truncated=native['was_truncated'], raw=raw,
+    )
+    _require(alternative.complete_content is False, 'unobserved_decoder_eos')
+    Alternative.from_dict(alternative.to_dict(), support=support, raw=raw)
+    receipt = {
+        'schema': 'historical-qwen17-pure-projection-v1',
+        'candidate_name': lineage['candidate_name'], 'support_id': support.support_id,
+        'lineage_sha256': LINEAGE_SHA256, 'frozen_sha256': expected_frozen_sha256,
+        'request_id': request['request_id'], 'candidate_id': request['candidate_id'],
+        'binding_sha256': request['binding_sha256'], 'attempt_id': attempt['id'],
+        'ledger_owner_generation': attempt['generation'],
+        'evidence_sha256': attempt['evidence_sha256'],
+        'model_profile': lineage['model_profile'],
+        'model_profile_sha256': frozen['model_profile_sha256'],
+        'config_sha256': request['profile_sha256'],
+        'runtime_manifest_sha256': request['runtime_manifest_sha256'],
+        'raw_encoding': lineage['projection_rules']['raw_encoding'],
+        'raw_bytes': len(raw), 'raw_sha256': hashlib.sha256(raw).hexdigest(),
+        'native_status': native['native_status'], 'native_outcome': native['status'],
+        'eos': None, 'complete_content': False,
+        'historical_original_status': lineage['historical_evidence']['original_status'],
+        'continuation_scope': lineage['historical_evidence']['continuation_scope'],
+        'historical_only': True, 'live_source_authorization': False,
+        'execution_qualification': 'separate_runner_cleanup_and_posthash_required',
+    }
+    _bounded(receipt, 8192, 'projection_receipt_bounds')
+    return alternative, receipt
