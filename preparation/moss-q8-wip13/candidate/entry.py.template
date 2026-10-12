@@ -1,0 +1,267 @@
+"""One directly owned experimental MOSS call; no product registration or jobs."""
+import argparse
+from dataclasses import asdict, is_dataclass
+import hashlib
+import importlib.util
+import json
+import math
+import os
+from pathlib import Path
+import resource
+import stat
+import sys
+import threading
+import time
+import types
+
+HERE=Path(__file__).resolve().parent
+M=HERE.parent
+W=M.parent
+P=W/'__LOCAL_REVIEWED_PRODUCT_ROOT__'
+Q=W/'__LOCAL_REVIEWED_RUNTIME_ROOT__'
+SITE=Q/'__LOCAL_REVIEWED_SITE_PACKAGES_PATH__'
+OUTPUT_CAP=2*2**20
+
+
+def require(ok,reason):
+    if not ok:raise ValueError(reason)
+
+
+def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+def digest(value):return hashlib.sha256(canonical(value).encode()).hexdigest()
+
+
+def deny(event,args):
+    if event.startswith(('subprocess.','socket.')) or event in {'os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'}:
+        raise ValueError('process_or_network_denied')
+
+
+def signature(info):return (info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+
+
+def check(end):
+    require(time.monotonic()<end,'phase_deadline')
+    p=Path(os.environ['GUARD_STOP_PATH'])
+    require(not p.exists() and not p.is_symlink(),'owner_stop')
+
+
+def hash_pin(row,end):
+    p=Path(row['path']);check(end);before=p.lstat()
+    require(p.resolve()==p and stat.S_ISREG(before.st_mode) and before.st_size==row['bytes'],'pin_kind_size')
+    h=hashlib.sha256();count=0
+    fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    with os.fdopen(fd,'rb') as stream:
+        while True:
+            check(end);b=stream.read(256*1024)
+            if not b:break
+            count+=len(b);require(count<=row['bytes'],'pin_growth');h.update(b)
+        require(signature(before)==signature(os.fstat(stream.fileno()))==signature(p.lstat()),'pin_identity')
+    require(count==row['bytes'] and h.hexdigest()==row['sha256'],'pin_digest')
+    return {'path':str(p),'bytes':count,'sha256':h.hexdigest(),'identity':list(signature(before))}
+
+
+def small(path,maximum=131072):
+    path=Path(path);s=path.lstat()
+    require(path.resolve()==path and stat.S_ISREG(s.st_mode) and s.st_size<=maximum,'small_regular')
+    raw=path.read_bytes();require(len(raw)<=maximum,'small_growth');return raw
+
+
+def write(out,name,value,cap=2**20):
+    raw=(json.dumps(value,ensure_ascii=False,sort_keys=True,indent=2,allow_nan=False)+'\n').encode()
+    require(len(raw)<=cap and len(raw)+sum(p.stat().st_size for p in out.iterdir())<=OUTPUT_CAP,'output_cap')
+    path=out/name
+    with path.open('xb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())
+    return {'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+
+
+def serial(value):
+    if is_dataclass(value):return serial(asdict(value))
+    if isinstance(value,dict):return {str(k):serial(v) for k,v in value.items()}
+    if isinstance(value,(tuple,list)):return [serial(v) for v in value]
+    if isinstance(value,float) and not math.isfinite(value):return {'nonfinite':str(value)}
+    require(value is None or type(value) in (str,int,float,bool),'sdk_field_type')
+    return value
+
+
+def claim_once():
+    path=M/'receipts/moss-q8-candidate.spent'
+    with path.open('xb') as stream:stream.write(b'moss-handy-presplit-q8-one-candidate-v1\n');stream.flush();os.fsync(stream.fileno())
+    fd=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
+    try:os.fsync(fd)
+    finally:os.close(fd)
+
+
+def one_call(api,model_path,samples,claim,retain,phase_check,state):
+    """Purely injected boundary for fixtures. Never retries construction or run."""
+    model=session=None
+    value={'construct_attempts':0,'session_attempts':0,'run_attempts':0,'raw_retained':False,
+           'model_closed':False,'session_closed':False,'truncated':False,'aborted':False,
+           'error_type':None,'close_errors':[],'native':None}
+    try:
+        phase_check();claim();value['construct_attempts']=1
+        model=api.Model(model_path,backend='cpu')
+        require(model.device.kind.lower()=='cpu' and model.backend.lower().startswith('cpu'),'cpu_not_honored')
+        require(model.arch=='moss' and model.variant=='moss-transcribe-diarize','loaded_model_family')
+        value['backend']={'kind':model.device.kind,'name':model.device.name,'backend':model.backend,
+                          'arch':model.arch,'variant':model.variant}
+        phase_check();value['session_attempts']=1
+        session=model.session(n_threads=2,n_ctx='__LOCAL_REVIEWED_CONTEXT_SIZE__',kv_type='f16');state['session']=session
+        limits=session.limits
+        require(limits.effective_n_ctx=='__LOCAL_REVIEWED_CONTEXT_SIZE__' and (limits.effective_max_audio_ms==0 or limits.effective_max_audio_ms>='__LOCAL_SUPPORT_DURATION_MS__'),'session_limits')
+        value['session_limits']=serial(limits)
+        phase_check();value['run_attempts']=1
+        try:native=session.run(samples,diarize='on',timestamps='segment')
+        except (api.OutputTruncated,api.Aborted) as error:
+            value['truncated']=isinstance(error,api.OutputTruncated)
+            value['aborted']=isinstance(error,api.Aborted)
+            native=error.partial_result
+        value['native']=serial(native)
+        retain({'schema':'moss-native-raw-first-v1','native':value['native'],
+                'truncated':value['truncated'],'aborted':value['aborted'],
+                'EOS':'unknown','generated_token_count':None,'generation_token_count_known':False})
+        value['raw_retained']=True
+    except Exception as error:value['error_type']=type(error).__name__
+    finally:
+        if session is not None:
+            try:session.close();value['session_closed']=True
+            except Exception as error:value['close_errors'].append({'object':'session','error_type':type(error).__name__})
+        if model is not None:
+            try:model.close();value['model_closed']=True
+            except Exception as error:value['close_errors'].append({'object':'model','error_type':type(error).__name__})
+        state['session']=None
+    return value
+
+
+def project(native,adapter,truncated=False,aborted=False):
+    raw=native.get('raw_text') if isinstance(native,dict) else None
+    require(type(raw) is str and len(raw.encode())<=512*1024,'bounded_raw_text')
+    try:parsed=adapter.parse_generation(raw,[],'__LOCAL_SUPPORT_DURATION_SECONDS__',adapter.canonical_segments)
+    except Exception:
+        return {'status':'unresolved','reason_code':'strict_parser_exception','tracks':[],
+                'raw_diagnostic_retained':True,'EOS':'unknown','generated_token_count':None}
+    parsed['raw_generated_ids']=None
+    parsed['metadata'].update(generated_tokens=None,generation_token_count_known=False,
+         EOS='unknown',finish_reason='native_output_truncated' if truncated else 'aborted' if aborted else 'unknown',
+         token_limit_reached=True if truncated else None,native_output_truncated=truncated)
+    tracks={}
+    for row in parsed['phrases']:
+        key=row['speaker_local_id']
+        tracks.setdefault(key,{'speaker_local_id':key,'identity_status':'unresolved','phrases':[]})['phrases'].append(row)
+    diagnostics={}
+    # Whole-support diagnostics keep canonical model labels/text even when times
+    # fail strict validation; they do not repair or imply usable phrase timing.
+    for row in adapter.canonical_segments(raw):
+        if type(row.speaker) is str and row.speaker.startswith('S') and row.speaker[1:].isdigit() and len(row.speaker)<=16:
+            diagnostics.setdefault(row.speaker,[]).append(row.text)
+    result={'status':parsed['status'],'reason_code':parsed['reason_code'],'strict_parse':parsed,
+            'tracks':list(tracks.values()),'whole_support_untimed_diagnostics':[
+                {'speaker_local_id':label,'text':''.join(texts),'support_start':0,'support_end':'__LOCAL_SUPPORT_DURATION_SECONDS__',
+                 'timing_kind':'whole_support_untimed_diagnostic','identity_status':'unresolved'}
+                for label,texts in list(diagnostics.items())[:8]],
+            'EOS':'unknown','generated_token_count':None,'timestamp_accuracy':'unverified',
+            'global_chronology_enforced':False,'raw_diagnostic_retained':True}
+    if truncated or aborted:
+        result['diagnostic_tracks']=result['tracks'];result['tracks']=[]
+        result.update(status='unresolved',reason_code='native_output_truncated' if truncated else 'aborted')
+    return result
+
+
+def load_product():
+    # Qualified complete worktree is verified by the outer guard; -B prevents
+    # new bytecode. The pinned runtime finder separately verifies wheel sources.
+    sys.path.insert(0,str(P))
+    from audio_backend import moss_td_cpp_assets as assets
+    # Same isolated-package seam as qualified audio_backend/moss_td_runner.py:
+    # the service package initializer imports numpy/soundfile; these helpers do not.
+    name='audio_backend.inference'
+    if name not in sys.modules:
+        package=types.ModuleType(name)
+        package.__path__=[str(P/'audio_backend/inference')]
+        sys.modules[name]=package
+    from audio_backend.inference import moss_td_cpp_asr as adapter
+    return assets,adapter
+
+
+def run_actual(profile,authority,profile_sha,run):
+    started=float(os.environ['GUARD_ABSOLUTE_END'])-1200
+    out=run/'tmp/candidate';require(out.is_dir() and not list(out.iterdir()),'fresh_output')
+    require(os.sched_getaffinity(0)=={'__LOCAL_ACTUAL_CPU0__','__LOCAL_ACTUAL_CPU1__'} and os.getpriority(os.PRIO_PROCESS,0)==19,'child_cpu_nice')
+    resource.setrlimit(resource.RLIMIT_FSIZE,(2**20,2**20))
+    limits=profile['limits'];pre_end=started+limits['prehash_end_seconds'];post_end=started+limits['posthash_end_seconds']
+    rows=profile['runtime_files']+[profile['model'],profile['audio']]+profile['evidence_pins']+authority['source_pins']
+    unique={r['path']:r for r in rows};require(len(unique)<=96,'inventory_count');rows=[unique[k] for k in sorted(unique)]
+    pre=[hash_pin(r,pre_end) for r in rows]
+    write(out,'prehash.json',{'files':pre,'inventory_sha256':digest(rows)},131072)
+    sys.path.append(str(SITE));assets,adapter=load_product()
+    paths,hashes=assets.verify_installed_runtime()
+    api=assets.load_verified_runtime(paths,hashes)
+    require(api.__version__=='0.2.3' and api.native_version()=='0.2.3' and
+            profile['native_commit'].startswith(api.native_commit()) and len(api.native_commit())>=7 and
+            str(Path(api.library_path()).resolve())==profile['native_library']['path'] and
+            api.native_provider()=='transcribe-cpp-native' and api.backend_available('cpu'),'native_identity')
+    info=adapter.wav_info(profile['audio']['path'])
+    require((info.frames,info.samplerate,info.channels,info.sample_format,info.sample_width)==('__LOCAL_SUPPORT_FRAMES__',16000,1,1,2),'exact_support')
+    samples=adapter.read_support(profile['audio']['path']);require(len(samples)=='__LOCAL_SUPPORT_FRAMES__','exact_samples')
+    budget=adapter.generation_budget(len(samples))
+    require(budget['session_n_ctx']=='__LOCAL_REVIEWED_CONTEXT_SIZE__' and budget['generation_budget']=='__LOCAL_REVIEWED_GENERATION_BUDGET__' and budget['prompt_token_count']=='__LOCAL_REVIEWED_PROMPT_TOKEN_COUNT__','exact_budget')
+    state={'session':None};finished=threading.Event();timed_out=threading.Event()
+    def watchdog():
+        if finished.wait(max(0,started+900-time.monotonic())):return
+        timed_out.set();session=state['session']
+        if session is not None:
+            try:session.cancel()
+            except Exception:pass
+        if not finished.wait(max(0,started+915-time.monotonic())):os._exit(124)
+    watch=threading.Thread(target=watchdog,name='fixed-native-deadline',daemon=True);watch.start()
+    try:
+        called=one_call(api,profile['model']['path'],samples,claim_once,
+                        lambda value:write(out,'raw.json',value),lambda:check(started+900),state)
+    finally:finished.set();watch.join(timeout=1)
+    require(not watch.is_alive(),'watchdog_join')
+    called['native_deadline_observed']=timed_out.is_set();native=called.pop('native')
+    if called['raw_retained'] and native is not None:
+        candidate=project(native,adapter,called['truncated'],called['aborted'])
+    else:candidate={'status':'unresolved','reason_code':'no_retained_native_result','tracks':[],'EOS':'unknown','generated_token_count':None}
+    qualification=called['raw_retained'] and called['model_closed'] and called['session_closed'] and not called['close_errors'] and called['error_type'] is None and not timed_out.is_set()
+    if not qualification:
+        candidate.setdefault('diagnostic_tracks',candidate.get('tracks',[]));candidate['tracks']=[];candidate['status']='unresolved'
+    write(out,'candidate.json',{'profile_id':profile['profile_id'],'profile_sha256':profile_sha,'call':called,
+                              'candidate':candidate,'call_qualified':qualification,'support':profile['source_support'],
+                              'model_sha256':profile['model']['sha256'],'profile_update_eligible':False})
+    post=[hash_pin(r,post_end) for r in rows]
+    require(pre==post,'full_posthash_identity_changed')
+    posthash={'all_matched':True,'files':len(rows),'bytes':sum(r['bytes'] for r in rows),
+              'inventory_sha256':digest(rows),'completed_before_seconds':1080,'elapsed_from_outer_start':time.monotonic()-started}
+    write(out,'posthash.json',posthash,32768)
+    check(started+1140)
+    write(out,'result.json',{'schema':'moss-direct-owned-candidate-result-v1','status':'RECORDED',
+          'profile_sha256':profile_sha,'posthash':posthash,'model_construct_attempts':called['construct_attempts'],
+          'model_run_attempts':called['run_attempts'],'call_qualified':qualification,
+          'candidate_status':candidate['status'],'EOS':'unknown','identity_learning':False},32768)
+    print(json.dumps({'status':'RECORDED','model_calls':called['run_attempts'],'candidate_status':candidate['status']}))
+
+
+def main():
+    sys.addaudithook(deny)
+    parser=argparse.ArgumentParser();parser.add_argument('--mode',choices=('fixtures','actual'),required=True)
+    parser.add_argument('--profile-sha256',required=True);parser.add_argument('--authority',type=Path);args=parser.parse_args()
+    raw=small(HERE/'PROFILE.json');require(hashlib.sha256(raw).hexdigest()==args.profile_sha256,'profile_pin');profile=json.loads(raw)
+    require(sys.flags.isolated==1 and sys.flags.no_site==1 and sys.flags.dont_write_bytecode==1,'isolated_entry')
+    run=Path(os.environ['GUARD_RUN_DIRECTORY']);require(run.parent==M/'runs','owned_run')
+    if args.mode=='fixtures':
+        require(args.authority is None,'fixture_authority_forbidden')
+        spec=importlib.util.spec_from_file_location('moss_candidate_fixed_fixtures',HERE/'fixtures.py')
+        fixed=importlib.util.module_from_spec(spec);sys.modules[spec.name]=fixed;spec.loader.exec_module(fixed)
+        result=fixed.run(sys.modules[__name__]);write(run,'fixtures.json',result,32768)
+        require(result['status']=='PASS','candidate_fixture_failure');print(json.dumps(result));return
+    require(args.authority==HERE/'ACTUAL_AUTHORITY.json','closed_authority_path')
+    authority_raw=small(args.authority);require(hashlib.sha256(authority_raw).hexdigest()==os.environ['REAL_CAPTURE_SPEC_SHA256'],'authority_pin')
+    authority=json.loads(authority_raw)
+    require(authority['root_actual_go'] is True and authority['profile_sha256']==args.profile_sha256,'actual_GO')
+    run_actual(profile,authority,args.profile_sha256,run)
+
+
+if __name__=='__main__':
+    try:main()
+    except Exception:
+        print(json.dumps({'status':'FAILED','reason_code':'direct_candidate_failed'}));raise SystemExit(2) from None

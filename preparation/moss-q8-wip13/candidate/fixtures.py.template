@@ -1,0 +1,231 @@
+"""Fixed model-free fixtures for the direct one-call MOSS boundary."""
+from dataclasses import dataclass
+import importlib.util
+import json
+from pathlib import Path
+from types import SimpleNamespace
+import sys
+import unittest
+
+HERE=Path(__file__).resolve().parent
+
+
+@dataclass
+class Limits:
+    effective_n_ctx:int='__LOCAL_REVIEWED_CONTEXT_SIZE__'
+    effective_max_audio_ms:int=20000
+    max_kv_bytes:int=1
+
+
+@dataclass
+class Native:
+    raw_text:str='[4.0][S01]甲[8.0][1.0][S02]乙[5.0][8.0][S01]丙[9.0]'
+    text:str='甲乙丙'
+    language:str=''
+    timestamp_kind:str='segment'
+    segments:tuple=()
+    speaker_segments:tuple=()
+    words:tuple=()
+    tokens:tuple=()
+
+
+class Truncated(Exception):
+    def __init__(self,partial):self.partial_result=partial
+
+
+class Aborted(Exception):
+    def __init__(self,partial):self.partial_result=partial
+
+
+def stub(failure=None):
+    events=[];calls={'model':0,'session':0,'run':0};native=Native()
+    class Session:
+        limits=Limits()
+        def run(self,samples,**kw):
+            calls['run']+=1;events.append(('run',len(samples),kw))
+            if failure=='truncated':raise Truncated(native)
+            if failure=='aborted':raise Aborted(native)
+            if failure=='run':raise RuntimeError()
+            return native
+        def close(self):
+            events.append('session.close')
+            if failure=='session_close':raise RuntimeError()
+        def cancel(self):events.append('cancel')
+    class Model:
+        arch='moss';variant='moss-transcribe-diarize';backend='cpu'
+        device=SimpleNamespace(kind='cpu',name='stub')
+        def __init__(self,path,**kw):
+            calls['model']+=1;events.append(('Model',path,kw))
+            if failure=='construct':raise RuntimeError()
+        def session(self,**kw):
+            calls['session']+=1;events.append(('session',kw))
+            if failure=='session':raise RuntimeError()
+            s=Session()
+            if failure=='context':s.limits=Limits('__LOCAL_REVIEWED_WRONG_CONTEXT_SIZE__')
+            return s
+        def close(self):
+            events.append('model.close')
+            if failure=='model_close':raise RuntimeError()
+    return SimpleNamespace(Model=Model,OutputTruncated=Truncated,Aborted=Aborted),calls,events
+
+
+def run(e):
+    def deny_model(event,args):
+        if event=='import' and args and str(args[0]).split('.')[0] in {'transcribe_cpp','transcribe_cpp_native'}:
+            raise ValueError('fixture_native_import')
+        if event=='ctypes.dlopen':raise ValueError('fixture_native_dlopen')
+        if event=='open' and args and isinstance(args[0],(str,bytes)):
+            if Path(args[0].decode() if isinstance(args[0],bytes) else args[0]).suffix.lower() in {'.gguf','.wav','.f32','.pcm'}:
+                raise ValueError('fixture_model_audio_read')
+    sys.addaudithook(deny_model)
+    _,adapter=e.load_product()
+    s=importlib.util.spec_from_file_location('moss_fixture_closed_launcher',HERE/'launch.py')
+    launch=importlib.util.module_from_spec(s);s.loader.exec_module(launch)
+    class Tests(unittest.TestCase):
+        def actual_seam(self,bad_posthash=False):
+            profile=launch.profile_data();request=json.loads((HERE/'REQUEST.json').read_text())
+            pins=[{'path':p,'bytes':len(launch.read(p)),'sha256':launch.sha(p)} for p in sorted(launch.source_names())]
+            authority={'schema':'moss-direct-authority-v1','root_actual_go':True,'authorization_reference':'SYNTHETIC_ONLY',
+                'profile_sha256':launch.PROFILE_SHA,'request':{'path':str(HERE/'REQUEST.json'),'sha256':'1'*64},
+                'fixture_terminal':{'path':str(launch.M/'__LOCAL_ACCEPTED_FIXTURE_TERMINAL_PATH__'),'sha256':'2'*64},
+                'source_pins':pins,'run_directory':str(launch.RUN),'output_dir':str(launch.RUN/'tmp/candidate')}
+            terminal={'status':'PASS','guard_status':'PASS','cleanup':'CONFIRMED','original_tool_wait_reaped':True,
+                      'source_freeze_sha256':launch.sha(HERE/'SOURCE_FREEZE.json'),'profile_sha256':launch.PROFILE_SHA,
+                      'fixture_result':{'path':'synthetic-fixture-result','bytes':314,'sha256':'3'*64}}
+            fixture={'status':'PASS','tests_run':24,'model_reads':0,'native_imports':0,'model_calls':0}
+            authority_pin={'path':str(HERE/'ACTUAL_AUTHORITY.json'),'sha256':'4'*64}
+            mapping={authority_pin['path']:authority,authority['request']['path']:request,
+                     authority['fixture_terminal']['path']:terminal,'synthetic-fixture-result':fixture}
+            def strict_pin_reader(pin,end):
+                if type(pin) is not dict or set(pin)!={'path','sha256'}:raise ValueError('json_pin_shape')
+                return mapping[pin['path']]
+            rows=profile['runtime_files']+[profile['model'],profile['audio']]+profile['evidence_pins']+pins
+            unique={r['path']:r for r in rows};rows=[unique[k] for k in sorted(unique)]
+            post={'all_matched':not bad_posthash,'elapsed_from_outer_start':1000.,'files':len(rows),
+                  'bytes':sum(r['bytes'] for r in rows),'inventory_sha256':launch.digest(rows)}
+            result={'schema':'moss-direct-owned-candidate-result-v1','status':'RECORDED','profile_sha256':launch.PROFILE_SHA,
+                    'posthash':post,'model_construct_attempts':1,'model_run_attempts':1,'EOS':'unknown','identity_learning':False}
+            class Guard:
+                def ownership_sentinel(self):return 'unchanged'
+                def verify_capture_posthash(self,end):raise AssertionError('must override only this seam')
+            original=Guard.ownership_sentinel
+            g=SimpleNamespace(CHECKS=launch.OLD,WORKSPACE=launch.W,MAX_DISK=7*2**30,ACTUAL_RSS=4*2**30,
+                ACTUAL_VISIBLE_RSS=6*2**30,ACTUAL_AS=8*2**30,CLEANUP_RESERVE=60,OLD_UNKNOWN_DISK=320*2**20,
+                ORDINARY_FREE_FLOOR=11*2**29,POLL=.05,Guard=Guard,RECEIPT_RESERVE=2**20,
+                scratch_bytes=lambda end,roots=None:0,clock_check=lambda end:None,
+                read_pin_json=strict_pin_reader,verify_directory_aliases=lambda *args:None,
+                read_regular=lambda path,maximum,end:json.dumps(post if Path(path).name=='posthash.json' else result).encode())
+            launch.configure(g);self.assertIs(g.Guard.ownership_sentinel,original)
+            names=launch.common_names()|{str(HERE/'ACTUAL_AUTHORITY.json'),authority['fixture_terminal']['path']}
+            externals={p:'0'*64 for p in names};externals.update({p['path']:p['sha256'] for p in pins})
+            spec={'stage':'moss_actual','controller_spec':authority_pin,'final_manifest':authority_pin,'external_files':externals,
+                  'argv':[str(launch.PYTHON),'-I','-B','-S',str(HERE/'entry.py'),'--mode','actual',
+                          '--profile-sha256',launch.PROFILE_SHA,'--authority',str(HERE/'ACTUAL_AUTHORITY.json')]}
+            admitted=g.actual_admission(spec,2000.);self.assertEqual(admitted,(authority,authority,[HERE],launch.RUN))
+            instance=Guard();instance.controller=authority;instance.receipt={}
+            g.Guard.verify_capture_posthash(instance,2000.)
+            self.assertTrue(instance.receipt['candidate_full_posthash_verified'])
+        def call(self,failure=None):
+            api,calls,events=stub(failure);raw=[]
+            def retain(value):events.append('raw');raw.append(value)
+            value=e.one_call(api,'synthetic.gguf',[0.1],lambda:events.append('claim'),retain,lambda:None,{})
+            return value,calls,events,raw
+        def test_01_exact_single_call_configuration(self):
+            v,c,ev,r=self.call();self.assertEqual(c,{'model':1,'session':1,'run':1})
+            self.assertEqual(ev[1],('Model','synthetic.gguf',{'backend':'cpu'}))
+            self.assertIn(('session',{'n_threads':2,'n_ctx':'__LOCAL_REVIEWED_CONTEXT_SIZE__','kv_type':'f16'}),ev)
+            self.assertIn(('run',1,{'diarize':'on','timestamps':'segment'}),ev)
+            self.assertTrue(v['model_closed'] and v['session_closed'])
+        def test_02_construct_failure_consumes_once(self):
+            api,c,ev=stub('construct');spent=[]
+            def claim():
+                if spent:raise ValueError('spent')
+                spent.append(True)
+            for _ in range(2):e.one_call(api,'synthetic.gguf',[],claim,lambda _:None,lambda:None,{})
+            self.assertEqual(c,{'model':1,'session':0,'run':0});self.assertEqual(len(spent),1)
+        def test_03_raw_before_close(self):
+            v,c,ev,r=self.call();self.assertLess(ev.index('raw'),ev.index('session.close'));self.assertLess(ev.index('raw'),ev.index('model.close'))
+            self.assertEqual(r[0]['native']['raw_text'],Native().raw_text)
+        def test_04_raw_survives_parser_exception(self):
+            v,c,ev,r=self.call()
+            def fail(*args):raise RuntimeError()
+            parsed=e.project(r[0]['native'],SimpleNamespace(parse_generation=fail,canonical_segments=adapter.canonical_segments))
+            self.assertEqual(parsed['reason_code'],'strict_parser_exception');self.assertTrue(v['raw_retained'])
+        def test_05_raw_survives_session_close_failure(self):
+            v,c,ev,r=self.call('session_close');self.assertTrue(v['raw_retained']);self.assertTrue(v['model_closed'])
+            self.assertFalse(v['session_closed']);self.assertEqual(v['close_errors'][0]['object'],'session')
+        def test_06_raw_survives_model_close_failure(self):
+            v,c,ev,r=self.call('model_close');self.assertTrue(v['raw_retained']);self.assertFalse(v['model_closed'])
+        def test_07_overlap_and_nonmonotonic_order_preserved(self):
+            p=e.project(e.serial(Native()),adapter);self.assertEqual(p['status'],'ok')
+            self.assertEqual([x['speaker_local_id'] for x in p['tracks']],['S01','S02'])
+            self.assertEqual([x['start'] for x in p['strict_parse']['phrases']],[4.,1.,8.])
+            self.assertEqual([x['start'] for x in p['tracks'][0]['phrases']],[4.,8.]);self.assertFalse(p['global_chronology_enforced'])
+        def test_08_EOS_and_token_count_unknown(self):
+            v,c,ev,r=self.call();p=e.project(r[0]['native'],adapter)
+            self.assertEqual(r[0]['EOS'],p['EOS']);self.assertEqual(p['EOS'],'unknown')
+            self.assertIsNone(p['generated_token_count']);self.assertIsNone(p['strict_parse']['raw_generated_ids'])
+            self.assertEqual(p['strict_parse']['metadata']['finish_reason'],'unknown')
+        def test_09_truncated_partial_is_diagnostic(self):
+            v,c,ev,r=self.call('truncated');p=e.project(r[0]['native'],adapter,truncated=True)
+            self.assertTrue(v['truncated'] and v['raw_retained']);self.assertEqual(p['status'],'unresolved');self.assertEqual(p['tracks'],[])
+            self.assertEqual(len(p['diagnostic_tracks']),2);self.assertEqual(p['EOS'],'unknown')
+        def test_10_aborted_partial_is_diagnostic(self):
+            v,c,ev,r=self.call('aborted');p=e.project(r[0]['native'],adapter,aborted=True)
+            self.assertTrue(v['aborted'] and v['raw_retained']);self.assertEqual(p['reason_code'],'aborted')
+        def test_11_malformed_times_keep_whole_support_diagnostic(self):
+            p=e.project({'raw_text':'[20][S03]保留[21]'},adapter)
+            self.assertEqual(p['status'],'unresolved');self.assertEqual(p['tracks'],[])
+            self.assertEqual(p['whole_support_untimed_diagnostics'][0]['text'],'保留')
+            self.assertEqual(p['whole_support_untimed_diagnostics'][0]['timing_kind'],'whole_support_untimed_diagnostic')
+        def test_12_context_mismatch_never_runs(self):
+            v,c,ev,r=self.call('context');self.assertEqual(c['run'],0);self.assertTrue(v['session_closed'] and v['model_closed'])
+        def test_13_session_failure_closes_model(self):
+            v,c,ev,r=self.call('session');self.assertEqual(c['run'],0);self.assertTrue(v['model_closed'])
+        def test_14_run_failure_no_retry(self):
+            v,c,ev,r=self.call('run');self.assertEqual(c['run'],1);self.assertEqual(r,[]);self.assertTrue(v['model_closed'])
+        def test_15_raw_write_failure_closes_and_unqualifies(self):
+            api,c,ev=stub()
+            def fail(_):raise OSError()
+            v=e.one_call(api,'synthetic.gguf',[],lambda:None,fail,lambda:None,{})
+            self.assertFalse(v['raw_retained']);self.assertTrue(v['session_closed'] and v['model_closed']);self.assertEqual(c['run'],1)
+        def test_16_closed_resource_stage_validation(self):
+            base={'stage':'moss_actual','absolute_seconds':1200,'work_seconds':1140,'address_space_cap_bytes':8*2**30,
+                  'rss_cap_bytes':4*2**30,'cpus':['__LOCAL_ACTUAL_CPU0__','__LOCAL_ACTUAL_CPU1__'],'scratch_cap_bytes':12*2**30}
+            self.assertEqual(launch.stage_profile(base),(True,{'__LOCAL_ACTUAL_CPU0__','__LOCAL_ACTUAL_CPU1__'},8*2**30,4*2**30))
+            for k,v in [('stage','anything'),('cpus',['__LOCAL_FIXTURE_CPU_ID__']),('rss_cap_bytes',6*2**30),('work_seconds',1200)]:
+                with self.assertRaises(ValueError):launch.stage_profile({**base,k:v})
+        def test_17_exact_support_budget_and_request(self):
+            b=adapter.generation_budget('__LOCAL_SUPPORT_FRAMES__');self.assertEqual((b['session_n_ctx'],b['generation_budget']),('__LOCAL_REVIEWED_CONTEXT_SIZE__','__LOCAL_REVIEWED_GENERATION_BUDGET__'))
+            request=json.loads((HERE/'REQUEST.json').read_text());launch.validate_request(request)
+            request['max_runs']=2
+            with self.assertRaises(ValueError):launch.validate_request(request)
+        def test_18_process_network_and_model_reads_denied(self):
+            for name in ('os.fork','os.exec','subprocess.Popen','socket.connect'):
+                with self.assertRaises(ValueError):sys.audit(name,'sentinel')
+            for path in ('synthetic.gguf','synthetic.wav'):
+                with self.assertRaises(ValueError):sys.audit('open',path,'r',0)
+        def test_19_nonfinite_SDK_fields_are_explicit(self):
+            self.assertEqual(e.serial(float('nan')),{'nonfinite':'nan'})
+        def test_20_overlong_raw_refused(self):
+            with self.assertRaises(ValueError):e.project({'raw_text':'x'*(512*1024+1)},adapter)
+        def test_21_separate_actual_GO_required(self):
+            good={'schema':'moss-direct-authority-v1','root_actual_go':True,'authorization_reference':'synthetic-fixture-only',
+                  'profile_sha256':launch.PROFILE_SHA,'request':{},'fixture_terminal':{},'source_pins':[],
+                  'run_directory':'synthetic','output_dir':'synthetic'}
+            launch.validate_authority(good)
+            for k,v in [('root_actual_go',False),('root_actual_go',1),('profile_sha256','0'*64),('authorization_reference','')]:
+                with self.assertRaises(ValueError):launch.validate_authority({**good,k:v})
+        def test_22_isolated_helpers_skip_service_initializer(self):
+            for name in ('numpy','soundfile','audio_backend.inference.analyzer','transcribe_cpp','transcribe_cpp_native'):
+                self.assertNotIn(name,sys.modules)
+            self.assertFalse(hasattr(sys.modules['audio_backend.inference'],'__file__'))
+        def test_23_closed_actual_admission_and_posthash(self):self.actual_seam()
+        def test_24_bad_posthash_rejected(self):
+            with self.assertRaisesRegex(ValueError,'candidate_full_posthash'):self.actual_seam(bad_posthash=True)
+    result=unittest.TestResult();unittest.defaultTestLoader.loadTestsFromTestCase(Tests).run(result)
+    return {'schema':'moss-direct-candidate-fixtures-v1','status':'PASS' if result.wasSuccessful() and result.testsRun==24 else 'FAIL',
+            'tests_run':result.testsRun,'failures':[x._testMethodName for x,_ in result.failures],
+            'errors':[x._testMethodName for x,_ in result.errors],'skipped':len(result.skipped),
+            'model_reads':0,'native_imports':0,'model_calls':0,
+            'scope':'In-memory API stubs and existing strict parser; no native import or learned model/audio access.'}

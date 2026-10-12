@@ -1,0 +1,182 @@
+"""Closed adapter: the qualified actual guard retains all process ownership."""
+import argparse
+import ast
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+HERE=Path(__file__).resolve().parent
+M=HERE.parent
+W=M.parent
+P=W/'__LOCAL_REVIEWED_PRODUCT_ROOT__'
+Q=W/'__LOCAL_REVIEWED_RUNTIME_ROOT__'
+OLD=W/'__LOCAL_BASE_PREPARATION_ROOT__'
+GUARD=OLD/'__LOCAL_ACTUAL_GUARD_RELATIVE_PATH__'
+GUARD_SHA='__LOCAL_ACTUAL_GUARD_SHA256__'
+BASE=OLD/'__LOCAL_BASE_SPEC_RELATIVE_PATH__'
+BASE_SHA='__LOCAL_BASE_SPEC_SHA256__'
+PYTHON=Q/'__LOCAL_REVIEWED_PYTHON_RELATIVE_PATH__'
+PYTHON_SHA='__LOCAL_REVIEWED_PYTHON_SHA256__'
+PROFILE_SHA='__LOCAL_REVIEWED_PROFILE_SHA256__'
+STAGES={'moss_fixtures':300,'moss_actual':1200}
+RUN=M/'__LOCAL_OWNED_RUN_RELATIVE_PATH__'
+ALIASES=[{'path':'/lib','literal_target':'usr/lib','normalized_target':'/usr/lib'},
+         {'path':'/lib64','literal_target':'usr/lib64','normalized_target':'/usr/lib64'}]
+OVERRIDES=('stage_seconds','profile','actual_admission','scratch_bytes','Guard.verify_capture_posthash')
+
+
+def require(ok,reason):
+    if not ok:raise ValueError(reason)
+
+
+def read(path,maximum=131072):
+    path=Path(path);require(path.resolve()==path and path.is_file() and not path.is_symlink() and path.stat().st_size<=maximum,'regular_bounded')
+    raw=path.read_bytes();require(len(raw)<=maximum,'bounded_growth');return raw
+
+
+def sha(path):return hashlib.sha256(read(path)).hexdigest()
+def canonical(v):return json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+def digest(v):return hashlib.sha256(canonical(v).encode()).hexdigest()
+
+
+def profile_data():
+    require(sha(HERE/'PROFILE.json')==PROFILE_SHA,'closed_profile_pin')
+    return json.loads(read(HERE/'PROFILE.json'))
+
+
+def source_names():return {str(HERE/n) for n in ('PROFILE.json','entry.py','launch.py','fixtures.py')}
+
+
+def common_names():
+    return source_names()|{str(GUARD),str(BASE),str(HERE/'REQUEST.json'),str(HERE/'SOURCE_FREEZE.json')}|{r['path'] for r in profile_data()['evidence_pins']}
+
+
+def stage_profile(spec):
+    actual=spec.get('stage')=='moss_actual'
+    require(spec.get('stage') in STAGES,'closed_stage')
+    require(type(spec.get('absolute_seconds')) is int and spec['absolute_seconds']==STAGES[spec['stage']] and
+            type(spec.get('work_seconds')) is int and spec['work_seconds']==STAGES[spec['stage']]-60,'clock_partition')
+    caps=(8*2**30,4*2**30,['__LOCAL_ACTUAL_CPU0__','__LOCAL_ACTUAL_CPU1__']) if actual else (2**30,256*2**20,['__LOCAL_FIXTURE_CPU_ID__'])
+    require(spec.get('address_space_cap_bytes')==caps[0] and type(spec['address_space_cap_bytes']) is int and
+            spec.get('rss_cap_bytes')==caps[1] and type(spec['rss_cap_bytes']) is int and
+            spec.get('cpus')==caps[2] and all(type(x) is int for x in spec['cpus']) and
+            spec.get('scratch_cap_bytes')==12*2**30 and type(spec['scratch_cap_bytes']) is int,'closed_resources')
+    return actual,set(caps[2]),caps[0],caps[1]
+
+
+def validate_request(request):
+    p=profile_data()
+    require(request=={'schema':'moss-direct-request-v1','profile_sha256':PROFILE_SHA,'profile_id':p['profile_id'],
+          'model':p['model'],'audio':p['audio'],'support':p['source_support'],'decoding':p['decoding'],
+          'limits':p['limits'],'max_model_constructions':1,'max_sessions':1,'max_runs':1,
+          'retry_policy':'none','identity_learning':False,'EOS':'unknown'},'exact_request')
+
+
+def validate_authority(a):
+    require(set(a)=={'schema','root_actual_go','authorization_reference','profile_sha256','request','fixture_terminal',
+                    'source_pins','run_directory','output_dir'} and a['schema']=='moss-direct-authority-v1' and
+            a['root_actual_go'] is True and type(a['authorization_reference']) is str and
+            0<len(a['authorization_reference'])<=2048 and a['profile_sha256']==PROFILE_SHA,'separate_root_GO')
+
+
+def configure(g):
+    require(g.CHECKS==OLD and g.WORKSPACE==W and g.MAX_DISK==7*2**30 and g.ACTUAL_RSS==4*2**30 and
+        g.ACTUAL_VISIBLE_RSS==6*2**30 and g.ACTUAL_AS==8*2**30 and g.CLEANUP_RESERVE==60 and
+        g.OLD_UNKNOWN_DISK==320*2**20 and g.ORDINARY_FREE_FLOOR==11*2**29 and g.POLL==.05,
+        'unchanged_guard_geometry')
+    original={n:v for n,v in vars(g.Guard).items() if callable(v)}
+    original_scratch=g.scratch_bytes
+    g.CHECKS=M;g.MAX_DISK=12*2**30;g.STAGES=dict(STAGES)
+
+    def accounting(end,reserve=0):
+        total=original_scratch(end,[M]);model=Path(profile_data()['model']['path']).lstat()
+        model_bytes=max(model.st_size,model.st_blocks*512)
+        require(total+reserve<=17*2**26 and total-model_bytes+reserve<=64*2**20,'M_component_metadata_reservation')
+        if RUN.exists():
+            out=RUN/'tmp/candidate'
+            if out.exists():require(original_scratch(end,[out])<=2*2**20,'candidate_output_charge')
+        return total
+
+    def scratch_bytes(end,roots=None):
+        accounting(end,g.RECEIPT_RESERVE)
+        return original_scratch(end,roots)
+
+    def stage_seconds(spec):
+        stage_profile(spec);return spec['absolute_seconds'],spec['work_seconds']
+
+    def actual_admission(spec,end):
+        g.clock_check(end);require(spec['stage']=='moss_actual' and spec['controller_spec']==spec['final_manifest'],'actual_authority_pin')
+        a=g.read_pin_json(spec['controller_spec'],end)
+        validate_authority(a)
+        require(spec['controller_spec']['path']==str(HERE/'ACTUAL_AUTHORITY.json') and
+                a['request']['path']==str(HERE/'REQUEST.json') and
+                a['fixture_terminal']['path']==str(M/'__LOCAL_ACCEPTED_FIXTURE_TERMINAL_PATH__'),'closed_authority_files')
+        request=g.read_pin_json(a['request'],end);validate_request(request)
+        terminal=g.read_pin_json(a['fixture_terminal'],end)
+        require(terminal['status']=='PASS' and terminal['guard_status']=='PASS' and terminal['cleanup']=='CONFIRMED' and
+                terminal['original_tool_wait_reaped'] is True and terminal['source_freeze_sha256']==sha(HERE/'SOURCE_FREEZE.json') and
+                terminal['profile_sha256']==PROFILE_SHA,'fixture_terminal_required')
+        fixture=g.read_pin_json({k:terminal['fixture_result'][k] for k in ('path','sha256')},end)
+        require(fixture['status']=='PASS' and fixture['tests_run']==24 and fixture['model_reads']==0 and
+                fixture['native_imports']==0 and fixture['model_calls']==0,'model_free_fixture_result')
+        require({r['path'] for r in a['source_pins']}==source_names() and len(a['source_pins'])==4,'four_source_pins')
+        for row in a['source_pins']:
+            require(row['sha256']==spec['external_files'][row['path']] and len(read(row['path']))==row['bytes'],'source_identity')
+        require(a['run_directory']==str(RUN) and a['output_dir']==str(RUN/'tmp/candidate'),'closed_fresh_run')
+        require(spec['argv']==[str(PYTHON),'-I','-B','-S',str(HERE/'entry.py'),'--mode','actual',
+                              '--profile-sha256',PROFILE_SHA,'--authority',str(HERE/'ACTUAL_AUTHORITY.json')],'direct_SDK_entry')
+        require(set(spec['external_files'])==common_names()|{str(HERE/'ACTUAL_AUTHORITY.json'),a['fixture_terminal']['path']},'closed_actual_externals')
+        g.verify_directory_aliases(ALIASES,lambda:g.clock_check(end),require)
+        reserve=max(g.RECEIPT_RESERVE,4*2**20-(original_scratch(end,[RUN]) if RUN.exists() else 0))
+        accounting(end,reserve);require(original_scratch(end)+reserve<=g.MAX_DISK,'aggregate_reservation')
+        return a,a,[HERE],RUN
+
+    def verify_capture_posthash(self,end):
+        out=RUN/'tmp/candidate';value=json.loads(g.read_regular(out/'result.json',32768,end))
+        post=json.loads(g.read_regular(out/'posthash.json',32768,end))
+        require(value['schema']=='moss-direct-owned-candidate-result-v1' and value['status']=='RECORDED' and
+                value['profile_sha256']==PROFILE_SHA and value['posthash']==post and post['all_matched'] is True and
+                post['elapsed_from_outer_start']<1080 and value['model_construct_attempts']<=1 and value['model_run_attempts']<=1 and
+                value['EOS']=='unknown' and value['identity_learning'] is False,'candidate_full_posthash')
+        p=profile_data();rows=p['runtime_files']+[p['model'],p['audio']]+p['evidence_pins']+self.controller['source_pins']
+        unique={r['path']:r for r in rows};rows=[unique[k] for k in sorted(unique)]
+        require(post['files']==len(rows) and post['bytes']==sum(r['bytes'] for r in rows) and post['inventory_sha256']==digest(rows),'complete_posthash_inventory')
+        self.receipt['candidate_full_posthash_verified']=True;self.receipt['candidate_full_posthash']=post
+
+    g.stage_seconds=stage_seconds;g.profile=stage_profile;g.actual_admission=actual_admission
+    g.scratch_bytes=scratch_bytes;g.Guard.verify_capture_posthash=verify_capture_posthash
+    require(all(getattr(g.Guard,n) is v for n,v in original.items() if n!='verify_capture_posthash'),'unchanged_ownership_methods')
+    return original
+
+
+def ownership_ast():
+    raw=read(GUARD);require(hashlib.sha256(raw).hexdigest()==GUARD_SHA,'guard_pin')
+    c=next(n for n in ast.parse(raw).body if isinstance(n,ast.ClassDef) and n.name=='Guard')
+    return {n.name:hashlib.sha256(ast.dump(n,include_attributes=False).encode()).hexdigest() for n in c.body
+            if isinstance(n,ast.FunctionDef) and n.name!='verify_capture_posthash'}
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--spec',type=Path,required=True);parser.add_argument('--spec-sha256',required=True);args=parser.parse_args()
+    require(sha(GUARD)==GUARD_SHA and sha(BASE)==BASE_SHA and Path(sys.executable).resolve()==PYTHON,'guard_base_interpreter')
+    spec=json.loads(read(args.spec));require(sha(args.spec)==args.spec_sha256,'spec_pin')
+    require(args.spec==HERE/('actual.spec.json' if spec['stage']=='moss_actual' else 'fixtures.spec.json'),'closed_spec_path')
+    base=json.loads(read(BASE));stage_profile(spec)
+    require(spec['schema']==3 and spec['guard_sha256']==GUARD_SHA and spec['source_root']==str(P) and
+            spec['source_files']==base['source_files'] and spec['runtime_files']=={str(PYTHON):PYTHON_SHA} and spec['cwd']==str(M),'source_runtime_cwd')
+    validate_request(json.loads(read(HERE/'REQUEST.json')))
+    if spec['stage']=='moss_fixtures':
+        require(set(spec['external_files'])==common_names() and 'controller_spec' not in spec and 'final_manifest' not in spec and
+                spec['argv']==[str(PYTHON),'-I','-B','-S',str(HERE/'entry.py'),'--mode','fixtures','--profile-sha256',PROFILE_SHA],'closed_fixtures_entry')
+    module=importlib.util.spec_from_file_location('moss_original_actual_guard',GUARD)
+    g=importlib.util.module_from_spec(module);module.loader.exec_module(g)
+    configure(g)
+    return g.main()
+
+
+if __name__=='__main__':
+    try:raise SystemExit(main())
+    except Exception:
+        print(json.dumps({'status':'REFUSED_BEFORE_DISPATCH','error_type':'MossCandidateAdapterRefused'}));raise SystemExit(2) from None
