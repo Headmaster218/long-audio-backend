@@ -1,0 +1,285 @@
+"""Fixed existing-CLI preparation/run path; only the existing runner owns a worker."""
+import argparse
+from copy import deepcopy
+from types import SimpleNamespace
+from contextlib import redirect_stdout
+import hashlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+HERE=Path(__file__).resolve().parent
+Q=HERE.parent
+P=Q.parent/'__LOCAL_PRODUCT_ROOT_NAME__'
+SITE=Q/'__LOCAL_RUNTIME_SITE_PACKAGES_RELATIVE_PATH__'
+sys.path[:0]=[str(HERE),str(P),str(SITE)]
+import actual_launch as launch
+
+
+def check(end):
+    launch.require(time.monotonic()<end and not Path(os.environ['GUARD_STOP_PATH']).exists(),
+                   'fixed_phase_deadline_or_STOP')
+
+
+def call_allowed(start,now):
+    # One second of the30-second bootstrap lane is retained for fixed CLI dispatch.
+    return start<=now<start+29
+
+
+def load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path)
+    value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value)
+    return value
+
+
+def write(path,value,limit=2**20):
+    raw=(json.dumps(value,sort_keys=True,indent=2,allow_nan=False)+'\n').encode()
+    launch.require(len(raw)<=limit,'output_bound')
+    with Path(path).open('xb') as stream:
+        stream.write(raw);stream.flush();os.fsync(stream.fileno())
+
+
+class BoundedText(io.StringIO):
+    def __init__(self): super().__init__();self.bytes=0
+    def write(self,text):
+        self.bytes+=len(text.encode())
+        launch.require(self.bytes<=512*1024,'CLI_output_bound')
+        return super().write(text)
+
+
+def invoke(cli,argv,path,end):
+    check(end)
+    output=BoundedText()
+    with redirect_stdout(output): code=cli.main(argv)
+    check(end)
+    launch.require(code==0,'CLI_nonzero')
+    text=output.getvalue()
+    with Path(path).open('x',encoding='utf-8') as stream: stream.write(text)
+    return json.loads(text)
+
+
+def material_rows(runner,frozen,out):
+    rows={}
+    def add(row):
+        old=rows.get(row['path'])
+        launch.require(old is None or old==row,'conflicting_immutable_pin')
+        rows[row['path']]=row
+    for row in frozen['implementation']+frozen['runtime']['files']:
+        add(row)
+    for key in ('model','python','native_library'): add(frozen['runtime'][key])
+    for path in list(frozen['source_bindings'].values())+[str(p) for p in launch.COMMON]:
+        add(runner.file_receipt(path))
+    for name in ('source-plan.json','source-bindings.json','limits.json','frozen.json'):
+        add(runner.file_receipt(out/name))
+    return [rows[key] for key in sorted(rows)]
+
+
+def fixtures():
+    rows=[]
+    def passed(name,ok):
+        launch.require(ok,'fixture_'+name);rows.append({'id':name,'status':'PASS'})
+    def bad(call):
+        try: call()
+        except (ValueError,KeyError): return True
+        return False
+    def spec(actual=False):
+        return {'stage':'qwen17_historical' if actual else 'qwen17_freeze',
+            'absolute_seconds':1200 if actual else 300,'work_seconds':1140 if actual else 240,
+            'address_space_cap_bytes':8*2**30 if actual else 2**30,
+            'rss_cap_bytes':4*2**30 if actual else 256*2**20,
+            'scratch_cap_bytes':9*2**30,'cpus':[0,1] if actual else [3]}
+    passed('closed_profiles',launch.contract(spec())[0] is False and launch.contract(spec(True))[0] is True)
+    passed('clock_refusals',all(bad(lambda k=k,v=v:launch.contract(dict(spec(True),**{k:v})))
+        for k,v in [('stage','actual_capture'),('absolute_seconds',1201),('work_seconds',1141),
+                    ('work_seconds',True)]))
+    passed('resource_refusals',all(bad(lambda k=k,v=v:launch.contract(dict(spec(True),**{k:v})))
+        for k,v in [('rss_cap_bytes',int(4.5*2**30)),('address_space_cap_bytes',2**30),
+                    ('scratch_cap_bytes',10*2**30),('cpus',[False,1])])
+        and launch.budget_values(launch.COMPONENT_CAP,0)['component_bytes']==launch.COMPONENT_CAP
+        and launch.budget_values(launch.BOOKKEEPING_CAP,launch.BOOKKEEPING_CAP)['bookkeeping_bytes']==launch.BOOKKEEPING_CAP
+        and bad(lambda:launch.budget_values(launch.COMPONENT_CAP+1,0))
+        and bad(lambda:launch.budget_values(launch.BOOKKEEPING_CAP+1,launch.BOOKKEEPING_CAP+1))
+        and bad(lambda:launch.budget_values(launch.COMPONENT_CAP,0,1))
+        and bad(lambda:launch.accounting_values(sum(launch.BULK.values()),dict(launch.BULK,models=1)))
+        and bad(lambda:launch.accounting_values(sum(launch.BULK.values()),dict(launch.BULK,unknown=0))))
+    passed('absolute_call_cutoff',call_allowed(100,100) and call_allowed(100,128.9)
+           and not call_allowed(100,129) and not call_allowed(100,130) and not call_allowed(100,99))
+    g=load('candidate_model_free_guard_fixture',launch.GUARD)
+    launch.q_accounting(lambda:g.clock_check(g.ABSOLUTE_END))  # Real directory/file regression.
+    before={n:v for n,v in vars(g.Guard).items() if callable(v)}
+    g.scratch_bytes=lambda end,roots=None: 0  # Fixture-only accounting input.
+    launch.configure(g)
+    passed('inherited_guard_methods',all(getattr(g.Guard,n) is f for n,f in before.items()
+           if n!='verify_capture_posthash') and len(launch.ast_receipt())==len(before)-1)
+    authority_pin={'path':str(launch.DATA/'authority.json'),'sha256':'a'*64}
+    frozen={'schema':'qwen-frozen-candidates-v2','model_profile':'qwen3-asr-1.7b-q5-k-m-cpu-v1',
+            'limits':dict(launch.LIMITS),'requests':[{}]}
+    prepared={'schema':'qwen17-historical-prepared-v1','model_calls':0,'fixtures_passed':8,
+              'frozen':{'path':str(launch.DATA/'frozen.json'),'sha256':'b'*64},
+              'frozen_sha256':launch.digest(frozen),'hash_inventory':[{'bytes':1}]}
+    approval={'frozen_sha256':launch.digest(frozen),'authorization_reference':'model-free fixture only'}
+    run=Q/'runs/__LOCAL_ACTUAL_RUN_NAME__'
+    authority={'schema':'qwen17-historical-actual-authority-v1','run_directory':str(run),
+        'output_dir':str(run/'tmp/candidate'),'prepared':{'path':str(launch.DATA/'prepared.json'),'sha256':'c'*64},
+        'approval_receipt':{'path':str(launch.DATA/'approval.json'),'sha256':'d'*64},
+        'frozen_sha256':launch.digest(frozen),'root_actual_go':True}
+    values={authority_pin['path']:authority,authority['prepared']['path']:prepared,
+            prepared['frozen']['path']:frozen,authority['approval_receipt']['path']:approval}
+    actual=dict(spec(True),controller_spec=authority_pin,final_manifest=authority_pin,
+        runtime_files={str(launch.PYTHON):launch.PYTHON_SHA},
+        argv=[str(launch.PYTHON),'-I','-B','-S',str(HERE/'actual_entry.py'),'--mode','actual',
+              '--authority',authority_pin['path']],external_files={str(p):'' for p in launch.COMMON})
+    actual['external_files'].update({p:'' for p in values})
+    original=(g.read_pin_json,g.read_regular,g.verify_directory_aliases,launch.q_accounting)
+    calls=[]
+    g.read_pin_json=lambda pin,end: values[pin['path']]
+    g.verify_directory_aliases=lambda rows,check,require: calls.append(('loader',rows))
+    launch.q_accounting=lambda check,reserve=0: calls.append(('accounting',reserve))
+    admit=lambda:g.actual_admission(actual,g.ABSOLUTE_END)
+    def changed(obj,key,value,call):
+        old=deepcopy(obj);obj[key]=value
+        try: return bad(call)
+        finally: obj.clear();obj.update(old)
+    try:
+        ok=admit()==(authority,authority,[HERE],run)
+        ok=ok and ('loader',launch.ALIASES) in calls and ('accounting',launch.OUTPUT_RESERVE) in calls
+        ok=ok and changed(authority,'root_actual_go',False,admit)
+        ok=ok and changed(frozen,'model_profile','changed',admit)
+        ok=ok and changed(approval,'frozen_sha256','e'*64,admit)
+        post={'all_matched':True,'inventory_sha256':launch.digest(prepared['hash_inventory']),
+              'files':1,'bytes':1,'elapsed_seconds':1}
+        result={'status':'RECORDED','posthash':post,'frozen_sha256':authority['frozen_sha256'],
+                'runner_original_reaped':True,'runner_cleanup_verified':True,'late_phase':False}
+        g.read_regular=lambda path,*args: json.dumps(post if Path(path).name=='posthash.json' else result)
+        subject=SimpleNamespace(controller=authority,receipt={})
+        verify=lambda:g.Guard.verify_capture_posthash(subject,g.ABSOLUTE_END)
+        verify();ok=ok and subject.receipt['candidate_full_posthash_verified'] is True
+        ok=ok and changed(post,'inventory_sha256','f'*64,verify)
+        ok=ok and changed(result,'runner_cleanup_verified',False,verify)
+        passed('closed_admission_and_posthash',ok)
+    finally:
+        g.read_pin_json,g.read_regular,g.verify_directory_aliases,launch.q_accounting=original
+    passed('single_call_and_cleanup_limits',launch.LIMITS['max_calls']==1
+           and launch.LIMITS['max_frames']==307040 and launch.LIMITS['cleanup_write_bytes']==512*1024
+           and launch.LIMITS['artifact_bytes']==2*2**20)
+    passed('fixed_1200_partition',30+launch.LIMITS['timeout_seconds']+30+30+180+60==1200
+           and launch.LIMITS['preflight_seconds']==180)
+    return rows,launch.ast_receipt()
+
+
+def freeze_phase(cli,runner,run,work_end):
+    rows,asts=fixtures()
+    out=run/'tmp/preparation';out.mkdir(mode=0o700)
+    write(out/'adapter-fixtures.json',{'tests':rows,'status':'PASS','count':8,'guard_method_asts':asts},16384)
+    lineage=json.loads(launch.read(HERE/'LINEAGE.json',8192))
+    from project_historical_candidate import validate_lineage
+    validate_lineage(lineage)
+    for name,value in [('source-plan.json',lineage['source_plan']),
+                       ('source-bindings.json',lineage['source_bindings']),('limits.json',launch.LIMITS)]:
+        write(out/name,value,8192)
+    result=invoke(cli,['freeze','--output',str(out),'--source-plan',str(out/'source-plan.json'),
+        '--source-bindings',str(out/'source-bindings.json'),'--runtime-manifest',str(Q/'__LOCAL_RUNTIME_MANIFEST_RELATIVE_PATH__'),
+        '--limits',str(out/'limits.json'),'--source-scope',lineage['generation_mapping']['cli_source_scope'],
+        '--source-generation','0','--model-profile',lineage['model_profile']],out/'freeze-show.json',work_end)
+    frozen=runner.read_json(out/'frozen.json')
+    launch.require(result['windows']==1 and result['submitted_frames_if_run_once']==307040
+            and result['inference_executed'] is False and result['frozen_sha256']==launch.digest(frozen),
+            'one_model_free_frozen_window')
+    guard=runner.make_guard(out,launch.LIMITS,read_only=True);guard.deadline=work_end
+    with runner.preflight_scope(guard,min(180,max(1,int(work_end-time.monotonic())))):
+        inventory=material_rows(runner,frozen,out)
+    prepared={'schema':'qwen17-historical-prepared-v1','frozen':runner.file_receipt(out/'frozen.json'),
+              'frozen_sha256':result['frozen_sha256'],'candidate_id':frozen['requests'][0]['candidate_id'],
+              'fixtures_passed':8,'model_calls':0,'hash_inventory':inventory,
+              'bookkeeping_cap_bytes':launch.BOOKKEEPING_CAP,'actual_GO_required':True}
+    write(out/'prepared.json',prepared,256*1024)
+    launch.require(not any(n.startswith('transcribe_cpp') for n in sys.modules),'no_provider_import_in_freeze')
+    check(work_end)
+    print(json.dumps({'status':'FROZEN_MODEL_FREE','prepared':str(out/'prepared.json'),
+                      'frozen_sha256':result['frozen_sha256'],'tests_passed':8,'model_calls':0}))
+    return 0
+
+
+def actual_phase(cli,runner,authority_path,run,absolute_end):
+    start=absolute_end-1200
+    raw=launch.read(authority_path)
+    launch.require(hashlib.sha256(raw).hexdigest()==os.environ['REAL_CAPTURE_SPEC_SHA256'],
+                   'authority_handoff_pin')
+    authority=json.loads(raw)
+    prepared=json.loads(launch.read(authority['prepared']['path']))
+    launch.require(hashlib.sha256(launch.read(authority['prepared']['path'])).hexdigest()
+                   ==authority['prepared']['sha256'],'prepared_pin')
+    frozen=runner.read_json(prepared['frozen']['path'])
+    launch.require(launch.digest(frozen)==authority['frozen_sha256'] and frozen['limits']==launch.LIMITS,
+                   'frozen_actual_limits')
+    out=Path(authority['output_dir'])
+    launch.require(out==run/'tmp/candidate' and out.is_dir() and not list(out.iterdir()),'fresh_actual_output')
+    error=None;owner=None;projection=None;late=False;phase_end=start+930
+    try:
+        launch.require(call_allowed(start,time.monotonic()),'bootstrap_call_deadline')
+        invoke(cli,['run','--output',str(out),'--frozen',prepared['frozen']['path'],
+            '--expected-sha256',authority['frozen_sha256'],'--approval',authority['approval_receipt']['path']],
+            out/'run-events.json',start+930)
+        phase_end=start+960
+        candidate_id=prepared['candidate_id']
+        invoke(cli,['show','--output',str(out),'--candidate-id',candidate_id],out/'show.json',start+960)
+        from audio_backend.qwen_candidate_store import CandidateStore
+        from project_historical_candidate import project_candidate
+        store=CandidateStore(out);stored=store.request(candidate_id);events=store.events(0,100)
+        owners=[r['payload'] for r in events['events'] if r['kind']=='owner_receipt']
+        launch.require(not events['has_more'] and len(owners)==1,'one_runner_owner_receipt')
+        owner=owners[0]
+        launch.require(owner['original_handle_waited_and_reaped'] is True
+            and owner['cleanup_verified'] is True and owner['remaining_live_owned']==[]
+            and owner.get('failure') is None and owner.get('wait_returncode')==0,'runner_terminal_cleanup')
+        write(out/'stored-evidence.json',stored,512*1024)
+        lineage=json.loads(launch.read(HERE/'LINEAGE.json',8192))
+        alternative,projection=project_candidate(lineage,frozen,stored,expected_frozen_sha256=authority['frozen_sha256'])
+        with (out/'native.raw').open('xb') as stream: stream.write(alternative.raw)
+        write(out/'alternative.json',alternative.to_dict(),256*1024)
+        write(out/'projection.json',projection,8192)
+        check(start+960)
+    except Exception as exc:
+        error=type(exc).__name__;late=time.monotonic()>=phase_end
+    post_start=time.monotonic()
+    guard=runner.make_guard(out,launch.LIMITS,read_only=True);guard.deadline=start+1140
+    with runner.preflight_scope(guard,180):
+        for item in prepared['hash_inventory']: runner.verify_file(item)
+    post={'all_matched':True,'files':len(prepared['hash_inventory']),
+          'bytes':sum(x['bytes'] for x in prepared['hash_inventory']),
+          'inventory_sha256':launch.digest(prepared['hash_inventory']),
+          'elapsed_seconds':time.monotonic()-post_start}
+    write(out/'posthash.json',post,65536)
+    result={'schema':'qwen17-historical-actual-result-v1','status':'RECORDED' if error is None else 'INCOMPLETE',
+            'frozen_sha256':authority['frozen_sha256'],'error_type':error,'posthash':post,
+            'runner_original_reaped':bool(owner and owner.get('original_handle_waited_and_reaped')),
+            'runner_cleanup_verified':bool(owner and owner.get('cleanup_verified')),'late_phase':late,
+            'projection_present':projection is not None,'complete_content':False,'eos':None,
+            'bookkeeping_cap_bytes':launch.BOOKKEEPING_CAP,'historical_original_status':'INCOMPLETE'}
+    write(out/'actual-result.json',result,65536)
+    check(start+1140)
+    return 0 if error is None else 1
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--mode',choices=('freeze','actual'),required=True)
+    parser.add_argument('--authority',type=Path);args=parser.parse_args()
+    launch.require(Path(sys.executable).resolve()==launch.PYTHON,'copied_runtime_interpreter')
+    run=Path(os.environ['GUARD_RUN_DIRECTORY']);absolute=float(os.environ['GUARD_ABSOLUTE_END'])
+    work=float(os.environ['GUARD_WORK_END'])
+    launch.require(run.parent==Q/'runs' and absolute-work==60,'original_guard_deadlines')
+    from audio_backend import qwen_candidate_runner as runner
+    cli=load('candidate_unchanged_CLI',P/'scripts/benchmarks/run_qwen_candidates.py')
+    return (freeze_phase(cli,runner,run,work) if args.mode=='freeze'
+            else actual_phase(cli,runner,args.authority,run,absolute))
+
+
+if __name__=='__main__':
+    try: raise SystemExit(main())
+    except Exception:
+        print(json.dumps({'status':'FAILED','error_type':'CandidateEntryFailure'}))
+        raise SystemExit(1) from None

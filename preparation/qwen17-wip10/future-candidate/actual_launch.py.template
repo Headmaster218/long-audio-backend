@@ -1,0 +1,278 @@
+"""Closed historical-candidate adapter. Original guard retains ownership."""
+import argparse
+import ast
+import hashlib
+import importlib.util
+import json
+import os
+import stat
+from pathlib import Path
+import sys
+from types import SimpleNamespace
+
+HERE = Path(__file__).resolve().parent
+Q = HERE.parent
+P = Q.parent/'__LOCAL_PRODUCT_ROOT_NAME__'
+OLD = Q.parent/'__LOCAL_GUARD_ROOT_NAME__'
+GUARD = OLD/'__LOCAL_GUARD_SOURCE_RELATIVE_PATH__'
+GUARD_SHA = '__LOCAL_GUARD_SOURCE_SHA256__'
+BASE = OLD/'__LOCAL_GUARD_BASE_SPEC_RELATIVE_PATH__'
+BASE_SHA = '__LOCAL_GUARD_BASE_SPEC_SHA256__'
+PYTHON = Q/'__LOCAL_RUNTIME_PYTHON_RELATIVE_PATH__'
+PYTHON_SHA = '__LOCAL_RUNTIME_PYTHON_SHA256__'
+DATA = Q/'__LOCAL_DISPATCH_DATA_RELATIVE_PATH__'
+STAGES = {'qwen17_freeze': 300, 'qwen17_historical': 1200}
+LIMITS = {'max_calls':1,'max_frames':307040,'tree_rss_bytes':4*2**30,
+          'host_reserve_bytes':5*2**29,'disk_reserve_bytes':11*2**29+320*2**20,
+          'artifact_bytes':2*2**20,'timeout_seconds':870,'cleanup_seconds':30,
+          'cleanup_write_bytes':512*2**10,'preflight_seconds':180}
+OVERRIDES = ('stage_seconds','profile','actual_admission','scratch_bytes','Guard.verify_capture_posthash')
+PREPARE = Q/'prepare.py'
+PREPARE_SHA = '__LOCAL_PREPARE_SOURCE_SHA256__'
+COMPONENT_CAP = 2289876992
+BOOKKEEPING_CAP = 16*2**20
+OUTPUT_RESERVE = 5*2**20
+ALIASES = [{'path':'/lib','literal_target':'usr/lib','normalized_target':'/usr/lib'},
+           {'path':'/lib64','literal_target':'usr/lib64','normalized_target':'/usr/lib64'}]
+PART = '__LOCAL_RETAINED_PART_RELATIVE_PATH__'
+BULK = {'models':1517301760,'wheels':24371200,'runtime':103579648,
+        '__LOCAL_RETAINED_RUN_A_PREFIX__'+PART:142376960,'__LOCAL_RETAINED_RUN_B_PREFIX__'+PART:16384}
+_ACCOUNTING = None
+HISTORY = Q/'__LOCAL_SOURCE_HISTORY_A_RELATIVE_PATH__'
+HISTORY2 = Q/'__LOCAL_SOURCE_HISTORY_B_RELATIVE_PATH__'
+COMMON = (GUARD, BASE, PREPARE, *(HISTORY/n for n in ('HISTORY.json','actual_launch.py',
+          'actual_entry.py','ACTUAL_SOURCE_FREEZE.json','ACTUAL_FREEZE_READINESS.json','freeze.spec.json')),
+          *(HISTORY2/n for n in ('HISTORY.json','actual_launch.py','actual_entry.py',
+                                'ACTUAL_SOURCE_FREEZE.json','ACTUAL_FREEZE_READINESS.json','freeze.spec.json')),
+          HERE/'actual_launch.py', HERE/'actual_entry.py',
+          HERE/'ACTUAL_CANDIDATE_INVENTORY.md', HERE/'LINEAGE.json',
+          HERE/'project_historical_candidate.py', HERE/'IMPLEMENTATION_FREEZE.json',
+          Q/'__LOCAL_RUNTIME_MANIFEST_RELATIVE_PATH__', Q/'__LOCAL_RUNTIME_CONFIGURATION_RELATIVE_PATH__',
+          Q/'__LOCAL_HISTORICAL_FIXTURE_RECEIPT_RELATIVE_PATH__',
+          Q/'__LOCAL_RUNTIME_PROBE_RECEIPT_RELATIVE_PATH__', Q/'__LOCAL_OFFLINE_INSTALL_RECEIPT_RELATIVE_PATH__',
+          OLD/'__LOCAL_HISTORICAL_CAPTURE_PROOF_RELATIVE_PATH__',
+          OLD/'__LOCAL_HISTORICAL_CAPTURE_REVIEW_RELATIVE_PATH__',
+          OLD/'__LOCAL_LIFECYCLE_REVIEW_RELATIVE_PATH__')
+
+
+def require(ok, reason):
+    if not ok: raise ValueError(reason)
+
+
+def canonical(value):
+    return json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)
+
+
+def digest(value):
+    return hashlib.sha256(canonical(value).encode()).hexdigest()
+
+
+def read(path, maximum=2**20):
+    path=Path(path)
+    require(path.resolve()==path and path.is_file() and not path.is_symlink()
+            and path.stat().st_size<=maximum,'bounded_regular_metadata')
+    raw=path.read_bytes()
+    require(len(raw)<=maximum,'metadata_growth')
+    return raw
+
+
+
+def budget_values(total,bookkeeping,reserve=0):
+    require(all(type(x) is int and x>=0 for x in (total,bookkeeping,reserve)), 'integer_charges')
+    require(bookkeeping+reserve<=BOOKKEEPING_CAP,'bookkeeping_cap_with_reservation')
+    require(total+reserve<=COMPONENT_CAP,'Q_component_cap_with_reservation')
+    return {'component_bytes':total,'bookkeeping_bytes':bookkeeping,'reserved_bytes':reserve}
+
+
+def accounting_values(total,excluded,reserve=0):
+    require(excluded==BULK,'closed_bulk_classification')
+    return budget_values(total,total-sum(excluded.values()),reserve)
+
+
+def q_accounting(check, reserve=0):
+    global _ACCOUNTING
+    if _ACCOUNTING is None:
+        raw=read(PREPARE,16384)
+        require(len(raw)==8635 and hashlib.sha256(raw).hexdigest()==PREPARE_SHA,'Q_accounting_pin')
+        spec=importlib.util.spec_from_file_location('candidate_private_Q_accounting',PREPARE)
+        p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+        require(p.COMPONENT_CAP==2*2**30 and p.BOOKKEEPING==4*2**20,'old_accounting_constants')
+        p.COMPONENT_CAP=COMPONENT_CAP;p.BOOKKEEPING=BOOKKEEPING_CAP
+        _ACCOUNTING=p
+    p=_ACCOUNTING;a=SimpleNamespace(require=require)
+    total=p.component_bytes(a,Q,check)
+    excluded={}
+    for name in BULK:
+        check();path=Q/name;info=path.lstat()
+        require(path.resolve()==path,'bulk_alias')
+        if name in ('models','wheels','runtime'):
+            require(stat.S_ISDIR(info.st_mode),'bulk_directory_type')
+            excluded[name]=p.component_bytes(a,path,check)
+        else:
+            require(stat.S_ISREG(info.st_mode) and info.st_size<=BULK[name],'bulk_part_type_or_size')
+            excluded[name]=max(info.st_size,info.st_blocks*512)
+        check()
+    return accounting_values(total,excluded,reserve)
+
+
+def contract(spec):
+    stage=spec.get('stage')
+    require(stage in STAGES,'closed_stage')
+    actual=stage=='qwen17_historical'
+    require(type(spec.get('absolute_seconds')) is int and spec['absolute_seconds']==STAGES[stage]
+            and type(spec.get('work_seconds')) is int and spec['work_seconds']==STAGES[stage]-60,
+            'absolute_clock_partition')
+    caps=(8*2**30,4*2**30,[0,1]) if actual else (2**30,256*2**20,[3])
+    require(all(type(spec.get(k)) is int and spec[k]==v for k,v in
+                (('address_space_cap_bytes',caps[0]),('rss_cap_bytes',caps[1]),
+                 ('scratch_cap_bytes',9*2**30))) and spec.get('cpus')==caps[2]
+            and all(type(v) is int for v in spec['cpus']),'fixed_resource_profile')
+    return actual,set(caps[2]),caps[0],caps[1]
+
+
+def configure(g):
+    require(g.CHECKS==OLD and g.WORKSPACE==Q.parent and g.HERE==GUARD.parent
+            and g.MAX_DISK==7*2**30 and g.ACTUAL_RSS==4*2**30
+            and g.ACTUAL_VISIBLE_RSS==6*2**30 and g.ACTUAL_AS==8*2**30
+            and g.CLEANUP_RESERVE==60 and g.OLD_UNKNOWN_DISK==320*2**20
+            and g.ORDINARY_FREE_FLOOR==11*2**29 and g.POLL==.05
+            and g.ACTUAL_INITIAL_AVAILABLE==13*2**29
+            and g.ACTUAL_RUNNING_AVAILABLE==5*2**29
+            and g.HARNESS_CAP==512*2**20 and g.FUTURE_RETURN_RESERVE==384*2**20,
+            'unchanged_guard_geometry')
+    original={name:value for name,value in vars(g.Guard).items() if callable(value)}
+    g.CHECKS=Q;g.MAX_DISK=9*2**30;g.STAGES=dict(STAGES)
+    original_scratch=g.scratch_bytes
+
+    def scratch_bytes(end,roots=None):
+        try:
+            q_accounting(lambda:g.clock_check(end),g.RECEIPT_RESERVE)
+        except FileNotFoundError as exc:
+            require(exc.filename and g.volatile_scratch(exc.filename),'unexpected_accounting_disappearance')
+            q_accounting(lambda:g.clock_check(end),g.RECEIPT_RESERVE)
+        return original_scratch(end,roots)
+
+    def stage_seconds(spec):
+        contract(spec)
+        return spec['absolute_seconds'],spec['work_seconds']
+
+    def profile(spec):
+        return contract(spec)
+
+    def actual_admission(spec,end):
+        g.clock_check(end)
+        require(spec['stage']=='qwen17_historical'
+                and spec['controller_spec']==spec['final_manifest'],'candidate_authority_pin')
+        value=g.read_pin_json(spec['controller_spec'],end)
+        require(set(value)=={'schema','run_directory','output_dir','prepared','approval_receipt',
+                             'frozen_sha256','root_actual_go'}
+                and value['schema']=='qwen17-historical-actual-authority-v1'
+                and value['root_actual_go'] is True,'separate_root_GO')
+        prepared=g.read_pin_json(value['prepared'],end)
+        frozen=g.read_pin_json({'path':prepared['frozen']['path'],
+                               'sha256':prepared['frozen']['sha256']},end)
+        approval=g.read_pin_json(value['approval_receipt'],end)
+        require(prepared['schema']=='qwen17-historical-prepared-v1'
+                and prepared['model_calls']==0 and prepared['fixtures_passed']==8
+                and value['frozen_sha256']==prepared['frozen_sha256']==digest(frozen)
+                and frozen['schema']=='qwen-frozen-candidates-v2'
+                and frozen['model_profile']=='qwen3-asr-1.7b-q5-k-m-cpu-v1'
+                and frozen['limits']==LIMITS and len(frozen['requests'])==1,'exact_frozen_request')
+        require(set(approval)=={'frozen_sha256','authorization_reference'}
+                and approval['frozen_sha256']==value['frozen_sha256']
+                and type(approval['authorization_reference']) is str
+                and 0<len(approval['authorization_reference'])<=1024,'runner_approval')
+        run=Path(value['run_directory'])
+        require(run.resolve()==run and run.parent==Q/'runs'
+                and run.name=='__LOCAL_ACTUAL_RUN_NAME__'
+                and value['output_dir']==str(run/'tmp/candidate'),'fresh_actual_output_scope')
+        require(Path(sys.executable).resolve()==PYTHON
+                and spec['runtime_files']=={str(PYTHON):PYTHON_SHA}
+                and spec['argv']==[str(PYTHON),'-I','-B','-S',str(HERE/'actual_entry.py'),
+                                   '--mode','actual','--authority',spec['controller_spec']['path']],
+                'exact_actual_entry')
+        g.verify_directory_aliases(ALIASES,lambda:g.clock_check(end),require)
+        spent=original_scratch(end,[run]) if run.exists() else 0
+        reserve=max(g.RECEIPT_RESERVE,OUTPUT_RESERVE-spent)
+        q_accounting(lambda:g.clock_check(end),reserve)
+        require(original_scratch(end)+reserve<=g.MAX_DISK,'prospective_global_candidate_reservation')
+        extra={spec['controller_spec']['path'],value['prepared']['path'],
+               value['approval_receipt']['path'],prepared['frozen']['path']}
+        require(set(spec['external_files'])=={str(p) for p in COMMON}|extra,'actual_external_membership')
+        return value,value,[HERE],run
+
+    def verify_capture_posthash(self,end):
+        out=Path(self.controller['output_dir'])
+        value=json.loads(g.read_regular(out/'actual-result.json',65536,end))
+        post=json.loads(g.read_regular(out/'posthash.json',65536,end))
+        prepared=g.read_pin_json(self.controller['prepared'],end)
+        require(value['status']=='RECORDED' and value['posthash']==post
+                and post['all_matched'] is True
+                and post['inventory_sha256']==digest(prepared['hash_inventory'])
+                and post['files']==len(prepared['hash_inventory'])
+                and post['bytes']==sum(p['bytes'] for p in prepared['hash_inventory'])
+                and 0<=post['elapsed_seconds']<=180
+                and value['frozen_sha256']==self.controller['frozen_sha256']
+                and value['runner_original_reaped'] is True
+                and value['runner_cleanup_verified'] is True
+                and value['late_phase'] is False,'candidate_complete_posthash_and_cleanup')
+        self.receipt['candidate_full_posthash_verified']=True
+        self.receipt['candidate_full_posthash']=post
+
+    g.stage_seconds=stage_seconds;g.profile=profile;g.actual_admission=actual_admission
+    g.scratch_bytes=scratch_bytes
+    g.Guard.verify_capture_posthash=verify_capture_posthash
+    require(all(getattr(g.Guard,n) is f for n,f in original.items()
+                if n!='verify_capture_posthash'),'unchanged_all_other_guard_methods')
+    return original
+
+
+def ast_receipt():
+    raw=read(GUARD,65536)
+    require(hashlib.sha256(raw).hexdigest()==GUARD_SHA,'guard_source_pin')
+    tree=ast.parse(raw)
+    cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='Guard')
+    return {n.name:hashlib.sha256(ast.dump(n,include_attributes=False).encode()).hexdigest()
+            for n in cls.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))
+            and n.name!='verify_capture_posthash'}
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--spec',type=Path,required=True)
+    parser.add_argument('--spec-sha256',required=True);args=parser.parse_args()
+    raw=read(GUARD,65536)
+    require(len(raw)==47647 and hashlib.sha256(raw).hexdigest()==GUARD_SHA,'exact_guard_source')
+    spec=importlib.util.spec_from_file_location('candidate_immutable_actual_guard',GUARD)
+    g=importlib.util.module_from_spec(spec);spec.loader.exec_module(g)
+    members=list(DATA.iterdir())
+    require({p.name for p in members}<={'freeze.spec.json','actual.spec.json'}
+            and sum(len(read(p,128*1024)) for p in members)<=128*1024,'combined_dispatch_spec_cap')
+    value=json.loads(read(args.spec,128*1024))
+    require(hashlib.sha256(read(args.spec,128*1024)).hexdigest()==args.spec_sha256,'expanded_spec_pin')
+    require(args.spec.absolute()==DATA/('actual.spec.json' if value.get('stage')=='qwen17_historical'
+                                      else 'freeze.spec.json'),'closed_dispatch_spec_path')
+    base_raw=read(BASE,65536)
+    require(hashlib.sha256(base_raw).hexdigest()==BASE_SHA,'full_source_base_pin')
+    base=json.loads(base_raw)
+    require(value['source_root']==str(P) and value['source_files']==base['source_files']
+            and value['runtime_files']=={str(PYTHON):PYTHON_SHA}
+            and value['schema']==3 and value['guard_sha256']==GUARD_SHA
+            and value['cwd']==str(Q),'complete_source_and_interpreter_inventory')
+    if value['stage']=='qwen17_freeze':
+        require(set(value['external_files'])=={str(p) for p in COMMON}
+                and 'controller_spec' not in value and 'final_manifest' not in value
+                and value['argv']==[str(PYTHON),'-I','-B','-S',str(HERE/'actual_entry.py'),
+                                    '--mode','freeze'],'closed_model_free_entry')
+    require(Path(sys.executable).resolve()==PYTHON,'copied_interpreter_required')
+    configure(g)
+    if value['stage']=='qwen17_freeze':
+        g.verify_directory_aliases(ALIASES,lambda:g.clock_check(g.ABSOLUTE_END),require)
+        q_accounting(lambda:g.clock_check(g.ABSOLUTE_END),3*2**20)
+    return g.main()
+
+
+if __name__=='__main__':
+    try: raise SystemExit(main())
+    except Exception:
+        print(json.dumps({'status':'REFUSED_BEFORE_DISPATCH','error_type':'CandidateAdapterRefused'}))
+        raise SystemExit(2) from None

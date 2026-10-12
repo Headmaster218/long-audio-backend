@@ -1,0 +1,337 @@
+"""Undispatched pure synthetic fixtures; no real files, audio, DB or runtime.
+
+The synthetic frozen manifest stands in for an independently verified runner
+freeze. Passing these tests could not authorize or attest an actual model run.
+LINEAGE is the accepted static metadata value embedded below, not a file read.
+"""
+import copy
+import hashlib
+import json
+import unittest
+
+from audio_backend.fragment_runtime_contracts import canonical, digest, CONTRACT
+from audio_backend.qwen_candidates import FLOAT_TRANSFORM, REQUEST_SCHEMA, normalize_native_result
+from audio_backend.qwen_profiles import optional_profile
+from project_historical_candidate import (
+    LINEAGE_SHA256, ProjectionError, project_candidate, validate_lineage,
+)
+
+# The exact accepted metadata is embedded during source preparation only.
+LINEAGE = json.loads('__LOCAL_REVIEWED_LINEAGE_JSON__')
+
+
+def file_receipt(name, sha='a' * 64, size=1):
+    return {'path': '/synthetic/' + name, 'resolved_path': '/synthetic/' + name,
+            'bytes': size, 'sha256': sha}
+
+
+def native(**changes):
+    raw = {
+        'native_status': 0, 'native_status_name': 'OK', 'result_available': True,
+        'text': '  Original 文本.\n', 'raw_text': '<text> Original 文本. </text>',
+        'language': 'en', 'was_truncated': False, 'truncation_available': True,
+        'exception_type': None, 'exception_status': None, 'partial_result_available': False,
+        'native_token_count': 1, 'native_timestamp_kind': 'none', 'execution_returned': True,
+        'native_tokens': [{'id': 7, 'text': ' token ', 'p': None}], 'native_timings': None,
+    }
+    raw.update(changes)
+    return normalize_native_result(raw)
+
+
+def request_rebind(request):
+    value = digest({k: v for k, v in request.items()
+                    if k not in {'request_id', 'candidate_id', 'binding_sha256'}})
+    request.update(request_id=value, candidate_id=value, binding_sha256=value)
+
+
+def fixture(record=None):
+    profile = optional_profile(LINEAGE['model_profile'])
+    runtime = {
+        'schema': 'qwen-local-runtime-v1',
+        'model': file_receipt('model.gguf', profile.model_sha256, profile.model_bytes),
+        'python': file_receipt('python'), 'native_library': file_receipt('native.so', 'b' * 64),
+        'files': [file_receipt('wrapper.py')], 'package_version': profile.package_version,
+        'native_commit': profile.native_commit, 'model_id': profile.model_id,
+        'model_revision': profile.model_revision, 'license': profile.license,
+    }
+    source = LINEAGE['source_file']
+    support = LINEAGE['support']
+    mapping = [{'span': copy.deepcopy(LINEAGE['source_plan']['spans'][0]),
+                'source_sha256': source['sha256']}]
+    request = {
+        'schema': REQUEST_SCHEMA,
+        'source_scope': LINEAGE['generation_mapping']['cli_source_scope'],
+        'source_generation': 0, 'plan_sha256': support['plan_sha256'],
+        'plan_end_frame': source['frames'], 'source_contract': CONTRACT,
+        'sample_rate': 16000, 'source_clock': 'logical_plan_integer_samples_exact_original_mapping',
+        'ownership': {'start_frame': 0, 'end_frame': source['frames']},
+        'read': {'start_frame': 0, 'end_frame': source['frames']},
+        'context': {'left_frames': 0, 'right_frames': 0,
+                    'left_reason': 'capture_start', 'right_reason': 'true_eos'},
+        'source_mapping': mapping, 'source_map_sha256': digest(mapping),
+        'pcm16_sha256': support['pcm16le_sha256'], 'float32_sha256': support['float32le_sha256'],
+        'float32_count': source['frames'], 'float32_transform': FLOAT_TRANSFORM,
+        'runtime_manifest_sha256': digest(runtime), 'model_sha256': profile.model_sha256,
+        'config': profile.config(), 'profile_sha256': digest(profile.config()),
+    }
+    request_rebind(request)
+    frozen = {
+        'schema': 'qwen-frozen-candidates-v2', 'source_plan': canonical(LINEAGE['source_plan']),
+        'source_bindings': copy.deepcopy(LINEAGE['source_bindings']), 'runtime': runtime,
+        'limits': {'max_calls': 1, 'max_frames': source['frames'], 'tree_rss_bytes': 4 * 1024**3,
+                   'host_reserve_bytes': 3 * 1024**3, 'disk_reserve_bytes': 6 * 1024**3,
+                   'artifact_bytes': 2 * 1024**2, 'timeout_seconds': 900,
+                   'cleanup_seconds': 30, 'cleanup_write_bytes': 512 * 1024,
+                   'preflight_seconds': 180},
+        'requests': [request], 'implementation': [file_receipt('pure-contract.py')],
+        'model_profile': profile.name, 'model_profile_sha256': profile.sha256,
+    }
+    record = native() if record is None else record
+    evidence = {
+        'native': record,
+        'runtime': {'package_version': profile.package_version, 'native_version': '0.2.3',
+                    'native_commit': profile.native_commit, 'actual_backend': 'cpu',
+                    'device': {'kind': 'cpu', 'device_type': 'cpu'},
+                    'library_sha256': runtime['native_library']['sha256'],
+                    'model_sha256': profile.model_sha256, 'runtime_manifest_sha256': digest(runtime)},
+    }
+    attempt = {
+        'id': 1, 'request_id': request['request_id'], 'owner': '{"synthetic":true}',
+        'generation': 1, 'retry_of': None, 'retry_key': None, 'started': 1, 'returned': 1,
+        'status': record['status'], 'evidence': evidence, 'evidence_sha256': digest(evidence),
+    }
+    stored = {'request': copy.deepcopy(request), 'status': record['status'], 'attempts': [attempt]}
+    return frozen, stored
+
+
+def reseal_evidence(stored):
+    attempt = stored['attempts'][0]
+    attempt['evidence_sha256'] = digest(attempt['evidence'])
+
+
+def project(frozen, stored, lineage=None, expected=None):
+    return project_candidate(LINEAGE if lineage is None else lineage, frozen, stored,
+                             expected_frozen_sha256=digest(frozen) if expected is None else expected)
+
+
+class HistoricalProjectionTests(unittest.TestCase):
+    def test_static_lineage_and_separate_profile_digests(self):
+        support, plan = validate_lineage(LINEAGE)
+        self.assertEqual(digest(LINEAGE), LINEAGE_SHA256)
+        self.assertEqual(plan.sha256, LINEAGE['expected_plan_sha256'])
+        self.assertEqual(support.support_id, LINEAGE['expected_support_id'])
+        self.assertEqual(LINEAGE['generation_mapping']['cli_source_generation'], 0)
+        self.assertIs(type(support.source_generation), str)
+        profile = optional_profile(LINEAGE['model_profile'])
+        self.assertEqual(profile.sha256, LINEAGE['expected_model_profile_sha256'])
+        self.assertEqual(digest(profile.config()), LINEAGE['expected_config_sha256'])
+        self.assertNotEqual(profile.sha256, digest(profile.config()))
+
+    def test_successful_return_is_still_incomplete_and_raw_is_full(self):
+        frozen, stored = fixture()
+        original = copy.deepcopy((LINEAGE, frozen, stored))
+        alt, receipt = project(frozen, stored)
+        record = stored['attempts'][0]['evidence']['native']
+        self.assertTrue(record['complete'])
+        self.assertEqual(alt.text, record['text'])
+        self.assertEqual(alt.raw, canonical(record).encode('utf-8'))
+        self.assertEqual(json.loads(alt.raw)['native_tokens'], record['native_tokens'])
+        self.assertEqual(alt.outcome, 'returned')
+        self.assertIsNone(alt.eos)
+        self.assertFalse(alt.complete_content)
+        self.assertEqual(receipt['raw_sha256'], hashlib.sha256(alt.raw).hexdigest())
+        self.assertEqual(receipt['historical_original_status'], 'INCOMPLETE')
+        self.assertFalse(receipt['live_source_authorization'])
+        self.assertEqual((LINEAGE, frozen, stored), original)
+
+    def test_empty_string_is_preserved_but_nullable_text_is_not_fabricated(self):
+        frozen, stored = fixture(native(text='', raw_text=''))
+        alt, _ = project(frozen, stored)
+        self.assertEqual(alt.text, '')
+        self.assertFalse(alt.complete_content)
+        record = native(result_available=False, text=None, raw_text=None, language=None,
+                        native_token_count=None, native_tokens=None, native_timestamp_kind=None)
+        with self.assertRaisesRegex(ProjectionError, 'native_text_unavailable'):
+            project(*fixture(record))
+
+    def test_numeric_failures_unknown_truncation_and_partials_stay_diagnostic(self):
+        cases = [
+            ({'native_status': 18, 'native_status_name': None, 'was_truncated': True}, 'failed'),
+            ({'native_status': 18, 'native_status_name': None, 'was_truncated': False}, 'failed'),
+            ({'native_status': 13, 'native_status_name': None}, 'failed'),
+            ({'native_status': 17, 'native_status_name': None}, 'failed'),
+            ({'native_status': None, 'native_status_name': None}, 'unknown'),
+            ({'was_truncated': None, 'truncation_available': False}, 'failed'),
+            ({'exception_type': 'NativeError', 'exception_status': 0,
+              'partial_result_available': True}, 'failed'),
+        ]
+        for changes, outcome in cases:
+            with self.subTest(changes=changes):
+                record = native(**changes)
+                alt, _ = project(*fixture(record))
+                self.assertEqual(alt.outcome, outcome)
+                self.assertEqual(alt.native_status, record['native_status'])
+                self.assertIs(alt.truncated, record['was_truncated'])
+                self.assertEqual(alt.text, record['text'])
+                self.assertIsNone(alt.eos)
+                self.assertFalse(alt.complete_content)
+
+    def test_lineage_mutations_and_generation_coercions_rejected(self):
+        for change in ('generation', 'support', 'deletion', 'plan', 'profile'):
+            lineage = copy.deepcopy(LINEAGE)
+            if change == 'generation':
+                lineage['generation_mapping']['cli_source_generation'] = lineage['support']['source_generation']
+            elif change == 'support':
+                lineage['support']['end_frame'] -= 1
+            elif change == 'deletion':
+                lineage['historical_evidence']['primary_session_application_deleted'] = False
+            elif change == 'plan':
+                lineage['source_plan']['final'] = False
+            else:
+                lineage['expected_config_sha256'] = lineage['expected_model_profile_sha256']
+            with self.subTest(change=change), self.assertRaises(ProjectionError):
+                project(*fixture(), lineage=lineage)
+
+    def test_changed_frozen_commitment_and_model_profile_rejected(self):
+        frozen, stored = fixture()
+        expected = digest(frozen)
+        frozen['limits']['timeout_seconds'] += 1
+        with self.assertRaisesRegex(ProjectionError, 'frozen_commitment'):
+            project(frozen, stored, expected=expected)
+        for field, value in [('model_profile', 'qwen3-asr-0.6b-q5-k-m-cpu-v1'),
+                             ('model_profile_sha256', LINEAGE['expected_config_sha256'])]:
+            frozen, stored = fixture()
+            frozen[field] = value
+            with self.subTest(field=field), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+
+    def test_rebound_wrong_source_request_rejected(self):
+        changes = [
+            ('source_generation', True), ('source_generation', LINEAGE['support']['source_generation']),
+            ('source_generation', 1), ('source_scope', 'other'), ('plan_sha256', '0' * 64),
+            ('pcm16_sha256', '0' * 64), ('float32_sha256', '0' * 64),
+            ('float32_count', 307039), ('sample_rate', 8000),
+            ('runtime_manifest_sha256', '0' * 64), ('model_sha256', '0' * 64),
+            ('profile_sha256', LINEAGE['expected_model_profile_sha256']),
+        ]
+        for field, value in changes:
+            frozen, stored = fixture()
+            request = frozen['requests'][0]
+            request[field] = value
+            request_rebind(request)
+            with self.subTest(field=field, value=value), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+
+    def test_context_map_frame_and_multiple_request_rejected(self):
+        for change in ('context', 'map', 'frames', 'requests', 'calls', 'binding'):
+            frozen, stored = fixture()
+            request = frozen['requests'][0]
+            if change == 'context':
+                request['context']['left_frames'] = 1
+            elif change == 'map':
+                request['source_mapping'][0]['source_sha256'] = '0' * 64
+                request['source_map_sha256'] = digest(request['source_mapping'])
+            elif change == 'frames':
+                request['ownership']['end_frame'] -= 1
+            elif change == 'requests':
+                frozen['requests'].append(copy.deepcopy(request))
+            elif change == 'calls':
+                frozen['limits']['max_calls'] = 2
+            else:
+                key = next(iter(frozen['source_bindings']))
+                frozen['source_bindings'][key] = '/synthetic/other.wav'
+            request_rebind(request)
+            with self.subTest(change=change), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+
+    def test_attempt_flags_retries_ids_and_multiple_attempts_rejected(self):
+        changes = [('started', 0), ('returned', 0), ('started', True), ('returned', True),
+                   ('id', True), ('generation', 0), ('generation', 2), ('retry_of', 1), ('retry_key', 'retry'),
+                   ('request_id', '0' * 64), ('status', 'interrupted_outcome_unknown')]
+        for field, value in changes:
+            frozen, stored = fixture()
+            stored['attempts'][0][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+        frozen, stored = fixture()
+        stored['attempts'].append(copy.deepcopy(stored['attempts'][0]))
+        with self.assertRaises(ProjectionError):
+            project(frozen, stored)
+
+    def test_altered_or_incomplete_evidence_never_restored_from_show(self):
+        for change in ('raw_text', 'tokens', 'missing_native', 'validation', 'hash', 'request'):
+            frozen, stored = fixture()
+            attempt = stored['attempts'][0]
+            evidence = attempt['evidence']
+            if change == 'raw_text':
+                evidence['native']['raw_text'] += 'altered'
+            elif change == 'tokens':
+                del evidence['native']['native_tokens']
+                reseal_evidence(stored)
+            elif change == 'missing_native':
+                del evidence['native']
+                reseal_evidence(stored)
+            elif change == 'validation':
+                evidence['validation_failure'] = {'status': 'source_changed', 'type': 'SourceChanged'}
+                reseal_evidence(stored)
+            elif change == 'hash':
+                attempt['evidence_sha256'] = '0' * 64
+            else:
+                stored['request']['pcm16_sha256'] = '0' * 64
+            before = copy.deepcopy(stored)
+            with self.subTest(change=change), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+            self.assertEqual(stored, before)
+
+    def test_runtime_attestation_mismatches_rejected(self):
+        for field, value in [('actual_backend', 'gpu'), ('runtime_manifest_sha256', '0' * 64),
+                             ('model_sha256', '0' * 64), ('library_sha256', '0' * 64),
+                             ('package_version', '0.0.0'), ('native_commit', 'bad'),
+                             ('device', {'kind': 'cpu', 'device_type': 'gpu'})]:
+            frozen, stored = fixture()
+            stored['attempts'][0]['evidence']['runtime'][field] = value
+            reseal_evidence(stored)
+            with self.subTest(field=field), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+
+    def test_raw_exact_boundary_and_over_limit_not_truncated(self):
+        base = native(text='x', raw_text='')
+        overhead = len(canonical(base).encode()) - 1
+        for target in (131072, 131073):
+            record = copy.deepcopy(base)
+            controls, ascii_chars = divmod(target - overhead, 6)
+            record['text'] = '\x01' * controls + 'a' * ascii_chars
+            self.assertEqual(len(canonical(record).encode()), target)
+            frozen, stored = fixture(record)
+            original = copy.deepcopy(stored)
+            if target == 131072:
+                alt, _ = project(frozen, stored)
+                self.assertEqual(len(alt.raw), target)
+                self.assertFalse(alt.complete_content)
+            else:
+                with self.assertRaisesRegex(ProjectionError, 'native_raw_limit'):
+                    project(frozen, stored)
+            self.assertEqual(stored, original)
+
+    def test_text_limit_and_invalid_unicode_or_nonfinite_rejected(self):
+        for value in ('a' * 65537, '\ud800', float('nan'), float('inf')):
+            frozen, stored = fixture()
+            stored['attempts'][0]['evidence']['native']['text'] = value
+            if type(value) is str and value != '\ud800':
+                reseal_evidence(stored)  # Reach the text bound after a valid evidence hash.
+            with self.subTest(kind=type(value).__name__), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+
+    def test_forged_native_eos_completeness_timing_and_identity_rejected(self):
+        for field, value in [('eos', True), ('complete', False), ('word_timestamps', []),
+                             ('speaker_id', 'person'), ('profile_update_eligible', True),
+                             ('native_status', True), ('was_truncated', 0)]:
+            frozen, stored = fixture()
+            stored['attempts'][0]['evidence']['native'][field] = value
+            reseal_evidence(stored)
+            with self.subTest(field=field), self.assertRaises(ProjectionError):
+                project(frozen, stored)
+
+
+if __name__ == '__main__':
+    unittest.main()
