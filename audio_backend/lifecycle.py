@@ -101,6 +101,8 @@ def delete_session(store, sid, delete_file=None):
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_changes'").fetchone():
                 db.execute('DELETE FROM result_changes WHERE session_id=?', (sid,))
     # Primary deletion is already committed before optional memory is touched.
+    from .native_owned_cell_capture import notify_deleted as notify_cells_deleted
+    cells_pending=notify_cells_deleted(store,sid)
     from .native_owned_support_cache import notify_deleted
     optional_pending=notify_deleted(store,sid)
     from .moss_handy_jobs import notify_deleted as notify_jobs_deleted
@@ -110,6 +112,8 @@ def delete_session(store, sid, delete_file=None):
         result['native_owned_support_cleanup_pending']=optional_pending
     if jobs_pending is not None:
         result['moss_jobs_cleanup_pending']=jobs_pending
+    if cells_pending is not None:
+        result['native_owned_cells_cleanup_pending']=cells_pending
     return {'deleted': sid, **result}
 
 

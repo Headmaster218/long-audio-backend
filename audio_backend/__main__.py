@@ -45,6 +45,7 @@ def main(argv=None):
     parser.add_argument('--event-threshold', type=float, default=.25)
     parser.add_argument('--verified-identity-policy',help='Explicit experimental verified-review JSON policy; applies only to newly requested verified groups')
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
+    parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
     parser.add_argument('--native-owned-support',action='store_true',help='Experimental volatile native overlap support for isolated PCM uploads up to20s; read-only, lost on restart')
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit volatile single MOSS job service; requires native-owned support, CPU and no overlap/fragment provider')
     parser.add_argument('--moss-jobs-model',type=Path,help='Explicit local fixed-profile MOSS model; does not enable jobs implicitly')
@@ -61,9 +62,9 @@ def main(argv=None):
             or any((args.fragment_cpu_manifest, args.fragment_cpu_sha256, args.fragment_cpu_check,
                     args.fragment_cpu_inspect_lease, args.fragment_cpu_reconcile))):
         parser.error('MOSS jobs requires explicit model, native-owned support, nemotron, CPU, overlap none and legacy worker')
-    if args.native_owned_support and any((args.fragment_cpu_manifest,args.fragment_cpu_sha256,args.fragment_cpu_check,
+    if (args.native_owned_support or args.native_owned_cells) and any((args.fragment_cpu_manifest,args.fragment_cpu_sha256,args.fragment_cpu_check,
                                           args.fragment_cpu_inspect_lease,args.fragment_cpu_reconcile)):
-        parser.error('--native-owned-support requires the ordinary legacy worker')
+        parser.error('Native-owned support/cells require the ordinary legacy worker')
     if args.moss_td_trigger=='speech_probe' and args.overlap_backend!='moss_td_experimental':
         parser.error('--moss-td-trigger speech_probe requires --overlap-backend moss_td_experimental')
     if (args.moss_td_runtime!='transformers' or args.moss_td_gguf) and args.overlap_backend!='moss_td_experimental':
@@ -188,6 +189,7 @@ def main(argv=None):
                         speaker_calibration_file=args.speaker_calibration,
                         speaker_support_enabled=args.speaker_support_review,
                         native_owned_support_enabled=args.native_owned_support,
+                        native_owned_cells_enabled=args.native_owned_cells,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         verified_identity_policy_file=args.verified_identity_policy,

@@ -109,6 +109,7 @@ class Worker:
         self.stop_event=threading.Event(); self.wake=threading.Event(); self.current_chunk=None
         self.native=None
         self.native_owned_support_cache=None
+        self.native_owned_cells=None
         self._native_capture=None;self._native_capture_token=None
         self._native_capture_observation=None
         self.support_fingerprints=speaker_support.SourceFingerprints()
@@ -197,7 +198,16 @@ class Worker:
             try:self.native_owned_support_cache.fail(token,'capture_unavailable')
             except Exception:pass
 
+    def _cell_call(self,method,*args):
+        capture=self.native_owned_cells
+        if capture is None:return None
+        try:return getattr(capture,method)(*args)
+        except Exception:
+            # No optional hook replaces a primary return value or exception.
+            return None
+
     def _native_response(self,response):
+        self._cell_call('observe_response',response)
         observation=self._native_capture_observation
         if observation is not None:
             token,witness=observation
@@ -227,6 +237,7 @@ class Worker:
         return process
 
     def _observe_native_pcm(self,kind,wav,start,end):
+        self._cell_call('observe_pcm',kind,wav,start,end)
         witness=self._native_capture
         if witness is not None:
             try:witness.observe_pcm(kind,wav,start,end)
@@ -355,13 +366,17 @@ class Worker:
             native=None
             if self.settings.diarization_backend=='nemotron':
                 if self.native is None:
-                    if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
+                    if ((getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None)
+                            or self.native_owned_cells is not None):
                         self.native=NativeCoordinator(self.settings,self._native_extract,process_factory=self._native_process_factory)
                     else:self.native=NativeCoordinator(self.settings,self.extract_pcm)
                 if self._native_capture is not None:
                     self._native_capture_observation=(self._native_capture_token,self._native_capture)
+                self._cell_call('begin_prepare',chunk,info)
                 try:native=self.native.prepare(chunk,offset,end,info,lambda:self.interrupted(chunk['id']))
-                finally:self._native_capture_observation=None
+                finally:
+                    self._native_capture_observation=None
+                    self._cell_call('end_prepare')
                 if native is None:
                     if not info:raise RuntimeError('Finalized native source did not produce a stable core')
                     wait_for_input(self.store,chunk['id'],info['end'],info['final']);return
@@ -418,7 +433,9 @@ class Worker:
                 result['_speaker_support']=prepared
                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
                 previous=result['metadata'].get('boundary_tail',[])
+                selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
                 if self.interrupted(chunk['id']): raise InterruptedError()
                 if not self.store.commit_window(chunk,offset,end,result): return
                 self._publish_native_support(native,offset,end)
+                self._cell_call('committed',selected_cells)
             offset=end

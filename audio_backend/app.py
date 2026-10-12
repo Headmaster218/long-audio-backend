@@ -173,6 +173,13 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 except Exception:
                     # Optional capture has no authority to reject primary startup.
                     worker.native_owned_support_cache=None
+            if settings.native_owned_cells_enabled or os.path.lexists(settings.data_dir/'native-owned-cells'):
+                try:
+                    from .native_owned_cell_capture import register as register_cells
+                    worker.native_owned_cells=register_cells(store,fragment_provider_factory=fragment_provider_factory,instance_lock=lock)
+                    if worker.native_owned_cells is not None:worker.native_owned_cells.owner.start()
+                except Exception:
+                    app.state.native_owned_cells_status='registration_unavailable'
             if settings.moss_jobs_enabled:
                 from .native_execution_permit import NativeExecutionPermit
                 from .moss_handy_jobs import MossJobs
@@ -213,6 +220,17 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if worker.native_owned_support_cache is not None:
                 try:worker.native_owned_support_cache.close()
                 except Exception:pass
+            cells_stopped=True
+            if worker.native_owned_cells is not None:
+                cells_stopped=False
+                try:
+                    from .native_owned_cell_capture import unregister as unregister_cells
+                    cells_stopped=unregister_cells(worker.native_owned_cells)
+                except Exception as exc:
+                    # Retain ownership and the original diagnostic, while still
+                    # running primary worker/jobs cleanup below.
+                    app.state.native_owned_cells_shutdown_error=exc
+                    app.state.native_owned_cells_status='cleanup_pending'
             stopped=worker.stop()
             jobs_stopped=jobs is None or jobs.stop()
             initializer_safe=fragments.factory_initialization_state!='failed'
@@ -221,7 +239,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 initializer_safe=(type(factory) is _CPUFactory and 'initialize' not in vars(factory)
                     and getattr(factory.initialize,'__self__',None) is factory
                     and getattr(factory.initialize,'__func__',None) is _CPU_INITIALIZE)
-            if stopped and jobs_stopped and fragments.cleanup_error is None and initializer_safe:
+            if stopped and jobs_stopped and cells_stopped and fragments.cleanup_error is None and initializer_safe:
                 if jobs is not None and getattr(settings,'_native_execution_permit',None) is jobs.permit:
                     del settings._native_execution_permit
                 lock.release()
@@ -237,6 +255,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     app.state.store=store; app.state.worker=worker; app.state.settings=settings; app.state.fragments=fragments
     app.state.instance_lock=lock
     app.state.moss_jobs=None
+    app.state.native_owned_cells_status='disabled_absent'
 
     @app.middleware('http')
     async def auth(request,call_next):
@@ -268,6 +287,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             readiness=overlap_readiness(settings.inference_config())
         return {'status':'blocked' if fragments.cleanup_error or (jobs is not None and jobs.health()['cleanup_pending']) else 'ok',
                 **({'moss_jobs':jobs.health()} if jobs is not None else {}),
+                **({'native_owned_cells':worker.native_owned_cells.health()} if worker.native_owned_cells is not None
+                   else ({'native_owned_cells':{'enabled':True,'status':app.state.native_owned_cells_status,'ready':False}}
+                         if settings.native_owned_cells_enabled or app.state.native_owned_cells_status!='disabled_absent' else {})),
                 'fragment_cleanup_pending':fragments.cleanup_error,
                 'worker_alive':worker.thread.is_alive(),'active_chunk':worker.current_chunk,
                 'process_tree_rss_bytes':tree_rss(),'memory_budget_bytes':settings.process_memory_limit_bytes,
@@ -321,6 +343,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         if not store.duplicate(sid,idempotency_key): store.capacity(sid,stream_id)
         if not upload_lock.acquire(blocking=False): raise HTTPException(429,'Another upload is active',headers={'Retry-After':'10'})
         path=settings.data_dir/'uploads'/f'{ident()}.part'; total=0; digest=hashlib.sha256(); final=None
+        cell_upload=None;cell_streamed_identity=None
         try:
             try: check_resources(settings)
             except RuntimeError as e: raise HTTPException(507,str(e))
@@ -341,6 +364,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     await run_in_threadpool(out.write,data)
                 await run_in_threadpool(out.flush)
                 await run_in_threadpool(os.fsync,out.fileno())
+                if worker.native_owned_cells is not None:
+                    try:cell_streamed_identity=await run_in_threadpool(worker.native_owned_cells.streamed_descriptor,out.fileno(),digest.hexdigest(),total)
+                    except Exception:pass
             if not total: raise HTTPException(400,'Empty audio upload')
             sha=digest.hexdigest(); old=store.duplicate(sid,idempotency_key)
             if old:
@@ -356,6 +382,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 if (original_stream!=stream_id or original_final!=stream_final or not same_recorded or
                     (timeline_start is not None and (existing['timeline_start']!=timeline_start if experimental else abs(existing['timeline_start']-timeline_start)>1e-8))):
                     raise HTTPException(409,'Idempotency key already used with different upload metadata')
+                if worker.native_owned_cells is not None:
+                    try:await run_in_threadpool(worker.native_owned_cells.duplicate,old['id'],sha)
+                    except Exception:pass
                 return {'chunk':existing,'duplicate':True}
             source=None
             try:
@@ -368,13 +397,22 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 else:
                     duration=await run_in_threadpool(probe,path,settings)
             except Exception as e: raise HTTPException(422,f'Cannot validate supported audio: {e}')
+            if worker.native_owned_cells is not None:
+                try:cell_upload=await run_in_threadpool(worker.native_owned_cells.prepare_upload,path,sha,total,cell_streamed_identity)
+                except Exception:pass
             final=path.with_suffix('.audio'); path.replace(final)
             cid,created=store.add_chunk(sid,idempotency_key,sha,final,duration,timeline_start,recorded_at.isoformat() if recorded_at else None,stream_id=stream_id,stream_final=stream_final,fragment_source=source)
             if not created: final.unlink(missing_ok=True)
+            if worker.native_owned_cells is not None:
+                try:await run_in_threadpool(worker.native_owned_cells.finish_upload,cell_upload,sid,cid,final,created)
+                except Exception:pass
             final=None
             worker.notify()
             return {'chunk':store.chunk(cid),'duplicate':not created}
         finally:
+            if cell_upload is not None:
+                try:cell_upload.close()
+                except Exception:pass
             path.unlink(missing_ok=True)
             if final: final.unlink(missing_ok=True)
             upload_lock.release()
