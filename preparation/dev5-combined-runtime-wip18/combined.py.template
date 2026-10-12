@@ -1,0 +1,203 @@
+"""Closed offline runtime helpers. No product, package, model, or native imports."""
+import hashlib
+import importlib.util
+import json
+import math
+import os
+from pathlib import Path
+import stat
+import time
+
+HERE = Path(__file__).resolve().parent
+WORKSPACE = HERE.parent
+OLD = WORKSPACE / '__LOCAL_PATH_001__'
+Q = WORKSPACE / '__LOCAL_PATH_002__'
+SOURCE = WORKSPACE / '__LOCAL_PATH_003__'
+RUNTIME = HERE / 'runtime'
+STAGING = HERE / 'runtime.partial'
+SITE_REL = 'lib/python3.12/site-packages/'
+SITE = RUNTIME / SITE_REL
+PYTHON = RUNTIME / 'bin/python3.12'
+OLD_PYTHON = Q / 'runtime/bin/python3.12'
+PYTHON_SHA = '__LOCAL_SOURCE_OR_RECEIPT_SHA256_004__'
+BASE = Path('__LOCAL_PATH_005__')
+STDLIB_PATHS = [str(BASE/'lib/python312.zip'), str(BASE/'lib/python3.12'), str(BASE/'lib/python3.12/lib-dynload')]
+HOOK_NAME = SITE_REL + 'distutils-precedence.pth'
+HOOK_BYTES = b"import os; var = 'SETUPTOOLS_USE_DISTUTILS'; enabled = os.environ.get(var, 'local') == 'local'; enabled and __import__('_distutils_hack').add_shim(); \n"
+HOOK_SHA = '2638ce9e2500e572a5e0de7faed6661eb569d1b696fcba07b0dd223da5f5d224'
+HELPERS = {
+ Q/'offline-v2/install.py': (__LOCAL_PINNED_BYTE_COUNT_001__, '__LOCAL_SOURCE_OR_RECEIPT_SHA256_006__'),
+ Q/'prepare.py': (__LOCAL_PINNED_BYTE_COUNT_002__, '__LOCAL_SOURCE_OR_RECEIPT_SHA256_007__'),
+ OLD/'acquisition/remaining-native/remaining.py': (__LOCAL_PINNED_BYTE_COUNT_003__, '__LOCAL_SOURCE_OR_RECEIPT_SHA256_008__'),
+ OLD/'acquisition/acquire.py': (__LOCAL_PINNED_BYTE_COUNT_004__, '__LOCAL_SOURCE_OR_RECEIPT_SHA256_009__'),
+}
+
+
+def require(value, reason):
+    if not value:
+        raise RuntimeError(reason)
+
+
+def check():
+    end = float(os.environ['GUARD_WORK_END'])
+    stop = Path(os.environ['GUARD_STOP_PATH'])
+    require(math.isfinite(end) and time.monotonic() < end and not stop.exists() and not stop.is_symlink(), 'work_deadline_or_stop')
+
+
+def regular(path, maximum, checker=check):
+    path = Path(path); checker()
+    require(path.is_absolute() and path.resolve(strict=True) == path, 'canonical_regular_path')
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_size <= maximum, 'regular_size')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        key = lambda s: (s.st_dev,s.st_ino,s.st_mode,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+        require(key(before) == key(os.fstat(fd)), 'regular_open_race')
+        chunks=[]; count=0
+        while True:
+            checker(); raw=os.read(fd,min(65536,maximum+1-count))
+            if not raw: break
+            count+=len(raw); require(count<=maximum,'regular_growth');chunks.append(raw)
+        require(key(before)==key(os.fstat(fd))==key(path.lstat()) and path.resolve()==path,'regular_changed')
+        return b''.join(chunks)
+    finally:
+        os.close(fd)
+
+
+def load_module(path, size, digest, name):
+    raw=regular(path,size)
+    require(len(raw)==size and hashlib.sha256(raw).hexdigest()==digest,'helper_pin')
+    spec=importlib.util.spec_from_file_location(name,path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    require(regular(path,size)==raw,'helper_changed_after_import')
+    return module
+
+
+def helpers():
+    modules={}
+    for n,(path,(size,digest)) in enumerate(HELPERS.items()):
+        modules[path]=load_module(path,size,digest,'dev5_combined_helper_'+str(n))
+    return modules[Q/'offline-v2/install.py'], modules[OLD/'acquisition/acquire.py']
+
+
+def context(a):
+    work=float(os.environ['GUARD_WORK_END']);end=float(os.environ['GUARD_ABSOLUTE_END'])
+    run=Path(os.environ['GUARD_RUN_DIRECTORY']);stop=Path(os.environ['GUARD_STOP_PATH'])
+    require(end-work==60 and run.parent==HERE/'runs' and run.name.startswith('run-') and
+            run.resolve()==run and stop==run/'STOP' and (run/'tmp').is_dir(),'original_guard_context')
+    ctx=a.Context(HERE,end,stop);ctx.run_directory=run;ctx.temp_root=run/'tmp';ctx.check()
+    return ctx
+
+
+def json_file(path, maximum=2**20):
+    return json.loads(regular(path,maximum))
+
+
+def safe_name(name):
+    require(type(name) is str and 0<len(name)<=4096 and not name.startswith('/') and
+            '\\' not in name and '\x00' not in name and all(p not in ('','.','..') for p in name.split('/')),'relative_runtime_name')
+    hooks=[p for p in name.split('/') if p.endswith('.pth') or p in ('sitecustomize','usercustomize','sitecustomize.py','usercustomize.py')]
+    require(not hooks or name==HOOK_NAME,'unexpected_startup_hook')
+    return name
+
+
+def validate_inventory(value):
+    require(value['schema']=='dev5-combined-runtime-inventory-v1','inventory_schema')
+    rows=value['files'];require(type(rows) is list and len(rows)==2090,'inventory_count')
+    pins={};groups={};dirs={'.'}
+    for row in rows:
+        require(set(row)=={'source','destination','bytes','sha256','group'},'inventory_row_fields')
+        rel=safe_name(row['destination']);require(rel not in pins,'destination_collision')
+        require(type(row['bytes']) is int and 0<=row['bytes']<=128*2**20 and
+                type(row['sha256']) is str and len(row['sha256'])==64 and
+                all(x in '0123456789abcdef' for x in row['sha256']),'runtime_pin_shape')
+        group=row['group'];source=Path(row['source'])
+        require(group in ('primary','qwen','interpreter','config'),'runtime_group')
+        expected=(OLD/'environment'/rel) if group=='primary' else (Q/'runtime'/rel)
+        require(source==expected and str(source)==row['source'],'exact_source_destination')
+        first=rel[len(SITE_REL):].split('/')[0] if rel.startswith(SITE_REL) else None
+        if group=='primary':
+            require(first is not None and first!='audio_backend' and not first.startswith('long_audio_backend-'),'old_backend_forbidden')
+        elif group=='qwen':
+            require(first in ('transcribe_cpp','transcribe_cpp_native','transcribe_cpp-0.2.3.dist-info','transcribe_cpp_native-0.2.3.dist-info'),'qwen_selection')
+        else:
+            require(rel=={'interpreter':'bin/python3.12','config':'pyvenv.cfg'}[group],'special_selection')
+        pins[rel]={'bytes':row['bytes'],'sha256':row['sha256']}
+        groups.setdefault(group,[0,0]);groups[group][0]+=1;groups[group][1]+=row['bytes']
+        dirs.update(str(p) for p in Path(rel).parents)
+    require(groups=={'primary':[2050,121413217],'qwen':[38,71984898],'interpreter':[1,30894944],'config':[1,218]},'exact_group_totals')
+    require(sum(p['bytes'] for p in pins.values())==224293277 and value['payload_bytes']==224293277 and value['file_count']==2090,'payload_total')
+    require(value['directories']==sorted(dirs) and len(dirs)==318,'directory_closure')
+    require(pins[HOOK_NAME]=={'bytes':151,'sha256':HOOK_SHA},'single_hook_pin')
+    require(pins['bin/python3.12']=={'bytes':30894944,'sha256':PYTHON_SHA},'python_pin')
+    require(value['old_installed_backend_excluded'] is True and value['models_included'] is False,'inventory_scope')
+    require(len(value['selected_distributions'])==30 and value['provider_entry_points']==[
+        {'group':'transcribe_cpp.native','name':'default','value':'transcribe_cpp_native:descriptor','distribution':'transcribe-cpp-native'}],'distribution_provider_shape')
+    return pins
+
+
+def derive_check(value):
+    old,q=[json_file(Path(p['path'])) for p in value['derivation_manifests']]
+    rows=[]
+    for name,pin in sorted(old['environment_inventory']['files'].items()):
+        if name.startswith(SITE_REL):
+            first=name[len(SITE_REL):].split('/')[0]
+            if first=='audio_backend' or first.startswith('long_audio_backend-') and first.endswith('.dist-info'):continue
+            rows.append({'source':str(OLD/'environment'/name),'destination':name,**pin,'group':'primary'})
+    for row in q['files']:
+        name=str(Path(row['path']).relative_to(Q/'runtime'))
+        if name.startswith(SITE_REL) and name[len(SITE_REL):].split('/')[0] in ('transcribe_cpp','transcribe_cpp_native','transcribe_cpp-0.2.3.dist-info','transcribe_cpp_native-0.2.3.dist-info'):
+            rows.append({'source':row['path'],'destination':name,'bytes':row['bytes'],'sha256':row['sha256'],'group':'qwen'})
+    for row,name,group in [(q['python'],'bin/python3.12','interpreter'),(next(x for x in q['files'] if x['path']==str(Q/'runtime/pyvenv.cfg')),'pyvenv.cfg','config')]:
+        rows.append({'source':row['path'],'destination':name,'bytes':row['bytes'],'sha256':row['sha256'],'group':group})
+    require(sorted(rows,key=lambda x:x['destination'])==value['files'],'manifest_derivation_changed')
+    for pin in value['derivation_manifests']:
+        raw=regular(Path(pin['path']),pin['bytes']);require(len(raw)==pin['bytes'] and hashlib.sha256(raw).hexdigest()==pin['sha256'],'derivation_manifest_pin')
+    versions={k:v['version'] for k,v in old['distributions'].items() if k!='long-audio-backend'}
+    versions.update({'transcribe-cpp':'0.2.3','transcribe-cpp-native':'0.2.3'})
+    require(value['selected_distributions']==versions,'selected_versions_changed')
+
+
+def complete_tree(a,ctx,root,pins,hash_files=True):
+    # Q offline-v2 complete_tree logic; deltas are sole pinned .pth and2407 entries.
+    root=Path(root);dirs={'.'}
+    for name in pins:
+        safe_name(name);dirs.update(str(p) for p in Path(name).parents)
+    actual_files,actual_dirs=set(),set();count=0
+    require(root.resolve()==root and stat.S_ISDIR(root.lstat().st_mode),'runtime_root_directory')
+    def fail(error):raise error
+    for base,names,files in os.walk(root,followlinks=False,onerror=fail):
+        ctx.check();actual_dirs.add(str(Path(base).relative_to(root)))
+        for name in names+files:
+            count+=1;require(count<=2407,'runtime_tree_entry_cap')
+            path=Path(base)/name;info=path.lstat()
+            require(stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode),'runtime_special_or_link')
+            relative=str(path.relative_to(root));safe_name(relative)
+            if stat.S_ISREG(info.st_mode):
+                require(relative in pins and info.st_size==pins[relative]['bytes'],'runtime_file_pin')
+                actual_files.add(relative)
+                if hash_files:a.hash_file(path,ctx,pins[relative])
+            else:require(relative in dirs,'runtime_unexpected_directory')
+    require(actual_files==set(pins) and actual_dirs==dirs and count==2407,'runtime_complete_tree')
+    return len(actual_files)
+
+
+def verify_source(a,ctx):
+    value=json_file(HERE/'SOURCE_FREEZE.json')
+    require(value['source_root']==str(SOURCE) and value['source_count']==331 and value['source_bytes']==4098577,'dev5_source_identity')
+    for name,digest in value['source_files'].items():
+        path=SOURCE/name;require(path.resolve()==path,'source_alias')
+        require(a.hash_file(path,ctx)['sha256']==digest,'dev5_source_pin')
+    return value
+
+
+def write_result(a,ctx,name,value,maximum=2**20):
+    require(name in ('copy-result.json','probe-handoff.json','probe-result.json','fixture-result.json'),'fixed_result_name')
+    raw=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode();require(len(raw)<=maximum,'result_size_cap')
+    a.write_json(ctx.run_directory/name,value,ctx)
+
+
+def load_all():
+    install,a=helpers();ctx=context(a);value=json_file(HERE/'RUNTIME_INVENTORY.json')
+    pins=validate_inventory(value);derive_check(value)
+    return install,a,ctx,value,pins

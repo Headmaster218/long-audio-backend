@@ -1,0 +1,44 @@
+"""One bounded manifest-selected offline copy; no runtime/package execution."""
+import importlib.util
+from pathlib import Path
+import os
+import sys
+
+HERE=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location('dev5_combined',HERE/'combined.py')
+c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+
+
+def main():
+    c.require(sys.argv[1:]==[] and sys.flags.isolated==1 and sys.flags.no_site==1 and
+              sys.flags.dont_write_bytecode==1 and Path(sys.executable)==c.OLD_PYTHON,'copy_entry')
+    install,a,ctx,value,pins=c.load_all();c.verify_source(a,ctx)
+    c.require(not c.RUNTIME.exists() and not c.RUNTIME.is_symlink() and
+              not c.STAGING.exists() and not c.STAGING.is_symlink(),'fresh_runtime_only')
+    claim=ctx.parents(c.HERE/'receipts/runtime-copy.spent')
+    with a.exclusive(claim) as f:f.write(b'dev5-combined-runtime-one-copy-v1\n');f.flush();os.fsync(f.fileno())
+    a.fsync_dir(claim.parent);c.STAGING.mkdir(mode=0o700)
+    for row in value['files']:
+        ctx.check();source=Path(row['source'])
+        c.require(source.resolve(strict=True)==source,'source_alias')
+        install.copy_exact(a,ctx,source,c.STAGING/row['destination'],row,
+                           executable=row['destination']=='bin/python3.12')
+        c.require(source.resolve(strict=True)==source,'source_alias_changed')
+    c.complete_tree(a,ctx,c.STAGING,pins)
+    c.require(not c.RUNTIME.exists() and not c.RUNTIME.is_symlink(),'runtime_target_appeared')
+    os.rename(c.STAGING,c.RUNTIME);a.fsync_dir(c.HERE)
+    c.complete_tree(a,ctx,c.RUNTIME,pins)
+    for row in value['files']:a.hash_file(Path(row['source']),ctx,row)
+    c.verify_source(a,ctx)
+    result={'schema':'dev5-combined-runtime-copy-result-v1','status':'VERIFIED_COPY_ONLY',
+            'runtime_root':str(c.RUNTIME),'files':2090,'logical_bytes':224293277,
+            'inventory':{'path':str(c.HERE/'RUNTIME_INVENTORY.json'),**a.hash_file(c.HERE/'RUNTIME_INVENTORY.json',ctx)},
+            'package_execution':0,'native_library_loads':0,'downloads':0,'model_calls':0,
+            'audio_reads':0,'service_starts':0,'both_source_environments_preserved':True,
+            'selected_source_files_rehashed_after_copy':True,'outer_terminal_required':True}
+    c.write_result(a,ctx,'copy-result.json',result,16384)
+    return 0
+
+
+if __name__=='__main__':
+    raise SystemExit(main())

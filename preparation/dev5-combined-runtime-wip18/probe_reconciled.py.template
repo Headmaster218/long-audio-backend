@@ -1,0 +1,286 @@
+"""Same-PID ordinary-startup API/Sherpa/transcribe import qualification only.
+
+Native library loading, ABI/version checks and package-local backend bootstrap
+are reported. Model/session construction, service/audio/inference are denied.
+"""
+import argparse
+import hashlib
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import resource
+import sys
+
+HERE=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location('dev5_combined',HERE/'combined.py')
+c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+IMPORTS=('numpy','soundfile','sherpa_onnx','fastapi','uvicorn','python_multipart',
+         'pydantic_settings','psutil','opencc','transcribe_cpp','audio_backend',
+         'audio_backend.app','audio_backend.worker','audio_backend.inference',
+         'audio_backend.inference.native_diarization','audio_backend.fragment_cpu_provider',
+         'audio_backend.qwen_candidate_runner','audio_backend.qwen_profiles')
+FORBIDDEN_PRODUCT=('AudioAnalyzer.__init__','NativeDiarizer.__init__','Worker.__init__',
+    'Worker.start','AnalyzerProcess.__init__','NativeCoordinator.__init__','CPUFactory.__init__',
+    'CPUFactory.initialize','create_app','main','_construct','decode_window','child_main','run')
+FORBIDDEN_TRANSCRIBE=('Model.__init__','Session.__init__','Stream.__init__','transcribe',
+    'Model.session','Session.run','Stream.push','Stream.flush','Stream.finish')
+AUDIO_SUFFIXES={'.gguf','.onnx','.wav','.flac','.mp3','.ogg','.pcm','.f32','.safetensors','.pt','.pth-model'}
+
+
+def identity():
+    with open('/proc/self/stat','rb') as stream:raw=stream.read(4097)
+    c.require(len(raw)<=4096 and b')' in raw,'self_stat_bounds')
+    head,tail=raw.rsplit(b')',1);fields=tail.split()
+    c.require(int(head.split(b' ',1)[0])==os.getpid() and len(fields)>=20,'self_identity')
+    return {'pid':os.getpid(),'start_ticks':int(fields[19])}
+
+
+def limits():
+    value={'as':list(resource.getrlimit(resource.RLIMIT_AS)),
+        'fsize':list(resource.getrlimit(resource.RLIMIT_FSIZE)),
+        'core':list(resource.getrlimit(resource.RLIMIT_CORE)),
+        'nofile':list(resource.getrlimit(resource.RLIMIT_NOFILE)),
+        'affinity':sorted(os.sched_getaffinity(0)),'nice':os.getpriority(os.PRIO_PROCESS,0)}
+    c.require(value=={'as':[2**30,2**30],'fsize':[4*2**30,4*2**30],
+        'core':[0,0],'nofile':[128,128],'affinity':[3],'nice':19},'inherited_guard_limits')
+    return value
+
+
+def verify_reconciliation(a,ctx):
+    terminal_path=HERE/'COMPLETION_V2_TERMINAL.json'
+    a.hash_file(terminal_path,ctx,{'bytes':__LOCAL_PINNED_BYTE_COUNT_008__,'sha256':'__LOCAL_SOURCE_OR_RECEIPT_SHA256_014__'})
+    terminal=c.json_file(terminal_path,32768)
+    c.require(set(terminal)=={'schema','status','guard_receipt','reconciliation_result','owner_wait',
+        'failed_copy_terminal','failed_verification','pins','limitations'} and
+        terminal['schema']=='dev5-combined-reconciliation-terminal-v2' and
+        terminal['status']=='PASS_RECONCILED_RUNTIME_ONLY','reconciliation_terminal_schema')
+    documents={}
+    for key in ('guard_receipt','reconciliation_result','owner_wait','failed_copy_terminal','failed_verification'):
+        pin=terminal[key];path=Path(pin['path'])
+        c.require(set(pin)=={'path','bytes','sha256'} and path.is_relative_to(HERE),'reconciliation_evidence_pin')
+        a.hash_file(path,ctx,pin);documents[key]=c.json_file(path,32768)
+    for pin in terminal['pins']:a.hash_file(Path(pin['path']),ctx,pin)
+    g=documents['guard_receipt'];result=documents['reconciliation_result'];owner=documents['owner_wait']
+    failed=documents['failed_copy_terminal'];verification=documents['failed_verification']
+    run=HERE/'__LOCAL_RUN_OR_WAIT_015__'
+    c.require(g['run_directory']==str(run) and terminal['guard_receipt']['path']==str(run/'receipt.json') and
+        terminal['reconciliation_result']['path']==str(run/'complete-v2-result.json') and
+        terminal['owner_wait']['path']==str(HERE/'receipts/COMPLETION_V2_ORIGINAL_WAIT.json') and
+        terminal['failed_copy_terminal']=={'path':str(HERE/'receipts/COPY_FAILED_TERMINAL.json'),'bytes':__LOCAL_PINNED_BYTE_COUNT_005__,
+            'sha256':'__LOCAL_SOURCE_OR_RECEIPT_SHA256_010__'} and
+        terminal['failed_verification']=={'path':str(HERE/'receipts/COMPLETION_FAILED_TERMINAL.json'),'bytes':__LOCAL_PINNED_BYTE_COUNT_009__,
+            'sha256':'__LOCAL_SOURCE_OR_RECEIPT_SHA256_016__'},'reconciliation_original_evidence')
+    c.require(g['spec_sha256']=='__LOCAL_SOURCE_OR_RECEIPT_SHA256_017__' and
+        g['status']=='PASS' and g['cleanup']=='CONFIRMED' and g['exit_code']==0 and
+        g['original_handle_waited'] is True and g['final_source_pin_verified'] is True and
+        g['unresolved_owned']==[],'reconciliation_guard_terminal')
+    c.require(owner['original_tool_wait_reaped'] is True and owner['tool_reported_terminal'] is True and
+        owner['tool_exit_code']==0 and owner['stop_or_signal_sent_by_owner'] is False and
+        owner['original_tool_session']==__LOCAL_TOOL_SESSION_010__ and owner['guard_receipt']==terminal['guard_receipt'],
+        'reconciliation_original_tool_wait')
+    c.require(failed['schema']=='dev5-combined-copy-failed-terminal-v1' and
+        failed['status']=='FAILED_ORIGINAL_PRESERVED' and failed['original_tool_session']==__LOCAL_TOOL_SESSION_007__ and
+        failed['original_tool_wait_reaped'] is True and failed['cleanup']=='CONFIRMED' and failed['tool_exit_code']==1,
+        'failed_copy_preserved')
+    c.require(result['schema']=='dev5-combined-runtime-reconciliation-v2' and
+        result['status']=='VERIFIED_EXISTING_RUNTIME_AFTER_FAILED_COPY' and
+        result['original_copy_status']=='FAILED_ORIGINAL_PRESERVED' and
+        result['failed_copy_terminal']==terminal['failed_copy_terminal'] and
+        result['failed_verification']==terminal['failed_verification'] and
+        result['runtime_root']==str(c.RUNTIME) and result['files']==2090 and result['directories']==318 and
+        result['entries']==2408 and result['logical_bytes']==224293277 and
+        all(result[k] is True for k in ('full_destination_hashes_verified','full_selected_source_hashes_verified',
+            'full_dev5_source_hashes_verified','stable_identity_unchanged','exact_modes_directories_no_aliases',
+            'allocation_blocks_are_not_identity')) and
+        all(result[k]==0 for k in ('copy_bytes','runtime_mutations','package_execution','native_library_loads',
+            'model_calls','audio_reads','service_starts','network_requests')) and
+        0<result['physical_bytes_before']<=256*2**20 and 0<result['physical_bytes_after']<=256*2**20,
+        'reconciled_runtime_scope')
+    a.hash_file(HERE/'RUNTIME_INVENTORY.json',ctx,result['inventory'])
+    a.hash_file(HERE/'SOURCE_FREEZE.json',ctx,result['dev5_source'])
+    return terminal
+
+
+def startup_closure(a,ctx,value,pins):
+    import importlib.metadata
+    c.require('SETUPTOOLS_USE_DISTUTILS' not in os.environ,'inherited_setuptools_override')
+    c.require(c.regular(c.RUNTIME/c.HOOK_NAME,151)==c.HOOK_BYTES,'exact_startup_hook_bytes')
+    c.require(all(not any(s in ('sitecustomize','sitecustomize.py','usercustomize','usercustomize.py')
+        for s in Path(name).parts) and (not name.endswith('.pth') or name==c.HOOK_NAME)
+        for name in pins),'startup_hook_closure')
+    hack={name:pin for name,pin in pins.items() if name.startswith(c.SITE_REL+'_distutils_hack/')}
+    c.require(hack and c.SITE_REL+'_distutils_hack/__init__.py' in hack,'distutils_hook_source_closure')
+    for name,pin in hack.items():a.hash_file(c.RUNTIME/name,ctx,pin)
+    profile=c.json_file(HERE/'PROFILE.json');hostpin=profile['host_runtime_manifest']
+    a.hash_file(Path(hostpin['path']),ctx,hostpin);host=c.json_file(Path(hostpin['path']))
+    # Entire previously frozen stdlib closure is rehashed; never add host site-packages.
+    for pin in host['stdlib_files']:a.hash_file(Path(pin['path']),ctx,pin)
+    paths=[str(HERE),*c.STDLIB_PATHS,str(c.SITE)]
+    for hook in ('sitecustomize','usercustomize'):
+        c.require(importlib.machinery.PathFinder.find_spec(hook,paths) is None,'unlisted_customization_hook')
+    distributions=list(importlib.metadata.distributions(path=[str(c.SITE)]))
+    actual={};providers=[]
+    for d in distributions:
+        name=d.metadata['Name'].lower().replace('_','-')
+        c.require(name not in actual,'duplicate_distribution');actual[name]=d.version
+        for e in d.entry_points:
+            if e.group=='transcribe_cpp.native':providers.append({'group':e.group,'name':e.name,'value':e.value,'distribution':name})
+    c.require(actual==value['selected_distributions'] and providers==value['provider_entry_points'],'distribution_provider_closure')
+    return {'distutils_hook_files':sorted(hack),'selected_distributions':actual,'provider_entry_points':providers,'ordinary_paths':paths}
+
+
+def clean_environment():
+    # Retain the outer guard's fixed environment exactly; no PYTHONPATH or loader override.
+    environment=dict(os.environ)
+    c.require(not any(k in environment for k in ('PYTHONPATH','PYTHONHOME','LD_PRELOAD','LD_LIBRARY_PATH',
+        'SETUPTOOLS_USE_DISTUTILS','TRANSCRIBE_LIBRARY','TRANSCRIBE_NATIVE_PROVIDER',
+        'HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy')),'ambient_environment_override')
+    return environment
+
+
+def denied_call(filename,name):
+    if '/audio_backend/' in filename:return name in FORBIDDEN_PRODUCT
+    if '/sherpa_onnx/' in filename:return name.endswith('.__init__') or name=='__init__'
+    if '/transcribe_cpp/' in filename:return name in FORBIDDEN_TRANSCRIBE
+    if filename.endswith('/soundfile.py'):return name in ('SoundFile.__init__','read','blocks')
+    return False
+
+
+def no_constructors(frame,event,arg):
+    if event=='call':
+        c.require(not denied_call(frame.f_code.co_filename,frame.f_code.co_qualname),'model_service_audio_constructor_denied')
+
+
+def forbidden_open(path):
+    path=Path(path).absolute()
+    return (path.suffix.lower() in AUDIO_SUFFIXES or any(path.is_relative_to(root/name)
+        for root in (c.OLD,c.Q) for name in ('models','corpus','input','vendor')))
+
+
+def model_free_audit(native):
+    def audit(event,args):
+        if event.startswith(('socket.','subprocess.','os.exec','os.spawn')) or event in ('os.system','os.posix_spawn','os.fork','os.forkpty'):
+            raise RuntimeError('external_action_denied')
+        if event=='open' and args and isinstance(args[0],(str,bytes,os.PathLike)):
+            c.require(not forbidden_open(os.fsdecode(args[0])),'audio_model_open_denied')
+        if event=='ctypes.dlopen':
+            raw=args[0] if args else None
+            c.require(isinstance(raw,str) and str(Path(raw).resolve()) in native,'unpinned_ctypes_dlopen')
+    return audit
+
+
+class SourceFinder:
+    """Only exact frozen dev5 source is exposed, never an ambient source path."""
+    def __init__(self,source):self.source=source
+    def find_spec(self,fullname,path=None,target=None):
+        if fullname!='audio_backend' and not fullname.startswith('audio_backend.'):return None
+        expected=c.SOURCE.joinpath(*fullname.split('.'))
+        search=[str(c.SOURCE)] if path is None else list(path)
+        c.require(search==[str(expected.parent)],'source_package_search_path')
+        spec=importlib.machinery.PathFinder.find_spec(fullname,search,target)
+        c.require(spec is not None and spec.name==fullname and isinstance(spec.origin,str),'closed_source_spec')
+        origin=Path(spec.origin);c.require(origin.resolve()==origin and origin.is_relative_to(c.SOURCE),'source_origin')
+        rel=str(origin.relative_to(c.SOURCE));c.require(rel in self.source['source_files'],'source_member')
+        c.require(hashlib.sha256(c.regular(origin,4*2**20)).hexdigest()==self.source['source_files'][rel],'source_import_hash')
+        if spec.submodule_search_locations is not None:c.require(list(spec.submodule_search_locations)==[str(expected)],'source_package_path')
+        if spec.cached and Path(spec.cached).exists():
+            cached=Path(spec.cached);rel=str(cached.relative_to(c.SOURCE))
+            c.require(rel in self.source['source_files'] and hashlib.sha256(c.regular(cached,4*2**20)).hexdigest()==self.source['source_files'][rel],'unfrozen_source_bytecode')
+        return spec
+
+
+def origins(a,ctx,pins,source):
+    records={}
+    for name,module in sorted(tuple(sys.modules.items())):
+        origin=getattr(module,'__file__',None)
+        if not isinstance(origin,str):continue
+        if origin.startswith('<') and origin.endswith('>'):continue
+        path=Path(origin).resolve()
+        if path.is_relative_to(c.RUNTIME):
+            rel=str(path.relative_to(c.RUNTIME));c.require(rel in pins,'unlisted_runtime_origin')
+            a.hash_file(path,ctx,pins[rel]);records[name]={'path':str(path),**pins[rel]}
+        elif path.is_relative_to(c.SOURCE):
+            rel=str(path.relative_to(c.SOURCE));c.require(rel in source['source_files'],'unlisted_source_origin')
+            pin=a.hash_file(path,ctx);c.require(pin['sha256']==source['source_files'][rel],'source_origin_hash')
+            records[name]={'path':str(path),**pin}
+        else:
+            c.require((path.is_relative_to(c.BASE/'lib/python3.12') and
+                       not path.is_relative_to(c.BASE/'lib/python3.12/site-packages')) or
+                       path in c.HELPERS or path in (HERE/'combined.py',HERE/'probe_reconciled.py'),'ambient_module_origin')
+    c.require(len(records)<=768,'origin_count_cap')
+    return records
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--normal-startup',action='store_true')
+    parser.add_argument('--handoff-sha256');args=parser.parse_args()
+    install,a,ctx,value,pins=c.load_all();terminal=verify_reconciliation(a,ctx)
+    c.complete_tree(a,ctx,c.RUNTIME,pins);source=c.verify_source(a,ctx)
+    closure=startup_closure(a,ctx,value,pins);environment=clean_environment();current_limits=limits()
+    c.require(Path(sys.executable)==c.PYTHON and Path(sys.executable).resolve()==c.PYTHON,'new_runtime_python_required')
+    environment_sha=hashlib.sha256(json.dumps(environment,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    handoff_path=ctx.run_directory/'probe-handoff.json'
+    if not args.normal_startup:
+        c.require(args.handoff_sha256 is None and sys.flags.isolated==1 and sys.flags.no_site==1 and
+            sys.flags.dont_write_bytecode==1 and sys.path==c.STDLIB_PATHS and
+            sys.orig_argv==[str(c.PYTHON),'-I','-B','-S',str(HERE/'probe_reconciled.py')],'isolated_probe_entry')
+        handoff={'schema':'dev5-combined-same-pid-handoff-v1','identity':identity(),'limits':current_limits,
+            'environment_sha256':environment_sha,'copy_terminal_sha256':hashlib.sha256(c.regular(HERE/'COMPLETION_V2_TERMINAL.json',32768)).hexdigest(),
+            'work_end':float(os.environ['GUARD_WORK_END']),'absolute_end':ctx.deadline,'ordinary_paths':closure['ordinary_paths']}
+        c.write_result(a,ctx,'probe-handoff.json',handoff,16384)
+        handoff_sha=a.hash_file(handoff_path,ctx)['sha256'];ctx.check();os.chdir(HERE)
+        os.execve(str(c.PYTHON),[str(c.PYTHON),'-B',str(HERE/'probe_reconciled.py'),'--normal-startup','--handoff-sha256',handoff_sha],environment)
+        raise RuntimeError('exec_returned')
+    c.require(isinstance(args.handoff_sha256,str) and len(args.handoff_sha256)==64,'handoff_sha_shape')
+    raw=c.regular(handoff_path,16384);c.require(hashlib.sha256(raw).hexdigest()==args.handoff_sha256,'handoff_pin')
+    prior=json.loads(raw)
+    c.require(prior['identity']==identity() and prior['limits']==current_limits and prior['environment_sha256']==environment_sha and
+        prior['work_end']==float(os.environ['GUARD_WORK_END']) and prior['absolute_end']==ctx.deadline and
+        prior['ordinary_paths']==closure['ordinary_paths'] and prior['copy_terminal_sha256']==hashlib.sha256(c.regular(HERE/'COMPLETION_V2_TERMINAL.json',32768)).hexdigest(),
+        'same_pid_handoff_state')
+    c.require(sys.orig_argv==[str(c.PYTHON),'-B',str(HERE/'probe_reconciled.py'),'--normal-startup','--handoff-sha256',args.handoff_sha256] and
+        sys.flags.isolated==0 and sys.flags.no_site==0 and sys.flags.no_user_site==1 and
+        sys.flags.dont_write_bytecode==1 and sys.path==closure['ordinary_paths'] and
+        Path(sys.prefix)==c.RUNTIME and Path(sys.base_prefix)==c.BASE and Path.cwd()==HERE and
+        'site' in sys.modules and 'sitecustomize' not in sys.modules and 'usercustomize' not in sys.modules,'ordinary_startup_state')
+    hack=sys.modules.get('_distutils_hack')
+    c.require(hack is not None and Path(hack.__file__).resolve()==c.SITE/'_distutils_hack/__init__.py' and
+        sys.meta_path.count(hack.DISTUTILS_FINDER)==1,'exact_distutils_hook_effect')
+    origins(a,ctx,pins,source)
+    import ctypes  # Trusted stdlib PyDLL(None) initialization before strict library audit.
+    import importlib
+    native={str(c.RUNTIME/name) for name in pins if '.so' in Path(name).name}
+    sys.addaudithook(model_free_audit(native));sys.setprofile(no_constructors)
+    finder=SourceFinder(source);sys.meta_path.insert(0,finder)
+    imported={}
+    for name in IMPORTS:
+        ctx.check();module=importlib.import_module(name);imported[name]=str(Path(module.__file__).resolve())
+    api=sys.modules['transcribe_cpp']
+    c.require(api.__version__=='0.2.3' and api.native_provider()=='transcribe-cpp-native' and
+        str(Path(api.library_path()).resolve())==str(c.SITE/'transcribe_cpp_native/_native/libtranscribe.so'),
+        'native_provider_origin')
+    commit=api.native_commit();version=api.native_version()
+    c.require(isinstance(commit,str) and len(commit)>=7 and '63a44d9239d610b3908e8a66b384924cd4a77217'.startswith(commit),'native_commit')
+    c.require(sys.modules['audio_backend'].__version__=='0.2.0rc3.dev5','dev5_import_version')
+    records=origins(a,ctx,pins,source);c.complete_tree(a,ctx,c.RUNTIME,pins);c.verify_source(a,ctx)
+    c.require(sys.path==closure['ordinary_paths'] and sys.meta_path[0] is finder and sys.getprofile() is no_constructors,'import_boundary_retained')
+    result={'schema':'dev5-combined-runtime-import-result-v1','status':'VERIFIED_IMPORT_ONLY',
+        'ordinary_startup_compatible':True,'same_pid_exec':True,'identity':identity(),'limits':current_limits,
+        'handoff_sha256':args.handoff_sha256,'imported':imported,'origins':records,
+        'startup_hook':{'path':str(c.RUNTIME/c.HOOK_NAME),'sha256':c.HOOK_SHA,'module_origin':str(Path(hack.__file__).resolve()),'meta_path_finder_count':1},
+        'selected_distributions':closure['selected_distributions'],'provider_entry_points':closure['provider_entry_points'],
+        'native_commit':commit,'native_version':version,'native_library_loading':True,
+        'native_abi_version_backend_initialization':True,'zero_native_calls_claimed':False,
+        'model_construction_requests':0,'session_construction_requests':0,'audio_reads':0,
+        'inference_requests':0,'service_starts':0,'network_requests':0,'runtime_files':2090,
+        'sys_path':sys.path[:],'source_commit':'e6791e6d1b78a14c113529d809b8486349be1146',
+        'not_qualified':['genuine API startup','model readiness','inference','native lazy dependency completeness'],
+        'outer_terminal_required':True}
+    c.write_result(a,ctx,'probe-result.json',result,512*2**10)
+    return 0
+
+
+if __name__=='__main__':
+    raise SystemExit(main())

@@ -1,0 +1,156 @@
+"""Read/hash-only reconciliation of the retained tree after the failed copy.
+
+No runtime mutation, recopy, move, delete, package/model import or scanner change.
+Only a distinct spent claim and reconciliation result are newly written.
+"""
+import copy
+import importlib.util
+import os
+from pathlib import Path
+import stat
+import sys
+
+HERE=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location('completion_existing_combined',HERE/'combined.py')
+c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+FAILED=HERE/'receipts/COPY_FAILED_TERMINAL.json'
+FAILED_PIN={'path':str(FAILED),'bytes':__LOCAL_PINNED_BYTE_COUNT_005__,'sha256':'__LOCAL_SOURCE_OR_RECEIPT_SHA256_010__'}
+TREE=HERE/'receipts/COPY_FAILED_TREE.json'
+TREE_PIN={'path':str(TREE),'bytes':__LOCAL_PINNED_BYTE_COUNT_006__,'sha256':'__LOCAL_SOURCE_OR_RECEIPT_SHA256_011__'}
+FAILED_RUN=HERE/'__LOCAL_RUN_OR_WAIT_012__'
+CLAIM=HERE/'receipts/runtime-completion-v2.spent'
+
+
+def validate_failed(value):
+    c.require(value['schema']=='dev5-combined-copy-failed-terminal-v1' and
+        value['status']=='FAILED_ORIGINAL_PRESERVED' and value['cleanup']=='CONFIRMED' and
+        value['original_tool_session']==__LOCAL_TOOL_SESSION_007__ and value['original_tool_wait_reaped'] is True and
+        value['tool_exit_code']==1 and value['wait_chunk']=='__LOCAL_RUN_OR_WAIT_013__' and
+        value['owner_stop_or_signal_sent'] is False and value['guard_sent_sigterm'] is True and
+        value['guard_run']==str(FAILED_RUN) and value['copy_result_absent'] is True and
+        value['runtime_exists'] is True and value['staging_absent'] is True and
+        value['runtime_tree_stat_only']=={'entries':2408,'files':2090,'logical_regular_bytes':224293277,'physical_bytes':230723584},
+        'original_failed_copy_identity')
+    c.require(TREE_PIN in value['pins'],'failed_tree_evidence_missing')
+
+
+def validate_tree(value,inventory,pins):
+    c.require(value['schema']=='retained-copy-failure-stat-tree-v1' and value['root']==str(c.RUNTIME) and
+        value['content_hashes_rechecked'] is False and value['logical_regular_bytes']==224293277 and
+        value['physical_bytes']==230723584,'failed_stat_tree_identity')
+    rows=value['entries'];c.require(type(rows) is list and len(rows)==2408,'exact_stat_tree_entries')
+    expected=set(pins)|set(inventory['directories']);seen=set();files=0
+    for row in rows:
+        c.require(set(row)=={'path','blocks','bytes','ctime_ns','dev','inode','mode','mtime_ns'},'stat_tree_row_fields')
+        name=row['path'];c.require(name in expected and name not in seen,'stat_tree_membership')
+        seen.add(name);mode=row['mode']
+        if name in pins:
+            files+=1;c.require(mode==(stat.S_IFREG | (0o755 if name=='bin/python3.12' else 0o644)) and row['bytes']==pins[name]['bytes'],'exact_runtime_file_mode_size')
+        else:c.require(mode in (stat.S_IFDIR|0o700,stat.S_IFDIR|0o755),'exact_runtime_directory_mode')
+    c.require(seen==expected and files==2090,'stat_tree_closure')
+    return rows
+
+
+def inspect_tree(ctx):
+    rows=[];expected_entries=2408
+    def one(path):
+        ctx.check();info=path.lstat()
+        c.require(path.resolve(strict=True)==path and (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)),'runtime_alias_or_special')
+        c.require(info.st_nlink==1 if stat.S_ISREG(info.st_mode) else True,'runtime_file_alias')
+        rows.append({'path':str(path.relative_to(c.RUNTIME)),'mode':info.st_mode,'bytes':info.st_size,
+            'blocks':info.st_blocks,'dev':info.st_dev,'inode':info.st_ino,'mtime_ns':info.st_mtime_ns,'ctime_ns':info.st_ctime_ns})
+        c.require(len(rows)<=expected_entries,'runtime_entry_cap')
+    one(c.RUNTIME)
+    def fail(error):raise error
+    for base,dirs,files in os.walk(c.RUNTIME,followlinks=False,onerror=fail):
+        for name in dirs+files:one(Path(base)/name)
+    c.require(len(rows)==expected_entries,'runtime_entry_count')
+    return sorted(rows,key=lambda x:x['path'])
+
+
+def stable_identity(rows):
+    # st_blocks is allocation accounting, not file identity or content identity.
+    return [{key:value for key,value in row.items() if key!='blocks'} for row in rows]
+
+
+def allocation_bytes(rows):
+    charged=sum(max(row['bytes'],row['blocks']*512) for row in rows)
+    c.require(charged<=256*2**20,'current_runtime_allocation_cap')
+    return charged
+
+
+def claim_path(path):
+    c.require(path==CLAIM,'fixed_reconciliation_claim')
+
+
+def focused_negatives(failed,tree,inventory,pins):
+    cases=[]
+    def deny(name,fn):
+        try:fn()
+        except (RuntimeError,KeyError,ValueError):cases.append(name)
+        else:raise RuntimeError('negative_did_not_refuse:'+name)
+    wrong=copy.deepcopy(failed);wrong['schema']='wrong';deny('wrong_failed_schema',lambda:validate_failed(wrong))
+    wrong=copy.deepcopy(failed);wrong['status']='PASS_COPY_ONLY';deny('original_success_fabrication',lambda:validate_failed(wrong))
+    wrong=copy.deepcopy(tree);wrong['entries'].pop();deny('incomplete_tree',lambda:validate_tree(wrong,inventory,pins))
+    wrong=copy.deepcopy(tree);row=next(x for x in wrong['entries'] if x['path']=='bin/python3.12');row['mode']=stat.S_IFREG|0o644
+    deny('wrong_interpreter_mode',lambda:validate_tree(wrong,inventory,pins))
+    wrong=copy.deepcopy(tree);wrong['entries'][0]['mode']=stat.S_IFLNK|0o777;deny('alias_type',lambda:validate_tree(wrong,inventory,pins))
+    deny('old_claim_reuse',lambda:claim_path(HERE/'receipts/runtime-copy.spent'))
+    allocation=copy.deepcopy(tree['entries']);allocation[0]['blocks']+=8
+    c.require(stable_identity(allocation)==stable_identity(tree['entries']),'allocation_only_identity_changed')
+    c.require(allocation_bytes(allocation)==allocation_bytes(tree['entries'])+4096,'allocation_delta_not_charged')
+    cases.append('allocation_only_drift_allowed_and_charged')
+    for key in ('bytes','inode'):
+        changed=copy.deepcopy(tree['entries']);changed[0][key]+=1
+        deny('changed_'+key+'_denied',lambda:c.require(stable_identity(changed)==stable_identity(tree['entries']),'stable_identity_changed'))
+    c.require(len(cases)==9,'focused_case_count');return cases
+
+
+def main():
+    c.require(sys.argv[1:]==[] and Path(sys.executable)==c.OLD_PYTHON and sys.flags.isolated==1 and
+        sys.flags.no_site==1 and sys.flags.dont_write_bytecode==1,'completion_entry')
+    install,a,ctx,inventory,pins=c.load_all()
+    a.hash_file(FAILED,ctx,FAILED_PIN);a.hash_file(TREE,ctx,TREE_PIN)
+    failed=c.json_file(FAILED,16384);tree=c.json_file(TREE,2**20)
+    validate_failed(failed);expected=validate_tree(tree,inventory,pins)
+    c.require(not c.STAGING.exists() and not c.STAGING.is_symlink() and
+        not (FAILED_RUN/'copy-result.json').exists(),'retained_failed_state')
+    for pin in failed['pins']:a.hash_file(Path(pin['path']),ctx,pin)
+    old_guard=c.json_file(FAILED_RUN/'receipt.json',16384)
+    c.require(old_guard['status']=='FAIL_CLOSED' and old_guard['cleanup']=='CONFIRMED' and
+        old_guard['exit_code']==-15 and old_guard['original_handle_waited'] is True and
+        old_guard['final_source_pin_verified'] is True and old_guard['unresolved_owned']==[],
+        'failed_owned_process_terminal')
+    cases=focused_negatives(failed,tree,inventory,pins)
+    before=inspect_tree(ctx);before_bytes=allocation_bytes(before)
+    c.require(stable_identity(before)==stable_identity(expected),'retained_tree_identity_changed_before_hash')
+    failed_verification=c.json_file(HERE/'COMPLETION_V2_FREEZE.json')['failed_verification']
+    a.hash_file(Path(failed_verification['path']),ctx,failed_verification)
+    claim_path(CLAIM)
+    with a.exclusive(ctx.parents(CLAIM)) as stream:
+        stream.write(b'dev5-retained-runtime-one-reconciliation-v2\n');stream.flush();os.fsync(stream.fileno())
+    a.fsync_dir(CLAIM.parent)
+    c.complete_tree(a,ctx,c.RUNTIME,pins)
+    for row in inventory['files']:
+        source=Path(row['source']);c.require(source.resolve(strict=True)==source,'selected_source_alias')
+        a.hash_file(source,ctx,row);c.require(source.resolve(strict=True)==source,'selected_source_alias_changed')
+    c.verify_source(a,ctx)
+    after=inspect_tree(ctx);after_bytes=allocation_bytes(after)
+    c.require(stable_identity(after)==stable_identity(expected),'retained_tree_identity_changed_after_hash')
+    a.hash_file(Path(failed_verification['path']),ctx,failed_verification)
+    for pin in failed['pins']:a.hash_file(Path(pin['path']),ctx,pin)
+    a.hash_file(FAILED,ctx,FAILED_PIN);a.hash_file(TREE,ctx,TREE_PIN)
+    result={'schema':'dev5-combined-runtime-reconciliation-v2','status':'VERIFIED_EXISTING_RUNTIME_AFTER_FAILED_COPY',
+        'failed_copy_terminal':FAILED_PIN,'retained_stat_tree':TREE_PIN,'original_copy_status':'FAILED_ORIGINAL_PRESERVED',
+        'runtime_root':str(c.RUNTIME),'files':2090,'directories':318,'entries':2408,'logical_bytes':224293277,
+        'physical_bytes_before':before_bytes,'physical_bytes_after':after_bytes,
+        'failed_verification':failed_verification,'allocation_blocks_are_not_identity':True,'inventory':{'path':str(HERE/'RUNTIME_INVENTORY.json'),**a.hash_file(HERE/'RUNTIME_INVENTORY.json',ctx)},
+        'dev5_source':{'path':str(HERE/'SOURCE_FREEZE.json'),**a.hash_file(HERE/'SOURCE_FREEZE.json',ctx)},
+        'full_destination_hashes_verified':True,'full_selected_source_hashes_verified':True,'full_dev5_source_hashes_verified':True,
+        'stable_identity_unchanged':True,'exact_modes_directories_no_aliases':True,'focused_negative_cases':cases,
+        'copy_bytes':0,'runtime_mutations':0,'package_execution':0,'native_library_loads':0,'model_calls':0,
+        'audio_reads':0,'service_starts':0,'network_requests':0,'outer_reconciliation_terminal_required':True}
+    a.write_json(ctx.run_directory/'complete-v2-result.json',result,ctx)
+    return 0
+
+if __name__=='__main__':raise SystemExit(main())

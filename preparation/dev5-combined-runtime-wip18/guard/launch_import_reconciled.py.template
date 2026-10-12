@@ -1,0 +1,96 @@
+"""Read-only reconciliation adapter; same reviewed guard and component sampler."""
+import argparse
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+HERE=Path(__file__).resolve().parent
+CHECKS=HERE.parent
+WORKSPACE=CHECKS.parent
+SOURCE=WORKSPACE/'__LOCAL_PATH_003__'
+QPY=WORKSPACE/'__LOCAL_PATH_018__'
+NEWPY=CHECKS/'runtime/bin/python3.12'
+PY_SHA='__LOCAL_SOURCE_OR_RECEIPT_SHA256_004__'
+GUARD_SHA='__LOCAL_SOURCE_OR_RECEIPT_SHA256_019__'
+STAGES={'synthetic':300}
+CORE_METHODS=('remember','census','dispatch','signal_owned','reap','cleanup','run_command')
+RUN_CAP=16*2**20
+METADATA_CAP=16*2**20
+RUNTIME_CAP=256*2**20
+GLOBAL_CAP=12*2**30
+
+
+def load_guard():
+    path=HERE/'actual_guard.py';data=path.read_bytes()
+    if path.is_symlink() or not stat.S_ISREG(path.lstat().st_mode) or len(data)!=__LOCAL_PINNED_BYTE_COUNT_011__ or hashlib.sha256(data).hexdigest()!=GUARD_SHA:
+        raise RuntimeError('reviewed_guard_pin')
+    spec=importlib.util.spec_from_file_location('dev5_api_reviewed_guard',path)
+    g=importlib.util.module_from_spec(spec);spec.loader.exec_module(g)
+    return g
+
+
+def validate(g,value,path,end):
+    fields={'schema','stage','absolute_seconds','work_seconds','address_space_cap_bytes','rss_cap_bytes',
+        'scratch_cap_bytes','cpus','argv','cwd','guard_sha256','source_root','source_files','external_files','runtime_files'}
+    g.require(type(value) is dict and set(value)==fields and value['schema']==3,'closed_spec_fields')
+    g.require(path==CHECKS/'import-reconciled.spec.json' and path.resolve()==path and value['stage']=='synthetic',
+        'closed_reconciliation_spec')
+    g.require(value['absolute_seconds']==300 and value['work_seconds']==240 and
+        value['address_space_cap_bytes']==2**30 and value['rss_cap_bytes']==256*2**20 and
+        value['scratch_cap_bytes']==GLOBAL_CAP and value['cpus']==[3] and value['guard_sha256']==GUARD_SHA,
+        'closed_resource_profile')
+    g.require(value['argv']==[str(NEWPY),'-I','-B','-S',str(CHECKS/'probe_reconciled.py')] and
+        value['cwd']==str(CHECKS) and value['runtime_files']=={str(NEWPY):PY_SHA} and Path(sys.executable)==NEWPY,
+        'closed_reconciliation_command')
+    freeze=json.loads(g.read_regular(CHECKS/'IMPORT_RECONCILED_FREEZE.json',2**20,end))
+    g.require(freeze['schema']=='dev5-reconciled-runtime-import-freeze-v1','reconciliation_freeze_schema')
+    expected=dict(freeze['execution_files'])
+    expected[str(CHECKS/'IMPORT_RECONCILED_FREEZE.json')]=g.digest(CHECKS/'IMPORT_RECONCILED_FREEZE.json',end)
+    g.require(value['external_files']==expected and len(expected)<=64,'closed_completion_external_membership')
+    for name,digest in expected.items():g.require(g.digest(name,end)==digest,'completion_external_authority_pin')
+    source=json.loads(g.read_regular(CHECKS/'SOURCE_FREEZE.json',2**20,end))
+    g.require(value['source_root']==str(SOURCE) and value['source_files']==source['source_files'] and
+        source['source_count']==331 and source['source_bytes']==4098577,'closed_dev5_source')
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--spec',type=Path,required=True);parser.add_argument('--spec-sha256',required=True)
+    args=parser.parse_args();g=load_guard()
+    g.require(g.STAGES=={'synthetic':300} and g.MAX_DISK==GLOBAL_CAP and g.MAX_RSS==256*2**20 and
+        g.MAX_AS==2**30 and g.CLEANUP_RESERVE==60 and g.ORDINARY_FREE_FLOOR==11*2**29 and
+        g.OLD_UNKNOWN_DISK==320*2**20 and g.MIN_AVAILABLE==2952790016 and g.POLL==.05 and
+        g.CHECKS==CHECKS and g.HERE==HERE and g.WORKSPACE==WORKSPACE,'reviewed_guard_constants')
+    raw=g.read_regular(args.spec,g.MAX_SPEC_BYTES,g.ABSOLUTE_END)
+    g.require(hashlib.sha256(raw).hexdigest()==args.spec_sha256,'closed_spec_sha')
+    value=json.loads(raw);g.STAGES=dict(STAGES);validate(g,value,args.spec,g.ABSOLUTE_END)
+    original={name:getattr(g.Guard,name) for name in CORE_METHODS};base_sample=g.Guard.sample;base_pin=g.Guard.verify_pin
+    class ClosedGuard(g.Guard):
+        def sample(self,end,check_work=True):
+            live=base_sample(self,end,check_work)
+            runtime_roots=[p for p in (CHECKS/'runtime',CHECKS/'runtime.partial') if p.exists() or p.is_symlink()]
+            runtime=g.scratch_bytes(end,runtime_roots);runs=g.scratch_bytes(end,[CHECKS/'runs'])
+            metadata_roots=sorted(p for p in CHECKS.iterdir() if p.name not in ('runtime','runtime.partial','runs'))
+            root_stat=CHECKS.lstat();metadata=max(root_stat.st_size,root_stat.st_blocks*512)+g.scratch_bytes(end,metadata_roots)
+            g.require(runtime<=RUNTIME_CAP and runs+g.RECEIPT_RESERVE<=RUN_CAP and metadata<=METADATA_CAP,'component_partition_cap')
+            charged=g.scratch_bytes(end);remaining=RUNTIME_CAP-runtime+RUN_CAP-runs+METADATA_CAP-metadata
+            g.require(charged+remaining<=GLOBAL_CAP,'full_component_reservation_global_cap')
+            self.receipt['dev5_api_component_accounting']={'runtime_bytes':runtime,'runtime_cap_bytes':RUNTIME_CAP,
+                'runs_bytes':runs,'runs_cap_bytes':RUN_CAP,'metadata_bytes':metadata,'metadata_cap_bytes':METADATA_CAP,
+                'remaining_component_reservation_bytes':remaining,'global_cap_bytes':GLOBAL_CAP,'all_prior_roots_charged':True}
+            return live
+        def verify_pin(self,end=None):
+            base_pin(self,end);validate(g,self.spec,args.spec,self.end if end is None else end)
+    g.require(all(getattr(ClosedGuard,name) is method for name,method in original.items()),'ownership_method_changed')
+    g.Guard=ClosedGuard
+    return g.main()
+
+
+if __name__=='__main__':
+    try:raise SystemExit(main())
+    except Exception as error:
+        print(json.dumps({'status':'REFUSED_OR_FAILED_CLOSED','reason':type(error).__name__+': '+str(error)[:240]}),flush=True)
+        raise SystemExit(2) from None

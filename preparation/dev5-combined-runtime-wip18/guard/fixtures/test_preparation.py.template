@@ -1,0 +1,75 @@
+"""Finite synthetic boundary fixtures; never copy runtime or import product/native code."""
+import ast
+import copy
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import unittest
+
+ROOT=Path(__file__).resolve().parents[2]
+
+def load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+c=load('fixture_combined',ROOT/'combined.py')
+p=load('fixture_probe',ROOT/'probe_runtime.py')
+
+class PreparationCases(unittest.TestCase):
+    def setUp(self):self.inventory=json.loads((ROOT/'RUNTIME_INVENTORY.json').read_text())
+    def rejected(self,value):
+        with self.assertRaises((RuntimeError,KeyError,ValueError)):c.validate_inventory(value)
+    def test_exact_inventory(self):
+        pins=c.validate_inventory(self.inventory);self.assertEqual(len(pins),2090)
+        self.assertEqual(sum(x['bytes'] for x in pins.values()),224293277)
+    def test_original_manifest_derivation(self):c.derive_check(self.inventory)
+    def test_collision_denied(self):
+        self.inventory['files'][1]=copy.deepcopy(self.inventory['files'][0]);self.rejected(self.inventory)
+    def test_wrong_count_denied(self):self.inventory['files'].pop();self.rejected(self.inventory)
+    def test_wrong_group_bytes_denied(self):self.inventory['files'][0]['bytes']+=1;self.rejected(self.inventory)
+    def test_source_alias_denied(self):self.inventory['files'][0]['source']+='/../alias';self.rejected(self.inventory)
+    def test_old_backend_denied(self):
+        row=next(x for x in self.inventory['files'] if x['group']=='primary');row['destination']=c.SITE_REL+'audio_backend/__init__.py';row['source']=str(c.OLD/'environment'/row['destination']);self.rejected(self.inventory)
+    def test_traversal_denied(self):
+        with self.assertRaises(RuntimeError):c.safe_name('lib/../outside.py')
+    def test_second_pth_denied(self):
+        with self.assertRaises(RuntimeError):c.safe_name(c.SITE_REL+'second.pth')
+    def test_customization_denied(self):
+        for name in ('sitecustomize.py','usercustomize.py','sitecustomize/x.py','usercustomize/x.py'):
+            with self.assertRaises(RuntimeError):c.safe_name(c.SITE_REL+name)
+    def test_pinned_hook_preserved(self):
+        self.assertEqual(c.safe_name(c.HOOK_NAME),c.HOOK_NAME)
+        self.assertEqual(len(c.HOOK_BYTES),151);self.assertEqual(hashlib.sha256(c.HOOK_BYTES).hexdigest(),c.HOOK_SHA)
+        row=next(x for x in self.inventory['files'] if x['destination']==c.HOOK_NAME);row['sha256']='0'*64;self.rejected(self.inventory)
+    def test_provider_closure_denied(self):
+        self.inventory['provider_entry_points'].append({'group':'transcribe_cpp.native','name':'extra','value':'unknown:factory','distribution':'unknown'});self.rejected(self.inventory)
+    def test_constructor_boundaries(self):
+        for filename,name in [('/x/audio_backend/app.py','create_app'),('/x/audio_backend/worker.py','Worker.start'),('/x/sherpa_onnx/a.py','Model.__init__'),('/x/transcribe_cpp/a.py','Model.__init__'),('/x/transcribe_cpp/a.py','Session.run'),('/x/soundfile.py','read')]:
+            self.assertTrue(p.denied_call(filename,name))
+        self.assertFalse(p.denied_call('/x/transcribe_cpp/_library.py','_Provider.__init__'))
+        self.assertFalse(p.denied_call('/x/audio_backend/qwen_profiles.py','ModelProfile.__init__'))
+    def test_model_audio_open_boundary(self):
+        for name in ('x.gguf','x.wav','x.onnx',str(c.OLD/'models/x'),str(c.Q/'models/x')):self.assertTrue(p.forbidden_open(name))
+        self.assertFalse(p.forbidden_open(str(c.SITE/'transcribe_cpp/__init__.py')))
+    def test_network_process_boundary(self):
+        audit=p.model_free_audit(set())
+        for event in ('socket.connect','subprocess.Popen','os.exec','os.fork'):
+            with self.assertRaises(RuntimeError):audit(event,())
+    def test_native_library_boundary(self):
+        path=str(c.SITE/'transcribe_cpp_native/_native/libtranscribe.so');audit=p.model_free_audit({path})
+        audit('ctypes.dlopen',(path,))
+        with self.assertRaises(RuntimeError):audit('ctypes.dlopen',('/tmp/unlisted.so',))
+    def test_guard_byte_identity(self):
+        original=c.WORKSPACE/'__LOCAL_PATH_020__'
+        self.assertEqual((ROOT/'guard/actual_guard.py').read_bytes(),original.read_bytes())
+    def test_ownership_adapter_surface(self):
+        tree=ast.parse((ROOT/'guard/launch.py').read_text())
+        adapter=next(n for n in ast.walk(tree) if isinstance(n,ast.ClassDef) and n.name=='ClosedGuard')
+        self.assertEqual({n.name for n in adapter.body if isinstance(n,ast.FunctionDef)},{'sample','verify_pin'})
+    def test_source_finder_reads_only(self):
+        source=json.loads((ROOT/'SOURCE_FREEZE.json').read_text());finder=p.SourceFinder(source)
+        spec=finder.find_spec('audio_backend');self.assertEqual(spec.origin,str(c.SOURCE/'audio_backend/__init__.py'))
+        with self.assertRaises(RuntimeError):finder.find_spec('audio_backend.app',['/tmp'])
+    def test_forbidden_work_not_called(self):
+        import sys
+        self.assertFalse(any(n in sys.modules for n in ('audio_backend','sherpa_onnx','transcribe_cpp','numpy')))
