@@ -1,0 +1,120 @@
+"""Fixed in-memory GGUF fixtures; never open the model or import native providers."""
+import hashlib
+import io
+import json
+from pathlib import Path
+import struct
+import sys
+import unittest
+
+HERE=Path(__file__).resolve().parent
+
+def u32(x):return struct.pack('<I',x)
+def u64(x):return struct.pack('<Q',x)
+def string(s):
+    b=s.encode();return u64(len(b))+b
+
+def value(kind,x):
+    if kind==8:return string(x)
+    if kind==9:
+        subtype,values=x
+        return u32(subtype)+u64(len(values))+b''.join(value(subtype,v) for v in values)
+    return struct.pack('<'+{0:'B',4:'I',5:'i',6:'f',7:'B',10:'Q',12:'d'}[kind],x)
+
+def fixture(rows=None,tensors=None,data_bytes=4):
+    if rows is None:rows=[('general.architecture',8,'moss')]
+    if tensors is None:tensors=[('x',(1,),0,0)]
+    b=b'GGUF'+u32(3)+u64(len(tensors))+u64(len(rows))
+    for key,kind,x in rows:b+=string(key)+u32(kind)+value(kind,x)
+    for name,dims,kind,offset in tensors:b+=string(name)+u32(len(dims))+b''.join(u64(d) for d in dims)+u32(kind)+u64(offset)
+    b+=b'\0'*((-len(b))%32)
+    return b+b'\0'*data_bytes
+
+
+def run(a):
+    class Tests(unittest.TestCase):
+        def parse(self,b):return a.parse_gguf(io.BytesIO(b),len(b))
+        def refused(self,b):
+            with self.assertRaises(a.Refused):self.parse(b)
+        def profile(self):
+            m=dict(a.EXPECTED);t=a.expected_tensors()
+            inverse={v:k for k,v in a.byte_decoder().items()}
+            enc=lambda text:''.join(inverse[b] for b in text.encode())
+            tokens=['']*151936;tokens[0]=enc(a.PREFIX);tokens[1]=enc(a.SUFFIX)
+            for i in range(10):tokens[i+2]=str(i)
+            tokens[151671]='<|audio_pad|>';tokens[151645]='<|im_end|>';tokens[151643]='<|endoftext|>'
+            m['tokenizer.ggml.tokens']={'array_type':8,'count':151936,'values':tokens}
+            m['tokenizer.ggml.token_type']={'array_type':5,'count':151936,'values':None}
+            m['tokenizer.ggml.eos_token_id']=151645;m['tokenizer.ggml.padding_token_id']=151643
+            source=json.loads((HERE.parent/'__LOCAL_PINNED_PUBLIC_MODEL_METADATA_PATH__').read_text())
+            m['tokenizer.chat_template']=source['gguf']['chat_template']
+            for key,vals in [('stt.moss.prompt_prefix_tokens',[0]),('stt.moss.prompt_suffix_tokens',[1]+[12]*84),('stt.moss.digit_tokens',list(range(2,12)))]:
+                m[key]={'array_type':5,'count':len(vals),'values':vals}
+            return m,t
+        def test_01_minimal_valid_container(self):
+            m,t,r=self.parse(fixture());self.assertEqual(m['general.architecture'],'moss');self.assertEqual(t['x']['bytes'],4);self.assertEqual(r['tensor_count'],1)
+        def test_02_short_header(self):self.refused(b'GGUF')
+        def test_03_bad_magic_or_version(self):
+            b=fixture();self.refused(b'NOPE'+b[4:]);self.refused(b[:4]+u32(2)+b[8:])
+        def test_04_directory_count_cap(self):
+            b=fixture();self.refused(b[:8]+u64(1025)+b[16:]);self.refused(b[:16]+u64(513)+b[24:])
+        def test_05_duplicate_metadata(self):self.refused(fixture([('x',4,1),('x',4,2)]))
+        def test_06_string_length_bound(self):self.refused(b'GGUF'+u32(3)+u64(1)+u64(1)+u64(65537))
+        def test_07_nonfinite_or_invalid_bool(self):
+            self.refused(fixture([('x',6,float('nan'))]));self.refused(fixture([('x',7,2)]))
+        def test_08_array_count_and_nesting_bound(self):
+            b=b'GGUF'+u32(3)+u64(1)+u64(1)+string('x')+u32(9)
+            self.refused(b+u32(4)+u64(200001));self.refused(b+u32(9)+u64(1))
+        def test_09_duplicate_tensor(self):self.refused(fixture(tensors=[('x',(1,),0,0),('x',(1,),0,32)],data_bytes=36))
+        def test_10_bad_rank_shape_or_type(self):
+            for dims,kind in [((),0),((0,),0),((2**20+1,),0),((1,),30),((1,)*5,0)]:self.refused(fixture(tensors=[('x',dims,kind,0)]))
+        def test_11_quant_block_alignment(self):self.refused(fixture(tensors=[('x',(31,),8,0)],data_bytes=34))
+        def test_12_tensor_overlap_and_extent(self):
+            self.refused(fixture(tensors=[('x',(1,),0,0),('y',(1,),0,0)]));self.refused(fixture(tensors=[('x',(1,),0,2**30)]))
+        def test_13_offset_and_global_alignment(self):
+            self.refused(fixture(tensors=[('x',(1,),0,1)]));self.refused(fixture([('general.alignment',4,64)]))
+        def test_14_unexpected_trailer(self):self.refused(fixture()+b'\0'*32)
+        def test_15_expected_685_tensor_schema(self):
+            t=a.expected_tensors();self.assertEqual(len(t),685);self.assertEqual(t['dec.blocks.27.attn.q.weight'],{'dims':(1024,2048),'type':8});self.assertNotIn('dec.output.weight',t)
+        def test_16_byte_bpe_roundtrip(self):
+            inverse={v:k for k,v in a.byte_decoder().items()};text='测试 7\n<|im_end|>'
+            self.assertEqual(a.decode_ids([0],[''.join(inverse[b] for b in text.encode())]),text)
+        def test_17_invalid_prompt_ids(self):
+            for ids in ([True],[-1],[1],[0]*4097):
+                with self.assertRaises(a.Refused):a.decode_ids(ids,['x'])
+        def test_18_synthetic_profile_passes(self):
+            m,t=self.profile();r=a.validate_profile(m,t);self.assertEqual(r['session_n_ctx'],'__LOCAL_REVIEWED_CONTEXT_SIZE__');self.assertFalse(r['EOS_observed'])
+        def test_19_wrong_architecture_rejected(self):
+            m,t=self.profile();m['general.architecture']='qwen3';
+            with self.assertRaises(a.Refused):a.validate_profile(m,t)
+        def test_20_shape_or_type_change_rejected(self):
+            for k,v in [('dims',(1024,1024)),('type',1)]:
+                m,t=self.profile();t['dec.blocks.27.attn.q.weight'][k]=v
+                with self.assertRaises(a.Refused):a.validate_profile(m,t)
+        def test_21_fixed_prompt_mutation_rejected(self):
+            m,t=self.profile();m['tokenizer.ggml.tokens']['values'][1]='x'
+            with self.assertRaises(a.Refused):a.validate_profile(m,t)
+        def test_22_changed_digit_or_prompt_count_rejected(self):
+            for key in ('stt.moss.digit_tokens','stt.moss.prompt_prefix_tokens'):
+                m,t=self.profile();m[key]['values'][0]=12
+                with self.assertRaises(a.Refused):a.validate_profile(m,t)
+        def test_23_template_mutation_rejected(self):
+            m,t=self.profile();m['tokenizer.chat_template']+=' '
+            with self.assertRaises(a.Refused):a.validate_profile(m,t)
+        def test_24_scope_omits_native_execution(self):
+            self.assertEqual(a.MODEL_BYTES,986899616);self.assertNotEqual(a.MODEL_SHA,'__LOCAL_PRIOR_MODEL_SHA256__')
+            self.assertEqual(hashlib.sha256(a.PROMPT.encode()).hexdigest(),'5696a90762c9a738598bdf62530952cb9058f0bd2da8dccc23d988b68990e22a')
+        def test_25_spawn_events_are_denied_by_installed_hook(self):
+            for event in ('subprocess.Popen','os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'):
+                with self.assertRaises(a.Refused):sys.audit(event,'SENTINEL')
+        def test_26_socket_events_are_denied_by_installed_hook(self):
+            for event in ('socket.__new__','socket.connect','socket.bind','socket.getaddrinfo'):
+                with self.assertRaises(a.Refused):sys.audit(event,'SENTINEL')
+        def test_27_read_only_events_are_not_blocked(self):
+            sys.audit('open','synthetic-event-only','r',0)
+    result=unittest.TestResult();unittest.defaultTestLoader.loadTestsFromTestCase(Tests).run(result)
+    return {'schema':'moss-q8-in-memory-audit-fixtures-v1','status':'PASS_27_IN_MEMORY_FIXTURES' if result.wasSuccessful() and result.testsRun==27 else 'FAIL_FIXTURES',
+        'tests_run':result.testsRun,'failures':[x._testMethodName for x,_ in result.failures],
+        'errors':[x._testMethodName for x,_ in result.errors],'skipped':len(result.skipped),
+        'model_reads':0,'model_loads':0,'model_calls':0,'network_requests':0,
+        'fixture_scope':'Synthetic in-memory containers and profile maps; no learned weights or native/runtime imports.'}

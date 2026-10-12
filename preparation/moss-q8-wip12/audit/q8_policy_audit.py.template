@@ -1,0 +1,116 @@
+"""Closed two-convolution type correction to the preserved finite GGUF audit."""
+import argparse
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import resource
+import shutil
+import signal
+import stat
+import sys
+import time
+
+HERE = Path(__file__).resolve().parent
+CORRECTIONS = {'enc.conv.0.weight': (3,80,1024), 'enc.conv.1.weight': (3,1024,1024)}
+DENIED = ValueError
+
+
+def deny(event, args):
+    if (event.startswith(('subprocess.', 'socket.')) or
+            event in {'os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'}):
+        raise DENIED('forbidden_process_or_network_event')
+
+
+def read_pin(path, size, digest):
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or path.resolve()!=path or before.st_size!=size:
+        raise ValueError('source_kind_size')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    with os.fdopen(fd,'rb') as stream:
+        raw=stream.read(size+1);after=os.fstat(stream.fileno())
+    sig=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+    if sig(before)!=sig(after) or sig(before)!=sig(path.lstat()):raise ValueError('source_identity')
+    if len(raw)!=size or hashlib.sha256(raw).hexdigest()!=digest:raise ValueError('source_sha256')
+    return raw
+
+
+def source_module(name,path):
+    spec=importlib.util.spec_from_file_location(name,path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+
+def correct_expected(a):
+    old=a.expected_tensors
+    def corrected():
+        tensors=old()
+        for name,dims in CORRECTIONS.items():
+            a.require(tensors.get(name)=={'dims':dims,'type':1},'old_conv_expectation_changed')
+            tensors[name]={'dims':dims,'type':0}
+        return tensors
+    a.expected_tensors=corrected
+    return old
+
+
+def fixtures(a,original):
+    fixed=source_module('preserved_moss_fixtures',HERE/'fixtures.py')
+    result=fixed.run(a)
+    a.require(result['status']=='PASS_27_IN_MEMORY_FIXTURES' and result['tests_run']==27,'inherited_fixtures_failed')
+    old=original();new=a.expected_tensors()
+    a.require(set(old)==set(new) and {k for k in old if old[k]!=new[k]}==set(CORRECTIONS),'no_third_change')
+    for name,dims in CORRECTIONS.items():
+        a.require(old[name]=={'dims':dims,'type':1} and new[name]=={'dims':dims,'type':0},'exact_conv_type_correction')
+    for name in CORRECTIONS:
+        candidate=a.expected_tensors();candidate[name]['type']=1
+        try:a.validate_profile(dict(a.EXPECTED),candidate)
+        except a.Refused as error:a.require(str(error)=='tensor_shape_type','old_conv_rejection_reason')
+        else:raise a.Refused('old_conv_type_was_accepted')
+    result.update(status='PASS_30_IN_MEMORY_FIXTURES',tests_run=30,inherited_tests=27,
+                  added_checks=['exact_two_type_changes_no_third_change','conv0_old_F16_rejected','conv1_old_F16_rejected'])
+    return result
+
+
+def main():
+    global DENIED
+    # Deny before importing either preserved audit/fixture source or doing work.
+    sys.addaudithook(deny)
+    parser=argparse.ArgumentParser();parser.add_argument('--mode',choices=('fixtures','audit'),required=True)
+    parser.add_argument('--contract-sha256',required=True);args=parser.parse_args()
+    started=time.monotonic()
+    os.sched_setaffinity(0,{'__LOCAL_REVIEWED_CPU_ID__'});os.nice(max(0,19-os.getpriority(os.PRIO_PROCESS,0)))
+    resource.setrlimit(resource.RLIMIT_CORE,(0,0));resource.setrlimit(resource.RLIMIT_AS,(256*2**20,256*2**20))
+    resource.setrlimit(resource.RLIMIT_CPU,(60,60))
+    signal.signal(signal.SIGALRM,lambda *_: (_ for _ in ()).throw(ValueError('wall_deadline')));signal.alarm(120)
+    p=HERE/'Q8_POLICY_CONTRACT.json';size=p.stat().st_size
+    if size>16384:raise ValueError('contract_bound')
+    raw=read_pin(p,size,args.contract_sha256)
+    contract=json.loads(raw)
+    for row in contract['source_pins']:read_pin(Path(row['path']),row['bytes'],row['sha256'])
+    a=source_module('preserved_moss_audit',HERE/'audit.py');a.DEADLINE=started+120
+    # The early hook stays installed; use the preserved refusal class so the
+    # unchanged negative fixtures test the same denied-event contract.
+    DENIED=a.Refused
+    original=correct_expected(a)
+    charge=sum(max(p.lstat().st_size,p.lstat().st_blocks*512) for p in [HERE,*HERE.rglob('*')])
+    reserve=4096+32768 if args.mode=='fixtures' else 32768
+    a.require(charge+reserve<=a.MAX_AUDIT,'audit_component_budget')
+    available=int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))*1024
+    a.require(available>=2952790016 and shutil.disk_usage(HERE).free>=6241124352+reserve,'host_disk_floor')
+    result=fixtures(a,original) if args.mode=='fixtures' else a.audit_model()
+    result.update(policy_correction='Q8_0 generic Conv bucket is F32; two exact descriptors corrected from reference F16 expectations.',
+                  policy_source_sha256=contract['policy_source']['sha256'],
+                  elapsed_seconds=time.monotonic()-started,
+                  peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*1024,
+                  spawn_control='Python spawn/exec/socket audit events denied; reviewed source has no child-creation path; no process census.')
+    result_path=HERE/('q8-policy-fixtures.json' if args.mode=='fixtures' else 'q8-policy-result.json')
+    if args.mode=='fixtures':a.require(len((json.dumps(result,ensure_ascii=False,indent=2,sort_keys=True)+'\n').encode())<=4096,'fixture_result_bound')
+    a.bounded_result(result_path,result)
+    print(json.dumps({'status':result['status'],'mode':args.mode,'model_calls':0}))
+
+
+if __name__=='__main__':
+    try:main()
+    except Exception:
+        print(json.dumps({'status':'REFUSED','reason_code':'policy_audit_failed','model_calls':0}))
+        raise SystemExit(2) from None

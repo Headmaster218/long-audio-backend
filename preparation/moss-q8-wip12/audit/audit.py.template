@@ -1,0 +1,302 @@
+"""Finite standard-library MOSS GGUF structural/prompt audit; spawn and socket events denied."""
+import argparse
+import hashlib
+import io
+import json
+import math
+import os
+from pathlib import Path
+import resource
+import shutil
+import signal
+import stat
+import struct
+import sys
+import time
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+WORKSPACE = ROOT.parent
+MODEL = ROOT/'models/MOSS-Transcribe-Diarize-Q8_0.gguf'
+MODEL_BYTES = 986899616
+MODEL_SHA = '64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039'
+DEADLINE = float('inf')
+MAX_HEADER = 32*2**20
+MAX_RESULT = 32*2**10
+MAX_AUDIT = 256*2**10
+FORMATS = {0:'B',1:'b',2:'H',3:'h',4:'I',5:'i',6:'f',7:'B',10:'Q',11:'q',12:'d'}
+TYPES = {0:(1,4),1:(1,2),8:(32,34)}
+PROMPT = ('请将音频转写为文本，每一段需以起始时间戳和说话人编号'
+          '（[S01]、[S02]、[S03]…）开头，正文为对应的语音内容，'
+          '并在段末标注结束时间戳，以清晰标明该段语音范围。')
+PREFIX = '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n<|audio_start|>'
+SUFFIX = '<|audio_end|>\n'+PROMPT+'<|im_end|>\n<|im_start|>assistant\n'
+EXPECTED = {
+    'general.architecture':'moss','general.file_type':7,'general.license':'apache-2.0',
+    'stt.variant':'moss-transcribe-diarize','stt.capability.speaker_diarization':True,
+    'tokenizer.ggml.model':'gpt2','tokenizer.ggml.pre':'qwen2','tokenizer.ggml.add_bos_token':False,
+    'stt.moss.encoder.n_layers':24,'stt.moss.encoder.d_model':1024,'stt.moss.encoder.n_heads':16,
+    'stt.moss.encoder.ffn_dim':4096,'stt.moss.encoder.num_mel_bins':80,
+    'stt.moss.encoder.max_source_positions':1500,'stt.moss.encoder.activation':'gelu',
+    'stt.moss.encoder.scale_embedding':False,'stt.moss.decoder.n_layers':28,
+    'stt.moss.decoder.hidden_size':1024,'stt.moss.decoder.intermediate_size':3072,
+    'stt.moss.decoder.n_heads':16,'stt.moss.decoder.n_kv_heads':8,'stt.moss.decoder.head_dim':128,
+    'stt.moss.decoder.hidden_act':'silu','stt.moss.decoder.rms_norm_eps':1e-6,
+    'stt.moss.decoder.rope_theta':1000000.0,'stt.moss.decoder.max_position_embeddings':131072,
+    'stt.moss.decoder.tie_word_embeddings':True,'stt.moss.decoder.vocab_size':151936,
+    'stt.moss.adaptor.input_dim':4096,'stt.moss.audio_merge_size':4,'stt.moss.audio_token_id':151671,
+    'stt.moss.audio_tokens_per_second':12.5,'stt.moss.time_marker_every_seconds':5,
+    'stt.moss.enable_time_marker':True,'stt.frontend.type':'mel','stt.frontend.num_mels':80,
+    'stt.frontend.sample_rate':16000,'stt.frontend.n_fft':400,'stt.frontend.win_length':400,
+    'stt.frontend.hop_length':160,'stt.frontend.window':'hann_periodic',
+    'stt.frontend.normalize':'per_utterance','stt.frontend.dither':0.0,
+    'stt.frontend.pre_emphasis':0.0,'stt.frontend.f_min':0.0,'stt.frontend.f_max':8000.0,
+    'stt.frontend.pad_mode':'reflect','stt.frontend.center':True,'stt.frontend.mel_norm':'slaney',
+    'stt.frontend.chunk_length':30,'stt.frontend.n_samples':480000,'stt.frontend.nb_max_frames':3000}
+
+
+class Refused(ValueError): pass
+
+def require(ok, reason):
+    if not ok: raise Refused(reason)
+
+
+def check():
+    require(time.monotonic()<DEADLINE,'wall_deadline')
+
+
+def signature(s):
+    return (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+
+
+def pinned_bytes(path, size, digest):
+    check(); before=path.lstat()
+    require(stat.S_ISREG(before.st_mode) and path.resolve()==path and before.st_size==size,'pin_kind_size')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        data=os.read(fd,size+1)
+        require(signature(before)==signature(os.fstat(fd))==signature(path.lstat()),'pin_identity')
+    finally: os.close(fd)
+    require(len(data)==size and hashlib.sha256(data).hexdigest()==digest,'pin_sha256')
+    return data
+
+
+class Reader:
+    def __init__(self,stream,size):self.stream,self.size,self.at=stream,size,0
+    def take(self,n):
+        check();require(type(n) is int and 0<=n<=MAX_HEADER and self.at+n<=min(self.size,MAX_HEADER),'header_extent')
+        b=self.stream.read(n);require(len(b)==n,'short_header');self.at+=n;return b
+    def integer(self,fmt):return struct.unpack('<'+fmt,self.take(struct.calcsize('<'+fmt)))[0]
+    def string(self,limit=65536):
+        n=self.integer('Q');require(n<=limit,'string_bound')
+        try:return self.take(n).decode('utf-8')
+        except UnicodeError:raise Refused('string_utf8') from None
+    def scalar(self,kind):
+        if kind==8:return self.string()
+        require(kind in FORMATS,'metadata_type');value=self.integer(FORMATS[kind])
+        if kind==7:require(value in (0,1),'boolean');return bool(value)
+        if isinstance(value,float):require(math.isfinite(value),'metadata_finite')
+        return value
+    def value(self,kind,key):
+        if kind!=9:return self.scalar(kind)
+        subtype=self.integer('I');n=self.integer('Q')
+        require(subtype in FORMATS or subtype==8,'array_element_type')
+        require(n<=200000,'array_count')
+        retain=key in {'tokenizer.ggml.tokens','stt.moss.prompt_prefix_tokens','stt.moss.prompt_suffix_tokens','stt.moss.digit_tokens'}
+        values=[] if retain else None
+        for _ in range(n):
+            value=self.scalar(subtype)
+            if retain:values.append(value)
+        return {'array_type':subtype,'count':n,'values':values}
+
+
+def parse_gguf(stream,size):
+    r=Reader(stream,size)
+    require(r.take(4)==b'GGUF' and r.integer('I')==3,'gguf_version')
+    nt,nk=r.integer('Q'),r.integer('Q')
+    require(0<nt<=1024 and 0<nk<=512,'directory_count')
+    meta={}
+    for _ in range(nk):
+        key=r.string(4096);require(key and key not in meta,'metadata_key')
+        meta[key]=r.value(r.integer('I'),key)
+    alignment=meta.get('general.alignment',32)
+    require(type(alignment) is int and alignment==32,'alignment')
+    tensors={}
+    for _ in range(nt):
+        name=r.string(4096);nd=r.integer('I')
+        require(name and name not in tensors and 1<=nd<=4,'tensor_name_rank')
+        dims=tuple(r.integer('Q') for _ in range(nd))
+        require(all(0<d<=2**20 for d in dims) and math.prod(dims)<=2**31,'tensor_shape_bound')
+        kind=r.integer('I');offset=r.integer('Q')
+        require(kind in TYPES and offset%alignment==0,'tensor_type_alignment')
+        block,width=TYPES[kind];require(dims[0]%block==0,'tensor_block_shape')
+        nbytes=math.prod(dims)//block*width
+        require(nbytes<=size and offset<=size and offset+nbytes<=size,'tensor_extent')
+        tensors[name]={'dims':dims,'type':kind,'offset':offset,'bytes':nbytes}
+    data_at=(r.at+alignment-1)//alignment*alignment
+    require(data_at<=size,'data_start')
+    previous=0
+    for t in sorted(tensors.values(),key=lambda t:t['offset']):
+        require(t['offset']>=previous and data_at+t['offset']+t['bytes']<=size,'tensor_overlap_or_oob')
+        previous=t['offset']+t['bytes']
+    require(0<=size-(data_at+previous)<alignment,'unexpected_trailer')
+    return meta,tensors,{'metadata_keys':nk,'tensor_count':nt,'header_end':r.at,'data_start':data_at,'tensor_payload_bytes':sum(x['bytes'] for x in tensors.values())}
+
+
+def expected_tensors():
+    t={}
+    def put(name,dims,kind):t[name]={'dims':tuple(dims),'type':kind}
+    put('frontend.mel_filterbank',(201,80),0);put('frontend.window',(400,),0)
+    put('enc.conv.0.weight',(3,80,1024),1);put('enc.conv.1.weight',(3,1024,1024),1)
+    for name in ('enc.conv.0.bias','enc.conv.1.bias','enc.final_norm.weight','enc.final_norm.bias'):put(name,(1024,),0)
+    put('enc.pos_emb.weight',(1024,1500),0)
+    for i in range(24):
+        p='enc.blocks.'+str(i)+'.'
+        for name in ('norm_attn.weight','norm_attn.bias','norm_ffn.weight','norm_ffn.bias','attn.q.bias','attn.v.bias','attn.out.bias','ffn.fc2.bias'):put(p+name,(1024,),0)
+        for name in ('attn.q.weight','attn.k.weight','attn.v.weight','attn.out.weight'):put(p+name,(1024,1024),8)
+        put(p+'ffn.fc1.weight',(1024,4096),8);put(p+'ffn.fc1.bias',(4096,),0);put(p+'ffn.fc2.weight',(4096,1024),8)
+    put('adaptor.fc1.weight',(4096,1024),8);put('adaptor.fc2.weight',(1024,1024),8)
+    for name in ('adaptor.fc1.bias','adaptor.fc2.bias','adaptor.norm_out.weight','adaptor.norm_out.bias'):put(name,(1024,),0)
+    put('dec.token_embd.weight',(1024,151936),8);put('dec.output_norm.weight',(1024,),0)
+    for i in range(28):
+        p='dec.blocks.'+str(i)+'.'
+        for name in ('norm_attn.weight','norm_ffn.weight'):put(p+name,(1024,),0)
+        for name in ('attn.q_norm.weight','attn.k_norm.weight'):put(p+name,(128,),0)
+        put(p+'attn.q.weight',(1024,2048),8)
+        for name in ('attn.k.weight','attn.v.weight'):put(p+name,(1024,1024),8)
+        put(p+'attn.o.weight',(2048,1024),8)
+        for name in ('ffn.gate.weight','ffn.up.weight'):put(p+name,(1024,3072),8)
+        put(p+'ffn.down.weight',(3072,1024),8)
+    require(len(t)==685,'expected_tensor_count');return t
+
+
+def byte_decoder():
+    b=list(range(33,127))+list(range(161,173))+list(range(174,256));u=list(b);n=0
+    for value in range(256):
+        if value not in b:b.append(value);u.append(256+n);n+=1
+    return {chr(c):v for c,v in zip(u,b)}
+
+
+def decode_ids(ids,tokens):
+    require(type(ids) is list and len(ids)<=4096 and all(type(x) is int and 0<=x<len(tokens) for x in ids),'prompt_ids')
+    inverse=byte_decoder();out=bytearray()
+    for i in ids:
+        for c in tokens[i]:
+            require(c in inverse,'bpe_character');out.append(inverse[c])
+            require(len(out)<=16384,'prompt_text_bound')
+    try:return out.decode('utf-8')
+    except UnicodeError:raise Refused('bpe_utf8') from None
+
+
+def validate_profile(meta,tensors):
+    for key,value in EXPECTED.items():
+        actual=meta.get(key)
+        require(type(actual) is type(value),'profile_type')
+        require(math.isclose(actual,value,rel_tol=1e-6,abs_tol=1e-12) if type(value) is float else actual==value,'profile_value')
+    wanted=expected_tensors();require(set(tensors)==set(wanted),'tensor_names')
+    for key,row in wanted.items():require(all(tensors[key][k]==v for k,v in row.items()),'tensor_shape_type')
+    vocab=meta.get('tokenizer.ggml.tokens');require(type(vocab) is dict and vocab['array_type']==8 and vocab['count']==151936,'vocabulary')
+    tokens=vocab['values'];require(type(tokens) is list and len(tokens)==151936,'vocabulary_values')
+    require(tokens[151671]=='<|audio_pad|>','audio_pad')
+    for key,token in [('tokenizer.ggml.eos_token_id','<|im_end|>'),('tokenizer.ggml.padding_token_id','<|endoftext|>')]:
+        value=meta.get(key);require(type(value) is int and 0<=value<len(tokens) and tokens[value]==token,'special_token')
+    types=meta.get('tokenizer.ggml.token_type');require(type(types) is dict and types['count']==151936 and types['array_type'] in (4,5),'token_types')
+    template=meta.get('tokenizer.chat_template');require(type(template) is str and hashlib.sha256(template.encode()).hexdigest()=='8641466a16b184ebaf7c4903391e607cfd532ab937e81a64120628ab79d827f4','chat_template')
+    arrays=[]
+    for key in ('stt.moss.prompt_prefix_tokens','stt.moss.prompt_suffix_tokens','stt.moss.digit_tokens'):
+        value=meta.get(key);require(type(value) is dict and value['array_type'] in (4,5) and value['count']==len(value['values']),'prompt_array');arrays.append(value['values'])
+    prefix,suffix,digits=arrays
+    require(len(prefix)+len(suffix)==86 and len(digits)==10,'prompt_counts')
+    require(decode_ids(prefix,tokens)==PREFIX and decode_ids(suffix,tokens)==SUFFIX,'fixed_prompt_text')
+    require(all(decode_ids([d],tokens)==str(i) for i,d in enumerate(digits)),'digit_tokens')
+    require(hashlib.sha256(PROMPT.encode()).hexdigest()=='5696a90762c9a738598bdf62530952cb9058f0bd2da8dccc23d988b68990e22a','instruction_sha')
+    return {'metadata_checks':len(EXPECTED),'tensor_descriptors_checked':len(wanted),
+        'baked_prefix_ids':prefix,'baked_suffix_ids':suffix,'digit_ids':digits,
+        'prefix_decoded':PREFIX,'suffix_decoded':SUFFIX,'fixed_prompt_sha256':hashlib.sha256(PROMPT.encode()).hexdigest(),
+        'support_frames':'__LOCAL_REVIEWED_SUPPORT_FRAMES__','audio_tokens':'__LOCAL_REVIEWED_AUDIO_TOKEN_COUNT__','marker_digit_tokens':'__LOCAL_REVIEWED_MARKER_DIGIT_TOKEN_COUNT__','prompt_tokens':'__LOCAL_REVIEWED_PROMPT_TOKEN_COUNT__',
+        'session_n_ctx':'__LOCAL_REVIEWED_CONTEXT_SIZE__','generation_budget':'__LOCAL_REVIEWED_GENERATION_BUDGET__','generation_token_count_known':False,'EOS_observed':False}
+
+
+def stream_hash(stream):
+    digest=hashlib.sha256();count=0
+    while True:
+        check();block=stream.read(256*1024)
+        if not block:break
+        digest.update(block);count+=len(block)
+    return count,digest.hexdigest()
+
+
+def runtime_closure():
+    manifest=WORKSPACE/'__LOCAL_REVIEWED_RUNTIME_MANIFEST_PATH__'
+    spec=json.loads(manifest.read_text());root=WORKSPACE/'__LOCAL_REVIEWED_RUNTIME_SITE_PACKAGES_PATH__'
+    rows=[r for w in spec['wheels'] if w['platform'] in ('any','linux-x86_64') for r in w['installed_files']]
+    require(len(rows)==36,'runtime_member_count');total=0
+    for row in rows:
+        relative=Path(row['name']);require(not relative.is_absolute() and '..' not in relative.parts,'runtime_relative_path')
+        p=root/relative;before=p.lstat();require(stat.S_ISREG(before.st_mode) and p.resolve()==p and before.st_size==row['bytes'],'runtime_file')
+        fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+        with os.fdopen(fd,'rb') as stream:
+            size,digest=stream_hash(stream);require(signature(before)==signature(os.fstat(stream.fileno()))==signature(p.lstat()),'runtime_identity')
+        require(size==row['bytes'] and digest==row['sha256'],'runtime_hash');total+=size
+    return {'runtime_members_checked':len(rows),'runtime_bytes_hashed':total,'runtime_version':'0.2.3',
+        'source_revision':spec['runtime_source_revision'],'native_imported':False,'ABI_claim':'Pinned wrapper/native contract bytes verified; no native ABI execution or backend probe.'}
+
+
+def audit_model():
+    before=MODEL.lstat();require(stat.S_ISREG(before.st_mode) and MODEL.resolve()==MODEL and before.st_size==MODEL_BYTES,'model_kind_size')
+    fd=os.open(MODEL,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    with os.fdopen(fd,'rb') as stream:
+        require(signature(before)==signature(os.fstat(stream.fileno())),'model_open_identity')
+        size,digest=stream_hash(stream);require(size==MODEL_BYTES and digest==MODEL_SHA,'model_full_sha256')
+        stream.seek(0);meta,tensors,info=parse_gguf(stream,size);result=validate_profile(meta,tensors)
+        require(signature(before)==signature(os.fstat(stream.fileno()))==signature(MODEL.lstat()),'model_stable_identity')
+    return {'schema':'moss-q8-finite-gguf-audit-v1','status':'PASS_STRUCTURAL_PROMPT_COMPATIBILITY',
+        'model_bytes':size,'model_sha256':digest,'file_identity':list(signature(before)),**info,**result,**runtime_closure(),
+        'new_experimental_profile':True,'numerical_equivalence_verified':False,'inference_performed':False,
+        'model_loads':0,'model_calls':0,'timestamp_accuracy_verified':False,'speaker_identity_established':False,
+        'scope':'GGUF structure, exact shape/type map, fixed prompt semantics and pinned runtime bytes; no tensor-value equivalence, model execution or output quality claim.'}
+
+
+def bounded_result(path,value):
+    raw=(json.dumps(value,ensure_ascii=False,indent=2,sort_keys=True)+'\n').encode('utf-8')
+    require(len(raw)<=MAX_RESULT,'result_bound')
+    require(not path.exists() and not path.is_symlink(),'result_exists')
+    with path.open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+
+
+def deny_process_network(event,args):
+    # This is a scoped Python audit hook, not an OS sandbox or process census.
+    if (event.startswith(('subprocess.','socket.')) or
+            event in {'os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'}):
+        raise Refused('forbidden_process_or_network_event')
+
+
+def main():
+    global DEADLINE
+    sys.addaudithook(deny_process_network)
+    parser=argparse.ArgumentParser();parser.add_argument('--mode',choices=('fixtures','audit'),required=True);parser.add_argument('--contract-sha256',required=True);args=parser.parse_args()
+    started=time.monotonic();DEADLINE=started+120
+    os.sched_setaffinity(0,{'__LOCAL_REVIEWED_CPU_ID__'});os.nice(max(0,19-os.getpriority(os.PRIO_PROCESS,0)))
+    resource.setrlimit(resource.RLIMIT_CORE,(0,0));resource.setrlimit(resource.RLIMIT_AS,(256*2**20,256*2**20));resource.setrlimit(resource.RLIMIT_CPU,(60,60))
+    signal.signal(signal.SIGALRM,lambda *_: (_ for _ in ()).throw(Refused('wall_deadline')));signal.alarm(120)
+    contract_path=HERE/'CONTRACT.json';raw=contract_path.read_bytes();require(len(raw)<=16384 and hashlib.sha256(raw).hexdigest()==args.contract_sha256,'contract_pin');contract=json.loads(raw)
+    for row in contract['source_pins']:pinned_bytes(Path(row['path']),row['bytes'],row['sha256'])
+    charge=sum(max(p.lstat().st_size,p.lstat().st_blocks*512) for p in [HERE,*HERE.rglob('*')])
+    require(charge+MAX_RESULT<=MAX_AUDIT,'audit_component_budget')
+    available=int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))*1024
+    require(available>=2952790016 and shutil.disk_usage(HERE).free>=6241124352+MAX_RESULT,'host_disk_floor')
+    if args.mode=='fixtures':
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('moss_audit_fixed_fixtures',HERE/'fixtures.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);value=m.run(sys.modules[__name__])
+    else:value=audit_model()
+    value.update(elapsed_seconds=time.monotonic()-started,peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*1024,spawn_control="Python audit hook denies process creation/OS exec and socket events; reviewed source has no child-creation path; no process census claimed")
+    bounded_result(HERE/('fixtures.json' if args.mode=='fixtures' else 'result.json'),value)
+    print(json.dumps({'status':value['status'],'mode':args.mode,'model_calls':0}));return 0 if value['status'].startswith('PASS') else 1
+
+
+if __name__=='__main__':
+    try:raise SystemExit(main())
+    except Refused as error:
+        print(json.dumps({'status':'REFUSED','reason_code':str(error),'model_calls':0}));raise SystemExit(2) from None
+    except Exception:
+        print(json.dumps({'status':'FAILED','reason_code':'unexpected_failure','model_calls':0}));raise SystemExit(1) from None
