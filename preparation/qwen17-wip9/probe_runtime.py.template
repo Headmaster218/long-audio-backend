@@ -1,0 +1,266 @@
+"""Directly guarded, same-PID ordinary-startup import probe. No models or audio."""
+import argparse
+import hashlib
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import resource
+import sys
+
+HERE = Path(__file__).resolve().parent
+PRODUCT = HERE.parent/'__LOCAL_PRODUCT_ROOT_NAME__'
+PYTHON = HERE/'runtime/bin/python3.12'
+SITE = HERE/'runtime/lib/python3.12/site-packages'
+BASE = Path('__LOCAL_PINNED_BASE_PYTHON__')
+STDLIB_PATHS = [str(BASE/'lib/python312.zip'),str(BASE/'lib/python3.12'),
+                str(BASE/'lib/python3.12/lib-dynload')]
+NORMAL_PATHS = [str(HERE),str(PRODUCT),*STDLIB_PATHS,str(SITE)]
+INSTALL_SHA = '__LOCAL_ORIGINAL_INSTALL_SOURCE_SHA256__'
+BASE_SPEC = HERE.parent/'__LOCAL_REVIEWED_PRODUCT_SPEC__'
+BASE_SPEC_SHA = '__LOCAL_PRODUCT_SPEC_SHA256__'
+
+
+def load_installer():
+    path = HERE/'install.py'
+    if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != INSTALL_SHA:
+        raise RuntimeError()
+    spec = importlib.util.spec_from_file_location('qwen_pinned_offline_install',path)
+    value = importlib.util.module_from_spec(spec); spec.loader.exec_module(value)
+    return value
+
+
+def identity(a):
+    # This self identity only binds the exec handoff; it confers no signal ownership.
+    with open('/proc/self/stat','rb') as stream: raw = stream.read(4097)
+    a.require(len(raw) <= 4096 and b')' in raw,'self_stat_bounds')
+    head,tail = raw.rsplit(b')',1)
+    fields = tail.split()
+    a.require(int(head.split(b' ',1)[0]) == os.getpid() and len(fields) >= 20,'self_stat_identity')
+    return {'pid':os.getpid(),'start_ticks':int(fields[19])}
+
+
+def limits(a):
+    value={'as':list(resource.getrlimit(resource.RLIMIT_AS)),
+           'fsize':list(resource.getrlimit(resource.RLIMIT_FSIZE)),
+           'core':list(resource.getrlimit(resource.RLIMIT_CORE)),
+           'nofile':list(resource.getrlimit(resource.RLIMIT_NOFILE)),
+           'affinity':sorted(os.sched_getaffinity(0)), 'nice':os.getpriority(os.PRIO_PROCESS,0)}
+    a.require(value == {'as':[2**30,2**30],'fsize':[4*2**30,4*2**30],
+              'core':[0,0],'nofile':[128,128],'affinity':[3],'nice':19},'inherited_guard_limits')
+    return value
+
+
+def clean_environment(ctx,work_end):
+    run = ctx.run_directory
+    return {'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','LC_ALL':'C.UTF-8',
+            'HOME':str(run/'home'),'TMPDIR':str(run/'tmp'),'XDG_CACHE_HOME':str(run/'cache'),
+            'PYTHONDONTWRITEBYTECODE':'1','PYTHONNOUSERSITE':'1','PYTHONHASHSEED':'0',
+            'PYTHONPATH':str(PRODUCT),'OMP_NUM_THREADS':'1','MKL_NUM_THREADS':'1',
+            'OPENBLAS_NUM_THREADS':'1','NUMEXPR_NUM_THREADS':'1','HF_HUB_OFFLINE':'1',
+            'TRANSFORMERS_OFFLINE':'1','GUARD_RUN_DIRECTORY':str(run),'GUARD_STOP_PATH':str(ctx.stop),
+            'GUARD_WORK_END':work_end,'GUARD_ABSOLUTE_END':str(ctx.deadline),
+            'PIP_NO_CACHE_DIR':'1','PIP_DISABLE_PIP_VERSION_CHECK':'1','PYTHONUSERBASE':str(run/'home'),
+            'HF_HOME':str(run/'cache'),'UV_CACHE_DIR':str(run/'cache'),
+            'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null','GIT_TERMINAL_PROMPT':'0','GIT_OPTIONAL_LOCKS':'0'}
+
+
+def environment_digest(environment):
+    return hashlib.sha256(json.dumps(environment,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+
+def no_startup_hooks(a,paths):
+    a.require(paths == NORMAL_PATHS,'closed_normal_paths')
+    for name in ('sitecustomize','usercustomize'):
+        a.require(importlib.machinery.PathFinder.find_spec(name,paths) is None,'startup_hook_present')
+
+
+def normal_argv(inputs_sha,handoff_sha):
+    return [str(PYTHON),'-B',str(HERE/'probe_runtime.py'),'--inputs-sha256',inputs_sha,
+            '--normal-startup','--handoff-sha256',handoff_sha]
+
+
+def validate_handoff(a,executable,argv,environment,expected_environment,current_identity,prior,
+                     inputs_sha,handoff_sha):
+    a.require(str(executable) == str(PYTHON) and Path(executable).resolve() == PYTHON,'handoff_executable')
+    a.require(argv == normal_argv(inputs_sha,handoff_sha),'handoff_argv')
+    a.require(environment == expected_environment and environment_digest(environment) == prior['environment_sha256'],
+              'handoff_environment')
+    a.require(current_identity == prior['identity'] and prior['inputs_sha256'] == inputs_sha,
+              'handoff_identity')
+
+
+def verify_ready(install,a,ctx,inputs):
+    fields={'schema','install_spec_sha256','guard_receipt','install_result','owner_wait','runtime_manifest'}
+    a.require(type(inputs) is dict and set(inputs) == fields and
+              inputs['schema'] == 'qwen17-offline-probe-inputs-v1' and
+              re.fullmatch('[0-9a-f]{64}',inputs['install_spec_sha256']),'probe_input_schema')
+    guard = install.pinned_json(a,ctx,inputs['guard_receipt'])
+    result = install.pinned_json(a,ctx,inputs['install_result'])
+    owner = install.pinned_json(a,ctx,inputs['owner_wait'])
+    runtime = install.pinned_json(a,ctx,inputs['runtime_manifest'])
+    run = Path(inputs['guard_receipt']['path']).parent
+    a.require(run.parent == HERE/'runs' and run.name.startswith('run-') and
+              Path(inputs['guard_receipt']['path']) == run/'receipt.json' and
+              Path(inputs['install_result']['path']) == run/'install-result.json' and
+              guard['run_directory'] == str(run),'install_original_paths')
+    a.require(guard['status'] == 'PASS' and guard['cleanup'] == 'CONFIRMED' and guard['exit_code'] == 0 and
+              guard['original_handle_waited'] is True and guard['final_source_pin_verified'] is True and
+              guard['unresolved_owned'] == [] and guard['spec_sha256'] == inputs['install_spec_sha256'] and
+              owner['original_tool_wait_reaped'] is True and
+              owner['tool_reported_terminal'] is True and owner['tool_exit_code'] == 0 and
+              owner['stop_or_signal_sent_by_owner'] is False,'install_terminal_required')
+    a.require(result['schema'] == 'qwen17-offline-install-result-v1' and result['status'] == 'VERIFIED' and
+              result['runtime_manifest'] == inputs['runtime_manifest'] and result['runtime_files'] == 59 and
+              result['wheel_files'] == 38 and result['psutil_files'] == 19 and result['copied_interpreters'] == 1 and
+              all(result[k] == 0 for k in ('package_execution','network_requests','model_calls',
+              'model_loads','native_library_loads')),'complete_model_free_install_required')
+    assets,reuse = install.documents(a,ctx)
+    pins = install.runtime_pins(a,assets,reuse,result['records'])
+    a.require(runtime == install.manifest(assets,pins),'exact_runtime_manifest')
+    install.complete_tree(a,ctx,HERE/'runtime',pins)
+    for wheel in assets['artifacts'][1:]:
+        path = SITE/wheel['record_name']
+        with a.bound_regular(path,ctx,install.RECORD_CAP) as stream:
+            record = install.validate_record(a,stream.read(install.RECORD_CAP+1),wheel['installed_files'],wheel['record_name'])
+        a.require(record in result['records'],'installed_record_changed')
+    return runtime,pins
+
+
+def model_free_audit(a,allowed_native):
+    blocked={'socket.__new__','socket.connect','socket.bind','socket.getaddrinfo','socket.gethostbyname',
+             'subprocess.Popen','os.system','os.posix_spawn','os.fork','os.forkpty','os.exec'}
+    def audit(event,args):
+        if event in blocked: raise RuntimeError('model_free_probe_boundary')
+        if event == 'open' and args and isinstance(args[0],(str,bytes,os.PathLike)):
+            path = Path(os.fsdecode(args[0]))
+            if path.suffix.lower() in {'.gguf','.wav','.flac','.mp3','.ogg','.pcm','.f32'} or path.is_relative_to(HERE/'models'):
+                raise RuntimeError('model_free_probe_boundary')
+        if event == 'ctypes.dlopen':
+            name = args[0] if args else None
+            a.require(type(name) is str and str(Path(name).resolve()) in allowed_native,'closed_native_dlopen')
+    return audit
+
+
+def import_probe(install,h,a,ctx,runtime,pins):
+    allowed = {str(HERE/'runtime'/name):pin for name,pin in pins.items()}
+    native = {name for name in allowed if '.so' in Path(name).name}
+    # Stdlib ctypes initializes its Python-process handle with PyDLL(None).
+    # Finish that trusted stdlib setup before permitting only pinned native paths.
+    import ctypes
+    sys.addaudithook(model_free_audit(a,native))
+    import importlib.metadata
+    import psutil
+    import transcribe_cpp as api
+    def denied(*args,**kwargs): raise RuntimeError('model_session_audio_entry_prohibited')
+    for name in ('Model','Session','transcribe'):
+        if hasattr(api,name): setattr(api,name,denied)
+    from audio_backend import qwen_candidate_runner as runner
+    for name in ('_construct','decode_window','child_main','run','freeze','_freeze'):
+        setattr(runner,name,denied)
+    commit = api.native_commit()
+    version = api.native_version()
+    a.require(type(commit) is str and re.fullmatch('[0-9a-f]{7,40}',commit) and install.COMMIT.startswith(commit),
+              'native_commit_pin')
+    a.require(type(version) is str and re.fullmatch('[A-Za-z0-9.+_-]{1,64}',version),'native_version_syntax')
+    a.require(api.__version__ == '0.2.3' and psutil.__version__ == '7.2.2' and
+              str(Path(api.library_path()).resolve()) == runtime['native_library']['path'],'actual_runtime_origin')
+    distributions={d.metadata['Name'].lower().replace('_','-'):d.version
+                   for d in importlib.metadata.distributions(path=[str(SITE)])}
+    a.require(distributions == {'psutil':'7.2.2','transcribe-cpp':'0.2.3','transcribe-cpp-native':'0.2.3'},
+              'exact_runtime_distributions')
+    base = a.small_json(BASE_SPEC,BASE_SPEC_SHA,65536)
+    origins=[]
+    for name,value in sorted(sys.modules.items()):
+        path = getattr(value,'__file__',None)
+        if path is None: continue
+        if name.startswith(('transcribe_cpp','psutil')):
+            resolved = str(Path(path).resolve())
+            a.require(resolved in allowed,'runtime_import_origin')
+            a.hash_file(Path(resolved),ctx,allowed[resolved])
+            origins.append({'module':name,'path':resolved,'sha256':allowed[resolved]['sha256']})
+        elif name == 'audio_backend' or name.startswith('audio_backend.'):
+            resolved = Path(path).resolve()
+            a.require(resolved.is_relative_to(PRODUCT),'product_import_origin')
+            relative = str(resolved.relative_to(PRODUCT))
+            a.require(relative in base['source_files'],'product_source_membership')
+            receipt = a.hash_file(resolved,ctx)
+            a.require(receipt['sha256'] == base['source_files'][relative],'product_import_pin')
+            origins.append({'module':name,'path':str(resolved),'sha256':receipt['sha256']})
+    a.require(len(origins) <= 64,'import_origin_count_cap')
+    install.complete_tree(a,ctx,HERE/'runtime',pins)
+    return {'schema':'qwen17-model-free-runtime-probe-v1','status':'VERIFIED',
+            'ordinary_startup_compatible':True,'same_pid_exec':True,'identity':identity(a),
+            'python':runtime['python'],'native_library':runtime['native_library'],
+            'native_commit':commit,'native_version':version,'package_versions':distributions,
+            'import_origins':origins,'runtime_files':59,'native_library_loaded':True,
+            'model_calls':0,'model_loads':0,'session_constructors':0,'audio_reads':0,'network_requests':0,
+            'native_license':'MIT','model_license':'apache-2.0',
+            'stdlib_scope':'Reused base Python stdlib; not newly recursively attested.',
+            'future_inference_authorized':False}
+
+
+def main(install,h,a):
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--inputs-sha256',required=True)
+    parser.add_argument('--normal-startup',action='store_true')
+    parser.add_argument('--handoff-sha256')
+    args=parser.parse_args()
+    a.require(re.fullmatch('[0-9a-f]{64}',args.inputs_sha256),'input_sha_syntax')
+    ctx= a.offline_parent.new_context(a,os.environ)
+    inputs=a.small_json(HERE/'offline-probe-inputs.json',args.inputs_sha256,8192)
+    runtime,pins=verify_ready(install,a,ctx,inputs)
+    environment=clean_environment(ctx,os.environ['GUARD_WORK_END'])
+    receipt_path=ctx.run_directory/'probe-handoff.json'
+    no_startup_hooks(a,NORMAL_PATHS)
+    a.require(Path(sys.executable).absolute() == PYTHON and Path(sys.executable).resolve() == PYTHON,
+              'copied_interpreter_required')
+    if not args.normal_startup:
+        a.require(args.handoff_sha256 is None and sys.flags.isolated == 1 and sys.flags.no_site == 1 and
+                  sys.flags.dont_write_bytecode == 1 and sys.path == STDLIB_PATHS and
+                  sys.orig_argv == [str(PYTHON),'-I','-B','-S',str(HERE/'probe_runtime.py'),
+                  '--inputs-sha256',args.inputs_sha256],'isolated_probe_entry')
+        value={'schema':'qwen17-probe-same-pid-handoff-v1','identity':identity(a),'limits':limits(a),
+               'inputs_sha256':args.inputs_sha256,'environment_sha256':environment_digest(environment),
+               'script':{'path':str(HERE/'probe_runtime.py'),**a.hash_file(HERE/'probe_runtime.py',ctx)},
+               'work_end':float(os.environ['GUARD_WORK_END']),'absolute_end':ctx.deadline,
+               'runtime_manifest':inputs['runtime_manifest']}
+        h.bounded_json_size(value,8192,ctx.check)
+        a.write_json(receipt_path,value,ctx)
+        handoff_sha=a.hash_file(receipt_path,ctx)['sha256']
+        ctx.check()
+        os.chdir(PRODUCT)
+        os.execve(str(PYTHON),normal_argv(args.inputs_sha256,handoff_sha),environment)
+        raise RuntimeError()
+    a.require(type(args.handoff_sha256) is str and re.fullmatch('[0-9a-f]{64}',args.handoff_sha256),
+              'handoff_sha_syntax')
+    prior=a.small_json(receipt_path,args.handoff_sha256,8192)
+    validate_handoff(a,sys.executable,sys.orig_argv,dict(os.environ),environment,identity(a),prior,
+                     args.inputs_sha256,args.handoff_sha256)
+    a.require(prior['schema'] == 'qwen17-probe-same-pid-handoff-v1' and prior['limits'] == limits(a) and
+              prior['absolute_end'] == ctx.deadline and prior['work_end'] == float(os.environ['GUARD_WORK_END']) and
+              prior['runtime_manifest'] == inputs['runtime_manifest'],'inherited_handoff_state')
+    a.hash_file(HERE/'probe_runtime.py',ctx,prior['script'])
+    a.require(sys.flags.isolated == 0 and sys.flags.no_site == 0 and sys.flags.no_user_site == 1 and
+              sys.flags.dont_write_bytecode == 1 and sys.path == NORMAL_PATHS and
+              Path(sys.prefix) == HERE/'runtime' and Path(sys.base_prefix) == BASE and
+              Path.cwd() == PRODUCT and 'site' in sys.modules and
+              'sitecustomize' not in sys.modules and 'usercustomize' not in sys.modules,'ordinary_startup_state')
+    result=import_probe(install,h,a,ctx,runtime,pins)
+    result['handoff_sha256']=args.handoff_sha256
+    result['environment_keys']=sorted(environment)
+    h.bounded_json_size(result,32768,ctx.check)
+    a.write_json(ctx.run_directory/'probe-result.json',result,ctx)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        install=load_installer()
+        h,a=install.load_helpers(install.bootstrap_check)
+        raise SystemExit(a.cli_boundary(lambda:main(install,h,a)))
+    except Exception:
+        print(json.dumps({'status':'FAILED','failure':{'error_type':'OfflineProbeRefused'}}))
+        raise SystemExit(1) from None

@@ -1,0 +1,938 @@
+"""Finite offline fixtures. Run only under the original admitted outer guard.
+
+Synthetic regular files are retained in that guard's tmp directory. No network,
+package/native import, model operation, subprocess, or real exec is permitted.
+"""
+import ast
+import base64
+import builtins
+import copy
+import csv
+from contextlib import ExitStack
+import hashlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import stat
+import struct
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest import mock
+import zipfile
+
+HERE = Path(__file__).resolve().parent.parent
+FIXTURE_CAP = 16*2**20
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+
+i = module('qwen17_offline_install_fixture', HERE/'offline-v2/install.py')
+p = module('qwen17_offline_probe_fixture', HERE/'probe_runtime.py')
+l = module('qwen17_offline_launch_fixture', HERE/'offline-v2/launch.py')
+h, a = i.load_helpers(i.bootstrap_check)
+OUTER = a.offline_parent.new_context(a, os.environ)
+
+
+class Clock:
+    def __init__(self): self.now = 1.0
+    def __call__(self): return self.now
+    def sleep(self, seconds): self.now += seconds
+
+
+def pin(data):
+    return {'bytes':len(data), 'sha256':hashlib.sha256(data).hexdigest()}
+
+
+def record_bytes(payloads, name):
+    output = io.StringIO(newline='')
+    writer = csv.writer(output, lineterminator='\n')
+    for row in payloads:
+        digest = base64.urlsafe_b64encode(bytes.fromhex(row['sha256'])).decode('ascii').rstrip('=')
+        writer.writerow((row['name'], 'sha256='+digest, str(row['bytes'])))
+    writer.writerow((name, '', ''))
+    return output.getvalue().encode('utf-8')
+
+
+class Tests(unittest.TestCase):
+    def setUp(self):
+        OUTER.check()
+        self.root = Path(tempfile.mkdtemp(dir=OUTER.temp_root, prefix='offline-case-'))
+        self.clock = Clock()
+        self.ctx = a.Context(self.root, 1000., self.root/'STOP', self.clock, self.clock.sleep)
+        self.serial = 0
+
+    def tearDown(self):
+        # No TemporaryDirectory, unlink, rmtree, cleanup, or retry deletes evidence.
+        self.assertLessEqual(a.offline_parent.component_bytes(a, OUTER.temp_root, OUTER.check), FIXTURE_CAP)
+        OUTER.check()
+
+    def directory(self):
+        self.serial += 1
+        result = self.root/('fixture-%03d' % self.serial)
+        result.mkdir(mode=0o700)
+        return result
+
+    def put(self, path, data):
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with path.open('xb') as output: output.write(data)
+        return path
+
+    def payloads(self):
+        return [('fixture/__init__.py', b'# synthetic only\n'),
+                ('fixture-0.2.3.dist-info/METADATA', b'Name: fixture\nVersion: 0.2.3\n')]
+
+    def wheel(self, *, payloads=None, record=None, members=None, transform=None, method=zipfile.ZIP_STORED):
+        payloads = self.payloads() if payloads is None else payloads
+        rows = [{'name':name, **pin(data)} for name, data in payloads]
+        record_name = 'fixture-0.2.3.dist-info/RECORD'
+        raw_record = record_bytes(rows, record_name) if record is None else record
+        entries = payloads+[(record_name, raw_record)] if members is None else members
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, 'w', compression=method) as archive:
+            for name, data in entries:
+                info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                info.compress_type = method
+                info.create_system = 3
+                info.external_attr = (stat.S_IFREG | 0o644) << 16
+                archive.writestr(info, data)
+        raw = output.getvalue()
+        if transform is not None: raw = transform(raw)
+        path = self.put(self.directory()/'synthetic.whl', raw)
+        wheel = {'id':'synthetic', **pin(raw), 'installed_files':rows, 'record_name':record_name}
+        return path, wheel, raw_record
+
+    def extract(self, path, wheel):
+        site = self.directory()/'site'
+        aggregate = {'members':0, 'expanded_bytes':0}
+        result = i.extract_exact_wheel(a, self.ctx, path, wheel, site, aggregate)
+        return site, result, aggregate
+
+    def test_01_exact_record_valid(self):
+        payloads = [{'name':name, **pin(data)} for name, data in self.payloads()]
+        name = 'fixture-0.2.3.dist-info/RECORD'
+        raw = record_bytes(payloads, name)
+        self.assertEqual(i.validate_record(a, raw, payloads, name), {'name':name, **pin(raw)})
+
+    def test_02_record_exact_closure(self):
+        payloads = [{'name':name, **pin(data)} for name, data in self.payloads()]
+        name = 'fixture-0.2.3.dist-info/RECORD'
+        rows = list(csv.reader(io.StringIO(record_bytes(payloads, name).decode('ascii'))))
+        variants = [rows[:-1], rows+[rows[0]], [rows[0], rows[0], rows[-1]],
+                    [rows[0], ['unknown.py', rows[1][1], rows[1][2]], rows[-1]],
+                    [rows[0], rows[1], [name, 'sha256='+'A'*43, '0']],
+                    [rows[0]+['extra'], rows[1], rows[-1]]]
+        for number, wrong in enumerate(variants):
+            with self.subTest(case=number):
+                output = io.StringIO(newline='')
+                csv.writer(output, lineterminator='\n').writerows(wrong)
+                with self.assertRaises(a.Refused):
+                    i.validate_record(a, output.getvalue().encode('ascii'), payloads, name)
+
+    def test_03_record_pin_and_metadata_bounds(self):
+        payloads = [{'name':name, **pin(data)} for name, data in self.payloads()]
+        name = 'fixture-0.2.3.dist-info/RECORD'
+        raw = record_bytes(payloads, name)
+        first = raw.splitlines()[0].split(b',')
+        for wrong_digest, wrong_size in [(b'md5=' + b'A'*43, first[2]),
+                                         (b'sha256=' + b'A'*43, first[2]),
+                                         (first[1], b'00'), (first[1], b'-1'),
+                                         (first[1], b'99999999999'), (first[1], b'0')]:
+            changed = b','.join((first[0], wrong_digest, wrong_size))+b'\n'+b'\n'.join(raw.splitlines()[1:])+b'\n'
+            with self.assertRaises(a.Refused): i.validate_record(a, changed, payloads, name)
+        with self.assertRaises(a.Refused): i.validate_record(a, b'x'*(i.RECORD_CAP+1), payloads, name)
+        with self.assertRaises(a.Refused): i.validate_record(a, raw, payloads+payloads[:1], name)
+        with self.assertRaises(a.Refused): i.validate_record(a, raw, payloads, payloads[0]['name'])
+
+    def test_04_install_path_boundaries(self):
+        self.assertEqual(i.exact_name(a, 'fixture/module.py'), 'fixture/module.py')
+        for name in ('', '../escape', 'a/../b', '/absolute', './relative', 'a//b', 'a/',
+                     'a\\b', 'a:b', 'a\x00b', 'a\nb', 'caf\u00e9.py', 'partial.part',
+                     'inject.pth', 'nested/inject.pth', 'sitecustomize.py',
+                     'nested/usercustomize.py', 'sitecustomize/x', 'usercustomize/x',
+                     'x'*4097, '/'.join(['x']*65)):
+            with self.subTest(name_number=len(name)):
+                with self.assertRaises(a.Refused): i.exact_name(a, name)
+
+    def test_05_exact_wheel_valid_and_retained(self):
+        for method in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            path, wheel, raw_record = self.wheel(method=method)
+            site, result, aggregate = self.extract(path, wheel)
+            self.assertEqual(result, {'name':wheel['record_name'], **pin(raw_record)})
+            expected = {row['name']:row for row in wheel['installed_files']+[result]}
+            self.assertEqual(i.complete_tree(a, self.ctx, site, expected), 3)
+            self.assertEqual(aggregate, {'members':3, 'expanded_bytes':sum(x['bytes'] for x in expected.values())})
+            self.assertTrue(path.is_file())
+
+    def test_06_wheel_missing_or_extra_member(self):
+        payloads = self.payloads()
+        rows = [{'name':name, **pin(data)} for name, data in payloads]
+        record_name = 'fixture-0.2.3.dist-info/RECORD'
+        raw_record = record_bytes(rows, record_name)
+        valid = payloads+[(record_name, raw_record)]
+        for entries in (valid[:-1], valid[1:], valid+[('unexpected.py', b'x')],
+                        valid+[('nested/inject.pth', b'x')], valid+[('empty/', b'')]):
+            path, wheel, _ = self.wheel(members=entries)
+            with self.assertRaises(a.Refused): self.extract(path, wheel)
+
+    def test_07_wheel_record_and_payload_mismatch(self):
+        path, wheel, _ = self.wheel(record=b'wrong,,\n')
+        with self.assertRaises(a.Refused): self.extract(path, wheel)
+        path, wheel, _ = self.wheel(record=b'x'*(i.RECORD_CAP+1))
+        with self.assertRaises(a.Refused): self.extract(path, wheel)
+        path, wheel, _ = self.wheel()
+        wheel['installed_files'][0]['sha256'] = '0'*64
+        with self.assertRaises(a.Refused): self.extract(path, wheel)
+        path, wheel, _ = self.wheel()
+        wheel['installed_files'][0]['bytes'] -= 1
+        with self.assertRaises(a.Refused): self.extract(path, wheel)
+
+    def test_08_reused_audit_crc_mismatch(self):
+        def corrupt(raw):
+            value = bytearray(raw)
+            nlen, xlen = struct.unpack_from('<HH', value, 26)
+            value[30+nlen+xlen] ^= 1
+            return bytes(value)
+        path, wheel, _ = self.wheel(transform=corrupt)
+        with mock.patch.object(i.zipfile, 'ZipFile', side_effect=AssertionError('audit must precede ZipFile')) as opened:
+            with self.assertRaises(a.Refused): self.extract(path, wheel)
+            opened.assert_not_called()
+
+    def test_09_reused_audit_member_expansion(self):
+        def declared_huge(raw):
+            value = bytearray(raw)
+            central = value.index(b'PK\x01\x02')
+            struct.pack_into('<I', value, 22, i.WHEEL_LIMITS['per_member_bytes']+1)
+            struct.pack_into('<I', value, central+24, i.WHEEL_LIMITS['per_member_bytes']+1)
+            return bytes(value)
+        path, wheel, _ = self.wheel(transform=declared_huge)
+        with mock.patch.object(i.zipfile, 'ZipFile', side_effect=AssertionError('audit first')) as opened:
+            with self.assertRaises(a.Refused): self.extract(path, wheel)
+            opened.assert_not_called()
+
+    def test_10_reused_audit_bounded_metadata_and_aggregate(self):
+        path, wheel, _ = self.wheel()
+        for key, value in (('per_wheel_members',2), ('members',2),
+                           ('central_directory_bytes',1), ('expanded_bytes',1)):
+            limits = dict(i.WHEEL_LIMITS, **{key:value})
+            with mock.patch.object(i, 'WHEEL_LIMITS', limits):
+                with self.assertRaises(a.Refused): self.extract(path, wheel)
+        with self.assertRaises(a.Refused):
+            a.audit_wheel(path, wheel, i.WHEEL_LIMITS,
+                          {'members':127, 'expanded_bytes':0}, self.ctx)
+        with self.assertRaises(a.Refused):
+            a.audit_wheel(path, wheel, i.WHEEL_LIMITS,
+                          {'members':0, 'expanded_bytes':i.WHEEL_LIMITS['expanded_bytes']}, self.ctx)
+
+    def test_11_copy_exact_regular_file(self):
+        data = b'bounded-local-copy'
+        source = self.put(self.root/'source', data)
+        destination = self.root/'copied/bin/python3.12'
+        result = i.copy_exact(a, self.ctx, source, destination, pin(data), executable=True)
+        self.assertEqual(result, pin(data))
+        self.assertEqual(source.read_bytes(), data)
+        self.assertEqual(destination.read_bytes(), data)
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o755)
+        self.assertNotEqual(source.stat().st_ino, destination.stat().st_ino)
+
+    def test_12_copy_sha_mismatch_retains_partial(self):
+        data = b'bounded-local-copy'
+        source = self.put(self.root/'source', data)
+        destination = self.root/'copied/payload'
+        with self.assertRaises(a.Refused):
+            i.copy_exact(a, self.ctx, source, destination, dict(pin(data), sha256='0'*64))
+        self.assertFalse(destination.exists())
+        self.assertEqual(destination.with_name('payload.part').read_bytes(), data)
+        self.assertEqual(source.read_bytes(), data)
+
+    def test_13_copy_no_overwrite_or_source_alias(self):
+        data = b'bounded-local-copy'
+        source = self.put(self.root/'source', data)
+        destination = self.put(self.root/'existing', b'keep')
+        with self.assertRaises(a.Refused): i.copy_exact(a, self.ctx, source, destination, pin(data))
+        self.assertEqual(destination.read_bytes(), b'keep')
+        original_lstat = Path.lstat
+        values = list(source.lstat()); values[0] = stat.S_IFLNK | 0o777
+        alias = os.stat_result(values)
+        def fake_lstat(path, *args, **kwargs):
+            return alias if path == source else original_lstat(path, *args, **kwargs)
+        with mock.patch.object(Path, 'lstat', new=fake_lstat):
+            with self.assertRaises(a.Refused):
+                i.copy_exact(a, self.ctx, source, self.root/'never-created', pin(data))
+        self.assertFalse((self.root/'never-created').exists())
+
+    def test_14_materialize_exact_length_and_no_retry(self):
+        for number, data in enumerate((b'', b'longer')):
+            target = self.root/('length-%d' % number)
+            with self.assertRaises(a.Refused):
+                i.materialize(a, self.ctx, io.BytesIO(data), target, pin(b'one'))
+            self.assertFalse(target.exists())
+            self.assertTrue(target.with_name(target.name+'.part').is_file())
+            with self.assertRaises(FileExistsError):
+                i.materialize(a, self.ctx, io.BytesIO(b'one'), target, pin(b'one'))
+
+    def test_15_tree_missing_extra_and_hash(self):
+        for mode in ('missing', 'extra', 'same-size-corrupt', 'unexpected-directory', 'pth'):
+            tree = self.directory()
+            pins = {'package/a.py':pin(b'abc')}
+            if mode != 'missing':
+                self.put(tree/'package/a.py', b'xyz' if mode == 'same-size-corrupt' else b'abc')
+            if mode == 'extra': self.put(tree/'package/extra.py', b'x')
+            if mode == 'unexpected-directory': (tree/'empty').mkdir()
+            if mode == 'pth': self.put(tree/'package/load.pth', b'x')
+            with self.subTest(case=mode):
+                with self.assertRaises(a.Refused): i.complete_tree(a, self.ctx, tree, pins)
+
+    def test_16_tree_special_file_and_entry_cap(self):
+        tree = self.directory()
+        source = self.put(tree/'a.py', b'abc')
+        original_lstat = Path.lstat
+        values = list(source.lstat()); values[0] = stat.S_IFLNK | 0o777
+        alias = os.stat_result(values)
+        def fake_lstat(path, *args, **kwargs):
+            return alias if path == source else original_lstat(path, *args, **kwargs)
+        with mock.patch.object(Path, 'lstat', new=fake_lstat):
+            with self.assertRaises(a.Refused):
+                i.complete_tree(a, self.ctx, tree, {'a.py':pin(b'abc')})
+        tree = self.directory()
+        pins = {}
+        for number in range(129):
+            name = 'file-%03d' % number
+            self.put(tree/name, b'x'); pins[name] = pin(b'x')
+        with self.assertRaises(a.Refused): i.complete_tree(a, self.ctx, tree, pins)
+
+    def runtime_documents(self):
+        wheels = []
+        records = []
+        for number in range(2):
+            rows = [{'name':'wheel%d/file%02d.py' % (number, n), **pin(b'x')} for n in range(18)]
+            name = 'wheel%d-0.2.3.dist-info/RECORD' % number
+            wheels.append({'installed_files':rows, 'record_name':name})
+            records.append({'name':name, **pin(record_bytes(rows, name))})
+        reuse = {'copied_interpreter':{'destination':'runtime/bin/python3.12', **pin(b'fake interpreter')},
+                 'psutil_files':[{'destination':'runtime/'+str(i.SITE/'psutil'/('f%02d.py' % n)), **pin(b'x')}
+                                 for n in range(19)],
+                 'pyvenv_cfg_proposed_text':'include-system-site-packages = false\n'}
+        return {'artifacts':[{}]+wheels}, reuse, records
+
+    def test_17_runtime_pin_inventory_exact(self):
+        assets, reuse, records = self.runtime_documents()
+        def runtime_pins(assets, reuse, supplied):
+            with mock.patch.object(i, 'RECORD_PINS', tuple(records)):
+                return i.runtime_pins(a, assets, reuse, supplied)
+        pins = runtime_pins(assets, reuse, records)
+        self.assertEqual(len(pins), 59)
+        self.assertEqual(pins['bin/python3.12'], pin(b'fake interpreter'))
+        self.assertEqual(pins['pyvenv.cfg'], pin(reuse['pyvenv_cfg_proposed_text'].encode('ascii')))
+        for changed in (records[:1], records+[records[0]], [records[0], records[0]],
+                        [dict(records[0], bytes=i.RECORD_CAP+1), records[1]],
+                        [dict(records[0], sha256='not-a-digest'), records[1]]):
+            with self.assertRaises(a.Refused): runtime_pins(assets, reuse, changed)
+        changed = [dict(records[0], sha256='0'*64), records[1]]
+        with self.assertRaises(a.Refused): runtime_pins(assets, reuse, changed)
+        wrong = copy.deepcopy(reuse)
+        wrong['psutil_files'][0]['destination'] = 'runtime/bin/python3.12'
+        with self.assertRaises(a.Refused): runtime_pins(assets, wrong, records)
+        wrong = copy.deepcopy(reuse)
+        wrong['psutil_files'][0]['destination'] = 'runtime/'+str(i.SITE/'load.pth')
+        with self.assertRaises(a.Refused): runtime_pins(assets, wrong, records)
+
+    def acquisition_documents(self, *, guard_change=None, result_change=None, owner_change=None, terminal_change=None):
+        root = self.directory()
+        run = root/'runs/run-synthetic'; run.mkdir(parents=True)
+        guard = {'run_directory':str(run), 'status':'PASS', 'cleanup':'CONFIRMED', 'exit_code':0,
+                 'original_handle_waited':True, 'final_source_pin_verified':True, 'unresolved_owned':[],
+                 'spec_sha256':i.ACQUISITION_SPEC_SHA}
+        result = {'schema':'qwen17-acquisition-result-v1', 'status':'VERIFIED',
+                  'verified_artifacts':[{'path':str(root/x['destination']), 'bytes':x['bytes'], 'sha256':x['sha256']}
+                                        for x in a.offline_parent.ARTIFACTS],
+                  'expected_artifact_count':3, 'model_calls':0, 'model_loads':0, 'installs':0, 'runtime_imports':0}
+        owner = {'original_tool_session':'__LOCAL_ACQUISITION_SESSION_ID__', 'original_tool_wait_reaped':True, 'tool_reported_terminal':True,
+                 'tool_exit_code':0, 'stop_or_signal_sent_by_owner':False}
+        for document, changes in ((guard, guard_change), (result, result_change), (owner, owner_change)):
+            if changes: document.update(changes)
+        inputs = {'schema':'qwen17-offline-install-inputs-v1'}
+        for key, path, document in (('guard_receipt', run/'receipt.json', guard),
+                                    ('acquisition_result', run/'acquisition-result.json', result),
+                                    ('owner_wait', root/'owner-wait.json', owner)):
+            raw = json.dumps(document, sort_keys=True, separators=(',', ':')).encode('ascii')
+            self.put(path, raw); inputs[key] = {'path':str(path), **pin(raw)}
+        terminal = {'schema':'qwen17-three-asset-acquisition-terminal-v1', 'status':'PASS_ACQUISITION_ONLY',
+                    'cleanup':'CONFIRMED', 'source_final_verified':True, 'unresolved_owned':[],
+                    'original':{'original_tool_session':'__LOCAL_ACQUISITION_SESSION_ID__', 'original_tool_wait_reaped':True, 'tool_exit_code':0},
+                    'assets':[{'path':str(root/x['destination']), 'bytes':x['bytes'], 'sha256':x['sha256'],
+                               'owner_stream_rehash_after_reap':True} for x in a.offline_parent.ARTIFACTS],
+                    'pins':[inputs[key] for key in ('guard_receipt', 'acquisition_result', 'owner_wait')]}
+        if terminal_change: terminal.update(terminal_change)
+        path = root/'receipts/QWEN_ACQUISITION_TERMINAL.json'
+        raw = json.dumps(terminal, sort_keys=True, separators=(',', ':')).encode('ascii')
+        self.put(path, raw); inputs['acquisition_terminal'] = {'path':str(path), **pin(raw)}
+        return root, inputs
+
+    def validate_acquisition_fixture(self, root, inputs):
+        with mock.patch.object(i, 'HERE', root), \
+             mock.patch.object(i, 'ACQUISITION_SEAL_SHA', inputs['acquisition_terminal']['sha256']):
+            return i.validate_acquisition(a, self.ctx, inputs)
+
+    def test_18_terminal_acquisition_receipts(self):
+        root, inputs = self.acquisition_documents()
+        result = self.validate_acquisition_fixture(root, inputs)
+        self.assertEqual(set(result), {'acquisition_terminal', 'guard_receipt', 'acquisition_result', 'owner_wait'})
+        for key, value in (('status','FAIL_CLOSED'), ('cleanup','UNKNOWN'), ('exit_code',1),
+                           ('original_handle_waited',False), ('final_source_pin_verified',False),
+                           ('unresolved_owned',[{'pid':123}]), ('spec_sha256','0'*64)):
+            root, inputs = self.acquisition_documents(guard_change={key:value})
+            with self.assertRaises(a.Refused): self.validate_acquisition_fixture(root, inputs)
+        for key, value in (('original_tool_wait_reaped',False), ('tool_reported_terminal',False),
+                           ('tool_exit_code',1), ('stop_or_signal_sent_by_owner',True), ('original_tool_session','__MISMATCHED_ACQUISITION_SESSION_ID__')):
+            root, inputs = self.acquisition_documents(owner_change={key:value})
+            with self.assertRaises(a.Refused): self.validate_acquisition_fixture(root, inputs)
+        for changes in ({'pins':[]}, {'assets':[]}, {'status':'FAILED'}, {'cleanup':'UNKNOWN'},
+                        {'source_final_verified':False}, {'unresolved_owned':[123]},
+                        {'original':{'original_tool_session':'__MISMATCHED_ACQUISITION_SESSION_ID__', 'original_tool_wait_reaped':True, 'tool_exit_code':0}}):
+            root, inputs = self.acquisition_documents(terminal_change=changes)
+            with self.assertRaises(a.Refused): self.validate_acquisition_fixture(root, inputs)
+
+    def test_19_acquisition_asset_and_receipt_pins(self):
+        for changes in ({'verified_artifacts':[]}, {'expected_artifact_count':2},
+                        {'status':'FAILED'}, {'model_calls':1}, {'model_loads':1},
+                        {'installs':1}, {'runtime_imports':1}):
+            root, inputs = self.acquisition_documents(result_change=changes)
+            with self.assertRaises(a.Refused): self.validate_acquisition_fixture(root, inputs)
+        root, inputs = self.acquisition_documents()
+        for changed_pin in (dict(inputs['guard_receipt'], sha256='0'*64),
+                            dict(inputs['guard_receipt'], bytes=32769),
+                            dict(inputs['guard_receipt'], extra=True)):
+            with self.assertRaises(a.Refused): i.pinned_json(a, self.ctx, changed_pin)
+
+    def test_20_prospective_geometry_precedes_claim(self):
+        threshold = i.COMPONENT_CAP-i.INSTALL_RESERVE-4*2**20
+        for charged in (threshold+1, i.COMPONENT_CAP):
+            with mock.patch.object(i, 'validate_acquisition', return_value={}), \
+                 mock.patch.object(i, 'documents', return_value=({}, {})), \
+                 mock.patch.object(a.offline_parent, 'component_bytes', return_value=charged), \
+                 mock.patch.object(a, 'exclusive', side_effect=AssertionError('claim forbidden')) as exclusive:
+                with self.assertRaises(a.Refused): i.install(h, a, self.ctx, {})
+                exclusive.assert_not_called()
+        with mock.patch.object(i, 'validate_acquisition', return_value={}), \
+             mock.patch.object(i, 'documents', return_value=({}, {})), \
+             mock.patch.object(a.offline_parent, 'component_bytes', return_value=threshold), \
+             mock.patch.object(i, 'RUNTIME', self.root), \
+             mock.patch.object(a, 'exclusive', side_effect=AssertionError('claim forbidden')) as exclusive:
+            with self.assertRaises(a.Refused) as refused: i.install(h, a, self.ctx, {})
+            self.assertEqual(str(refused.exception), 'runtime_already_present')
+            exclusive.assert_not_called()
+
+    def test_21_component_geometry_uses_allocated_blocks(self):
+        tree = self.directory(); payload = self.put(tree/'tiny', b'x')
+        original_lstat = Path.lstat
+        source_stat = payload.lstat()
+        fake = SimpleNamespace(st_mode=source_stat.st_mode, st_size=1, st_blocks=128)
+        def fake_lstat(path, *args, **kwargs):
+            return fake if path == payload else original_lstat(path, *args, **kwargs)
+        with mock.patch.object(Path, 'lstat', new=fake_lstat):
+            charged = a.offline_parent.component_bytes(a, tree, lambda: None)
+        self.assertGreaterEqual(charged, 128*512)
+
+    def handoff(self):
+        inputs_sha, handoff_sha = '1'*64, '2'*64
+        environment = p.clean_environment(self.ctx, '940.000000')
+        identity = {'pid':123, 'start_ticks':456}
+        prior = {'identity':dict(identity), 'inputs_sha256':inputs_sha,
+                 'environment_sha256':p.environment_digest(environment)}
+        return inputs_sha, handoff_sha, environment, identity, prior
+
+    def test_22_handoff_exact_request(self):
+        inputs_sha, handoff_sha, environment, identity, prior = self.handoff()
+        argv = p.normal_argv(inputs_sha, handoff_sha)
+        self.assertEqual(argv, [str(p.PYTHON), '-B', str(HERE/'probe_runtime.py'),
+                               '--inputs-sha256', inputs_sha, '--normal-startup',
+                               '--handoff-sha256', handoff_sha])
+        self.assertIsNone(p.validate_handoff(a, str(p.PYTHON), argv, environment,
+                                            environment, identity, prior, inputs_sha, handoff_sha))
+        self.assertNotIn('-I', argv)
+        self.assertNotIn('-S', argv)
+
+    def test_23_handoff_wrong_executable_and_argv(self):
+        inputs_sha, handoff_sha, environment, identity, prior = self.handoff()
+        argv = p.normal_argv(inputs_sha, handoff_sha)
+        for executable in ('/usr/bin/python3', str(self.root/'python3.12'), str(p.PYTHON.parent/'./other')):
+            with self.assertRaises(a.Refused):
+                p.validate_handoff(a, executable, argv, environment, environment, identity, prior,
+                                   inputs_sha, handoff_sha)
+        for wrong in (argv+['--extra'], argv[:1]+['-I']+argv[1:], argv[:1]+['-S']+argv[1:],
+                      argv[:-1]+['3'*64], argv[:4]+['4'*64]+argv[5:], list(reversed(argv))):
+            with self.assertRaises(a.Refused):
+                p.validate_handoff(a, str(p.PYTHON), wrong, environment, environment, identity, prior,
+                                   inputs_sha, handoff_sha)
+        with mock.patch.object(Path, 'resolve', return_value=self.root/'elsewhere'):
+            with self.assertRaises(a.Refused):
+                p.validate_handoff(a, str(p.PYTHON), argv, environment, environment, identity, prior,
+                                   inputs_sha, handoff_sha)
+
+    def test_24_handoff_environment_and_identity(self):
+        inputs_sha, handoff_sha, environment, identity, prior = self.handoff()
+        argv = p.normal_argv(inputs_sha, handoff_sha)
+        for changed in (dict(environment, PYTHONPATH='/unexpected'), dict(environment, LD_PRELOAD='/unexpected'),
+                        {k:v for k,v in environment.items() if k != 'GUARD_WORK_END'}):
+            with self.assertRaises(a.Refused):
+                p.validate_handoff(a, str(p.PYTHON), argv, changed, environment, identity, prior,
+                                   inputs_sha, handoff_sha)
+        for changed_identity in ({'pid':124, 'start_ticks':456}, {'pid':123, 'start_ticks':457},
+                                 {'pid':123, 'start_ticks':456, 'unexpected':True}):
+            with self.assertRaises(a.Refused):
+                p.validate_handoff(a, str(p.PYTHON), argv, environment, environment, changed_identity,
+                                   prior, inputs_sha, handoff_sha)
+        for changed_prior in (dict(prior, inputs_sha256='3'*64), dict(prior, environment_sha256='4'*64)):
+            with self.assertRaises(a.Refused):
+                p.validate_handoff(a, str(p.PYTHON), argv, environment, environment, identity,
+                                   changed_prior, inputs_sha, handoff_sha)
+
+    def test_25_clean_environment_and_startup_hooks(self):
+        environment = p.clean_environment(self.ctx, '940.000000')
+        self.assertEqual(environment['PYTHONPATH'], str(p.PRODUCT))
+        self.assertEqual(environment['PYTHONDONTWRITEBYTECODE'], '1')
+        self.assertEqual(environment['PYTHONNOUSERSITE'], '1')
+        self.assertEqual(environment['GUARD_ABSOLUTE_END'], str(self.ctx.deadline))
+        self.assertEqual(environment['GUARD_WORK_END'], '940.000000')
+        self.assertEqual(environment['TMPDIR'], str(self.ctx.run_directory/'tmp'))
+        self.assertNotIn('LD_PRELOAD', environment)
+        self.assertNotIn('LD_LIBRARY_PATH', environment)
+        self.assertEqual(p.environment_digest(environment), p.environment_digest(dict(reversed(list(environment.items())))))
+        with mock.patch.object(p.importlib.machinery.PathFinder, 'find_spec', return_value=None) as find:
+            p.no_startup_hooks(a, p.NORMAL_PATHS)
+            self.assertEqual(find.call_args_list, [mock.call('sitecustomize', p.NORMAL_PATHS),
+                                                   mock.call('usercustomize', p.NORMAL_PATHS)])
+            with self.assertRaises(a.Refused): p.no_startup_hooks(a, p.NORMAL_PATHS+['/unexpected'])
+        for responses in ([object(), None], [None, object()]):
+            with mock.patch.object(p.importlib.machinery.PathFinder, 'find_spec', side_effect=responses):
+                with self.assertRaises(a.Refused): p.no_startup_hooks(a, p.NORMAL_PATHS)
+
+    def test_26_audit_direct_callable_boundaries(self):
+        native = str(self.root/'runtime/native.so')
+        audit = p.model_free_audit(a, {native})
+        # The returned hook is called directly, never registered in this process.
+        for event in ('socket.__new__', 'socket.connect', 'socket.bind', 'socket.getaddrinfo',
+                      'socket.gethostbyname', 'subprocess.Popen', 'os.system', 'os.posix_spawn',
+                      'os.fork', 'os.forkpty', 'os.exec'):
+            with self.assertRaises(RuntimeError): audit(event, ())
+        for name in ('model.gguf', 'clip.wav', 'clip.FLAC', 'clip.mp3', 'clip.ogg', 'clip.pcm', 'clip.f32'):
+            with self.assertRaises(RuntimeError): audit('open', (str(self.root/name), 'rb', 0))
+        with self.assertRaises(RuntimeError): audit('open', (str(HERE/'models/unknown'), 'rb', 0))
+        for name in (None, 'liboutside.so', str(self.root/'outside.so')):
+            with self.assertRaises(a.Refused): audit('ctypes.dlopen', (name,))
+        self.assertIsNone(audit('ctypes.dlopen', (native,)))
+        self.assertIsNone(audit('open', (str(self.root/'metadata.json'), 'rb', 0)))
+
+    def test_27_self_identity_and_inherited_limits(self):
+        raw = b'123 (synthetic worker) '+b' '.join([b'S']+[b'0']*18+[b'456'])+b'\n'
+        with mock.patch('builtins.open', mock.mock_open(read_data=raw)), mock.patch.object(p.os, 'getpid', return_value=123):
+            self.assertEqual(p.identity(a), {'pid':123, 'start_ticks':456})
+        for wrong in (b'x'*4097, b'no delimiter', raw.replace(b'123 ', b'124 ', 1)):
+            with mock.patch('builtins.open', mock.mock_open(read_data=wrong)), mock.patch.object(p.os, 'getpid', return_value=123):
+                with self.assertRaises(a.Refused): p.identity(a)
+        resources = {p.resource.RLIMIT_AS:(2**30, 2**30), p.resource.RLIMIT_FSIZE:(4*2**30, 4*2**30),
+                     p.resource.RLIMIT_CORE:(0, 0), p.resource.RLIMIT_NOFILE:(128, 128)}
+        with mock.patch.object(p.resource, 'getrlimit', side_effect=lambda key:resources[key]), \
+             mock.patch.object(p.os, 'sched_getaffinity', return_value={3}), \
+             mock.patch.object(p.os, 'getpriority', return_value=19):
+            self.assertEqual(p.limits(a)['as'], [2**30, 2**30])
+            with mock.patch.object(p.os, 'sched_getaffinity', return_value={2}):
+                with self.assertRaises(a.Refused): p.limits(a)
+            with mock.patch.object(p.os, 'getpriority', return_value=0):
+                with self.assertRaises(a.Refused): p.limits(a)
+            resources[p.resource.RLIMIT_AS] = (2*2**30, 2*2**30)
+            with self.assertRaises(a.Refused): p.limits(a)
+
+    def mocked_probe_main(self, *, normal, state_change=None, prior_change=None):
+        inputs_sha, handoff_sha, environment, identity, prior = self.handoff()
+        runtime_pin = {'path':str(self.root/'runtime-manifest.json'), **pin(b'fake runtime')}
+        inputs = {'runtime_manifest':runtime_pin}
+        prior.update({'schema':'qwen17-probe-same-pid-handoff-v1', 'limits':{'synthetic':True},
+                      'absolute_end':self.ctx.deadline, 'work_end':self.ctx.deadline-60.,
+                      'runtime_manifest':runtime_pin,
+                      'script':{'path':str(HERE/'probe_runtime.py'), **pin(b'fake script')}})
+        if prior_change: prior.update(prior_change)
+        flags = SimpleNamespace(isolated=0 if normal else 1, no_site=0 if normal else 1,
+                                no_user_site=1, dont_write_bytecode=1)
+        state = SimpleNamespace(executable=str(p.PYTHON), flags=flags,
+                                orig_argv=p.normal_argv(inputs_sha, handoff_sha) if normal else
+                                [str(p.PYTHON), '-I', '-B', '-S', str(HERE/'probe_runtime.py'), '--inputs-sha256', inputs_sha],
+                                path=list(p.NORMAL_PATHS if normal else p.STDLIB_PATHS),
+                                prefix=str(HERE/'runtime'), base_prefix=str(p.BASE), modules={'site':object()})
+        if state_change: state_change(state)
+        args = SimpleNamespace(inputs_sha256=inputs_sha, normal_startup=normal,
+                               handoff_sha256=handoff_sha if normal else None)
+        stack = ExitStack()
+        stack.enter_context(mock.patch.object(p.argparse.ArgumentParser, 'parse_args', return_value=args))
+        stack.enter_context(mock.patch.object(p, 'sys', state))
+        stack.enter_context(mock.patch.object(a.offline_parent, 'new_context', return_value=self.ctx))
+        stack.enter_context(mock.patch.object(a, 'small_json', side_effect=lambda path,*unused: inputs if Path(path).name == 'offline-probe-inputs.json' else prior))
+        stack.enter_context(mock.patch.object(p, 'verify_ready', return_value=({}, {})))
+        stack.enter_context(mock.patch.object(p, 'no_startup_hooks', return_value=None))
+        stack.enter_context(mock.patch.object(p, 'identity', return_value=identity))
+        stack.enter_context(mock.patch.object(p, 'limits', return_value={'synthetic':True}))
+        stack.enter_context(mock.patch.object(a, 'hash_file', return_value={'bytes':1, 'sha256':handoff_sha}))
+        stack.enter_context(mock.patch.dict(os.environ, environment, clear=True))
+        stack.enter_context(mock.patch.object(Path, 'cwd', return_value=p.PRODUCT))
+        writes = stack.enter_context(mock.patch.object(a, 'write_json'))
+        imports = stack.enter_context(mock.patch.object(p, 'import_probe', return_value={'status':'VERIFIED'}))
+        chdir = stack.enter_context(mock.patch.object(p.os, 'chdir'))
+        class CapturedExec(BaseException): pass
+        execute = stack.enter_context(mock.patch.object(p.os, 'execve', side_effect=CapturedExec))
+        return stack, writes, imports, chdir, execute, CapturedExec, environment, inputs_sha, handoff_sha
+
+    def test_28_isolated_entry_requests_same_pid_exec(self):
+        stack, writes, imports, chdir, execute, captured, environment, inputs_sha, handoff_sha = self.mocked_probe_main(normal=False)
+        with stack:
+            with self.assertRaises(captured): p.main(i, h, a)
+            execute.assert_called_once_with(str(p.PYTHON), p.normal_argv(inputs_sha, handoff_sha), environment)
+            chdir.assert_called_once_with(p.PRODUCT)
+            imports.assert_not_called()
+            self.assertEqual(writes.call_count, 1)
+            path, receipt, ctx = writes.call_args.args
+            self.assertEqual(path, self.ctx.run_directory/'probe-handoff.json')
+            self.assertIs(ctx, self.ctx)
+            self.assertEqual(receipt['identity'], {'pid':123, 'start_ticks':456})
+            self.assertEqual(receipt['work_end'], self.ctx.deadline-60.)
+            self.assertEqual(receipt['absolute_end'], self.ctx.deadline)
+
+    def test_29_isolated_wrong_state_never_executes(self):
+        changes = [lambda state:setattr(state.flags, 'isolated', 0),
+                   lambda state:setattr(state.flags, 'no_site', 0),
+                   lambda state:setattr(state.flags, 'dont_write_bytecode', 0),
+                   lambda state:setattr(state, 'path', state.path+['/unexpected']),
+                   lambda state:setattr(state, 'orig_argv', state.orig_argv+['--extra'])]
+        for change in changes:
+            stack, writes, imports, chdir, execute, _, _, _, _ = self.mocked_probe_main(normal=False, state_change=change)
+            with stack:
+                with self.assertRaises(a.Refused): p.main(i, h, a)
+                imports.assert_not_called(); execute.assert_not_called(); writes.assert_not_called()
+
+    def test_30_ordinary_startup_success_with_mocked_probe(self):
+        stack, writes, imports, chdir, execute, _, _, _, handoff_sha = self.mocked_probe_main(normal=True)
+        with stack:
+            self.assertEqual(p.main(i, h, a), 0)
+            imports.assert_called_once_with(i, h, a, self.ctx, {}, {})
+            execute.assert_not_called(); chdir.assert_not_called()
+            self.assertEqual(writes.call_count, 1)
+            self.assertEqual(writes.call_args.args[0], self.ctx.run_directory/'probe-result.json')
+            self.assertEqual(writes.call_args.args[1]['handoff_sha256'], handoff_sha)
+
+    def test_31_ordinary_wrong_startup_rejects_before_import(self):
+        changes = [lambda state:setattr(state.flags, 'isolated', 1),
+                   lambda state:setattr(state.flags, 'no_site', 1),
+                   lambda state:setattr(state.flags, 'no_user_site', 0),
+                   lambda state:setattr(state.flags, 'dont_write_bytecode', 0),
+                   lambda state:setattr(state, 'path', state.path+['/system/site-packages']),
+                   lambda state:setattr(state, 'prefix', '/unexpected'),
+                   lambda state:setattr(state, 'base_prefix', '/unexpected'),
+                   lambda state:setattr(state, 'modules', {}),
+                   lambda state:setattr(state, 'modules', {'site':object(), 'sitecustomize':object()}),
+                   lambda state:setattr(state, 'modules', {'site':object(), 'usercustomize':object()})]
+        for change in changes:
+            stack, writes, imports, chdir, execute, _, _, _, _ = self.mocked_probe_main(normal=True, state_change=change)
+            with stack:
+                with self.assertRaises(a.Refused): p.main(i, h, a)
+                imports.assert_not_called(); execute.assert_not_called(); writes.assert_not_called()
+        for changed in ({'absolute_end':1001.}, {'work_end':941.}, {'limits':{}},
+                        {'runtime_manifest':{}}, {'schema':'unexpected'}):
+            stack, writes, imports, chdir, execute, _, _, _, _ = self.mocked_probe_main(normal=True, prior_change=changed)
+            with stack:
+                with self.assertRaises(a.Refused): p.main(i, h, a)
+                imports.assert_not_called(); execute.assert_not_called(); writes.assert_not_called()
+
+    def test_32_probe_ready_exact_fake_runtime(self):
+        assets, reuse, records = self.runtime_documents()
+        runtime = {'synthetic':'runtime-manifest'}
+        tree = self.root/'runtime'
+        with mock.patch.object(i, 'RECORD_PINS', tuple(records)):
+            pins = i.runtime_pins(a, assets, reuse, records)
+        data = {'bin/python3.12':b'fake interpreter', 'pyvenv.cfg':reuse['pyvenv_cfg_proposed_text'].encode('ascii')}
+        for wheel in assets['artifacts'][1:]:
+            for row in wheel['installed_files']: data[str(i.SITE/row['name'])] = b'x'
+            data[str(i.SITE/wheel['record_name'])] = record_bytes(wheel['installed_files'], wheel['record_name'])
+        for row in reuse['psutil_files']:
+            data[str(Path(row['destination']).relative_to('runtime'))] = b'x'
+        for name, raw in data.items(): self.put(tree/name, raw)
+        run = self.root/'runs/run-fake-install'
+        inputs = {'schema':'qwen17-offline-probe-inputs-v1', 'install_spec_sha256':'7'*64}
+        for key, path in (('guard_receipt',run/'receipt.json'), ('install_result',run/'install-result.json'),
+                          ('owner_wait',self.root/'owner-wait.json'), ('runtime_manifest',self.root/'runtime-manifest.json')):
+            inputs[key] = {'path':str(path), 'bytes':1, 'sha256':'1'*64}
+        guard = {'run_directory':str(run), 'status':'PASS', 'cleanup':'CONFIRMED', 'exit_code':0,
+                 'original_handle_waited':True, 'final_source_pin_verified':True, 'unresolved_owned':[],
+                 'spec_sha256':inputs['install_spec_sha256']}
+        owner = {'schema':1, 'original_tool_wait_reaped':True, 'tool_reported_terminal':True,
+                 'tool_exit_code':0, 'stop_or_signal_sent_by_owner':False}
+        result = {'schema':'qwen17-offline-install-result-v1', 'status':'VERIFIED',
+                  'runtime_manifest':inputs['runtime_manifest'], 'runtime_files':59, 'wheel_files':38,
+                  'psutil_files':19, 'copied_interpreters':1, 'records':records,
+                  'package_execution':0, 'network_requests':0, 'model_calls':0, 'model_loads':0,
+                  'native_library_loads':0}
+        mapping = {inputs['guard_receipt']['path']:guard, inputs['install_result']['path']:result,
+                   inputs['owner_wait']['path']:owner, inputs['runtime_manifest']['path']:runtime}
+        with mock.patch.object(p, 'HERE', self.root), mock.patch.object(p, 'SITE', tree/i.SITE), \
+             mock.patch.object(i, 'RECORD_PINS', tuple(records)), \
+             mock.patch.object(i, 'pinned_json', side_effect=lambda helper,ctx,row:mapping[row['path']]), \
+             mock.patch.object(i, 'documents', return_value=(assets, reuse)), \
+             mock.patch.object(i, 'manifest', return_value=runtime):
+            self.assertEqual(p.verify_ready(i, a, self.ctx, inputs), (runtime, pins))
+            for target, changes in ((guard, {'cleanup':'UNKNOWN'}), (guard, {'original_handle_waited':False}),
+                                    (guard, {'unresolved_owned':[123]}), (owner, {'original_tool_wait_reaped':False}),
+                                    (owner, {'tool_exit_code':1}), (result, {'runtime_files':58}),
+                                    (result, {'wheel_files':37}), (result, {'psutil_files':18}),
+                                    (result, {'copied_interpreters':2}), (result, {'package_execution':1}),
+                                    (result, {'network_requests':1}), (result, {'model_calls':1}),
+                                    (result, {'model_loads':1}), (result, {'native_library_loads':1}),
+                                    (result, {'runtime_manifest':{}}), (result, {'records':[]})):
+                with mock.patch.dict(target, changes):
+                    with self.assertRaises(a.Refused): p.verify_ready(i, a, self.ctx, inputs)
+
+    def test_33_source_imports_stay_deferred(self):
+        prohibited = ('torch', 'transcribe_cpp', 'transcribe_cpp_native', 'psutil', 'audio_backend')
+        for filename in ('install.py', 'probe_runtime.py', 'offline_launch.py', 'test_offline.py'):
+            tree = ast.parse((HERE/filename).read_text(encoding='utf-8'))
+            imports = []
+            for node in tree.body:
+                if isinstance(node, ast.Import): imports.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom): imports.append(node.module or '')
+            self.assertFalse(any(name == prefix or name.startswith(prefix+'.') for name in imports for prefix in prohibited))
+        self.assertEqual((i.BLOCK, i.RECORD_CAP, i.INSTALL_RESERVE), (65536, 16384, 112*2**20))
+        self.assertEqual(i.WHEEL_LIMITS, {'per_wheel_members':64, 'members':128,
+                                        'central_directory_bytes':65536, 'per_member_bytes':64*2**20,
+                                        'expanded_bytes':72*2**20})
+
+    def fake_guard(self):
+        # Do not call load_guard: the real module initializes a ctypes handle.
+        methods = {name:(lambda self: None) for name in l.OWNERSHIP}
+        guard_class = type('SyntheticGuard', (), methods)
+        return SimpleNamespace(CHECKS=l.OLD, WORKSPACE=l.WORKSPACE, HERE=l.OLD/'guard',
+                               MAX_DISK=7*2**30, MAX_RSS=256*2**20, MAX_AS=2**30,
+                               CLEANUP_RESERVE=60, ORDINARY_FREE_FLOOR=11*2**29,
+                               OLD_UNKNOWN_DISK=320*2**20, MIN_AVAILABLE=2952790016,
+                               MIN_FREE=11*2**29+320*2**20, POLL=.05,
+                               STAGES={'synthetic':300, 'model_runtime':600, 'corpus':1800, 'wheels_env':600},
+                               START=1., ABSOLUTE_END=301., __file__=str(l.GUARD),
+                               require=a.require, Refused=a.Refused, Guard=guard_class,
+                               platform_network=lambda environment, stage:dict(environment))
+
+    def offline_spec(self, stage):
+        absolute, work, entry, filename, inputs = l.STAGES[stage]
+        required = {str(HERE/name) for name in l.LOCAL}|{str(l.OLD/name) for name in l.OLD_FILES}
+        if inputs is not None: required.add(str(HERE/inputs))
+        pins = {name:'1'*64 for name in required}
+        python = str(HERE/'runtime/bin/python3.12') if stage == 'qwen17_probe' else l.PYTHON
+        argv = [python, '-I', '-B', '-S', str(HERE/entry)]
+        if inputs is not None: argv += ['--inputs-sha256', pins[str(HERE/inputs)]]
+        return {'schema':2, 'stage':stage, 'absolute_seconds':absolute, 'work_seconds':work,
+                'address_space_cap_bytes':2**30, 'rss_cap_bytes':256*2**20,
+                'scratch_cap_bytes':9*2**30, 'guard_sha256':l.GUARD_SHA,
+                'argv':argv, 'cwd':str(HERE), 'external_files':pins}, HERE/filename
+
+    def test_34_closed_guard_adapter_delta(self):
+        guard = self.fake_guard()
+        before = dict(vars(guard))
+        methods = {name:getattr(guard.Guard, name) for name in l.OWNERSHIP}
+        l.extend(guard)
+        changed = {name for name, value in before.items() if getattr(guard, name) != value}
+        self.assertEqual(changed, {'CHECKS', 'MAX_DISK', 'STAGES', 'platform_network'})
+        self.assertEqual((guard.CHECKS, guard.MAX_DISK), (HERE, 9*2**30))
+        self.assertEqual(guard.STAGES, dict(l.OLD_STAGES, qwen17_install=600, qwen17_probe=300))
+        self.assertTrue(all(getattr(guard.Guard, name) is value for name, value in methods.items()))
+        self.assertEqual(set(l.STAGES), {'synthetic', 'qwen17_install', 'qwen17_probe'})
+        self.assertEqual(l.STAGES['synthetic'][:2], (300, 240))
+        for stage in l.STAGES:
+            self.assertEqual(guard.platform_network({'HTTPS_PROXY':'synthetic-secret'}, stage), {})
+        for stage in ('model_runtime', 'corpus', 'wheels_env', 'qwen17_acquire', 'unexpected'):
+            with self.assertRaises(a.Refused): guard.platform_network({}, stage)
+
+    def test_35_old_guard_constant_changes_refuse(self):
+        for name in ('MAX_DISK', 'MAX_RSS', 'MAX_AS', 'CLEANUP_RESERVE', 'ORDINARY_FREE_FLOOR',
+                     'OLD_UNKNOWN_DISK', 'MIN_AVAILABLE', 'MIN_FREE', 'POLL', 'ABSOLUTE_END'):
+            guard = self.fake_guard(); setattr(guard, name, getattr(guard, name)+1)
+            with self.assertRaises(a.Refused): l.extend(guard)
+        for name in ('CHECKS', 'WORKSPACE', 'HERE', '__file__'):
+            guard = self.fake_guard(); setattr(guard, name, self.root)
+            with self.assertRaises(a.Refused): l.extend(guard)
+        guard = self.fake_guard(); guard.STAGES['unexpected'] = 300
+        with self.assertRaises(a.Refused): l.extend(guard)
+
+    def test_36_offline_spec_exact_closure(self):
+        guard = self.fake_guard()
+        for stage in l.STAGES:
+            value, path = self.offline_spec(stage)
+            self.assertEqual(l.validate(guard, value, path), l.STAGES[stage][0])
+            for key, replacement in (('schema',3), ('stage','qwen17_acquire'), ('absolute_seconds',301),
+                                     ('work_seconds',241), ('address_space_cap_bytes',2*2**30),
+                                     ('rss_cap_bytes',512*2**20), ('scratch_cap_bytes',10*2**30),
+                                     ('guard_sha256','0'*64), ('cwd',str(self.root)), ('argv',[])):
+                wrong = copy.deepcopy(value); wrong[key] = replacement
+                with self.assertRaises(a.Refused): l.validate(guard, wrong, path)
+            with self.assertRaises(a.Refused): l.validate(guard, value, self.root/path.name)
+            wrong = copy.deepcopy(value); wrong['unexpected'] = True
+            with self.assertRaises(a.Refused): l.validate(guard, wrong, path)
+            wrong = copy.deepcopy(value); wrong['external_files'][str(self.root/'unexpected')] = '0'*64
+            with self.assertRaises(a.Refused): l.validate(guard, wrong, path)
+            wrong = copy.deepcopy(value); wrong['external_files'].pop(str(HERE/'offline-v2/install.py'))
+            with self.assertRaises(a.Refused): l.validate(guard, wrong, path)
+            wrong = copy.deepcopy(value); wrong['external_files'][str(HERE/'offline-v2/install.py')] = 'INVALID'
+            with self.assertRaises(a.Refused): l.validate(guard, wrong, path)
+
+    def test_37_exact_pinned_native_wheel_layout_regression(self):
+        assets=a.small_json(HERE/'ASSETS.json',i.ASSETS_SHA,16384)
+        wheel=assets['artifacts'][2]; path=HERE/wheel['destination']
+        aggregate={'members':0,'expanded_bytes':0}
+        audited=a.audit_wheel(path,wheel,i.WHEEL_LIMITS,aggregate,OUTER)
+        self.assertEqual(audited['members'],36)
+        self.assertEqual(audited['expanded_bytes'],71864073)
+        with zipfile.ZipFile(path) as archive:
+            members=archive.infolist()
+            directories=[m for m in members if m.is_dir()]
+            files=[m for m in members if not m.is_dir()]
+            self.assertEqual(tuple(m.filename for m in directories),i.NATIVE_DIRECTORY_MEMBERS)
+            self.assertEqual({m.filename for m in files},
+                {x['name'] for x in wheel['installed_files']}|{wheel['record_name']})
+            self.assertEqual(len(files),28)
+            with archive.open(wheel['record_name']) as record_stream:
+                record_raw=record_stream.read(i.RECORD_CAP+1)
+            self.assertEqual(i.validate_record(a,record_raw,wheel['installed_files'],wheel['record_name']),
+                             i.RECORD_PINS[1])
+            # This is the exact prior source predicate, deterministically false.
+            self.assertFalse(len(members)==len(wheel['installed_files'])+1)
+            for m in directories:
+                self.assertEqual((m.file_size,m.compress_size,m.CRC,m.compress_type,m.flag_bits,m.external_attr>>16),
+                                 (0,0,0,zipfile.ZIP_STORED,0,0o40755))
+
+    def native_directory_fixture(self, mutate=None):
+        assets=a.small_json(HERE/'ASSETS.json',i.ASSETS_SHA,16384)
+        selected=assets['artifacts'][2]
+        payloads=[(row['name'],b'x') for row in selected['installed_files']]
+        rows=[{'name':name,**pin(data)} for name,data in payloads]
+        record_name=selected['record_name']; raw_record=record_bytes(rows,record_name)
+        entries=[{'name':name,'data':b'','mode':0o40755,'method':zipfile.ZIP_STORED}
+                 for name in i.NATIVE_DIRECTORY_MEMBERS]
+        entries += [{'name':name,'data':data,'mode':0o100644,'method':zipfile.ZIP_STORED}
+                    for name,data in payloads+[(record_name,raw_record)]]
+        if mutate is not None: mutate(entries)
+        out=io.BytesIO()
+        with zipfile.ZipFile(out,'w') as archive:
+            for entry in entries:
+                info=zipfile.ZipInfo(entry['name'],date_time=(1980,1,1,0,0,0))
+                info.create_system=3; info.external_attr=entry['mode']<<16
+                info.compress_type=entry['method']
+                archive.writestr(info,entry['data'])
+        raw=out.getvalue();path=self.put(self.directory()/'native-layout.whl',raw)
+        return path,{'id':'synthetic-native',**pin(raw),'installed_files':rows,'record_name':record_name},raw_record
+
+    def test_38_exact_directory_metadata_keeps_regular_closure(self):
+        path,wheel,raw_record=self.native_directory_fixture()
+        site=self.directory()/'site'; aggregate={'members':0,'expanded_bytes':0}
+        record=i.extract_exact_wheel(a,self.ctx,path,wheel,site,aggregate,i.NATIVE_DIRECTORY_MEMBERS)
+        self.assertEqual(record,{'name':wheel['record_name'],**pin(raw_record)})
+        expected={row['name']:row for row in wheel['installed_files']+[record]}
+        self.assertEqual(i.complete_tree(a,self.ctx,site,expected),28)
+        self.assertEqual(aggregate['members'],36)
+        self.assertEqual(sum(p.stat().st_size for p in site.rglob('*') if p.is_file()),27+len(raw_record))
+
+    def refused_directory_fixture(self,mutate):
+        path,wheel,_=self.native_directory_fixture(mutate)
+        site=self.directory()/'site'
+        with self.assertRaises(a.Refused):
+            i.extract_exact_wheel(a,self.ctx,path,wheel,site,{'members':0,'expanded_bytes':0},i.NATIVE_DIRECTORY_MEMBERS)
+        self.assertFalse(site.exists())
+
+    def test_39_unexpected_directory_entry_refused(self):
+        def extra(entries):
+            entries.insert(0,{'name':'transcribe_cpp_native/unexpected/','data':b'',
+                              'mode':0o40755,'method':zipfile.ZIP_STORED})
+        self.refused_directory_fixture(extra)
+
+    def test_40_nonempty_symlink_or_wrong_directory_metadata_refused(self):
+        for key,value in (('data',b'x'),('mode',0o120777),('mode',0o40700),('method',zipfile.ZIP_DEFLATED)):
+            with self.subTest(field=key):
+                self.refused_directory_fixture(lambda entries,k=key,v=value:entries[0].update({k:v}))
+
+    def test_41_directory_traversal_and_ambiguous_names_refused(self):
+        for name in ('../outside/','/absolute/','./transcribe_cpp_native/','transcribe_cpp_native//'):
+            self.refused_directory_fixture(lambda entries,n=name:entries[0].update(name=n))
+
+    def test_42_only_fixed_directory_tuple_admitted(self):
+        path,wheel,_=self.native_directory_fixture()
+        for directories in (list(i.NATIVE_DIRECTORY_MEMBERS),('unexpected/',),i.NATIVE_DIRECTORY_MEMBERS[:-1]):
+            with self.assertRaises(a.Refused):
+                i.extract_exact_wheel(a,self.ctx,path,wheel,self.directory()/'site',
+                    {'members':0,'expanded_bytes':0},directories)
+
+    def test_43_failed_install_staging_preservation_pin(self):
+        value=i.verify_failed_staging(a,OUTER)
+        self.assertEqual(value['verified_pins'],21)
+        self.assertEqual(value['staged_files'],10)
+        self.assertEqual(value['staged_logical_bytes'],120825)
+        self.assertTrue(value['source_and_staging_preserved'])
+        self.assertEqual(i.FAILED_SEAL_SHA,
+            '__LOCAL_FAILED_INSTALL_SEAL_SHA256__')
+
+    def test_44_directory_file_conflicts_and_missing_directory_refused(self):
+        for name in ('transcribe_cpp_native/__init__.py','transcribe_cpp_native/__init__.py/'):
+            self.refused_directory_fixture(lambda entries,n=name:entries[0].update(name=n))
+        self.refused_directory_fixture(lambda entries:entries.pop(0))
+        self.refused_directory_fixture(lambda entries:entries[0].update(mode=0o100644))
+
+
+class BoundedResult(unittest.TestResult):
+    """Retain only fixed test IDs/statuses; never format or retain tracebacks."""
+    def __init__(self):
+        super().__init__()
+        self.rows = {}
+
+    def startTest(self, test):
+        OUTER.check()
+        super().startTest(test)
+        self.rows[test._testMethodName] = 'PASS'
+
+    def addFailure(self, test, error): self.rows[test._testMethodName] = 'FAIL'
+    def addError(self, test, error): self.rows[test._testMethodName] = 'ERROR'
+    def addSkip(self, test, reason): self.rows[test._testMethodName] = 'SKIP'
+    def addExpectedFailure(self, test, error): self.rows[test._testMethodName] = 'FAIL'
+    def addUnexpectedSuccess(self, test): self.rows[test._testMethodName] = 'FAIL'
+
+    def addSubTest(self, test, subtest, error):
+        if error is not None: self.rows[test._testMethodName] = 'FAIL'
+
+    def wasSuccessful(self):
+        return bool(self.rows) and all(value == 'PASS' for value in self.rows.values())
+
+
+def main():
+    result = BoundedResult()
+    real_import = builtins.__import__
+    def guarded_import(name, *args, **kwargs):
+        if name.split('.', 1)[0] in {'torch', 'transcribe_cpp', 'transcribe_cpp_native', 'psutil', 'audio_backend'}:
+            raise AssertionError('package imports forbidden')
+        return real_import(name, *args, **kwargs)
+    with mock.patch.object(a.urllib.request.OpenerDirector, 'open', side_effect=AssertionError('network forbidden')), \
+         mock.patch.object(os, 'execve', side_effect=AssertionError('real exec forbidden')), \
+         mock.patch.object(os, 'system', side_effect=AssertionError('shell forbidden')), \
+         mock.patch.object(builtins, '__import__', side_effect=guarded_import):
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(Tests)
+        expected = suite.countTestCases()
+        suite.run(result)
+    report = {'schema':'qwen17-offline-fixtures-v1', 'tests_run':result.testsRun,
+              'expected_count':expected, 'test_count':len(result.rows),
+              'tests':[{'id':name, 'status':status} for name, status in sorted(result.rows.items())],
+              'status':'PASS' if result.wasSuccessful() and result.testsRun == expected else 'FAIL'}
+    h.bounded_json_size(report, 16384, lambda: OUTER.check(cleanup=True))
+    a.write_json(OUTER.run_directory/'offline-fixtures.json', report, OUTER, cleanup=True)
+    return 0 if report['status'] == 'PASS' else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(a.cli_boundary(main))

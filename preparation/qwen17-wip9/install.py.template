@@ -1,0 +1,340 @@
+"""Offline exact-wheel extraction and selected-file copy; no package execution."""
+import argparse
+import base64
+import csv
+import hashlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import zipfile
+
+HERE = Path(__file__).resolve().parent
+PRODUCT = HERE.parent/'__LOCAL_PRODUCT_ROOT_NAME__'
+RUNTIME = HERE/'runtime'
+SITE = Path('lib/python3.12/site-packages')
+PREP_SHA = '__LOCAL_PREPARE_SOURCE_SHA256__'
+ASSETS_SHA = '__LOCAL_ASSET_DOCUMENT_SHA256__'
+REUSE_SHA = '__LOCAL_REUSE_DOCUMENT_SHA256__'
+ACQUISITION_SPEC_SHA = '__LOCAL_ACQUISITION_SPEC_SHA256__'
+ACQUISITION_SEAL_SHA = '__LOCAL_ACQUISITION_SEAL_SHA256__'
+COMPONENT_CAP = 2*2**30 + 142376960 + 16384
+INSTALL_RESERVE = 112*2**20
+BLOCK = 65536
+RECORD_CAP = 16384
+WHEEL_LIMITS = {'per_wheel_members':64, 'members':128,
+                'central_directory_bytes':65536, 'per_member_bytes':64*2**20,
+                'expanded_bytes':72*2**20}
+COMMIT = '63a44d9239d610b3908e8a66b384924cd4a77217'
+RECORD_PINS = (
+    {'name':'transcribe_cpp-0.2.3.dist-info/RECORD','bytes':822,
+     'sha256':'5349fac7a10ca1a6bcac658c000e8029c557aad9876f0755b47c7a639ca94da7'},
+    {'name':'transcribe_cpp_native-0.2.3.dist-info/RECORD','bytes':3025,
+     'sha256':'3df35c556af5e060d7a7ded334c056a727676e0c712ef0c8b5fd6395ec06e713'},
+)
+
+
+def load_helpers(check):
+    path = HERE/'prepare.py'
+    if path.is_symlink() or path.stat().st_size != 8635 or hashlib.sha256(path.read_bytes()).hexdigest() != PREP_SHA:
+        raise RuntimeError()
+    check()
+    spec = importlib.util.spec_from_file_location('qwen_offline_original_prepare',path)
+    p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
+    h,a = p.load_helpers(check)
+    a.require(p.COMPONENT_CAP == 2*2**30,'original_component_constant')
+    p.COMPONENT_CAP = COMPONENT_CAP
+    a.offline_parent = p
+    return h,a
+
+
+def bootstrap_check():
+    import math
+    import time
+    end = float(os.environ['GUARD_WORK_END'])
+    stop = Path(os.environ['GUARD_STOP_PATH'])
+    if not math.isfinite(end) or time.monotonic() >= end or stop.exists() or stop.is_symlink():
+        raise RuntimeError()
+
+
+def documents(a,ctx):
+    ctx.check()
+    assets = a.small_json(HERE/'ASSETS.json',ASSETS_SHA,16384)
+    reuse = a.small_json(HERE/'REUSE.json',REUSE_SHA,16384)
+    a.offline_parent.closed_assets(a,assets)
+    a.require(sum(len(w['installed_files']) for w in assets['artifacts'][1:]) == 36 and
+              sum(x['bytes'] for w in assets['artifacts'][1:] for x in w['installed_files']) == 71981051 and
+              len(reuse['psutil_files']) == 19 and reuse['psutil_total_bytes'] == 521276 and
+              reuse['pth_files_allowed'] is False,'closed_runtime_closure')
+    return assets,reuse
+
+
+def pinned_json(a,ctx,pin,maximum=32768):
+    a.require(type(pin) is dict and set(pin) == {'path','bytes','sha256'} and
+              type(pin['bytes']) is int and 0 < pin['bytes'] <= maximum and
+              type(pin['sha256']) is str and re.fullmatch('[0-9a-f]{64}',pin['sha256']), 'input_pin')
+    path = ctx.checked(Path(pin['path']))
+    a.require(path.is_absolute() and str(path) == pin['path'],'canonical_input_path')
+    a.hash_file(path,ctx,pin)
+    return a.small_json(path,pin['sha256'],maximum)
+
+
+def validate_acquisition(a,ctx,inputs):
+    a.require(type(inputs) is dict and set(inputs) == {'schema','guard_receipt','acquisition_result','owner_wait','acquisition_terminal'} and
+              inputs['schema'] == 'qwen17-offline-install-inputs-v1','install_input_schema')
+    a.require(inputs['acquisition_terminal']['path'] == str(HERE/'receipts/QWEN_ACQUISITION_TERMINAL.json') and
+              inputs['acquisition_terminal']['sha256'] == ACQUISITION_SEAL_SHA,'exact_acquisition_seal')
+    terminal = pinned_json(a,ctx,inputs['acquisition_terminal'])
+    guard = pinned_json(a,ctx,inputs['guard_receipt'])
+    result = pinned_json(a,ctx,inputs['acquisition_result'])
+    owner = pinned_json(a,ctx,inputs['owner_wait'])
+    run = Path(inputs['guard_receipt']['path']).parent
+    a.require(run.parent == HERE/'runs' and run.name.startswith('run-') and
+              Path(inputs['guard_receipt']['path']).name == 'receipt.json' and
+              Path(inputs['acquisition_result']['path']) == run/'acquisition-result.json' and
+              guard['run_directory'] == str(run),'acquisition_original_paths')
+    a.require(guard['status'] == 'PASS' and guard['cleanup'] == 'CONFIRMED' and
+              guard['exit_code'] == 0 and guard['original_handle_waited'] is True and
+              guard['final_source_pin_verified'] is True and guard['unresolved_owned'] == [] and
+              guard['spec_sha256'] == ACQUISITION_SPEC_SHA and
+              owner['original_tool_session'] == '__LOCAL_ACQUISITION_SESSION_ID__' and owner['original_tool_wait_reaped'] is True and
+              owner['tool_reported_terminal'] is True and owner['tool_exit_code'] == 0 and
+              owner['stop_or_signal_sent_by_owner'] is False,'acquisition_terminal_required')
+    expected = [{'path':str(HERE/x['destination']),'bytes':x['bytes'],'sha256':x['sha256']}
+                for x in a.offline_parent.ARTIFACTS]
+    a.require(terminal['schema'] == 'qwen17-three-asset-acquisition-terminal-v1' and
+              terminal['status'] == 'PASS_ACQUISITION_ONLY' and terminal['cleanup'] == 'CONFIRMED' and
+              terminal['source_final_verified'] is True and terminal['unresolved_owned'] == [] and
+              terminal['original']['original_tool_session'] == '__LOCAL_ACQUISITION_SESSION_ID__' and
+              terminal['original']['original_tool_wait_reaped'] is True and
+              terminal['original']['tool_exit_code'] == 0 and
+              [{k:row[k] for k in ('path','bytes','sha256')} for row in terminal['assets']] == expected and
+              all(row['owner_stream_rehash_after_reap'] is True for row in terminal['assets']) and
+              all(inputs[k] in terminal['pins'] for k in ('guard_receipt','acquisition_result','owner_wait')),
+              'sealed_acquisition_identity')
+    a.require(result['schema'] == 'qwen17-acquisition-result-v1' and result['status'] == 'VERIFIED' and
+              result['verified_artifacts'] == expected and result['expected_artifact_count'] == 3 and
+              all(result[x] == 0 for x in ('model_calls','model_loads','installs','runtime_imports')),
+              'three_verified_acquisition_assets_required')
+    return {'acquisition_terminal':inputs['acquisition_terminal'],
+            'guard_receipt':inputs['guard_receipt'],'acquisition_result':inputs['acquisition_result'],
+            'owner_wait':inputs['owner_wait']}
+
+
+def exact_name(a,name):
+    a.require(type(name) is str and a.safe_name(name) == name and
+              not any(x.endswith('.pth') or x in ('sitecustomize.py','usercustomize.py',
+              'sitecustomize','usercustomize') for x in name.split('/')), 'closed_install_name')
+    return name
+
+
+def validate_record(a,raw,payloads,record_name):
+    a.require(type(raw) is bytes and len(raw) <= RECORD_CAP,'record_size_cap')
+    expected = {row['name']:row for row in payloads}
+    a.require(len(expected) == len(payloads) and record_name not in expected,'record_expected_closure')
+    rows = list(csv.reader(io.StringIO(raw.decode('utf-8'),newline=''),strict=True))
+    a.require(len(rows) == len(expected)+1 and len(rows) <= 64,'record_row_count')
+    seen = set()
+    for row in rows:
+        a.require(len(row) == 3,'record_columns')
+        name,digest,size = row
+        exact_name(a,name)
+        a.require(name not in seen,'record_duplicate'); seen.add(name)
+        if name == record_name:
+            a.require(digest == size == '', 'record_self_row')
+        else:
+            a.require(name in expected and re.fullmatch('sha256=[A-Za-z0-9_-]{43}',digest) and
+                      re.fullmatch('0|[1-9][0-9]{0,9}',size),'record_pin_syntax')
+            decoded = base64.urlsafe_b64decode(digest[7:]+'=')
+            a.require(decoded.hex() == expected[name]['sha256'] and int(size) == expected[name]['bytes'],
+                      'record_payload_pin')
+    a.require(seen == set(expected)|{record_name},'record_name_closure')
+    return {'name':record_name,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+
+
+def materialize(a,ctx,source,target,pin,executable=False):
+    target = ctx.parents(target)
+    a.require(not target.exists() and not target.is_symlink(),'install_target_exists')
+    partial = target.with_name(target.name+'.part')
+    ctx.checked(partial)
+    count = 0; digest = hashlib.sha256()
+    with a.exclusive(partial) as output:
+        while True:
+            ctx.check()
+            block = source.read(min(BLOCK,pin['bytes']-count+1))
+            if not block: break
+            count += len(block)
+            a.require(count <= pin['bytes'],'install_expansion_cap')
+            written = output.write(block)
+            a.require(written == len(block),'install_short_write')
+            digest.update(block)
+        a.require(count == pin['bytes'] and digest.hexdigest() == pin['sha256'],'install_exact_payload')
+        output.flush(); os.fsync(output.fileno())
+        os.fchmod(output.fileno(),0o755 if executable else 0o644)
+    a.publish(partial,target,ctx)
+    return {'bytes':count,'sha256':digest.hexdigest()}
+
+
+def copy_exact(a,ctx,source,target,pin,executable=False):
+    with a.bound_regular(source,ctx,pin['bytes']) as stream:
+        return materialize(a,ctx,stream,target,pin,executable)
+
+
+def extract_exact_wheel(a,ctx,path,wheel,site,aggregate):
+    a.audit_wheel(path,wheel,WHEEL_LIMITS,aggregate,ctx)
+    expected = {x['name']:x for x in wheel['installed_files']}
+    record_name = wheel['record_name']
+    for name in set(expected)|{record_name}: exact_name(a,name)
+    with a.bound_regular(path,ctx,wheel['bytes']) as source:
+        digest = hashlib.sha256()
+        for block in iter(lambda:source.read(BLOCK),b''):
+            ctx.check(); digest.update(block)
+        a.require(digest.hexdigest() == wheel['sha256'],'wheel_descriptor_pin')
+        source.seek(0)
+        with zipfile.ZipFile(source) as archive:
+            members = archive.infolist()
+            a.require(len(members) == len(expected)+1 and
+                      {m.filename for m in members} == set(expected)|{record_name},'exact_wheel_members')
+            for member in members:
+                mode = (member.external_attr >> 16) & 0o170000
+                a.require(not member.is_dir() and mode in (0,stat.S_IFREG),'regular_wheel_members_only')
+                limit = RECORD_CAP if member.filename == record_name else expected[member.filename]['bytes']
+                a.require(member.file_size <= limit,'wheel_declared_payload_cap')
+            record = archive.getinfo(record_name)
+            with archive.open(record) as stream:
+                raw = stream.read(RECORD_CAP+1)
+            record_pin = validate_record(a,raw,wheel['installed_files'],record_name)
+            for name,row in expected.items():
+                with archive.open(name) as stream:
+                    materialize(a,ctx,stream,site/name,row)
+            materialize(a,ctx,io.BytesIO(raw),site/record_name,record_pin)
+    return record_pin
+
+
+def runtime_pins(a,assets,reuse,records):
+    a.require(type(records) is list and len(records) == 2,'two_record_pins')
+    record_names = {w['record_name'] for w in assets['artifacts'][1:]}
+    a.require({r['name'] for r in records} == record_names and all(
+        type(r['bytes']) is int and 0 < r['bytes'] <= RECORD_CAP and
+        re.fullmatch('[0-9a-f]{64}',r['sha256']) for r in records),'exact_record_pins')
+    a.require(records == list(RECORD_PINS),'pinned_original_wheel_records')
+    pins = {}
+    for row in [x for w in assets['artifacts'][1:] for x in w['installed_files']]+records:
+        pins[str(SITE/exact_name(a,row['name']))] = {k:row[k] for k in ('bytes','sha256')}
+    for row in [reuse['copied_interpreter']]+reuse['psutil_files']:
+        path = Path(row['destination'])
+        a.require(path.parts[0] == 'runtime' and not path.is_absolute(),'copy_destination')
+        name = exact_name(a,str(path.relative_to('runtime')))
+        a.require(name not in pins,'runtime_duplicate_payload')
+        pins[name] = {k:row[k] for k in ('bytes','sha256')}
+    cfg = reuse['pyvenv_cfg_proposed_text'].encode('utf-8')
+    pins['pyvenv.cfg'] = {'bytes':len(cfg),'sha256':hashlib.sha256(cfg).hexdigest()}
+    a.require(len(pins) == 59 and sum(x['bytes'] for x in pins.values()) <= INSTALL_RESERVE,'runtime_closure_count')
+    return pins
+
+
+def complete_tree(a,ctx,root,pins,hash_files=True):
+    root = Path(root)
+    dirs = {'.'}
+    for name in pins:
+        exact_name(a,name)
+        dirs.update(str(p) for p in Path(name).parents)
+    actual_files,actual_dirs = set(),set()
+    a.require(stat.S_ISDIR(root.lstat().st_mode),'runtime_root_directory')
+    count = 0
+    for base,names,files in os.walk(root,followlinks=False):
+        ctx.check()
+        actual_dirs.add(str(Path(base).relative_to(root)))
+        for name in names+files:
+            count += 1; a.require(count <= 128,'runtime_tree_entry_cap')
+            path = Path(base)/name; info = path.lstat()
+            a.require(stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode),'runtime_special_or_link')
+            relative = str(path.relative_to(root)); exact_name(a,relative)
+            if stat.S_ISREG(info.st_mode):
+                a.require(relative in pins,'runtime_unexpected_file')
+                a.require(info.st_size == pins[relative]['bytes'],'runtime_size_changed')
+                actual_files.add(relative)
+                if hash_files: a.hash_file(path,ctx,pins[relative])
+            else:
+                a.require(relative in dirs,'runtime_unexpected_directory')
+    a.require(actual_files == set(pins) and actual_dirs == dirs,'runtime_complete_tree')
+    return len(actual_files)
+
+
+def file_receipt(path,pin):
+    return {'path':str(path),'resolved_path':str(path),'bytes':pin['bytes'],'sha256':pin['sha256']}
+
+
+def manifest(assets,pins):
+    model = assets['artifacts'][0]
+    native = str(SITE/'transcribe_cpp_native/_native/libtranscribe.so')
+    return {'schema':'qwen-local-runtime-v1','model':file_receipt(HERE/model['destination'],model),
+            'python':file_receipt(RUNTIME/'bin/python3.12',pins['bin/python3.12']),
+            'native_library':file_receipt(RUNTIME/native,pins[native]),
+            'files':[file_receipt(RUNTIME/name,pin) for name,pin in sorted(pins.items()) if name != 'bin/python3.12'],
+            'package_version':'0.2.3','native_commit':COMMIT,'model_id':model['model_id'],
+            'model_revision':model['revision'],'license':model['license']}
+
+
+def install(h,a,ctx,inputs):
+    acquisition = validate_acquisition(a,ctx,inputs)
+    assets,reuse = documents(a,ctx)
+    a.require(a.offline_parent.component_bytes(a,HERE,ctx.check)+INSTALL_RESERVE+4*2**20 <= COMPONENT_CAP,
+              'prospective_component_reservation')
+    a.require(not RUNTIME.exists() and not RUNTIME.is_symlink() and
+              not (HERE/'runtime-manifest.json').exists(),'runtime_already_present')
+    claim = ctx.parents(HERE/'receipts/offline-install.spent')
+    with a.exclusive(claim) as out:
+        out.write(b'one-copy-extraction-only-install\n'); out.flush(); os.fsync(out.fileno())
+    a.fsync_dir(claim.parent)
+    staging = ctx.checked(ctx.temp_root/'runtime')
+    staging.mkdir(mode=0o700)
+    records=[]; aggregate={'members':0,'expanded_bytes':0}
+    for wheel in assets['artifacts'][1:]:
+        records.append(extract_exact_wheel(a,ctx,HERE/wheel['destination'],wheel,staging/SITE,aggregate))
+    for row in [reuse['copied_interpreter']]+reuse['psutil_files']:
+        target = staging/Path(row['destination']).relative_to('runtime')
+        copy_exact(a,ctx,Path(row['path']),target,row,executable=(row is reuse['copied_interpreter']))
+    cfg = reuse['pyvenv_cfg_proposed_text'].encode('utf-8')
+    cfg_pin={'bytes':len(cfg),'sha256':hashlib.sha256(cfg).hexdigest()}
+    materialize(a,ctx,io.BytesIO(cfg),staging/'pyvenv.cfg',cfg_pin)
+    pins = runtime_pins(a,assets,reuse,records)
+    complete_tree(a,ctx,staging,pins)
+    a.require(not RUNTIME.exists() and not RUNTIME.is_symlink(),'runtime_already_present')
+    os.rename(staging,RUNTIME); a.fsync_dir(HERE)
+    complete_tree(a,ctx,RUNTIME,pins)
+    value = manifest(assets,pins)
+    h.bounded_json_size(value,32768,ctx.check)
+    a.write_json(HERE/'runtime-manifest.json',value,ctx)
+    result={'schema':'qwen17-offline-install-result-v1','status':'VERIFIED','records':records,
+            'runtime_files':59,'wheel_files':38,'psutil_files':19,'copied_interpreters':1,
+            'runtime_payload_bytes':sum(x['bytes'] for x in pins.values()),'acquisition':acquisition,
+            'runtime_manifest':{'path':str(HERE/'runtime-manifest.json'),**a.hash_file(HERE/'runtime-manifest.json',ctx)},
+            'copy_provenance':'Exact selected interpreter and complete 19-file psutil closure copied from reviewed prior preparation; original distribution metadata retained unchanged.',
+            'model_provenance':'Third-party Handy conversion; reviewed product pin verified by acquisition.',
+            'runtime_license':'MIT','model_license':'apache-2.0','package_execution':0,
+            'network_requests':0,'model_calls':0,'model_loads':0,'native_library_loads':0}
+    h.bounded_json_size(result,16384,ctx.check)
+    a.write_json(ctx.run_directory/'install-result.json',result,ctx)
+    return 0
+
+
+def main(h,a):
+    parser = argparse.ArgumentParser(); parser.add_argument('--inputs-sha256',required=True)
+    args = parser.parse_args()
+    a.require(re.fullmatch('[0-9a-f]{64}',args.inputs_sha256),'input_sha_syntax')
+    ctx = a.offline_parent.new_context(a,os.environ)
+    inputs = a.small_json(HERE/'offline-install-inputs.json',args.inputs_sha256,8192)
+    return install(h,a,ctx,inputs)
+
+
+if __name__ == '__main__':
+    try:
+        h,a = load_helpers(bootstrap_check)
+        raise SystemExit(a.cli_boundary(lambda:main(h,a)))
+    except Exception:
+        print(json.dumps({'status':'FAILED','failure':{'error_type':'OfflineInstallRefused'}}))
+        raise SystemExit(1) from None
