@@ -22,7 +22,7 @@ import time
 
 from .native_owned_cells import (Unavailable, Cell, SourceSupport, canonical, digest,
     integer, text, POLICY_SHA256, PROOF_BYTES, CELL_PCM_BYTES, MAX_PARTS,
-    BATCH_CELLS, HANDOFF_BYTES, IO_BYTES, validate_document)
+    BATCH_CELLS, HANDOFF_BYTES, IO_BYTES, validate_document, float32_digest)
 
 TOTAL_BYTES = 64 * 1024**2
 DATABASE_BYTES = 24 * 1024**2
@@ -296,17 +296,127 @@ class Receipt:
 
 
 class Operation:
-    """One bounded handoff, whose ownership remains with the owner until done."""
-    def __init__(self, kind, payload, epoch):
+    """One handoff; dispatch delivery has one claimant or one drainage owner.
+
+    No application callback is invoked under the delivery lock. The admission
+    boolean passed to claim must be sampled under the caller's admission gate.
+    A timed-out dispatch never exposes its copied Pin through result or wait.
+    """
+    def __init__(self, kind, payload, epoch, wake=None):
         self.kind = kind; self.payload = payload; self.epoch = epoch
         self.done = threading.Event(); self.result = {'status': 'publication_pending'}
+        self.deadline = time.monotonic() + OP_SECONDS
+        self.cancelled = threading.Event(); self.drained = threading.Event()
+        self.slot_released = threading.Event()
+        self._delivery_lock = threading.Lock(); self._wake = wake
+        self._pin = None; self.state = 'accepted'
+        self._abandon_reason = 'dispatch_abandoned'
 
     def wait(self, timeout=.5):
         # Internal model-free/read callers only. Worker/upload never call wait.
         if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
             raise ValueError('Bounded wait required')
+        if self.kind == 'dispatch':
+            self.done.wait(min(timeout, max(0., self.deadline - time.monotonic())))
+            if not self.done.is_set() or time.monotonic() >= self.deadline:
+                self.abandon('dispatch_read_timeout')
+            # Only claim may transfer a dispatch Pin. done alone is not an
+            # ownership receipt, even when an error result is ready.
+            if self.state == 'ready' and not self.cancelled.is_set():
+                return {'status': 'ready'}
+            return {'status': 'unavailable' if self.drained.is_set() else 'pending',
+                    'reason': self._abandon_reason}
         self.done.wait(timeout)
         return self.result if self.done.is_set() else {'status': 'pending'}
+
+    def check(self):
+        if self.kind == 'dispatch' and (self.cancelled.is_set()
+                or time.monotonic() >= self.deadline):
+            raise Unavailable('dispatch_read_timeout' if not self.cancelled.is_set()
+                              else 'dispatch_abandoned')
+
+    def claim(self, *, admission_open):
+        if self.kind != 'dispatch' or type(admission_open) is not bool:
+            raise ValueError('Dispatch and an admission snapshot required')
+        if not admission_open:
+            self.abandon('dispatch_admission_closed')
+        if not self._delivery_lock.acquire(timeout=LOCK_SECONDS):
+            self.abandon('dispatch_delivery_busy')
+            return {'status': 'pending', 'reason': 'dispatch_delivery_busy'}
+        try:
+            if self.state in ('claimed', 'drained'):
+                return {'status': 'unavailable', 'reason': 'dispatch_already_resolved'}
+            if self.cancelled.is_set() or time.monotonic() >= self.deadline:
+                self.cancelled.set(); self.state = 'abandoned'
+                return {'status': 'pending', 'reason': self._abandon_reason}
+            if self.state != 'ready':return {'status': 'pending'}
+            result = dict(self.result)
+            if self._pin is not None:result['pin'] = self._pin
+            # Construct the bounded delivery before changing its cleanup owner.
+            if self.cancelled.is_set() or time.monotonic() >= self.deadline:
+                self.cancelled.set(); self.state = 'abandoned'
+                return {'status': 'pending', 'reason': self._abandon_reason}
+            if self._pin is None:
+                # A failed read transfers no lease. Positively resolve that
+                # empty delivery instead of stranding a claimed operation.
+                self.state = 'drained'; self.drained.set()
+            else:
+                self.state = 'claimed'; self._pin = None
+            self.result = {'status': self.state}
+            return result
+        finally:
+            self._delivery_lock.release()
+            if self._wake is not None:self._wake.set()
+
+    def abandon(self, reason='dispatch_abandoned'):
+        if self.kind != 'dispatch':raise ValueError('Dispatch required')
+        if (type(reason) is not str or not 1 <= len(reason) <= 80
+                or any(c not in 'abcdefghijklmnopqrstuvwxyz_' for c in reason)):
+            reason = 'dispatch_abandoned'
+        # Cancellation is visible even if a claimant or owner temporarily owns
+        # the lock. The lock still chooses the sole final delivery owner.
+        self.cancelled.set()
+        if self._wake is not None:self._wake.set()
+        if not self._delivery_lock.acquire(timeout=LOCK_SECONDS):return False
+        try:
+            if self.state == 'claimed':return False
+            if self.state != 'drained':
+                self._abandon_reason = reason; self.state = 'abandoned'
+                self.done.set()
+            return self.drained.is_set()
+        finally:self._delivery_lock.release()
+
+    def _begin_dispatch(self):
+        if not self._delivery_lock.acquire(timeout=LOCK_SECONDS):return False
+        try:
+            if self.cancelled.is_set() or time.monotonic() >= self.deadline:
+                self.cancelled.set(); self.state = 'abandoned'; return False
+            if self.state != 'accepted':return False
+            self.state = 'running'; return True
+        finally:self._delivery_lock.release()
+
+    def _advance_delivery(self):
+        """Owner-only polling; no store or delivery lock spans Pin.release."""
+        if not self._delivery_lock.acquire(timeout=LOCK_SECONDS):return False
+        try:
+            if self.state == 'claimed':return True
+            if self.state == 'drained':return True
+            if self.cancelled.is_set() or time.monotonic() >= self.deadline:
+                self.cancelled.set(); self.state = 'abandoned'
+            if self.state != 'abandoned':
+                self.state = 'ready'; self.done.set(); return False
+            pin = self._pin
+        finally:self._delivery_lock.release()
+        if pin is not None:
+            pin.release()
+            if not pin.release_confirmed:return False
+        if not self._delivery_lock.acquire(timeout=LOCK_SECONDS):return False
+        try:
+            # An abandoned delivery can never subsequently become claimed.
+            self._pin = None; self.state = 'drained'
+            self.result = {'status': 'unavailable', 'reason': self._abandon_reason}
+            self.drained.set(); self.done.set(); return True
+        finally:self._delivery_lock.release()
 
 
 class Pin:
@@ -315,6 +425,11 @@ class Pin:
         self.owner = owner; self.cell_id = cell_id; self.document = document
         self._pcm = pcm; self._released = False; self.cancelled = threading.Event()
         self._release_lock = threading.Lock(); self._release_requested = False
+        self.release_done = threading.Event()
+
+    @property
+    def release_confirmed(self):
+        return self.release_done.is_set()
 
     def read(self):
         if self._released or self.cancelled.is_set():raise Unavailable('pin_cancelled')
@@ -328,14 +443,8 @@ class Pin:
 
     def release(self):
         self.cancelled.set(); self._release_requested = True
-        if not self._release_lock.acquire(timeout=LOCK_SECONDS):
-            self.owner._wake.set(); return False
-        try:
-            if self._released:return False
-            self._released = True; self._pcm = b''
-        finally:self._release_lock.release()
-        self.owner._release_pin(self)
-        return True
+        if self.release_confirmed:return False
+        return self.owner._release_pin(self)
 
     def __enter__(self):return self
     def __exit__(self, *args):self.release()
@@ -355,6 +464,7 @@ class CellStore:
         self._ancestor_identity = None
         self.configuration_reason = None
         self._closed = False; self._cleanup_pending = False; self._status = 'initializing'
+        self._admission_closed = False
         self._accepted = 0; self._dropped = 0; self._durable = 0; self._charge = 0
         self._sweep_cell = 0; self._sweep_source = ''; self._sweep_generation = None
 
@@ -377,7 +487,7 @@ class CellStore:
     def health(self):
         # Fixed-size in-memory projection; no path, SQL, filesystem or lease.
         return {'enabled': self.enabled, 'status': self._status,
-            'ready': self._ready.is_set() and not self._closed,
+            'ready': self._ready.is_set() and not self._closed and not self._admission_closed,
             'handoffs_active_or_pending': int(self._slot is not None),
             'pins': len(self._pins), 'cleanup_pending': self._cleanup_pending,
             'owner_alive': bool(self._thread and self._thread.is_alive()),
@@ -392,7 +502,7 @@ class CellStore:
         return self._receipts.get(cid)
 
     def submit(self, kind, payload):
-        if not self._ready.is_set() or self._closed or not self.enabled:
+        if not self._ready.is_set() or self._closed or self._admission_closed or not self.enabled:
             return {'status': 'optional_unavailable', 'reason': self._status}
         if kind == 'receipt':
             if type(payload) is not Receipt:raise Unavailable('receipt_required')
@@ -401,14 +511,27 @@ class CellStore:
                 raise Unavailable('publication_batch_capacity')
             if sum(len(c.proof) + len(c.pcm) for c in payload) > HANDOFF_BYTES:
                 raise Unavailable('publication_material_capacity')
+        elif kind == 'jobs_list':
+            if type(payload) is not tuple or len(payload) != 3:raise Unavailable('cell_query_binding')
+            text(payload[0]); integer(payload[1], (1 << 63) - 1); integer(payload[2], PAGE_ROWS, 1)
+        elif kind == 'jobs_detail':
+            if type(payload) is not tuple or len(payload) != 2:raise Unavailable('cell_query_binding')
+            text(payload[0]); digest(payload[1])
+        elif kind in ('dispatch', 'validate_dispatch'):
+            if type(payload) is not tuple or len(payload) != 7:raise Unavailable('cell_query_binding')
+            sid, cell_id, sequence, revision, proof_hash, support_id, generation = payload
+            text(sid); digest(cell_id)
+            integer(sequence, (1 << 63) - 1, 1); integer(revision, (1 << 63) - 1, 1)
+            digest(proof_hash); digest(support_id)
+            if generation is not self._epoch:return {'status': 'unavailable', 'reason': 'cell_revoked'}
         elif kind not in ('list', 'detail', 'read', 'expire', 'delete'):
             raise Unavailable('unknown_optional_operation')
         if not self._lock.acquire(timeout=LOCK_SECONDS):return {'status': 'busy', 'reason': 'owner_lock_busy'}
         try:
-            if self._closed or self._slot is not None:
+            if self._closed or self._admission_closed or self._slot is not None:
                 self._dropped = min(self._dropped + 1, (1 << 31) - 1)
                 return {'status': 'busy', 'reason': 'one_total_handoff_slot'}
-            op = Operation(kind, payload, self._epoch); self._slot = op
+            op = Operation(kind, payload, self._epoch, self._wake); self._slot = op
             self._accepted = min(self._accepted + 1, (1 << 31) - 1)
             self._wake.set(); return op
         finally:self._lock.release()
@@ -417,17 +540,30 @@ class CellStore:
         # A single generation/event, not an unbounded per-session cleanup queue.
         self._epoch = object(); self._cleanup_pending = True; self._reconcile.set()
         for pin in tuple(self._pins.values()):pin.cancelled.set()
+        op = self._slot
+        if op is not None and op.kind == 'dispatch':op.abandon('cell_revoked')
+        self._wake.set()
+        return True
+
+    def close_admission(self):
+        # Keep receipts, the owner and the instance lock alive for cleanup.
+        self._admission_closed = True; self._epoch = object()
+        for pin in tuple(self._pins.values()):pin.cancelled.set()
+        op = self._slot
+        if op is not None and op.kind == 'dispatch':op.abandon('dispatch_admission_closed')
         self._wake.set()
         return True
 
     def close(self, timeout=.5):
         if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
             raise ValueError('Bounded shutdown wait required')
-        self._closed = True; self._epoch = object(); self._ready.clear()
-        for pin in tuple(self._pins.values()):pin.cancelled.set()
+        deadline = time.monotonic() + timeout
+        self.close_admission(); self._closed = True; self._ready.clear()
         self._stop.set(); self._wake.set()
-        if self._thread and self._thread.is_alive():self._thread.join(timeout)
-        unresolved = bool(self._thread and self._thread.is_alive()) or self._db is not None
+        if self._thread and self._thread.is_alive():
+            self._thread.join(max(0., deadline - time.monotonic()))
+        unresolved = (bool(self._thread and self._thread.is_alive()) or self._db is not None
+                      or self._slot is not None or bool(self._pins))
         if unresolved:
             self._cleanup_pending = True; self._status = 'shutdown_pending'
             return False
@@ -435,18 +571,26 @@ class CellStore:
         return True
 
     def _release_pin(self, pin):
-        # A contended release remains cancelled and accounted until drained.
-        if not self._lock.acquire(timeout=LOCK_SECONDS):
+        # Lock order is pin -> store, never delivery -> pin/store. Callers drop
+        # every owner/delivery lock before release; no application callbacks.
+        if not pin._release_lock.acquire(timeout=LOCK_SECONDS):
             self._wake.set(); return False
         try:
-            if self._pins.get(id(pin)) is pin:self._pins.pop(id(pin))
-        finally:self._lock.release()
-        self._wake.set(); return True
+            if pin.release_confirmed:return False
+            if not self._lock.acquire(timeout=LOCK_SECONDS):return False
+            try:
+                if self._pins.get(id(pin)) is not pin:return False
+                self._pins.pop(id(pin)); pin._pcm = b''; pin._released = True
+                # Only this exact removal, after copied PCM is dropped, may
+                # acknowledge the reservation. An absent/replacement pin cannot.
+                pin.release_done.set(); return True
+            finally:self._lock.release()
+        finally:
+            pin._release_lock.release(); self._wake.set()
 
     def _drain_released_pins(self):
         for pin in tuple(self._pins.values()):
-            if pin._released:self._release_pin(pin)
-            elif pin._release_requested:pin.release()
+            if pin._release_requested:pin.release()
 
     def _check_parents(self, budget=None):
         """Finite private-namespace fence, not an atomic SQLite path open."""
@@ -723,10 +867,18 @@ class CellStore:
                 return 'not_retained_metadata_capacity'
             raise
 
-    def _document(self, cell_id, budget):
+    def _document(self, cell_id, budget, *, expected_session=None,
+                  expected_sequence=None, expected_revision=None):
         digest(cell_id)
         row = self._db.execute('SELECT seq,sid,cid,state,revision,length(proof) AS pn,length(pcm) AS n FROM cells WHERE cell_id=?', (cell_id,)).fetchone()
         if row is None:raise Unavailable('cell_unavailable')
+        # The existing length-first projection contains all scope guards. Do
+        # not retrieve or disclose proof for another authenticated session.
+        if expected_session is not None and row['sid'] != expected_session:
+            raise Unavailable('cell_unavailable')
+        if (expected_sequence is not None and row['seq'] != expected_sequence
+                or expected_revision is not None and row['revision'] != expected_revision):
+            raise Unavailable('cell_binding_changed')
         if not 1 <= row['pn'] <= PROOF_BYTES or row['n'] is not None and not 1 <= row['n'] <= CELL_PCM_BYTES:
             raise Unavailable('stored_cell_length')
         proof = self._db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
@@ -740,38 +892,106 @@ class CellStore:
         return row, doc, proof
 
     def _read(self, op, budget):
-        cell_id = op.payload; row, doc, proof = self._document(cell_id, budget)
+        scoped = op.kind in ('jobs_detail', 'dispatch', 'validate_dispatch')
+        expected_sequence = expected_revision = None
+        sid = None
+        self._generation(op); op.check()
+        if scoped:
+            sid, cell_id = op.payload[:2]
+            if op.kind != 'jobs_detail':
+                _, _, expected_sequence, expected_revision, proof_hash, support_id, generation = op.payload
+                if generation is not self._epoch:raise Unavailable('cell_revoked')
+            if not self.authority.session_valid(sid, budget):raise Unavailable('session_unavailable')
+            self._generation(op); op.check()
+        else:cell_id = op.payload
+        row, doc, proof = self._document(cell_id, budget, expected_session=sid,
+            expected_sequence=expected_sequence, expected_revision=expected_revision)
+        self._generation(op); op.check()
+        support = SourceSupport.from_dict(doc['support']) if scoped else None
+        metadata = None
+        if scoped:
+            metadata = {'cell_id': cell_id, 'sequence': row['seq'], 'revision': row['revision'],
+                        'state': row['state'], 'proof_sha256': hashlib.sha256(proof).hexdigest(),
+                        'support': support, 'owner_generation': op.epoch,
+                        'pcm_retained': row['n'] is not None and row['state'] == 'retained'}
+            if op.kind != 'jobs_detail':
+                if metadata['proof_sha256'] != proof_hash or support.support_id != support_id:
+                    raise Unavailable('cell_binding_changed')
+                if row['n'] is None or row['state'] != 'retained':raise Unavailable('cell_pcm_not_retained')
         if not self.authority.cell_valid(doc, budget, publishing=False):raise Unavailable('source_authority_unavailable')
-        if op.kind == 'detail':
-            self._generation(op)
+        self._generation(op); op.check()
+        if op.kind in ('detail', 'jobs_detail', 'validate_dispatch'):
             if not self.authority.cell_valid(doc, budget, publishing=False):raise Unavailable('source_changed_after_read')
+            self._generation(op); op.check()
+            if scoped:
+                if not self.authority.session_valid(sid, budget):raise Unavailable('session_deleted_after_read')
+                self._generation(op); op.check()
+                result = dict(metadata, status='available')
+                if op.kind in ('jobs_detail', 'validate_dispatch'):result['detail'] = proof
+                return result
             # The detail itself is the admitted <=64 KiB proof, no large wrapper.
             return {'status': 'available', 'detail': proof, 'regeneration_eligible': True}
         if row['n'] is None:raise Unavailable('pcm_not_retained')
         if len(self._pins) >= MAX_PINS:raise Unavailable('read_pin_capacity')
         pcm = self._db.execute('SELECT pcm FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
+        self._generation(op); op.check(); budget.check()
         if len(pcm) != row['n'] or hashlib.sha256(pcm).hexdigest() != doc['support']['pcm16le_sha256']:
             raise Unavailable('stored_pcm_mismatch')
-        self._generation(op)
+        if scoped and float32_digest(pcm) != support.float32le_sha256:
+            raise Unavailable('stored_pcm_mismatch')
+        self._generation(op); op.check(); budget.check()
         if not self.authority.cell_valid(doc, budget, publishing=False):raise Unavailable('source_changed_after_read')
+        self._generation(op); op.check()
+        if scoped:
+            if not self.authority.session_valid(sid, budget):raise Unavailable('session_deleted_after_read')
+            self._generation(op); op.check()
         if not self._lock.acquire(timeout=LOCK_SECONDS):raise Unavailable('pin_lock_busy')
         try:
-            self._generation(op)
+            self._generation(op); op.check()
             if len(self._pins) >= MAX_PINS:raise Unavailable('read_pin_capacity')
             pin = Pin(self, cell_id, doc, pcm); self._pins[id(pin)] = pin
+            op._pin = pin
         finally:self._lock.release()
+        if scoped:
+            # Pin remains owned by the operation until claim or positive drain.
+            # The exact proof bytes are shared with the token, never rebuilt.
+            return dict(metadata, status='available', detail=proof)
         return {'status': 'available', 'pin': pin, 'regeneration_eligible': True}
 
     def _list(self, op, budget):
-        sid, after = op.payload; text(sid); integer(after)
+        scoped = op.kind == 'jobs_list'
+        if scoped:sid, after, limit = op.payload
+        else:sid, after = op.payload; limit = PAGE_ROWS
+        text(sid); integer(limit, PAGE_ROWS, 1)
+        if scoped:integer(after, (1 << 63) - 1)
+        else:integer(after)
+        self._generation(op)
         if not self.authority.session_valid(sid, budget):raise Unavailable('session_unavailable')
+        self._generation(op)
         rows = self._db.execute('SELECT seq,cell_id,state,revision FROM cells WHERE sid=? AND seq>? ORDER BY seq LIMIT 20', (sid, after)).fetchall()
         result = []; checks = []; cursor = after
-        for item in rows:
+        for item in rows[:limit]:
             if budget.sql_bytes > 256 * 1024 - PROOF_BYTES - 8192:break
-            _, doc, _ = self._document(item['cell_id'], budget)
+            # Leave source/projection room for the mandatory second authority
+            # pass. An unexamined SQL row must never become the continuation.
+            if scoped and checks and (budget.read_bytes > SOURCE_READ_BYTES // 3
+                    or budget.sql_bytes > SQL_PROJECTION_BYTES // 3):break
+            _, doc, proof = self._document(item['cell_id'], budget,
+                expected_session=sid if scoped else None,
+                expected_sequence=item['seq'] if scoped else None,
+                expected_revision=item['revision'] if scoped else None)
+            self._generation(op)
             if self.authority.cell_valid(doc, budget, publishing=False):
-                result.append(dict(item)); checks.append(doc)
+                if scoped:
+                    support = SourceSupport.from_dict(doc['support'])
+                    result.append({'sequence': item['seq'], 'cell_id': item['cell_id'],
+                        'revision': item['revision'], 'state': item['state'],
+                        'support_id': support.support_id, 'proof_sha256': hashlib.sha256(proof).hexdigest(),
+                        'start_frame': support.start_frame, 'end_frame': support.end_frame,
+                        'core_start_frame': support.core_start_frame, 'core_end_frame': support.core_end_frame})
+                else:result.append(dict(item))
+                checks.append(doc)
+            self._generation(op)
             cursor = item['seq']
         encoded = canonical(result, PROOF_BYTES); budget.projection(len(encoded))
         self._generation(op)
@@ -779,7 +999,11 @@ class CellStore:
             raise Unavailable('source_changed_after_list_read')
         self._generation(op)
         if not self.authority.session_valid(sid, budget):raise Unavailable('session_deleted_after_read')
-        return {'status': 'available', 'cells': result, 'next_cursor': cursor}
+        self._generation(op)
+        response = {'status': 'available', 'cells': result, 'next_cursor': cursor}
+        if scoped:
+            response['has_more'] = bool(rows and (cursor < rows[-1]['seq'] or len(rows) == PAGE_ROWS))
+        return response
 
     def _expire(self, op, budget):
         cell_id = digest(op.payload)
@@ -824,20 +1048,53 @@ class CellStore:
                 self._cleanup_pending = True; self._reconcile.set()
 
     def _run(self):
+        def finish(op):
+            # Only the original owner can retire the handoff accounting. A
+            # delivery lock miss or pin-release miss retains this exact slot.
+            if op.kind == 'dispatch':
+                if op.epoch is not self._epoch or self._admission_closed:
+                    op.abandon('cell_revoked')
+                if op._pin is not None and op.result.get('status') != 'available':
+                    op.abandon(op.result.get('reason', 'dispatch_abandoned'))
+                if not op._advance_delivery():return False
+            elif op._pin is not None:
+                op._pin.release()
+                if not op._pin.release_confirmed:return False
+                op._pin = None
+            if not self._lock.acquire(timeout=LOCK_SECONDS):
+                self._status = 'handoff_release_pending'; return False
+            try:
+                if self._slot is op:
+                    self._slot = None; op.slot_released.set()
+            finally:self._lock.release()
+            if op.slot_released.is_set():op.done.set(); return True
+            return False
+
         try:
             self._open(); self._status = 'ready' if self.enabled else 'cleanup_only'; self._ready.set()
-            while not self._stop.is_set():
+            while True:
                 self._wake.wait(.05); self._wake.clear()
                 self._drain_released_pins()
                 op = self._slot
                 if op is not None and op.payload is None:
-                    if self._lock.acquire(timeout=LOCK_SECONDS):
-                        try:
-                            if self._slot is op:self._slot = None
-                        finally:self._lock.release()
-                        op.done.set()
+                    finish(op)
                     continue
-                if op is None and not self._reconcile.is_set():continue
+                if self._stop.is_set():
+                    if op is not None:
+                        if op.kind == 'dispatch':op.abandon('dispatch_admission_closed')
+                        else:op.result = {'status': 'unknown', 'reason': 'owner_shutdown'}
+                        op.payload = None; finish(op)
+                    elif not self._pins:break
+                    else:
+                        self._cleanup_pending = True; self._status = 'shutdown_pending'
+                    continue
+                if op is None and (self._admission_closed or not self._reconcile.is_set()):continue
+                if op is not None and op.kind == 'dispatch':
+                    if op.epoch is not self._epoch or self._admission_closed:op.abandon('cell_revoked')
+                    if not op._begin_dispatch():
+                        if op.cancelled.is_set() or time.monotonic() >= op.deadline:
+                            op.payload = None; finish(op)
+                        continue
                 budget = Budget()
                 try:
                     with budget.phase():
@@ -846,16 +1103,22 @@ class CellStore:
                         if op is None:self._sweep(budget)
                         elif op.kind == 'receipt':op.result = self._receipt(op, budget)
                         elif op.kind == 'publish':op.result = self._publish(op, budget)
-                        elif op.kind in ('read', 'detail'):op.result = self._read(op, budget)
-                        elif op.kind == 'list':op.result = self._list(op, budget)
+                        elif op.kind in ('read', 'detail', 'jobs_detail', 'dispatch', 'validate_dispatch'):
+                            op.result = self._read(op, budget)
+                        elif op.kind in ('list', 'jobs_list'):op.result = self._list(op, budget)
                         else:op.result = self._expire(op, budget)
+                        if op is not None:op.check()
                         self._scan(budget)
+                        if op is not None:op.check()
+                        if op is not None and op.kind in ('jobs_list', 'jobs_detail', 'dispatch', 'validate_dispatch'):
+                            self._generation(op)
                 except Exception as exc:
                     reason = str(exc) if isinstance(exc, Unavailable) else 'optional_sql_or_io_failure'
                     self._status = reason
                     if op is not None:
-                        leaked_pin = op.result.get('pin')
-                        if leaked_pin is not None:leaked_pin.release()
+                        # _read installs the pin on its operation immediately
+                        # after registration, before any later scan can fail.
+                        # Keep that reference until exact release is acknowledged.
                         op.result = {'status': 'unknown' if op.kind in ('publish', 'receipt') else 'unavailable', 'reason': reason}
                         self._dropped = min(self._dropped + 1, (1 << 31) - 1)
                     else:self._cleanup_pending = True
@@ -863,24 +1126,39 @@ class CellStore:
                     self._db.set_progress_handler(None, 0)
                     if op is not None:
                         op.payload = None
-                        if self._lock.acquire(timeout=LOCK_SECONDS):
-                            try:
-                                if self._slot is op:self._slot = None
-                            finally:self._lock.release()
-                            op.done.set()
-                        else:self._status = 'handoff_release_pending'
+                        if op.kind != 'dispatch' and op.result.get('pin') is not None:
+                            # Preserve ordinary read delivery semantics. Dispatch
+                            # alone requires the exclusive claim/abandon handshake.
+                            op._pin = None
+                        finish(op)
         except Exception as exc:
             self._status = str(exc) if isinstance(exc, Unavailable) else 'optional_startup_unavailable'
             self._cleanup_pending = os.path.lexists(self.directory)
         finally:
             self._ready.clear()
-            if self._slot is not None:
-                self._slot.result = {'status': 'unknown', 'reason': 'owner_shutdown'}
-                self._slot.payload = None; self._slot.done.set(); self._slot = None
+            # Even an exceptional owner exit cannot discard an unclaimed pin,
+            # a contended release or the last live cleanup owner. No SQL/native
+            # work or application callbacks occur in this drainage loop.
+            self._admission_closed = True; self._epoch = object()
+            for pin in tuple(self._pins.values()):pin.cancelled.set()
+            op = self._slot
+            if op is not None:
+                if op.kind == 'dispatch':op.abandon('owner_shutdown')
+                else:
+                    if op._pin is None:op._pin = op.result.get('pin')
+                    op.result = {'status': 'unknown', 'reason': 'owner_shutdown'}
+                op.payload = None
+            while self._slot is not None or self._pins:
+                self._cleanup_pending = True; self._status = 'shutdown_pending'
+                self._drain_released_pins()
+                if self._slot is not None:finish(self._slot)
+                if self._slot is not None or self._pins:
+                    self._wake.wait(.05); self._wake.clear()
             if self._db is not None:
                 try:
                     if self._db.in_transaction:self._db.execute('ROLLBACK')
                     self._db.close(); self._db = None
                 except Exception:
                     self._cleanup_pending = True; self._status = 'cleanup_pending'
-            if self._closed and not self._cleanup_pending:self._status = 'closed'
+            if self._closed and self._db is None:
+                self._cleanup_pending = False; self._status = 'closed'

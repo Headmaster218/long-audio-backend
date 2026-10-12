@@ -1,0 +1,201 @@
+{
+  "schema": "reviewed-backend-rc3-dev7-source-v1",
+  "version": "0.2.0rc3.dev7",
+  "base_commit": "9e0a135bda2c37641fb0a641655835a0c6a92feb",
+  "base_tree": "dbdcdcf033f8806b5774391bf6e094cd51a2988d",
+  "base_sole_parent": "e6791e6d1b78a14c113529d809b8486349be1146",
+  "base_files": 340,
+  "base_bytes": 4321712,
+  "base_external_index_sha256": "8adce89550e78cad8f9712255eb356a3343170fe16da9d56d919b07a7945d12d",
+  "base_source_inventory_sha256": "0a7136ea99a6b4df2eefc5348f8b490a7240790470214215d6f19fb8cad11240",
+  "design_package": {
+    "inventory": "44562179397c7f79399706d999235f73d31697872ba52b93b5080888964f2dae",
+    "contract": "c5025fb83c2ba5d0ee9daa746e99e91a4d2dfad6d3a94aebf20a5220fef31861",
+    "validation": "4271bce0672b1e77ec45eb5ca010efe2547378c4d88681466059d0429b25359b"
+  },
+  "composed_inventory": {
+    "added": [
+      "audio_backend/native_owned_cell_jobs.py",
+      "docs/BACKEND_RC3_DEV7_SOURCE.json",
+      "docs/MOSS_CELL_JOBS.md",
+      "tests/test_backend_rc3_dev7_source.py",
+      "tests/test_moss_cell_jobs_api.py",
+      "tests/test_native_owned_cell_jobs.py"
+    ],
+    "changed": [
+      "audio_backend/__init__.py",
+      "audio_backend/app.py",
+      "audio_backend/moss_handy_http.py",
+      "audio_backend/moss_handy_jobs.py",
+      "audio_backend/native_owned_cell_store.py",
+      "docs/FRAGMENT_STAGING_POLICY.json",
+      "pyproject.toml",
+      "tests/test_backend_rc3_dev6_source.py",
+      "tests/test_native_owned_cell_capture.py"
+    ],
+    "total": 15
+  },
+  "inventory_amendment": {
+    "original_total": 14,
+    "added_test_only_path": "tests/test_native_owned_cell_capture.py",
+    "scope": "Only the historical route/disabled-dispatch assertion; existing method ID preserved",
+    "revised_total": 15,
+    "preserved_test_ids": 458
+  },
+  "scope": "Three bounded cell routes and one explicit durable-cell origin in the existing volatile MOSS manager",
+  "qualification": "Source-only UNQUALIFIED pending independent model-free and exact-A adapter acceptance; unchanged finite dev6 storage envelope; no model, acoustic, genuine larger-core, long-recording, actual in-flight, power-loss, hard-RSS or broader-platform qualification",
+  "source_budget": {
+    "maximum_files": 346,
+    "maximum_total_bytes": 4600000,
+    "maximum_file_bytes": 250000
+  },
+  "runtime_bounds": {
+    "new_threads": 0,
+    "new_processes": 0,
+    "new_queues": 0,
+    "new_tables": 0,
+    "new_persistent_files": 0,
+    "owner_handoffs": 1,
+    "cell_dispatch_pins": 1,
+    "total_cell_pins": 2,
+    "pin_reservation_bytes": 786432,
+    "accepted_keys": 64,
+    "job_ttl_seconds": 900,
+    "response_bytes": 1572864,
+    "result_retained_bytes": 1048576,
+    "proof_bytes": 65536,
+    "cell_pcm_bytes": 640000,
+    "working_reservation_measured": false
+  },
+  "preserved": "Primary SQL, producer/native witness, schema/write transactions/pragmas/runtime/allocation identity, controller/runner/provider/permit and raw/local-speaker/EOS semantics",
+  "excluded": "No scheduler, automatic replay, regeneration, source retirement, stitching, identity merge, native inference or broader qualification",
+  "historical_proof": "Published dev6 docstring/current_snapshot-only adapter; original verifier/mutation bytes and 340-file denominator preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins the manifest and gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "fd26516a5ebbf925d542c68268d8c46bba02645f9a0eb09f2a47d6d6cb276bb3",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "ddf8841294596880c0800a0119e0fc90b28ae80739ba49a573869b2ed79f65ef"
+      }
+    },
+    {
+      "path": "audio_backend/app.py",
+      "bytes": 39948,
+      "sha256": "9468a6e471bdba5013dee38b85b386631922a1958f1fba02d273db9b545d1a34",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 37652,
+        "sha256": "46ee10ee3fa8b3d35097ea1f2c1157c9974fb05d107cab5ecf3cc6c5c01e5d99"
+      }
+    },
+    {
+      "path": "audio_backend/moss_handy_http.py",
+      "bytes": 16181,
+      "sha256": "ae9b63a175207a668a20ea059dbe54eb169523fe4124952e71a511060abf5500",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 10178,
+        "sha256": "4e5835c1dc77abf083c61848f29be8746e6f3a44fefe3ec2101193ac8ab85b01"
+      }
+    },
+    {
+      "path": "audio_backend/moss_handy_jobs.py",
+      "bytes": 35348,
+      "sha256": "1272e61073e0569f40ed84e83117b1fc76f99c08ffe51609fc75549c332ca47d",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 24736,
+        "sha256": "a4d9dc71a81e83e847ce9c1a0edf6d3717e961c1658d31dc32c8a56d39d1a8d0"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_cell_jobs.py",
+      "bytes": 12163,
+      "sha256": "db1b4510efc5a6c6304527058f03d9021964deaed55efd7877d940cdaaeb6044",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/native_owned_cell_store.py",
+      "bytes": 65517,
+      "sha256": "cfdd9344b9565273ad8b6a25a7ff9c1a4f39d35d9687e74b518b234567de6bff",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 49472,
+        "sha256": "0087b87e7ae8af72e808380e16b2eaeea0f7e221ae5abd88cf14bddd8a0b0b28"
+      }
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 15509,
+      "sha256": "81d1b9caaa0152d69d776bdc93db3f06f2ec6f3b8c35470ead8f33bf1a4b4bb0",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 15299,
+        "sha256": "3436c07a1aa70fe72ee87f934274b9743e648ba7a559e8ed1e247d07bb913d13"
+      }
+    },
+    {
+      "path": "docs/MOSS_CELL_JOBS.md",
+      "bytes": 8564,
+      "sha256": "41ab92c0a05da9bbc8935767e17552eb7b3048c1b9eebe1ffbc0357a7d564712",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "34a43f00c4b44038e718607b5815da4c9034fd55c4165987137b4f3208734cd6",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "595ad1ec1bb180e2f618aa9547c1a2c77d07463c8a40390d0900ebfcd6d13497"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev6_source.py",
+      "bytes": 31482,
+      "sha256": "4205a86e717694a31598ef100c7d4d71623adb558fb2c7a1496a7b5b547ca60d",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 31662,
+        "sha256": "d924c6d2f1266f6984973ced93cf9a46381709f503d4f2387d68c47fb23bfe93"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev7_source.py",
+      "bytes": 27240,
+      "sha256": "e8eb17c6af105383316fb1109c480df1952f452d7e603ced23fdb1ba30f8891c",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_cell_jobs_api.py",
+      "bytes": 44911,
+      "sha256": "6924901a2a183961b209051f31a21c596e8ac0e1172efec6d06404324ac7283e",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_cell_capture.py",
+      "bytes": 24481,
+      "sha256": "146ff3fe7b3e6666fd5566d0e2f48af21bacbe6d7e89347073aaaeaa2ff4ee27",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 23303,
+        "sha256": "eabaee96373cfb85377ee52dbe9d84e1bd5117712837ba806c78f0e7859def06"
+      }
+    },
+    {
+      "path": "tests/test_native_owned_cell_jobs.py",
+      "bytes": 29082,
+      "sha256": "46d0f8b7685852805b164befbb4af1a3dd69acbaddb727221f16843f484c14cc",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-"""Six strict private routes. Requests can select neither files nor runtimes."""
+"""Strict private jobs/cell routes; requests select neither files nor runtimes."""
 import asyncio
 import hashlib
 import json
@@ -14,6 +14,8 @@ from .moss_handy_profile import NAME
 from .native_owned_support_cache import ReadError, _identifier
 
 MAX_BODY_BYTES, MAX_QUERY_BYTES, RECEIVE_SECONDS = 1024, 1024, 2.
+MAX_CELL_PUBLIC_BYTES = 65536
+MAX_CELL_SEQUENCE = (1 << 63) - 1
 PRIVATE = {'Cache-Control':'private, no-store', 'Pragma':'no-cache', 'X-Content-Type-Options':'nosniff'}
 HEX32 = re.compile(r'[a-f0-9]{32}\Z')
 HEX64 = re.compile(r'[a-f0-9]{64}\Z')
@@ -40,6 +42,9 @@ def parse_body(raw, kind):
     fields = {'jobs_epoch'}
     if kind == 'submit':
         fields |= {'expected_capture_epoch', 'expected_revision', 'support_id', 'profile'}
+    elif kind == 'cell_submit':
+        fields |= {'expected_cell_sequence', 'expected_cell_revision',
+                   'expected_proof_sha256', 'support_id', 'profile'}
     if type(value) is not dict or set(value) != fields:
         raise ReadError(409, 'invalid_body')
     if type(value['jobs_epoch']) is not str or HEX32.fullmatch(value['jobs_epoch']) is None:
@@ -49,6 +54,16 @@ def parse_body(raw, kind):
             or type(value['expected_revision']) is not int or not 0 <= value['expected_revision'] < 10**19
             or type(value['support_id']) is not str or HEX64.fullmatch(value['support_id']) is None
             or value['profile'] != NAME):
+        raise ReadError(409, 'invalid_body')
+    if kind == 'cell_submit' and (
+            type(value['expected_cell_sequence']) is not int
+            or not 1 <= value['expected_cell_sequence'] <= MAX_CELL_SEQUENCE
+            or type(value['expected_cell_revision']) is not int
+            or not 1 <= value['expected_cell_revision'] <= MAX_CELL_SEQUENCE
+            or type(value['expected_proof_sha256']) is not str
+            or HEX64.fullmatch(value['expected_proof_sha256']) is None
+            or type(value['support_id']) is not str or HEX64.fullmatch(value['support_id']) is None
+            or type(value['profile']) is not str or value['profile'] != NAME):
         raise ReadError(409, 'invalid_body')
     return value
 
@@ -60,7 +75,7 @@ def parse_query(raw, kind):
     except UnicodeError:raise ReadError(409, 'invalid_query') from None
     fields = text.split('&') if text else []
     if len(fields) > 4:raise ReadError(409, 'invalid_query')
-    allowed = {'after', 'limit', 'expected_jobs_epoch'} if kind == 'list' else set()
+    allowed = {'after', 'limit', 'expected_jobs_epoch'} if kind in ('list', 'cells_list') else set()
     result = {}
     for field in fields:
         if field.count('=') != 1:raise ReadError(409, 'invalid_query')
@@ -75,6 +90,8 @@ def parse_query(raw, kind):
     if not 1 <= result.get('limit', 20) <= 20:raise ReadError(409, 'invalid_query')
     if result.get('after', 0) and 'expected_jobs_epoch' not in result:
         raise ReadError(409, 'jobs_epoch_required')
+    if kind == 'cells_list' and result.get('after', 0) > MAX_CELL_SEQUENCE:
+        raise ReadError(409, 'invalid_query')
     return result
 
 
@@ -151,17 +168,65 @@ def register_routes(app, get_manager, assign_lease):
             if lease is not None:lease.release()
             return error(ReadError(503, 'jobs_unavailable'))
 
+    def read_cells(request, sid, cell_id=None):
+        lease = None
+        try:
+            _identifier(sid)
+            if cell_id is not None and (type(cell_id) is not str or HEX64.fullmatch(cell_id) is None):
+                raise ReadError(409, 'invalid_identifier')
+            query = parse_query(request.scope.get('query_string', b''),
+                                'cells_list' if cell_id is None else 'detail')
+            owner = manager_for(sid)
+            lease = owner.cache.reserve_jobs_response('list' if cell_id is None else 'detail')
+            if not assign_lease(request.scope, lease):raise ReadError(503, 'response_closed')
+            headers = dict(PRIVATE)
+            if cell_id is None:
+                body = owner.cells_list(sid, **query)
+            else:
+                detail = owner.cell_detail(sid, cell_id)
+                body = detail['proof']
+                if (type(detail['cell_id']) is not str or detail['cell_id'] != cell_id
+                        or type(detail['sequence']) is not int or not 1 <= detail['sequence'] <= MAX_CELL_SEQUENCE
+                        or type(detail['revision']) is not int or not 1 <= detail['revision'] <= MAX_CELL_SEQUENCE
+                        or type(detail['proof_sha256']) is not str or HEX64.fullmatch(detail['proof_sha256']) is None
+                        or type(detail['jobs_epoch']) is not str or HEX32.fullmatch(detail['jobs_epoch']) is None
+                        or detail['state'] not in ('retained', 'not_retained_pcm')
+                        or type(detail['pcm_retained']) is not bool
+                        or detail['pcm_retained'] != (detail['state'] == 'retained')):
+                    raise ReadError(503, 'cell_detail_unavailable')
+                headers.update({'X-Native-Cell-ID':cell_id,
+                    'X-Native-Cell-Sequence':str(detail['sequence']),
+                    'X-Native-Cell-Revision':str(detail['revision']),
+                    'X-Native-Cell-Proof-SHA256':detail['proof_sha256'],
+                    'X-Native-Cell-State':detail['state'],
+                    'X-Native-Cell-PCM-Retained':'true' if detail['pcm_retained'] else 'false',
+                    'X-MOSS-Jobs-Epoch':detail['jobs_epoch']})
+            if type(body) is not bytes or not 1 <= len(body) <= MAX_CELL_PUBLIC_BYTES:
+                raise ReadError(503, 'cell_response_capacity')
+            if cell_id is not None and hashlib.sha256(body).hexdigest() != detail['proof_sha256']:
+                raise ReadError(503, 'cell_detail_unavailable')
+            return Response(body, media_type='application/json', headers=headers)
+        except ReadError as exc:
+            if lease is not None:lease.release()
+            return error(exc)
+        except Exception:
+            if lease is not None:lease.release()
+            return error(ReadError(503, 'cells_unavailable'))
+
     async def mutate(request, sid, kind, target):
         if not mutation.acquire(blocking=False):return error(ReadError(429, 'mutation_capacity'))
-        lease = task = None
+        lease = task = disconnect = None
+        admission_closed = threading.Event()
         try:
             owner = manager_for(sid, target if kind == 'cancel' else None)
             if kind == 'submit':_identifier(target)
+            elif kind == 'cell_submit' and (type(target) is not str or HEX64.fullmatch(target) is None):
+                raise ReadError(409, 'invalid_identifier')
             parse_query(request.scope.get('query_string', b''), 'mutation')
             raw = await receive_body(request)
             body = parse_body(raw, kind)
             key = None
-            if kind == 'submit':
+            if kind in ('submit', 'cell_submit'):
                 keys = [v for k, v in request.scope.get('headers', ()) if k.lower() == b'idempotency-key']
                 try:
                     key = keys[0].decode('ascii') if len(keys) == 1 else ''
@@ -169,12 +234,32 @@ def register_routes(app, get_manager, assign_lease):
                 if KEY.fullmatch(key) is None:raise ReadError(409, 'invalid_idempotency_key')
             lease = owner.cache.reserve_jobs_response('mutation')
             if not assign_lease(request.scope, lease):raise ReadError(503, 'response_closed')
+            done = request.scope.get('_native_support_read_done')
+            async def watch_disconnect():
+                try:
+                    # The final request body was consumed above. The next valid
+                    # ASGI event is disconnect; any trailing request data also
+                    # fails admission closed. Exactly one receive stays scoped
+                    # to this request, with no thread or persistent watcher.
+                    await request.receive()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    pass
+                admission_closed.set()
+                if done is not None:done.set()
+            if kind == 'cell_submit':disconnect = asyncio.create_task(watch_disconnect())
             def perform():
-                done = request.scope.get('_native_support_read_done')
-                if done is not None and done.is_set():raise ReadError(503, 'response_closed')
+                if admission_closed.is_set() or done is not None and done.is_set():
+                    raise ReadError(503, 'response_closed')
                 if kind == 'submit':
                     return owner.submit(sid, target, body, key,
-                        _admission_open=lambda: not lease.released and (done is None or not done.is_set()))
+                        _admission_open=lambda: not admission_closed.is_set() and not lease.released
+                            and (done is None or not done.is_set()))
+                if kind == 'cell_submit':
+                    return owner.submit_cell(sid, target, body, key,
+                        _admission_open=lambda: not admission_closed.is_set() and not lease.released
+                            and (done is None or not done.is_set()))
                 return owner.cancel(sid, target, body['jobs_epoch'])
             task = asyncio.create_task(run_in_threadpool(perform))
             # Ownership after acceptance belongs to the manager, not this request.
@@ -187,6 +272,11 @@ def register_routes(app, get_manager, assign_lease):
             if lease is not None:lease.release()
             return error(ReadError(503, 'jobs_unavailable'))
         finally:
+            admission_closed.set()
+            if disconnect is not None:
+                disconnect.cancel()
+                try:await disconnect
+                except asyncio.CancelledError:pass
             if task is not None and not task.done():
                 def finished(future):
                     try:future.exception()
@@ -199,6 +289,18 @@ def register_routes(app, get_manager, assign_lease):
     @app.post('/sessions/{sid}/native-owned-supports/{cid}/moss-jobs')
     async def submit(request: Request, sid: str, cid: str):
         return await mutate(request, sid, 'submit', cid)
+
+    @app.get('/sessions/{sid}/native-owned-cells')
+    def cells_list(request: Request, sid: str):
+        return read_cells(request, sid)
+
+    @app.get('/sessions/{sid}/native-owned-cells/{cell_id}')
+    def cell_detail(request: Request, sid: str, cell_id: str):
+        return read_cells(request, sid, cell_id)
+
+    @app.post('/sessions/{sid}/native-owned-cells/{cell_id}/moss-jobs')
+    async def submit_cell(request: Request, sid: str, cell_id: str):
+        return await mutate(request, sid, 'cell_submit', cell_id)
 
     @app.get('/sessions/{sid}/moss-jobs')
     def listing(request: Request, sid: str):

@@ -45,17 +45,22 @@ class _NativeSupportReadLifetime:
     """Hold bounded response buffers until the outer ASGI send has finished."""
     def __init__(self,app):self.app=app
     async def __call__(self,scope,receive,send):
-        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/moss-jobs'))
+        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/native-owned-cells','/moss-jobs'))
         if not private:return await self.app(scope,receive,send)
         done=threading.Event()
         scope['_native_support_read_done']=done
+        async def private_receive():
+            message=await receive()
+            if message['type']=='http.disconnect':done.set()
+            return message
         async def private_send(message):
             if private and message['type']=='http.response.start':
                 headers=[(k,v) for k,v in message.get('headers',[])
-                         if k.lower() not in (b'cache-control',b'pragma')]
-                message=dict(message,headers=headers+[(b'cache-control',b'private, no-store'),(b'pragma',b'no-cache')])
+                         if k.lower() not in (b'cache-control',b'pragma',b'x-content-type-options')]
+                message=dict(message,headers=headers+[(b'cache-control',b'private, no-store'),
+                    (b'pragma',b'no-cache'),(b'x-content-type-options',b'nosniff')])
             await send(message)
-        try:await self.app(scope,receive,private_send)
+        try:await self.app(scope,private_receive,private_send)
         finally:
             done.set()
             lease=scope.pop('_native_support_read_lease',None)
@@ -162,6 +167,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     @asynccontextmanager
     async def lifespan(app):
         nonlocal jobs
+        registered_cells=None
         lock.acquire()
         try:
             ownership_fence(settings.data_dir)
@@ -176,7 +182,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if settings.native_owned_cells_enabled or os.path.lexists(settings.data_dir/'native-owned-cells'):
                 try:
                     from .native_owned_cell_capture import register as register_cells
-                    worker.native_owned_cells=register_cells(store,fragment_provider_factory=fragment_provider_factory,instance_lock=lock)
+                    registered_cells=register_cells(store,fragment_provider_factory=fragment_provider_factory,instance_lock=lock)
+                    worker.native_owned_cells=registered_cells
                     if worker.native_owned_cells is not None:worker.native_owned_cells.owner.start()
                 except Exception:
                     app.state.native_owned_cells_status='registration_unavailable'
@@ -191,7 +198,22 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     and settings.diarization_backend=='nemotron' and settings.inference_device=='cpu'
                     and settings.overlap_backend=='none' and settings.start_worker)
                 settings._native_execution_permit=permit
-                jobs=MossJobs(store,worker.native_owned_support_cache,permit)
+                cell_source=None
+                if settings.native_owned_cells_enabled and registered_cells is not None:
+                    try:
+                        from .native_owned_cell_jobs import CellJobsSource
+                        cell_owner=registered_cells.owner
+                        cell_source=CellJobsSource(cell_owner,store,config_allowed=lambda:
+                            settings.native_owned_cells_enabled
+                            and worker.native_owned_cells is registered_cells
+                            and registered_cells.owner is cell_owner
+                            and registered_cells.authority.owner is cell_owner
+                            and permit._configuration_current())
+                    except Exception:
+                        # Durable cell unavailability does not disable rolling
+                        # jobs or acquire any new native execution authority.
+                        app.state.native_owned_cell_jobs_status='adapter_unavailable'
+                jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source)
                 app.state.moss_jobs=jobs
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
@@ -216,23 +238,39 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             yield
         finally:
             unwinding=sys.exc_info()[0] is not None
-            if jobs is not None:jobs.close_admission()
+            if jobs is not None:
+                try:jobs.close_admission()
+                except Exception as exc:app.state.moss_jobs_shutdown_error=exc
+            # Keep the originally registered capture alive through job/pin
+            # cleanup. The fallback also covers a caller-provided capture when
+            # no owner was registered at startup.
+            cells=registered_cells if registered_cells is not None else worker.native_owned_cells
+            if cells is not None:
+                try:cells.owner.close_admission()
+                except Exception as exc:
+                    app.state.native_owned_cells_shutdown_error=exc
+                    app.state.native_owned_cells_status='cleanup_pending'
             if worker.native_owned_support_cache is not None:
                 try:worker.native_owned_support_cache.close()
                 except Exception:pass
-            cells_stopped=True
-            if worker.native_owned_cells is not None:
-                cells_stopped=False
+            stopped=False
+            try:stopped=worker.stop()
+            except Exception as exc:app.state.worker_shutdown_error=exc
+            jobs_stopped=jobs is None
+            if jobs is not None:
+                try:jobs_stopped=jobs.stop()
+                except Exception as exc:
+                    if not hasattr(app.state,'moss_jobs_shutdown_error'):
+                        app.state.moss_jobs_shutdown_error=exc
+            cells_stopped=cells is None
+            if cells is not None:
                 try:
                     from .native_owned_cell_capture import unregister as unregister_cells
-                    cells_stopped=unregister_cells(worker.native_owned_cells)
+                    cells_stopped=unregister_cells(cells)
                 except Exception as exc:
-                    # Retain ownership and the original diagnostic, while still
-                    # running primary worker/jobs cleanup below.
-                    app.state.native_owned_cells_shutdown_error=exc
-                    app.state.native_owned_cells_status='cleanup_pending'
-            stopped=worker.stop()
-            jobs_stopped=jobs is None or jobs.stop()
+                    if not hasattr(app.state,'native_owned_cells_shutdown_error'):
+                        app.state.native_owned_cells_shutdown_error=exc
+                if not cells_stopped:app.state.native_owned_cells_status='cleanup_pending'
             initializer_safe=fragments.factory_initialization_state!='failed'
             if not initializer_safe:
                 factory=fragments.factory

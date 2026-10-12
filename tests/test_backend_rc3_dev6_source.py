@@ -1,7 +1,8 @@
-"""Fresh rc3.dev6 source closure, stdlib only and separately externally frozen.
+"""Immutable rc3.dev6 source proof against published 9e0a135b; stdlib only.
 
-RC3_DEV6_INDEX is an external Git candidate index; RC3_DEV6_SOURCE_SEAL is
-an independent external gate/manifest seal. No production module is imported.
+Only the current_snapshot adapter and this docstring changed. Original verifier
+and mutation bodies preserve their original 340-file historical denominator.
+The separate rc3.dev7 gate owns current worktree/index/external-seal closure.
 """
 from __future__ import annotations
 from functools import lru_cache
@@ -361,18 +362,15 @@ def verify(files, index, modes, index_modes, seal, base=None, base_modes=None):
 
 def current_snapshot():
     check_isolation()
-    index_path = external_file('RC3_DEV6_INDEX'); seal_path = external_file('RC3_DEV6_SOURCE_SEAL')
-    require(index_path != seal_path, 'External index and seal must be separate')
-    names = git('ls-files', '--cached', '--others', '--exclude-standard', '-z', index=index_path)
-    files, modes = read_paths(ROOT, [n.decode() for n in names.split(b'\0') if n])
-    index, index_modes = read_git_snapshot(':', index_path)
-    head = git('rev-parse', 'HEAD').decode().strip()
-    if head != BASE:
-        headers = git('cat-file', 'commit', head).split(b'\n\n', 1)[0].splitlines()
-        require([line[7:].decode() for line in headers if line.startswith(b'parent ')] == [BASE],
-                'Candidate must have sole published dev5 parent')
-        require(read_git_snapshot(head) == (files, modes), 'Committed candidate differs from source')
-    return files, index, modes, index_modes, seal_path.read_bytes()
+    revision = '9e0a135bda2c37641fb0a641655835a0c6a92feb'
+    headers = git('cat-file', 'commit', revision).split(b'\n\n', 1)[0].splitlines()
+    require([line[5:].decode() for line in headers if line.startswith(b'tree ')] ==
+            ['dbdcdcf033f8806b5774391bf6e094cd51a2988d'], 'Historical rc3.dev6 tree differs')
+    require([line[7:].decode() for line in headers if line.startswith(b'parent ')] ==
+            [BASE], 'Historical rc3.dev6 sole parent differs')
+    git('merge-base', '--is-ancestor', revision, 'HEAD')
+    files, modes = read_git_snapshot(revision)
+    return files, dict(files), modes, dict(modes), canonical(expected_seal(files))
 
 
 class SourceClosureTests(unittest.TestCase):

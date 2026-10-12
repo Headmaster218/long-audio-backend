@@ -285,8 +285,21 @@ class CaptureFixture(unittest.TestCase):
                 self.authority.receipt_valid(receipt, cell_store.Budget())
 
     def test_no_new_routes_or_model_dispatch_and_conditional_health(self):
-        routes = [r.path for r in self.app.routes]
-        self.assertFalse(any('native-owned-cells' in route for route in routes))
+        # Historical ID retained: dev7 admits exactly these three inert routes
+        # while this primary-capture fixture still has optional jobs disabled.
+        routes = [(r.path, r.methods) for r in self.app.routes if 'native-owned-cells' in r.path]
+        self.assertEqual(routes, [('/sessions/{sid}/native-owned-cells', {'GET'}),
+            ('/sessions/{sid}/native-owned-cells/{cell_id}', {'GET'}),
+            ('/sessions/{sid}/native-owned-cells/{cell_id}/moss-jobs', {'POST'})])
+        self.assertFalse(self.settings.moss_jobs_enabled); self.assertIsNone(self.app.state.moss_jobs)
+        path = f'/sessions/{self.sid}/native-owned-cells'
+        with patch.object(native_worker, 'NativeProcess', side_effect=AssertionError('no model dispatch')), \
+             patch.object(self.owner, 'submit', side_effect=AssertionError('disabled routes do not read cells')):
+            for method, target in (('GET', path), ('GET', path + '/' + '0' * 64),
+                                   ('POST', path + '/' + '0' * 64 + '/moss-jobs')):
+                response = self.client.request(method, target)
+                self.assertEqual((response.status_code, response.json()['detail']), (409, 'feature_disabled'))
+        self.assertIsNone(self.app.state.moss_jobs); self.assertFalse(FakeNative.instances)
         health = self.client.get('/health').json()['native_owned_cells']
         self.assertFalse(health['working_memory_measured'])
         self.assertNotIn('native_owned_cells_enabled', self.settings.inference_config())
