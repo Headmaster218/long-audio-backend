@@ -1,0 +1,1077 @@
+#!/usr/bin/env python3
+"""Isolated actual-capture entry and separately authorized validation-only entry.
+
+Actual modes retain actual authority/readiness/deadline checks. Validation stops
+after shared directory and inventory qualification; it cannot admit actual work.
+"""
+import sys
+from pathlib import Path
+# -I -B -S deliberately has no checkout, cwd, .pth, sitecustomize, or user site.
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import argparse
+import hashlib
+import importlib.abc
+import importlib.machinery
+import json
+import os
+import resource
+import runpy
+import stat
+import subprocess
+import time
+from common import (Deadlines, Journal, DESIGN_SHA, ADDENDUM_SHA, SOURCE_HEAD, SOURCE_TREE,
+                    MIB, require, bounded_read, sha, atomic_json, canonical, finite)
+
+
+MAP_BYTES = 256*1024
+MAP_FILES = 256
+MAP_HASH_BYTES = 1024*MIB
+TERMINAL_BYTES = 128*1024
+MAP_LIMITS = ['Point-in-time Python process snapshot only; libraries unloaded earlier are unobserved.',
+              'Short-lived non-Python ffmpeg mappings are unobserved; no selected-copy claim.']
+
+
+def verify_directory_aliases(rows, check, require):
+    """Two fixed loader directory spellings; no search or dependency resolver."""
+    expected = [{'path': '/lib', 'literal_target': 'usr/lib', 'normalized_target': '/usr/lib'},
+                {'path': '/lib64', 'literal_target': 'usr/lib64', 'normalized_target': '/usr/lib64'}]
+    require(type(rows) is list and len(rows) == 2 and all(type(row) is dict for row in rows)
+            and rows == expected, 'directory_alias_contract')
+    check()
+    require(not any(k in os.environ for k in ('LD_PRELOAD','LD_LIBRARY_PATH','LD_AUDIT','GLIBC_TUNABLES')),
+            'loader_environment_present')
+    try: os.lstat('/etc/ld.so.preload')
+    except FileNotFoundError: pass
+    else: require(False,'loader_preload_present')
+    signature = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_mtime_ns, s.st_ctime_ns)
+    observed = []
+    for row in rows:
+        check()
+        name, target = row['path'], row['normalized_target']
+        before = [os.lstat(name), os.lstat('/usr'), os.lstat(target)]
+        require(stat.S_ISLNK(before[0].st_mode) and all(stat.S_ISDIR(s.st_mode) for s in before[1:]),
+                'directory_alias_type')
+        require(os.readlink(name) == row['literal_target'], 'directory_alias_literal')
+        check()
+        after = [os.lstat(name), os.lstat('/usr'), os.lstat(target)]
+        require(list(map(signature, before)) == list(map(signature, after)) and
+                os.readlink(name) == row['literal_target'], 'directory_alias_changed')
+        observed.append({'path': name, 'identities': [list(signature(s)) for s in after]})
+    check()
+    return observed
+
+
+def accounting_check(deadlines, end=None):
+    cutoff = min(deadlines.guard_work, deadlines.posthash, deadlines.absolute-60)
+    require(finite(cutoff) and (end is None or finite(end)), 'mapping_deadline_shape')
+    require(not deadlines.stop.exists(), 'outer_STOP')
+    require(deadlines.clock() < min(cutoff, cutoff if end is None else end), 'mapping_deadline')
+
+
+def mapped_files(raw, check):
+    """Bounded import-smoke parser, additionally binding kernel device/inode."""
+    require(len(raw) <= MAP_BYTES, 'mapping_text_cap')
+    found = {}
+    for line in raw.decode('utf-8', errors='strict').splitlines():
+        check()
+        fields = line.split(maxsplit=5)
+        require(len(fields) in (5, 6), 'mapping_row_shape')
+        start, stop = fields[0].split('-')
+        require(0 <= int(start, 16) < int(stop, 16), 'mapping_address_shape')
+        require(len(fields[1]) == 4 and all(c in allowed for c, allowed in
+                zip(fields[1], ('r-', 'w-', 'x-', 'ps'))), 'mapping_permission_shape')
+        require(int(fields[2], 16) >= 0, 'mapping_offset_shape')
+        major, minor = fields[3].split(':')
+        identity = (int(major, 16), int(minor, 16), int(fields[4]))
+        require(all(x >= 0 for x in identity), 'mapping_identity_shape')
+        name = fields[5] if len(fields) == 6 else ''
+        require(len(name.encode()) <= 4096 and '\x00' not in name, 'mapping_path_cap')
+        require(not name.endswith(' (deleted)'), 'deleted_mapped_file')
+        if name.startswith('/'):
+            require(identity[2] > 0, 'mapping_file_inode_missing')
+            require(name not in found or found[name] == identity, 'mapping_identity_conflict')
+            found[name] = identity
+            require(len(found) <= MAP_FILES, 'mapped_file_count')
+        else:
+            require(identity == (0, 0, 0) and (not name or name.startswith('[') and name.endswith(']')),
+                    'unknown_nonpath_mapping')
+    require(found, 'empty_mapped_files')
+    check()
+    return found
+
+
+def observed_mappings(spec, deadlines, maps_path, check_identity, call_end):
+    """Observe once, then hash only finite pre-pinned candidates. Never load one."""
+    began = deadlines.clock()
+    end = min(began+15., call_end, deadlines.work, deadlines.guard_work,
+              deadlines.posthash, deadlines.absolute-60)
+    def check():
+        deadlines.check(end)
+        accounting_check(deadlines, end)
+    check()
+    items = spec['hash_inventory']
+    require(type(items) is list and 1 <= len(items) <= 32768, 'mapping_inventory_cap')
+    pins = {}
+    for item in items:
+        check()
+        name = item['path']
+        require(type(name) is str and name.startswith('/') and len(name.encode()) <= 4096 and
+                str(Path(name)) == name and name not in pins, 'mapping_inventory_path')
+        require(type(item['bytes']) is int and 0 <= item['bytes'] <= MAP_HASH_BYTES and
+                type(item['sha256']) is str and len(item['sha256']) == 64 and
+                all(c in '0123456789abcdef' for c in item['sha256']), 'mapping_inventory_pin')
+        pins[name] = item
+    aliases = spec.get('runtime_aliases', [])
+    require(type(aliases) is list and len(aliases) <= 4096, 'mapping_alias_count')
+    alias_pins = {}
+    for alias in aliases:
+        check()
+        name = alias['path']
+        require(type(name) is str and name.startswith('/') and len(name.encode()) <= 4096 and
+                name not in alias_pins and name not in pins, 'mapping_alias_path')
+        require(alias['resolved_target'] in pins and type(alias['literal_target']) is str and
+                len(alias['literal_target'].encode()) <= 4096, 'mapping_alias_pin')
+        alias_pins[name] = alias
+    check_identity()
+    raw = bounded_read(maps_path, MAP_BYTES, check)
+    mappings = mapped_files(raw, check)
+    rows, total = [], 0
+    for name, identity in mappings.items():
+        check()
+        path = Path(name)
+        resolved = str(path.resolve(strict=True))
+        if name in alias_pins:
+            alias = alias_pins[name]
+            require(path.is_symlink() and os.readlink(path) == alias['literal_target'] and
+                    resolved == alias['resolved_target'], 'mapping_alias_changed')
+        else:
+            require(name == resolved, 'unlisted_mapping_alias')
+        require(resolved in pins, 'unknown_mapped_file:' + name)
+        pin = pins[resolved]
+        require(total + pin['bytes'] <= MAP_HASH_BYTES, 'mapped_total_byte_cap')
+        path = Path(resolved)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            before = os.fstat(fd)
+            require(stat.S_ISREG(before.st_mode) and before.st_size == pin['bytes'], 'mapped_file_shape')
+            require((os.major(before.st_dev), os.minor(before.st_dev), before.st_ino) == identity,
+                    'mapped_kernel_identity_changed')
+            signature = lambda st: (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+            key, digest, count = signature(before), hashlib.sha256(), 0
+            while True:
+                check()
+                require(signature(os.fstat(fd)) == key, 'mapped_file_changed')
+                block = os.read(fd, min(65536, pin['bytes']+1-count))
+                check()
+                require(signature(os.fstat(fd)) == key, 'mapped_file_changed')
+                if not block:
+                    break
+                count += len(block)
+                require(count <= pin['bytes'], 'mapped_file_growth')
+                digest.update(block)
+            require(key == signature(path.stat(follow_symlinks=False)), 'mapped_path_changed')
+            if name in alias_pins:
+                alias_path = Path(name)
+                require(alias_path.is_symlink() and os.readlink(alias_path) == alias_pins[name]['literal_target'] and
+                        str(alias_path.resolve(strict=True)) == resolved, 'mapping_alias_changed')
+            require(count == pin['bytes'] and digest.hexdigest() == pin['sha256'], 'mapped_file_pin')
+            check()
+            total += count
+            rows.append({'path': name, 'pinned_path': resolved, 'device': list(identity[:2]),
+                         'inode': identity[2], 'bytes': count, 'sha256': digest.hexdigest()})
+        finally:
+            os.close(fd)
+    result = {'status': 'VERIFIED', 'maps_bytes': len(raw), 'maps_sha256': sha(raw),
+              'files': rows, 'hashed_bytes': total, 'elapsed_seconds': deadlines.clock()-began,
+              'deadline': end, 'limits': MAP_LIMITS}
+    require(len(canonical(result)) <= TERMINAL_BYTES, 'mapping_result_cap')
+    check_identity()
+    check()
+    return result
+
+
+class LiveProvenance:
+    """Exactly two passive observations at already-authorized response boundaries."""
+    def __init__(self, spec, deadlines, ledger):
+        self.spec, self.deadlines, self.ledger = spec, deadlines, ledger
+        self.observations = {}
+
+    def observe(self, role, original, end):
+        from ownership import proc, key
+        require(role in ('native', 'analyzer'), 'live_observation_role')
+        slot = 'native' if role == 'native' else 'analyzer-'+str(original.pid)
+        require(slot not in self.observations and
+                sum(key.startswith(role) for key in self.observations) < (1 if role=='native' else 2),
+                'live_observation_count')
+        require(any(p is original for p in self.ledger.originals), 'live_unowned_original')
+        require(list(original.args[:7]) == [self.spec['python'], '-I', '-B', '-S',
+                str(HERE/'bootstrap.py'), '--mode', role], 'live_original_role_mismatch')
+        identity = self.ledger.original_keys.get(id(original))
+        require(identity is not None and identity in self.ledger.owned, 'live_original_identity_missing')
+        retained = self.ledger.owned[identity]
+        pidfd_stat = os.fstat(retained['pidfd'])
+        def same_process():
+            self.deadlines.check(end)
+            now = proc(original.pid)
+            require(key(now) == identity and now['ppid'] == os.getpid() and now['state'] != 'Z' and
+                    os.readlink(f'/proc/{original.pid}/ns/pid') == self.ledger.namespace,
+                    'live_original_identity_changed')
+            current = os.fstat(retained['pidfd'])
+            require((current.st_dev, current.st_ino) == (pidfd_stat.st_dev, pidfd_stat.st_ino),
+                    'live_pidfd_changed')
+        self.observations[slot] = {'status': 'FAILED', 'pid': original.pid, 'start_ticks': identity[1]}
+        try:
+            result = observed_mappings(self.spec, self.deadlines, f'/proc/{original.pid}/maps', same_process, end)
+            result.update(pid=original.pid, start_ticks=identity[1], namespace=self.ledger.namespace,
+                          role=role, boundary='native_turns_return' if role == 'native' else 'analyzer_response_return',
+                          spec_sha256=self.spec['_sha256'])
+            destination = Path(self.spec['output_dir'])/f'{role}-{original.pid}-live-mappings.json'
+            atomic_json(destination, result, TERMINAL_BYTES)
+            self.deadlines.check(end)
+            self.observations[slot] = {'status': 'VERIFIED', 'pid': original.pid,
+                                      'receipt': destination.name, 'sha256': sha(canonical(result))}
+        except BaseException as exc:
+            self.observations[slot]['error'] = type(exc).__name__ + ': ' + str(exc)[:500]
+            raise
+
+
+def owned_sqlite_shm(spec, raw, check):
+    """One mutable, non-executable SQLite data mapping; never a runtime pin."""
+    path = Path(spec['data_dir'])/'jobs.sqlite3-shm'
+    rows = []
+    for line in raw.decode('utf-8', errors='strict').splitlines():
+        check()
+        parts = line.split(maxsplit=5)
+        if len(parts) == 6 and parts[5] == str(path):
+            require(len(rows) < 16, 'owned_shm_vma_cap')
+            lo, hi = (int(x, 16) for x in parts[0].split('-'))
+            major, minor = (int(x, 16) for x in parts[3].split(':'))
+            require(parts[1] == 'rw-s' and int(parts[2], 16) == 0 and
+                    hi-lo == 32768 and lo % 4096 == hi % 4096 == 0,
+                    'owned_shm_range_or_permissions')
+            require(all(hi <= r['start'] or lo >= r['end'] for r in rows), 'owned_shm_overlapping_vmas')
+            rows.append({'start': lo, 'end': hi, 'permissions': parts[1], 'offset': 0,
+                         'device': [major, minor], 'inode': int(parts[4])})
+    if not rows:
+        return []
+    require(spec.get('_server_phase') in ('capture', 'restart-on', 'restart-off'), 'owned_shm_server_only')
+    run = Path(os.environ['GUARD_RUN_DIRECTORY'])
+    output = run/'tmp/smoke'
+    require(Path(spec['output_dir']) == output and Path(spec['data_dir']) == output/'data' and
+            run.is_absolute() and run.resolve(strict=True) == run and len(str(path).encode()) <= 4096,
+            'owned_shm_path_scope')
+    require(str(path) not in {x['path'] for x in spec['hash_inventory']}, 'mutable_data_in_runtime_inventory')
+    fds = []
+    signature = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_uid, s.st_nlink, s.st_size)
+    try:
+        before_root = run.lstat()
+        fd = os.open(run, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        fds.append(fd)
+        require(signature(os.fstat(fd)) == signature(before_root), 'owned_shm_root_changed')
+        device = before_root.st_dev
+        for name in (None, 'tmp', 'smoke', 'data'):
+            check()
+            if name is not None:
+                fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+                fds.append(fd)
+            st = os.fstat(fd)
+            require(stat.S_ISDIR(st.st_mode) and st.st_uid == os.geteuid() and
+                    st.st_dev == device and not st.st_mode & 0o022, 'owned_shm_directory_ownership')
+        fd = os.open('jobs.sqlite3-shm', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                     dir_fd=fd)
+        fds.append(fd)
+        before = os.fstat(fd)
+        require(stat.S_ISREG(before.st_mode) and before.st_uid == os.geteuid() and
+                before.st_nlink == 1 and not before.st_mode & 0o111 and before.st_size == 32768,
+                'owned_shm_file_shape')
+        identity = [os.major(before.st_dev), os.minor(before.st_dev)]
+        require(before.st_dev == device and all(r['device'] == identity and r['inode'] == before.st_ino
+                                              for r in rows), 'owned_shm_kernel_identity')
+        check()
+        require(signature(before) == signature(os.fstat(fd)) == signature(path.lstat()) and
+                signature(before_root) == signature(run.lstat()) and path.resolve(strict=True) == path,
+                'owned_shm_identity_changed')
+        return [{'path': str(path), 'kind': 'MUTABLE_OWNED_SQLITE_SHM_NOT_RUNTIME_HASH',
+                 'bytes': 32768, 'device': identity, 'inode': before.st_ino, 'uid': before.st_uid,
+                 'vmas': rows, 'content_hash_claim': False}]
+    finally:
+        for fd in reversed(fds):
+            os.close(fd)
+
+
+def terminal_observation(spec, deadlines):
+    """Optional bounded pathname snapshot, without rehashing inside a 3-second close."""
+    end = min(deadlines.clock()+.25, deadlines.guard_work, deadlines.posthash, deadlines.absolute-60)
+    check = lambda: accounting_check(deadlines, end)
+    check()
+    raw = bounded_read('/proc/self/maps', MAP_BYTES, check)
+    paths = mapped_files(raw, check)
+    owned_data = owned_sqlite_shm(spec, raw, check)
+    owned_names = {row['path'] for row in owned_data}
+    require(type(spec['hash_inventory']) is list and len(spec['hash_inventory']) <= 32768 and
+            type(spec.get('runtime_aliases', [])) is list and len(spec.get('runtime_aliases', [])) <= 4096,
+            'terminal_candidate_cap')
+    candidates = {item['path'] for item in spec['hash_inventory']}
+    aliases = {item['path']: item['resolved_target'] for item in spec.get('runtime_aliases', [])}
+    for name in paths:
+        check()
+        require(name in owned_names or name in candidates or aliases.get(name) in candidates,
+                'unknown_terminal_mapping:' + name)
+    return {'status': 'PATHS_OBSERVED_NOT_REHASHED', 'maps_sha256': sha(raw), 'maps_bytes': len(raw),
+            'files': [{'path': name, 'device': list(identity[:2]), 'inode': identity[2]}
+                      for name, identity in paths.items() if name not in owned_names],
+            'owned_mutable_data': owned_data, 'limits': MAP_LIMITS}
+
+def finalize(spec, deadlines, journal, ledger, mode, instrument, producer_error, live=None):
+    """Independent evidence steps; none may skip cleanup or replace a producer error."""
+    output = Path(spec['output_dir'])
+    failures, exceptions, children, non_python = [], [], [], []
+    snapshot = {'status': 'FAILED', 'limits': MAP_LIMITS}
+    cleanup = {'cleanup': 'UNKNOWN'}
+    def failure(stage, exc):
+        exceptions.append(exc)
+        failures.append({'stage': stage, 'exception': type(exc).__name__, 'detail': str(exc)[:500]})
+    def attempt(stage, action):
+        try:
+            return action()
+        except BaseException as exc:
+            failure(stage, exc)
+    try:
+        # Existing raw retention hooks have already unwound; counts precede new work.
+        if instrument is not None:
+            attempt('counts', lambda: atomic_json(output/f'{mode}-{os.getpid()}-counts.json', instrument.summary()))
+        if producer_error is not None:
+            attempt('producer_error_journal', lambda: journal.emit('terminal_error',
+                    exception=type(producer_error).__name__, detail=str(producer_error)[:500]))
+            if mode == 'controller' and not (output/'capture-result.json').exists():
+                attempt('producer_error_receipt', lambda: atomic_json(output/'capture-result.json',
+                        {'status': 'INCOMPLETE', 'error': type(producer_error).__name__,
+                         'detail': str(producer_error)[:500], 'no_retry_or_sample_substitution': True}))
+        try:
+            snapshot = terminal_observation(spec, deadlines)
+        except BaseException as exc:
+            snapshot = {'status': 'UNOBSERVED', 'detail': str(exc)[:500], 'limits': MAP_LIMITS}
+            if str(exc) not in ('mapping_deadline', 'outer_STOP'):
+                failure('terminal_observation', exc)
+        if mode == 'server' and spec.get('_server_phase') == 'capture':
+            attempt('required_live_observations', lambda: require(live is not None and
+                    'native' in live.observations and len(live.observations) == 3 and
+                    sum(key.startswith('analyzer-') for key in live.observations) == 2 and
+                    all(row['status'] == 'VERIFIED' for row in live.observations.values()),
+                    'required_live_observation_missing_or_failed'))
+    finally:
+        cleaned = attempt('owned_cleanup', lambda: ledger.cleanup(output/f'{mode}-{os.getpid()}-cleanup.json'))
+        if cleaned is not None:
+            cleanup = cleaned
+        if cleanup.get('cleanup') != 'CONFIRMED':
+            failure('owned_cleanup_status', RuntimeError('Original-handle cleanup is UNKNOWN'))
+    if mode == 'controller':
+        def mandatory_posthash():
+            from capture import verify_inventory
+            deadlines.enter('posthash',spec_sha256=spec['_sha256'])
+            post = verify_inventory(spec,deadlines,end=deadlines.phase_end)
+            atomic_json(output/'posthash.json',post)
+            path = output/'capture-result.json'
+            value = json.loads(bounded_read(path,2*MIB,deadlines.check)) if path.exists() else {'status':'INCOMPLETE'}
+            value['posthash'] = post
+            if producer_error is not None or failures:
+                value['status'] = 'INCOMPLETE'
+            atomic_json(path,value,2*MIB)
+        attempt('mandatory_full_posthash',mandatory_posthash)
+    def child_provenance():
+        for original in ledger.originals:
+            accounting_check(deadlines)
+            argv = original.args
+            prefix = [spec['python'], '-I', '-B', '-S', str(HERE/'bootstrap.py'), '--mode']
+            if isinstance(argv, (list, tuple)) and list(argv[:6]) == prefix:
+                role = argv[6]
+                require(role in ('server', 'native', 'analyzer', 'guard'), 'child_provenance_role')
+                path = output/f'{role}-{original.pid}-terminal.json'
+                if not path.exists():
+                    observation = {} if live is None else live.observations.get('native' if role=='native' else 'analyzer-'+str(original.pid), {})
+                    require(role in ('native', 'analyzer') and original.returncode in (-9, -15) and
+                            cleanup['cleanup'] == 'CONFIRMED' and
+                            any(row['pid'] == original.pid and row['original_waited'] and
+                                row['returncode'] == original.returncode for row in cleanup.get('originals', [])) and
+                            observation.get('status') == 'VERIFIED' and observation.get('pid') == original.pid,
+                            'missing_child_terminal_without_verified_live_signal_gap')
+                    children.append({'pid': original.pid, 'mode': role, 'terminal': 'UNOBSERVED',
+                                     'returncode': original.returncode})
+                    continue
+                raw = bounded_read(path, TERMINAL_BYTES, lambda: accounting_check(deadlines))
+                row = json.loads(raw)
+                require(row['schema'] == 'terminal-python-provenance-v1' and row['status'] == 'COMPLETE' and
+                        row['pid'] == original.pid and row['mode'] == role and row['spec_sha256'] == spec['_sha256'] and
+                        row['cleanup'] == 'CONFIRMED' and
+                        not row['failures'], 'child_provenance_failed')
+                children.append({'pid': original.pid, 'mode': role, 'receipt': path.name, 'sha256': sha(raw)})
+            elif mode == 'server' and is_moss_command(spec,argv):
+                evidence = spec.get('_moss_terminal')
+                moss_cleanup_evidence(evidence)
+                require(original.returncode == 0 and any(row['pid'] == original.pid and
+                        row['original_waited'] and row['returncode'] == 0
+                        for row in cleanup.get('originals',[])), 'moss_original_wait_missing')
+                children.append({'pid':original.pid,'mode':'moss-direct',
+                    'original_waited':True,'product_cleanup':evidence['cleanup'],
+                    'native_receipt':evidence.get('native_receipt'),
+                    'mappings':spec.get('_moss_map_final',{'status':'UNOBSERVED','reason':'no_completed_observation'}),
+                    'terminal_bootstrap_receipt':'NOT_APPLICABLE_UNCHANGED_DIRECT_SCRIPT'})
+            else:
+                require(mode == 'guard' and isinstance(argv, (list, tuple)) and argv and
+                        argv[0] in spec['allowed_programs'], 'unclassified_owned_child')
+                non_python.append({'pid': original.pid, 'program': argv[0], 'mappings': 'UNOBSERVED'})
+    attempt('child_provenance', child_provenance)
+    if mode == 'controller' and (producer_error is not None or failures):
+        def mark_incomplete():
+            path = output/'capture-result.json'
+            value = json.loads(bounded_read(path,2*MIB,deadlines.cleanup_check)) if path.exists() else {}
+            value['status'] = 'INCOMPLETE'
+            value['finalization_failures'] = failures
+            atomic_json(path,value,2*MIB)
+        attempt('controller_terminal_status',mark_incomplete)
+    status = 'COMPLETE' if producer_error is None and not failures else 'INCOMPLETE'
+    attempt('terminal_journal', lambda: journal.emit('terminal', status=status, cleanup=cleanup['cleanup'],
+            provenance=snapshot['status'], failures=failures))
+    receipt = {'schema': 'terminal-python-provenance-v1', 'status': 'COMPLETE' if
+               producer_error is None and not failures else 'INCOMPLETE', 'pid': os.getpid(), 'mode': mode,
+               'spec_sha256': spec['_sha256'], 'cleanup': cleanup['cleanup'], 'mappings': snapshot,
+               'children': children, 'non_python_children': non_python, 'failures': failures,
+               'live_observations': {} if live is None else live.observations,
+               'producer_error': None if producer_error is None else
+               {'exception': type(producer_error).__name__, 'detail': str(producer_error)[:500]}}
+    attempt('terminal_receipt', lambda: atomic_json(output/f'{mode}-{os.getpid()}-terminal.json',
+                                                   receipt, TERMINAL_BYTES))
+    if exceptions:
+        attempt('finalization_errors_journal', lambda: journal.emit('finalization_errors', failures=failures))
+        if producer_error is None:
+            raise exceptions[0]
+
+
+class PinnedFinder(importlib.abc.MetaPathFinder):
+    def __init__(self, files, deadlines):
+        self.files, self.deadlines = files, deadlines
+    def find_spec(self, fullname, path=None, target=None):
+        spec = importlib.machinery.PathFinder.find_spec(fullname, path, target)
+        if spec is None or spec.origin in (None, 'built-in', 'frozen'):
+            return spec
+        origin = str(Path(spec.origin).resolve())
+        require(origin in self.files, 'unpinned_import_origin:' + fullname)
+        expected = self.files[origin]
+        maximum = expected['bytes']
+        require(0 <= maximum <= 512*MIB, 'import_file_size_cap')
+        # Extension modules are hashed without loading them; models are never import origins.
+        import hashlib
+        with open(origin, 'rb') as stream:
+            h, size = hashlib.sha256(), 0
+            while block := stream.read(65536):
+                self.deadlines.check()
+                size += len(block)
+                require(size <= maximum, 'import_file_grew')
+                h.update(block)
+        require(size == maximum and h.hexdigest() == expected['sha256'], 'import_file_pin:' + fullname)
+        return spec
+
+
+def load_spec(path, deadlines):
+    expected = os.environ.get('REAL_CAPTURE_SPEC_SHA256')
+    require(expected is not None and len(expected) == 64, 'missing_spec_authority_pin')
+    raw = bounded_read(path, 4*MIB, deadlines.check)
+    require(sha(raw) == expected, 'spec_sha256_mismatch')
+    spec = json.loads(raw)
+    require(spec['schema'] == '__PRIVATE_CONTRACT_ID_005__', 'spec_schema')
+    require(spec['actual_run_authorized'] is True, 'actual_run_not_authorized')
+    require(spec['design_sha256'] == DESIGN_SHA and spec['addendum_sha256'] == ADDENDUM_SHA,
+            'approved_design_mismatch')
+    require(spec['source_head'] == SOURCE_HEAD and spec['source_tree'] == SOURCE_TREE and
+            spec['source_file_count'] == __PRIVATE_PRODUCT_SOURCE_COUNT__, 'qualified_source_mismatch')
+    require(spec['outer_seconds'] == 1800 and spec['primary_seconds'] == 900 and
+            spec['posthash_seconds'] == 120 and spec['cleanup_seconds'] == 60, 'budget_geometry')
+    approval_raw = bounded_read(spec['approval_receipt']['path'], MIB, deadlines.check)
+    approval = json.loads(approval_raw)
+    require(sha(approval_raw) ==
+            spec['approval_receipt']['sha256'], 'approval_receipt_pin')
+    require(approval.get('actual_capture_approved') is True and
+            approval.get('schema') == '__PRIVATE_CONTRACT_ID_004__' and
+            approval.get('source_head') == SOURCE_HEAD and
+            approval.get('source_freeze_sha256') == spec['source_freeze_sha256'] and
+            approval.get('scope') == 'one-genuine-two-upload-seam-and-one-composite-moss-job',
+            'actual_capture_approval_missing')
+    from common import input_pins, SOURCE_INDEX_SHA
+    require(spec.get('source_index_sha256') == SOURCE_INDEX_SHA and
+            spec.get('input_pins') == input_pins(deadlines.check), 'source_or_materialization_binding')
+    from launch import readiness_contract
+    def readiness_pin(pin):
+        require(type(pin) is dict and set(pin)=={'path','sha256'},'readiness_pin_shape')
+        target=Path(pin['path'])
+        require(target.is_absolute() and target.resolve()==target and target.is_relative_to(HERE.parent),
+                'readiness_pin_outside_current_root')
+        raw=bounded_read(target,4*MIB,deadlines.check)
+        require(sha(raw)==pin['sha256'],'readiness_pin_mismatch')
+        value=json.loads(raw);require(type(value) is dict,'readiness_pin_object');return value
+    readiness_contract(spec,readiness_pin)
+    require(spec['storage_admission']['reviewed'] is True and
+            spec['installed_runtime']['verified'] is True and spec['posthash_probe']['passed'] is True and
+            spec['model_free_tests']['passed'] is True and spec['positive_owned_probe']['passed'] is True,
+            'readiness_gate_missing')
+    for name in ('output_dir', 'data_dir', 'site_packages', 'python', 'input_wav'):
+        p = Path(spec[name])
+        require(p.is_absolute() and p.resolve() == p, 'noncanonical_path:' + name)
+    require(Path(spec['output_dir']).is_relative_to(HERE.parent) and
+            Path(spec['data_dir']).is_relative_to(Path(spec['output_dir'])), 'output_scope')
+    require(spec['settings']['data_dir'] == spec['data_dir'], 'settings_data_dir_mismatch')
+    required = {'asr_backend': 'sensevoice', 'diarization_backend': 'nemotron',
+                'inference_device': 'cpu', 'cpu_threads': 2, 'native_diarization_threads': 2,
+                'overlap_backend': 'none', 'speaker_support_enabled': False,
+                'native_owned_support_enabled': True, 'native_owned_cells_enabled': True,
+                'native_owned_seam_cells_enabled': True, 'moss_jobs_enabled': True, 'start_worker': True,
+                'language': 'auto', 'offline': True, 'window_seconds': 30., 'context_seconds': 2.}
+    require(all(spec['settings'].get(k) == v and type(spec['settings'].get(k)) == type(v)
+                for k, v in required.items()), 'actual_settings_mismatch')
+    require(len(spec['cpus']) == 2 and set(os.sched_getaffinity(0)) == set(spec['cpus']),
+            'actual_two_cpu_affinity_missing')
+    require(resource.getrlimit(resource.RLIMIT_AS) == (8*2**30, 8*2**30), 'actual_AS_cap_missing')
+    require(os.getpriority(os.PRIO_PROCESS, 0) == 19, 'nice19_missing')
+    require(Path(sys.executable).resolve() == Path(spec['python']), 'installed_python_required')
+    require(sys.version_info[:2] == (3, 12), 'python312_required')
+    require(len(spec['installed_files']) <= 16384 and len(spec['runtime_files']) <= 4096,
+            'runtime_inventory_count_cap')
+    require(spec['installed_files'] and spec['runtime_files'] and spec['harness_files'], 'missing_runtime_pins')
+    require(spec['source_root'] == str(HERE.parents[1]/'__PRIVATE_DIRECTORY_006__') and
+            spec['python'] == str(HERE.parents[1]/'__PRIVATE_DIRECTORY_003__/runtime/bin/python3.12') and
+            spec['site_packages'] == str(HERE.parents[1]/'__PRIVATE_DIRECTORY_003__/runtime/lib/python3.12/site-packages'),
+            'closed_dev8_source_runtime')
+    verify_directory_aliases(spec['directory_aliases'], deadlines.check, require)
+    spec['_sha256'], spec['_path'] = expected, str(Path(path).resolve())
+    return spec
+
+
+def is_moss_command(spec, argv):
+    if type(argv) not in (list,tuple) or len(argv) != 7:
+        return False
+    prefix = [spec['python'],'-I','-B','-S',str(Path(spec['source_root'])/'audio_backend/moss_handy_runner.py')]
+    return (list(argv[:5]) == prefix and argv[5] == str(Path(spec['data_dir'])/'moss-handy-jobs/slot')
+            and type(argv[6]) is str and len(argv[6]) == 64
+            and all(x in '0123456789abcdef' for x in argv[6]))
+
+
+def moss_cleanup_evidence(value):
+    require(type(value) is dict, 'moss_receipt_missing')
+    cleanup = value.get('cleanup') or {}
+    require(cleanup.get('cleanup_verified') is True and
+            cleanup.get('original_handle_waited_and_reaped') is True and
+            cleanup.get('remaining_live_owned') == [] and not cleanup.get('cleanup_failure'),
+            'moss_product_cleanup_unconfirmed')
+    return cleanup
+
+
+def observe_moss_once(spec, deadlines, ledger):
+    """Only an existing control poll may call this; no new observer loop."""
+    if spec.get('_moss_map_final') is not None:
+        return spec['_moss_map_final']
+    original = spec.get('_moss_original')
+    if original is None:
+        return {'status':'UNOBSERVED','reason':'child_not_launched'}
+    if original.poll() is not None:
+        spec['_moss_map_final'] = {'status':'UNOBSERVED','reason':'child_exited_before_observation'}
+        return spec['_moss_map_final']
+    attempts = spec.get('_moss_map_probes',0)
+    if attempts >= 180 or deadlines.phase != 'moss-compute':
+        return {'status':'UNOBSERVED','reason':'no_current_compute_observation'}
+    remaining = deadlines.phase_end-deadlines.clock()
+    if remaining < 15.:
+        spec['_moss_map_final'] = {'status':'UNOBSERVED','reason':'insufficient_phase_budget'}
+        return spec['_moss_map_final']
+    spec['_moss_map_probes'] = attempts+1
+    from ownership import proc,key
+    identity = ledger.original_keys.get(id(original))
+    def same():
+        deadlines.check()
+        require(is_moss_command(spec,original.args) and original in ledger.originals and
+                identity is not None and identity in ledger.owned, 'moss_owned_identity_missing')
+        now = proc(original.pid)
+        require(key(now) == identity and now['ppid'] == os.getpid() and now['state'] != 'Z' and
+                os.readlink(f'/proc/{original.pid}/ns/pid') == ledger.namespace, 'moss_owned_identity_changed')
+        os.fstat(ledger.owned[identity]['pidfd'])
+    try:
+        same()
+        raw = bounded_read(f'/proc/{original.pid}/maps',MAP_BYTES,deadlines.check)
+        names = mapped_files(raw,deadlines.check)
+        if spec['moss_native_library'] not in names:
+            return {'status':'UNOBSERVED','reason':'native_library_not_yet_mapped','probes':attempts+1}
+        # Mark before the full attempt; failure can never trigger another hash pass.
+        spec['_moss_map_final'] = {'status':'UNOBSERVED','reason':'observation_incomplete'}
+        receipt = observed_mappings(spec,deadlines,f'/proc/{original.pid}/maps',same,
+                                    min(deadlines.phase_end,deadlines.clock()+15.))
+        receipt['scope'] = 'one passive live owned-child snapshot; not exhaustive lifetime coverage'
+        spec['_moss_map_final'] = receipt
+    except Exception as exc:
+        spec['_moss_map_final'] = {'status':'UNOBSERVED','reason':type(exc).__name__,
+                                  'detail':str(exc)[:200]}
+    return spec['_moss_map_final']
+
+
+def install_launch_hook(spec, deadline, journal, ledger, mode):
+    capture = spec.get('_server_phase') == 'capture'
+    module_caps = {'audio_backend.runner': 3 if capture else 0, 'audio_backend.native_runner': int(capture),
+                   'audio_backend.guard': 9 if capture else 0, 'moss-direct': int(capture)}
+    counts = {name: 0 for name in module_caps}
+    original_run = subprocess.Popen
+    def popen(argv, *args, **kwargs):
+        require(not args and not kwargs.get('shell', False), 'unsupported_popen_shape')
+        require(type(argv) in (list, tuple) and 1 <= len(argv) <= 64 and
+                all(isinstance(x, (str, Path)) and len(str(x)) <= 4096 for x in argv), 'argv_shape')
+        argv = [str(x) for x in argv]
+        if len(argv) >= 3 and argv[0] == sys.executable and argv[1] == '-m':
+            module = argv[2]
+            require(mode == 'server' and module in module_caps, 'unapproved_python_child')
+            require(counts[module] < module_caps[module], 'python_child_count_cap')
+            counts[module] += 1
+            childmode = {'audio_backend.runner': 'analyzer', 'audio_backend.native_runner': 'native',
+                         'audio_backend.guard': 'guard'}[module]
+            logical = list(argv)
+            argv = [spec['python'], '-I', '-B', '-S', str(HERE/'bootstrap.py'), '--mode', childmode,
+                    '--spec', spec['_path'], '--', *argv[3:]]
+            env = dict(kwargs.get('env', os.environ))
+            for key in ('REAL_CAPTURE_SPEC_SHA256', 'GUARD_WORK_END', 'GUARD_ABSOLUTE_END',
+                        'GUARD_STOP_PATH', 'GUARD_RUN_DIRECTORY'):
+                require(env.get(key) == os.environ[key], 'child_immutable_env_changed')
+            kwargs['env'] = env
+            journal.emit('installed_child_bootstrap', logical_argv=logical, effective_argv=argv)
+        elif is_moss_command(spec,argv):
+            require(mode == 'server' and capture and deadline.phase == 'support' and
+                    counts['moss-direct'] == 0, 'moss_direct_launch_cap_or_phase')
+            require(kwargs.get('stdin') == subprocess.PIPE and kwargs.get('stdout') == subprocess.DEVNULL and
+                    kwargs.get('stderr') == subprocess.DEVNULL and kwargs.get('cwd') == Path(spec['source_root']),
+                    'moss_original_launch_shape')
+            env = kwargs.get('env')
+            require(type(env) is dict and all(env.get(k) == os.environ.get(k) for k in
+                    ('GUARD_WORK_END','GUARD_ABSOLUTE_END','GUARD_STOP_PATH','REAL_CAPTURE_SPEC_SHA256')),
+                    'moss_inherited_authority_changed')
+            deadline.check()
+            window = deadline.enter('moss-compute',spec_sha256=spec['_sha256'])
+            atomic_json(Path(spec['output_dir'])/'moss-window.json',window,4096)
+            atomic_json(Path(spec['output_dir'])/'phase-window.json',window,4096)
+            counts['moss-direct'] += 1
+            journal.emit('direct_moss_original_launch',argv=argv,stdin='PIPE',rewritten=False)
+            original = ledger.spawn(argv,**kwargs)
+            spec['_moss_original'] = original
+            return original
+        else:
+            require(mode == 'guard' and argv[0] in spec['allowed_programs'], 'unapproved_external_program')
+            require(len(ledger.originals) == 0, 'guard_external_process_cap')
+            program = str(Path(argv[0]).resolve())
+            require(program in spec['runtime_files'], 'external_program_pin_missing')
+            pin = spec['runtime_files'][program]
+            require(sha(bounded_read(program, min(pin['bytes'], 512*MIB), deadline.check)) == pin['sha256'],
+                    'external_program_pin_mismatch')
+        return ledger.spawn(argv, **kwargs)
+    subprocess.Popen = popen
+    # Exact original handles remain intact; cleanup redirects unsafe numeric-PID tree kill.
+    import audio_backend.resources as resources
+    import audio_backend.native_worker as native_worker
+    resources.kill_tree = ledger.stop_original
+    native_worker.kill_tree = ledger.stop_original
+    return counts
+
+
+
+def verify_controller_directory(spec, check, *, fixture_directory=None):
+    """Exact shared actual/validation namespace and pins."""
+    names = {'ownership.py', 'instrumentation.py', 'common.py', 'bootstrap.py',
+             'server.py', 'capture.py', 'launch.py', 'test_smoke.py'}
+    require(HERE == Path(spec['harness_root']), 'harness_origin_mismatch')
+    require(type(spec['harness_files']) is dict and
+            set(spec['harness_files']) == {str(HERE/name) for name in names},
+            'harness_exact_pin_namespace')
+    directory = HERE
+    if fixture_directory is not None:
+        run = Path(os.environ['GUARD_RUN_DIRECTORY'])
+        require(spec.get('validation_only') is True and spec.get('actual_run_authorized') is False and
+                run.is_absolute() and run.resolve(strict=True) == run and run.parent == HERE.parent/'runs' and
+                run.name.startswith('run-') and len(run.name) == 12 and
+                all(c in 'abcdefghijklmnopqrstuvwxyz0123456789_' for c in run.name[4:]) and
+                fixture_directory == run/'tmp/validation-negative/controller', 'harness_fixture_scope')
+        directory = fixture_directory
+    check()
+    require(directory.is_absolute() and directory.resolve(strict=True) == directory and
+            stat.S_ISDIR(os.lstat(directory).st_mode), 'harness_directory_alias')
+    signature = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_mtime_ns, s.st_ctime_ns)
+    before = signature(os.lstat(directory))
+    entries = set()
+    with os.scandir(directory) as scan:
+        for entry in scan:
+            check()
+            entries.add(entry.name)
+            require(len(entries) <= len(names), 'harness_exact_directory_namespace')
+    require(entries == names, 'harness_exact_directory_namespace')
+    caps = {'ownership.py':16384,'common.py':65536,'bootstrap.py':131072,'launch.py':65536,
+            'instrumentation.py':65536,'server.py':131072,'capture.py':163840,'test_smoke.py':262144}
+    total = 0
+    for name in sorted(names):
+        check()
+        local = directory/name
+        info = os.lstat(local)
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and
+                local.resolve(strict=True) == local, 'harness_regular_no_alias_file')
+        pin = spec['harness_files'][str(HERE/name)]
+        require(type(pin) is dict and set(pin) == {'bytes', 'sha256'} and
+                type(pin['bytes']) is int and 0 <= pin['bytes'] <= caps[name] and
+                type(pin['sha256']) is str and len(pin['sha256']) == 64 and
+                all(c in '0123456789abcdef' for c in pin['sha256']), 'harness_file_pin_shape')
+        raw = bounded_read(local, MIB, check)
+        require(len(raw) == pin['bytes'] and sha(raw) == pin['sha256'], 'harness_file_pin')
+        require(os.lstat(local).st_nlink == 1, 'harness_regular_no_alias_file')
+        total += len(raw)
+        require(total <= MIB, 'harness_source_byte_cap')
+    require(signature(os.lstat(directory)) == before, 'harness_directory_changed')
+    check()
+    return {'directory': str(directory), 'files': len(names), 'bytes': total,
+            'exact_namespace': True, 'ordinary_no_alias_files': True, 'all_pins_matched': True}
+
+def validation_metadata(path, check, *, expected=None, maximum=4*MIB):
+    """Bounded pinned metadata; reject aliases and ambiguous JSON."""
+    path = Path(path)
+    check()
+    require(path.is_absolute() and path.resolve(strict=True) == path and
+            stat.S_ISREG(os.lstat(path).st_mode) and os.lstat(path).st_nlink == 1,
+            'validation_metadata_no_alias')
+    raw = bounded_read(path, maximum, check)
+    require(os.lstat(path).st_nlink == 1, 'validation_metadata_no_alias')
+    if expected is not None:
+        require(type(expected) is str and len(expected) == 64 and
+                all(c in '0123456789abcdef' for c in expected) and sha(raw) == expected,
+                'validation_metadata_pin')
+    def pairs(rows):
+        result = {}
+        for key, value in rows:
+            require(key not in result, 'validation_duplicate_json_key')
+            result[key] = value
+        return result
+    def number(token):
+        value = float(token)
+        require(finite(value), 'validation_nonfinite_json')
+        return value
+    value = json.loads(raw, object_pairs_hook=pairs, parse_constant=number, parse_float=number)
+    require(type(value) is dict, 'validation_metadata_object')
+    check()
+    return raw, value
+
+def validation_negatives(spec, run, check, end):
+    """Two retained negative fixtures; no live bytes changed."""
+    from common import Refused
+    from capture import verify_inventory
+    from types import SimpleNamespace
+    base = run/'tmp/validation-negative'
+    check();base.mkdir(mode=0o700, exist_ok=False)
+    directory = base/'controller';directory.mkdir(mode=0o700, exist_ok=False)
+    copied = 0
+    for name in sorted(Path(path).name for path in spec['harness_files']):
+        raw = bounded_read(HERE/name, MIB, check)
+        copied += len(raw)
+        require(copied <= MIB, 'validation_directory_fixture_byte_cap')
+        with (directory/name).open('xb') as out:
+            out.write(raw);out.flush();os.fsync(out.fileno())
+    extra = b'# Retained unexpected namespace entry; never imported.\n'
+    require(copied+len(extra) <= MIB, 'validation_directory_fixture_byte_cap')
+    with (directory/'unexpected.py').open('xb') as out:
+        out.write(extra);out.flush();os.fsync(out.fileno())
+    try:
+        verify_controller_directory(spec, check, fixture_directory=directory)
+    except Refused as exc:
+        require(str(exc) == 'harness_exact_directory_namespace', 'validation_wrong_directory_negative')
+        directory_failure = str(exc)
+    else:
+        require(False, 'validation_extra_python_not_rejected')
+    present, missing = base/'present.bin', base/'required-execution.py'
+    fixture_bytes = b'fixed ordinary inventory fixture\n'
+    for path in (present, missing):
+        check()
+        with path.open('xb') as out:
+            out.write(fixture_bytes);out.flush();os.fsync(out.fileno())
+    require(2*len(fixture_bytes) <= 1024, 'validation_inventory_fixture_byte_cap')
+    pin = {'bytes': len(fixture_bytes), 'sha256': sha(fixture_bytes)}
+    tiny = {'hash_inventory': [{'path': str(present), **pin}],
+            'installed_files': {str(missing): pin}, 'runtime_files': {}, 'harness_files': {},
+            'input_wav': str(present), 'source_root': str(base), 'source_files': [], 'runtime_aliases': []}
+    try:
+        verify_inventory(tiny, SimpleNamespace(stop=run/'STOP'), end=end)
+    except Refused as exc:
+        require(str(exc) == 'full_hash_missing_execution_files', 'validation_wrong_inventory_negative')
+        inventory_failure = str(exc)
+    else:
+        require(False, 'validation_missing_execution_row_not_rejected')
+    wrong = dict(spec)
+    wrong['harness_files'] = {path:dict(pin) for path,pin in spec['harness_files'].items()}
+    first = sorted(wrong['harness_files'])[0]
+    wrong['harness_files'][first]['sha256'] = '0'*64
+    try:
+        verify_controller_directory(wrong, check)
+    except Refused as exc:
+        require(str(exc) == 'harness_file_pin', 'validation_wrong_pin_negative')
+        pin_failure = str(exc)
+    else:
+        require(False, 'validation_mismatched_pin_not_rejected')
+    check()
+    return {'mismatched_source_pin':{'rejected':True,'reason':pin_failure,'path':first,
+                'real_directory':True,'bytes_changed':False},
+            'unexpected_python': {'rejected': True, 'reason': directory_failure,
+                'path': str(directory), 'files': 9, 'bytes': copied+len(extra)},
+            'missing_execution_inventory_row': {'rejected': True, 'reason': inventory_failure,
+                'fixture_file': str(present), 'omitted_file': str(missing),
+                'fixture_bytes': 2*len(fixture_bytes), 'hashed_bytes': len(fixture_bytes)},
+            'fixtures_retained': True, 'full_inventory_sweep_repeated': False}
+
+def validation_main():
+    """Model-free directory/inventory validation, never actual admission."""
+    native_imports_closed = False
+    def no_execution(event, args):
+        require(event not in ('subprocess.Popen', 'os.system', 'os.exec', 'os.fork', 'os.forkpty',
+                'os.posix_spawn', 'os.kill', 'os.killpg', 'socket.__new__', 'socket.getaddrinfo'),
+                'validation_process_or_network_entry')
+        require(not (native_imports_closed and event == 'ctypes.dlopen'), 'validation_native_load')
+        if event == 'import':
+            require(args[0].split('.')[0] not in {'audio_backend', 'server', 'instrumentation',
+                    'torch', 'onnxruntime', 'sherpa_onnx', 'numpy', 'soundfile'}, 'validation_provider_import')
+    sys.addaudithook(no_execution)
+    parser = argparse.ArgumentParser(allow_abbrev=False)
+    parser.add_argument('--validate-only', action='store_true', required=True)
+    parser.add_argument('--spec', type=Path, required=True)
+    parser.add_argument('--spec-sha256', required=True)
+    args = parser.parse_args()
+    root = HERE.parent
+    python = root.parent/'__PRIVATE_DIRECTORY_003__/runtime/bin/python3.12'
+    guard = root.parent/'__PRIVATE_DIRECTORY_008__/guard/actual_guard.py'
+    source = str(root.parent/'__PRIVATE_DIRECTORY_006__')
+    python_sha = '__PRIVATE_INTEGRITY_PIN_016__'
+    guard_sha = '__PRIVATE_INTEGRITY_PIN_001__'
+    require(args.spec == root/'controller.validation.json', 'closed_validation_controller_path')
+    require(not any(k.startswith('REAL_CAPTURE_') for k in os.environ), 'validation_actual_environment')
+    absolute = float(os.environ['GUARD_ABSOLUTE_END']);work = float(os.environ['GUARD_WORK_END'])
+    require(finite(absolute) and finite(work) and work == absolute-60 and
+            0 < absolute-time.monotonic() <= 300 and 0 < work-time.monotonic() <= 240,
+            'validation_outer_clock')
+    run = Path(os.environ['GUARD_RUN_DIRECTORY']);stop = Path(os.environ['GUARD_STOP_PATH'])
+    require(run.is_absolute() and run.resolve(strict=True) == run and run.parent == root/'runs' and
+            run.name.startswith('run-') and len(run.name) == 12 and
+            all(c in 'abcdefghijklmnopqrstuvwxyz0123456789_' for c in run.name[4:]) and
+            stop == run/'STOP', 'validation_exact_run_scope')
+    actual_targets = [root/name for name in ('ACTUAL_AUTHORITY.json', 'controller.actual.json',
+                                           'actual.spec.json', 'runs/__PRIVATE_RUN_ID_001__')]
+    def alive():
+        require(time.monotonic() < work and not os.path.lexists(stop), 'validation_work_or_stop')
+        require(not any(os.path.lexists(path) for path in actual_targets), 'validation_actual_targets_present')
+    alive()
+    require(os.getcwd() == str(root) and Path(sys.executable).resolve(strict=True) == python and
+            sys.version_info[:2] == (3, 12) and sys.flags.isolated == 1 and sys.flags.no_site == 1 and
+            sys.dont_write_bytecode is True, 'validation_isolated_interpreter')
+    require(set(os.sched_getaffinity(0)) == {3} and
+            resource.getrlimit(resource.RLIMIT_AS) == (2**30, 2**30) and
+            os.getpriority(os.PRIO_PROCESS, 0) == 19, 'validation_runtime_caps')
+    raw, spec = validation_metadata(args.spec, alive, expected=args.spec_sha256)
+    frozen = spec['source_freeze_sha256']
+    fields = {'schema', 'validation_only', 'actual_run_authorized', 'source_freeze_sha256',
+              'harness_root', 'harness_files', 'installed_files', 'runtime_files', 'hash_inventory',
+              'input_wav', 'input_uploads', 'input_pins', 'materialization_receipt', 'source_root', 'source_files', 'runtime_aliases', 'inventory_manifest',
+              'validation_authority', 'cpus', 'outer_seconds', 'work_seconds', 'cleanup_seconds'}
+    require(set(spec) == fields and spec['schema'] == '__PRIVATE_CONTRACT_ID_016__' and
+            spec['validation_only'] is True and spec['actual_run_authorized'] is False and
+            spec['cpus'] == [3] and all(type(x) is int for x in spec['cpus']) and
+            all(type(spec[k]) is int and spec[k] == v for k, v in
+                (('outer_seconds', 300), ('work_seconds', 240), ('cleanup_seconds', 60))),
+            'validation_controller_contract')
+    directory = verify_controller_directory(spec, alive)
+    outer_raw, outer = validation_metadata(root/'validation.spec.json', alive)
+    index_raw, index = validation_metadata(run/'index.json', alive, maximum=65536)
+    argv = [str(python), '-I', '-B', '-S', str(HERE/'bootstrap.py'), '--validate-only',
+            '--spec', str(args.spec), '--spec-sha256', args.spec_sha256]
+    require(sys.argv == argv[4:] and outer.get('schema') == 3 and
+            outer.get('stage') == 'api_smoke_validate' and outer.get('argv') == argv and
+            outer.get('cwd') == str(root) and outer.get('actual_run_authorized') is False and
+            outer.get('source_root') == source and
+            outer.get('runtime_files') == {str(python): python_sha} and outer.get('guard_sha256') == guard_sha and
+            outer.get('validation_controller') == {'path': str(args.spec), 'sha256': sha(raw)} and
+            outer.get('validation_authority') == spec['validation_authority'] and
+            outer.get('inventory_manifest') == spec['inventory_manifest'] and
+            outer.get('source_freeze_sha256') == frozen and
+            outer.get('absolute_seconds') == 300 and outer.get('work_seconds') == 240 and
+            outer.get('address_space_cap_bytes') == 2**30 and outer.get('rss_cap_bytes') == 256*MIB and
+            outer.get('scratch_cap_bytes') == 12*2**30 and outer.get('cpus') == [3] and
+            'controller_spec' not in outer and 'final_manifest' not in outer,
+            'validation_outer_spec_binding')
+    from ownership import proc
+    native_imports_closed = True
+    identity = proc(os.getpid());supervisor = proc(identity['ppid'])
+    caps = index['caps']
+    require(index.get('schema') == 1 and index['status'] == 'GATED' and
+            index['run_directory'] == str(run) and index['stop_path'] == str(stop) and
+            index['spec_sha256'] == sha(outer_raw) and index['argv'] == argv and
+            index['original']['pid'] == identity['pid'] and
+            index['original']['start_ticks'] == identity['start_ticks'] and
+            index['original']['ppid'] == identity['ppid'] == index['supervisor']['pid'] == supervisor['pid'] and
+            index['supervisor']['start_ticks'] == supervisor['start_ticks'] and
+            identity['state'] != 'Z' and supervisor['state'] != 'Z' and
+            caps['work_seconds'] == 240 and caps['absolute_seconds'] == 300 and
+            caps['owned_rss_bytes'] == 256*MIB and caps['scratch_bytes'] == 12*2**30 and
+            caps['cpus'] == [3], 'validation_guard_original_invocation_binding')
+    def owned_alive():
+        alive()
+        current = proc(os.getpid());parent = proc(identity['ppid'])
+        require(current['pid'] == identity['pid'] and current['start_ticks'] == identity['start_ticks'] and
+                current['ppid'] == identity['ppid'] and current['state'] != 'Z' and
+                parent['start_ticks'] == supervisor['start_ticks'] and parent['state'] != 'Z',
+                'validation_guard_original_identity_changed')
+    def read_pin(pin, path):
+        require(type(pin) is dict and set(pin) == {'path', 'sha256'} and pin['path'] == str(path),
+                'validation_closed_metadata_pin')
+        return validation_metadata(path, owned_alive, expected=pin['sha256'])
+    authority_raw, authority = read_pin(spec['validation_authority'], root/'VALIDATION_AUTHORITY.json')
+    require(set(authority) == {'schema', 'validation_approved', 'actual_capture_approved', 'scope',
+                              'source_freeze_sha256'} and
+            authority['schema'] == '__PRIVATE_CONTRACT_ID_015__' and
+            authority['validation_approved'] is True and authority['actual_capture_approved'] is False and
+            authority['scope'] == 'shared-controller-directory-and-full-inventory-only' and
+            authority['source_freeze_sha256'] == frozen, 'validation_authority_contract')
+    freeze_raw, freeze = validation_metadata(root/'SOURCE_FREEZE.json', owned_alive,
+                                            expected=frozen)
+    require(freeze.get('schema') == '__PRIVATE_CONTRACT_ID_013__' and
+            freeze.get('actual_run_authorized') is False and freeze.get('source_head') == SOURCE_HEAD and
+            freeze.get('source_tree') == SOURCE_TREE and freeze.get('product_source_count') == __PRIVATE_PRODUCT_SOURCE_COUNT__ and
+            freeze.get('product_source_bytes') == __PRIVATE_PRODUCT_SOURCE_BYTES__ and freeze.get('harness_file_count') == 8 and
+            freeze.get('harness_files') == [{'path': path, **pin} for path, pin in sorted(spec['harness_files'].items())] and
+            outer.get('source_files') == freeze.get('product_source_files') and
+            spec['source_files'] == sorted(str(Path(spec['source_root'])/name) for name in freeze['product_source_files']),
+            'validation_source_freeze_binding')
+    manifest_raw, manifest = read_pin(spec['inventory_manifest'], root/'HASH_INVENTORY.json')
+    require(manifest.get('schema') == '__PRIVATE_CONTRACT_ID_008__' and
+            manifest.get('preparation_status') == 'FINALIZED_INPUT_BOUND' and not manifest.get('pending_input_rows') and
+            manifest.get('source_freeze_sha256') == frozen and
+            spec['source_root'] == outer['source_root'] and spec['input_wav'] == str(root.parent/'__PRIVATE_DIRECTORY_005__/input/primary-21s.wav') and
+            spec['input_uploads'] == {key:str(root/('input/upload-'+key+'-10p5s.wav')) for key in ('a','b')} and
+            all(spec[name] == manifest.get(name) for name in ('harness_files', 'installed_files', 'runtime_files',
+                'hash_inventory', 'input_wav', 'input_uploads', 'source_root', 'source_files', 'runtime_aliases')),
+            'validation_exact_inventory_manifest')
+    from common import input_pins, validate_input_pins
+    material_raw, material = read_pin(spec['materialization_receipt'], root/'input/MATERIALIZATION.json')
+    require(validate_input_pins(spec['input_pins']) == input_pins(owned_alive) == material.get('input_pins'),
+            'validation_independent_materialization_binding')
+    inventory_sha = sha(canonical(sorted(spec['hash_inventory'], key=lambda row: row['path'])))
+    require(manifest['inventory_sha256'] == inventory_sha and
+            type(spec['hash_inventory']) is list and 1 <= len(spec['hash_inventory']) <= 32768 and
+            type(spec['installed_files']) is dict and 1 <= len(spec['installed_files']) <= 16384 and
+            type(spec['runtime_files']) is dict and 1 <= len(spec['runtime_files']) <= 4096 and
+            type(spec['runtime_aliases']) is list and len(spec['runtime_aliases']) <= 4096,
+            'validation_inventory_count_or_digest')
+    external = outer['external_files']
+    for path, digest in ((guard, guard_sha), (args.spec, sha(raw)),
+            (root/'SOURCE_FREEZE.json', sha(freeze_raw)),
+            (root/'VALIDATION_AUTHORITY.json', sha(authority_raw)),
+            (root/'HASH_INVENTORY.json', sha(manifest_raw))):
+        require(external.get(str(path)) == digest, 'validation_outer_external_pins')
+    require(sha(bounded_read(guard, MIB, owned_alive)) == guard_sha, 'validation_guard_pin')
+    owned_alive()
+    from capture import verify_inventory
+    from types import SimpleNamespace
+    end = min(time.monotonic()+120., work)
+    full_hash = verify_inventory(spec, SimpleNamespace(stop=stop), end=end)
+    owned_alive()
+    negatives = validation_negatives(spec, run, owned_alive, work)
+    require(verify_controller_directory(spec, owned_alive) == directory, 'validation_directory_changed_after_inventory')
+    require(not any(name == 'server' or name == 'audio_backend' or name.startswith('audio_backend.')
+                    for name in sys.modules), 'validation_product_import_present')
+    result = {'schema': '__PRIVATE_CONTRACT_ID_017__', 'status': 'PASS_DIRECTORY_AND_INVENTORY_ONLY',
+              'scope': 'shared-controller-directory-and-full-inventory-only',
+              'validation_only': True, 'actual_run_authorized': False,
+              'actual_load_spec_called': False, 'source_freeze_sha256': frozen,
+              'controller_spec_sha256': sha(raw), 'validation_authority_sha256': sha(authority_raw),
+              'inventory_manifest_sha256': sha(manifest_raw), 'inventory_sha256': inventory_sha,
+              'guard_spec_sha256': sha(outer_raw), 'guard_index_sha256': sha(index_raw),
+              'guard_run_directory': str(run), 'original_process_identity': identity,
+              'controller_directory': directory, 'full_hash_result': full_hash, 'negatives': negatives,
+              'services': 0, 'model_calls': 0, 'audio_decodes': 0, 'product_imports': 0,
+              'no_services_started': True, 'no_models_called': True, 'no_audio_decoded': True,
+              'journal_constructed': False, 'ledger_constructed': False,
+              'execution_audit_denials_installed': True, 'not_full_actual_admission': True}
+    output = run/'tmp/validation-only-result.json'
+    require(output.parent.resolve(strict=True) == output.parent and
+            stat.S_ISDIR(os.lstat(output.parent).st_mode) and
+            not any(os.path.lexists(p) for p in (output, output.with_name(output.name+'.pending'))),
+            'validation_fresh_receipt_only')
+    owned_alive();atomic_json(output, result, 65536);owned_alive()
+    print(json.dumps(result, sort_keys=True), flush=True)
+
+
+def main():
+    if '--validate-only' in sys.argv[1:]:
+        return validation_main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', required=True, choices=('controller', 'server', 'native', 'analyzer', 'guard'))
+    parser.add_argument('--spec', required=True)
+    parser.add_argument('arguments', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    arguments = args.arguments[1:] if args.arguments[:1] == ['--'] else args.arguments
+    deadlines = Deadlines()
+    spec = load_spec(args.spec, deadlines)
+    primary_path = Path(spec['output_dir'])/'primary-window.json'
+    if args.mode in ('native','analyzer','guard') and primary_path.exists():
+        deadlines.bind_primary(json.loads(bounded_read(primary_path, 4096, deadlines.check)), spec['_sha256'])
+    verify_controller_directory(spec, deadlines.check)
+    files = {**spec['runtime_files'], **spec['installed_files'], **spec['harness_files']}
+    phase_path = Path(spec['output_dir'])/'phase-window.json'
+    if deadlines.phase is None and phase_path.exists():
+        phase = json.loads(bounded_read(phase_path,4096,deadlines.check))
+        deadlines.enter(phase['phase'],record=phase,spec_sha256=spec['_sha256'])
+    sys.path[:] = [str(HERE), spec['source_root'], spec['stdlib'], spec['dynload'], spec['site_packages']]
+    sys.meta_path.insert(0, PinnedFinder(files, deadlines))
+    output = Path(spec['output_dir'])
+    require(output.is_dir(), 'outer_guard_must_create_output_directory')
+    if args.mode == 'controller':
+        from capture import verify_inventory
+        deadlines.enter('preflight',spec_sha256=spec['_sha256'])
+        spec['_prehash_result'] = verify_inventory(spec,deadlines,end=deadlines.phase_end)
+    journal = Journal(output, args.mode)
+    from ownership import Ledger
+    ledger = Ledger(deadlines, journal)
+    instrument = None
+    producer_error = None
+    live = None
+    try:
+        if args.mode == 'controller':
+            from capture import run_controller
+            run_controller(spec, deadlines, journal, ledger)
+        elif args.mode == 'server':
+            require(arguments and arguments[0] in ('capture','restart-on','restart-off'), 'server_phase_required')
+            spec['_server_phase'] = arguments[0]
+            live = LiveProvenance(spec, deadlines, ledger)
+            spec['_observe_live_mappings'] = live.observe
+            counts = install_launch_hook(spec, deadlines, journal, ledger, 'server')
+            from server import run_server
+            run_server(spec, deadlines, journal, ledger, arguments, counts)
+        else:
+            install_launch_hook(spec, deadlines, journal, ledger, args.mode)
+            if args.mode in ('native', 'analyzer'):
+                from instrumentation import Instrumentation
+                instrument = Instrumentation(spec, deadlines, journal, args.mode)
+                if args.mode == 'native':
+                    instrument.install_native()
+                else:
+                    instrument.install_sdk()
+            module = {'native': 'audio_backend.native_runner', 'analyzer': 'audio_backend.runner',
+                      'guard': 'audio_backend.guard'}[args.mode]
+            sys.argv = [module, *arguments]
+            try:
+                runpy.run_module(module, run_name='__main__', alter_sys=True)
+            except SystemExit as exc:
+                require(exc.code in (None, 0), 'child_module_nonzero_exit')
+    except BaseException as exc:
+        producer_error = exc
+        raise  # Finalization never substitutes for this exact exception object.
+    finally:
+        try:
+            finalize(spec, deadlines, journal, ledger, args.mode, instrument, producer_error, live)
+        except BaseException:
+            if producer_error is None:
+                raise
+
+if __name__ == '__main__':
+    main()
