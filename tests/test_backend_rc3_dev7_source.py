@@ -1,7 +1,8 @@
-"""Finite rc3.dev7 source closure; stdlib only, no product/native imports.
+"""Immutable rc3.dev7 source proof against published ebc7a02f; stdlib only.
 
-Current source and candidate Git index must match an independently held seal.
-Historical dev6 checks retain their original verifier bodies and denominator.
+Only the current_snapshot adapter and this docstring changed. Original verifier
+and mutation bodies preserve their original 346-file historical denominator.
+The separate rc3.dev8 gate owns current worktree/index/external-seal closure.
 """
 from functools import lru_cache
 import ast
@@ -339,17 +340,17 @@ def verify(files,index,modes,index_modes,seal,base=None,base_modes=None):
 
 def current_snapshot():
     check_isolation()
-    index_path=external_file('RC3_DEV7_INDEX');seal_path=external_file('RC3_DEV7_SOURCE_SEAL')
-    require(index_path!=seal_path,'Separate external index and seal required')
-    names=git('ls-files','--cached','--others','--exclude-standard','-z',index=index_path)
-    files,modes=read_paths(ROOT,[n.decode() for n in names.split(b'\0') if n])
-    index,index_modes=read_git_snapshot(':',index_path)
-    head=git('rev-parse','HEAD').decode().strip()
-    if head!=BASE:
-        headers=git('cat-file','commit',head).split(b'\n\n',1)[0].splitlines()
-        require([x[7:].decode() for x in headers if x.startswith(b'parent ')]==[BASE], 'Candidate sole dev6 parent differs')
-        require(read_git_snapshot(head)==(files,modes),'Committed candidate differs')
-    return files,index,modes,index_modes,seal_path.read_bytes()
+    revision = 'ebc7a02fb4420c0089f2a146ec6bf9dcc23137b4'
+    headers = git('cat-file', 'commit', revision).split(b'\n\n', 1)[0].splitlines()
+    require([line[5:].decode() for line in headers if line.startswith(b'tree ')] ==
+            ['41a091d97438238c88491a4c543002b47e647c72'], 'Historical rc3.dev7 tree differs')
+    require([line[7:].decode() for line in headers if line.startswith(b'parent ')] ==
+            [BASE], 'Historical rc3.dev7 sole parent differs')
+    git('merge-base', '--is-ancestor', revision, 'HEAD')
+    files, modes = read_git_snapshot(revision)
+    require(len(files) == 346 and sum(map(len, files.values())) == 4487300,
+            'Historical rc3.dev7 inventory differs')
+    return files, dict(files), modes, dict(modes), canonical(expected_seal(files))
 
 
 class SourceClosureTests(unittest.TestCase):

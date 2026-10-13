@@ -15,6 +15,7 @@ from .native_owned_cell_store import Operation, OP_SECONDS, LOCK_SECONDS
 from .native_owned_cells import (Unavailable, SourceSupport, canonical, digest,
                                 integer, text, validate_document, PROOF_BYTES)
 from .native_owned_support_cache import ReadError
+from .native_owned_seam_cells import is_composite, coverage as seam_coverage
 from .moss_handy_profile import NAME, MODEL_SHA256, RUNTIME_SHA256
 
 
@@ -38,12 +39,20 @@ class CellDispatchToken:
     profile: str = NAME
     model_sha256: str = MODEL_SHA256
     runtime_sha256: str = RUNTIME_SHA256
+    coverage_intent: str | None = None
+
+    @property
+    def coverage(self):
+        doc, _, _ = validate_document(self.proof)
+        return seam_coverage(doc) if is_composite(doc) else None
 
     def projection(self):
         value = {'origin': self.origin, 'cell_id': self.cell_id,
                  'sequence': self.sequence, 'revision': self.revision,
                  'proof_sha256': self.proof_sha256, 'support': self.support.to_dict(),
                  'proof_url': '/sessions/' + self.session_id + '/native-owned-cells/' + self.cell_id}
+        coverage = self.coverage
+        if coverage is not None:value['coverage'] = coverage
         if len(canonical(value)) > 4096:raise ReadError(503, 'cell_projection_capacity')
         return value
 
@@ -168,15 +177,25 @@ class CellJobsSource:
                 if (len(proof) > PROOF_BYTES or hashlib.sha256(proof).hexdigest() != request['expected_proof_sha256']
                         or support.support_id != request['support_id'] or result['owner_generation'] is not generation):
                     raise ReadError(409, 'cell_binding_changed')
+                composite = is_composite(doc)
+                if composite and request.get('coverage_intent') != 'overlapping_diagnostic':
+                    raise ReadError(409, 'coverage_intent_required')
+                if not composite and 'coverage_intent' in request:
+                    raise ReadError(409, 'coverage_intent_not_allowed')
                 qualification = hashlib.sha256(canonical(asdict(self.owner.qualification))).hexdigest()
-                binding = hashlib.sha256(canonical({'origin': 'durable_cell', 'adapter_epoch': self.epoch,
+                binding_value = {'origin': 'durable_cell', 'adapter_epoch': self.epoch,
                     'session_id': sid, 'cell_id': cell_id, 'sequence': result['sequence'],
                     'revision': result['revision'], 'state': result['state'], 'proof_sha256': request['expected_proof_sha256'],
                     'primary_identity': self._identity, 'qualification_sha256': qualification, 'profile': NAME,
-                    'model_sha256': MODEL_SHA256, 'runtime_sha256': RUNTIME_SHA256})).hexdigest()
+                    'model_sha256': MODEL_SHA256, 'runtime_sha256': RUNTIME_SHA256}
+                if composite:
+                    binding_value['coverage'] = seam_coverage(doc)
+                    binding_value['coverage_intent'] = request['coverage_intent']
+                binding = hashlib.sha256(canonical(binding_value)).hexdigest()
                 token = CellDispatchToken('durable_cell', self.owner, self.epoch, self._identity,
                     generation, sid, cell_id, result['sequence'], result['revision'], result['state'],
-                    request['expected_proof_sha256'], proof, support, qualification, binding)
+                    request['expected_proof_sha256'], proof, support, qualification, binding,
+                    coverage_intent=request.get('coverage_intent'))
                 token.projection()
                 lease = CellLease(self, token, pin)
                 self._pending = lease
@@ -236,6 +255,11 @@ class CellJobsSource:
         if result['owner_generation'] is not token.generation:raise ReadError(409, 'cell_revoked')
         if (result['detail'] != token.proof or result['support'] != token.support
                 or result['state'] != token.state):raise ReadError(409, 'cell_binding_changed')
+        doc, _, _ = validate_document(token.proof)
+        expected_intent = 'overlapping_diagnostic' if is_composite(doc) else None
+        if (token.coverage_intent != expected_intent
+                or result.get('coverage') != token.coverage):
+            raise ReadError(409, 'cell_binding_changed')
         return True
 
     def publication_current(self, token):

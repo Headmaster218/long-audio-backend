@@ -6,7 +6,7 @@ or dispatch. Optional failures never replace the caller's primary outcome.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import hashlib
 import json
 import os
@@ -19,7 +19,8 @@ import threading
 
 from .native_owned_cells import (Unavailable, RollingWitness, SourceSpan, Cell,
     canonical, sha, text, digest, integer, exact_frame, validate_mapping, make_cells,
-    RATE, MAX_FRAME, CORE_FRAMES, MAX_PARTS, IO_BYTES, PROOF_BYTES)
+    RATE, MAX_FRAME, CORE_FRAMES, MAX_PARTS, IO_BYTES, PROOF_BYTES,
+    intersect_mapping, BATCH_CELLS, HANDOFF_BYTES)
 from .native_owned_cell_store import (CellStore, Receipt, Budget, qualified_runtime,
     RECEIPT_BYTES, LOCK_SECONDS, Operation)
 
@@ -185,6 +186,51 @@ def observed_pcm(path, expected_frames, budget):
     finally:fd.close()
 
 
+def seam_commit_projection(db, cid, budget):
+    """Only the two current commitment objects cross the SQLite/Python boundary.
+
+    Full metadata is screened but never returned. Nested CASE evaluation guards
+    every JSON operation, including a second length screen in the same SELECT,
+    so malformed or concurrently replaced metadata cannot reach extraction.
+    Irrelevant analyzer metadata never consumes the 256 KiB projection budget.
+    """
+    text(cid); budget.check()
+    length = db.execute('SELECT length(metadata) FROM chunks WHERE id=?', (cid,)).fetchone()
+    if length is None:return None
+    if length[0] is None or not 1 <= length[0] <= PROOF_BYTES:
+        raise Unavailable('primary_commit_projection_capacity')
+    projected = db.execute("""SELECT
+        CASE WHEN typeof(metadata)='text' THEN
+          CASE WHEN length(metadata) BETWEEN 1 AND ? THEN
+            CASE WHEN json_valid(metadata)=1 THEN
+              CASE WHEN json_type(metadata)='object' THEN
+                CASE WHEN json_type(metadata,'$.native_diarization')='object' THEN
+                  CASE WHEN json_type(metadata,'$.core_cut')='object' THEN
+                    CASE WHEN (SELECT COUNT(*) FROM json_each(metadata)
+                      WHERE key IN ('native_diarization','core_cut'))=2 THEN
+                      CASE WHEN length(CAST(json_extract(metadata,'$.native_diarization') AS BLOB))
+                        +length(CAST(json_extract(metadata,'$.core_cut') AS BLOB))<=? THEN
+                        json_array(json_extract(metadata,'$.native_diarization'),
+                                   json_extract(metadata,'$.core_cut'))
+                      END
+                    END
+                  END
+                END
+              END
+            END
+          END
+        END FROM chunks WHERE id=?""", (PROOF_BYTES, PROOF_BYTES - 3, cid)).fetchone()
+    budget.check()
+    if projected is None or type(projected[0]) is not str:return None
+    encoded = projected[0].encode('utf-8')
+    if not 1 <= len(encoded) <= PROOF_BYTES:return None
+    budget.projection(len(encoded))
+    values = json.loads(encoded)
+    if type(values) is not list or len(values) != 2 or any(type(value) is not dict for value in values):
+        return None
+    return {'native_diarization': values[0], 'core_cut': values[1]}
+
+
 class PrimaryAuthority:
     """Read-only, zero-busy-timeout authority; never uses Store.db's write path."""
     def __init__(self, store):
@@ -246,6 +292,8 @@ class PrimaryAuthority:
 
     def cell_valid(self, doc, budget, *, publishing):
         if self.owner is None:raise Unavailable('receipt_owner_unavailable')
+        from .native_owned_seam_cells import is_composite
+        if is_composite(doc):return self.seam_valid(doc, budget)
         dependencies = doc.get('dependencies')
         if type(dependencies) is not list or not 1 <= len(dependencies) <= MAX_PARTS:
             raise Unavailable('source_dependencies_capacity')
@@ -281,6 +329,56 @@ class PrimaryAuthority:
                         or metadata.get('native_diarization') != evidence['native']
                         or metadata.get('core_cut') != evidence['core_cut']):
                     return False
+        return True
+
+    def seam_commit_current(self, commit, scope, part, budget):
+        """Both completed rows retain their ORIGINAL commitment, even on reads."""
+        receipt = self.owner.receipt(part.chunk_id)
+        if (receipt is None or receipt.receipt_id != part.receipt_sha256
+                or receipt.session_id != scope['session_id'] or receipt.stream_id != scope['stream_id']
+                or receipt.digest != part.source_sha256 or receipt.frames != part.source_frames
+                or not self.receipt_valid(receipt, budget)):
+            return False
+        row = self.row(commit['chunk_id'], budget)
+        origin = float.fromhex(scope['origin_seconds_hex'])
+        if (row is None or row['session_id'] != scope['session_id'] or row['stream_id'] != scope['stream_id']
+                or row['status'] != 'completed'
+                or exact_frame(row['duration']) != commit['local_end_frame']
+                or exact_frame(row['next_offset']) != commit['local_end_frame']
+                or exact_frame(row['timeline_start'], origin=origin) != commit['source_origin_frame']):
+            return False
+        with self.db(budget) as db:
+            metadata = seam_commit_projection(db, commit['chunk_id'], budget)
+            if metadata is None:return False
+            first = db.execute("""SELECT c.timeline_start FROM stream_chunks sc INDEXED BY stream_order JOIN chunks c ON c.id=sc.chunk_id
+                WHERE sc.session_id=? AND sc.stream_id=? ORDER BY sc.position LIMIT 1""",
+                (scope['session_id'], scope['stream_id'])).fetchone()
+        if (first is None or first[0] != origin
+                or metadata.get('native_diarization') != commit['evidence']['native']
+                or metadata.get('core_cut') != commit['evidence']['core_cut']):return False
+        again = self.row(commit['chunk_id'], budget)
+        return again == row and self.receipt_valid(receipt, budget)
+
+    def seam_adjacent(self, left, right, scope, budget):
+        with self.db(budget) as db:
+            rows = db.execute("""SELECT chunk_id,session_id,stream_id,position FROM stream_chunks
+                WHERE chunk_id IN (?,?) ORDER BY position LIMIT 2""",
+                (left['chunk_id'], right['chunk_id'])).fetchall()
+        return (len(rows) == 2 and [r['chunk_id'] for r in rows] == [left['chunk_id'], right['chunk_id']]
+            and all(r['session_id'] == scope['session_id'] and r['stream_id'] == scope['stream_id'] for r in rows)
+            and rows[1]['position'] == rows[0]['position'] + 1)
+
+    def seam_valid(self, doc, budget):
+        from .native_owned_seam_cells import validate_document
+        doc, support, parts = validate_document(canonical(doc))
+        if self.owner is None:raise Unavailable('receipt_owner_unavailable')
+        generation = self.owner._epoch
+        # No single B anchor or a durable sidecar may authorize A's contribution.
+        for _ in range(2):
+            for commit, part in zip(doc['commits'], parts):
+                if not self.seam_commit_current(commit, doc['scope'], part, budget):return False
+            if not self.seam_adjacent(*doc['commits'], doc['scope'], budget):return False
+            if generation is not self.owner._epoch:return False
         return True
 
     def mapping(self, chunk, scope_start, start, end, budget):
@@ -367,22 +465,39 @@ class Capture:
         self.witness = RollingWitness(); self.scope = None; self.scope_start = 0.
         self.origin_frame = 0; self.budget = Budget(); self.active = False
         self.analyzer = None; self.analyzer_start = 0; self.last_reason = 'not_observed'
+        self.seam_enabled = bool(getattr(owner, 'seam_enabled', False))
+        self.observed_reset_generation = 0
+        self._seam_generation = object(); self._seam_owner_generation = owner._epoch
+        self._seam_tail = None; self._seam_provisional = None; self._seam_disabled = False
+        self.last_seam_reason = 'not_observed'
 
     def _failure(self, exc):
         reason = str(exc) if isinstance(exc, Unavailable) else ''
         self.last_reason = reason if re.fullmatch('[a-z_]{1,80}', reason) else 'optional_capture_unavailable'
         self.analyzer = None
+        self.invalidate_seam(self.last_reason)
 
     def health(self):
-        return dict(self.owner.health(), last_capture_reason=self.last_reason)
+        result = dict(self.owner.health(), last_capture_reason=self.last_reason)
+        if self.seam_enabled:
+            result.update(last_seam_reason=self.last_seam_reason, seam_tail_bytes=(
+                self._seam_tail.material_bytes if self._seam_tail is not None else 0),
+                seam_working_reservation_bytes=4 * 1024 * 1024)
+        return result
 
     def begin_prepare(self, chunk, info):
         self.active = False; self.analyzer = None; self.budget = Budget()
+        # An unconsumed provisional has no known True commit. It cannot become
+        # a tail merely because a later prepare starts, even for the same chunk.
+        if self._seam_provisional is not None:self.invalidate_seam('unconfirmed_primary_commit')
+        if self._seam_owner_generation is not self.owner._epoch:self.invalidate_seam('capture_revoked')
         if not self.owner.enabled or not self.owner.health()['ready']:return
         try:
             with self.budget.phase():
                 scope = ('stream', chunk['session_id'], info['stream_id']) if info else ('upload', chunk['session_id'], chunk['id'])
-                if scope != self.scope:self.witness = RollingWitness(); self.scope = scope
+                if scope != self.scope:
+                    self.invalidate_seam('seam_scope_changed')
+                    self.witness = RollingWitness(); self.scope = scope
                 self.scope_start = info['start'] if info else chunk['timeline_start']
                 self.origin_frame = exact_frame(chunk['timeline_start'], origin=self.scope_start)
                 self.active = True
@@ -393,7 +508,17 @@ class Capture:
     def observe_response(self, response):
         if not self.active:return
         try:
+            # The reset serial belongs to Capture; RollingWitness.__init__ is
+            # deliberately allowed to clear its own action counter on reset.
+            if type(response) is dict and set(response) == {'state', 'provenance'}:
+                self.invalidate_seam('seam_native_reset')
+                if self.observed_reset_generation >= (1 << 31) - 1:
+                    self._seam_disabled = True; raise Unavailable('seam_reset_generation_overflow')
+                self.observed_reset_generation += 1
             with self.budget.phase():self.witness.observe(response)
+            if self.witness.failure:
+                self.invalidate_seam('seam_invalid_native_observation')
+                if type(response) is dict and set(response) == {'state', 'provenance'}:self._seam_disabled = True
         except Exception as exc:
             self.witness.fail('native_response_budget_or_proof'); self._failure(exc)
 
@@ -432,12 +557,21 @@ class Capture:
                     chunk_id=chunk['id'], commit_start=start_local, commit_end=end_local,
                     commit_sha256=commit_hash, commit_evidence=evidence)
                 self.last_reason = 'validated_selected' if cells else 'no_native_overlap'
+                if self.seam_enabled:
+                    try:self.prepare_seam(chunk, native, parts, evidence, cells, a, b)
+                    except Exception as exc:
+                        # Optional composition must not discard already valid v1 cells.
+                        self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_prepare_unavailable')
                 return cells
         except Exception as exc:
             self._failure(exc); return ()
         finally:self.analyzer = None
 
     def committed(self, cells):
+        if self.seam_enabled:
+            try:cells = self.commit_seam(cells)
+            except Exception as exc:
+                self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_commit_unavailable')
         if not cells:return {'status': self.last_reason}
         # Called only after the exact primary commit_window returned True.
         try:
@@ -447,10 +581,114 @@ class Capture:
                     if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
                         raise Unavailable('primary_commit_or_source_unavailable')
                 result = self.owner.submit('publish', cells)
+                if self.seam_enabled and not isinstance(result, Operation):self.invalidate_seam('seam_publication_unavailable')
                 self.last_reason = 'publication_pending' if isinstance(result, Operation) else result['status']
                 return result
         except Exception as exc:
             self._failure(exc); return {'status': 'optional_unavailable', 'reason': self.last_reason}
+
+    def invalidate_seam(self, reason):
+        # Revocation can race an unlocked source read. A replaced token makes
+        # every local reference unusable; its bounded bytes stay charged until
+        # that synchronous hook returns, and no replacement slot is admitted.
+        self._seam_generation = object(); self._seam_owner_generation = self.owner._epoch
+        self._seam_tail = None; self._seam_provisional = None
+        self.last_seam_reason = reason if type(reason) is str and re.fullmatch('[a-z_]{1,80}', reason) else 'seam_unavailable'
+
+    def _seam_current(self, token, reset):
+        if (token is not self._seam_generation or self._seam_owner_generation is not self.owner._epoch
+                or reset != self.observed_reset_generation or self._seam_disabled
+                or not self.seam_enabled or not self.owner.enabled):
+            raise Unavailable('seam_generation_revoked')
+
+    def prepare_seam(self, chunk, native, mapping, evidence, cells, a, b):
+        from .native_owned_seam_cells import Piece, SIDE_FRAMES, TAIL_BYTES, WORKING_BYTES, STORE_POLICY_SHA256
+        if self.owner._store_policy != STORE_POLICY_SHA256:
+            raise Unavailable('incompatible_legacy_cell_policy')
+        if self._seam_disabled or self.scope is None or self.scope[0] != 'stream':
+            raise Unavailable('seam_explicit_stream_required')
+        token, reset = self._seam_generation, self.observed_reset_generation
+        self._seam_current(token, reset)
+        if b != self.origin_frame + exact_frame(chunk['duration']):raise Unavailable('seam_terminal_core_required')
+        if len(mapping) != 1 or mapping[0].chunk_id != chunk['id']:raise Unavailable('seam_one_source_per_core_required')
+        turns, native_proof = self.witness.prepared(native, self.scope_start, self.origin_frame)
+        scope = {'session_id': chunk['session_id'], 'stream_id': self.scope[2],
+                 'origin_seconds_hex': float(self.scope_start).hex(), 'epoch_id': native_proof['epoch_id'],
+                 'epoch_index': native_proof['epoch_index'], 'reset_generation': reset}
+        commit = {'chunk_id': chunk['id'], 'source_origin_frame': self.origin_frame,
+            'local_start_frame': evidence['start'], 'local_end_frame': evidence['end'],
+            'logical_start_frame': a, 'logical_end_frame': b, 'evidence': evidence, 'evidence_sha256': sha(evidence)}
+        # Full response intervals remain clipped to their actual query. The
+        # original analyzer context is hashed before its ordinary release.
+        witness = {'commit_index': 0, 'query_start_frame': max(self.analyzer_start, native_proof['replay_start']),
+            'query_end_frame': self.analyzer_start + len(self.analyzer) // 2,
+            'analyzer_start_frame': self.analyzer_start, 'analyzer_end_frame': self.analyzer_start + len(self.analyzer) // 2,
+            'analyzer_pcm16le_sha256': hashlib.sha256(self.analyzer).hexdigest(),
+            'piece_pcm16le_sha256': '0' * 64, 'native': native_proof,
+            'turns': [{'label': t.label, 'original': [t.start, t.end]} for t in turns]}
+        # Detach mutable producer dictionaries once, inside the proof ceiling.
+        metadata = json.loads(canonical({'scope': scope, 'commit': commit, 'witness': witness}))
+        def piece(lo, hi):
+            part = intersect_mapping(mapping, lo, hi)[0]
+            pcm = self.analyzer[2 * (lo - self.analyzer_start):2 * (hi - self.analyzer_start)]
+            if pcm != self.witness.read(lo, hi):raise Unavailable('seam_native_analyzer_mismatch')
+            if pcm != self.authority.original_pcm((part,), self.budget):raise Unavailable('seam_original_piece_mismatch')
+            self._seam_current(token, reset)
+            return Piece(metadata['scope'], metadata['commit'],
+                dict(metadata['witness'], piece_pcm16le_sha256=hashlib.sha256(pcm).hexdigest()), part, pcm)
+        # Current candidate has at most a prefix plus a terminal tail. The old
+        # single tail remains charged; no pending queue or retained analyzer.
+        old = self._seam_tail
+        tail_start = max(a, b - SIDE_FRAMES)
+        projected = (old.material_bytes if old is not None else 0) + 4 * SIDE_FRAMES + 6 * PROOF_BYTES
+        if projected > WORKING_BYTES:raise Unavailable('seam_assembly_working_capacity')
+        tail = piece(tail_start, b)
+        prefix = None
+        if old is not None:
+            if (old.scope != scope or evidence['start'] != 0 or old.commit['logical_end_frame'] != a
+                    or old.commit['chunk_id'] == chunk['id']):
+                self.invalidate_seam('seam_nonadjacent_tail'); old = None
+                token = self._seam_generation
+            else:
+                if not self.authority.seam_commit_current(old.commit, scope, old.part, self.budget):
+                    raise Unavailable('seam_previous_commit_unavailable')
+                prefix_end = min(b, a + SIDE_FRAMES)
+                prefix = tail if tail_start == a and prefix_end == b else piece(a, prefix_end)
+        self._seam_current(token, reset)
+        self._seam_provisional = (cells, token, reset, old, prefix, tail)
+        self.last_seam_reason = 'seam_provisional'
+
+    def commit_seam(self, cells):
+        from .native_owned_seam_cells import make_composite
+        provisional = self._seam_provisional; self._seam_provisional = None
+        if provisional is None:return cells
+        original, token, reset, left, right, tail = provisional
+        if cells is not original:raise Unavailable('seam_commit_hook_mismatch')
+        self._seam_current(token, reset)
+        budget = Budget()
+        with budget.phase():
+            # Promotion is reached only by the unchanged Worker's True-return
+            # hook, including an A which selected no ordinary cell at all.
+            if not self.authority.seam_commit_current(tail.commit, tail.scope, tail.part, budget):
+                raise Unavailable('seam_current_commit_unavailable')
+            self._seam_current(token, reset)
+            result = cells
+            if left is not None and right is not None:
+                if len(cells) >= BATCH_CELLS:
+                    self.last_seam_reason = 'seam_batch_saturated'
+                else:
+                    composite = make_composite(left, right)
+                    if sum(len(c.pcm) + len(c.proof) for c in cells) + len(composite.pcm) + len(composite.proof) > HANDOFF_BYTES:
+                        self.last_seam_reason = 'seam_handoff_saturated'
+                    elif not self.authority.cell_valid(json.loads(composite.proof), budget, publishing=True):
+                        raise Unavailable('seam_both_commits_unavailable')
+                    else:
+                        self._seam_current(token, reset)
+                        result = cells + (composite,); self.last_seam_reason = 'seam_validated_selected'
+            else:self.last_seam_reason = 'seam_tail_promoted'
+            self._seam_current(token, reset)
+            self._seam_tail = tail
+            return result
 
     def streamed_descriptor(self, fd, streamed_digest, total):
         if not self.owner.enabled or not self.owner.health()['ready']:return None
@@ -519,6 +757,7 @@ class Capture:
 
     def close(self):
         self.active = False; self.analyzer = None; self.witness.fail('capture_closed')
+        self.invalidate_seam('capture_closed')
         return self.owner.close()
 
 
@@ -546,7 +785,8 @@ def register(store, *, fragment_provider_factory=None, instance_lock=None):
         if _REGISTRY:raise Unavailable('one_optional_component_owner')
         reason = configuration_reason(settings, fragment_provider_factory)
         profile = None if reason else qualified_runtime(settings.data_dir)
-        owner = CellStore(directory, authority, enabled=enabled, qualification=profile, instance_lock=instance_lock)
+        owner = CellStore(directory, authority, enabled=enabled, qualification=profile, instance_lock=instance_lock,
+            seam_enabled=bool(getattr(settings, 'native_owned_seam_cells_enabled', False)))
         authority.owner = owner; capture = Capture(owner, authority)
         _REGISTRY[key] = capture
     finally:_REGISTRY_LOCK.release()
@@ -574,4 +814,5 @@ def notify_deleted(store, sid):
     try:capture = _REGISTRY.get(key)
     finally:_REGISTRY_LOCK.release()
     if capture is None:return None
+    capture.invalidate_seam('capture_revoked')
     return capture.owner.revoked()

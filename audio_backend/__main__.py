@@ -46,6 +46,7 @@ def main(argv=None):
     parser.add_argument('--verified-identity-policy',help='Explicit experimental verified-review JSON policy; applies only to newly requested verified groups')
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
+    parser.add_argument('--native-owned-seam-cells',action='store_true',help='UNQUALIFIED default-OFF two-commit seam alternatives; requires --native-owned-cells; explicit overlapping diagnostics only')
     parser.add_argument('--native-owned-support',action='store_true',help='Experimental volatile native overlap support for isolated PCM uploads up to20s; read-only, lost on restart')
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit volatile single MOSS job service; requires native-owned support, CPU and no overlap/fragment provider')
     parser.add_argument('--moss-jobs-model',type=Path,help='Explicit local fixed-profile MOSS model; does not enable jobs implicitly')
@@ -55,6 +56,8 @@ def main(argv=None):
     parser.add_argument('--speaker-profile-strategy', choices=['max','centroid'], default='max', help='Score only explicit human-merged examples; never adapt from automatic matches')
     parser.add_argument('--speaker-calibration', help='Opt-in model-bound policy: eres2net-ami20-v1 or a local profile JSON; controls speaker thresholds and scoring')
     args = parser.parse_args(argv)
+    if args.native_owned_seam_cells and not args.native_owned_cells:
+        parser.error('--native-owned-seam-cells requires --native-owned-cells')
     if args.moss_jobs_model and not args.moss_jobs:
         parser.error('MOSS jobs model requires --moss-jobs')
     if args.moss_jobs and (not args.moss_jobs_model or not args.native_owned_support
@@ -190,6 +193,7 @@ def main(argv=None):
                         speaker_support_enabled=args.speaker_support_review,
                         native_owned_support_enabled=args.native_owned_support,
                         native_owned_cells_enabled=args.native_owned_cells,
+                        native_owned_seam_cells_enabled=args.native_owned_seam_cells,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         verified_identity_policy_file=args.verified_identity_policy,

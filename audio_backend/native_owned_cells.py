@@ -199,6 +199,9 @@ def validate_document(proof):
     if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:
         raise Unavailable('proof_capacity')
     doc = json.loads(proof)
+    if type(doc) is dict and 'schema' in doc:
+        from .native_owned_seam_cells import validate_document as validate_seam
+        return validate_seam(proof)
     if type(doc) is not dict or set(doc) != {'policy', 'support', 'dependencies', 'native',
             'turns', 'selected', 'commit_evidence', 'commit'}:
         raise Unavailable('proof_shape')
@@ -276,7 +279,9 @@ class Cell:
                 or float32_digest(self.pcm) != self.support.float32le_sha256):
             raise Unavailable('cell_pcm_mismatch')
         doc, support, parts = validate_document(self.proof)
-        if (support != self.support or parts != self.parts or doc['commit'] != {
+        from .native_owned_seam_cells import anchor, is_composite, validate_cell_pcm
+        if is_composite(doc):validate_cell_pcm(doc, self.pcm)
+        if (support != self.support or parts != self.parts or anchor(doc) != {
                 'chunk_id': self.chunk_id, 'start': self.commit_start,
                 'end': self.commit_end, 'sha256': self.commit_sha256}):
             raise Unavailable('cell_proof_mismatch')
@@ -284,10 +289,13 @@ class Cell:
     @property
     def cell_id(self):
         # Authorization aliases are deliberately excluded from content identity.
-        return sha({'policy': POLICY_SHA256, 'support': self.support.to_dict()})
+        return sha({'policy': json.loads(self.proof)['policy'], 'support': self.support.to_dict()})
 
     @property
     def ownership(self):
+        from .native_owned_seam_cells import is_composite, ownership
+        doc = json.loads(self.proof)
+        if is_composite(doc):return ownership(doc)
         return sha({'session': self.session_id, 'chunk': self.chunk_id,
             'core': [self.commit_start, self.commit_end],
             'cell': [self.support.start_frame, self.support.end_frame]})

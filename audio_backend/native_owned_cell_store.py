@@ -23,6 +23,8 @@ import time
 from .native_owned_cells import (Unavailable, Cell, SourceSupport, canonical, digest,
     integer, text, POLICY_SHA256, PROOF_BYTES, CELL_PCM_BYTES, MAX_PARTS,
     BATCH_CELLS, HANDOFF_BYTES, IO_BYTES, validate_document, float32_digest)
+from .native_owned_seam_cells import (POLICY_SHA256 as SEAM_POLICY_SHA256,
+    STORE_POLICY_SHA256, is_composite, anchor as seam_anchor, coverage as seam_coverage)
 
 TOTAL_BYTES = 64 * 1024**2
 DATABASE_BYTES = 24 * 1024**2
@@ -452,10 +454,14 @@ class Pin:
 
 class CellStore:
     """No growing thread set, active+pending queue, or retained omitted-row log."""
-    def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None):
+    def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None,
+                 seam_enabled=False):
         self.directory = Path(directory)
         self.path = self.directory / 'cells.sqlite3'
         self.authority = authority; self.enabled = enabled; self.qualification = qualification
+        if type(seam_enabled) is not bool:raise Unavailable('invalid_seam_flag')
+        self.seam_enabled = seam_enabled
+        self._store_policy = STORE_POLICY_SHA256 if seam_enabled else POLICY_SHA256
         self.instance_lock = instance_lock  # Retained while owner cleanup is unresolved.
         self._lock = threading.Lock(); self._wake = threading.Event(); self._stop = threading.Event()
         self._reconcile = threading.Event(); self._ready = threading.Event()
@@ -511,6 +517,8 @@ class CellStore:
                 raise Unavailable('publication_batch_capacity')
             if sum(len(c.proof) + len(c.pcm) for c in payload) > HANDOFF_BYTES:
                 raise Unavailable('publication_material_capacity')
+            reason = self._publication_policy(payload)
+            if reason:return {'status': 'optional_unavailable', 'reason': reason}
         elif kind == 'jobs_list':
             if type(payload) is not tuple or len(payload) != 3:raise Unavailable('cell_query_binding')
             text(payload[0]); integer(payload[1], (1 << 63) - 1); integer(payload[2], PAGE_ROWS, 1)
@@ -535,6 +543,17 @@ class CellStore:
             self._accepted = min(self._accepted + 1, (1 << 31) - 1)
             self._wake.set(); return op
         finally:self._lock.release()
+
+    def _publication_policy(self, cells):
+        # The qualified writer stays byte-identical. Profile admission happens
+        # before its handoff and is checked again by the sole owner before SQL.
+        for cell in cells:
+            doc, _, _ = validate_document(cell.proof)
+            if is_composite(doc):
+                if self._store_policy != STORE_POLICY_SHA256:
+                    return 'incompatible_legacy_cell_policy'
+                if not self.seam_enabled:return 'seam_composites_disabled'
+        return None
 
     def revoked(self):
         # A single generation/event, not an unbounded per-session cleanup queue.
@@ -705,7 +724,7 @@ class CellStore:
             db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, HANDOFF_BYTES)
             db.setlimit(sqlite3.SQLITE_LIMIT_SQL_LENGTH, SQL_PROJECTION_BYTES)
             db.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
-            binding = (SCHEMA, POLICY_SHA256, self.authority.identity,
+            binding = (SCHEMA, self._store_policy, self.authority.identity,
                        hashlib.sha256(canonical(asdict(self.qualification))).hexdigest(),
                        canonical({'namespace': list(self._namespace_identity),
                                   'ancestors': [list(item) for item in self._ancestor_identity]}).decode('ascii'),
@@ -715,8 +734,12 @@ class CellStore:
                 if tables != {'store_meta', 'sources', 'cells', 'dependencies'}:
                     raise Unavailable('optional_schema_mismatch')
                 row = db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
-                if row is None or tuple(row) != binding:
+                if (row is None or row['policy'] not in (POLICY_SHA256, STORE_POLICY_SHA256)
+                        or tuple(row)[:1] + tuple(row)[2:] != binding[:1] + binding[2:]):
                     raise Unavailable('optional_primary_binding_mismatch')
+                # Existing known profiles keep their durable policy. No upgrade,
+                # metadata rewrite or migration follows a production-flag change.
+                self._store_policy = row['policy']
             else:
                 self._schema(db)
                 db.execute('INSERT INTO store_meta(id,schema,policy,primary_identity,qualification,namespace_identity,database_identity) VALUES(1,?,?,?,?,?,?)',
@@ -883,11 +906,14 @@ class CellStore:
             raise Unavailable('stored_cell_length')
         proof = self._db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
         budget.projection(len(proof)); doc, support, _ = validate_document(proof)
-        if (canonical(doc) != proof or doc.get('policy') != POLICY_SHA256
+        policy = doc['policy']
+        anchor = seam_anchor(doc) if is_composite(doc) else doc['commit']
+        accepted = (POLICY_SHA256, SEAM_POLICY_SHA256) if self._store_policy == STORE_POLICY_SHA256 else (POLICY_SHA256,)
+        if (canonical(doc) != proof or policy not in accepted
                 or type(doc.get('dependencies')) is not list or not 1 <= len(doc['dependencies']) <= MAX_PARTS
-                or doc['commit']['chunk_id'] != row['cid']
+                or anchor['chunk_id'] != row['cid']
                 or any(p['session_id'] != row['sid'] for p in doc['dependencies'])
-                or hashlib.sha256(canonical({'policy': POLICY_SHA256, 'support': support.to_dict()})).hexdigest() != cell_id):
+                or hashlib.sha256(canonical({'policy': policy, 'support': support.to_dict()})).hexdigest() != cell_id):
             raise Unavailable('stored_cell_proof')
         return row, doc, proof
 
@@ -914,6 +940,7 @@ class CellStore:
                         'state': row['state'], 'proof_sha256': hashlib.sha256(proof).hexdigest(),
                         'support': support, 'owner_generation': op.epoch,
                         'pcm_retained': row['n'] is not None and row['state'] == 'retained'}
+            if is_composite(doc):metadata['coverage'] = seam_coverage(doc)
             if op.kind != 'jobs_detail':
                 if metadata['proof_sha256'] != proof_hash or support.support_id != support_id:
                     raise Unavailable('cell_binding_changed')
@@ -930,7 +957,9 @@ class CellStore:
                 if op.kind in ('jobs_detail', 'validate_dispatch'):result['detail'] = proof
                 return result
             # The detail itself is the admitted <=64 KiB proof, no large wrapper.
-            return {'status': 'available', 'detail': proof, 'regeneration_eligible': True}
+            result = {'status': 'available', 'detail': proof, 'regeneration_eligible': True}
+            if is_composite(doc):result['coverage'] = seam_coverage(doc)
+            return result
         if row['n'] is None:raise Unavailable('pcm_not_retained')
         if len(self._pins) >= MAX_PINS:raise Unavailable('read_pin_capacity')
         pcm = self._db.execute('SELECT pcm FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
@@ -956,7 +985,9 @@ class CellStore:
             # Pin remains owned by the operation until claim or positive drain.
             # The exact proof bytes are shared with the token, never rebuilt.
             return dict(metadata, status='available', detail=proof)
-        return {'status': 'available', 'pin': pin, 'regeneration_eligible': True}
+        result = {'status': 'available', 'pin': pin, 'regeneration_eligible': True}
+        if is_composite(doc):result['coverage'] = seam_coverage(doc)
+        return result
 
     def _list(self, op, budget):
         scoped = op.kind == 'jobs_list'
@@ -990,6 +1021,7 @@ class CellStore:
                         'start_frame': support.start_frame, 'end_frame': support.end_frame,
                         'core_start_frame': support.core_start_frame, 'core_end_frame': support.core_end_frame})
                 else:result.append(dict(item))
+                if is_composite(doc):result[-1]['coverage'] = seam_coverage(doc)
                 checks.append(doc)
             self._generation(op)
             cursor = item['seq']
@@ -1102,7 +1134,10 @@ class CellStore:
                         self._scan(budget)
                         if op is None:self._sweep(budget)
                         elif op.kind == 'receipt':op.result = self._receipt(op, budget)
-                        elif op.kind == 'publish':op.result = self._publish(op, budget)
+                        elif op.kind == 'publish':
+                            reason = self._publication_policy(op.payload)
+                            if reason:raise Unavailable(reason)
+                            op.result = self._publish(op, budget)
                         elif op.kind in ('read', 'detail', 'jobs_detail', 'dispatch', 'validate_dispatch'):
                             op.result = self._read(op, budget)
                         elif op.kind in ('list', 'jobs_list'):op.result = self._list(op, budget)

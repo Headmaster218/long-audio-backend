@@ -312,6 +312,113 @@ class CaptureFixture(unittest.TestCase):
 
     def cell_count(self):return len(wait_operation(self, self.owner.submit('list', (self.sid, 0)))['cells'])
 
+    def _seam_authority_fixture(self, complete_second=True):
+        from test_native_owned_seam_cells import synthetic_composite
+        first = self.upload('seam-a', frames=16000, stream_id='stream')
+        second = self.upload('seam-b', frames=16000, stream_id='stream', stream_final=True)
+        receipts = (self.owner.receipt(first), self.owner.receipt(second))
+        cell = synthetic_composite(frames=16000, sid=self.sid, cids=(first, second),
+            receipt_ids=tuple(r.receipt_id for r in receipts), source_hashes=tuple(r.digest for r in receipts))
+        doc = json.loads(cell.proof)
+        for index, commit in enumerate(doc['commits']):
+            if index == 1 and not complete_second:break
+            chunk = self.primary.claim(); self.assertEqual(chunk['id'], commit['chunk_id'])
+            result = {'segments': [], 'events': [], 'metadata': {
+                'native_diarization': commit['evidence']['native'], 'core_cut': commit['evidence']['core_cut']}}
+            self.assertTrue(self.primary.commit_window(chunk, 0., 1., result))
+            self.assertEqual(self.primary.chunk(chunk['id'])['status'], 'completed')
+        return cell, doc
+
+    def test_seam_authority_requires_both_real_completed_commits(self):
+        cell, doc = self._seam_authority_fixture(complete_second=False)
+        with cell_store.Budget().phase() as budget:
+            self.assertFalse(self.authority.cell_valid(doc, budget, publishing=True))
+        commit = doc['commits'][1]; chunk = self.primary.claim()
+        self.assertEqual(chunk['id'], commit['chunk_id'])
+        self.assertTrue(self.primary.commit_window(chunk, 0., 1., {'segments': [], 'events': [],
+            'metadata': {'native_diarization': commit['evidence']['native'], 'core_cut': commit['evidence']['core_cut']}}))
+        for publishing in (False, True):
+            with cell_store.Budget().phase() as budget:
+                self.assertTrue(self.authority.cell_valid(doc, budget, publishing=publishing))
+        with cell_store.Budget().phase() as budget:
+            self.assertEqual(self.authority.original_pcm(cell.parts, budget), cell.pcm)
+
+    def test_seam_changed_either_commit_metadata_invalidates_every_read(self):
+        cell, doc = self._seam_authority_fixture()
+        for commit in doc['commits']:
+            cid = commit['chunk_id']
+            with self.primary.db() as db:saved = db.execute('SELECT metadata FROM chunks WHERE id=?', (cid,)).fetchone()[0]
+            changed = json.loads(saved); changed['core_cut']['nominal'] += .25
+            with self.primary.db() as db:db.execute('UPDATE chunks SET metadata=? WHERE id=?', (json.dumps(changed), cid))
+            for publishing in (False, True):
+                with cell_store.Budget().phase() as budget:
+                    self.assertFalse(self.authority.cell_valid(doc, budget, publishing=publishing))
+            with self.primary.db() as db:db.execute('UPDATE chunks SET metadata=? WHERE id=?', (saved, cid))
+
+    def _assert_seam_source_replacement_or_removal(self, index):
+        cell, doc = self._seam_authority_fixture(); part = cell.parts[index]
+        with self.primary.db() as db:path = Path(db.execute('SELECT path FROM chunks WHERE id=?', (part.chunk_id,)).fetchone()[0])
+        with path.open('r+b') as out:out.seek(44); out.write(b'\x02\0')
+        with cell_store.Budget().phase() as budget:
+            self.assertFalse(self.authority.cell_valid(doc, budget, publishing=False))
+        path.unlink()
+        with cell_store.Budget().phase() as budget:
+            self.assertFalse(self.authority.cell_valid(doc, budget, publishing=True))
+
+    def test_seam_left_source_replacement_or_removal_invalidates(self):
+        self._assert_seam_source_replacement_or_removal(0)
+
+    def test_seam_right_source_replacement_or_removal_invalidates(self):
+        self._assert_seam_source_replacement_or_removal(1)
+
+    def test_seam_revocation_between_unlocked_source_checks_fails_closed(self):
+        cell, doc = self._seam_authority_fixture(); original = self.authority.seam_commit_current; seen = []
+        def revoke(commit, scope, part, budget):
+            result = original(commit, scope, part, budget)
+            if not seen:seen.append(True); self.owner.revoked()
+            return result
+        with patch.object(self.authority, 'seam_commit_current', side_effect=revoke):
+            with cell_store.Budget().phase() as budget:
+                self.assertFalse(self.authority.cell_valid(doc, budget, publishing=False))
+
+
+    def test_seam_primary_projection_budget_declines_without_widening_limits(self):
+        cell, doc = self._seam_authority_fixture()
+        # Twelve actual primary commitment projections share one unchanged
+        # operation budget. Irrelevant analyzer output must not be copied.
+        saved = {}
+        for commit in doc['commits']:
+            cid = commit['chunk_id']
+            with self.primary.db() as db:
+                saved[cid] = db.execute('SELECT metadata FROM chunks WHERE id=?', (cid,)).fetchone()[0]
+                metadata = json.loads(saved[cid]); metadata['irrelevant_analyzer_output'] = 'x' * 30000
+                db.execute('UPDATE chunks SET metadata=? WHERE id=?', (json.dumps(metadata), cid))
+        budget = cell_store.Budget()
+        with budget.phase():
+            for _ in range(3):self.assertTrue(self.authority.cell_valid(doc, budget, publishing=True))
+        self.assertLess(budget.sql_bytes, cell_store.SQL_PROJECTION_BYTES)
+        # Invalid JSON, missing/object-type violations, duplicate relevant keys
+        # and oversized UTF-8 projections decline through the same actual SQL.
+        cid = doc['commits'][0]['chunk_id']; baseline = json.loads(saved[cid])
+        malformed = ['{', '[]', '{}', json.dumps({'native_diarization': {}, 'core_cut': []}),
+            json.dumps({'native_diarization': [], 'core_cut': {}}),
+            json.dumps({'native_diarization': None, 'core_cut': {}}),
+            '{"native_diarization":{},"native_diarization":{},"core_cut":{}}',
+            json.dumps({'native_diarization': {'oversized': '\u00e9' * 33000}, 'core_cut': {}}, ensure_ascii=False),
+            json.dumps({'native_diarization': {}, 'core_cut': {'oversized': '\u00e9' * 33000}}, ensure_ascii=False)]
+        for raw in malformed:
+            with self.subTest(shape=raw[:40]):
+                with self.primary.db() as db:db.execute('UPDATE chunks SET metadata=? WHERE id=?', (raw, cid))
+                with cell_store.Budget().phase() as bounded:
+                    self.assertFalse(self.authority.cell_valid(doc, bounded, publishing=False))
+        with self.primary.db() as db:db.execute('UPDATE chunks SET metadata=? WHERE id=?', (saved[cid], cid))
+        budget = cell_store.Budget(); budget.sql_bytes = cell_store.SQL_PROJECTION_BYTES - 1024
+        with self.assertRaisesRegex(Unavailable, 'operation_work_capacity'):
+            with budget.phase():self.authority.cell_valid(doc, budget, publishing=False)
+        self.assertEqual(cell_store.SQL_PROJECTION_BYTES, 256 * 1024)
+        self.assertEqual(cell_store.SQL_STEPS, 150000); self.assertEqual(cell_store.OP_SECONDS, .5)
+
+
 
 class ConfigurationAndOwnershipTests(unittest.TestCase):
     def test_default_off_and_invalid_optional_configuration_explicit(self):

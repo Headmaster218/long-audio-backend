@@ -24,6 +24,7 @@ from audio_backend.native_owned_support_cache import ReadError
 from test_native_owned_support_cache import CacheFixture
 from test_native_owned_cell_store import SyntheticAuthority, simulated_profile, wait_operation
 from test_native_owned_cells import synthetic_cell
+from test_native_owned_seam_cells import synthetic_composite
 from test_native_execution_permit import sample
 from test_moss_handy_controller import FakeDriver, clean
 from test_moss_handy_jobs import ManualThread, retain_outcome
@@ -81,6 +82,24 @@ class CellJobsFixture(CacheFixture):
             'expected_cell_revision':detail['revision'], 'expected_proof_sha256':hashlib.sha256(cell.proof).hexdigest(),
             'support_id':cell.support.support_id, 'profile':jobs.NAME}
         return cell, body
+
+    def ready_composite(self, *, frames=16):
+        if not self.cell_owner.seam_enabled:
+            self.assertTrue(self.cell_owner.close())
+            self.cell_owner = cell_store.CellStore(self.root / 'seam-owned-cells', self.authority,
+                enabled=True, seam_enabled=True, qualification=simulated_profile(self.root), instance_lock=object())
+            self.authority.owner = self.cell_owner; self.cell_owner.start()
+            self.assertTrue(self.cell_owner._ready.wait(3.), self.cell_owner.health())
+            self.source = adapter.CellJobsSource(self.cell_owner, self.store)
+            self.owner.cell_source = self.source
+        cell = synthetic_composite(frames=frames)
+        result = self.operation('publish', (cell,))
+        self.assertEqual(result['status'], 'durable', result)
+        detail = self.source.detail('session', cell.cell_id)
+        return cell, {'jobs_epoch':self.owner.jobs_epoch, 'expected_cell_sequence':detail['sequence'],
+            'expected_cell_revision':detail['revision'], 'expected_proof_sha256':hashlib.sha256(cell.proof).hexdigest(),
+            'support_id':cell.support.support_id, 'profile':jobs.NAME,
+            'coverage_intent':'overlapping_diagnostic'}
 
     def submit_cell(self, cell, body, key='cell', **kwargs):
         return self.owner.submit_cell(cell.session_id, cell.cell_id, body, key, **kwargs)
@@ -445,3 +464,104 @@ class CellJobsTests(CellJobsFixture):
         self.cell_owner=fresh;self.authority.owner=fresh;fresh.start();self.assertTrue(fresh._ready.wait(3.))
         self.assertEqual(self.operation('detail',cell.cell_id)['detail'],cell.proof)
         self.assertFalse(self.owner._records);self.assertFalse(self.drivers)
+
+
+    def test_seam_intent_is_version_scoped_and_rejection_positively_releases_pin(self):
+        composite, body = self.ready_composite()
+        for value in (None, 'new_primary_audio', True, {}):
+            request = dict(body)
+            if value is None:request.pop('coverage_intent')
+            else:request['coverage_intent'] = value
+            with self.subTest(value=value), self.assertRaises(ReadError) as caught:
+                self.submit_cell(composite, request)
+            self.assertEqual(caught.exception.reason, 'coverage_intent_required')
+            self.assertFalse(self.source.cleanup_pending); self.assertFalse(self.cell_owner._pins)
+            self.assertFalse(self.owner._records); self.assertFalse(self.owner._keys); self.assertFalse(self.drivers)
+        ordinary, legacy = self.ready_cell()
+        with self.assertRaises(ReadError) as caught:
+            self.submit_cell(ordinary, {**legacy, 'coverage_intent':'overlapping_diagnostic'})
+        self.assertEqual(caught.exception.reason, 'coverage_intent_not_allowed')
+        self.assertFalse(self.source.cleanup_pending); self.assertFalse(self.cell_owner._pins)
+        self.assertFalse(self.owner._records); self.assertFalse(self.drivers)
+        self.assertEqual(self.submit_cell(composite, body)[0], 202)
+
+    def test_seam_intent_rejection_keeps_contended_pin_charged_until_ack(self):
+        cell, body = self.ready_composite(); request = dict(body); request.pop('coverage_intent')
+        with patch.object(self.cell_owner, '_release_pin', return_value=False):
+            with self.assertRaises(ReadError):self.submit_cell(cell, request)
+            self.assertTrue(self.source.cleanup_pending); self.assertEqual(len(self.cell_owner._pins), 1)
+            pending = self.source._pending; self.assertFalse(pending.released)
+            self.assertFalse(self.owner._records); self.assertFalse(self.drivers)
+        self.cell_owner._wake.set(); self.assertTrue(pending.pin.release_done.wait(.5))
+        self.assertNotIn(id(pending.pin), self.cell_owner._pins); self.assertFalse(self.source.cleanup_pending)
+        self.assertEqual(self.submit_cell(cell, body)[0], 202)
+
+    def test_seam_token_summary_and_result_carry_exact_alternative_coverage(self):
+        cell, body = self.ready_composite(); expected = json.loads(cell.proof)['coverage']
+        code, summary = self.submit_cell(cell, body)
+        self.assertEqual(code, 202); self.assertEqual(summary['cell_binding']['coverage'], expected)
+        record = self.owner._live; token = record['token']
+        self.assertEqual(token.coverage, expected); self.assertEqual(token.coverage_intent, 'overlapping_diagnostic')
+        self.assertEqual(token.projection()['coverage'], expected)
+        self.assertEqual(token.support.core_end_frame, 32)
+        self.assertFalse(expected['adds_primary_audio']); self.assertFalse(expected['automatic_dispatch'])
+        self.assertLessEqual(len(cells.canonical(token.projection())), 4096)
+        self.assertTrue(self.source.revalidate_dispatch(token))
+        with self.assertRaises(ReadError):self.source.revalidate_dispatch(replace(token, coverage_intent=None))
+        record = self.finish()
+        result = json.loads(self.owner.content('session', record['job_id'], 'result'))
+        self.assertEqual(result['cell_binding']['coverage'], expected)
+        self.assertEqual(self.owner.content('session', record['job_id'], 'raw'), b'[0][S1]synthetic[1]')
+        self.assertFalse(self.cell_owner._pins); self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_seam_same_key_exact_repeat_does_not_reacquire_or_dispatch(self):
+        cell, body = self.ready_composite(); code, first = self.submit_cell(cell, body)
+        self.assertEqual(code, 202)
+        with patch.object(self.source, 'acquire_dispatch', side_effect=AssertionError('no second acquisition')):
+            self.assertEqual(self.submit_cell(cell, body)[1]['job_id'], first['job_id'])
+            missing = dict(body); missing.pop('coverage_intent')
+            with self.assertRaises(ReadError) as caught:self.submit_cell(cell, missing)
+            self.assertEqual(caught.exception.reason, 'idempotency_conflict')
+            with self.assertRaises(ReadError) as caught:
+                self.submit_cell(cell, {**body, 'coverage_intent':'new_primary_audio'})
+            self.assertEqual(caught.exception.reason, 'idempotency_conflict')
+        self.finish()
+        ordinary, legacy = self.ready_cell()
+        with patch.object(self.source, 'acquire_dispatch', side_effect=AssertionError('no cross-target acquisition')):
+            with self.assertRaises(ReadError) as caught:self.submit_cell(ordinary, legacy)
+        self.assertEqual(caught.exception.reason, 'idempotency_conflict')
+        self.assertEqual(len(self.owner._records), 1); self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_seam_either_dependency_revokes_later_raw_and_result(self):
+        cell, body = self.ready_composite(); self.submit_cell(cell, body); record = self.finish()
+        # Synthetic authority denial models each dependency independently; the
+        # primary-row/receipt mechanics have separate Capture authority fixtures.
+        deadline = time.monotonic() + 1.5
+        self.cell_owner._wake.set()
+        while self.cell_owner._reconcile.is_set() and time.monotonic() < deadline:time.sleep(.005)
+        self.assertFalse(self.cell_owner._reconcile.is_set())
+        original = self.authority.cell_valid
+        for cid in ('left', 'right'):
+            def denied(doc, budget, *, publishing):
+                if any(part['chunk_id'] == cid for part in doc['dependencies']):return False
+                return original(doc, budget, publishing=publishing)
+            with self.subTest(cid=cid), patch.object(self.authority, 'cell_valid', side_effect=denied):
+                for kind in ('raw', 'result'):
+                    with self.assertRaises(ReadError) as caught:self.owner.content('session', record['job_id'], kind)
+                    self.assertEqual(caught.exception.reason, 'cell_revoked')
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1); self.assertFalse(self.cell_owner._pins)
+
+    def test_seam_production_off_keeps_retained_explicit_diagnostic_available(self):
+        cell, body = self.ready_composite(); namespace = self.cell_owner.directory
+        self.assertTrue(self.cell_owner.close())
+        self.cell_owner = cell_store.CellStore(namespace, self.authority, enabled=True,
+            seam_enabled=False, qualification=simulated_profile(self.root), instance_lock=object())
+        self.authority.owner = self.cell_owner; self.cell_owner.start()
+        self.assertTrue(self.cell_owner._ready.wait(3.))
+        self.source = adapter.CellJobsSource(self.cell_owner, self.store); self.owner.cell_source = self.source
+        self.assertEqual(self.source.detail('session', cell.cell_id)['detail'], cell.proof)
+        self.assertEqual(self.submit_cell(cell, body)[0], 202); self.finish()
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+        with patch.object(self.store.settings, 'native_owned_cells_enabled', False):
+            with self.assertRaises(ReadError) as caught:self.source.detail('session', cell.cell_id)
+        self.assertEqual(caught.exception.reason, 'feature_disabled')

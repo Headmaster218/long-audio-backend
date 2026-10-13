@@ -45,7 +45,12 @@ def parse_body(raw, kind):
     elif kind == 'cell_submit':
         fields |= {'expected_cell_sequence', 'expected_cell_revision',
                    'expected_proof_sha256', 'support_id', 'profile'}
-    if type(value) is not dict or set(value) != fields:
+    if type(value) is not dict:
+        raise ReadError(409, 'invalid_body')
+    if kind == 'cell_submit' and set(value) == fields | {'coverage_intent'}:
+        if value['coverage_intent'] != 'overlapping_diagnostic':
+            raise ReadError(409, 'invalid_body')
+    elif set(value) != fields:
         raise ReadError(409, 'invalid_body')
     if type(value['jobs_epoch']) is not str or HEX32.fullmatch(value['jobs_epoch']) is None:
         raise ReadError(409, 'invalid_body')

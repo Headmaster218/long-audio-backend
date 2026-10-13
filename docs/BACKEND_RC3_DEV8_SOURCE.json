@@ -1,0 +1,279 @@
+{
+  "schema": "reviewed-backend-rc3-dev8-source-v1",
+  "version": "0.2.0rc3.dev8",
+  "base_commit": "ebc7a02fb4420c0089f2a146ec6bf9dcc23137b4",
+  "base_tree": "41a091d97438238c88491a4c543002b47e647c72",
+  "base_sole_parent": "9e0a135bda2c37641fb0a641655835a0c6a92feb",
+  "base_files": 346,
+  "base_bytes": 4487300,
+  "base_source_inventory_sha256": "5fe0839de7a9e9092a686dd52a601edea51780406cb49bca6c2c22a4b3ee53ab",
+  "design_package": {
+    "plan": "5603a38c8b80d7c4877380606ac47ec38b24b05599f73aa20e4a20b453ad8b8b",
+    "inventory": "876863d909d8d8f2439b2194c63aae0a58eca7090ae4c3cfa65deb6ffb389579",
+    "clarification": "745f6f8cb9261841e1719c8eb724f71a75b6db6bcc31217580ec32a5bd9b803b",
+    "identity_correction": "b1e24da3e5fdaba63367f110550cb5dcea3ccfa8112d84649a374fea5ceba3f2"
+  },
+  "composed_inventory": {
+    "added": [
+      "audio_backend/native_owned_seam_cells.py",
+      "docs/BACKEND_RC3_DEV8_SOURCE.json",
+      "docs/NATIVE_OWNED_SEAM_CELLS.md",
+      "tests/test_backend_rc3_dev8_source.py",
+      "tests/test_native_owned_seam_cells.py"
+    ],
+    "changed": [
+      "audio_backend/__init__.py",
+      "audio_backend/__main__.py",
+      "audio_backend/moss_handy_http.py",
+      "audio_backend/native_owned_cell_capture.py",
+      "audio_backend/native_owned_cell_jobs.py",
+      "audio_backend/native_owned_cell_store.py",
+      "audio_backend/native_owned_cells.py",
+      "audio_backend/settings.py",
+      "docs/FRAGMENT_STAGING_POLICY.json",
+      "pyproject.toml",
+      "tests/test_backend_rc3_dev7_source.py",
+      "tests/test_moss_cell_jobs_api.py",
+      "tests/test_native_owned_cell_capture.py",
+      "tests/test_native_owned_cell_jobs.py",
+      "tests/test_native_owned_cell_store.py"
+    ],
+    "total": 20,
+    "deleted": []
+  },
+  "scope": "Default-OFF two-commit same-epoch seam alternatives using existing capture and owner hooks",
+  "qualification": "SOURCE-ONLY UNQUALIFIED: independent source/model-free and finite exact-runtime SQLite-policy acceptance pending; no actual run, acoustic, genuine overlap, long-recording, in-flight, power-loss, hard-RSS or broader-platform claim",
+  "source_budget": {
+    "maximum_files": 351,
+    "maximum_total_bytes": 5242880,
+    "maximum_file_bytes": 250000,
+    "maximum_source_plus_git_bytes": 12582912
+  },
+  "preparation_budget": {
+    "maximum_metadata_bytes": 16777216,
+    "maximum_test_artifact_bytes": 268435456,
+    "tests_executed_by_this_manifest": false
+  },
+  "runtime_bounds": {
+    "new_threads": 0,
+    "new_processes": 0,
+    "new_queues": 0,
+    "new_tables": 0,
+    "new_persistent_files": 0,
+    "pending_tail_slots": 1,
+    "tail_payload_bytes": 786432,
+    "assembler_working_reservation_bytes": 4194304,
+    "working_reservation_measured": false,
+    "source_parts": 2,
+    "original_commits": 2,
+    "native_witnesses": 2,
+    "max_turn_records": 256,
+    "max_side_frames": 160000,
+    "max_core_envelope_frames": 960000,
+    "proof_bytes": 65536,
+    "cell_pcm_bytes": 640000,
+    "batch_cells": 3,
+    "handoff_bytes": 2359296,
+    "total_cell_pins": 2,
+    "pin_reservation_bytes": 786432
+  },
+  "policy_hashes": {
+    "v1": "8385e071e9700dced5d766c80f7c41a676481a796b74a06848204f561d1ea0b5",
+    "seam_v2": "b8480ec44a75c456a6e036cfa8d28d2b03829e2769f438178f4b29b14f2425b1",
+    "composite_store": "fece6df7a046b4ac0b94e608e002f580f5df8a42c2f90ccd17f6a950b1184e64"
+  },
+  "coverage": {
+    "kind": "seam_overlap_alternative",
+    "source_support_core_semantics": "two_committed_core_envelope",
+    "publication_anchor": "original right-hand B commit",
+    "coverage_intent": "overlapping_diagnostic",
+    "adds_primary_audio": false,
+    "automatic_dispatch": false
+  },
+  "ownership": "Ordered A/B chunk-local coordinates, session/stream/epoch, geometry and policy; excludes evidence hashes; conflicting evidence keeps the same ownership and must reject",
+  "storage_exception": "Only known legacy/composite policy binding and strict read validation extend _open; unchanged schema, write function bytes, write SQL, pragmas, qualified runtime tuple and allocation caps",
+  "preserved": "All 346 old paths, prior test IDs including the 458-case historical selection, v1 identities/wire bytes/meaning, primary Worker/SQL/native/provider/manager/permit paths and existing routes",
+  "historical_proof": "Published dev7 docstring/current_snapshot-only adapter; original verifier/mutation bytes and 346-file denominator preserved; dev6 and earlier gates/manifests unchanged",
+  "acceptance_records": "Independent preparation records must freeze source/index/test IDs, review storage parity and resource admission before any authorized execution; no prior success is adopted",
+  "external_seal": "Manifest excludes itself; independently held external seal pins the manifest and gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "6cecf857a4ee554462be2a39f7409c3e05d450798c6565a1eedb25df702cef18",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "fd26516a5ebbf925d542c68268d8c46bba02645f9a0eb09f2a47d6d6cb276bb3"
+      }
+    },
+    {
+      "path": "audio_backend/__main__.py",
+      "bytes": 17511,
+      "sha256": "07a4a0b9925c3fcd8701b9016e295cb68d7022f9b84a657826177f60d159a5e9",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 17073,
+        "sha256": "d2848b85927e58abe626b293bf120fdd5e2062075fa235b98ed4af78a6e8090e"
+      }
+    },
+    {
+      "path": "audio_backend/moss_handy_http.py",
+      "bytes": 16424,
+      "sha256": "d0175474b788a73d4d741438f6f4c884a0945390e9f5cae8aa034b12a106ff9e",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 16181,
+        "sha256": "ae9b63a175207a668a20ea059dbe54eb169523fe4124952e71a511060abf5500"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_cell_capture.py",
+      "bytes": 44382,
+      "sha256": "1a3e4c249e9def20341d01facc97b8f81383093d07520e58a0150b610ec3b726",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 28823,
+        "sha256": "d632cd7abb2d093b5a7d32d317b03f2c948b68f9a0ad8e449e6a5c92fbd94a44"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_cell_jobs.py",
+      "bytes": 13472,
+      "sha256": "466fd63f7e6daa8f5f6d195926f305710816c34ce153c512e4deefb5a11b4914",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 12163,
+        "sha256": "db1b4510efc5a6c6304527058f03d9021964deaed55efd7877d940cdaaeb6044"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_cell_store.py",
+      "bytes": 67659,
+      "sha256": "c9d5bbc8a1a2b0626d3eeede176264e4fe468359154692788331b202877d82d3",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 65517,
+        "sha256": "cfdd9344b9565273ad8b6a25a7ff9c1a4f39d35d9687e74b518b234567de6bff"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_cells.py",
+      "bytes": 25688,
+      "sha256": "ab282afa1877052f4c1da1566bb07f7c6b82d28749b98068cd45b578edcb4eb6",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 25205,
+        "sha256": "a0abc59c890f889712348c82ebff565050d169afee87ea4450ac833dec7720b7"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_seam_cells.py",
+      "bytes": 20744,
+      "sha256": "8e8de861894aca297d94c8b5032eb53e2e42c05fb25cfc78fb3bb956877b2518",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "bytes": 16148,
+      "sha256": "c069f7cffd1e16321ea74d0acf9908175c23d0330e93c26db7db7ed6dc0cac57",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 15762,
+        "sha256": "37608a7208a7b703c85b81f76544ca0532dc29bbf68385e2a685f613eb44d8d2"
+      }
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 15752,
+      "sha256": "de013582b54235f09e97dec94d35811d3d62f931fbcfc35b511ce1441de6f3d1",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 15509,
+        "sha256": "81d1b9caaa0152d69d776bdc93db3f06f2ec6f3b8c35470ead8f33bf1a4b4bb0"
+      }
+    },
+    {
+      "path": "docs/NATIVE_OWNED_SEAM_CELLS.md",
+      "bytes": 15997,
+      "sha256": "dc981026c93d185c00073b70d2aeb421be9485c7fbc4c1a03434308255832d04",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "cda4f085739ae50bb889c2578b5ba1e2647bc6492bda3dba9addcec1ec247c4a",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "34a43f00c4b44038e718607b5815da4c9034fd55c4165987137b4f3208734cd6"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev7_source.py",
+      "bytes": 27282,
+      "sha256": "3df934bd87d6b70da57bc84f9c1857aad7af43bc4852338b6677500fac685284",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 27240,
+        "sha256": "e8eb17c6af105383316fb1109c480df1952f452d7e603ced23fdb1ba30f8891c"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev8_source.py",
+      "bytes": 35546,
+      "sha256": "864f68fe54db4401d011c9163a8962076a4a0c74908c16fb96f9cfae483bb2f0",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_cell_jobs_api.py",
+      "bytes": 53476,
+      "sha256": "aca0104873fb3214d9bf51bde60fe07e1a7d693aa5c4772f6f52e0e62ff6e05d",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 44911,
+        "sha256": "6924901a2a183961b209051f31a21c596e8ac0e1172efec6d06404324ac7283e"
+      }
+    },
+    {
+      "path": "tests/test_native_owned_cell_capture.py",
+      "bytes": 31638,
+      "sha256": "62230616154d86200a9d35ac6421cedd974bd33d764d823602726c292018378a",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 24481,
+        "sha256": "146ff3fe7b3e6666fd5566d0e2f48af21bacbe6d7e89347073aaaeaa2ff4ee27"
+      }
+    },
+    {
+      "path": "tests/test_native_owned_cell_jobs.py",
+      "bytes": 37742,
+      "sha256": "89e1f4d7c486d4e60009b9513f86ab10e09bc85b87b646baf63dda199260ceb5",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 29082,
+        "sha256": "46d0f8b7685852805b164befbb4af1a3dd69acbaddb727221f16843f484c14cc"
+      }
+    },
+    {
+      "path": "tests/test_native_owned_cell_store.py",
+      "bytes": 40342,
+      "sha256": "680f35fc119449785da1410070d9914bc6581c086e54edadcff502ca4c18d13b",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 25308,
+        "sha256": "3e77cfba9a690303d5ab3ca5f27d7365e3ca6060d3e64ce77d861fa0c614b4d7"
+      }
+    },
+    {
+      "path": "tests/test_native_owned_seam_cells.py",
+      "bytes": 21126,
+      "sha256": "6604c4d6739f5063e1f634b934b12cb3654bf980f9579302212f27a31bf359ed",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

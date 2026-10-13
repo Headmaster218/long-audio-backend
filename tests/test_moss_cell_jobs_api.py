@@ -419,13 +419,18 @@ class CellJobsAPI(CellJobsFixture):
         db_key = support_cache._db_key(self.store)
         # Exercise the unchanged post-commit notifiers with both Store identities.
         # The minimal primary fixture mirrors only its committed deleted flag.
-        with patch.dict(capture._REGISTRY, {key: SimpleNamespace(owner=self.cell_owner)}), \
+        invalidations = []
+        registered_capture = SimpleNamespace(owner=self.cell_owner,
+            invalidate_seam=invalidations.append)
+        with patch.dict(capture._REGISTRY, {key: registered_capture}), \
              patch.dict(support_cache._registry, {db_key: self.cache}):
             self.db.execute("UPDATE sessions SET deleted=1 WHERE id='session'"); self.db.commit()
-            for store in (self.store, SimpleNamespace(path=self.store.path)):
+            for index, store in enumerate((self.store, SimpleNamespace(path=self.store.path)), 1):
                 self.assertTrue(capture.notify_deleted(store, 'session'))
+                self.assertEqual(invalidations, ['capture_revoked'] * index)
                 jobs.notify_deleted(store, 'session')
                 self.assertTrue(record['cancelled'].is_set())
+        self.assertEqual(invalidations, ['capture_revoked', 'capture_revoked'])
         self.finish(); self.assertFalse(self.drivers); self.assertFalse(self.cell_owner._pins)
         self.assertEqual(self.client.get(self.job_path(record, '/raw')).status_code, 404)
 
@@ -674,3 +679,107 @@ class CellJobsAPI(CellJobsFixture):
             response = self.client.get(self.cell_path(cell))
             self.assertEqual((response.status_code, response.json()['detail']), (503, 'cell_response_capacity'))
         self.assertEqual(self.cache._lease_count, 0)
+
+
+    def test_seam_parser_accepts_only_exact_old_or_literal_extended_shape(self):
+        cell, body = self.ready_composite(); legacy = dict(body); legacy.pop('coverage_intent')
+        self.assertEqual(http.parse_body(jobs.encoded(legacy), 'cell_submit'), legacy)
+        self.assertEqual(http.parse_body(jobs.encoded(body), 'cell_submit'), body)
+        self.assertLessEqual(len(jobs.encoded(body)), 1024)
+        variants = ({**body, 'coverage_intent':None}, {**body, 'coverage_intent':True},
+                    {**body, 'coverage_intent':{}}, {**body, 'coverage_intent':'new_primary_audio'},
+                    {**body, 'extra':0}, {'jobs_epoch':body['jobs_epoch'], 'coverage_intent':'overlapping_diagnostic'})
+        with patch.object(self.owner, 'submit_cell', side_effect=AssertionError('reject before manager')):
+            for request in variants:
+                response = self.post_cell(cell, request)
+                self.assertEqual((response.status_code, response.json()['detail']), (409, 'invalid_body'))
+                self.private(response)
+            raw = jobs.encoded(body)
+            duplicate = raw[:-1] + b',"coverage_intent":"overlapping_diagnostic"}'
+            response = self.client.post(self.cell_path(cell) + '/moss-jobs', content=duplicate,
+                headers={'Content-Type':'application/json', 'Idempotency-Key':'cell'})
+            self.assertEqual((response.status_code, response.json()['detail']), (409, 'invalid_body'))
+        for kind in ('submit', 'cancel'):
+            with self.assertRaises(ReadError):http.parse_body(jobs.encoded(body), kind)
+        self.assertFalse(self.cell_owner._pins); self.assertFalse(self.owner._records); self.assertFalse(self.drivers)
+
+    def test_seam_http_intent_rejection_is_target_version_scoped_and_drained(self):
+        composite, body = self.ready_composite(); missing = dict(body); missing.pop('coverage_intent')
+        response = self.post_cell(composite, missing)
+        self.assertEqual((response.status_code, response.json()['detail']), (409, 'coverage_intent_required'))
+        self.private(response); self.assertFalse(self.source.cleanup_pending); self.assertFalse(self.cell_owner._pins)
+        ordinary, legacy = self.ready_cell()
+        response = self.post_cell(ordinary, {**legacy, 'coverage_intent':'overlapping_diagnostic'})
+        self.assertEqual((response.status_code, response.json()['detail']), (409, 'coverage_intent_not_allowed'))
+        self.private(response); self.assertFalse(self.source.cleanup_pending); self.assertFalse(self.cell_owner._pins)
+        self.assertFalse(self.owner._records); self.assertFalse(self.owner._keys); self.assertFalse(self.drivers)
+        response = self.post_cell(composite, body)
+        self.assertEqual(response.status_code, 202, response.text); self.finish()
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_seam_http_coverage_is_exact_in_list_detail_job_and_result(self):
+        cell, body = self.ready_composite(); expected = json.loads(cell.proof)['coverage']
+        before = tuple(self.db.execute('SELECT status,next_offset,metadata FROM chunks').fetchone())
+        listing = self.client.get(self.cell_path()); self.assertEqual(listing.status_code, 200)
+        row = next(item for item in listing.json()['cells'] if item['cell_id'] == cell.cell_id)
+        self.assertEqual(row['coverage'], expected)
+        detail = self.client.get(self.cell_path(cell)); self.assertEqual(detail.content, cell.proof)
+        self.assertEqual(detail.json()['coverage'], expected)
+        self.assertEqual(detail.json()['publication_anchor']['chunk_id'], 'right')
+        self.assertEqual(detail.json()['support']['core_end_frame'], 32)
+        response = self.post_cell(cell, body); self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(response.json()['cell_binding']['coverage'], expected)
+        record = self.finish()
+        summary = self.client.get(self.job_path(record)); result = self.client.get(self.job_path(record, '/result'))
+        for projection in (summary.json(), result.json()):
+            self.assertEqual(projection['cell_binding']['coverage'], expected)
+            self.assertLessEqual(len(jobs.encoded(projection['cell_binding'])), 4096)
+        raw = self.client.get(self.job_path(record, '/raw'))
+        self.assertEqual(raw.content, b'[0][S1]synthetic[1]')
+        self.assertFalse(result.json()['complete_content']); self.assertIsNone(result.json()['eos'])
+        for observed in (listing, detail, response, summary, result, raw):self.private(observed)
+        self.assertFalse(expected['adds_primary_audio']); self.assertFalse(expected['automatic_dispatch'])
+        self.assertEqual(before, tuple(self.db.execute('SELECT status,next_offset,metadata FROM chunks').fetchone()))
+        self.assertFalse(self.cell_owner._pins); self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_seam_http_exact_repeat_has_one_job_pin_and_dispatch(self):
+        cell, body = self.ready_composite(); first = self.post_cell(cell, body)
+        self.assertEqual(first.status_code, 202, first.text)
+        with patch.object(self.source, 'acquire_dispatch', side_effect=AssertionError('no second pin acquisition')):
+            second = self.post_cell(cell, body)
+            self.assertEqual(second.status_code, 200); self.assertEqual(second.json()['job_id'], first.json()['job_id'])
+            missing = dict(body); missing.pop('coverage_intent')
+            conflict = self.post_cell(cell, missing)
+            self.assertEqual((conflict.status_code, conflict.json()['detail']), (409, 'idempotency_conflict'))
+        self.assertEqual(len(self.cell_owner._pins), 1); self.assertEqual(len(self.owner._records), 1)
+        self.finish()
+        ordinary, legacy = self.ready_cell()
+        conflict = self.post_cell(ordinary, legacy)
+        self.assertEqual((conflict.status_code, conflict.json()['detail']), (409, 'idempotency_conflict'))
+        with patch.object(self.source, 'acquire_dispatch', side_effect=AssertionError('no postcompletion reacquisition')):
+            repeat = self.post_cell(cell, body)
+            self.assertEqual(repeat.status_code, 200); self.assertEqual(repeat.json()['job_id'], first.json()['job_id'])
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1); self.assertFalse(self.cell_owner._pins)
+
+    def test_seam_off_restart_exposes_retained_coverage_with_new_jobs_epoch_only(self):
+        cell, body = self.ready_composite(); self.post_cell(cell, body); self.finish()
+        self.assertTrue(self.owner.stop()); self.assertTrue(self.cell_owner.close())
+        self.cell_owner = cells.CellStore(self.cell_owner.directory, self.authority, enabled=True,
+            seam_enabled=False, qualification=simulated_profile(self.root), instance_lock=object())
+        self.authority.owner = self.cell_owner; self.cell_owner.start(); self.assertTrue(self.cell_owner._ready.wait(3.))
+        self.source = CellJobsSource(self.cell_owner, self.store)
+        self.permit = NativeExecutionPermit(self.store.settings, sampler=lambda _: sample())
+        factory = self.owner._driver_factory
+        self.owner = jobs.MossJobs(self.store, self.cache, self.permit, cell_source=self.source,
+            clock=self.clock, _driver_factory=factory, _thread_factory=ManualThread)
+        self.assertNotEqual(self.owner.jobs_epoch, body['jobs_epoch']); self.assertFalse(self.owner._records)
+        self.assertEqual(self.client.get(self.cell_path(cell)).content, cell.proof)
+        self.assertEqual(self.client.get(self.cell_path()).json()['cells'][0]['coverage'], json.loads(cell.proof)['coverage'])
+        self.assertEqual(self.post_cell(cell, body).status_code, 409)
+        self.assertEqual(len(self.drivers), 1)
+        current = {**body, 'jobs_epoch':self.owner.jobs_epoch}
+        self.assertEqual(self.post_cell(cell, current).status_code, 202); self.finish()
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 2)
+        with patch.object(self.store.settings, 'native_owned_cells_enabled', False):
+            self.assertEqual(self.client.get(self.cell_path(cell)).status_code, 409)
+        self.assertFalse(self.cell_owner._pins)

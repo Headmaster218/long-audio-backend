@@ -71,6 +71,7 @@ class Settings:
     speaker_support_enabled: bool = False
     native_owned_support_enabled: bool = False
     native_owned_cells_enabled: bool = False
+    native_owned_seam_cells_enabled: bool = False
     moss_jobs_enabled: bool = False
     moss_jobs_model_path: str | None = None
     speaker_support_max_records: int = 4096
@@ -117,6 +118,10 @@ class Settings:
         if not isinstance(self.speaker_support_enabled,bool):raise ValueError('speaker_support_enabled must be boolean')
         if type(self.native_owned_cells_enabled) is not bool:
             raise ValueError('native_owned_cells_enabled must be boolean')
+        if type(self.native_owned_seam_cells_enabled) is not bool:
+            raise ValueError('native_owned_seam_cells_enabled must be boolean')
+        if self.native_owned_seam_cells_enabled and not self.native_owned_cells_enabled:
+            raise ValueError('native_owned_seam_cells_enabled requires native_owned_cells_enabled')
         if type(self.native_owned_support_enabled) is not bool:
             raise ValueError('native_owned_support_enabled must be boolean')
         for name, cap in (('speaker_support_max_records',8192), ('speaker_support_max_pcm_bytes',1280000),

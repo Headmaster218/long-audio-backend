@@ -22,6 +22,8 @@ from unittest.mock import patch
 from audio_backend import native_owned_cell_store as mod
 from audio_backend.native_owned_cells import Unavailable, canonical
 from test_native_owned_cells import synthetic_cell
+from test_native_owned_seam_cells import synthetic_composite
+from audio_backend import native_owned_seam_cells as seam
 
 
 class SimulatedRuntimeQualification(mod.RuntimeQualification):
@@ -316,6 +318,108 @@ class StoreFixture(unittest.TestCase):
         self.assertEqual(result['reason'], 'source_changed_after_publication_commit')
 
 
+    def restart_policy(self, *, directory=None, seam_enabled=True, enabled=True):
+        self.assertTrue(self.owner.close())
+        self.owner = mod.CellStore(directory or self.owner.directory, self.authority,
+            enabled=enabled, seam_enabled=seam_enabled, qualification=simulated_profile(self.root))
+        self.authority.owner = self.owner; self.owner.start()
+        self.assertTrue(self.owner._ready.wait(3.), self.owner.health())
+
+    def test_seam_fresh_profile_preserves_exact_envelope_projections(self):
+        self.restart_policy(directory=self.root / 'seam-cells')
+        self.assertEqual(self.owner._store_policy, seam.STORE_POLICY_SHA256)
+        composite = synthetic_composite(); ordinary = synthetic_cell()
+        result = self.operation('publish', (ordinary, composite))
+        self.assertEqual(result['status'], 'durable', result)
+        expected = json.loads(composite.proof)['coverage']
+        for kind, payload in (('list', ('session', 0)), ('jobs_list', ('session', 0, 20))):
+            rows = self.operation(kind, payload)['cells']
+            self.assertNotIn('coverage', next(row for row in rows if row['cell_id'] == ordinary.cell_id))
+            self.assertEqual(next(row for row in rows if row['cell_id'] == composite.cell_id)['coverage'], expected)
+        for kind, payload in (('detail', composite.cell_id), ('jobs_detail', ('session', composite.cell_id))):
+            result = self.operation(kind, payload)
+            self.assertEqual(result['detail'], composite.proof); self.assertEqual(result['coverage'], expected)
+        result = self.operation('read', composite.cell_id); pin = result['pin']
+        try:
+            self.assertEqual(result['coverage'], expected); self.assertEqual(pin.read(), composite.pcm)
+        finally:self.assertTrue(pin.release())
+        detail = self.operation('jobs_detail', ('session', composite.cell_id))
+        binding = ('session', composite.cell_id, detail['sequence'], detail['revision'],
+                   detail['proof_sha256'], composite.support.support_id, self.owner._epoch)
+        validated = self.operation('validate_dispatch', binding)
+        self.assertEqual(validated['coverage'], expected); self.assertNotIn('pin', validated)
+        op = self.owner.submit('dispatch', binding); self.assertIsInstance(op, mod.Operation)
+        op.wait(.5); delivered = op.claim(admission_open=True)
+        self.assertEqual(delivered['status'], 'available', delivered)
+        self.assertTrue(op.slot_released.wait(.5))
+        try:self.assertEqual(delivered['pin'].read(), composite.pcm)
+        finally:self.assertTrue(delivered['pin'].release())
+        self.assertFalse(self.owner._pins)
+
+    def test_seam_legacy_namespace_declines_without_profile_rebinding(self):
+        ordinary, _ = self.publish(); self.restart_policy(seam_enabled=True)
+        self.assertEqual(self.owner._store_policy, mod.POLICY_SHA256)
+        accepted = self.owner.health()['accepted']
+        self.assertEqual(self.owner.submit('publish', (synthetic_composite(),)),
+            {'status': 'optional_unavailable', 'reason': 'incompatible_legacy_cell_policy'})
+        self.assertEqual(self.owner.health()['accepted'], accepted)
+        self.assertEqual(self.operation('detail', ordinary.cell_id)['detail'], ordinary.proof)
+        with sqlite3.connect(self.owner.path) as db:
+            self.assertEqual(db.execute('SELECT policy FROM store_meta WHERE id=1').fetchone()[0], mod.POLICY_SHA256)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM cells').fetchone()[0], 1)
+
+    def test_seam_flag_off_preserves_retained_versions_without_new_composition(self):
+        self.restart_policy(directory=self.root / 'seam-cells')
+        ordinary = synthetic_cell(); composite = synthetic_composite()
+        self.assertEqual(self.operation('publish', (ordinary, composite))['status'], 'durable')
+        self.restart_policy(seam_enabled=False)
+        self.assertEqual(self.owner._store_policy, seam.STORE_POLICY_SHA256)
+        for cell in (ordinary, composite):
+            self.assertEqual(self.operation('detail', cell.cell_id)['detail'], cell.proof)
+        self.assertEqual(self.owner.submit('publish', (composite,))['reason'], 'seam_composites_disabled')
+        self.assertEqual(self.operation('publish', (ordinary,))['cells'][0]['status'], 'existing')
+        self.restart_policy(seam_enabled=False, enabled=False)
+        self.assertEqual(self.owner.health()['status'], 'cleanup_only')
+        self.assertEqual(self.owner.submit('detail', composite.cell_id)['status'], 'optional_unavailable')
+        self.assertEqual(self.owner._store_policy, seam.STORE_POLICY_SHA256)
+        # Feature-OFF startup keeps the known-profile cleanup owner and bytes.
+        with sqlite3.connect(self.owner.path) as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM cells').fetchone()[0], 2)
+
+    def test_seam_unknown_store_policy_is_refused_without_migration(self):
+        self.assertTrue(self.owner.close())
+        with sqlite3.connect(self.owner.path) as db:
+            db.execute('UPDATE store_meta SET policy=? WHERE id=1', ('0' * 64,))
+        self.owner = mod.CellStore(self.owner.directory, self.authority, enabled=True,
+            seam_enabled=True, qualification=simulated_profile(self.root))
+        self.authority.owner = self.owner; self.owner.start(); self.owner._thread.join(3.)
+        self.assertFalse(self.owner._ready.is_set())
+        self.assertEqual(self.owner.health()['status'], 'optional_primary_binding_mismatch')
+        with sqlite3.connect(self.owner.path) as db:
+            self.assertEqual(db.execute('SELECT policy FROM store_meta WHERE id=1').fetchone()[0], '0' * 64)
+
+    def test_seam_replay_and_changed_evidence_share_one_ownership_key(self):
+        self.restart_policy(directory=self.root / 'seam-cells')
+        cell = synthetic_composite(); conflict = synthetic_composite(changed_evidence=True)
+        self.assertEqual(cell.ownership, conflict.ownership)
+        self.assertNotEqual(cell.cell_id, conflict.cell_id)
+        self.assertEqual(self.operation('publish', (cell,))['cells'][0]['status'], 'retained')
+        self.assertEqual(self.operation('publish', (cell,))['cells'][0]['status'], 'existing')
+        self.assertEqual(self.operation('publish', (conflict,))['reason'], 'conflicting_committed_ownership')
+        with sqlite3.connect(self.owner.path) as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM cells').fetchone()[0], 1)
+
+    def test_seam_anchor_column_is_the_second_original_commit(self):
+        self.restart_policy(directory=self.root / 'seam-cells')
+        cell = synthetic_composite(); self.assertEqual(self.operation('publish', (cell,))['status'], 'durable')
+        self.assertEqual(cell.chunk_id, 'right')
+        self.assertEqual((cell.commit_start, cell.commit_end), (0, 16))
+        self.assertEqual((cell.support.core_start_frame, cell.support.core_end_frame), (0, 32))
+        with sqlite3.connect(self.owner.path) as db:
+            self.assertEqual(db.execute('SELECT cid FROM cells').fetchone()[0], 'right')
+        self.assertEqual(self.operation('detail', cell.cell_id)['detail'], cell.proof)
+
+
 class AdmissionTests(unittest.TestCase):
     def test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread(self):
         deadline = time.monotonic() + 30.
@@ -424,3 +528,108 @@ class AdmissionTests(unittest.TestCase):
                     (replace(profile, filesystem_device=profile.filesystem_device + 1), 'runtime_qualification_mismatch')):
                 with self.subTest(reason=reason, record=record):rejected(record, reason)
                 remaining()
+
+
+    def test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off(self):
+        """Tiny synthetic v2; real pinned verifier/SQLite, no model or audio file."""
+        deadline = time.monotonic() + 30.
+        def remaining():
+            value = deadline - time.monotonic()
+            self.assertGreater(value, 0., 'synthetic seam admission exceeded local 30-second cutoff')
+            return min(3., value)
+        def close(owner):
+            for pin in tuple(owner._pins.values()):pin.release()
+            owner.close(.5)
+            if owner._thread:owner._thread.join(remaining())
+            self.assertFalse(owner._thread and owner._thread.is_alive(), owner.health())
+            self.assertIsNone(owner._db); self.assertTrue(owner.close())
+            self.assertIsNone(owner.instance_lock)
+        def operation(owner, kind, payload):
+            op = owner.submit(kind, payload); self.assertIsInstance(op, mod.Operation, op)
+            self.assertTrue(op.done.wait(remaining()), 'bounded real-profile seam operation did not finish')
+            remaining(); return op.result
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); authority = SyntheticAuthority()
+            profile = mod.qualified_runtime(root)
+            self.assertIs(profile, mod.QUALIFIED_RUNTIMES[0]); self.assertIs(type(profile), mod.RuntimeQualification)
+            path_hash = hashlib.sha256(os.fsencode(Path(mod.sys.executable).resolve(strict=True))).hexdigest()
+            q_path_hash = 'c5b3e95fab07ec74ee34233bd62a289fc32b3600b7d8dda9cb1b3295ec167937'
+            self.assertIn(path_hash, (profile.interpreter_realpath_sha256, q_path_hash))
+            namespace = root / 'seam-qualified'
+            def rejected(record, reason):
+                owner = mod.CellStore(namespace, authority, enabled=True, seam_enabled=True,
+                                      qualification=record, instance_lock=object())
+                original = sqlite3.connect; calls = []
+                def observed(database, *args, **kwargs):
+                    calls.append(database)
+                    if database != ':memory:':raise AssertionError('seam qualification mismatch attempted disk open/recovery')
+                    return original(database, *args, **kwargs)
+                try:
+                    with patch.object(sqlite3, 'connect', side_effect=observed):
+                        owner.start(); self.assertIsNotNone(owner._thread); owner._thread.join(remaining())
+                    self.assertFalse(owner._ready.is_set()); self.assertEqual(calls, [':memory:'])
+                    self.assertEqual(owner.health()['status'], reason)
+                finally:close(owner)
+            if path_hash == q_path_hash:
+                rejected(profile, 'runtime_binary_qualification_mismatch')
+                self.assertFalse(namespace.exists()); return
+            ordinary = synthetic_cell(); cell = synthetic_composite(); coverage = json.loads(cell.proof)['coverage']
+            self.assertEqual(len(cell.pcm), 64)
+            for enabled, seam_enabled in ((True, True), (True, False), (False, False)):
+                owner = mod.CellStore(namespace, authority, enabled=enabled, seam_enabled=seam_enabled,
+                                      qualification=profile, instance_lock=object())
+                authority.owner = owner
+                try:
+                    owner.start(); self.assertTrue(owner._ready.wait(remaining()), owner.health())
+                    self.assertEqual(owner._store_policy, seam.STORE_POLICY_SHA256)
+                    if not enabled:
+                        self.assertEqual(owner.health()['status'], 'cleanup_only')
+                        self.assertEqual(owner.submit('detail', cell.cell_id)['status'], 'optional_unavailable')
+                        with sqlite3.connect(owner.path) as db:
+                            self.assertEqual(db.execute('SELECT COUNT(*) FROM cells').fetchone()[0], 2)
+                        continue
+                    if seam_enabled:
+                        result = operation(owner, 'publish', (ordinary, cell))
+                        self.assertEqual(result['status'], 'durable', result)
+                        self.assertEqual([row['status'] for row in result['cells']], ['retained', 'retained'])
+                    else:self.assertEqual(owner.submit('publish', (cell,))['reason'], 'seam_composites_disabled')
+                    listed = operation(owner, 'jobs_list', ('session', 0, 20))['cells']
+                    self.assertEqual([row['cell_id'] for row in listed], [ordinary.cell_id, cell.cell_id])
+                    self.assertNotIn('coverage', listed[0]); self.assertEqual(listed[1]['coverage'], coverage)
+                    detail = operation(owner, 'jobs_detail', ('session', cell.cell_id))
+                    self.assertEqual(detail['detail'], cell.proof); self.assertEqual(detail['coverage'], coverage)
+                    self.assertEqual(operation(owner, 'detail', ordinary.cell_id)['detail'], ordinary.proof)
+                    binding = ('session', cell.cell_id, detail['sequence'], detail['revision'],
+                               detail['proof_sha256'], cell.support.support_id, owner._epoch)
+                    validated = operation(owner, 'validate_dispatch', binding)
+                    self.assertEqual(validated['detail'], cell.proof); self.assertEqual(validated['coverage'], coverage)
+                    op = owner.submit('dispatch', binding); self.assertIsInstance(op, mod.Operation)
+                    op.wait(.5); delivered = op.claim(admission_open=True)
+                    self.assertEqual(delivered['status'], 'available', delivered)
+                    self.assertTrue(op.slot_released.wait(.5)); pin = delivered['pin']
+                    try:self.assertEqual(pin.read(), cell.pcm); self.assertEqual(pin.document, json.loads(cell.proof))
+                    finally:self.assertTrue(pin.release())
+                    self.assertTrue(pin.release_confirmed); self.assertNotIn(id(pin), owner._pins)
+                finally:close(owner)
+            rejected(replace(profile, interpreter_realpath_sha256='0' * 64), 'runtime_binary_qualification_mismatch')
+            # A separate existing P1 namespace remains P1 with seam production ON.
+            legacy = root / 'legacy-qualified'
+            for seam_enabled in (False, True):
+                owner = mod.CellStore(legacy, authority, enabled=True, seam_enabled=seam_enabled, qualification=profile)
+                authority.owner = owner
+                try:
+                    owner.start(); self.assertTrue(owner._ready.wait(remaining()), owner.health())
+                    self.assertEqual(owner._store_policy, mod.POLICY_SHA256)
+                    self.assertEqual(operation(owner, 'publish', (ordinary,))['status'], 'durable')
+                    self.assertEqual(owner.submit('publish', (cell,))['reason'], 'incompatible_legacy_cell_policy')
+                finally:close(owner)
+            with sqlite3.connect(namespace / 'cells.sqlite3') as db:
+                db.execute('UPDATE store_meta SET policy=? WHERE id=1', ('0' * 64,))
+            owner = mod.CellStore(namespace, authority, enabled=False, seam_enabled=False, qualification=profile)
+            authority.owner = owner
+            try:
+                owner.start(); owner._thread.join(remaining()); self.assertFalse(owner._ready.is_set())
+                self.assertEqual(owner.health()['status'], 'optional_primary_binding_mismatch')
+                with sqlite3.connect(owner.path) as db:
+                    self.assertEqual(db.execute('SELECT policy FROM store_meta WHERE id=1').fetchone()[0], '0' * 64)
+            finally:close(owner)
