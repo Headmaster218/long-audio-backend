@@ -1,0 +1,155 @@
+{
+  "files": {
+    "README.md": {
+      "bytes": 16363,
+      "sha256": "1745a2e2eb4a86c5f122b1abdf3d299d9d717de5273347cb99b4e8087f61b688"
+    },
+    "acquire.py": {
+      "bytes": 35698,
+      "sha256": "42bd4924db1185351848a2003480dffd9e07aef28e4831e0e3085e2912a0fe90"
+    },
+    "acquisition_guard.py": {
+      "bytes": 29406,
+      "sha256": "82498b355431984e4ea752d2428d0edc3d60b98f05c4fe378020faf86083b7c8"
+    },
+    "assets.lock.json": {
+      "bytes": 56535,
+      "sha256": "90edcc2ad8b791dd77239e739dfc1964503ab0a201379f11f531039df0da8e06"
+    },
+    "bootstrap.py": {
+      "bytes": 24335,
+      "sha256": "81f379c0c0627b41720384c07a315c5e5ef1899e9800d10634ace738e4de6e47"
+    },
+    "config.schema.json": {
+      "bytes": 7041,
+      "sha256": "f1e36153529df0e507420cb5fbbfeecb047ccd9ed48362b6adbaafebbf6baa4e"
+    },
+    "guard_driver.py": {
+      "bytes": 1997,
+      "sha256": "1b047cc7579c1ef38866e5f6be5766139faed8f8cbc06687aed0f83109244e3e"
+    },
+    "test_guard.py": {
+      "bytes": 10912,
+      "sha256": "6313eb86491244a2d13ed7da3e12a7e4b558ce110e36cf3f67b6e92ad4c2677b"
+    },
+    "test_pacing.py": {
+      "bytes": 32554,
+      "sha256": "9b0bf945425056434a997ada43f6c58e5858c4b89cb8c4945ef48eb85bcaef21"
+    }
+  },
+  "future_files": [
+    "install.py",
+    "probe_runtime.py",
+    "test_install.py",
+    "runtime.lock.json",
+    "source-map.json"
+  ],
+  "preserved_ast_sha256": {
+    "downloader": {
+      "Context": "31c1d61a786ca2e3ce0ecef9241e352c6230d7e67565128cac9ca435f638d9fc",
+      "Context.__init__": "8cf93fa2a6c5189d56aeb6d953b20de76670f46c805ea94f61153339265fc7d3",
+      "Context.check": "a1545f3265b03a97551552fad0e0f9f98439af82bbc1499d36130d99963264ae",
+      "Context.checked": "3c4ba7dfcfe08ce02e84fa29c749be6d3456d01823d069c1964bc466a8de533d",
+      "Context.deadline": "40efe9234208456717f3c0306b60d8789d6e3ffd87c49b9d18236af47343d302",
+      "Context.parents": "0fc335eaa36dcf20f53a92e46c527b4ab4bd5ed4d7f5ba4b0434efa814dab0bd",
+      "Context.part": "c947adc9a5e7a9cb79b383b148b30cbc954fe6593f058344d45d66bbc269e2f2",
+      "Context.tick_rate": "214a0daee454c5090d6076baae53319eff6a1ea9d0d67c9da569bf379c508aa0",
+      "Context.timeout": "e0b42d53650abe0d954007e10d4ca0639e4269a9a2dfa4575dd26400f167b528",
+      "DeadlineHTTPSHandler": "61113a73a86d91640a242f03f85ec45462068ad93564c6bf982d61cb61f9c8c0",
+      "DeadlineHTTPSHandler.__init__": "39b93c25d436d2533d9a8d094e02f728c08a8b0cc5ea8262b0c92a32baba675a",
+      "DeadlineHTTPSHandler.https_open": "5f601be8d340ba18ab47acbe376aaaa892df5e8c858fccb13f8ceb933d68159f",
+      "Redirects": "f96392375b267619e56e2323f41e23700cf09a0b2a9fdc7b42f26b2cbf50abce",
+      "Redirects.__init__": "155d4005ed48158a52c01567b359a47d74a7b52e86cf064f292c2e0aeafa012c",
+      "Redirects.redirect_request": "0c3f8664eb707c264191d73d2773b3eff9704b7223521810fa96f1367d3fb5ab",
+      "Refused": "6f6d7249f56ce9049ee5dc53ddb31893ab70f6aff598b6f6652b269bc516c324",
+      "bind_read_timeout": "b017ddf6ed2d394c76079a1628acd9e445380a0ac5761e0f59b280eb937736ca",
+      "bound_regular": "9c087e952eabf7153d7f777270666ad973ef6735578ccce628f81515f8f78160",
+      "cli_boundary": "a18ed21c4d4308e4afff06bb46a02df18028a44c68a2df8778a9c93b5131a936",
+      "download": "2b5e0ac5224e3e31e545ce2b7e33903228da25022127c6ac72771c5aebdfbf47",
+      "exclusive": "b10b1d02d46f6a321d0bd0b51d43f76c89993230c68d9b76f558445983213c9e",
+      "file_identity": "d01eba48c8243a5b3c165f9006c3c0a028ab900337c63ff7dcd10cd4fe82f953",
+      "fsync_dir": "d38a615fd712ea47ea3ccd760fb15ebd2c9eb097895454a4380c95f34f717023",
+      "hash_file": "d58f7d3a42434a3c76403443acdb4793568e07f199e534f80d66ab850a9dfe3f",
+      "public_url": "87e1c91f9de105a4b1fbe8e654b64123d1a0f02463ff024c988d0a8c3a98b22f",
+      "publish": "4a4535a2b930893d20ea39196392521f6901833f56ef12e137dbe8793e17aea3",
+      "require": "bf8f1c8ef08b0199d718cc993dd8c15362dc59ad0972a0ccb0c9c9796cefc595",
+      "response_meta": "a7b2229ca638bec0e25331ba52ff02c58a6e9d053df1535df802bd5dddabac49",
+      "safe_name": "128ed34bf271b1ed765fe0eda4fe997cf073ad415b0d068b51663ffdd9d85c87",
+      "small_json": "4a6d65fee0f1560b2cf0140125758c1b22831cd62a0b500584d37da35f108320",
+      "validate_url": "37d9c2f745b3c999af0959f66400ee8c6e1c6102263a1e8ce2159ad5b8feaabf",
+      "write_json": "2d63e892f417045be65fef341a2f419bdeb029a6d53d5de21de6324d1b5b958d"
+    },
+    "guard": {
+      "Guard.census": "b21e137e18aa41f54fde65d90737324e0caf1e41aa771fbb88661efccf616671",
+      "Guard.cleanup": "714960f15d4092f8c920d70ddaffbee4b6e39fc38247e628b2a25ebcd8f4b3c7",
+      "Guard.dispatch": "3018774f658f2b3a861e4cf0984b31d115f2151442619c42ea89142f38583ad1",
+      "Guard.reap": "8cac2fd6d5f413c238c1b135b0115272f44c0a8015a99ec94eb61efa83e08869",
+      "Guard.remember": "f4b5f4b5909dd5ce6adb206061f7a51e80bac5a7f869c70987b37006f45e3aec",
+      "Guard.run_command": "5721cb17c9e4ab68bf1da604e8d8252dc88bdf934ba102cb046ffdc62c33fd28",
+      "Guard.sample": "6832fbc55a1c081995c2429229a326d4f8eb6d9d2383841f1e214522861337e6",
+      "Guard.signal_owned": "4b50cc0ee506e89f62739c01fe97aa4a7c0a053b7c18334713b006ca2c070145",
+      "children": "eafa164267aa98a318c45508f634331d8150077dc4e0e28c23c8c5b95a98b14a",
+      "identity": "949543e22e444c49c96d889e5244e54687cd838b5cf24a28b0a1a48c77bf8d50",
+      "namespace_snapshot": "9af1cfe649ee8a7a981c5e08b670460321ca9e55cba79df1c00bdf96a80f9f03",
+      "platform_network": "656c86893ec17024c4237d83bc5d91bdd288dabd7634cc7f0f5bb9f34c547811",
+      "proc": "5d112e9efb9843e6ef5b736a4f53b8d2598cf2420ab73938780f3d8c7f144f76",
+      "read_regular": "918f1603f260c9074ea5f1775cd900204777565911c1fdc450e3e18494c6d1e1",
+      "stage_seconds": "7fb39e5da9600e0109da049aaa672cb501212e475e0d9a9ded5b30146645495b"
+    }
+  },
+  "schema": "portable-recovery-packet-v1",
+  "status": "SOURCE_ONLY_UNEXECUTED_CDN_FIXED_FOUR_CONTINUATION",
+  "tests_executed": false,
+  "upstream": {
+    "moss-q8-wip11/PUBLIC_ASSET.json": {
+      "bytes": 1086,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "5b8b97dd3b5c91346c9ff27a7a6214df21f1a0856daa90ba03423a5cb7e1a983"
+    },
+    "moss-q8-wip11/acquisition/prepare.py.template": {
+      "bytes": 8471,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "16e234f5f769dd24d452454099f80a44f5dc035a10cb00fa97ceb1ee5aab48c2"
+    },
+    "native-capture-wip1/metadata/WHEEL_CLOSURE.public.json": {
+      "bytes": 44434,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "ad39ac41c3e4689b793f1c7d711858a74d528c94faca3342feb7af6214e1d4f9"
+    },
+    "native-capture-wip1/metadata/native_smoke_asset_inventory.public.json": {
+      "bytes": 6267,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "bf21acc7d415bceaa77e057e1683a2161bdc268e98ba08f14fc7b392d3420300"
+    },
+    "native-capture-wip1/reference-source/preparation/guard/acquisition_guard.py": {
+      "bytes": 32648,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "3934eb162fc61ba06f4c9e740016e0da04f7eba62e41d5d5e77bbc399971b305"
+    },
+    "qwen17-wip7/ASSETS.public.json": {
+      "bytes": 11638,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "65ff594c8d628ededf1cfc5d3f74e2b46e366ccaabc98bdbcb4821981780d033"
+    },
+    "qwen17-wip7/pacing-v2/acquire.py": {
+      "bytes": 55560,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "65a280885212ccd07a9813d1b1c3ae54bd89ae844081d6cd4c958a8dcac2f9e7"
+    },
+    "qwen17-wip7/test_acquisition.py": {
+      "bytes": 14750,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "7be865775c8cb1a328012ce581ad8308a128e510a88b704c552874fe443bc375"
+    },
+    "qwen17-wip8/acquire.py": {
+      "bytes": 55628,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "62eb377286b78ddb156e1f51ebf50c8f64d7851e57168743c63d8b6968154908"
+    },
+    "qwen17-wip8/test_pacing.py": {
+      "bytes": 17660,
+      "commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+      "sha256": "c4b73f1d6df9886c135ca1d39678d30c25cb75cef535089cd472d875913a3960"
+    }
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "adapted_primitives": [
+    {
+      "deltas": [
+        "generalize two exact transcribe wheels to all30 sealed wheels and fresh backend",
+        "allow exact Setuptools .pth as build-only data; final .pth forbidden",
+        "bounded RECORD cap2MiB/8192 rows",
+        "no old private acquisition/failed-copy receipt dependency",
+        "fresh evidence and complete acquired asset closure remain required"
+      ],
+      "draft": "install.py:validate_record,prepare_wheel,materialize_wheel",
+      "source": "wip9"
+    },
+    {
+      "deltas": [
+        "derive fresh inventory instead of old2090-file tree",
+        "charge blocks each census but exclude allocation from stable identity",
+        "final cap320MiB; runtime container512MiB",
+        "no whole-tree promotion; retain failed final leaf unsealed"
+      ],
+      "draft": "install.py:complete_tree; probe_runtime.py:stable_identity",
+      "source": "wip18_inventory,wip18_reconciliation"
+    },
+    {
+      "deltas": [
+        "before-exec startup-hook/cwd/home/environment closure",
+        "no inherited Setuptools hook or _distutils_hack in final runtime",
+        "installed exact dev8 replaces SourceFinder and dev5 source path",
+        "fresh host/private seals replace historical reconciliation receipts",
+        "explicit SQLite connect/CellStore/MOSS constructor denial",
+        "host system mappings pinned before acceptance; incomplete lazy closure disclosed",
+        "no actual executable phase until new guard admission"
+      ],
+      "draft": "probe_runtime.py:startup_preflight,same_pid_exec,validate_ordinary_state,import_only",
+      "source": "wip18_probe"
+    },
+    {
+      "deltas": [
+        "dev8 exact101 package files",
+        "only pinned three-wheel build closure",
+        "remove host-pip frontend and user-agent monkeypatch entirely",
+        "no package resolver or compiler",
+        "new guard must pin closed sys.path/audit and all generated output types"
+      ],
+      "draft": "install.py:build_backend",
+      "source": "wip3_build"
+    }
+  ],
+  "copied_ast": {
+    "audit_wheel": {
+      "draft_ast_sha256": "d8a390cb810e19b5e61a216ee84014431267e47c3ff326c331c5f9bc8102428c",
+      "identical_ast": true,
+      "source": "wip8",
+      "upstream_ast_sha256": "d8a390cb810e19b5e61a216ee84014431267e47c3ff326c331c5f9bc8102428c"
+    }
+  },
+  "current_five_files": {
+    "install.py": {
+      "bytes": 33319,
+      "sha256": "d03de4ee2ede4e409659fd32394b0fa87dd31dcbf7a2ebf73435e85b9a4d0e5a"
+    },
+    "probe_runtime.py": {
+      "bytes": 24339,
+      "sha256": "115ebcfe301e73c89b36f4fc16ccf8783eef8acc0486d8cee673fee9a048dab6"
+    },
+    "runtime.lock.json": {
+      "bytes": 29838,
+      "sha256": "4ee5c43fdf224f87d45d8862efb73508e43bdc5b988a909f4a43068748083f39"
+    },
+    "test_install.py": {
+      "bytes": 11581,
+      "sha256": "e4521c728f366dc21853c5b04bc08c2d8e25a0bc161e62286d66185fb5099a2b"
+    }
+  },
+  "loader_and_constants_review": {
+    "guard_loader_delta": "Published WIP18 adapter dynamically narrows stages and wraps component sampling. No adapter is copied or applied here; later source review must cover the complete new closed adapter/constants and ownership invariants.",
+    "mapped_constants": {
+      "BLOCK": {
+        "draft": 65536,
+        "reason": "bounded smaller streaming block; no transfer/pacing used",
+        "upstream": 262144
+      },
+      "MAX_EXT": 65536,
+      "MAX_PATH": 4096
+    },
+    "mapped_helpers": "Local reviewed replacements add canonical no-symlink/single-link input checks and stricter errors; they are not claimed AST-identical.",
+    "network_loader_amendments": "Not applicable to offline helpers: no downloader, opener, redirects, host allowlist or network transfer is included.",
+    "not_covered_by_function_ast_equality": true,
+    "wip18_hook_delta": "Published runtime retained Setuptools and its exact .pth/shim. This draft excludes all three build distributions from final site, so that inherited hook permission is intentionally removed.",
+    "wip8_dependencies": [
+      "hash_file",
+      "bound_regular",
+      "safe_name",
+      "require",
+      "os",
+      "stat",
+      "struct",
+      "zlib",
+      "BLOCK",
+      "MAX_PATH",
+      "MAX_EXT",
+      "ctx.check"
+    ]
+  },
+  "privacy": "Only immutable public source/asset pins and relative IDs; no local workspace paths, raw receipts, credentials, URLs containing private query tokens, environment values or operational owner/session identifiers.",
+  "product_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+  "public_preparation_commit": "30cc5b0ee22a9c6daf203f12421c9114986f927c",
+  "remaining_admission_work": {
+    "after_all_current_owners_terminal": true,
+    "current_guard_accepts_runtime_phases": false,
+    "current_packet_or_config_modified": false,
+    "entrypoints": "Both draft main functions always refuse. No command to install or import is currently supplied.",
+    "new_closed_phases": [
+      "runtime-host-inventory",
+      "runtime-wheel-audit",
+      "runtime-build-install",
+      "runtime-import",
+      "runtime-fixtures"
+    ],
+    "proposed_absolute_seconds": {
+      "runtime-build-install": 600,
+      "runtime-fixtures": 300,
+      "runtime-host-inventory": 300,
+      "runtime-import": 300,
+      "runtime-wheel-audit": 600
+    },
+    "required_review": [
+      "new versioned packet/config and exact source freeze",
+      "strict phase-specific config schema and mutually pinned fresh acquisition/owner/run seals",
+      "unchanged ownership/census/dispatch/signal/reap/cleanup methods",
+      "fresh admission and full category reservations",
+      "source-map constants/helper/loader-delta review, not function AST pins alone",
+      "all three expansion classes share the8192-member overall cap",
+      "exact finite output allowlist and receipt/temporary coexistence",
+      "isolated build importer exposes only sealed stdlib and build/site; no cwd/host packages",
+      "pre-build Python audit and filesystem writes restricted to source/work/output roles",
+      "host inventory dynamic candidate/tool closure and unresolved-origin refusal",
+      "post-handoff result through an already-owned bounded pipe while import audit remains active",
+      "versioned fixtures and independent source review before any execution"
+    ]
+  },
+  "schema": "portable-runtime-source-map-v1",
+  "source_map_self_pin": "Intentionally external to avoid self-reference; owner source freeze pins this file.",
+  "source_only_checks": {
+    "ast_parsed_as_data": true,
+    "downloaded_or_product_code_imported": false,
+    "installation_run": false,
+    "model_or_service_run": false,
+    "recipe_imported": false,
+    "tests_run": false
+  },
+  "status": "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY",
+  "upstream": {
+    "wip18_guard_adapter": {
+      "bytes": 5876,
+      "path": "dev5-combined-runtime-wip18/guard/launch_import_reconciled.py.template",
+      "sha256": "4c0bdc3c4b51b4739b378be5f9e692450888466a31dd0e13a8c8c0ffe991415a"
+    },
+    "wip18_inventory": {
+      "bytes": 11322,
+      "path": "dev5-combined-runtime-wip18/combined.py.template",
+      "sha256": "260cca1d57a48edf47c3de956a1de39f7bace48207fc3074d25886e482dd709e"
+    },
+    "wip18_probe": {
+      "bytes": 19484,
+      "path": "dev5-combined-runtime-wip18/probe_reconciled.py.template",
+      "sha256": "6a43d53ebd325ccbd3446ca49b73dca029b8626d9ee48e20ef25833746fa3c0d"
+    },
+    "wip18_reconciliation": {
+      "bytes": 9860,
+      "path": "dev5-combined-runtime-wip18/complete_runtime_v2.py.template",
+      "sha256": "8c438d76428fba2ae847e0c9b3e6ebba4a1e1e9d232ba65dc345fa54dd971624"
+    },
+    "wip3_build": {
+      "bytes": 11462,
+      "path": "native-capture-wip3/reference-source/preparation/installation/step.py",
+      "sha256": "56b88f7889e498e8a16cb68ab0090d76d5744a6a26d7dc0cc6e5d4c222fab922"
+    },
+    "wip8": {
+      "bytes": 55628,
+      "path": "qwen17-wip8/acquire.py",
+      "sha256": "62eb377286b78ddb156e1f51ebf50c8f64d7851e57168743c63d8b6968154908"
+    },
+    "wip9": {
+      "bytes": 21921,
+      "path": "qwen17-wip9/offline-v2/install.py.template",
+      "sha256": "759cfef46f03812c2491e1c23582eb543ff9361f6786496b58aa4aed95a33837"
+    }
+  }
+}

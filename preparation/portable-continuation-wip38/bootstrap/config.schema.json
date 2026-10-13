@@ -1,0 +1,283 @@
+{
+  "$comment": "The stdlib validator in bootstrap.py additionally enforces canonical non-symlink paths, same filesystem, fresh instance, same interpreter, explicit disjoint ownership roots, runtime container membership, and cryptographic source/packet pins. Config is a data specification, not execution approval.",
+  "$id": "urn:portable-recovery:config:v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assets_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "created_boot_id": {
+      "pattern": "^[0-9a-f-]{36}$",
+      "type": "string"
+    },
+    "created_pid_namespace": {
+      "pattern": "^pid:\\[[0-9]+\\]$",
+      "type": "string"
+    },
+    "host": {
+      "additionalProperties": false,
+      "properties": {
+        "filesystem_device": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "python": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "python_bytes": {
+          "const": 30894944,
+          "type": "integer"
+        },
+        "python_sha256": {
+          "const": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+        },
+        "python_version": {
+          "const": "3.12.14"
+        }
+      },
+      "required": [
+        "python",
+        "python_bytes",
+        "python_sha256",
+        "filesystem_device",
+        "python_version"
+      ],
+      "type": "object"
+    },
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_absolute_seconds": {
+          "const": 10800,
+          "type": "integer"
+        },
+        "address_space_bytes": {
+          "const": 1073741824,
+          "type": "integer"
+        },
+        "attempts_per_artifact": {
+          "const": 1,
+          "type": "integer"
+        },
+        "automatic_retries": {
+          "const": 0,
+          "type": "integer"
+        },
+        "block_bytes": {
+          "const": 262144,
+          "type": "integer"
+        },
+        "category_bytes": {
+          "additionalProperties": false,
+          "properties": {
+            "acquisition": {
+              "const": 7516192768,
+              "type": "integer"
+            },
+            "actual": {
+              "const": 570425344,
+              "type": "integer"
+            },
+            "evidence": {
+              "const": 67108864,
+              "type": "integer"
+            },
+            "proof": {
+              "const": 536870912,
+              "type": "integer"
+            },
+            "runtime": {
+              "const": 536870912,
+              "type": "integer"
+            },
+            "source": {
+              "const": 67108864,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "acquisition",
+            "runtime",
+            "proof",
+            "actual",
+            "source",
+            "evidence"
+          ],
+          "type": "object"
+        },
+        "cleanup_seconds": {
+          "const": 60,
+          "type": "integer"
+        },
+        "cpu": {
+          "const": 3,
+          "type": "integer"
+        },
+        "global_disk_bytes": {
+          "const": 12884901888,
+          "type": "integer"
+        },
+        "minimum_available_bytes": {
+          "const": 2952790016,
+          "type": "integer"
+        },
+        "nice": {
+          "const": 19,
+          "type": "integer"
+        },
+        "ordinary_free_floor_bytes": {
+          "const": 5905580032,
+          "type": "integer"
+        },
+        "rate_bytes_per_second": {
+          "const": 4194304,
+          "type": "integer"
+        },
+        "read_timeout_seconds": {
+          "const": 30,
+          "type": "integer"
+        },
+        "receipt_reserve_bytes": {
+          "const": 1048576,
+          "type": "integer"
+        },
+        "rss_bytes": {
+          "const": 268435456,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "global_disk_bytes",
+        "category_bytes",
+        "ordinary_free_floor_bytes",
+        "minimum_available_bytes",
+        "rss_bytes",
+        "address_space_bytes",
+        "cpu",
+        "nice",
+        "acquisition_absolute_seconds",
+        "cleanup_seconds",
+        "read_timeout_seconds",
+        "rate_bytes_per_second",
+        "block_bytes",
+        "attempts_per_artifact",
+        "automatic_retries",
+        "receipt_reserve_bytes"
+      ],
+      "type": "object"
+    },
+    "packet_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "prior_acquisition": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "maximum": 32768,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "path": {
+              "maxLength": 4096,
+              "pattern": "^/",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "Explicit fixed-four prior evidence binding; null selects fresh acquisition. Existence alone never authorizes reuse."
+    },
+    "roots": {
+      "additionalProperties": false,
+      "properties": {
+        "packet": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "product": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "proof_source": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "runtime": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "runtime_container": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "source_recovery": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "work": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "workspace": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace",
+        "source_recovery",
+        "product",
+        "packet",
+        "work",
+        "runtime",
+        "runtime_container",
+        "proof_source"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "portable-recovery-config-v2"
+    }
+  },
+  "required": [
+    "schema",
+    "roots",
+    "host",
+    "limits",
+    "assets_sha256",
+    "packet_sha256",
+    "created_boot_id",
+    "created_pid_namespace",
+    "prior_acquisition"
+  ],
+  "title": "Portable recovery generated private config",
+  "type": "object"
+}
