@@ -1,0 +1,27 @@
+{
+  "schema": "portable-cell-store-proof-config-v1",
+  "product_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+  "product_root": "/CHOOSE_IMMUTABLE_PRODUCT_ROOT",
+  "product_files": {"GENERATE_WITH_CONFIGURE": {"bytes": 1, "sha256": "DO_NOT_GUESS"}},
+  "product_ast": {"GENERATE_WITH_CONFIGURE": "DO_NOT_GUESS"},
+  "recipe_files": {"GENERATE_WITH_CONFIGURE": {"bytes": 1, "sha256": "DO_NOT_GUESS"}},
+  "interpreter": "/CHOOSE_REVIEWED_ABSOLUTE_INTERPRETER",
+  "work_parent": "/CHOOSE_OWNED_SECURE_PARENT",
+  "run_name": "CHOOSE_UNIQUE_RUN_NAME",
+  "runtime": {
+    "fingerprint": "GENERATE_FROM_RUNNING_INTERPRETER",
+    "interpreter_realpath": "/CHOOSE_REVIEWED_ABSOLUTE_INTERPRETER",
+    "python_version": "GENERATE_FROM_RUNNING_INTERPRETER",
+    "sqlite_source_id": "GENERATE_WITH_MEMORY_ONLY_SQLITE",
+    "sqlite_version": "GENERATE_WITH_MEMORY_ONLY_SQLITE",
+    "compile_options": ["GENERATE_EXACT_SORTED_OPTIONS"],
+    "compile_options_sha256": "GENERATE_DO_NOT_GUESS",
+    "package_inventory": "GENERATE_BOUNDED_PY_AND_PYC_INVENTORY",
+    "platform": "linux",
+    "vfs": "unix",
+    "filesystem_device": "MEASURE_SELECTED_PARENT"
+  },
+  "shipped_profile": "EXTRACT_FROM_PINNED_SOURCE_AND_REQUIRE_ACTUAL_MATCH",
+  "limits": "GENERATE_EXACT_FIXED_LIMITS_FROM_REVIEWED_DRIVER",
+  "procedure": "matching-shipped-profile-only-v1"
+}

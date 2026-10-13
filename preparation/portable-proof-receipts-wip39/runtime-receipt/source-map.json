@@ -1,0 +1,74 @@
+{
+  "current_files": {
+    "receipt-contract.json": {
+      "bytes": 16182,
+      "sha256": "56a0c28c6466ff9e2be7066d7dee16bc5516eceeb922edfc1732189dd9bbfc4d"
+    },
+    "receipt_contract.py": {
+      "bytes": 13976,
+      "sha256": "d0743b25dd766852111b896098deef4359a726c160a3a80d30fd07a81e24926e"
+    }
+  },
+  "future_fixture_coverage": {
+    "authentic_retained_guard_serialization": "10740.0",
+    "executed": false,
+    "work_seconds_accept": [
+      10740,
+      10740.0
+    ],
+    "work_seconds_reject": [
+      "true",
+      "false",
+      "NaN",
+      "+Infinity",
+      "-Infinity",
+      10739,
+      10741,
+      10740.5
+    ]
+  },
+  "inherited_provenance": "The pinned v1 source-map retains exact active public source/AST references and the earlier five-file recipe pins. This revision does not edit or execute any of those inputs.",
+  "only_behavior_change": {
+    "current": "type int or float, finite, exactly10740; bool excluded",
+    "field": "caps.work_seconds",
+    "function": "guard_scope",
+    "previous": "strict integer10740",
+    "reason": "Authentic retained guard receipt serializes10740.0."
+  },
+  "parent_revision": {
+    "directory": "portable-runtime-receipt-amendment-draft-v1",
+    "files": {
+      "receipt-contract.json": {
+        "bytes": 15793,
+        "sha256": "bcf7ecf5a40f1873c3dcccdb99f8263f615d2499aaed39a817e7ed0bffa41d64"
+      },
+      "receipt_contract.py": {
+        "bytes": 13673,
+        "sha256": "50820df43803a3dadc497a5406b7e9e613ec1b6da306b8b46449b5ac0398904e"
+      },
+      "source-map.json": {
+        "bytes": 4065,
+        "sha256": "5730c136f6d7eda6bdbc0569e6de802616303204db7b3d976eff975fbb7b3e5a"
+      }
+    },
+    "unchanged": true
+  },
+  "privacy": "No private receipt/config bytes, absolute workspace paths, host paths, operational identifiers or environment values.",
+  "schema": "portable-runtime-receipt-amendment-source-map-v2",
+  "self_pin": "Pinned externally by parent freeze.",
+  "status": "SOURCE_ONLY_UNADMITTED",
+  "unchanged_obligations": [
+    "All other counters/byte caps/exit codes remain strict integers.",
+    "Exact reused4/new34/final38 reconciliation, original failure/cleanup provenance and post-download full38 byte verification remain unchanged.",
+    "Final owner-terminal binding remains pending and always refuses; no missing handle/terminal is replaced or treated as successful."
+  ],
+  "validation_scope": {
+    "asset_reads_or_scans": false,
+    "json_parsed_as_data": true,
+    "network_or_installation": false,
+    "qualification_changed": false,
+    "recipe_imported": false,
+    "source_ast_parsed_as_data": true,
+    "tests_executed": false
+  }
+}

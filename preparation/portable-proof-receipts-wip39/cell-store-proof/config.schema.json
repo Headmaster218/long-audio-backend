@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:portable-cell-store-proof:config:v1",
+  "title": "Generated local CellStore proof config; not a qualification record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "product_commit", "product_root", "product_files", "product_ast", "recipe_files", "interpreter", "work_parent", "run_name", "runtime", "shipped_profile", "limits", "procedure"],
+  "properties": {
+    "schema": {"const": "portable-cell-store-proof-config-v1"},
+    "product_commit": {"const": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5"},
+    "product_root": {"$ref": "#/$defs/absolutePath"},
+    "interpreter": {"$ref": "#/$defs/absolutePath"},
+    "work_parent": {"$ref": "#/$defs/absolutePath"},
+    "run_name": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+    "procedure": {"const": "matching-shipped-profile-only-v1"},
+    "product_files": {
+      "type": "object", "additionalProperties": false,
+      "required": ["audio_backend/__init__.py", "audio_backend/native_lexical_alternatives.py", "audio_backend/native_owned_cells.py", "audio_backend/native_owned_seam_cells.py", "audio_backend/native_owned_cell_store.py"],
+      "properties": {
+        "audio_backend/__init__.py": {"const": {"bytes": 107, "sha256": "6cecf857a4ee554462be2a39f7409c3e05d450798c6565a1eedb25df702cef18"}},
+        "audio_backend/native_lexical_alternatives.py": {"const": {"bytes": 10505, "sha256": "321745aa3bef2462cb5b2b196d16f9ffe78d70c8bf20aeaf36e701ffc45d708f"}},
+        "audio_backend/native_owned_cells.py": {"const": {"bytes": 25688, "sha256": "ab282afa1877052f4c1da1566bb07f7c6b82d28749b98068cd45b578edcb4eb6"}},
+        "audio_backend/native_owned_seam_cells.py": {"const": {"bytes": 20744, "sha256": "8e8de861894aca297d94c8b5032eb53e2e42c05fb25cfc78fb3bb956877b2518"}},
+        "audio_backend/native_owned_cell_store.py": {"const": {"bytes": 67659, "sha256": "c9d5bbc8a1a2b0626d3eeede176264e4fe468359154692788331b202877d82d3"}}
+      }
+    },
+    "product_ast": {
+      "type": "object", "additionalProperties": {"$ref": "#/$defs/digest"},
+      "minProperties": 10, "maxProperties": 10,
+      "required": ["_check_parents", "_scan", "_open", "_schema", "_transaction", "_receipt", "_publish", "_insert_cell", "_expire", "_sweep"],
+      "description": "Every digest must also equal the immutable AST_PINS literal in the reviewed driver. The schema is shape-only for these redundant pins."
+    },
+    "recipe_files": {
+      "type": "object", "additionalProperties": false,
+      "required": ["README.md", "qualify_cell_store.py", "config.schema.json", "config.template.json", "test_qualify_cell_store.py"],
+      "properties": {
+        "README.md": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"bytes": {"maximum": 12288}}}]},
+        "qualify_cell_store.py": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"bytes": {"maximum": 65536}}}]},
+        "config.schema.json": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"bytes": {"maximum": 12288}}}]},
+        "config.template.json": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"bytes": {"maximum": 4096}}}]},
+        "test_qualify_cell_store.py": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"bytes": {"maximum": 32768}}}]}
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fingerprint", "interpreter_realpath", "python_version", "sqlite_source_id", "sqlite_version", "compile_options", "compile_options_sha256", "package_inventory", "platform", "vfs", "filesystem_device"],
+      "properties": {
+        "fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "interpreter_realpath": {"$ref": "#/$defs/absolutePath"},
+        "python_version": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "sqlite_source_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "sqlite_version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "compile_options": {"type": "array", "maxItems": 512, "uniqueItems": true, "items": {"type": "string", "maxLength": 4096}},
+        "compile_options_sha256": {"$ref": "#/$defs/digest"},
+        "package_inventory": {
+          "type": "object", "minProperties": 2, "maxProperties": 16,
+          "required": ["__init__.py", "dbapi2.py"],
+          "propertyNames": {"pattern": "^(?:[A-Za-z0-9_.-]+\\.py|__pycache__/[A-Za-z0-9_.-]+\\.pyc)$"},
+          "additionalProperties": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"bytes": {"maximum": 262144}}}]}
+        },
+        "platform": {"const": "linux"}, "vfs": {"const": "unix"},
+        "filesystem_device": {"type": "integer", "minimum": 0}
+      }
+    },
+    "shipped_profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sqlite_source_id", "sqlite_version", "compile_options_sha256", "platform", "vfs", "filesystem_device", "sector_bytes_max", "journal_headers_max", "allocation_slack_bytes_max", "evidence_sha256", "interpreter_bytes", "interpreter_sha256", "interpreter_realpath_sha256", "sqlite3_package_sha256", "sqlite3_binding", "sqlite3_extension_sha256", "sqlite3_library_sha256", "sqlite3_library_realpath_sha256"],
+      "properties": {
+        "sqlite_source_id": {"const": "2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9"},
+        "sqlite_version": {"const": "3.53.1"},
+        "compile_options_sha256": {"const": "600e922c0614cd07a1640976eb2e283b43072322af46cbeb0df7a998990095cb"},
+        "platform": {"const": "linux"}, "vfs": {"const": "unix"}, "filesystem_device": {"const": 27},
+        "sector_bytes_max": {"const": 65536}, "journal_headers_max": {"const": 1}, "allocation_slack_bytes_max": {"const": 2097152},
+        "evidence_sha256": {"const": "7097319b7e75d603dd0730033e29847b76631d71ae1bf8215f2052fc01377f55"},
+        "interpreter_bytes": {"const": 30894944},
+        "interpreter_sha256": {"const": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"},
+        "interpreter_realpath_sha256": {"const": "57c6e5fe045b039c86e05cea65b65abe385014580d745dfdb38674b8acafb5d8"},
+        "sqlite3_package_sha256": {"const": "274ebd26b21834cfd405783cb389f8d7d22d4ce27db918c9781a363b0718f437"},
+        "sqlite3_binding": {"const": "observed-built-in-no-separate-sqlite-mapping-v1"},
+        "sqlite3_extension_sha256": {"type": "null"}, "sqlite3_library_sha256": {"type": "null"}, "sqlite3_library_realpath_sha256": {"type": "null"}
+      }
+    },
+    "limits": {"const": {
+      "owner_seconds": 300, "work_seconds": 240, "cleanup_seconds": 60,
+      "child_cpu_seconds": 240, "child_address_space_bytes": 536870912,
+      "child_file_bytes": 33554432, "child_open_files": 64,
+      "io_bytes": 65536, "read_bytes": 1073741824, "config_bytes": 65536,
+      "events_bytes": 262144, "result_bytes": 262144, "records_bytes": 1048576,
+      "page_size": 4096, "max_page_count": 6144, "near_limit_pages": 6143,
+      "database_bytes": 25165824, "journal_bytes": 33554432, "slack_bytes": 2097152,
+      "envelope_bytes": 60817408, "family_bytes": 67108864, "total_bytes": 202375168,
+      "journal_sector_max": 65536, "journal_headers_max": 1,
+      "cells": 1024, "receipts": 4096, "dependencies_per_cell": 128,
+      "fill_attempts": 1024, "oracle_rows": 137000, "oracle_row_bytes": 1048576,
+      "oracle_bytes": 33554432, "sqlite_steps": 5000000,
+      "poll_count": 20000, "poll_seconds": 15, "event_count": 256
+    }}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "absolutePath": {"type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^/", "description": "Driver additionally rejects .., more than 32 components, placeholders, aliases and unsafe ancestry where appropriate."},
+    "file": {"type": "object", "additionalProperties": false, "required": ["bytes", "sha256"], "properties": {"bytes": {"type": "integer", "minimum": 1, "maximum": 262144}, "sha256": {"$ref": "#/$defs/digest"}}},
+    "fingerprint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["interpreter_bytes", "interpreter_sha256", "interpreter_realpath_sha256", "sqlite3_package_sha256", "sqlite3_binding", "sqlite3_extension_sha256", "sqlite3_library_sha256", "sqlite3_library_realpath_sha256"],
+      "properties": {
+        "interpreter_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "interpreter_sha256": {"$ref": "#/$defs/digest"}, "interpreter_realpath_sha256": {"$ref": "#/$defs/digest"},
+        "sqlite3_package_sha256": {"$ref": "#/$defs/digest"},
+        "sqlite3_binding": {"const": "observed-built-in-no-separate-sqlite-mapping-v1"},
+        "sqlite3_extension_sha256": {"type": "null"}, "sqlite3_library_sha256": {"type": "null"}, "sqlite3_library_realpath_sha256": {"type": "null"}
+      }
+    }
+  }
+}

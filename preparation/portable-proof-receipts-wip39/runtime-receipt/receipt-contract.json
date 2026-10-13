@@ -1,0 +1,382 @@
+{
+  "acquisition_pass_claimed": false,
+  "asset_manifest": {
+    "bytes": 56535,
+    "sha256": "90edcc2ad8b791dd77239e739dfc1964503ab0a201379f11f531039df0da8e06"
+  },
+  "execution_authorized": false,
+  "expected_assets_in_manifest_order": [
+    {
+      "bytes": 39593761,
+      "destination": "models/speaker.onnx",
+      "id": "eres2net-base-zh-cn",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+    },
+    {
+      "bytes": 111034072,
+      "destination": "models/events.tar.bz2",
+      "id": "zipformer-small-audioset",
+      "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6"
+    },
+    {
+      "bytes": 163002883,
+      "destination": "models/sensevoice/model.tar.bz2",
+      "id": "sensevoice-small-int8",
+      "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e"
+    },
+    {
+      "bytes": 5306,
+      "destination": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "id": "sensevoice-model-license",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8"
+    },
+    {
+      "bytes": 107012128,
+      "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+      "id": "nemotron3-q8",
+      "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1"
+    },
+    {
+      "bytes": 6683477,
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz",
+      "id": "linux-x86_64-cpu",
+      "sha256": "f396057150f1b774935c7414fd32ebc04195a795a34120d78d8c9ecefa1b7507"
+    },
+    {
+      "bytes": 986899616,
+      "destination": "models/MOSS-Transcribe-Diarize-Q8_0.gguf",
+      "id": "moss-q8",
+      "sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039"
+    },
+    {
+      "bytes": 5302,
+      "destination": "wheels/annotated_doc-0.0.5-py3-none-any.whl",
+      "id": "wheel-annotated-doc",
+      "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101"
+    },
+    {
+      "bytes": 13427,
+      "destination": "wheels/annotated_types-0.8.0-py3-none-any.whl",
+      "id": "wheel-annotated-types",
+      "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0"
+    },
+    {
+      "bytes": 132079,
+      "destination": "wheels/anyio-4.15.1-py3-none-any.whl",
+      "id": "wheel-anyio",
+      "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101"
+    },
+    {
+      "bytes": 221822,
+      "destination": "wheels/cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "id": "wheel-cffi",
+      "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf"
+    },
+    {
+      "bytes": 125251,
+      "destination": "wheels/click-8.5.0-py3-none-any.whl",
+      "id": "wheel-click",
+      "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360"
+    },
+    {
+      "bytes": 144665,
+      "destination": "wheels/fastapi-0.143.0-py3-none-any.whl",
+      "id": "wheel-fastapi",
+      "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d"
+    },
+    {
+      "bytes": 37515,
+      "destination": "wheels/h11-0.16.0-py3-none-any.whl",
+      "id": "wheel-h11",
+      "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"
+    },
+    {
+      "bytes": 69583,
+      "destination": "wheels/idna-3.20-py3-none-any.whl",
+      "id": "wheel-idna",
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c"
+    },
+    {
+      "bytes": 16717410,
+      "destination": "wheels/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "id": "wheel-numpy",
+      "sha256": "b7e18c623bb5c95acb3b3328861272816ba199fb531921c5d6d0b675f1fde9e3"
+    },
+    {
+      "bytes": 481813,
+      "destination": "wheels/opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl",
+      "id": "wheel-opencc-python-reimplemented",
+      "sha256": "41b3b92943c7bed291f448e9c7fad4b577c8c2eae30fcfe5a74edf8818493aa6"
+    },
+    {
+      "bytes": 60256,
+      "destination": "wheels/opentelemetry_api-1.45.1-py3-none-any.whl",
+      "id": "wheel-opentelemetry-api",
+      "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb"
+    },
+    {
+      "bytes": 155560,
+      "destination": "wheels/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl",
+      "id": "wheel-psutil",
+      "sha256": "076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9"
+    },
+    {
+      "bytes": 48709,
+      "destination": "wheels/pycparser-3.1-py3-none-any.whl",
+      "id": "wheel-pycparser",
+      "sha256": "f09d358c840bd147b79e55f2bc494f18ea869dc897f5852a8f5766b74f787882"
+    },
+    {
+      "bytes": 472589,
+      "destination": "wheels/pydantic-2.13.5-py3-none-any.whl",
+      "id": "wheel-pydantic",
+      "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73"
+    },
+    {
+      "bytes": 2066284,
+      "destination": "wheels/pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "id": "wheel-pydantic-core",
+      "sha256": "0fc5be0abd4a407e200d844b404e33639a554e7bd0d448e7b9ae181be4789ac2"
+    },
+    {
+      "bytes": 69413,
+      "destination": "wheels/pydantic_settings-2.15.0-py3-none-any.whl",
+      "id": "wheel-pydantic-settings",
+      "sha256": "0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42"
+    },
+    {
+      "bytes": 23266,
+      "destination": "wheels/python_dotenv-1.2.4-py3-none-any.whl",
+      "id": "wheel-python-dotenv",
+      "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc"
+    },
+    {
+      "bytes": 30042,
+      "destination": "wheels/python_multipart-0.0.32-py3-none-any.whl",
+      "id": "wheel-python-multipart",
+      "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23"
+    },
+    {
+      "bytes": 4400575,
+      "destination": "wheels/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "id": "wheel-sherpa-onnx",
+      "sha256": "6949773017647febc0c3696dffb2c67dd3febd4737b87e3dd135a42773704a06"
+    },
+    {
+      "bytes": 10642497,
+      "destination": "wheels/sherpa_onnx_core-1.13.8-py3-none-manylinux2014_x86_64.whl",
+      "id": "wheel-sherpa-onnx-core",
+      "sha256": "4da90acf435373d7b2ba9cc0be806e7e274d28f63f5780880b5dea6721626e36"
+    },
+    {
+      "bytes": 1315963,
+      "destination": "wheels/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl",
+      "id": "wheel-soundfile",
+      "sha256": "1e38bac1853412871318e82a1ba69a8be677619b56025bbfcccdb41b6cafe82d"
+    },
+    {
+      "bytes": 78980,
+      "destination": "wheels/starlette-1.7.0-py3-none-any.whl",
+      "id": "wheel-starlette",
+      "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e"
+    },
+    {
+      "bytes": 45571,
+      "destination": "wheels/typing_extensions-4.16.0-py3-none-any.whl",
+      "id": "wheel-typing-extensions",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    },
+    {
+      "bytes": 14750,
+      "destination": "wheels/typing_inspection-0.4.4-py3-none-any.whl",
+      "id": "wheel-typing-inspection",
+      "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147"
+    },
+    {
+      "bytes": 87427,
+      "destination": "wheels/uvicorn-0.54.0-py3-none-any.whl",
+      "id": "wheel-uvicorn",
+      "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf"
+    },
+    {
+      "bytes": 129956,
+      "destination": "wheels/packaging-26.3-py3-none-any.whl",
+      "id": "wheel-packaging",
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+    },
+    {
+      "bytes": 818216,
+      "destination": "wheels/setuptools-84.0.0-py3-none-any.whl",
+      "id": "wheel-setuptools",
+      "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
+    },
+    {
+      "bytes": 33320,
+      "destination": "wheels/wheel-0.48.0-py3-none-any.whl",
+      "id": "wheel-wheel",
+      "sha256": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab"
+    },
+    {
+      "bytes": 34910,
+      "destination": "wheels/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "id": "transcribe-cpp",
+      "sha256": "be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03"
+    },
+    {
+      "bytes": 24329742,
+      "destination": "wheels/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "id": "transcribe-cpp-native",
+      "sha256": "8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece"
+    },
+    {
+      "bytes": 3673718355,
+      "destination": "corpus/Eval_Ali.tar.gz",
+      "id": "alimeeting-eval",
+      "sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92"
+    }
+  ],
+  "future_fixture_coverage": {
+    "authentic_retained_guard_serialization": "10740.0",
+    "executed": false,
+    "work_seconds_accept": [
+      10740,
+      10740.0
+    ],
+    "work_seconds_reject": [
+      "true",
+      "false",
+      "NaN",
+      "+Infinity",
+      "-Infinity",
+      10739,
+      10741,
+      10740.5
+    ]
+  },
+  "later_read_only_adapter": {
+    "admitted_now": false,
+    "bounded_future_reads": {
+      "continuation_document_bytes": 32768,
+      "exact_final_asset_bytes": 5150756491,
+      "final_asset_count": 38,
+      "per_reference_bytes": 262144,
+      "prior_owner_pin_list_each_count": 64,
+      "two_origin_maps_each_bytes": 32768
+    },
+    "do_not_call_after_download": [
+      "acquire.asset_preflight",
+      "acquire.verify_prior without removing only its asset_preflight call"
+    ],
+    "fresh_hashes": "After the new original owner is reaped, stream-rehash every one of the38 current assets to its exact manifest byte count/hash, including reused4; also recheck all original preservation identities and empty partial.",
+    "input_bindings": [
+      "fresh generated private config with exact packet/config/continuation digest pins",
+      "exact immutable asset manifest",
+      "all continuation references including original owner/guard/result/spec/claim/receipts/head and two origins maps",
+      "eventual exact new result/guard/spec/claim and original owner terminal"
+    ],
+    "no_asset_work_now": true,
+    "output": "Only a later separately admitted bounded private evidence record; this source amendment writes no runtime outputs.",
+    "post_download_census": "Exactly the38 final manifest destinations plus the separately preserved zero-byte original partial; reject unexpected final assets and unapproved new partials. Original preserved evidence stays separately pinned and charged.",
+    "reason": "Original asset_preflight requires only four final assets and an empty partial before acquisition; successful post-download verification must require all38 instead.",
+    "resource_scope": "Retain current category/global reservations and original owner deadlines; no retry, new stage, cleanup deletion or quota change is authorized.",
+    "reused_current_functions": [
+      "bootstrap.continuation",
+      "bootstrap.ref_path",
+      "bootstrap.read_ref",
+      "acquire.fixed_origin_map",
+      "acquire.resolved_prior",
+      "acquire.verify_identity_bytes",
+      "acquire.reuse_prefix"
+    ]
+  },
+  "new_terminal_binding": {
+    "available_or_accepted_claimed": false,
+    "fail_closed": "Missing, running, failed, unknown cleanup or unreviewed terminal always refuses.",
+    "must_bind": [
+      "new original launcher handle and original wait/reap evidence",
+      "PASS guard, exit0, CONFIRMED cleanup, no unresolved descendants/direct children/errors",
+      "exact new spec/claim/config/current packet and result mutual pins",
+      "unchanged accepted prior failure/cleanup/provenance chain",
+      "all38 fresh post-reap current asset hashes and reused identities",
+      "true prior_after_verified and reused4/new34 arithmetic"
+    ],
+    "pin": null,
+    "required_action": "Once the actual successful owner terminal exists, independently review its exact schema and immutable pin; amend the refusing binding in a separate approved source revision.",
+    "schema": null,
+    "validator_behavior": "require_accepted_new_owner_terminal always raises NEW_OWNER_TERMINAL_BINDING_PENDING_NOT_ADMITTED; require_install_acquisition has no successful return in this revision."
+  },
+  "partition": {
+    "final_verified_artifacts": 38,
+    "final_verified_bytes": 5150756491,
+    "network_bytes_original_failed_phase": 313636022,
+    "network_bytes_this_new_phase": 4837120469,
+    "network_totals_must_not_be_flattened": true,
+    "newly_received_artifacts": 34,
+    "newly_received_bytes": 4837120469,
+    "reused_artifacts": 4,
+    "reused_verified_bytes": 313636022
+  },
+  "prior_failure_contract": {
+    "errors": [],
+    "fifth_attempt": "Original zero-byte failed Nemotron receipt and empty retained part remain preserved and charged.",
+    "final_direct_child_pids": [],
+    "final_source_pin_verified": true,
+    "forbidden_substitution": "Existing files alone, a later HEAD response, a child result or matching aggregate totals do not replace accepted owner evidence.",
+    "full38_acquisition_complete": false,
+    "guard_cleanup": "CONFIRMED",
+    "guard_exit_code": 1,
+    "guard_status": "FAIL_CLOSED",
+    "head_observation": "Separate pinned diagnostic only: HEAD302 to the explicit official CDN hostname, not followed, zero payload; never reclassify original failure as success.",
+    "original_handle_waited": true,
+    "original_owner_wait_exit_code": 1,
+    "owner_schema": "portable-owner-download-terminal-v1",
+    "owner_status": "FAILED_DOWNLOAD_PRESERVED",
+    "preserved_evidence": "Read/hash all owner direct_pins, preserved_original_postpins, run_files and asset_posthashes via only the two fixed identity-preserving origins maps.",
+    "prior_run_identity": "Verify exact guard/result/claim/spec paths and cross-pins against accepted original owner evidence.",
+    "result_schema": "portable-download-result-v1",
+    "result_status": "FAILED",
+    "successful_prefix": "Exactly first4 manifest assets, preserving byte hashes and original identity.",
+    "unresolved_owned": [],
+    "verified_asset_bytes": 313636022
+  },
+  "privacy": "Public source/asset hashes and semantic roles only. Never copy private configuration, continuation evidence, receipts, environment values, filesystem identities, owner/session identifiers or absolute host/workspace paths into this draft.",
+  "qualification_changed": false,
+  "result_contract": {
+    "attempts_per_missing_asset_this_phase": 1,
+    "expected_artifacts": 38,
+    "failure": null,
+    "false_flags": [
+      "ranges"
+    ],
+    "integer_policy": "Counts, byte limits, exit codes and zero counters remain strict int; only guard work_seconds permits finite int/float exactly10740, excluding bool.",
+    "reconciliation": "Exact six-field partition; same values as result top-level fields.",
+    "required_status": "VERIFIED_DOWNLOAD_ONLY",
+    "schema": "portable-download-result-v2",
+    "true_flags": [
+      "prior_attempt_preserved",
+      "prior_failed_nemotron_request_preserved",
+      "prior_after_verified",
+      "outer_terminal_required"
+    ],
+    "verified_artifacts": "Exactly all38 public id/destination/bytes/sha256 rows in manifest order, with no added fields or duplicates.",
+    "zero_integer_fields": [
+      "automatic_retries",
+      "archives_extracted",
+      "installs",
+      "provider_imports",
+      "model_loads",
+      "model_calls"
+    ]
+  },
+  "schema": "portable-runtime-continuation-receipt-contract-draft-v2",
+  "scope": "Narrow replacement of the old one-shot acquisition predicate; original five-file recipe and all active acquisition inputs remain immutable.",
+  "source_inventory": {
+    "accounting": "Sibling inside the existing source-recovery charged root; no active packet member or old draft is edited.",
+    "receipt-contract.json_max_bytes": 16384,
+    "receipt_contract.py_max_bytes": 16384,
+    "source-map.json_max_bytes": 8192,
+    "total_max_bytes": 40960
+  },
+  "status": "SOURCE_ONLY_UNADMITTED_TERMINAL_BINDING_PENDING",
+  "tests_executed": false
+}
