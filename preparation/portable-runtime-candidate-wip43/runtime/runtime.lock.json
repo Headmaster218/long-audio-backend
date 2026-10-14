@@ -1,0 +1,1319 @@
+{
+  "acquisition_manifest": {
+    "bytes": 56535,
+    "sha256": "90edcc2ad8b791dd77239e739dfc1964503ab0a201379f11f531039df0da8e06"
+  },
+  "archive_extraction_plan": {
+    "ceilings": {
+      "audioset_scan_output": 314572800,
+      "corpus_scan": 17179869184,
+      "corpus_selected_output": 402982176,
+      "max_member_headers_each": 4096,
+      "native_release_scan_output": 268435456,
+      "sensevoice_scan_output": 367001600
+    },
+    "checks": [
+      "full archive SHA/size immediately before and after",
+      "bounded decompressed scan/output/header/member counts",
+      "no absolute/dot-dot/backslash/duplicate paths",
+      "reject devices/FIFOs/sparse files/ambiguous PAX/GNU overrides",
+      "canonical output descriptors; exclusive fresh files",
+      "exact selected corpus member byte/hash closure",
+      "native aliases only in explicit pinned in-root logical-library graph; finite depth/cycle checks",
+      "all archive and output bytes remain charged; failed outputs preserved"
+    ],
+    "compressed_inputs_retained": true,
+    "execution_in_this_draft": false,
+    "existing_acquisition_ceiling_unchanged": 7516192768,
+    "fresh_fixed_input": {
+      "canonical_geometry_source": "dev8-seam-retry-wip34/controller/capture.py:canonical_pcm16_header,split_role_intervals,split_block_contributions",
+      "canonical_wav_bytes": 672044,
+      "channel": 0,
+      "frames": 336000,
+      "fresh_wav_sha256": null,
+      "full_source_hash_and_descriptor_readback_required": true,
+      "official_archive_bytes": 3673718355,
+      "official_archive_sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+      "old_307040_frame_derivative_used": false,
+      "partial_archive_claim_permitted": false,
+      "resampling_padding_looping": false,
+      "sample_rate": 16000,
+      "sample_width_bytes": 2,
+      "source_bytes": 402905680,
+      "source_frame_interval": [
+        23400320,
+        23736320
+      ],
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8001_M8004_MS801.wav",
+      "source_sha256": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1"
+    },
+    "later_separate_phase": "Wheels-only300 and three-model readonly300 produce independent plans. assets-corpus-select1800 performs one known-WAV prefix selection plus direct21-second derivation; it never calls the legacy full-corpus extraction/clip wrapper.",
+    "native_aliases": "No historical alias pin map is reconstructed. Require exact bounded archive-derived regular-member and alias graph, full archive pin, then independent acceptance before alias materialization.",
+    "prohibited": "Source preparation executes no archive reads or extraction. Later exact reviewed phases use the guarded data admission path; missing GO, config, accepted plans or allocation evidence refuse.",
+    "read_cost": "Model plans retain compressed SHA before/after one complete tar stream. Selective WAV route relies on accepted full archive SHA with exact current descriptor continuity, scans one gzip prefix and performs no new full compressed digest; it claims no suffix/tar EOF/gzip trailer audit.",
+    "runtime_primitives_extract_only_wheels": false,
+    "textgrid_hash": "Only the exact official76,496-byte TextGrid member may have an initially null selected-member SHA. Full pinned archive census determines its hash; accepted output plan pins it before extraction."
+  },
+  "candidate_v5": {
+    "allowed_phases": [
+      "runtime-build-install",
+      "runtime-import"
+    ],
+    "candidate_and_wheel_host_sha_pair_unchanged": true,
+    "candidate_host_budget": "Carried once across the same-PID ordinary exec; candidate verify_host, mapping reads and host stdlib module-origin rereads share the finite ledger.",
+    "changed_functions": {
+      "bootstrap.py": [
+        "validate_config",
+        "validate_phase_acceptance"
+      ],
+      "guard_driver.py": [
+        "validate_phase_args",
+        "phase_context",
+        "emit",
+        "phase_main"
+      ],
+      "runtime/install.py": [
+        "Context.__init__",
+        "Context.check",
+        "admit_materialization",
+        "materialize_wheel",
+        "copy_product",
+        "prepare_interpreter",
+        "build_backend"
+      ],
+      "runtime/probe_runtime.py": [
+        "candidate_host_mode",
+        "candidate_mappings",
+        "verify_host",
+        "startup_preflight",
+        "validate_ordinary_state",
+        "module_origins",
+        "import_only"
+      ]
+    },
+    "execution_claim": "Source preparation only. Candidate build verifies exact bytes; imports require separate owner review of observed mappings. Genuine upload/API/model readiness is not claimed.",
+    "host_verification": "CANDIDATE_BYTES_AND_OBSERVED_MAPPINGS",
+    "inclusive_packet_cap_bytes": 1048576,
+    "logical_packet_cap_bytes": 589824,
+    "mapping_policy": {
+      "host_read_budget_bytes": 536870912,
+      "known_files": "Exact sealed candidate system/Python/stdlib and runtime-inventory pins; configured allowed mappings must be a subset.",
+      "maximum_unique_phase_mappings": 256,
+      "new_files": "First-observed hash and stable descriptor only; independent qualification remains pending.",
+      "observed_direct_parent_roots": [
+        "/usr/lib/x86_64-linux-gnu",
+        "HOST_BASE_PREFIX/lib"
+      ],
+      "per_mapping_max_bytes": 134217728,
+      "static_native_closure_complete": false
+    },
+    "materialization_census": "Sampled1Hz, timestamp after completion; forced initial/artifact/final boundaries. Per-block deadlines/STOP and exact bounded writes remain.",
+    "named_source_caps_bytes": {
+      "PACKET_MANIFEST.json": 16384,
+      "acquisition_guard.py": 32768,
+      "bootstrap.py": 69632,
+      "config.schema.json": 24576,
+      "guard_driver.py": 36864,
+      "runtime/install.py": 106496,
+      "runtime/probe_runtime.py": 69632,
+      "runtime/runtime.lock.json": 131072,
+      "runtime/source-map.json": 32768,
+      "runtime/test_install.py": 69632
+    },
+    "namespace": "runtime-fresh-v5",
+    "new_static_or_wheel_phase_required": false,
+    "original_manifest_sha256": "ab6ab95247409946c38954c049c9504492d04dbcaf44ca791bdbb01ea7328955",
+    "private_inputs": "runtime-fresh-inputs-v5",
+    "static_native_closure_complete": false,
+    "strict_empty_options_retained": true
+  },
+  "cell_store_activation_claimed": false,
+  "compressed_wheel_bytes": 62806893,
+  "execution_authorized": false,
+  "extraction_executed": false,
+  "fresh_acquisition_contract": {
+    "accepted_owner_terminal_status": "REQUIRED_PRIVATE_ACCEPTED_FRESH_DOWNLOAD_ONLY",
+    "full_artifacts": 38,
+    "full_bytes": 5150756491,
+    "historical_continuation_adapter_used": false,
+    "newly_received_artifacts": 38,
+    "newly_received_bytes": 5150756491,
+    "owner_terminal_schema": "fixed-owner-sequence-v1",
+    "prior_acquisition": null,
+    "prior_after_verified": null,
+    "prior_attempt_preserved": false,
+    "prior_failed_nemotron_request_preserved": false,
+    "qualification": "Strict validator has a success path for externally pinned authentic owner evidence; this portable source supplies no private acceptance values or execution release.",
+    "reused_artifacts": 0,
+    "reused_verified_bytes": 0,
+    "schema": "portable-download-result-v2",
+    "successful_owner_acceptance_currently_possible": true
+  },
+  "historical_v2_derivative": {
+    "old_unknown_remains_reserved": true,
+    "output_namespace": "runtime-fresh-v2",
+    "paired_address_space_reservation": 2147483648,
+    "paired_allowance": 16777216,
+    "paired_rss_reservation": 536870912,
+    "per_attempt_allowance": 8388608,
+    "per_attempt_producer_acceptance_budget": {
+      "allocation_and_directories": 1048576,
+      "claim": 4096,
+      "config": 65536,
+      "index": 524288,
+      "plan": 4194304,
+      "receipt": 524288,
+      "result": 32768,
+      "review_and_owner_records": 196608,
+      "spec": 1048576,
+      "staging": 524288,
+      "stdout": 65536,
+      "stop": 4096,
+      "template_go": 69632
+    },
+    "per_attempt_producer_acceptance_total": 8302592,
+    "private_control_namespace": "runtime-fresh-inputs-v2",
+    "progress": {
+      "archive_pairs": 4,
+      "completion_authority": false,
+      "edges": [
+        "start",
+        "end"
+      ],
+      "elapsed": "round(monotonic-work_end+540,3); current phase only",
+      "fields": [
+        "schema",
+        "kind",
+        "edge",
+        "id",
+        "elapsed_seconds"
+      ],
+      "flushed": true,
+      "kinds": [
+        "wheel",
+        "archive"
+      ],
+      "maximum_json_bytes": 512,
+      "maximum_marker_bytes": 34884,
+      "maximum_records": 68,
+      "newline_bytes": 1,
+      "schema": "portable-audit-progress-v1",
+      "wheel_pairs": 30
+    },
+    "quota_semantics": "Producer/terminal-acceptance budget only; unchanged Guard enforces shared64MiB. No retrospective completion, cleanup or per-log quota claim.",
+    "shared_evidence_category_cap": 67108864,
+    "source_manifest_sha256": "2fc5bfeb552d5d5dacf2f27bc57c45ea0ed327567c76bd23ba27de61c829564e",
+    "source_packet": "portable-runtime-fresh-v1",
+    "unchanged_minimum_host_available": 2952790016
+  },
+  "host": {
+    "discovery": "Fresh read/hash-only host phase, static ELF inspection from separately pinned supported tools if needed; no ldd or SDK execution.",
+    "external_dependencies": [
+      "complete host stdlib excluding its site-packages",
+      "observed and independently pinned loader/shared libraries"
+    ],
+    "implementation": "CPython",
+    "loader_preconditions": [
+      "LD_PRELOAD absent including empty",
+      "LD_LIBRARY_PATH absent including empty",
+      "LD_AUDIT absent including empty",
+      "GLIBC_TUNABLES absent including empty",
+      "/etc/ld.so.preload lstat reports absent; dangling alias refuses"
+    ],
+    "persistent_pin_storage": "Generated private evidence only; external paths never appear in public source.",
+    "platform": "linux-x86_64",
+    "python_pin": {
+      "bytes": 30894944,
+      "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+    },
+    "python_version": "3.12.14",
+    "self_contained": false,
+    "sqlite": {
+      "qualification": "PENDING_FRESH_ORIGIN_AND_MAPPING_CHECK",
+      "requirement": "Pin sqlite3 stdlib and observed origin/mappings. The current CellStore accepts only its published built-in _sqlite3/no-separate-libsqlite mapping form and existing exact registry. A pinned alternative form does not qualify it; no registry changes in this packet."
+    },
+    "startup_zip": "Absent required in this draft; a present ZIP requires a separately reviewed member inventory.",
+    "stdlib_entry_cap": 8192,
+    "system_file_bytes_cap": 134217728,
+    "system_file_cap": 256,
+    "unknown_or_changed_library": "REFUSE; no same-phase self-approval",
+    "upload_tools": {
+      "additional_downloads_authorized": false,
+      "current_qualification": "Executable byte hashes independently observed to match product constants; bounded ELF and version-output closure remain pending.",
+      "execution_during_source_preparation": false,
+      "failure_behavior": "Missing, changed, unresolved or over-cap tool closure leaves genuine upload API unqualified. Narrow Python installation/import acceptance must disclose this gap.",
+      "names": [
+        "ffmpeg",
+        "ffprobe"
+      ],
+      "product_route_compatibility": "PENDING: fragment_decoded_source._tools additionally requires its published FFmpeg7.1.5 executable hashes and bounded version-output hashes; a fresh ELF closure alone does not qualify that route.",
+      "required_closure": [
+        "canonical executable bytes and SHA256",
+        "ELF interpreter",
+        "resolved transitive shared-library bytes and SHA256",
+        "exact configured runtime tool paths"
+      ],
+      "shared_host_caps": true
+    },
+    "whole_read_closure_bytes": 536870912
+  },
+  "host_completion_v4": {
+    "cadence": "Timestamp recorded after successful full admission; STOP/deadline every block.",
+    "compressed_zip_plus_elf_metadata_read_cap_bytes": 134217728,
+    "default_search": "Explicit unique static-resolution policy only; no ld.so.cache, hwcaps or environment resolution; actual mapped origins are checked during later import.",
+    "directory_entries": 4416,
+    "elf_metadata_read_cap_bytes": 16777216,
+    "expanded_native_read_cap_bytes": 201326592,
+    "historical_sections": "Earlier derivative/split sections below describe their immutable source history, not current execution.",
+    "host_read_bytes": 536870912,
+    "host_roles": [
+      "candidate",
+      "wheel_plans",
+      "policy"
+    ],
+    "host_seconds": 600,
+    "known_asset_namespace": "Original38 archives plus exactly two independently sealed corpus-selected-wav-v1 outputs; fresh charged census required, no current exact38-only namespace claim.",
+    "maximum_member_bytes": 52993320,
+    "member_buffer_bytes": 67108864,
+    "namespace": "runtime-fresh-v4",
+    "native_compressed_files_bytes": 59849853,
+    "native_member_bytes": 168388321,
+    "native_members": 49,
+    "new_model_routes": false,
+    "original_manifest_sha256": "fc83222d8c809cf98883fa1bbc6a000f7037e52fd0cbfb2cf7bd41cff8d54190",
+    "policy_cap_bytes": 4096,
+    "policy_fields": [
+      "schema",
+      "library_directories",
+      "default_directories",
+      "stdlib_extensions"
+    ],
+    "policy_path": "<work>/evidence/runtime-fresh-inputs-v4/host-resolution-policy.json",
+    "policy_schema": "portable-runtime-host-resolution-policy-v1",
+    "private_inputs": "runtime-fresh-inputs-v4",
+    "source_packet_logical_cap_bytes": 581632,
+    "source_preparation_only": true,
+    "source_reader_caps": "bootstrap68/driver36/install104/probe60/tests68KiB; ten named ceilings568KiB, inclusive1MiB",
+    "zip_metadata_read_cap_bytes": 16777216
+  },
+  "identity_contract": {
+    "acquisition_tuple": "Validate original acquisition boot, namespace, PID and start ticks internally against its original owner and guard evidence.",
+    "cross_phase_authority": "Immutable independently accepted document and artifact hashes; no live-process inheritance or PID discovery substitution.",
+    "namespace_equality_across_invocations_required": false,
+    "new_invocation_tuple": "Capture current boot, namespace, PID and start ticks in each supported invocation; configure and launch the phase within that invocation.",
+    "old_process_adoption": false
+  },
+  "imports_executed": false,
+  "installation_executed": false,
+  "installation_sequence": [
+    "Only a later independent execution release admits an exact private phase config, current invocation identity and fresh roots; source drafting is not execution.",
+    "Require strict fresh all38 v2 evidence and the independently accepted original tool completion, coordinator/guard terminal and separate post-reap full38 audit.",
+    "Read/hash and independently review the fresh external host closure before build/native imports.",
+    "Rehash the exact 30 wheel inputs; perform WIP8 bounded ZIP audit before ZipFile; verify RECORD/member metadata and selected dependencies.",
+    "Use exact bounded archive census and charged-allocation admission before any wheel/member materialization; retain320/128/64MiB subpartitions.",
+    "Install three build-only wheels into build/site under -I -B -S without executing the .pth hook; pin the exact Setuptools hook/shim bytes as data.",
+    "Copy all 351 exact product source files, build through pinned setuptools.build_meta in the isolated build phase, audit wheel and compare all101 package members.",
+    "Extract27 runtime wheels and exact backend into the fresh final runtime site; copy interpreter once and generate private pyvenv.cfg.",
+    "Validate all active Requires-Dist against the fixed map with only product inference extras; reject unknown transitive extras or URLs.",
+    "Rehash final complete tree, external host closure, every original input and original product source; verify exact distribution and full entry-point closure.",
+    "Seal fresh runtime inventory only after original owning guard terminal/reap; then separately approve ordinary-startup import-only phase."
+  ],
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "all_wheel_member_cap": 8192,
+    "allocation_admission": {
+      "compressed_inputs_duplicated": false,
+      "decision": "Exact bounded pinned archive census and current charged allocation must fit320MiB final/128MiB build/512MiB container before writes. Refuse rather than enlarge caps.",
+      "declared_independent_expansion_maxima_bytes": 301989888,
+      "global_member_counter": 8192,
+      "logical_headroom_before_cfg_and_allocation_bytes": 2659488,
+      "maxima_plus_interpreter_bytes": 332884832,
+      "per_class_expansion_counters": {
+        "backend": 16777216,
+        "primary_and_build": 209715200,
+        "transcribe": 75497472
+      },
+      "required_before_materialization": true
+    },
+    "attempts_per_phase": 1,
+    "automatic_retries": 0,
+    "backend_compressed_bytes": 8388608,
+    "backend_member_cap": 512,
+    "backend_wheel_expansion_bytes": 16777216,
+    "build_subpartition_charged_bytes": {
+      "backend_wheel": 8388608,
+      "build_site": 33554432,
+      "metadata_allocation_headroom": 41943040,
+      "source_and_generated_build_work": 33554432,
+      "temporary_outputs": 16777216,
+      "temporary_outputs_note": "Guard TMPDIR is under evidence, not runtime/build; any temporary bytes additionally consume the64MiB evidence category. The16MiB entry is a planned reserve, not a separate OS quota."
+    },
+    "charging": "max(logical, st_blocks*512), including every directory, failure, partial output and temporary/receipt coexistence; existing global reservation is unchanged.",
+    "cleanup_seconds": 60,
+    "cpu": 3,
+    "evidence_category_charged_bytes": 67108864,
+    "evidence_output_accounting": {
+      "category_cap": 67108864,
+      "claim_each": 4096,
+      "combined_wheel_archive_plans": 4194304,
+      "config_each": 65536,
+      "guard_receipt_reserve_each": 1048576,
+      "handoff": 65536,
+      "host": 4194304,
+      "import_report_stdout": 1048576,
+      "logs": "Original Guard output.log has no separate small cap; it is charged to the same64MiB evidence category, with every preserved failure/temp/output and directory.",
+      "private_inputs": "Each<=4MiB, capped in total by64MiB evidence category; exact projected coexistence must fit before phase GO.",
+      "result_each_except_import": 32768,
+      "runtime_inventory": 4194304,
+      "spec_each": 1048576
+    },
+    "global_charged_bytes": 12884901888,
+    "minimum_available_bytes": 2952790016,
+    "nice": 19,
+    "ordinary_free_floor_bytes": 5905580032,
+    "per_member_bytes": 134217728,
+    "per_wheel_central_directory_bytes": 8388608,
+    "per_wheel_member_cap": 8192,
+    "primary_and_build_wheel_expansion_bytes": 209715200,
+    "record_bytes": 2097152,
+    "runtime_category_charged_bytes": 536870912,
+    "runtime_partition_charged_bytes": {
+      "ancestors_headroom": 67108864,
+      "build_v1": 134217728,
+      "final_runtime": 335544320
+    },
+    "runtime_tree_entry_cap": 16384,
+    "sampled_owned_rss_bytes": 268435456,
+    "source_category_charged_bytes": 67108864,
+    "source_packet_inclusive_charged_cap_bytes": 1048576,
+    "source_packet_logical_cap_bytes": 589824,
+    "transcribe_wheel_expansion_bytes": 75497472
+  },
+  "native_source_commit": "63a44d9239d610b3908e8a66b384924cd4a77217",
+  "ordinary_startup": {
+    "after_exec": [
+      "same PID/start_ticks/boot/namespace",
+      "same absolute deadline and inherited limits",
+      "exact environment digest and cwd",
+      "exact sys.path/prefix/base_prefix/executable",
+      "closed distribution/provider/entrypoint set",
+      "module origins and observed native mappings before/after imports"
+    ],
+    "before_exec": [
+      "exact fresh runtime and host byte seals",
+      "closed argv and empty owned cwd/home",
+      "exact guard environment and user-site suppression",
+      "all prospective sys.path roots and helper directory pinned",
+      "no .pth/sitecustomize/usercustomize, no ambient loader or Python overrides"
+    ],
+    "cell_store": "Later real CellStore verifier must reject any registry/runtime tuple mismatch. Do not adapt its registry, activate from an old path or inherit historical receipts.",
+    "deny": [
+      "model/audio reads",
+      "model/session constructors",
+      "service startup",
+      "socket/subprocess/fork/exec",
+      "SQLite connect/load-extension",
+      "CellStore/MOSS controller initialization",
+      "runtime/host file writes"
+    ],
+    "honest_native_scope": "Native package import performs dlopen/C ABI version and backend initialization. Audit/profile are not a native-code sandbox; lazy dependencies remain unproven.",
+    "ordinary_flags": [
+      "-B"
+    ],
+    "preflight_flags": [
+      "-I",
+      "-B",
+      "-S"
+    ],
+    "same_pid_exec": true
+  },
+  "output_layout": {
+    "backend_wheel": "build/wheels/long_audio_backend-0.2.0rc3.dev8-py3-none-any.whl",
+    "build": "runtime_container/build-v1; retained separately from final runtime.",
+    "build_site": "build/site",
+    "evidence": "work/evidence/runtime-fresh-v5/<phase>; exact guarded one-shot outputs.",
+    "freshness": "O_EXCL only, no deletion/replacement/resume. No staging directory promotion. Filesystem leaf presence never establishes readiness.",
+    "import_result": "Serialized report<=1MiB to authenticated guard-owned stdout while write-denying audit remains installed; owner may separately seal those bytes after supported-tool reap.",
+    "metadata_files": [
+      "config.json",
+      "claim.json",
+      "spec.json",
+      "result.json",
+      "host.json",
+      "wheel_plans.json",
+      "runtime_inventory.json",
+      "probe-handoff.json"
+    ],
+    "runtime": "Generated private config must equal original accepted acquisition runtime/runtime_container reservations. Path equality preserves only the existing comparator; no qualification is inherited.",
+    "seal": "Fresh immutable evidence pin after complete-tree verification; owner-side original wait remains external evidence.",
+    "source_copy": "build/source"
+  },
+  "owner_preparation": {
+    "after_first_three": "Independently review archive aliases/allocation and host closure. Remaining five phases stay held until their exact GO. No download or broad harness rebuild is needed.",
+    "archive_specs_exact": {
+      "artifacts": "Exactly four rows {id,spec}; spec exactly {asset_class,kind,archive_pin,root,strip_root,selected}. archive_pin comes from full accepted assets manifest, not partial bytes.",
+      "rows": [
+        {
+          "asset_class": "audioset",
+          "id": "zipformer-small-audioset",
+          "kind": "bz2",
+          "root": "sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+          "selected": [],
+          "strip_root": false
+        },
+        {
+          "asset_class": "sensevoice",
+          "id": "sensevoice-small-int8",
+          "kind": "bz2",
+          "root": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+          "selected": [],
+          "strip_root": true
+        },
+        {
+          "asset_class": "native",
+          "id": "linux-x86_64-cpu",
+          "kind": "gz",
+          "root": null,
+          "selected": [],
+          "strip_root": false
+        },
+        {
+          "asset_class": "corpus",
+          "id": "alimeeting-eval",
+          "kind": "gz",
+          "root": null,
+          "selected": [
+            {
+              "bytes": 402905680,
+              "path": "Eval_Ali/Eval_Ali_far/audio_dir/R8001_M8004_MS801.wav",
+              "sha256": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1"
+            },
+            {
+              "bytes": 76496,
+              "path": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8001_M8004.TextGrid",
+              "sha256": null
+            }
+          ],
+          "strip_root": false
+        }
+      ],
+      "schema": "portable-runtime-archive-specs-v1"
+    },
+    "first_three": {
+      "runtime-fixtures": {
+        "absolute_seconds": 300,
+        "case_count": 89,
+        "inputs": {},
+        "outputs": {
+          "result": "<phase leaf>/result.json"
+        },
+        "result_cap": 32768,
+        "work_seconds": 240
+      },
+      "runtime-host-inventory": {
+        "absolute_seconds": 600,
+        "host_cap": 4194304,
+        "inputs": {
+          "candidate": "Exact pinned historical host candidate JSON",
+          "policy": "Exact host-resolution-policy.json; closed four-field schema",
+          "wheel_plans": "Exact accepted 30-wheel plan, host_input_sha256 must equal candidate digest"
+        },
+        "outputs": {
+          "host": "<phase leaf>/host.json",
+          "result": "<phase leaf>/result.json"
+        },
+        "result_cap": 32768,
+        "status": "COMPLETED_PINNED_STATIC_HOST_CLOSURE",
+        "work_seconds": 540
+      },
+      "runtime-wheel-audit": {
+        "absolute_seconds": 300,
+        "combined_wheel_archive_plan_cap": 4194304,
+        "inputs": {
+          "host": "path/bytes/SHA of accepted host candidate document"
+        },
+        "materialized_archive_bytes": 0,
+        "outputs": {
+          "result": "<phase leaf>/result.json",
+          "wheel_plans": "<phase leaf>/wheel_plans.json"
+        },
+        "result_cap": 32768,
+        "work_seconds": 240
+      }
+    },
+    "fixed_launch_argv": [
+      "<accepted host python>",
+      "-I",
+      "-B",
+      "-S",
+      "<packet>/guard_driver.py",
+      "--phase",
+      "<exact phase>",
+      "--template",
+      "<template absolute path>",
+      "--template-sha256",
+      "<template SHA>",
+      "--go",
+      "<GO absolute path>",
+      "--go-sha256",
+      "<GO SHA>"
+    ],
+    "go_cap": 4096,
+    "go_exact": {
+      "config_template_sha256": "<exact template SHA>",
+      "decision": "RUN_ONCE",
+      "packet_sha256": "<final manifest SHA>",
+      "phase": "<exact phase>",
+      "schema": "portable-runtime-phase-go-v1"
+    },
+    "go_path": "<work>/evidence/runtime-fresh-inputs-v5/<phase>.go.json",
+    "input_document_cap": 4194304,
+    "model_specs_exact": {
+      "artifacts": "Exactly3 rows{id,spec}; fill archive_pin from full accepted assets manifest.",
+      "rows": [
+        {
+          "asset_class": "audioset",
+          "id": "zipformer-small-audioset",
+          "kind": "bz2",
+          "root": "sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+          "selected": [],
+          "strip_root": false
+        },
+        {
+          "asset_class": "sensevoice",
+          "id": "sensevoice-small-int8",
+          "kind": "bz2",
+          "root": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+          "selected": [],
+          "strip_root": true
+        },
+        {
+          "asset_class": "native",
+          "id": "linux-x86_64-cpu",
+          "kind": "gz",
+          "root": null,
+          "selected": [],
+          "strip_root": false
+        }
+      ],
+      "schema": "portable-runtime-archive-specs-v1"
+    },
+    "owner_rule": "Use one original supported invocation and retain its owning tool handle. Driver captures its current identity, writes config/claim/spec exclusively, then execs Guard without replacing PID. Only original supported-tool completion plus raw guard PASS/source-final/cleanup permits condensed phase acceptance. No acquisition PID namespace is copied into the new invocation.",
+    "phase_acceptance_exact": {
+      "config": "descriptor",
+      "guard_receipt": "descriptor",
+      "original_tool_completion": "descriptor <=16KiB",
+      "outputs": "{} except host:{host:descriptor}, audit:{wheel_plans:descriptor}, build:{runtime_inventory:descriptor}",
+      "phase": "<phase>",
+      "result": "descriptor",
+      "schema": "portable-runtime-phase-acceptance-v1",
+      "status": "ACCEPTED_PHASE_BYTES_ONLY"
+    },
+    "phase_tool_completion_exact": {
+      "guard_identity": "exact raw guard supervisor pid,start_ticks,boot_id,pid_namespace tuple",
+      "original_tool": {
+        "exit_code": 0,
+        "owner_stop_or_signal": false,
+        "session_id": "positive integer supplied by owner",
+        "terminal": true
+      },
+      "phase": "<phase>",
+      "schema": "portable-runtime-tool-completion-v1"
+    },
+    "private_files": "Outside the ten-file packet, under the existing work/evidence category. Suggested parent work/evidence/runtime-fresh-inputs-v3; each phase leaf work/evidence/runtime-fresh-v3/<phase> must be absent before launch.",
+    "selected_allocation_exact": {
+      "allocation_unit": "actual power-of-two512..65536 statvfs.f_frsize",
+      "baseline_assets": {
+        "census_sha256": "SHA256 of json.dumps(sorted8-field rows,sort_keys=True,separators=(comma,colon),allow_nan=False).encode(UTF-8), NO trailing newline",
+        "charged_bytes": "actual fresh assets census"
+      },
+      "output_leaf": "corpus-selected-wav-v1",
+      "reserved_charged_bytes": 403701760,
+      "schema": "portable-selected-wav-allocation-v1"
+    },
+    "split_phase_recipes": {
+      "assets-corpus-select": {
+        "absolute_seconds": 1800,
+        "inputs": {
+          "allocation": "path/bytes/SHA of independently reviewed corpus-selected-wav.allocation.corrected.json"
+        },
+        "leaf_inclusive_cap": 403701760,
+        "output_leaf": "<work>/assets/corpus-selected-wav-v1",
+        "outputs": {
+          "result": "<phase leaf>/result.json"
+        },
+        "result_cap": 32768,
+        "work_seconds": 1740
+      },
+      "assets-model-audit": {
+        "absolute_seconds": 300,
+        "archive_plans_cap": 4194304,
+        "inputs": {
+          "archive_specs": "path/bytes/SHA of exactly3 model rows"
+        },
+        "materialized_bytes": 0,
+        "outputs": {
+          "archive_plans": "<phase leaf>/archive_plans.json",
+          "result": "<phase leaf>/result.json"
+        },
+        "result_cap": 32768,
+        "work_seconds": 240
+      },
+      "runtime-wheel-audit": {
+        "absolute_seconds": 300,
+        "combined_wheel_archive_plan_cap": 4194304,
+        "inputs": {
+          "host": "path/bytes/SHA of accepted host candidate document"
+        },
+        "materialized_archive_bytes": 0,
+        "outputs": {
+          "result": "<phase leaf>/result.json",
+          "wheel_plans": "<phase leaf>/wheel_plans.json"
+        },
+        "result_cap": 32768,
+        "work_seconds": 240
+      }
+    },
+    "template_cap": 65536,
+    "template_fields": {
+      "accepted_phases": "Array of accepted prior phase/config/guard/result/independent_acceptance descriptors; [] for fixtures. These are immutable facts, never live process identities.",
+      "acquisition": {
+        "config": "Acceptance.references.acquisition_config",
+        "download_result": "Acceptance.references.download_result",
+        "guard_receipt": "Acceptance.references.download_guard",
+        "historical_identity": "Acceptance.acquisition_identity",
+        "owner_acceptance": "Separately accepted owner acceptance path/bytes/SHA descriptor.",
+        "owner_terminal": "Acceptance.references.coordinator_terminal"
+      },
+      "assets_manifest": "Acceptance.references.assets_manifest descriptor.",
+      "execution_authorized": false,
+      "execution_release": null,
+      "host": "Copy exact accepted acquisition host object: python,python_bytes,python_sha256,filesystem_device,python_version.",
+      "invocation": null,
+      "limits": "Copy exact accepted acquisition limits unchanged; bootstrap.LIMITS and config.schema.json enumerate all scalars.",
+      "packet_sha256": "SHA256 of final PACKET_MANIFEST.json bytes.",
+      "phase_args": "Exact per-phase inputs/outputs below; options is always {}.",
+      "roots": "Copy original accepted acquisition roots, replacing only packet with this frozen packet root. Product/source/work/runtime/runtime_container/proof roots stay explicit canonical private paths.",
+      "runtime_allocation": {
+        "ancestor_bytes": 67108864,
+        "build_bytes": 134217728,
+        "final_bytes": 335544320,
+        "status": "PENDING_ALLOCATION_CENSUS"
+      },
+      "runtime_lock_sha256": "SHA256 of final runtime/runtime.lock.json bytes.",
+      "schema": "portable-runtime-fresh-config-v1",
+      "status": "PRIVATE_PHASE_TEMPLATE"
+    },
+    "template_path": "<work>/evidence/runtime-fresh-inputs-v3/<phase>.template.json"
+  },
+  "privacy": {
+    "contains_private_paths": false,
+    "contains_raw_receipts": false,
+    "public_source_only": true,
+    "secrets_or_environment_values": false
+  },
+  "product": {
+    "bytes": 4651663,
+    "commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+    "file_count": 351,
+    "tree": "6ca0c2b0e045c5ea8fdb9449bbaf6172d251b527"
+  },
+  "product_package": {
+    "all_members_must_equal_source": true,
+    "bytes": 1608907,
+    "files": 101,
+    "prefix": "audio_backend/"
+  },
+  "provider_entry_points": [
+    {
+      "distribution": "transcribe-cpp-native",
+      "group": "transcribe_cpp.native",
+      "name": "default",
+      "value": "transcribe_cpp_native:descriptor"
+    }
+  ],
+  "required_integration_amendment": {
+    "after_all_current_owners_terminal": false,
+    "current_guard_accepts_runtime_phases": true,
+    "current_packet_or_config_modified": false,
+    "entrypoints": "Closed dormant path is functional. Standalone unadmitted invocation refuses; exact private template+GO configures current identity and same-PID execs the preserved Guard. Every actual phase needs independent source/config acceptance and original supported-tool ownership.",
+    "new_closed_phases": [
+      "runtime-fixtures",
+      "runtime-host-inventory",
+      "runtime-wheel-audit",
+      "runtime-build-install",
+      "runtime-import",
+      "assets-model-extract",
+      "assets-corpus-extract",
+      "assets-input-derive",
+      "assets-model-audit",
+      "assets-corpus-select"
+    ],
+    "prior_unknown_readers_remain_reserved": true,
+    "proposed_absolute_seconds": {
+      "assets-corpus-extract": 1800,
+      "assets-corpus-select": 1800,
+      "assets-input-derive": 300,
+      "assets-model-audit": 300,
+      "assets-model-extract": 600,
+      "runtime-build-install": 600,
+      "runtime-fixtures": 300,
+      "runtime-host-inventory": 600,
+      "runtime-import": 300,
+      "runtime-wheel-audit": 300
+    },
+    "required_review": [
+      "new versioned packet/config and exact source freeze",
+      "strict phase-specific config schema and mutually pinned fresh acquisition/owner/run seals",
+      "unchanged ownership/census/dispatch/signal/reap/cleanup methods",
+      "fresh admission and full category reservations",
+      "source-map constants/helper/loader-delta review, not function AST pins alone",
+      "all three expansion classes share the8192-member overall cap",
+      "exact finite output allowlist and receipt/temporary coexistence",
+      "isolated build importer exposes only sealed stdlib and build/site; no cwd/host packages",
+      "pre-build Python audit and filesystem writes restricted to source/work/output roles",
+      "host inventory dynamic candidate/tool closure and unresolved-origin refusal",
+      "post-handoff result through an already-owned bounded pipe while import audit remains active",
+      "versioned fixtures and independent source review before any execution"
+    ]
+  },
+  "runtime_qualification_claims": {
+    "cell_store": false,
+    "genuine_upload_api": false,
+    "inference": false,
+    "installed": false,
+    "ordinary_imports": false
+  },
+  "schema": "portable-fresh-runtime-source-draft-v1",
+  "selection": {
+    "build_only_distributions": {
+      "packaging": "26.3",
+      "setuptools": "84.0.0",
+      "wheel": "0.48.0"
+    },
+    "build_wheel_count": 3,
+    "console_script_wrappers_generated": false,
+    "dependency_resolution": false,
+    "entry_point_metadata_retained": true,
+    "excluded_optional_extras": [
+      "benchmark",
+      "test"
+    ],
+    "host_pip": false,
+    "product_optional_extras": [
+      "inference"
+    ],
+    "qwen_weights": false,
+    "runtime_distribution_count": 28,
+    "runtime_distributions": {
+      "annotated-doc": "0.0.5",
+      "annotated-types": "0.8.0",
+      "anyio": "4.15.1",
+      "cffi": "2.1.1",
+      "click": "8.5.0",
+      "fastapi": "0.143.0",
+      "h11": "0.16.0",
+      "idna": "3.20",
+      "long-audio-backend": "0.2.0rc3.dev8",
+      "numpy": "2.5.3",
+      "opencc-python-reimplemented": "0.1.7",
+      "opentelemetry-api": "1.45.1",
+      "psutil": "7.2.2",
+      "pycparser": "3.1",
+      "pydantic": "2.13.5",
+      "pydantic-core": "2.46.5",
+      "pydantic-settings": "2.15.0",
+      "python-dotenv": "1.2.4",
+      "python-multipart": "0.0.32",
+      "sherpa-onnx": "1.13.8",
+      "sherpa-onnx-core": "1.13.8",
+      "soundfile": "0.14.0",
+      "starlette": "1.7.0",
+      "transcribe-cpp": "0.2.3",
+      "transcribe-cpp-native": "0.2.3",
+      "typing-extensions": "4.16.0",
+      "typing-inspection": "0.4.4",
+      "uvicorn": "0.54.0"
+    },
+    "runtime_wheel_count": 27
+  },
+  "split_v3": {
+    "aggregate_as_reservation": 3221225472,
+    "aggregate_rss_reservation": 805306368,
+    "clip_bytes": 672044,
+    "compressed_sha_provenance": "Accepted original full38 post-reap SHA plus exact descriptor/path continuity; no fresh full compressed hash claim.",
+    "currently_conditionally_authorized_phases": [
+      "runtime-wheel-audit",
+      "assets-model-audit",
+      "assets-corpus-select"
+    ],
+    "decoded_prefix_cap": 17179869184,
+    "decoder_buffer_strictly_less": 131072,
+    "evidence_category_cap": 67108864,
+    "first_exact_occurrence": true,
+    "focused_execution_pending": true,
+    "global_name_uniqueness": false,
+    "gzip_trailer_checked": false,
+    "header_cap": 4096,
+    "later_install_import_prerequisites": [
+      "Actual member allocation ledger fits runtime320/build128/ancestors64MiB plus retained assets7GiB and global12GiB.",
+      "Independent native alias graph review; no guessed aliases.",
+      "Host native_closure/native_review_pin for Python/stdlib extensions/SQLite and all loader/DT_NEEDED dependencies.",
+      "Historicalv1 host/89 records stay historical. Same-packet acceptance predicate unchanged; import needs authentic same-v3 build acceptance.",
+      "Exact offline product/build wheel closure; isolated and same-PID ordinary startup configuration.",
+      "ffmpeg/ffprobe full ELF/library closure plus separately bounded version-output compatibility before genuine upload qualification.",
+      "Registry/CellStore activation and genuine backend smoke need new identity/proof; no automatic qualification."
+    ],
+    "leaf_cap": 403701760,
+    "no_TextGrid": true,
+    "old_unknown_attempts": 2,
+    "per_read_bytes": 65536,
+    "progress": "Fixed start/target encounter/verified write/clip complete plus1GiB decoded milestones<=16. No per-block/headerlogs; each JSON line including newline<=512B,flush=True.",
+    "progress_maximum_records": {
+      "assets-corpus-select": 20,
+      "assets-model-audit": 6,
+      "runtime-wheel-audit": 60
+    },
+    "selected_files": 2,
+    "selected_source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8001_M8004_MS801.wav",
+    "source_bytes": 402905680,
+    "source_manifest_sha256": "d6c8884741c4a9d281d5102fca0df9227d273a6da68366f5ed636de660ec7804",
+    "suffix_scanned": false,
+    "tar_eof_checked": false,
+    "unchanged_minimum_host_available": 2952790016
+  },
+  "status": "SOURCE_ONLY_DRAFT_UNADMITTED",
+  "tests_executed": false,
+  "wheel_storage": "Read exact acquired assets in place; never duplicate compressed inputs in runtime/build.",
+  "wheels": [
+    {
+      "bytes": 5302,
+      "destination": "wheels/annotated_doc-0.0.5-py3-none-any.whl",
+      "distribution": "annotated-doc",
+      "group": "wheels",
+      "id": "wheel-annotated-doc",
+      "role": "runtime",
+      "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+      "version": "0.0.5"
+    },
+    {
+      "bytes": 13427,
+      "destination": "wheels/annotated_types-0.8.0-py3-none-any.whl",
+      "distribution": "annotated-types",
+      "group": "wheels",
+      "id": "wheel-annotated-types",
+      "role": "runtime",
+      "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl",
+      "version": "0.8.0"
+    },
+    {
+      "bytes": 132079,
+      "destination": "wheels/anyio-4.15.1-py3-none-any.whl",
+      "distribution": "anyio",
+      "group": "wheels",
+      "id": "wheel-anyio",
+      "role": "runtime",
+      "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
+      "version": "4.15.1"
+    },
+    {
+      "bytes": 221822,
+      "destination": "wheels/cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "distribution": "cffi",
+      "group": "wheels",
+      "id": "wheel-cffi",
+      "role": "runtime",
+      "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+      "tags": [
+        "cp312-cp312-manylinux2014_x86_64",
+        "cp312-cp312-manylinux_2_17_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/b1/db/dceb9dd5b231e1da801793f8acc9f3c52a7e1afe40bb1aae37e02b0faad5/cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "version": "2.1.1"
+    },
+    {
+      "bytes": 125251,
+      "destination": "wheels/click-8.5.0-py3-none-any.whl",
+      "distribution": "click",
+      "group": "wheels",
+      "id": "wheel-click",
+      "role": "runtime",
+      "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl",
+      "version": "8.5.0"
+    },
+    {
+      "bytes": 144665,
+      "destination": "wheels/fastapi-0.143.0-py3-none-any.whl",
+      "distribution": "fastapi",
+      "group": "wheels",
+      "id": "wheel-fastapi",
+      "role": "runtime",
+      "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/bd/f4/27e386913417ad32aae42bba48b0c0cce40e9ff2fba1a871ca2702c37324/fastapi-0.143.0-py3-none-any.whl",
+      "version": "0.143.0"
+    },
+    {
+      "bytes": 37515,
+      "destination": "wheels/h11-0.16.0-py3-none-any.whl",
+      "distribution": "h11",
+      "group": "wheels",
+      "id": "wheel-h11",
+      "role": "runtime",
+      "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl",
+      "version": "0.16.0"
+    },
+    {
+      "bytes": 69583,
+      "destination": "wheels/idna-3.20-py3-none-any.whl",
+      "distribution": "idna",
+      "group": "wheels",
+      "id": "wheel-idna",
+      "role": "runtime",
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+      "version": "3.20"
+    },
+    {
+      "bytes": 16717410,
+      "destination": "wheels/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "distribution": "numpy",
+      "group": "wheels",
+      "id": "wheel-numpy",
+      "role": "runtime",
+      "sha256": "b7e18c623bb5c95acb3b3328861272816ba199fb531921c5d6d0b675f1fde9e3",
+      "tags": [
+        "cp312-cp312-manylinux_2_27_x86_64",
+        "cp312-cp312-manylinux_2_28_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "2.5.3"
+    },
+    {
+      "bytes": 481813,
+      "destination": "wheels/opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl",
+      "distribution": "opencc-python-reimplemented",
+      "group": "wheels",
+      "id": "wheel-opencc-python-reimplemented",
+      "role": "runtime",
+      "sha256": "41b3b92943c7bed291f448e9c7fad4b577c8c2eae30fcfe5a74edf8818493aa6",
+      "tags": [
+        "py2-none-any",
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/30/6b/055b7806f320cc8f2cdf23c5f70221c0dc1683fca9ffaf76dfc2ad4b91b6/opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl",
+      "version": "0.1.7"
+    },
+    {
+      "bytes": 60256,
+      "destination": "wheels/opentelemetry_api-1.45.1-py3-none-any.whl",
+      "distribution": "opentelemetry-api",
+      "group": "wheels",
+      "id": "wheel-opentelemetry-api",
+      "role": "runtime",
+      "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl",
+      "version": "1.45.1"
+    },
+    {
+      "bytes": 155560,
+      "destination": "wheels/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl",
+      "distribution": "psutil",
+      "group": "wheels",
+      "id": "wheel-psutil",
+      "role": "runtime",
+      "sha256": "076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9",
+      "tags": [
+        "cp36-abi3-manylinux2010_x86_64",
+        "cp36-abi3-manylinux_2_12_x86_64",
+        "cp36-abi3-manylinux_2_28_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/b5/70/5d8df3b09e25bce090399cf48e452d25c935ab72dad19406c77f4e828045/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "7.2.2"
+    },
+    {
+      "bytes": 48709,
+      "destination": "wheels/pycparser-3.1-py3-none-any.whl",
+      "distribution": "pycparser",
+      "group": "wheels",
+      "id": "wheel-pycparser",
+      "role": "runtime",
+      "sha256": "f09d358c840bd147b79e55f2bc494f18ea869dc897f5852a8f5766b74f787882",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/99/ce/b3ae9ee0324d991c860187be2a6ee436d27a3d02397eaddbb101ec901f3d/pycparser-3.1-py3-none-any.whl",
+      "version": "3.1"
+    },
+    {
+      "bytes": 472589,
+      "destination": "wheels/pydantic-2.13.5-py3-none-any.whl",
+      "distribution": "pydantic",
+      "group": "wheels",
+      "id": "wheel-pydantic",
+      "role": "runtime",
+      "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/eb/47/c95ffc2009878c7aac0c5e08528022dcb885933252a88b5f170058014464/pydantic-2.13.5-py3-none-any.whl",
+      "version": "2.13.5"
+    },
+    {
+      "bytes": 2066284,
+      "destination": "wheels/pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "distribution": "pydantic-core",
+      "group": "wheels",
+      "id": "wheel-pydantic-core",
+      "role": "runtime",
+      "sha256": "0fc5be0abd4a407e200d844b404e33639a554e7bd0d448e7b9ae181be4789ac2",
+      "tags": [
+        "cp312-cp312-manylinux_2_17_x86_64",
+        "cp312-cp312-manylinux2014_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/c0/a4/eb9409ec0736e50aa70a412f16c204ed149516846912f7e6724d4c73ee53/pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "version": "2.46.5"
+    },
+    {
+      "bytes": 69413,
+      "destination": "wheels/pydantic_settings-2.15.0-py3-none-any.whl",
+      "distribution": "pydantic-settings",
+      "group": "wheels",
+      "id": "wheel-pydantic-settings",
+      "role": "runtime",
+      "sha256": "0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/30/a4/2bffa9f8e804325a09867f0e9d30795c80ea9f8d62560bd1b6ad6220eb2f/pydantic_settings-2.15.0-py3-none-any.whl",
+      "version": "2.15.0"
+    },
+    {
+      "bytes": 23266,
+      "destination": "wheels/python_dotenv-1.2.4-py3-none-any.whl",
+      "distribution": "python-dotenv",
+      "group": "wheels",
+      "id": "wheel-python-dotenv",
+      "role": "runtime",
+      "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl",
+      "version": "1.2.4"
+    },
+    {
+      "bytes": 30042,
+      "destination": "wheels/python_multipart-0.0.32-py3-none-any.whl",
+      "distribution": "python-multipart",
+      "group": "wheels",
+      "id": "wheel-python-multipart",
+      "role": "runtime",
+      "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl",
+      "version": "0.0.32"
+    },
+    {
+      "bytes": 4400575,
+      "destination": "wheels/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "distribution": "sherpa-onnx",
+      "group": "wheels",
+      "id": "wheel-sherpa-onnx",
+      "role": "runtime",
+      "sha256": "6949773017647febc0c3696dffb2c67dd3febd4737b87e3dd135a42773704a06",
+      "tags": [
+        "cp312-cp312-manylinux2014_x86_64",
+        "cp312-cp312-manylinux_2_17_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/13/78/2f712b7408ddbb64614c20388912414705b728516224e737b63f2adec94a/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "version": "1.13.8"
+    },
+    {
+      "bytes": 10642497,
+      "destination": "wheels/sherpa_onnx_core-1.13.8-py3-none-manylinux2014_x86_64.whl",
+      "distribution": "sherpa-onnx-core",
+      "group": "wheels",
+      "id": "wheel-sherpa-onnx-core",
+      "role": "runtime",
+      "sha256": "4da90acf435373d7b2ba9cc0be806e7e274d28f63f5780880b5dea6721626e36",
+      "tags": [
+        "py3-none-manylinux2014_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/b6/ca/e27c1fb5c54b181d4a5450f3d5c789d9da02eb42dc9b20cfdab5dda4c864/sherpa_onnx_core-1.13.8-py3-none-manylinux2014_x86_64.whl",
+      "version": "1.13.8"
+    },
+    {
+      "bytes": 1315963,
+      "destination": "wheels/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl",
+      "distribution": "soundfile",
+      "group": "wheels",
+      "id": "wheel-soundfile",
+      "role": "runtime",
+      "sha256": "1e38bac1853412871318e82a1ba69a8be677619b56025bbfcccdb41b6cafe82d",
+      "tags": [
+        "py2-none-manylinux_2_28_x86_64",
+        "py3-none-manylinux_2_28_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/7b/a2/70fd4432b924684c372df8b0a45708c36c057ef3596c9eb53e0a806b980b/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl",
+      "version": "0.14.0"
+    },
+    {
+      "bytes": 78980,
+      "destination": "wheels/starlette-1.7.0-py3-none-any.whl",
+      "distribution": "starlette",
+      "group": "wheels",
+      "id": "wheel-starlette",
+      "role": "runtime",
+      "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl",
+      "version": "1.7.0"
+    },
+    {
+      "bytes": 45571,
+      "destination": "wheels/typing_extensions-4.16.0-py3-none-any.whl",
+      "distribution": "typing-extensions",
+      "group": "wheels",
+      "id": "wheel-typing-extensions",
+      "role": "runtime",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "version": "4.16.0"
+    },
+    {
+      "bytes": 14750,
+      "destination": "wheels/typing_inspection-0.4.4-py3-none-any.whl",
+      "distribution": "typing-inspection",
+      "group": "wheels",
+      "id": "wheel-typing-inspection",
+      "role": "runtime",
+      "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl",
+      "version": "0.4.4"
+    },
+    {
+      "bytes": 87427,
+      "destination": "wheels/uvicorn-0.54.0-py3-none-any.whl",
+      "distribution": "uvicorn",
+      "group": "wheels",
+      "id": "wheel-uvicorn",
+      "role": "runtime",
+      "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/38/0c/b54a4fdd7f90a3af8b02ebc9ce6712c2c208b7926a2f7bad95c33ebbe943/uvicorn-0.54.0-py3-none-any.whl",
+      "version": "0.54.0"
+    },
+    {
+      "bytes": 129956,
+      "destination": "wheels/packaging-26.3-py3-none-any.whl",
+      "distribution": "packaging",
+      "group": "wheels",
+      "id": "wheel-packaging",
+      "role": "build",
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+      "version": "26.3"
+    },
+    {
+      "bytes": 818216,
+      "destination": "wheels/setuptools-84.0.0-py3-none-any.whl",
+      "distribution": "setuptools",
+      "group": "wheels",
+      "id": "wheel-setuptools",
+      "role": "build",
+      "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl",
+      "version": "84.0.0"
+    },
+    {
+      "bytes": 33320,
+      "destination": "wheels/wheel-0.48.0-py3-none-any.whl",
+      "distribution": "wheel",
+      "group": "wheels",
+      "id": "wheel-wheel",
+      "role": "build",
+      "sha256": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/2e/29/69cfbb602cd91690c55d38ba9fe53e6a7e76a6fa647bf38f19c138d25449/wheel-0.48.0-py3-none-any.whl",
+      "version": "0.48.0"
+    },
+    {
+      "bytes": 34910,
+      "destination": "wheels/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "distribution": "transcribe-cpp",
+      "group": "wheels",
+      "id": "transcribe-cpp",
+      "role": "runtime",
+      "sha256": "be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03",
+      "tags": [
+        "py3-none-any"
+      ],
+      "url": "https://files.pythonhosted.org/packages/c6/39/832282b7d27e29ee48f2c89c243b431078dfc235ca48b59b35c74431ce55/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "version": "0.2.3"
+    },
+    {
+      "bytes": 24329742,
+      "destination": "wheels/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "distribution": "transcribe-cpp-native",
+      "group": "wheels",
+      "id": "transcribe-cpp-native",
+      "role": "runtime",
+      "sha256": "8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece",
+      "tags": [
+        "py3-none-manylinux_2_27_x86_64",
+        "py3-none-manylinux_2_28_x86_64"
+      ],
+      "url": "https://files.pythonhosted.org/packages/cb/c9/6955026364f22db0c278629dd51478e03bc896dedba8ea04965b3c9833cd/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "0.2.3"
+    }
+  ]
+}

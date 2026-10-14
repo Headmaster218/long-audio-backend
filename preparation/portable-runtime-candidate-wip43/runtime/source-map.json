@@ -1,0 +1,452 @@
+{
+  "candidate_v5": {
+    "allowed_phases": [
+      "runtime-build-install",
+      "runtime-import"
+    ],
+    "candidate_and_wheel_host_sha_pair_unchanged": true,
+    "candidate_host_budget": "Carried once across the same-PID ordinary exec; candidate verify_host, mapping reads and host stdlib module-origin rereads share the finite ledger.",
+    "changed_functions": {
+      "bootstrap.py": [
+        "validate_config",
+        "validate_phase_acceptance"
+      ],
+      "guard_driver.py": [
+        "validate_phase_args",
+        "phase_context",
+        "emit",
+        "phase_main"
+      ],
+      "runtime/install.py": [
+        "Context.__init__",
+        "Context.check",
+        "admit_materialization",
+        "materialize_wheel",
+        "copy_product",
+        "prepare_interpreter",
+        "build_backend"
+      ],
+      "runtime/probe_runtime.py": [
+        "candidate_host_mode",
+        "candidate_mappings",
+        "verify_host",
+        "startup_preflight",
+        "validate_ordinary_state",
+        "module_origins",
+        "import_only"
+      ]
+    },
+    "execution_claim": "Source preparation only. Candidate build verifies exact bytes; imports require separate owner review of observed mappings. Genuine upload/API/model readiness is not claimed.",
+    "host_verification": "CANDIDATE_BYTES_AND_OBSERVED_MAPPINGS",
+    "inclusive_packet_cap_bytes": 1048576,
+    "logical_packet_cap_bytes": 589824,
+    "mapping_policy": {
+      "host_read_budget_bytes": 536870912,
+      "known_files": "Exact sealed candidate system/Python/stdlib and runtime-inventory pins; configured allowed mappings must be a subset.",
+      "maximum_unique_phase_mappings": 256,
+      "new_files": "First-observed hash and stable descriptor only; independent qualification remains pending.",
+      "observed_direct_parent_roots": [
+        "/usr/lib/x86_64-linux-gnu",
+        "HOST_BASE_PREFIX/lib"
+      ],
+      "per_mapping_max_bytes": 134217728,
+      "static_native_closure_complete": false
+    },
+    "materialization_census": "Sampled1Hz, timestamp after completion; forced initial/artifact/final boundaries. Per-block deadlines/STOP and exact bounded writes remain.",
+    "named_source_caps_bytes": {
+      "PACKET_MANIFEST.json": 16384,
+      "acquisition_guard.py": 32768,
+      "bootstrap.py": 69632,
+      "config.schema.json": 24576,
+      "guard_driver.py": 36864,
+      "runtime/install.py": 106496,
+      "runtime/probe_runtime.py": 69632,
+      "runtime/runtime.lock.json": 131072,
+      "runtime/source-map.json": 32768,
+      "runtime/test_install.py": 69632
+    },
+    "namespace": "runtime-fresh-v5",
+    "new_static_or_wheel_phase_required": false,
+    "original_manifest_sha256": "ab6ab95247409946c38954c049c9504492d04dbcaf44ca791bdbb01ea7328955",
+    "private_inputs": "runtime-fresh-inputs-v5",
+    "static_native_closure_complete": false,
+    "strict_empty_options_retained": true
+  },
+  "derivations": {
+    "PACKET_MANIFEST.json": {
+      "changes": [
+        "exact ten-file new source-only packet; all nine nonmanifest files pinned",
+        "self pin external"
+      ],
+      "source": [
+        "wip38_packet"
+      ]
+    },
+    "acquisition_guard.py": {
+      "changes": [
+        "closed offline phase/config/environment seam only",
+        "all ownership/census/dispatch/signal/reap/cleanup bodies preserved",
+        "Only finite main/config/environment/charged-root seams changed; Guard ownership/census/dispatch/reap class preserved byte-for-byte."
+      ],
+      "source": [
+        "wip38_guard"
+      ]
+    },
+    "bootstrap.py": {
+      "changes": [
+        "fresh-only strict result-v2 zero-reuse gate",
+        "pending independent original owner-tool acceptance refusal",
+        "current invocation configuration/launch identity separate from internally bound acquisition tuple",
+        "closed finite phases and exact unchanged resource categories",
+        "nested source packet charged only once"
+      ],
+      "source": [
+        "wip38_bootstrap"
+      ]
+    },
+    "config.schema.json": {
+      "changes": [
+        "new closed fresh-runtime schema",
+        "historical acquisition and current invocation roles separated",
+        "pending owner acceptance and host/archive seals explicit"
+      ],
+      "source": [
+        "wip38_schema"
+      ]
+    },
+    "guard_driver.py": {
+      "changes": [
+        "new closed phase/config seam",
+        "configure and launch require one invocation identity",
+        "All ten dormant handlers wired; exact GO, fresh current identity, unchanged Guard and strict output roles required."
+      ],
+      "source": [
+        "wip38_driver"
+      ]
+    },
+    "runtime/install.py": {
+      "changes": [
+        "fresh receipt gate delegated to pinned new bootstrap",
+        "charged materialization admission",
+        "bounded archive and exact21-second source audit",
+        "native alias graph requires fresh independent approval",
+        "unadmitted materializers refuse rather than widen write authority",
+        "Recognize distribution metadata only by the root path component ending .dist-info; nested vendored metadata remains ordinary fully pinned outer-RECORD payload."
+      ],
+      "source": [
+        "wip38_install",
+        "wip8_archive",
+        "wip34_canonical_roles"
+      ]
+    },
+    "runtime/probe_runtime.py": {
+      "changes": [
+        "explicit loader absence",
+        "bounded host ffmpeg/ffprobe ELF closure role",
+        "initial import qualification distinct from product tool compatibility and genuine upload API",
+        "unchanged same-PID ordinary startup and action-denying import boundary",
+        "Correct DT_STRTAB mapping across only gapless nonoverlapping adjacent same-bias file-backed PT_LOAD spans; reject any relevant BSS overlap, gap, ambiguity or uint64/file overflow. No runtime load bias, section-header fallback or guessed mapping."
+      ],
+      "source": [
+        "wip38_probe"
+      ]
+    },
+    "runtime/runtime.lock.json": {
+      "changes": [
+        "fresh-only receipt and current-invocation identity contract",
+        "320/128/64 retained with conditional actual allocated-space admission",
+        "bounded upload-tool qualification gaps",
+        "official full-source21-second clip geometry",
+        "finite offline phase clocks"
+      ],
+      "source": [
+        "wip38_lock"
+      ]
+    },
+    "runtime/source-map.json": {
+      "changes": [
+        "exact new inventory and derivations",
+        "all static comparisons recorded without execution claims"
+      ],
+      "source": [
+        "wip38_map"
+      ]
+    },
+    "runtime/test_install.py": {
+      "changes": [
+        "retain30 dormant inherited cases",
+        "add focused fresh-only receipt/identity/host/clip/accounting cases",
+        "no fixture execution or recipe imports during preparation"
+      ],
+      "source": [
+        "wip38_tests"
+      ]
+    }
+  },
+  "execution_authorized": false,
+  "fixture_coverage": {
+    "case_count": 89,
+    "elf_mapping_cases": "New87/88 cover bounded file-backed adjacent same-bias PT_LOAD coverage, authentic Python string-table geometry, PIE and gap/overlap/BSS/bias/file-bound negatives. Historical86 IDs/assertions retained except configured42KiB/510KiB boundary updates.",
+    "execution": "Not run during source preparation.",
+    "fresh_cases": 59,
+    "inherited_cases": 30,
+    "retained_assertions": "Inherited assertions retained except tests01/28 updated to authentic guarded-loader refusal/AST semantics; caps derive configured ceilings. Complete synthetic eleven-document chain plus float/bool/nonfinite negatives. Materialization cases59/60 cover absent/mismatched admission instead of obsolete permanent stubs.",
+    "wheel_metadata_case": "New89 exercises real metadata parsing with nested vendored metadata retained under full outer RECORD closure; rejects second root, wrong root identity, missing root metadata, missing/blank nested RECORD row and altered nested payload. Historical88 IDs/assertions retained except configured66KiB/512KiB boundary updates."
+  },
+  "historical_v2_derivative": {
+    "all_89_fixture_bytes_unchanged": true,
+    "byte_identical_copies": [
+      "config.schema.json",
+      "runtime/probe_runtime.py",
+      "runtime/test_install.py"
+    ],
+    "focused_checks_pending": true,
+    "guard_class_bytes_unchanged": true,
+    "literal_substitutions": {
+      "acquisition_guard.py": 1,
+      "bootstrap.py": 3,
+      "guard_driver.py": 1
+    },
+    "progress": {
+      "archive_pairs": 4,
+      "completion_authority": false,
+      "edges": [
+        "start",
+        "end"
+      ],
+      "elapsed": "round(monotonic-work_end+540,3); current phase only",
+      "fields": [
+        "schema",
+        "kind",
+        "edge",
+        "id",
+        "elapsed_seconds"
+      ],
+      "flushed": true,
+      "kinds": [
+        "wheel",
+        "archive"
+      ],
+      "maximum_json_bytes": 512,
+      "maximum_marker_bytes": 34884,
+      "maximum_records": 68,
+      "newline_bytes": 1,
+      "schema": "portable-audit-progress-v1",
+      "wheel_pairs": 30
+    },
+    "progress_only_functions": [
+      "runtime/install.py:audit_progress(new)",
+      "runtime/install.py:prepare_locked_wheels(two calls)",
+      "guard_driver.py:audit_wheels(two calls)"
+    ],
+    "source_manifest_sha256": "2fc5bfeb552d5d5dacf2f27bc57c45ea0ed327567c76bd23ba27de61c829564e",
+    "source_packet": "portable-runtime-fresh-v1"
+  },
+  "host_completion_v4": {
+    "cadence": "Timestamp recorded after successful full admission; STOP/deadline every block.",
+    "changed_old_function_scope": {
+      "acquisition_guard": [
+        "main"
+      ],
+      "bootstrap": [
+        "load_config",
+        "make_spec",
+        "_resource_usage_once"
+      ],
+      "guard_driver": [
+        "bootstrap",
+        "phase_directory",
+        "phase_context",
+        "phase_main"
+      ],
+      "install": [
+        "frozen_phase_driver"
+      ],
+      "probe": [
+        "elf_metadata",
+        "main"
+      ],
+      "tests": [
+        "test_42_exact_finite_phase_clocks",
+        "test_43_exact_ten_file_preparation_caps"
+      ]
+    },
+    "directory_entries": 4416,
+    "focused_checker": "Outside runtime-fresh-v4-review/check_next.py; exact pin and approved cap recorded in ORIGINS. Fourteen focused synthetic/static case groups, no actual host/asset reads; no full89 rerun.",
+    "historical_sections": "Earlier derivative/split sections below describe their immutable source history, not current execution.",
+    "host_output": "host.json<=4MiB includes all49 wheel-native metadata rows exactly once, their edges and review pin, complete host graph, upload-tool subgraph and data-only provenance.",
+    "host_read_bytes": 536870912,
+    "host_roles": [
+      "candidate",
+      "wheel_plans",
+      "policy"
+    ],
+    "host_seconds": 600,
+    "maximum_member_bytes": 52993320,
+    "member_buffer_bytes": 67108864,
+    "namespace": "runtime-fresh-v4",
+    "native_compressed_files_bytes": 59849853,
+    "native_member_bytes": 168388321,
+    "native_members": 49,
+    "new_definitions": [
+      "guard_driver.complete_host",
+      "install.NATIVE_WHEEL_LIMITS",
+      "install.inspect_native_wheel_members",
+      "probe.elf_metadata_stream",
+      "probe.elf_metadata_bytes",
+      "probe.closure_review_pin",
+      "probe.closure_search_directories",
+      "probe.complete_host_closure"
+    ],
+    "new_model_routes": false,
+    "original_manifest_sha256": "fc83222d8c809cf98883fa1bbc6a000f7037e52fd0cbfb2cf7bd41cff8d54190",
+    "private_controls": "policy<=4KiB; template<=64KiB; GO<=4KiB. All generated outside packet; missing/unaccepted data refuses.",
+    "private_inputs": "runtime-fresh-inputs-v4",
+    "source_preparation_only": true,
+    "source_reader_caps": "bootstrap68/driver36/install104/probe60/tests68KiB; ten named ceilings568KiB, inclusive1MiB"
+  },
+  "inclusive_charged_packet_cap_bytes": 1048576,
+  "inventory_caps_bytes": {
+    "PACKET_MANIFEST.json": 16384,
+    "acquisition_guard.py": 32768,
+    "bootstrap.py": 69632,
+    "config.schema.json": 24576,
+    "guard_driver.py": 36864,
+    "runtime/install.py": 106496,
+    "runtime/probe_runtime.py": 69632,
+    "runtime/runtime.lock.json": 131072,
+    "runtime/source-map.json": 32768,
+    "runtime/test_install.py": 69632
+  },
+  "logical_packet_cap_bytes": 589824,
+  "privacy": "No current session identifiers, nonce, boot IDs, workspace paths or private receipt pins are portable constants. Generated private configuration supplies them only after accepted review.",
+  "product_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+  "remaining_execution_prerequisites": [
+    "Independent final source/config/GO acceptance; missing accepted original-owner evidence naturally refuses.",
+    "Fresh host/tool/native ELF graph and exact archive/allocation admission before build or materialization.",
+    "Original supported-tool successful terminal plus guard source-final/cleanup for every released phase.",
+    "FFmpeg version-output hashes, genuine upload API, inference and CellStore qualification remain pending."
+  ],
+  "schema": "portable-fresh-runtime-source-map-v1",
+  "source_only_checks": {
+    "all_12_upstream_pins_match": true,
+    "all_36_fixture_module_references_resolve": true,
+    "all_six_python_sources_ast_valid": true,
+    "assets_extracted": false,
+    "installed": false,
+    "network_used": false,
+    "original_guard_class_byte_identical": true,
+    "provider_or_model_code_run": false,
+    "source_ast_parsed_as_data": true,
+    "source_files_imported": false,
+    "tests_run": false,
+    "wip34_three_canonical_helper_asts_identical": true
+  },
+  "split_v3": {
+    "closed_phase_changes": {
+      "assets-corpus-extract": 1800,
+      "assets-corpus-select": 1800,
+      "assets-input-derive": 300,
+      "assets-model-audit": 300,
+      "assets-model-extract": 600,
+      "runtime-build-install": 600,
+      "runtime-fixtures": 300,
+      "runtime-host-inventory": 300,
+      "runtime-import": 300,
+      "runtime-wheel-audit": 300
+    },
+    "focused_checker": "outside packet runtime-select-v3-review/check_selective.py<=28KiB,origins<=16KiB;report<=64KiB and one retained2MiB fixture directory,81entries max;execution separately reviewed.",
+    "namespace": "runtime-fresh-v3",
+    "new_selected_path": "One first-exact-known-WAV gzip prefix scan with fixed exclusive selected/derived outputs,385MiB inclusive leaf; full historical archive pin/current descriptor continuity,no new fullhash/suffix claim.",
+    "private_inputs": "runtime-fresh-inputs-v3",
+    "source_manifest_sha256": "d6c8884741c4a9d281d5102fca0df9227d273a6da68366f5ed636de660ec7804",
+    "source_only": true,
+    "source_reader_caps": "bootstrap64/driver32/install90/probe42/tests67KiB,all direct readers updated.",
+    "test_changes": "Retain89 IDs and bodies except exact clocks/caps assertions42/43; no fullsuite execution.",
+    "unchanged_algorithms": [
+      "Guard class",
+      "host/ELF/probe qualification bodies",
+      "same-packet acceptance predicate"
+    ]
+  },
+  "static_contracts": {
+    "first_three_handler_outputs": "Fixture result32KiB; host completed static-closure document4MiB and result32KiB; wheels-only plan4MiB and result32KiB.",
+    "not_executed": [
+      "new modules",
+      "fixtures",
+      "host census",
+      "archive census",
+      "installation",
+      "extraction",
+      "runtime imports",
+      "model/provider calls"
+    ],
+    "read_only_admission_sampling": "Fixed host/wheel/model-audit/corpus-select list keeps per-block STOP/deadline checks; supplemental full census timestamp is stored after successful completion and the next census waits at least1second; owning Guard census unchanged.",
+    "runtime_import_output": "<=1MiB serialized through original guard stdout; write audit never removed.",
+    "source_reader_caps": "bootstrap68,driver36,install104,probe68,tests68KiB; ten named ceilings576KiB, inclusive1MiB"
+  },
+  "status": "SOURCE_ONLY_DRAFT_UNADMITTED",
+  "tests_executed": false,
+  "upstream": {
+    "wip34_canonical_roles": {
+      "bytes": 97392,
+      "path": "dev8-seam-retry-wip34/controller/capture.py",
+      "sha256": "e41e113e46401fdd683177bc170f164725eca5159423641eadb0160f4d466c66"
+    },
+    "wip38_bootstrap": {
+      "bytes": 24335,
+      "path": "portable-continuation-wip38/bootstrap/bootstrap.py",
+      "sha256": "81f379c0c0627b41720384c07a315c5e5ef1899e9800d10634ace738e4de6e47"
+    },
+    "wip38_driver": {
+      "bytes": 1997,
+      "path": "portable-continuation-wip38/bootstrap/guard_driver.py",
+      "sha256": "1b047cc7579c1ef38866e5f6be5766139faed8f8cbc06687aed0f83109244e3e"
+    },
+    "wip38_guard": {
+      "bytes": 29406,
+      "path": "portable-continuation-wip38/bootstrap/acquisition_guard.py",
+      "sha256": "82498b355431984e4ea752d2428d0edc3d60b98f05c4fe378020faf86083b7c8"
+    },
+    "wip38_install": {
+      "bytes": 33319,
+      "path": "portable-continuation-wip38/runtime-extension/install.py",
+      "sha256": "d03de4ee2ede4e409659fd32394b0fa87dd31dcbf7a2ebf73435e85b9a4d0e5a"
+    },
+    "wip38_lock": {
+      "bytes": 29838,
+      "path": "portable-continuation-wip38/runtime-extension/runtime.lock.json",
+      "sha256": "4ee5c43fdf224f87d45d8862efb73508e43bdc5b988a909f4a43068748083f39"
+    },
+    "wip38_map": {
+      "bytes": 8206,
+      "path": "portable-continuation-wip38/runtime-extension/source-map.json",
+      "sha256": "e2520b615cb4912206f96db72b00a9c71cc1ef18ec12c5aa4e6f242197d3328a"
+    },
+    "wip38_packet": {
+      "bytes": 8136,
+      "path": "portable-continuation-wip38/bootstrap/PACKET_MANIFEST.json",
+      "sha256": "a7176dbb08b425e6e01ad5b4e26603073a2773336f55dcb04c5a0734c24bf1ee"
+    },
+    "wip38_probe": {
+      "bytes": 24339,
+      "path": "portable-continuation-wip38/runtime-extension/probe_runtime.py",
+      "sha256": "115ebcfe301e73c89b36f4fc16ccf8783eef8acc0486d8cee673fee9a048dab6"
+    },
+    "wip38_schema": {
+      "bytes": 7041,
+      "path": "portable-continuation-wip38/bootstrap/config.schema.json",
+      "sha256": "f1e36153529df0e507420cb5fbbfeecb047ccd9ed48362b6adbaafebbf6baa4e"
+    },
+    "wip38_tests": {
+      "bytes": 11581,
+      "path": "portable-continuation-wip38/runtime-extension/test_install.py",
+      "sha256": "e4521c728f366dc21853c5b04bc08c2d8e25a0bc161e62286d66185fb5099a2b"
+    },
+    "wip8_archive": {
+      "bytes": 55628,
+      "path": "qwen17-wip8/acquire.py",
+      "sha256": "62eb377286b78ddb156e1f51ebf50c8f64d7851e57168743c63d8b6968154908"
+    }
+  }
+}
