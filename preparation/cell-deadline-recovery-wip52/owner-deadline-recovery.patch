@@ -1,0 +1,161 @@
+--- a/audio_backend/native_owned_cell_store.py
++++ b/audio_backend/native_owned_cell_store.py
+@@ -41,6 +41,7 @@
+ PIN_RESERVATION_BYTES = 768 * 1024
+ PAGE_ROWS = 20
+ OP_SECONDS = .5
++OWNER_OP_SECONDS = 2.
+ LOCK_SECONDS = .005
+ SQL_STEPS = 150000
+ SQL_PROJECTION_BYTES = 256 * 1024
+@@ -55,6 +56,14 @@
+     def __init__(self):
+         self.elapsed = 0.; self.read_bytes = 0; self.sql_bytes = 0; self.steps = 0
+         self._began = None
++        self.seconds = OP_SECONDS; self.deadline = None
++
++    @classmethod
++    def for_owner(cls, operation=None):
++        budget = cls(); budget.seconds = OWNER_OP_SECONDS
++        # Queue time consumes the original admission deadline, never a reset.
++        budget.deadline = operation.deadline if operation is not None else None
++        return budget
+ 
+     @contextmanager
+     def phase(self):
+@@ -68,8 +77,9 @@
+             self._began = None
+ 
+     def check(self):
+-        elapsed = self.elapsed + (time.monotonic() - self._began if self._began is not None else 0.)
+-        if elapsed > OP_SECONDS:
++        now = time.monotonic()
++        elapsed = self.elapsed + (now - self._began if self._began is not None else 0.)
++        if elapsed > self.seconds or (self.deadline is not None and now >= self.deadline):
+             raise Unavailable('cooperative_deadline')
+         if self.read_bytes > SOURCE_READ_BYTES or self.sql_bytes > SQL_PROJECTION_BYTES or self.steps > SQL_STEPS:
+             raise Unavailable('operation_work_capacity')
+@@ -307,16 +317,16 @@
+     def __init__(self, kind, payload, epoch, wake=None):
+         self.kind = kind; self.payload = payload; self.epoch = epoch
+         self.done = threading.Event(); self.result = {'status': 'publication_pending'}
+-        self.deadline = time.monotonic() + OP_SECONDS
++        self.deadline = time.monotonic() + OWNER_OP_SECONDS
+         self.cancelled = threading.Event(); self.drained = threading.Event()
+         self.slot_released = threading.Event()
+         self._delivery_lock = threading.Lock(); self._wake = wake
+         self._pin = None; self.state = 'accepted'
+         self._abandon_reason = 'dispatch_abandoned'
+ 
+-    def wait(self, timeout=.5):
++    def wait(self, timeout=OWNER_OP_SECONDS):
+         # Internal model-free/read callers only. Worker/upload never call wait.
+-        if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
++        if type(timeout) not in (int, float) or not 0 <= timeout <= OWNER_OP_SECONDS:
+             raise ValueError('Bounded wait required')
+         if self.kind == 'dispatch':
+             self.done.wait(min(timeout, max(0., self.deadline - time.monotonic())))
+@@ -328,7 +338,7 @@
+                 return {'status': 'ready'}
+             return {'status': 'unavailable' if self.drained.is_set() else 'pending',
+                     'reason': self._abandon_reason}
+-        self.done.wait(timeout)
++        self.done.wait(min(timeout, max(0., self.deadline - time.monotonic())))
+         return self.result if self.done.is_set() else {'status': 'pending'}
+ 
+     def check(self):
+@@ -435,7 +445,7 @@
+ 
+     def read(self):
+         if self._released or self.cancelled.is_set():raise Unavailable('pin_cancelled')
+-        budget = Budget()
++        budget = Budget.for_owner()
+         with budget.phase():
+             if not self.owner.authority.cell_valid(self.document, budget, publishing=False):
+                 self.cancelled.set(); raise Unavailable('source_authority_unavailable')
+@@ -683,7 +693,7 @@
+         return identities
+ 
+     def _open(self):
+-        budget = Budget()
++        budget = Budget.for_owner()
+         self._check_parents(budget)
+         # Verify build and actual loaded binaries before any on-disk connection
+         # could inspect or recover an existing rollback journal.
+@@ -752,7 +762,7 @@
+         after = ''
+         while True:
+             if self._stop.is_set():raise Unavailable('shutdown_pending')
+-            budget = Budget()
++            budget = Budget.for_owner()
+             with budget.phase():
+                 self._scan(budget); db.set_progress_handler(budget.progress, 100)
+                 rows = db.execute('SELECT cid,length(receipt) AS n FROM sources WHERE cid>? ORDER BY cid LIMIT 20', (after,)).fetchall()
+@@ -1062,6 +1072,8 @@
+                         if pin.cell_id == item['cell_id']:pin.cancelled.set()
+                     with self._transaction(budget):self._db.execute('DELETE FROM cells WHERE cell_id=?', (item['cell_id'],))
+                 self._sweep_cell = item['seq']
++                # Yield only after this item and its cursor are complete.
++                if self._slot is not None:return
+             return
+         rows = self._db.execute('SELECT cid FROM sources WHERE cid>? ORDER BY cid LIMIT 20', (self._sweep_source,)).fetchall()
+         if rows:
+@@ -1071,6 +1083,7 @@
+                     with self._transaction(budget):self._db.execute('DELETE FROM sources WHERE cid=?', (item['cid'],))
+                     self._receipts.pop(item['cid'], None)
+                 self._sweep_source = item['cid']
++                if self._slot is not None:return
+             return
+         if self._sweep_generation is self._epoch:
+             self._reconcile.clear(); self._cleanup_pending = False
+@@ -1127,7 +1140,7 @@
+                         if op.cancelled.is_set() or time.monotonic() >= op.deadline:
+                             op.payload = None; finish(op)
+                         continue
+-                budget = Budget()
++                budget = Budget.for_owner(op)
+                 try:
+                     with budget.phase():
+                         self._db.set_progress_handler(budget.progress, 100)
+--- a/audio_backend/native_owned_cell_jobs.py
++++ b/audio_backend/native_owned_cell_jobs.py
+@@ -11,7 +11,7 @@
+ import time
+ import uuid
+ 
+-from .native_owned_cell_store import Operation, OP_SECONDS, LOCK_SECONDS
++from .native_owned_cell_store import Operation, OP_SECONDS, OWNER_OP_SECONDS, LOCK_SECONDS
+ from .native_owned_cells import (Unavailable, SourceSupport, canonical, digest,
+                                 integer, text, validate_document, PROOF_BYTES)
+ from .native_owned_support_cache import ReadError
+@@ -131,7 +131,7 @@
+     def _read(self, kind, payload):
+         self._current()
+         result = self.owner.submit(kind, payload)
+-        if isinstance(result, Operation):result = result.wait(OP_SECONDS)
++        if isinstance(result, Operation):result = result.wait(OWNER_OP_SECONDS)
+         if result.get('status') != 'available':raise self._error(result)
+         self._current()
+         return result
+@@ -160,7 +160,7 @@
+             op = self.owner.submit('dispatch', payload)
+             if not isinstance(op, Operation):raise self._error(op)
+             self._pending = op
+-            op.wait(OP_SECONDS)
++            op.wait(OWNER_OP_SECONDS)
+             # No user callback runs under the cell owner's or delivery lock.
+             opened = not self._closed and (admission_open is None or admission_open())
+             result = op.claim(admission_open=opened)
+--- a/tests/test_native_owned_cell_store.py
++++ b/tests/test_native_owned_cell_store.py
+@@ -224,8 +224,8 @@
+     def test_slow_optional_operation_times_out_without_caller_fsync(self):
+         entered = threading.Event(); release = threading.Event(); original = self.owner._receipt
+-        def slow(op, budget):entered.set(); release.wait(1.); return original(op, budget)
++        def slow(op, budget):entered.set(); release.wait(3.); return original(op, budget)
+         with patch.object(self.owner, '_receipt', side_effect=slow):
+             started = time.monotonic(); op = self.owner.submit('receipt', self.receipt())
+             self.assertLess(time.monotonic() - started, .1); self.assertTrue(entered.wait(1.))
+-            time.sleep(.51); release.set()
++            time.sleep(2.01); release.set()
+             self.assertEqual(wait_operation(self, op)['reason'], 'cooperative_deadline')

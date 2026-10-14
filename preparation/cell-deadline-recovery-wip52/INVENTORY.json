@@ -1,0 +1,85 @@
+{
+  "candidate_id": "cell-owner-deadline-recovery-v1-20261014",
+  "base_repository": "Headmaster218/long-audio-backend",
+  "base_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+  "status": "Frozen, independently source-reviewed candidate; no product imports or test/database/model/runtime execution performed.",
+  "initial_target_state": "Directory absent at read-only inventory check on 2026-10-14.",
+  "total_byte_ceiling": 217088,
+  "files": [
+    {
+      "path": "base/audio_backend/native_owned_cell_store.py",
+      "max_bytes": 69632,
+      "bytes": 67659,
+      "sha256": "c9d5bbc8a1a2b0626d3eeede176264e4fe468359154692788331b202877d82d3",
+      "git_blob_sha1": "c4aadddd3306e2a19c41364897be402113dd781b"
+    },
+    {
+      "path": "base/audio_backend/native_owned_cell_jobs.py",
+      "max_bytes": 14336,
+      "bytes": 13472,
+      "sha256": "466fd63f7e6daa8f5f6d195926f305710816c34ce153c512e4deefb5a11b4914",
+      "git_blob_sha1": "848d28874b018ab79cc12a977bc9116cd0209bb4"
+    },
+    {
+      "path": "candidate/audio_backend/native_owned_cell_store.py",
+      "max_bytes": 73728,
+      "bytes": 68405,
+      "sha256": "7ea280d9b5e2f1784daefa308d8dfce728f1d7b8a8554f2a587aedb6ccffd592",
+      "git_blob_sha1": "8bf50c8b6965d7c08755f0266a16852f1ac73c76"
+    },
+    {
+      "path": "candidate/audio_backend/native_owned_cell_jobs.py",
+      "max_bytes": 14336,
+      "bytes": 13502,
+      "sha256": "071112ba59dc8728b838013195eb3c3a15b67f205cdd97da9517b2f8e2cc647e",
+      "git_blob_sha1": "77bdeb0c1e81ad8be6a6d997c1e39d8b7e3b4167"
+    },
+    {
+      "path": "candidate/tests/test_cell_owner_deadline_recovery.py",
+      "max_bytes": 16384,
+      "bytes": 14228,
+      "sha256": "d6ebd38ac9673028870df55ccafd8406b64ef432a9d294efdec3b928f195e111",
+      "git_blob_sha1": "8597e07f29c47b2593c478005484969c72cb9f6b"
+    },
+    {
+      "path": "owner-deadline-recovery.patch",
+      "max_bytes": 12288,
+      "bytes": 7978,
+      "sha256": "811dfe612afd88f3a31addda18c1fc39e4c43ac1908a39950744d8ce316b2e20",
+      "git_blob_sha1": "bb41bf0f144a23604f89e9da694799032c42dafc"
+    },
+    {
+      "path": "INVENTORY.json",
+      "max_bytes": 8192,
+      "bytes": 3455,
+      "hash_note": "Manifest hash is supplied separately; self-referential hashes are intentionally omitted."
+    },
+    {
+      "path": "README.md",
+      "max_bytes": 8192,
+      "bytes": 5218,
+      "sha256": "bb0d4eb9c8b57aa3628bba4c2f7f400b8738c4a5894b55d28c736d687c928316",
+      "git_blob_sha1": "a17b2a747293ab9971c2d1f98bfd834a6a223819"
+    }
+  ],
+  "verified_at_utc": "2026-10-14T23:07:19Z",
+  "new_focused_unittest_methods": 21,
+  "source_review": "Two module changes and 21 focused unittest methods reviewed; complete patch applicability checked against dev8 including its exact legacy timing test.",
+  "historical_match": {
+    "candidate/audio_backend/native_owned_cell_jobs.py": true,
+    "candidate/audio_backend/native_owned_cell_store.py": false
+  },
+  "historical_result_transfer": "None. This new store candidate requires fresh execution.",
+  "legacy_test_patch": {
+    "path": "tests/test_native_owned_cell_store.py",
+    "base_git_blob": "7b848ae5a782c96447798ad78b73702798ba4d8d",
+    "base_bytes": 40342,
+    "changes": [
+      "Owner blocking gate: 1.0 to 3.0 seconds.",
+      "Owner timeout delay: 0.51 to 2.01 seconds."
+    ],
+    "passive_budget_tests": "Unchanged",
+    "included_in": "owner-deadline-recovery.patch"
+  },
+  "total_bytes": 193917
+}
