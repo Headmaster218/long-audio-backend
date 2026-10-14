@@ -1,0 +1,212 @@
+# Unexecuted portable template; resolve generated local configuration before use.
+"""Eight bounded, model-free cases. Import alone never runs the suite."""
+import time
+START = time.monotonic()
+import ast
+import hashlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import resource
+import stat
+import sys
+import threading
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+HERE = Path(__file__).resolve().parent
+BASE = Path('@GENERATED_WORKSPACE_ROOT@')
+OUT = BASE/'@GENERATED_CONTROL_ROOT_REL@/focused'
+MIB = 2**20
+SOURCE_CAPS = {'standalone.py':32768,'test_standalone.py':12288,'README.md':4096}
+FIXTURES = ('audit-good','audit-unknown','audit-oversize','audit-linked')
+S = None
+SOURCE = None
+
+def need(value, reason):
+  if not value:
+    raise RuntimeError(reason)
+
+def check():
+  need(time.monotonic()<START+120,'focused_deadline')
+
+def read_pin(path,maximum,pin=None):
+  check();path=Path(path)
+  need(path.resolve()==path and not any(p.is_symlink() for p in (path,*path.parents)),'focused_source_alias')
+  fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+  try:
+    before=os.fstat(fd)
+    need(stat.S_ISREG(before.st_mode) and before.st_nlink==1 and before.st_size<=maximum,'focused_source_kind')
+    data=bytearray()
+    while len(data)<before.st_size:
+      check();block=os.read(fd,min(65536,before.st_size-len(data)));need(block,'focused_short_read');data.extend(block)
+    sig=lambda s:(s.st_dev,s.st_ino,s.st_mode,s.st_nlink,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+    need(not os.read(fd,1) and sig(before)==sig(os.fstat(fd))==sig(path.lstat()),'focused_source_changed')
+    raw=bytes(data)
+    if pin is not None:
+      need(pin=={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()},'focused_source_pin')
+    return raw
+  finally:
+    os.close(fd)
+
+def write_new(path,value,maximum):
+  check();raw=json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()+b'\n'
+  need(len(raw)<=maximum,'focused_output_cap')
+  fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
+  try:
+    view=memoryview(raw)
+    while view:
+      check();n=os.write(fd,view);need(n>0,'focused_write');view=view[n:]
+    os.fsync(fd)
+  finally:
+    os.close(fd)
+
+class FocusedCases(unittest.TestCase):
+  def setUp(self):
+    check()
+  def test_01_phase_local_maxima_and_invalid_clocks(self):
+    self.assertIsNone(S.need(True,'ok'))
+    with self.assertRaises(RuntimeError):S.need(False,'refuse')
+    start=1000.
+    for phase,entered,wanted in (
+        ('setup',1000.,1060.),('setup',1040.,1060.),
+        ('compute',1000.,1300.),('compute',1020.,1320.),
+        ('compute',1060.,1360.),('compute',1350.,1360.),
+        ('cleanup',1000.,1060.),('cleanup',1360.,1420.),('cleanup',1400.,1420.)):
+      self.assertEqual(S.phase_end(phase,start,entered),wanted)
+    for args in [('primary',start,start),('compute',start,start-1),
+          ('setup',float('nan'),start),('compute',start,float('inf')),
+          ('cleanup',float('-inf'),start),('setup','1000',start),('setup',True,start)]:
+      with self.assertRaises(RuntimeError):S.phase_end(*args)
+  def test_02_explicit_closed_release_shape(self):
+    ref={'path':str(HERE/'SOURCE_MANIFEST.json'),'bytes':1,'sha256':'0'*64}
+    valid={'schema':'moss-standalone-seam-release-v1','authorized':True,
+      'scope':'standalone-transcript-quality-only','source_manifest':ref,
+      'focused_acceptance':ref,'review':ref,'model_descriptor':ref,
+      'native_descriptor':ref,'limits':dict(S.LIMITS)}
+    S.validate_release_shape(valid)
+    for change in ({'authorized':False},{'authorized':1},{'scope':'current-authority'},
+           {'schema':'other'},{'extra':False},{'limits':{}}):
+      with self.assertRaises(RuntimeError):S.validate_release_shape(dict(valid,**change))
+    missing=dict(valid);missing.pop('review')
+    with self.assertRaises(RuntimeError):S.validate_release_shape(missing)
+  def test_03_only_exact_unchanged_runner_launch(self):
+    directory=OUT/'audit-good';digest='a'*64
+    argv=[str(S.PYTHON),'-I','-B','-S',str(S.PRODUCT/'audio_backend/moss_handy_runner.py'),str(directory),digest]
+    self.assertTrue(S.allowed_launch(argv,directory,digest))
+    for wrong in [argv+['--retry'],argv[:-1],['/usr/bin/python3',*argv[1:]],
+           [*argv[:4],'/tmp/other.py',*argv[5:]],
+           [*argv[:-2],str(OUT/'foreign'),digest],[*argv[:-1],'g'*64]]:
+      self.assertFalse(S.allowed_launch(wrong,directory,digest))
+    for bad in ('A'*64,'a'*63,'a'*65,'g'*64,1,None):
+      self.assertFalse(S.allowed_launch(argv,directory,bad))
+  def test_04_wrong_pcm_and_proof_never_admit(self):
+    proof={'support':{'start_frame':8000,'end_frame':328000,'sample_rate':16000,
+      'pcm16le_sha256':'@GENERATED_PCM16_SHA256@',
+      'float32le_sha256':'@GENERATED_FLOAT32_SHA256@'}}
+    for pcm in (b'',b'\x00'*639998,b'\x00'*640000,b'\x00'*640002,bytearray(640000),None):
+      with self.assertRaises((RuntimeError,ValueError,TypeError,KeyError)):
+        S.validate_pcm(pcm,proof)
+    with self.assertRaises((RuntimeError,ValueError,TypeError,KeyError)):
+      S.validate_pcm(b'\x00'*640000,{'support':{}})
+  def test_05_ordinary_fixed_output_and_charged_limit(self):
+    root=OUT/'audit-good';root.mkdir(mode=0o700);(root/'a.bin').write_bytes(b'abc')
+    result=S.strict_audit(root,{'a.bin':3},directories=('.',),max_bytes=65536)
+    self.assertEqual(result['files'],1);self.assertGreaterEqual(result['charged_bytes'],3)
+    with self.assertRaises(RuntimeError):
+      S.strict_audit(root,{'a.bin':3},directories=('.',),max_bytes=1)
+  def test_06_unknown_oversize_and_linked_output_refused(self):
+    unknown=OUT/'audit-unknown';unknown.mkdir(mode=0o700);(unknown/'rogue.bin').write_bytes(b'x')
+    with self.assertRaises(RuntimeError):
+      S.strict_audit(unknown,{'a.bin':64},directories=('.',),max_bytes=65536)
+    oversized=OUT/'audit-oversize';oversized.mkdir(mode=0o700);(oversized/'a.bin').write_bytes(b'x'*65)
+    with self.assertRaises(RuntimeError):
+      S.strict_audit(oversized,{'a.bin':64},directories=('.',),max_bytes=65536)
+    linked=OUT/'audit-linked';linked.mkdir(mode=0o700);target=linked/'a.bin';target.write_bytes(b'x')
+    real_lstat=Path.lstat
+    def altered(path,*args,**kwargs):
+      result=real_lstat(path,*args,**kwargs)
+      if path==target:
+        fields={n:getattr(result,n) for n in dir(result) if n.startswith('st_')}
+        fields['st_nlink']=2
+        return SimpleNamespace(**fields)
+      return result
+    with patch.object(Path,'lstat',altered):
+      with self.assertRaises(RuntimeError):
+        S.strict_audit(linked,{'a.bin':64},directories=('.',),max_bytes=65536)
+    self.assertEqual(target.lstat().st_nlink,1)
+    with self.assertRaises(RuntimeError):
+      S.strict_audit(linked,{'a.bin':64},directories=('other',),max_bytes=65536)
+  def test_07_model_free_denylist_has_no_side_effect(self):
+    for event in ('subprocess.Popen','socket.__new__','socket.connect','sqlite3.connect',
+           'os.fork','os.forkpty','os.posix_spawn','os.spawn','os.system','os.exec'):
+      with self.assertRaises(RuntimeError):S.deny_model_free(event,())
+    S.deny_model_free('open',())
+  def test_08_one_attempt_and_retention_source_contract(self):
+    tree=ast.parse(SOURCE)
+    calls=[n for n in ast.walk(tree) if isinstance(n,ast.Call)]
+    attrs=[n.func.attr for n in calls if isinstance(n.func,ast.Attribute)]
+    self.assertEqual(attrs.count('submit'),1)
+    self.assertEqual(attrs.count('run'),1)
+    self.assertNotIn('discard',attrs);self.assertNotIn('unlink',attrs)
+    self.assertTrue(any(isinstance(n,ast.Try) and n.finalbody for n in ast.walk(tree)))
+    self.assertFalse(any(isinstance(n,(ast.Import,ast.ImportFrom)) and 'sqlite3' in ast.unparse(n) for n in ast.walk(tree)))
+    self.assertIn('moss_handy_runner.py',SOURCE)
+    large={'job_id':'a'*32,'state':'returned_diagnostic','result':'x'*262144}
+    fallback=S.diagnostic_document(large,{'raw_reference':'retained'})
+    self.assertIn('projection_omitted',fallback);self.assertEqual(fallback['raw_reference'],'retained')
+    self.assertLess(len(S.canonical(fallback)),65536)
+
+def main():
+  global S,SOURCE
+  need(sys.argv[1:]==['--focused'],'exact_focused_arguments')
+  need(sys.flags.isolated and sys.flags.no_site and sys.dont_write_bytecode,'isolated_focused_python')
+  need({3}<=os.sched_getaffinity(0),'focused_CPU3_required')
+  os.sched_setaffinity(0,{3});os.setpriority(os.PRIO_PROCESS,0,19);os.umask(0o077)
+  resource.setrlimit(resource.RLIMIT_AS,(2**30,2**30));resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+  before_threads={t.ident for t in threading.enumerate()}
+  manifest_raw=read_pin(HERE/'SOURCE_MANIFEST.json',8192);manifest=json.loads(manifest_raw)
+  need(type(manifest.get('files')) is dict and set(manifest['files'])==set(SOURCE_CAPS),'focused_source_namespace')
+  for name,maximum in SOURCE_CAPS.items():
+    data=read_pin(HERE/name,maximum,manifest['files'][name])
+    if name=='standalone.py':SOURCE=data.decode('utf-8')
+  definition=importlib.util.spec_from_file_location('standalone_focused_subject',HERE/'standalone.py')
+  S=importlib.util.module_from_spec(definition);sys.modules[definition.name]=S
+  def deny(event,args):
+    if event.startswith(('subprocess.','socket.','sqlite3.connect')) or event in {
+        'os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'}:
+      raise RuntimeError('focused_prohibited_operation:'+event)
+    if event=='open' and args and isinstance(args[0],(str,bytes)):
+      name=os.fsdecode(args[0])
+      if '.sqlite' in name or name.endswith(('.db','.db-wal','.db-shm','.db-journal')):
+        raise RuntimeError('focused_database_access_denied')
+  sys.addaudithook(deny)
+  exec(compile(SOURCE,str(HERE/'standalone.py'),'exec'),S.__dict__)
+  if OUT.exists():need(OUT.is_dir() and not OUT.is_symlink() and not any(OUT.iterdir()),'fresh_focused_output')
+  else:OUT.mkdir(mode=0o700)
+  buffer=io.StringIO();suite=unittest.defaultTestLoader.loadTestsFromTestCase(FocusedCases)
+  result=unittest.TextTestRunner(stream=buffer,verbosity=2).run(suite)
+  check();log=buffer.getvalue().encode();need(len(log)<=65536,'focused_log_cap')
+  with (OUT/'output.log').open('xb') as stream:stream.write(log);stream.flush();os.fsync(stream.fileno())
+  threads_ok={t.ident for t in threading.enumerate()}==before_threads
+  peak=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*1024
+  passed=result.wasSuccessful() and result.testsRun==8 and not result.skipped and threads_ok and peak<=256*MIB
+  ref={'path':str(HERE/'SOURCE_MANIFEST.json'),'bytes':len(manifest_raw),'sha256':hashlib.sha256(manifest_raw).hexdigest()}
+  value={'schema':'moss-standalone-focused-result-v1','status':'PASS' if passed else 'FAIL',
+    'tests_run':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
+    'source_manifest':ref,'model_calls':0,'child_processes':0,'socket_creations':0,'database_opens':0,
+    'actual_authorized':False,'thread_cleanup':threads_ok,'peak_rss_bytes':peak,
+    'rss_target_is_not_hard_limit':True,'cpu_affinity':sorted(os.sched_getaffinity(0)),
+    'elapsed_seconds':time.monotonic()-START}
+  write_new(OUT/'cleanup.json',{'cleanup':'CONFIRMED' if threads_ok else 'UNKNOWN','new_threads':not threads_ok},16384)
+  write_new(OUT/'result.json',value,65536)
+  caps={'result.json':65536,'output.log':65536,'cleanup.json':16384,
+     'audit-good/a.bin':64,'audit-unknown/rogue.bin':64,'audit-oversize/a.bin':65,'audit-linked/a.bin':64}
+  S.strict_audit(OUT,caps,directories=('.',*FIXTURES),max_bytes=512*1024)
+  print(json.dumps(value,sort_keys=True),flush=True)
+  return 0 if passed else 1
+
+if __name__=='__main__':
+  raise SystemExit(main())

@@ -1,0 +1,378 @@
+# Unexecuted portable template; resolve generated local configuration before use.
+"""One fixed standalone transcript-quality diagnostic. No Store or API authority."""
+import time
+START = time.monotonic()
+import array
+import hashlib
+import importlib.abc
+import importlib.machinery
+import json
+import math
+import os
+from pathlib import Path
+import resource
+import signal
+import stat
+import sys
+import threading
+import types
+
+BASE=Path('@GENERATED_WORKSPACE_ROOT@')
+HERE=BASE/'@GENERATED_PACKET_ROOT_REL@'
+OUT=BASE/'@GENERATED_CONTROL_ROOT_REL@'
+RUN=HERE/'runs/@GENERATED_RUN_NAME@'
+PRODUCT=BASE/'@GENERATED_PRODUCT_ROOT_REL@'
+PYTHON=BASE/'@GENERATED_PYTHON_EXECUTABLE_REL@'
+SITES=PYTHON.parent.parent/'lib/python3.12/site-packages'
+ARCHIVE=BASE/'@GENERATED_INPUT_ARCHIVE_REL@'
+PCM=ARCHIVE/'@GENERATED_PCM_INPUT_REL@';PROOF=ARCHIVE/'@GENERATED_PROOF_INPUT_REL@'
+HISTORY=ARCHIVE/'@GENERATED_HISTORY_CONFIG_REL@'
+MODEL=BASE/'@GENERATED_MODEL_ASSET_ROOT_REL@/MOSS-Transcribe-Diarize-Q8_0.gguf'
+NATIVE=SITES/'transcribe_cpp_native/_native/libtranscribe.so'
+OLD_OWNER=BASE/'@GENERATED_ACCOUNTING_SOURCE_REL@'
+MIB=2**20;GIB=2**30
+PROFILE='handy-moss-q8_0-cpu-experimental-v1'
+PCM_PIN={'bytes':640000,'sha256':'@GENERATED_PCM16_SHA256@'}
+PROOF_PIN={'bytes':int('@GENERATED_PROOF_BYTES@'),'sha256':'@GENERATED_PROOF_SHA256@'}
+HISTORY_PIN={'bytes':int('@GENERATED_HISTORY_CONFIG_BYTES@'),'sha256':'@GENERATED_HISTORY_CONFIG_SHA256@'}
+OWNER_PIN={'bytes':int('@GENERATED_ACCOUNTING_SOURCE_BYTES@'),'sha256':'@GENERATED_ACCOUNTING_SOURCE_SHA256@'}
+SOURCE_CAPS={'standalone.py':32768,'test_standalone.py':12288,'SOURCE_MANIFEST.json':8192,'README.md':4096}
+SLOT_CAPS={'owner.json':1024,'request.json':16384,'support.wav':640044,'raw.bin':131072,'result.json':8192}
+RUN_CAPS={'admission.json':65536,'diagnostic.json':262144,'terminal.json':65536,'cleanup.json':65536,'output.log':262144,
+ **{'slot/'+k:v for k,v in SLOT_CAPS.items()}}
+CONTROL_CAPS={'release.json':32768,'review.json':16384,'focused-acceptance.json':16384,
+ 'OWNER_COMPLETION.json':65536,'OWNER_ACCEPTANCE.json':65536}
+LIMITS={'absolute_seconds':420,'setup_seconds':60,'compute_seconds':300,'cleanup_seconds':60,
+ 'cpus':[0,1],'nice':19,'address_space_bytes':8*GIB,'driver_sampled_rss_bytes':int(3.5*GIB),
+ 'aggregate_sampled_rss_bytes':4*GIB,'old_unknown_rss_reserve_bytes':512*MIB,
+ 'shared_output_bytes':544*MIB,'actual_output_bytes':4*MIB,'controls_bytes':256*1024,
+ 'focused_bytes':512*1024,'source_logical_bytes':56*1024,'source_charged_bytes':80*1024,
+ 'context_frames':855,'generation_context_reservation':512,'maximum_calls':1}
+
+
+def need(ok,reason):
+ if not ok:raise RuntimeError(reason)
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def canonical(v):return json.dumps(v,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+def decode(raw):
+ def pairs(items):
+  d={}
+  for k,v in items:need(k not in d,'duplicate_JSON_key');d[k]=v
+  return d
+ return json.loads(raw,object_pairs_hook=pairs,parse_constant=lambda _:need(False,'nonfinite_JSON'))
+def phase_end(phase,start,entered):
+ need(phase in ('setup','compute','cleanup'),'unknown_phase')
+ need(all(type(v) in (int,float) and math.isfinite(v) for v in (start,entered)) and entered>=start,'invalid_phase_clock')
+ return {'setup':min(start+60,start+360),'compute':min(entered+300,start+360),'cleanup':min(entered+60,start+420)}[phase]
+def check(end):need(time.monotonic()<end,'fixed_parent_deadline')
+def sig(s):return (s.st_dev,s.st_ino,s.st_mode,s.st_nlink,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+def path(p):
+ p=Path(p);need(p.is_absolute() and str(p)==os.path.normpath(str(p)) and p.resolve()==p,'canonical_path')
+ need(not any(x.is_symlink() for x in (p,*p.parents)),'symlink_path');return p
+
+def read(p,cap,pin=None,end=None):
+ if end is not None:check(end)
+ p=path(p);fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+ try:
+  s=os.fstat(fd);need(stat.S_ISREG(s.st_mode) and s.st_nlink==1 and 0<=s.st_size<=cap,'ordinary_bounded_file')
+  raw=bytearray()
+  while len(raw)<s.st_size:
+   if end is not None:check(end)
+   block=os.read(fd,min(65536,s.st_size-len(raw)));need(block,'short_read');raw.extend(block)
+  need(not os.read(fd,1) and sig(s)==sig(os.fstat(fd))==sig(p.lstat()),'input_identity_changed')
+  raw=bytes(raw)
+  if pin is not None:need({'bytes':len(raw),'sha256':sha(raw)}==pin,'input_pin_changed')
+  return raw
+ finally:os.close(fd)
+def ref(value,cap,end):
+ need(type(value) is dict and set(value)=={'path','bytes','sha256'} and type(value['bytes']) is int and
+  0<=value['bytes']<=cap and type(value['sha256']) is str and len(value['sha256'])==64,'reference_shape')
+ return read(value['path'],cap,{k:value[k] for k in ('bytes','sha256')},end)
+def write(p,value,cap,end):
+ check(end);p=path(p);raw=canonical(value)+b'\n';need(len(raw)<=cap,'output_capacity')
+ fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ try:
+  data=memoryview(raw)
+  while data:
+   check(end);n=os.write(fd,data[:65536]);need(n>0,'write_short');data=data[n:]
+  os.fsync(fd)
+ finally:os.close(fd)
+ return {'path':str(p),'bytes':len(raw),'sha256':sha(raw)}
+
+def strict_audit(root,caps,directories=('.',),max_bytes=4*MIB):
+ root=path(root);count=charged=0
+ def visit(p):
+  nonlocal count,charged
+  s=p.lstat();name=str(p.relative_to(root))
+  charged+=max(s.st_size,s.st_blocks*512);need(charged<=max_bytes,'charged_output_capacity')
+  if stat.S_ISDIR(s.st_mode):
+   need(name in directories,'unexpected_output_directory')
+   for x in p.iterdir():visit(x)
+  else:
+   need(name in caps and stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_size<=caps[name],'unexpected_output_leaf')
+   count+=1;need(count<=len(caps),'output_count')
+ visit(root);return {'files':count,'charged_bytes':charged}
+
+def status_summary(status):
+ return {k:status.get(k) for k in ('job_id','state','error_type')}
+def diagnostic_document(status,metadata):
+ value=dict(metadata,status=status)
+ if len(canonical(value))+1>262144:
+  value=dict(metadata,status=status_summary(status),projection_omitted='controller_projection_exceeds_envelope')
+ need(len(canonical(value))+1<=262144,'diagnostic_metadata_capacity')
+ return value
+
+def validate_release_shape(v):
+ need(type(v) is dict and set(v)=={'schema','authorized','scope','source_manifest','focused_acceptance','review',
+  'model_descriptor','native_descriptor','limits'},'release_keys')
+ need(v['schema']=='moss-standalone-seam-release-v1' and v['authorized'] is True and
+  v['scope']=='standalone-transcript-quality-only' and v['limits']==LIMITS,'release_scope')
+ return v
+
+def allowed_launch(argv,directory,request_sha):
+ return (type(argv) in (list,tuple) and type(request_sha) is str and len(request_sha)==64 and
+  all(x in '0123456789abcdef' for x in request_sha) and list(argv)==[str(PYTHON),'-I','-B','-S',
+  str(PRODUCT/'audio_backend/moss_handy_runner.py'),str(directory),request_sha])
+def deny_model_free(event,args):
+ if event.startswith(('subprocess.','socket.')) or event in ('sqlite3.connect','os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'):
+  raise RuntimeError('model_free_denied:'+event)
+
+def validate_pcm(pcm,proof):
+ need(type(pcm) is bytes and len(pcm)==640000 and sha(pcm)==PCM_PIN['sha256'],'selected_PCM_pin')
+ if type(proof) is bytes:need(sha(proof)==PROOF_PIN['sha256'],'selected_proof_pin');proof=decode(proof)
+ need(type(proof) is dict and type(proof.get('support')) is dict,'selected_support')
+ s=proof['support'];need(s['start_frame']==8000 and s['end_frame']==328000 and s['sample_rate']==16000 and
+  s['pcm16le_sha256']==PCM_PIN['sha256'],'selected_geometry')
+ samples=array.array('h');samples.frombytes(pcm)
+ if sys.byteorder!='little':samples.byteswap()
+ floats=array.array('f',(x/32768.0 for x in samples))
+ if sys.byteorder!='little':floats.byteswap()
+ need(sha(floats.tobytes())==s['float32le_sha256']=='@GENERATED_FLOAT32_SHA256@','selected_float_PCM_pin')
+ return s
+
+def load_module(name,p,pin,end):
+ raw=read(p,131072,pin,end);m=types.ModuleType(name);m.__file__=str(p);sys.modules[name]=m
+ exec(compile(raw,str(p),'exec'),m.__dict__);return m
+
+class SourceLoader(importlib.machinery.SourceFileLoader):
+ def __init__(self,name,pin,origin,end,seen):super().__init__(name,origin);self.pin=pin;self.end=end;self.seen=seen
+ def get_code(self,fullname):
+  raw=read(self.path,self.pin['bytes'],self.pin,self.end());self.seen[self.path]=self.pin
+  return compile(raw,self.path,'exec')
+class Finder(importlib.abc.MetaPathFinder):
+ def __init__(self,pins,end):self.pins=pins;self.end=end;self.seen={}
+ def find_spec(self,fullname,path=None,target=None):
+  spec=importlib.machinery.PathFinder.find_spec(fullname,path,target)
+  if spec is None or spec.origin in (None,'built-in','frozen'):return spec
+  p=str(Path(spec.origin).resolve());need(p in self.pins,'unpinned_import:'+fullname);pin=self.pins[p]
+  need(pin['bytes']<=512*MIB,'import_capacity')
+  if spec.origin.endswith('.py'):spec.loader=SourceLoader(fullname,pin,p,self.end,self.seen)
+  else:read(p,pin['bytes'],pin,self.end());self.seen[p]=pin
+  return spec
+
+
+def source_manifest(reference,end):
+ need(reference['path']==str(HERE/'SOURCE_MANIFEST.json'),'manifest_path')
+ m=decode(ref(reference,8192,end))
+ need(m['schema']=='moss-standalone-seam-source-v1' and m['actual_execution_authorized'] is False and
+  set(m['files'])==set(SOURCE_CAPS)-{'SOURCE_MANIFEST.json'},'manifest_shape')
+ for n,p in m['files'].items():read(HERE/n,SOURCE_CAPS[n],p,end)
+ need({p.name for p in HERE.iterdir()}<=set(SOURCE_CAPS)|{'runs'},'source_namespace')
+ need(sum((HERE/n).stat().st_size for n in SOURCE_CAPS)<=56*1024,'source_logical_capacity')
+ # runs are charged separately, only the root and four files are source.
+ charge=max(HERE.stat().st_size,HERE.stat().st_blocks*512)+sum(max((HERE/n).stat().st_size,(HERE/n).stat().st_blocks*512) for n in SOURCE_CAPS)
+ need(charge<=80*1024,'source_charged_capacity');return m,charge
+
+def check_descriptor(p,record,pin):
+ need(type(record) is dict and set(record)=={'path','bytes','sha256','identity'} and record['path']==str(p) and
+  {k:record[k] for k in ('bytes','sha256')}==pin and record['identity']==list(sig(path(p).lstat())),'accepted_descriptor_changed')
+ need(stat.S_ISREG(p.lstat().st_mode) and p.lstat().st_nlink==1,'accepted_descriptor_kind')
+
+
+def main(release_sha):
+ setup_end=phase_end('setup',START,START);absolute_end=START+420
+ need(sys.version_info[:2]==(3,12) and Path(sys.executable)==PYTHON,'qualified_interpreter_path')
+ need(type(release_sha) is str and len(release_sha)==64 and all(x in '0123456789abcdef' for x in release_sha),'release_SHA')
+ os.sched_setaffinity(0,{0,1});os.setpriority(os.PRIO_PROCESS,0,19)
+ resource.setrlimit(resource.RLIMIT_AS,(8*GIB,8*GIB));resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+ resource.setrlimit(resource.RLIMIT_FSIZE,(MIB,MIB))
+ for k in list(os.environ):
+  need(not (os.environ[k] and (k.startswith(('LD_','DYLD_')) or k in ('GLIBC_TUNABLES','TRANSCRIBE_LIBRARY','GGML_BACKEND_PATH'))),'ambient_loader_override')
+ os.environ.update(PYTHONDONTWRITEBYTECODE='1',PYTHONNOUSERSITE='1',HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',
+  HF_HUB_DISABLE_TELEMETRY='1',CUDA_VISIBLE_DEVICES='',OMP_NUM_THREADS='2',OMP_THREAD_LIMIT='2',
+  MKL_NUM_THREADS='2',OPENBLAS_NUM_THREADS='1',NUMEXPR_NUM_THREADS='1')
+ raw=read(OUT/'release.json',32768,end=setup_end);need(sha(raw)==release_sha,'release_pin')
+ release=validate_release_shape(decode(raw));manifest,source_charge=source_manifest(release['source_manifest'],setup_end)
+ need(release['focused_acceptance']['path']==str(OUT/'focused-acceptance.json') and release['review']['path']==str(OUT/'review.json'),'review_paths')
+ focused=decode(ref(release['focused_acceptance'],16384,setup_end))
+ need(focused['schema']=='moss-standalone-focused-acceptance-v1' and focused['status']=='ACCEPTED_MODEL_FREE' and
+  focused['cleanup']=='CONFIRMED' and focused['actual_authorized'] is False and
+  focused['source_manifest']==release['source_manifest'] and focused['original_tool']['positive_terminal'] is True and
+  focused['original_tool']['exit_code']==0 and focused['result']['path']==str(OUT/'focused/result.json'),'focused_acceptance')
+ fresult=decode(ref(focused['result'],65536,setup_end));need(fresult['status']=='PASS' and fresult['tests_run']==8 and
+  fresult['source_manifest']==release['source_manifest'] and fresult['actual_authorized'] is False and
+  fresult['model_calls']==fresult['child_processes']==fresult['socket_creations']==fresult['database_opens']==0,'focused_result')
+ review=decode(ref(release['review'],16384,setup_end))
+ need(review=={'schema':'moss-standalone-source-review-v1','status':'ACCEPTED_DORMANT_SOURCE',
+  'source_manifest':release['source_manifest'],'focused_acceptance':release['focused_acceptance'],'limits':LIMITS},'source_review')
+ history=decode(read(HISTORY,2*MIB,HISTORY_PIN,setup_end));pins={x['path']:{k:x[k] for k in ('bytes','sha256')} for x in history['inventory']['hash_inventory']}
+ need(len(pins)==len(history['inventory']['hash_inventory'])<=32768,'accepted_inventory')
+ read(PYTHON,32*MIB,pins[str(PYTHON)],setup_end)
+ check_descriptor(MODEL,release['model_descriptor'],pins[str(MODEL)])
+ check_descriptor(NATIVE,release['native_descriptor'],pins[str(NATIVE)])
+ # Hash the pinned product sources here; full model hashing remains inside compute.
+ source_pins={p:pins[p] for p in history['inventory']['source_files']}
+ need(len(source_pins)==int('@GENERATED_PRODUCT_SOURCE_COUNT@') and sum(p['bytes'] for p in source_pins.values())<=16*MIB,'product_source_capacity')
+ for p,pin in source_pins.items():read(p,16*MIB,pin,setup_end)
+ pcm=read(PCM,640000,PCM_PIN,setup_end);proof=read(PROOF,65536,PROOF_PIN,setup_end);support_doc=validate_pcm(pcm,proof)
+ old=load_module('standalone_retained_accounting',OLD_OWNER,OWNER_PIN,setup_end)
+ def early_deny(event,args):
+  if event=='sqlite3.connect' or event.startswith('socket.') or event in ('os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'):
+   raise RuntimeError('standalone_forbidden:'+event)
+  if event=='open' and isinstance(args[0],(str,bytes)):
+   need('.sqlite3' not in os.fsdecode(args[0]),'database_open_forbidden')
+ sys.addaudithook(early_deny)
+ current_end=[setup_end];finder=Finder(pins,lambda:current_end[0]);sys.meta_path.insert(0,finder)
+ sys.path[:0]=[str(PRODUCT),str(SITES)]
+ from audio_backend.moss_handy_controller import MossController,OwnedDriver
+ from audio_backend.moss_handy_runner import context_frames,check_directory
+ from audio_backend.native_lexical_alternatives import SourceSupport
+ from audio_backend import qwen_candidate_runner as qcr
+ import psutil
+ need(context_frames(320000)==855 and psutil.__version__=='7.2.2','frozen_runtime_settings')
+ check(setup_end)
+ need(not RUN.exists() and (not RUN.parent.exists() or not any(RUN.parent.iterdir())),'one_fresh_run')
+ RUN.parent.mkdir(mode=0o700,exist_ok=True);RUN.mkdir(mode=0o700);(RUN/'slot').mkdir(mode=0o700)
+ log=(RUN/'output.log').open('x',encoding='utf-8');sys.stdout=log;sys.stderr=log
+ controller=None;check(setup_end);entered=time.monotonic();compute_end=phase_end('compute',START,entered)
+ state={'scope':'standalone-transcript-quality-only','started':START,'absolute_end':absolute_end,'compute_end':compute_end,
+  'setup_elapsed':entered-START,'launch_count':0,'model_call_limit':1,'ctx':855,'generation_context_reservation':512,
+  'generated_token_count':None,'eos':None,'API_or_CellStore_authority':False,'peak_sampled_rss':0,
+  'old_unknown_rss_reserve_bytes':512*MIB,'minimum_host_available':None,'minimum_disk_free':None,'errors':[]}
+ def accounting(end):
+  check(end);previous=old.output_audit(lambda:check(end))
+  current=strict_audit(RUN,RUN_CAPS,('.','slot'),4*MIB)
+  control=strict_audit(OUT,CONTROL_CAPS|{'focused/result.json':65536,'focused/output.log':65536,'focused/cleanup.json':16384,
+   'focused/audit-good/a.bin':64,'focused/audit-unknown/rogue.bin':64,'focused/audit-oversize/a.bin':65,
+   'focused/audit-linked/a.bin':64},('.','focused','focused/audit-good','focused/audit-unknown','focused/audit-oversize','focused/audit-linked'),768*1024)
+  focused_charge=strict_audit(OUT/'focused',{'result.json':65536,'output.log':65536,'cleanup.json':16384,
+   'audit-good/a.bin':64,'audit-unknown/rogue.bin':64,'audit-oversize/a.bin':65,'audit-linked/a.bin':64},
+   ('.','audit-good','audit-unknown','audit-oversize','audit-linked'),512*1024)['charged_bytes']
+  need(control['charged_bytes']-focused_charge<=256*1024,'controls_256KiB')
+  need(previous+source_charge+current['charged_bytes']+control['charged_bytes']<=544*MIB,'shared_output_544MiB')
+  available=psutil.virtual_memory().available;free=psutil.disk_usage(RUN).free
+  need(available>=2952790016,'host_reserve_including_old_unknown')
+  need(free>=int(5.5*GIB)+(544*MIB-previous-current['charged_bytes']-control['charged_bytes']-source_charge),'disk_reserve')
+  state['minimum_host_available']=min(state['minimum_host_available'] or available,available)
+  state['minimum_disk_free']=min(state['minimum_disk_free'] or free,free)
+  return current
+ class Gate:
+  def __init__(self):self.cleanup_end=None;self.next_account=0.;self.cancel=None
+  def check(self,stage):
+   check(compute_end);need(os.sched_getaffinity(0)=={0,1} and os.getpriority(os.PRIO_PROCESS,0)==19,'current_affinity_or_nice')
+   if controller is not None and controller._driver is not None:
+    d=controller._driver;d.guard.deadline=min(d.guard.deadline,compute_end)
+    need(type(d) is OwnedDriver and d.limits['own_cap']==int(3.5*GIB),'unchanged_owned_driver')
+    sample=d.guard.check();state['peak_sampled_rss']=max(state['peak_sampled_rss'],sample['own_rss'])
+   if time.monotonic()>=self.next_account:accounting(compute_end);self.next_account=time.monotonic()+1
+  def inputs_written(self):self.check('inputs_written')
+  def cleaning(self):
+   if self.cleanup_end is None:self.cleanup_end=phase_end('cleanup',START,time.monotonic());current_end[0]=self.cleanup_end
+  def cleanup_sample(self):
+   if self.cleanup_end is not None:
+    try:
+     check(self.cleanup_end)
+     if time.monotonic()>=self.next_account:accounting(self.cleanup_end);self.next_account=time.monotonic()+1
+    except Exception as error:
+     note='cleanup_sample:'+type(error).__name__+':'+str(error)[:120]
+     if note not in state['errors'] and len(state['errors'])<16:state['errors'].append(note)
+ gate=Gate()
+ original_cleanup=qcr.process_cleanup
+ def clipped_cleanup(proc,guard,receipt,stop):
+  gate.cleaning();guard.deadline=min(guard.deadline,gate.cleanup_end)
+  return original_cleanup(proc,guard,receipt,stop)
+ qcr.process_cleanup=clipped_cleanup
+ original_popen=qcr.subprocess.Popen
+ def spawn(argv,*args,**kwargs):
+  need(state['launch_count']==0 and controller is not None and controller._driver is not None,'single_model_launch')
+  d=controller._driver
+  need(allowed_launch(argv,RUN/'slot',d.request_sha) and kwargs.get('cwd')==PRODUCT and
+   kwargs.get('stdin') is qcr.subprocess.PIPE and kwargs.get('stdout') is qcr.subprocess.DEVNULL and
+   kwargs.get('stderr') is qcr.subprocess.DEVNULL,'exact_original_driver_launch')
+  state['launch_count']+=1;return original_popen(argv,*args,**kwargs)
+ qcr.subprocess.Popen=spawn
+ def deny(event,args):
+  if event=='sqlite3.connect' or event.startswith('socket.') or event in ('os.system','os.fork','os.forkpty','os.exec','os.posix_spawn','os.spawn'):
+   raise RuntimeError('standalone_forbidden:'+event)
+  if event=='open' and isinstance(args[0],(str,bytes)):
+   p=os.fsdecode(args[0]);need('.sqlite3' not in p,'database_open_forbidden')
+ sys.addaudithook(deny)
+ try:
+  current_end[0]=compute_end
+  accounting(compute_end)
+  write(RUN/'admission.json',{'schema':'moss-standalone-admission-v1','release_sha256':release_sha,
+   'source_manifest':release['source_manifest'],'parent_pid':os.getpid(),'parent_start_ticks':int(Path('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19]),
+   'python':str(PYTHON),'input_PCM':PCM_PIN,'input_proof':PROOF_PIN,'limits':LIMITS,'clock':state.copy()},65536,compute_end)
+  controller=MossController(RUN/'slot',profile_name=PROFILE,model_path=str(MODEL),_service_gate=gate)
+  support=SourceSupport.from_dict(support_doc)
+  def cancel(signum=None,frame=None):controller._cancel.set()
+  for sig_num in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(sig_num,cancel)
+  stopped=threading.Event()
+  def watchdog():
+   if not stopped.wait(max(0,compute_end-time.monotonic())):cancel()
+  watcher=threading.Thread(target=watchdog,daemon=True);watcher.start()
+  job_id=controller.submit(support,pcm);pcm=None
+  status=controller.run(job_id)
+  gate.cleaning();state['controller_status']=status_summary(status)
+  retained={}
+  for name in ('raw.bin','result.json'):
+   p=RUN/'slot'/name
+   if p.exists():
+    r=read(p,SLOT_CAPS[name],end=gate.cleanup_end);retained[name]={'path':str(p),'bytes':len(r),'sha256':sha(r)}
+  state['diagnostic']=write(RUN/'diagnostic.json',diagnostic_document(status,{'schema':'moss-standalone-diagnostic-v1','scope':state['scope'],'retained_native_files':retained,
+   'input_PCM':PCM_PIN,'input_proof':PROOF_PIN,'public_API_evidence':False,'complete_content':False,
+   'generated_token_count':None,'eos':None}),262144,gate.cleanup_end)
+  need(status['cleanup'].get('cleanup_verified') is True and status['cleanup'].get('original_handle_waited_and_reaped') is True and
+   status['cleanup'].get('remaining_live_owned')==[],'positive_owned_cleanup')
+  need(status['state']=='returned_diagnostic','standalone_diagnostic_failed')
+ except BaseException as error:
+  state['errors'].append(type(error).__name__+':'+str(error)[:400])
+ finally:
+  gate.cleaning();end=gate.cleanup_end
+  if 'stopped' in locals():
+   stopped.set();watcher.join(timeout=min(1.,max(0.,end-time.monotonic())))
+   state['watchdog_joined']=not watcher.is_alive()
+   if watcher.is_alive():state['errors'].append('watchdog_cleanup_unconfirmed')
+  else:state['watchdog_joined']=True
+  # Raw files are intentionally retained even if the controller rejected parsing or status.
+  for name in ('raw.bin','result.json'):
+   p=RUN/'slot'/name
+   if p.exists():
+    try:r=read(p,SLOT_CAPS[name],end=end);state[name]={'path':str(p),'bytes':len(r),'sha256':sha(r)}
+    except Exception as e:state['errors'].append(type(e).__name__+':retained_'+name)
+  cleanup=None
+  if controller is not None and controller._job is not None:cleanup=controller._job.get('cleanup')
+  if cleanup is None:
+   cleanup={'cleanup_verified':state['launch_count']==0,'original_handle_waited_and_reaped':state['launch_count']==0,
+    'remaining_live_owned':[] if state['launch_count']==0 else None,'cleanup_scope':'no-child-created' if state['launch_count']==0 else 'UNKNOWN'}
+  state['cleanup']=cleanup
+  try:
+   source_manifest(release['source_manifest'],end)
+   for p,pin in source_pins.items():read(p,16*MIB,pin,end)
+   for p,pin in finder.seen.items():read(p,pin['bytes'],pin,end)
+   read(PCM,640000,PCM_PIN,end);read(PROOF,65536,PROOF_PIN,end)
+   check_descriptor(MODEL,release['model_descriptor'],pins[str(MODEL)])
+   check_descriptor(NATIVE,release['native_descriptor'],pins[str(NATIVE)])
+   state['source_final']=True;state['input_final']=True;accounting(end)
+  except Exception as e:state['errors'].append(type(e).__name__+':'+str(e)[:400]);state['source_final']=False
+  state['status']='COMPLETE_STANDALONE_DIAGNOSTIC' if not state['errors'] else 'FAIL_CLOSED'
+  state['elapsed_seconds']=time.monotonic()-START
+  try:
+   write(RUN/'cleanup.json',cleanup,65536,end);write(RUN/'terminal.json',state,65536,end)
+  finally:log.flush();os.fsync(log.fileno());sys.stdout=sys.__stdout__;sys.stderr=sys.__stderr__;log.close()
+ print(json.dumps({'status':state['status'],'run':str(RUN),'raw':state.get('raw.bin'),'cleanup':cleanup.get('cleanup_verified')}))
+ return 0 if not state['errors'] else 1
+
+if __name__=='__main__':
+ need(len(sys.argv)==3 and sys.argv[1]=='--actual','fixed_actual_entry')
+ raise SystemExit(main(sys.argv[2]))
