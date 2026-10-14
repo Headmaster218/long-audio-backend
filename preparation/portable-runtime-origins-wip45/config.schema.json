@@ -1,0 +1,639 @@
+{
+  "$comment": "Source-only schema. Exact generated private config is reconstructed from a separately pinned PRIVATE_PHASE_TEMPLATE and RUN_ONCE GO record. bootstrap additionally checks duplicate keys, exact scalar types, current invocation identity, historical acquisition evidence and mutual raw-byte pins. driver closes phase-specific input/output names. No execution is authorized by this schema or packet alone.",
+  "$defs": {
+    "identity": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "pattern": "^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "pid": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pid_namespace": {
+          "pattern": "^pid:\\[[0-9]+\\]$",
+          "type": "string"
+        },
+        "start_ticks": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pid",
+        "start_ticks",
+        "boot_id",
+        "pid_namespace"
+      ],
+      "type": "object"
+    },
+    "reference": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "maximum": 1048576,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:portable-runtime-fresh:config:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "accepted_phases": {
+            "contains": {
+              "required": [
+                "source_revision"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "invocation": {
+            "properties": {
+              "phase": {
+                "const": "runtime-import"
+              }
+            }
+          },
+          "phase_args": {
+            "properties": {
+              "options": {
+                "const": {
+                  "host_verification": "CANDIDATE_BYTES_AND_OBSERVED_MAPPINGS"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "accepted_phases": {
+      "items": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "source_revision"
+              ]
+            },
+            "then": {
+              "properties": {
+                "phase": {
+                  "const": "runtime-build-install"
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/$defs/reference"
+          },
+          "guard_receipt": {
+            "$ref": "#/$defs/reference"
+          },
+          "independent_acceptance": {
+            "$ref": "#/$defs/reference"
+          },
+          "phase": {
+            "enum": [
+              "runtime-fixtures",
+              "runtime-host-inventory",
+              "runtime-wheel-audit",
+              "runtime-build-install",
+              "runtime-import",
+              "assets-model-extract",
+              "assets-corpus-extract",
+              "assets-input-derive",
+              "assets-model-audit",
+              "assets-corpus-select"
+            ],
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/$defs/reference"
+          },
+          "source_revision": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "required": [
+          "phase",
+          "config",
+          "guard_receipt",
+          "result",
+          "independent_acceptance"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "acquisition": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/reference"
+        },
+        "download_result": {
+          "$ref": "#/$defs/reference"
+        },
+        "guard_receipt": {
+          "$ref": "#/$defs/reference"
+        },
+        "historical_identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "owner_acceptance": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/reference"
+                },
+                {
+                  "properties": {
+                    "bytes": {
+                      "maximum": 262144
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "owner_terminal": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/reference"
+            }
+          ]
+        }
+      },
+      "required": [
+        "historical_identity",
+        "config",
+        "guard_receipt",
+        "download_result",
+        "owner_terminal",
+        "owner_acceptance"
+      ],
+      "type": "object"
+    },
+    "assets_manifest": {
+      "$ref": "#/$defs/reference"
+    },
+    "execution_authorized": {
+      "const": true,
+      "type": "boolean"
+    },
+    "execution_release": {
+      "additionalProperties": false,
+      "properties": {
+        "go": {
+          "$ref": "#/$defs/reference"
+        },
+        "template": {
+          "$ref": "#/$defs/reference"
+        }
+      },
+      "required": [
+        "template",
+        "go"
+      ],
+      "type": "object"
+    },
+    "host": {
+      "additionalProperties": false,
+      "properties": {
+        "filesystem_device": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "python": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "python_bytes": {
+          "const": 30894944,
+          "type": "integer"
+        },
+        "python_sha256": {
+          "const": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+        },
+        "python_version": {
+          "const": "3.12.14"
+        }
+      },
+      "required": [
+        "python",
+        "python_bytes",
+        "python_sha256",
+        "filesystem_device",
+        "python_version"
+      ],
+      "type": "object"
+    },
+    "invocation": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "const": 1,
+          "type": "integer"
+        },
+        "cleanup_seconds": {
+          "const": 60,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "launch": {
+          "additionalProperties": false,
+          "properties": {
+            "absolute_end_monotonic": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "identity": {
+              "$ref": "#/$defs/identity"
+            },
+            "start_monotonic": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_monotonic",
+            "absolute_end_monotonic",
+            "identity"
+          ],
+          "type": "object"
+        },
+        "phase": {
+          "enum": [
+            "runtime-fixtures",
+            "runtime-host-inventory",
+            "runtime-wheel-audit",
+            "runtime-build-install",
+            "runtime-import",
+            "assets-model-extract",
+            "assets-corpus-extract",
+            "assets-input-derive",
+            "assets-model-audit",
+            "assets-corpus-select"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "identity",
+        "phase",
+        "launch",
+        "attempts",
+        "cleanup_seconds"
+      ],
+      "type": "object"
+    },
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_absolute_seconds": {
+          "const": 10800,
+          "type": "integer"
+        },
+        "address_space_bytes": {
+          "const": 1073741824,
+          "type": "integer"
+        },
+        "attempts_per_artifact": {
+          "const": 1,
+          "type": "integer"
+        },
+        "automatic_retries": {
+          "const": 0,
+          "type": "integer"
+        },
+        "block_bytes": {
+          "const": 262144,
+          "type": "integer"
+        },
+        "category_bytes": {
+          "additionalProperties": false,
+          "properties": {
+            "acquisition": {
+              "const": 7516192768,
+              "type": "integer"
+            },
+            "actual": {
+              "const": 570425344,
+              "type": "integer"
+            },
+            "evidence": {
+              "const": 67108864,
+              "type": "integer"
+            },
+            "proof": {
+              "const": 536870912,
+              "type": "integer"
+            },
+            "runtime": {
+              "const": 536870912,
+              "type": "integer"
+            },
+            "source": {
+              "const": 67108864,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "acquisition",
+            "runtime",
+            "proof",
+            "actual",
+            "source",
+            "evidence"
+          ],
+          "type": "object"
+        },
+        "cleanup_seconds": {
+          "const": 60,
+          "type": "integer"
+        },
+        "cpu": {
+          "const": 3,
+          "type": "integer"
+        },
+        "global_disk_bytes": {
+          "const": 12884901888,
+          "type": "integer"
+        },
+        "minimum_available_bytes": {
+          "const": 2952790016,
+          "type": "integer"
+        },
+        "nice": {
+          "const": 19,
+          "type": "integer"
+        },
+        "ordinary_free_floor_bytes": {
+          "const": 5905580032,
+          "type": "integer"
+        },
+        "rate_bytes_per_second": {
+          "const": 4194304,
+          "type": "integer"
+        },
+        "read_timeout_seconds": {
+          "const": 30,
+          "type": "integer"
+        },
+        "receipt_reserve_bytes": {
+          "const": 1048576,
+          "type": "integer"
+        },
+        "rss_bytes": {
+          "const": 268435456,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "global_disk_bytes",
+        "category_bytes",
+        "ordinary_free_floor_bytes",
+        "minimum_available_bytes",
+        "rss_bytes",
+        "address_space_bytes",
+        "cpu",
+        "nice",
+        "acquisition_absolute_seconds",
+        "cleanup_seconds",
+        "read_timeout_seconds",
+        "rate_bytes_per_second",
+        "block_bytes",
+        "attempts_per_artifact",
+        "automatic_retries",
+        "receipt_reserve_bytes"
+      ],
+      "type": "object"
+    },
+    "packet_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "phase_args": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "maximum": 4194304,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "path": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "pattern": "^/",
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "bytes",
+              "sha256"
+            ],
+            "type": "object"
+          },
+          "maxProperties": 3,
+          "type": "object"
+        },
+        "options": {
+          "$comment": "Only runtime-build-install/runtime-import may use this exact option; driver validation enforces phase scope. Empty options retain strict static closure.",
+          "additionalProperties": false,
+          "maxProperties": 1,
+          "properties": {
+            "host_verification": {
+              "const": "CANDIDATE_BYTES_AND_OBSERVED_MAPPINGS"
+            }
+          },
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "pattern": "^/",
+            "type": "string"
+          },
+          "maxProperties": 2,
+          "minProperties": 1,
+          "type": "object"
+        }
+      },
+      "required": [
+        "inputs",
+        "outputs",
+        "options"
+      ],
+      "type": "object"
+    },
+    "roots": {
+      "additionalProperties": false,
+      "properties": {
+        "packet": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "product": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "proof_source": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "runtime": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "runtime_container": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "source_recovery": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "work": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "workspace": {
+          "maxLength": 4096,
+          "pattern": "^/",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace",
+        "source_recovery",
+        "product",
+        "packet",
+        "work",
+        "runtime",
+        "runtime_container",
+        "proof_source"
+      ],
+      "type": "object"
+    },
+    "runtime_allocation": {
+      "additionalProperties": false,
+      "properties": {
+        "ancestor_bytes": {
+          "const": 67108864,
+          "type": "integer"
+        },
+        "build_bytes": {
+          "const": 134217728,
+          "type": "integer"
+        },
+        "final_bytes": {
+          "const": 335544320,
+          "type": "integer"
+        },
+        "status": {
+          "const": "PENDING_ALLOCATION_CENSUS",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "final_bytes",
+        "build_bytes",
+        "ancestor_bytes"
+      ],
+      "type": "object"
+    },
+    "runtime_lock_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "portable-runtime-fresh-config-v1",
+      "type": "string"
+    },
+    "status": {
+      "const": "REVIEWED_PRIVATE_PHASE_CONFIG",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "status",
+    "execution_authorized",
+    "roots",
+    "host",
+    "limits",
+    "assets_manifest",
+    "packet_sha256",
+    "runtime_lock_sha256",
+    "acquisition",
+    "invocation",
+    "accepted_phases",
+    "runtime_allocation",
+    "execution_release",
+    "phase_args"
+  ],
+  "title": "Unadmitted fresh runtime private invocation config",
+  "type": "object"
+}

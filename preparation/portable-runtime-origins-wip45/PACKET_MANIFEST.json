@@ -1,0 +1,44 @@
+{
+  "execution_authorized": false,
+  "files": {
+    "acquisition_guard.py": {
+      "bytes": 30475,
+      "sha256": "4e11b26054fdb1112e0c3eeed59b967521738c8390f6bbfffdf38769d6ac51e7"
+    },
+    "bootstrap.py": {
+      "bytes": 73246,
+      "sha256": "15a7bcb055676d08828c3eddb13e97e1192470619cd76bf648ca829674a6cb29"
+    },
+    "config.schema.json": {
+      "bytes": 15469,
+      "sha256": "82d700989b0240e3a2970fc0c798668f4ba46ee36163d5c12a9ebc3754b790fb"
+    },
+    "guard_driver.py": {
+      "bytes": 38089,
+      "sha256": "f84a007237a7456726a9e1377e50f4ca1ba354359ad877e23a0705bb590064a7"
+    },
+    "runtime/install.py": {
+      "bytes": 118655,
+      "sha256": "f3d884670061db04bbf811c65a27092e41e7102a7a3321f3e69e61a286a38754"
+    },
+    "runtime/probe_runtime.py": {
+      "bytes": 77048,
+      "sha256": "0d3332f9c38604a6776fc19a7c7f24006a19f433afab3e112c4c8f230ee3f71e"
+    },
+    "runtime/runtime.lock.json": {
+      "bytes": 67472,
+      "sha256": "d57f5bdf4f5b07fdc5650caab3dd54666f931026b2e93ee95f3f5beaf223675a"
+    },
+    "runtime/source-map.json": {
+      "bytes": 30737,
+      "sha256": "4c58a4d49208cfa26587496ef6abf1ba65c816c4efa39db9aa686a14cd6825a0"
+    },
+    "runtime/test_install.py": {
+      "bytes": 67616,
+      "sha256": "057e829d6452d4910b3ec65f6d387ed8d66fd58c5631229b1b07d8ca2454e1a6"
+    }
+  },
+  "schema": "portable-runtime-fresh-packet-v1",
+  "status": "SOURCE_ONLY_DRAFT_UNADMITTED",
+  "tests_executed": false
+}
