@@ -1,0 +1,312 @@
+{
+  "schema": "minimal-recovery-assets-v1",
+  "product_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+  "count": 38,
+  "total_bytes": 1479299858,
+  "artifacts": [
+    {
+      "bytes": 39593761,
+      "destination": "models/speaker.onnx",
+      "group": "models",
+      "id": "eres2net-base-zh-cn",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+    },
+    {
+      "bytes": 111034072,
+      "destination": "models/events.tar.bz2",
+      "group": "models",
+      "id": "zipformer-small-audioset",
+      "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/audio-tagging-models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15.tar.bz2"
+    },
+    {
+      "bytes": 163002883,
+      "destination": "models/sensevoice/model.tar.bz2",
+      "group": "models",
+      "id": "sensevoice-small-int8",
+      "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+    },
+    {
+      "bytes": 5306,
+      "destination": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "group": "models",
+      "id": "sensevoice-model-license",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+      "url": "https://raw.githubusercontent.com/modelscope/FunASR/main/MODEL_LICENSE"
+    },
+    {
+      "bytes": 107012128,
+      "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+      "group": "models",
+      "id": "nemotron3-q8",
+      "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+      "url": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed7/Nemotron-3-Diarization.q8_0.gguf"
+    },
+    {
+      "bytes": 6683477,
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz",
+      "group": "models",
+      "id": "linux-x86_64-cpu",
+      "sha256": "f396057150f1b774935c7414fd32ebc04195a795a34120d78d8c9ecefa1b7507",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz"
+    },
+    {
+      "bytes": 986899616,
+      "destination": "models/MOSS-Transcribe-Diarize-Q8_0.gguf",
+      "group": "models",
+      "id": "moss-q8",
+      "sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039",
+      "url": "https://huggingface.co/handy-computer/moss-transcribe-diarize-gguf/resolve/bfa3d24438711391d8713c6ab0efd6264527757c/MOSS-Transcribe-Diarize-Q8_0.gguf"
+    },
+    {
+      "bytes": 5302,
+      "destination": "wheels/annotated_doc-0.0.5-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-annotated-doc",
+      "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+      "url": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl"
+    },
+    {
+      "bytes": 13427,
+      "destination": "wheels/annotated_types-0.8.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-annotated-types",
+      "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+      "url": "https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 132079,
+      "destination": "wheels/anyio-4.15.1-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-anyio",
+      "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+      "url": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl"
+    },
+    {
+      "bytes": 221822,
+      "destination": "wheels/cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-cffi",
+      "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+      "url": "https://files.pythonhosted.org/packages/b1/db/dceb9dd5b231e1da801793f8acc9f3c52a7e1afe40bb1aae37e02b0faad5/cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+    },
+    {
+      "bytes": 125251,
+      "destination": "wheels/click-8.5.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-click",
+      "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+      "url": "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 144665,
+      "destination": "wheels/fastapi-0.143.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-fastapi",
+      "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+      "url": "https://files.pythonhosted.org/packages/bd/f4/27e386913417ad32aae42bba48b0c0cce40e9ff2fba1a871ca2702c37324/fastapi-0.143.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 37515,
+      "destination": "wheels/h11-0.16.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-h11",
+      "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+      "url": "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 69583,
+      "destination": "wheels/idna-3.20-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-idna",
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+      "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl"
+    },
+    {
+      "bytes": 16717410,
+      "destination": "wheels/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-numpy",
+      "sha256": "b7e18c623bb5c95acb3b3328861272816ba199fb531921c5d6d0b675f1fde9e3",
+      "url": "https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 481813,
+      "destination": "wheels/opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-opencc-python-reimplemented",
+      "sha256": "41b3b92943c7bed291f448e9c7fad4b577c8c2eae30fcfe5a74edf8818493aa6",
+      "url": "https://files.pythonhosted.org/packages/30/6b/055b7806f320cc8f2cdf23c5f70221c0dc1683fca9ffaf76dfc2ad4b91b6/opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl"
+    },
+    {
+      "bytes": 60256,
+      "destination": "wheels/opentelemetry_api-1.45.1-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-opentelemetry-api",
+      "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+      "url": "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl"
+    },
+    {
+      "bytes": 155560,
+      "destination": "wheels/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-psutil",
+      "sha256": "076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9",
+      "url": "https://files.pythonhosted.org/packages/b5/70/5d8df3b09e25bce090399cf48e452d25c935ab72dad19406c77f4e828045/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 48709,
+      "destination": "wheels/pycparser-3.1-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-pycparser",
+      "sha256": "f09d358c840bd147b79e55f2bc494f18ea869dc897f5852a8f5766b74f787882",
+      "url": "https://files.pythonhosted.org/packages/99/ce/b3ae9ee0324d991c860187be2a6ee436d27a3d02397eaddbb101ec901f3d/pycparser-3.1-py3-none-any.whl"
+    },
+    {
+      "bytes": 472589,
+      "destination": "wheels/pydantic-2.13.5-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-pydantic",
+      "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73",
+      "url": "https://files.pythonhosted.org/packages/eb/47/c95ffc2009878c7aac0c5e08528022dcb885933252a88b5f170058014464/pydantic-2.13.5-py3-none-any.whl"
+    },
+    {
+      "bytes": 2066284,
+      "destination": "wheels/pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-pydantic-core",
+      "sha256": "0fc5be0abd4a407e200d844b404e33639a554e7bd0d448e7b9ae181be4789ac2",
+      "url": "https://files.pythonhosted.org/packages/c0/a4/eb9409ec0736e50aa70a412f16c204ed149516846912f7e6724d4c73ee53/pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+    },
+    {
+      "bytes": 69413,
+      "destination": "wheels/pydantic_settings-2.15.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-pydantic-settings",
+      "sha256": "0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42",
+      "url": "https://files.pythonhosted.org/packages/30/a4/2bffa9f8e804325a09867f0e9d30795c80ea9f8d62560bd1b6ad6220eb2f/pydantic_settings-2.15.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 23266,
+      "destination": "wheels/python_dotenv-1.2.4-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-python-dotenv",
+      "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc",
+      "url": "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl"
+    },
+    {
+      "bytes": 30042,
+      "destination": "wheels/python_multipart-0.0.32-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-python-multipart",
+      "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+      "url": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl"
+    },
+    {
+      "bytes": 4400575,
+      "destination": "wheels/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-sherpa-onnx",
+      "sha256": "6949773017647febc0c3696dffb2c67dd3febd4737b87e3dd135a42773704a06",
+      "url": "https://files.pythonhosted.org/packages/13/78/2f712b7408ddbb64614c20388912414705b728516224e737b63f2adec94a/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+    },
+    {
+      "bytes": 10642497,
+      "destination": "wheels/sherpa_onnx_core-1.13.8-py3-none-manylinux2014_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-sherpa-onnx-core",
+      "sha256": "4da90acf435373d7b2ba9cc0be806e7e274d28f63f5780880b5dea6721626e36",
+      "url": "https://files.pythonhosted.org/packages/b6/ca/e27c1fb5c54b181d4a5450f3d5c789d9da02eb42dc9b20cfdab5dda4c864/sherpa_onnx_core-1.13.8-py3-none-manylinux2014_x86_64.whl"
+    },
+    {
+      "bytes": 1315963,
+      "destination": "wheels/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl",
+      "group": "wheels",
+      "id": "wheel-soundfile",
+      "sha256": "1e38bac1853412871318e82a1ba69a8be677619b56025bbfcccdb41b6cafe82d",
+      "url": "https://files.pythonhosted.org/packages/7b/a2/70fd4432b924684c372df8b0a45708c36c057ef3596c9eb53e0a806b980b/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 78980,
+      "destination": "wheels/starlette-1.7.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-starlette",
+      "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+      "url": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 45571,
+      "destination": "wheels/typing_extensions-4.16.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-typing-extensions",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 14750,
+      "destination": "wheels/typing_inspection-0.4.4-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-typing-inspection",
+      "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+      "url": "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl"
+    },
+    {
+      "bytes": 87427,
+      "destination": "wheels/uvicorn-0.54.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-uvicorn",
+      "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+      "url": "https://files.pythonhosted.org/packages/38/0c/b54a4fdd7f90a3af8b02ebc9ce6712c2c208b7926a2f7bad95c33ebbe943/uvicorn-0.54.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 129956,
+      "destination": "wheels/packaging-26.3-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-packaging",
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+      "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl"
+    },
+    {
+      "bytes": 818216,
+      "destination": "wheels/setuptools-84.0.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-setuptools",
+      "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+      "url": "https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 33320,
+      "destination": "wheels/wheel-0.48.0-py3-none-any.whl",
+      "group": "wheels",
+      "id": "wheel-wheel",
+      "sha256": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab",
+      "url": "https://files.pythonhosted.org/packages/2e/29/69cfbb602cd91690c55d38ba9fe53e6a7e76a6fa647bf38f19c138d25449/wheel-0.48.0-py3-none-any.whl"
+    },
+    {
+      "bytes": 34910,
+      "destination": "wheels/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "group": "wheels",
+      "id": "transcribe-cpp",
+      "sha256": "be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03",
+      "url": "https://files.pythonhosted.org/packages/c6/39/832282b7d27e29ee48f2c89c243b431078dfc235ca48b59b35c74431ce55/transcribe_cpp-0.2.3-py3-none-any.whl"
+    },
+    {
+      "bytes": 24329742,
+      "destination": "wheels/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "group": "wheels",
+      "id": "transcribe-cpp-native",
+      "sha256": "8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece",
+      "url": "https://files.pythonhosted.org/packages/cb/c9/6955026364f22db0c278629dd51478e03bc896dedba8ea04965b3c9833cd/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "id": "funasr-official-demo",
+      "group": "demo",
+      "destination": "demo/vad_example.wav",
+      "bytes": 2261722,
+      "sha256": "a7431f0169ef76ef630c945a1d2c3675d8c8c2df2ae4a6b16f8a88ba1bccfbbb",
+      "url": "https://huggingface.co/funasr/fsmn-vad/resolve/4898dc578432d27748a8e35f2fe1bacb967666df/example/vad_example.wav"
+    }
+  ]
+}

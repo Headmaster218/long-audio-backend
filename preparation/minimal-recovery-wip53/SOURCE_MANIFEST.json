@@ -1,0 +1,45 @@
+{
+  "schema": "minimal-recovery-source-packet-v1",
+  "status": "PUBLIC_SOURCE_ONLY_RECOVERY_INCOMPLETE",
+  "syntax_checks": "Both Python sources compiled without execution or imports",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 6121,
+      "sha256": "763ef95c2943f71cd6d6ae060fb51d247b5a1cd1bbb148c2bde6c435e066f97d"
+    },
+    {
+      "path": "assets.lock.json",
+      "bytes": 15867,
+      "sha256": "f489af35af15db6795459440fb36ab478218e3ad52c0e04520966fc735fe4e39"
+    },
+    {
+      "path": "requirements-runtime.lock.txt",
+      "bytes": 2668,
+      "sha256": "81fe0bc6a72ac8e9ad29e2ea14df9c151c157cda76a698cef8bcff30b0b63dbc"
+    },
+    {
+      "path": "requirements-build.lock.txt",
+      "bytes": 286,
+      "sha256": "e36965fa33a61191bee8a357b0aaf0f0fc9a018c50160ca554cacd59e527a58b"
+    },
+    {
+      "path": "source.lock.json",
+      "bytes": 14649,
+      "sha256": "4299d4d0e44fb79596770fac1809fc9d33b244a9b07fc8417e25339a4e46bb69"
+    },
+    {
+      "path": "recover.py",
+      "bytes": 15509,
+      "sha256": "7e52e40a65417ddd3cef4bb772444f14e1f7f0a85a2cc839241fdc3c3aa7a06a"
+    },
+    {
+      "path": "extract_models.py",
+      "bytes": 10239,
+      "sha256": "f166a74ca76709bde074426aa9538ff2ccac87c8d19edd6937e8eb7775600a31"
+    }
+  ],
+  "payload_bytes": 65339,
+  "packet_bytes_cap": 98304,
+  "self_excluded": true
+}
