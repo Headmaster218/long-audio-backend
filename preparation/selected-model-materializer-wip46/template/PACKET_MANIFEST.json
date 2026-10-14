@@ -1,0 +1,24 @@
+{
+  "controls_logical_cap": 32768,
+  "files": {
+    "TECHNICAL.md": {
+      "bytes": 6067,
+      "sha256": "07a230287953c144b24d4afd41f3406cc1927a18ac2b7da3bfc6059eab4351ae"
+    },
+    "owner.py": {
+      "bytes": 16303,
+      "sha256": "9be276f5fd8442c5b910fc84d55754f3af9bb9347353676c33f8a1dc68d4059f"
+    },
+    "selected.py": {
+      "bytes": 31260,
+      "sha256": "cf70fab136ac7c9d6c16a85fe8f48119d707d9f0fcd09ec99a51ab65b6c34c9d"
+    },
+    "test_selected.py": {
+      "bytes": 6009,
+      "sha256": "d0396134401d68cf5e4d38348fef7d2841581eef5eab6a249072d564d9b5aa41"
+    }
+  },
+  "schema": "public-selected-model-template-v1",
+  "source_inclusive_cap": 1048576,
+  "source_logical_cap": 98304
+}
