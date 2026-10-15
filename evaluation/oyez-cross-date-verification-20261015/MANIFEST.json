@@ -1,0 +1,25 @@
+{
+  "schema": "oyez-sanitized-report-manifest-v1",
+  "date": "2026-10-15",
+  "status": "completed_numerically_checked_annotation_labeled",
+  "scope": "Aggregate report and protocol specification; no source audio, transcripts, identities, embeddings or per-person scores",
+  "files": [
+    {
+      "name": "PROTOCOL.json",
+      "bytes": 7725,
+      "sha256": "cb3d3debf66256672a42d2181441e9ff33f0e15af37b185b469a064f07719a4a"
+    },
+    {
+      "name": "README.md",
+      "bytes": 9017,
+      "sha256": "5099b06005c984520f68a99a8c402110ba94f36fc74fcb8811641af533fd2d72"
+    }
+  ],
+  "manifest_self_hash": "Excluded to avoid self-reference",
+  "validation": {
+    "json": "Parsed successfully",
+    "aggregate_counts": "Matched retained completed result",
+    "numerical_audit": "216 pair scores recomputed within 1e-6 absolute tolerance; all decisions, aggregates, 16 calibration candidates, frozen inputs, chronology and resource samples reconciled",
+    "model_calls_during_package_preparation": 0
+  }
+}

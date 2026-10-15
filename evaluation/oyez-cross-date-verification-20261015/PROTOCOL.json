@@ -1,0 +1,229 @@
+{
+  "schema": "oyez-cross-date-aggregate-protocol-v1",
+  "research_date": "2026-10-15",
+  "status": "completed_numerically_checked_annotation_labeled",
+  "purpose": "Annotation-labeled open-set cross-date speaker-verification research pilot",
+  "dataset": {
+    "provider": "Oyez",
+    "language": "English",
+    "official_benchmark": false,
+    "source_recordings": 20,
+    "source_date_start": "2014-10-08",
+    "source_date_end": "2017-03-27",
+    "paired_session_gap_days": {
+      "minimum": 27,
+      "maximum": 694
+    },
+    "label_basis": "official speaker annotations",
+    "license": "CC BY-NC 4.0",
+    "license_url": "https://www.oyez.org/license",
+    "use": "research and noncommercial; underlying rights retained"
+  },
+  "design": {
+    "identities": 18,
+    "roles": [
+      "calibration",
+      "evaluation"
+    ],
+    "identities_per_role": 9,
+    "known_identities_per_role": 6,
+    "gallery_absent_identities_per_role": 3,
+    "cross_role_identity_overlap": 0,
+    "cross_role_case_overlap": 0,
+    "enrollment_crops": 12,
+    "enrollment_seconds": 10,
+    "probe_crops": 18,
+    "probe_crop_seconds": 20,
+    "probe_halves_per_crop": 2,
+    "probe_half_seconds": 10,
+    "enrollment_before_probe_by_official_date": true,
+    "unknown_earlier_session_use": "provenance only; no enrollment or scoring",
+    "selection": "metadata-only and frozen before acquisition and inference; no outcome-based replacement or exclusion",
+    "audio_format": {
+      "sample_rate_hz": 16000,
+      "channels": 1,
+      "sample_width_bits": 16
+    },
+    "minimum_annotation_interior_margin_seconds": 5.1155
+  },
+  "model": {
+    "name": "eres2net-base-zh-cn-3dspeaker-16k-v1",
+    "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+    "weights_frozen": true,
+    "pretraining_identity_overlap": "unknown",
+    "device": "cpu",
+    "extractor_threads": 2,
+    "calls_serial": true,
+    "embedding_dimensions": 512,
+    "preprocessing": "PCM16 to float32 divided by 32768; finite nonzero embeddings L2-normalized",
+    "similarity": "float32 dot product of L2-normalized embeddings"
+  },
+  "scoring": {
+    "embedding_calls": 48,
+    "embedding_input_seconds": 480,
+    "cosine_pair_scores": 216,
+    "per_role": {
+      "enrollments": 6,
+      "queries": 18,
+      "known_queries": 12,
+      "unknown_queries": 6,
+      "genuine_pairs": 12,
+      "wrong_known_pairs": 60,
+      "unknown_to_gallery_pairs": 36
+    },
+    "decision": "Accept highest score only if score >= tau and best-minus-second >= margin; exact top-score ties abstain",
+    "fixed_primary": {
+      "tau": 0.75,
+      "margin": 0.1
+    },
+    "calibration_grid": {
+      "tau": [
+        0.55,
+        0.65,
+        0.75,
+        0.85,
+        0.95
+      ],
+      "margin": [
+        0.05,
+        0.1,
+        0.15
+      ],
+      "always_abstain_candidate": true,
+      "candidate_count": 16
+    },
+    "selection_objective": [
+      "minimize known-wrong plus unknown-accepted",
+      "maximize known-correct",
+      "prefer larger tau",
+      "prefer larger margin"
+    ],
+    "always_abstain_fallback": "Selected when no zero-false-person candidate recovers a known query",
+    "selected_study_only": {
+      "tau": 0.65,
+      "margin": 0.15
+    },
+    "freeze": {
+      "after_calibration_embedding_calls": 24,
+      "evaluation_embeddings_at_freeze": 0,
+      "before_any_evaluation_embedding": true
+    },
+    "galleries_immutable": true,
+    "evaluation_retuning": false,
+    "product_threshold_changed": false
+  },
+  "aggregate_results": {
+    "calibration": {
+      "fixed_primary": {
+        "counts": {
+          "known_abstain": 12,
+          "known_correct": 0,
+          "known_wrong": 0,
+          "unknown_abstain": 6,
+          "unknown_false_accept": 0
+        },
+        "denominators": {
+          "known": 12,
+          "total": 18,
+          "unknown": 6
+        }
+      },
+      "calibrated_study_only": {
+        "counts": {
+          "known_abstain": 7,
+          "known_correct": 5,
+          "known_wrong": 0,
+          "unknown_abstain": 6,
+          "unknown_false_accept": 0
+        },
+        "denominators": {
+          "known": 12,
+          "total": 18,
+          "unknown": 6
+        }
+      }
+    },
+    "evaluation": {
+      "fixed_primary": {
+        "counts": {
+          "known_abstain": 10,
+          "known_correct": 2,
+          "known_wrong": 0,
+          "unknown_abstain": 6,
+          "unknown_false_accept": 0
+        },
+        "denominators": {
+          "known": 12,
+          "total": 18,
+          "unknown": 6
+        }
+      },
+      "calibrated_study_only": {
+        "counts": {
+          "known_abstain": 5,
+          "known_correct": 7,
+          "known_wrong": 0,
+          "unknown_abstain": 6,
+          "unknown_false_accept": 0
+        },
+        "denominators": {
+          "known": 12,
+          "total": 18,
+          "unknown": 6
+        }
+      }
+    }
+  },
+  "execution": {
+    "elapsed_seconds": 17.49886719699134,
+    "sampled_peak_rss_bytes": 329396224,
+    "samples": 172,
+    "maximum_sample_gap_seconds": 0.13083930900029372,
+    "sampler_joined": true,
+    "recorded_child_processes": 0,
+    "resource_qualification": "Inference-only sampled observations; can miss brief peaks and stalls; not machine-wide bounds",
+    "exit_code": 0
+  },
+  "qualifications": {
+    "annotation_only": true,
+    "acoustically_verified": false,
+    "manual_speaker_overlap_qc": "pending",
+    "browser_decoder_time_origin_equivalence": "unverified",
+    "population_far_established": false,
+    "product_readiness_established": false,
+    "cross_language_causal_comparison_supported": false,
+    "query_dependence": "Two adjacent halves share a speaker and session; pair scores share query and gallery templates",
+    "scope": "No ASR or diarization assessment; no exact replay without excluded sample mappings"
+  },
+  "provenance": {
+    "completed_result_sha256": "98abfb3de07d91b4580b0a774cdf734dc8196c36c6832e969604be32e588fa72",
+    "related_policy_checkpoint": "7a6883098cf7ac41629000f0664583e8fee0eb97",
+    "related_policy_path": "evaluation/cnceleb-verification-20261015/score_policy.py",
+    "related_policy_reuse": "Decision semantics only; unchanged implementation validates CN-specific seven-person galleries and 20-query roles",
+    "frozen_design_sha256": "e4ea1b6a34d06b931f94c412cf74f3fccecaa073b7ce7e6839c68b9f6d97e4c4",
+    "qualification_addendum_sha256": "189fd5523b9ca8609147034440f1cd7ac58458ac20bec9c08f66ad88ba4e9758",
+    "runner_source_sha256": "55347c9a1e62c1701b9decd9827d782d5b269e4014b5088daca06a03aaa101cb",
+    "shared_core_source_sha256": "e73cf1bbda6b4f88272d4cef17518deddb28c2a167fc58f0a93a522f335a2d23",
+    "selected_policy_freeze_sha256": "1a40bd46d0e43d75db3739f78969a8f82deed4cf7609f2a5303bd261bd7d8b7e",
+    "acquisition_receipt_sha256": "47751f0772be48d6a1edcf90ee201cebda72fa7de5d43c9abf62e3c4f6426847"
+  },
+  "public_references": [
+    "https://www.oyez.org/license",
+    "https://creativecommons.org/licenses/by-nc/4.0/",
+    "https://github.com/cvqluu/MTL-Speaker-Embeddings/blob/main/scotus_data_prep/step3_prepdata.py",
+    "https://ffmpeg.org/ffmpeg.html"
+  ],
+  "numerical_validation": {
+    "all_pair_scores_recomputed": 216,
+    "absolute_tolerance": 1e-06,
+    "maximum_absolute_difference_float32_recomputation": 5.364418029785156e-07,
+    "bitwise_equality_claimed": false,
+    "decisions_counts_rates_and_distributions_reconciled": true,
+    "calibration_candidates_reconciled": 16,
+    "frozen_input_hashes_reconciled": true,
+    "gallery_hashes_reconciled": true,
+    "freeze_before_evaluation_reconciled": true,
+    "resource_sample_rows_reconciled": 172,
+    "acoustic_validation_included": false
+  }
+}
