@@ -1,0 +1,100 @@
+"""Pure reporting regressions with two pinned saved health snapshots."""
+import ast
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+HERE = Path(__file__).resolve().parent
+BASE = HERE.parent
+EXPECTED = '@CONFIGURED_SMOKE_SHA256@'
+SNAPSHOTS = {
+    '@BASELINE_HEALTH_SUBDIR@': '@BASELINE_HEALTH_SHA256@',
+    '@CANDIDATE_HEALTH_SUBDIR@': '@CANDIDATE_HEALTH_SHA256@',
+}
+
+def deny(event, args):
+    if event in ('subprocess.Popen', 'os.system', 'socket.__new__', 'socket.connect', 'socket.bind', 'sqlite3.connect'):
+        raise AssertionError('Prohibited model-free action')
+    if event == 'import' and args[0].startswith(('audio_backend', 'torch', 'numpy', 'sherpa_onnx', 'onnxruntime')):
+        raise AssertionError('Prohibited product/model import')
+    if event == 'open' and isinstance(args[0], str) and args[0].endswith(('.wav', '.onnx', '.gguf', '.sqlite3', '.db')):
+        raise AssertionError('Prohibited asset/database read')
+
+sys.addaudithook(deny)
+raw = (HERE/'smoke.py').read_bytes()
+assert hashlib.sha256(raw).hexdigest() == EXPECTED
+spec = importlib.util.spec_from_file_location('_reporting_helper', HERE/'smoke.py')
+helper = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(helper)
+checks = []
+
+# The implementation only projects already returned counters. It has no I/O,
+# clock, wait, SQL or per-operation completion inference.
+fn = next(n for n in ast.parse(raw).body if isinstance(n, ast.FunctionDef) and n.name == 'owner_state')
+assert all(not isinstance(n, (ast.Await, ast.With, ast.AsyncWith)) for n in ast.walk(fn))
+for call in (n for n in ast.walk(fn) if isinstance(n, ast.Call)):
+    assert (isinstance(call.func, ast.Name) and call.func.id == 'type') or (isinstance(call.func, ast.Attribute) and call.func.attr == 'get')
+checks.append('projection_has_no_io_or_wait')
+
+healths = []
+for name, digest in SNAPSHOTS.items():
+    p = BASE/'@HEALTH_SNAPSHOTS_RELATIVE_DIR@'/name/'health-final.json'
+    raw = p.read_bytes(); assert len(raw) == @HEALTH_SNAPSHOT_BYTES@ and hashlib.sha256(raw).hexdigest() == digest
+    h = json.loads(raw); healths.append(h)
+    state = helper.owner_state(h)
+    assert 'publication_pending' not in h['native_owned_cells'] and 'publication_pending' not in state
+    assert state['last_capture_reason'] == 'publication_pending'
+    assert state['owner_work_pending'] is False and state['handoffs_active_or_pending'] == 0
+    assert state['durable'] == 3 and state['dropped'] == 0 and state['warning'] is False
+    assert helper.idle(h)
+checks.append('two_authentic_snapshots_do_not_imply_pending')
+
+base = healths[0]
+for count in (1, 2):
+    h = json.loads(json.dumps(base)); h['native_owned_cells']['handoffs_active_or_pending'] = count
+    h['native_owned_cells']['last_capture_reason'] = 'no_native_overlap'
+    state = helper.owner_state(h)
+    assert state['owner_work_pending'] is True and state['last_capture_reason'] == 'no_native_overlap'
+    assert state['handoffs_active_or_pending'] == count
+checks.append('current_work_independent_of_historical_reason')
+
+for count in (None, True, '0', -1):
+    h = json.loads(json.dumps(base)); h['native_owned_cells']['handoffs_active_or_pending'] = count
+    assert helper.owner_state(h)['owner_work_pending'] is None
+h = json.loads(json.dumps(base)); del h['native_owned_cells']['handoffs_active_or_pending']
+assert helper.owner_state(h)['owner_work_pending'] is None
+checks.append('missing_or_invalid_current_count_stays_unknown')
+
+h = json.loads(json.dumps(base)); h['native_owned_cells'].update(status='optional_sql_or_io_failure', dropped=1)
+assert helper.owner_state(h)['warning'] is True and helper.owner_state(h)['owner_work_pending'] is False
+checks.append('historical_failure_warning_not_suppressed')
+
+class SavedObservation:
+    def __init__(self, health):
+        self.health = health
+        self.summary = {'primary': 'done'}
+        self.start_owner = {'dropped': 0}
+        self.saved = {}
+    def wait_idle(self): return True
+    def pages(self, *args): return [{'state': 'retained'}]*3
+    def json(self, *args): return self.health
+    def save(self, key, value): self.saved[key] = value
+
+observed = SavedObservation(base)
+helper.Run.optional(observed)
+assert 'optional_publication_pending' not in observed.summary
+assert observed.summary['optional_owner_work_pending'] is False
+assert observed.summary['retained_cells'] == 3 and observed.summary['optional_dropped_delta'] == 0
+assert observed.summary['owner_final']['last_capture_reason'] == 'publication_pending'
+assert observed.saved['health-final.json'] is base
+checks.append('real_optional_method_preserves_raw_health_and_projects_current_work')
+
+report = dict(status='PASS_MODEL_FREE_REPORTING_ONLY', checks=checks, helper_sha256=EXPECTED,
+              snapshots=SNAPSHOTS, models=0, products=0, databases=0, subprocesses=0,
+              publication_outcome='not_inferred_from_health', historical_outputs_changed=False)
+raw = json.dumps(report, sort_keys=True, indent=2).encode()+b'\n'
+assert len(raw) < 8192
+with (HERE/'result.json').open('xb') as f: f.write(raw)
+print(raw.decode(), end='')

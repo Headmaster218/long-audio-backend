@@ -1,0 +1,124 @@
+{
+  "schema": "quiet-seam-public-checkpoint-manifest-v1",
+  "checkpoint_date": "2026-10-15",
+  "scope": "evaluation source checkpoint; no runtime installation or qualification",
+  "target": {
+    "repository": "Headmaster218/long-audio-backend",
+    "branch": "development/rc3-dev9-quality-evaluation",
+    "prefix": "evaluation/quiet-seam-20261015",
+    "expected_parent": "26855c2f84aa75de702d5dc5dfe1b9cc13585c86",
+    "parent_revalidated_during_preparation": false
+  },
+  "file_mode": "100644",
+  "self_hash_note": "This file lists the other seven checkpoint files; its own identity is recorded in the separate publication allowlist.",
+  "files": [
+    {
+      "path": "FIELDS.json",
+      "bytes": 2372,
+      "sha256": "6d0271c315a4d731ac3395353ec3a21cc73c99287f245b3e795170c27a2d68d3",
+      "git_blob_sha1": "724294f85c474f0658844f3b10fc136cfce79012",
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4192,
+      "sha256": "d69cc62ad9b80eed423b51531d9f9f6ded0a2bf4d061142e5e89aefb75a70e59",
+      "git_blob_sha1": "0ec8b56ef9dbdb174aa93cfefd32085d533190bb",
+      "mode": "100644"
+    },
+    {
+      "path": "RESULT.md",
+      "bytes": 3492,
+      "sha256": "06bee36b3f4907e7b05a22f28e464c7c8c904da10f7145cf5586b1c8b36a83d6",
+      "git_blob_sha1": "7227018c48eb98602df521a169dae93852d7a254",
+      "mode": "100644"
+    },
+    {
+      "path": "native_owned_cell_capture.py",
+      "bytes": 51488,
+      "sha256": "b1113c7366e4677bf794458d1ccabbb829724f67ccd2d1d432fe8da2f3dd7494",
+      "git_blob_sha1": "69dc8beae154165834476abcb2384009e2485a18",
+      "mode": "100644"
+    },
+    {
+      "path": "smoke.py.template",
+      "bytes": 24629,
+      "sha256": "e95e4fcd1fdb23aabbb5289b64d47ec5f6c17a59d198eb9d62fd37beb5e6a073",
+      "git_blob_sha1": "58f8bd5dc5a8ee9d287172b8596b2a92b7118283",
+      "mode": "100644"
+    },
+    {
+      "path": "test_reporting.py.template",
+      "bytes": 5121,
+      "sha256": "b9d56505bcf99754704686879f79d276c8f911b2ace36e220646d504c353f448",
+      "git_blob_sha1": "1669b2bb8feb86913e61d422429e7f1f1ab85089",
+      "mode": "100644"
+    },
+    {
+      "path": "test_seam_tail_continuity.py.template",
+      "bytes": 30060,
+      "sha256": "ea084b8a39eda92ec45b73b70e0d186e26701b08c81c1ab6d8937d64980f4622",
+      "git_blob_sha1": "9298498937a0fa2502c09660053923b737577891",
+      "mode": "100644"
+    }
+  ],
+  "templates": [
+    {
+      "path": "test_seam_tail_continuity.py.template",
+      "source_sha256": "215852fc20926b4473e4b7874f22ef51b322c8022388a645f71341e6a8a32040",
+      "source_bytes": 30089,
+      "change_kind": "reversible_literal_configuration_substitutions",
+      "configuration_tokens": [
+        "@BASE_SOURCE_DIR@",
+        "@PREDECESSOR_SOURCE_DIR@",
+        "@CANDIDATE_MANIFEST_FILE@"
+      ]
+    },
+    {
+      "path": "smoke.py.template",
+      "source_sha256": "62611d629d5ec7e290e27432d96fcf86445861bb57add8cb247545752cf0ec87",
+      "source_bytes": 24920,
+      "change_kind": "reversible_literal_configuration_substitutions",
+      "configuration_tokens": [
+        "@WORKSPACE_ROOT@",
+        "@HELPER_OUTPUT_DIR@",
+        "@ASSETS_RELATIVE_DIR@",
+        "@RUNTIME_RELATIVE_DIR@",
+        "@SOURCE_LOCK_RELATIVE_FILE@",
+        "@SOURCE_LOCK_SHA256@",
+        "@INPUT_AUDIO_SHA256@",
+        "@PYTHON_SHA256@",
+        "@INPUT_AUDIO_RELATIVE_FILE@",
+        "@STREAM_ID@",
+        "@IDENTITY_GROUP@",
+        "@IDEMPOTENCY_KEY_PREFIX@"
+      ]
+    },
+    {
+      "path": "test_reporting.py.template",
+      "source_sha256": "7ebc4623f73ada85f9c3635bbefd556de90930a9661ac3bd30034cc80ca23f7f",
+      "source_bytes": 5217,
+      "change_kind": "reversible_literal_configuration_substitutions",
+      "configuration_tokens": [
+        "@CONFIGURED_SMOKE_SHA256@",
+        "@BASELINE_HEALTH_SUBDIR@",
+        "@CANDIDATE_HEALTH_SUBDIR@",
+        "@BASELINE_HEALTH_SHA256@",
+        "@CANDIDATE_HEALTH_SHA256@",
+        "@HEALTH_SNAPSHOTS_RELATIVE_DIR@",
+        "@HEALTH_SNAPSHOT_BYTES@"
+      ]
+    }
+  ],
+  "product": {
+    "path": "native_owned_cell_capture.py",
+    "byte_identical": true,
+    "predecessor_sha256": "3da96370087edc2969fa2154f938f30d7411e2dd0b7cba0ff07f9dd1bcba474b",
+    "changed_method": "Capture.commit_seam"
+  },
+  "included_private_data": false,
+  "execution_performed_during_preparation": false,
+  "sql_limit_change_included": false,
+  "overall_qualified": false,
+  "observation_freeze_utc_minute": "2026-10-15T16:26Z"
+}

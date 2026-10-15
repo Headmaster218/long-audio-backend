@@ -1,0 +1,85 @@
+{
+  "schema": "quiet-seam-public-results-v1",
+  "checkpoint_date": "2026-10-15",
+  "preparation_kind": "source_only",
+  "product_sha256": "b1113c7366e4677bf794458d1ccabbb829724f67ccd2d1d432fe8da2f3dd7494",
+  "focused_capture": {
+    "tests": 20,
+    "passed": true,
+    "model_free": true
+  },
+  "focused_reporting": {
+    "groups": 6,
+    "passed": true,
+    "model_free": true
+  },
+  "mechanics_observation": {
+    "total_seconds": 31.5,
+    "synthetic_silence_seconds": 11.5,
+    "accepted_ami_prefix_seconds": 20,
+    "per_variant": {
+      "completed_receipts": 3,
+      "segments": 14,
+      "turns": 13,
+      "asr_batches": 8
+    },
+    "exact_primary_equivalent": true,
+    "selected_seams_both_variants": [
+      "A-B",
+      "B-C"
+    ],
+    "quiet_branch_reproduced": false,
+    "moss_jobs_accepted": 0,
+    "owned_cleanup": "waited_no_known_live_children",
+    "application_shutdown_complete": true,
+    "cells_list": {
+      "http_status_both_variants": 503,
+      "sql_step_limit": 150000,
+      "sql_steps_observed": 150100,
+      "elapsed_seconds": {
+        "baseline": 0.17857,
+        "candidate": 0.218993
+      },
+      "diagnostic_status_at_preparation": "completed_on_copied_state"
+    },
+    "retained_cell_proof_acceptance_established": false,
+    "ordinary_geometry_equivalence_established": false
+  },
+  "overall_qualified": false,
+  "older_soak_cleanup": "UNKNOWN",
+  "twelve_hour_soak_pass_claimed": false,
+  "runtime_changed_by_preparation": false,
+  "sql_step_limit_changed": false,
+  "copied_state_diagnostic": {
+    "completed_at_utc_minute": "2026-10-15T16:26Z",
+    "elapsed_seconds": 0.511,
+    "default_page_limit": 20,
+    "default_page_sql_steps_observed": 150100,
+    "default_page_interrupted": true,
+    "page_limit_one": {
+      "pages": 4,
+      "cells_returned": 4,
+      "each_cell_returned_exactly_once": true,
+      "final_has_more": false,
+      "sql_steps": {
+        "seam": [
+          83000,
+          83100
+        ],
+        "ordinary": [
+          10600,
+          10400
+        ]
+      }
+    },
+    "per_operation_limits": {
+      "seconds": 2,
+      "sql_steps": 150000,
+      "unchanged": true
+    },
+    "checks_unchanged": true,
+    "scope": "synchronous copied-state diagnosis; no live HTTP or startup qualification",
+    "pagination_optimization": "pending",
+    "product_optimization_included": false
+  }
+}
