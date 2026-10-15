@@ -1,0 +1,130 @@
+{
+  "schema": "aishell4-two-window-public-methodology-v1",
+  "status": "frozen_public_methodology",
+  "description": "Data-minimized public restatement of two frozen experiment protocols. Each interval and its scoring selection were frozen before its recognition run; this public description was prepared afterward. It is not either private execution protocol or a source/input pin manifest.",
+  "primary": {
+    "entry": "Existing native diarization reset/push/finish/turns/close sequence, followed by unchanged AudioAnalyzer.analyze using the native turns and provenance.",
+    "settings": "CPU with two threads, SenseVoice language auto and ITN enabled, existing simplified-script conversion, native diarization, existing events and embeddings, overlap backend none, event threshold 0.25.",
+    "input": "Each top-level primary call receives the selected full window; the unchanged recognition crop strategy yields the actual per-interval recognition support listed in fixtures.",
+    "output": "Use complete returned segments[].text and anonymous model-local stream labels; preserve null labels as one explicit unknown stream. No global registry or reference-guided speaker mapping."
+  },
+  "moss": {
+    "entry": "Existing controller/profile, one construction, one session, one run, no retry.",
+    "output": "Use complete diagnostic_phrases[].raw_text and original local labels. Reject schema errors rather than select surviving phrases. No extra script conversion.",
+    "completion": "EOS and generated-token count unavailable; complete_content is false without reported abort or truncation. Completion is not certified.",
+    "input": "MOSS receives the selected full interval PCM without padding; actual primary recognition support is reported separately for each fixture.",
+    "duration_derived_context": "Context and adaptive generation ceiling differ only according to the existing duration-derived formulas; see fixtures. Both use generation reserve 512."
+  },
+  "normalization": "Strip <...> tags, apply Unicode NFKC and casefold, remove whitespace and Unicode punctuation/symbol code points, and keep every other code point as one character token. Retain fillers, repetitions, digits, and non-Chinese characters. Each reference string must match its previously normalized form exactly. Keep primary simplified conversion and MOSS raw-script treatment unchanged.",
+  "metrics": {
+    "version": "MeetEval 0.4.3",
+    "cpCER": "Official cp_word_error_rate applied to character tokens; one whole-stream permutation per fixed interval.",
+    "greedy_DI_cpCER": "Official greedy_di_cp_word_error_rate applied to character tokens; reassign intact hypothesis segments among fixed separate reference streams. Greedy search is not guaranteed globally optimal.",
+    "ordering": "Whole hypothesis segments ordered by (start, original index); reference_sort=False and hypothesis_sort=False for the DI input.",
+    "input_validation": "Keep all whole returned segments, reject nonfinite/invalid/out-of-support intervals without clipping, retain unknown labels. No arbitrary concatenation of overlapping reference speakers, no reference-guided word or character repair, and no invented character timestamps."
+  },
+  "historical_acquisition_caveats": [
+    "Promised acquisition pacing was not enforced.",
+    "The original metadata-writing invocation failed after successful audio extraction.",
+    "These qualifications remain part of the historical record; the comparison does not establish that the original acquisition completed cleanly."
+  ],
+  "resource_method": {
+    "shared_work_seconds": 780,
+    "cleanup_reserve_seconds": 120,
+    "cpu_affinity": [
+      0,
+      1
+    ],
+    "nice": 19,
+    "sampled_combined_rss_limit_bytes": 6442450944,
+    "per_process_address_space_limit_bytes": 8589934592,
+    "fresh_directory_logical_byte_limit": 8388608,
+    "qualification": "RSS is sampled across positively observed experiment processes, not an instantaneous peak or kernel containment guarantee. File accounting sums logical sizes, not allocated blocks. The existing MOSS component retains its own stricter limits."
+  },
+  "scope": "Two disjoint fixed Mandarin windows from one recording and the same speakers, using direct adapters. No independent-recording generalization, API equivalence, verified personal identity, or product-default change. No raw audio, hypotheses, manual reference text, private receipts/configuration, or private source-pin inventories are distributed.",
+  "fixtures": [
+    {
+      "dataset": "AISHELL-4",
+      "session": "M_R003S01C01",
+      "channel": 0,
+      "absolute_seconds_half_open": [
+        437.0,
+        454.0
+      ],
+      "duration_seconds": 17.0,
+      "sample_rate": 16000,
+      "sample_count": 272000,
+      "format": "mono PCM16; verified matching float32 representation",
+      "reference_complete_manual_segments": 7,
+      "reference_characters": 79,
+      "reference_speakers": 2,
+      "reference_character_counts_unlabeled": [
+        70,
+        9
+      ],
+      "overlap_seconds": 2.0267307777,
+      "boundary_policy": "Require every selected official manual segment to be complete in the fixed interval; reject a cut segment. Do not infer character times or trim reference text.",
+      "id": "first_17_seconds",
+      "primary_recognition_frames_half_open_relative_to_interval": [
+        0,
+        272000
+      ],
+      "moss_input_frames_half_open_relative_to_interval": [
+        0,
+        272000
+      ],
+      "actual_recognition_input_identity": "Primary and MOSS used identical full-window PCM16 and float32 sample identities.",
+      "moss_context": 816,
+      "moss_generation_reserve": 512,
+      "moss_native_adaptive_generation_ceiling": 512,
+      "moss_audio_tokens": 213,
+      "moss_prompt_tokens": 304,
+      "moss_context_formula": "86 + ceil(272000/1280) + len('5') + len('10') + len('15') + 512 = 816"
+    },
+    {
+      "id": "heldout_14_5_seconds",
+      "dataset": "AISHELL-4",
+      "session": "M_R003S01C01",
+      "channel": 0,
+      "absolute_seconds_half_open": [
+        422.5,
+        437.0
+      ],
+      "duration_seconds": 14.5,
+      "sample_rate": 16000,
+      "sample_count": 232000,
+      "format": "mono PCM16; verified float32 representation",
+      "reference_complete_manual_segments": 3,
+      "reference_characters": 47,
+      "reference_speakers": 2,
+      "reference_character_counts_unlabeled": [
+        43,
+        4
+      ],
+      "overlap_seconds": 1.1076319366295024,
+      "overlap_spans_count": 2,
+      "boundary_policy": "Require every selected official manual segment to be complete; no character-level timing or text trimming.",
+      "annotated_left_margin_seconds": 0.73575,
+      "annotated_right_margin_seconds": 0.03168,
+      "selection_rule": "Choose the earliest complete eligible remainder of the existing acquired extent, disjoint from the already evaluated interval and with real two-speaker overlap. Select using reference intervals before consulting held-out recognition; decode that one remainder only.",
+      "heldout_limitation": "Disjoint acoustic interval in the same recording and same speakers, not an independent recording or evidence of model-training holdout; only four reference characters in the shorter speaker stream.",
+      "primary_recognition_frames_half_open_relative_to_interval": [
+        2896,
+        232000
+      ],
+      "primary_recognition_duration_seconds": 14.319,
+      "primary_omitted_leading_seconds": 0.181,
+      "primary_crop_qualification": "Only leading audio before the first annotated manual segment at 0.73575 seconds is omitted. This does not imply character-timing accuracy.",
+      "moss_input_frames_half_open_relative_to_interval": [
+        0,
+        232000
+      ],
+      "moss_context": 783,
+      "moss_audio_tokens": 182,
+      "moss_prompt_tokens": 271,
+      "moss_generation_reserve": 512,
+      "moss_native_adaptive_generation_ceiling": 492,
+      "moss_context_formula": "86 + ceil(232000/1280) + len('5') + len('10') + 512 = 783"
+    }
+  ]
+}

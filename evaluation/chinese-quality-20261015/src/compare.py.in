@@ -1,0 +1,646 @@
+#!/usr/bin/env python3
+"""Frozen 17 s Mandarin adapter diagnostic. No API, retries, or gold assignment."""
+from __future__ import annotations
+from array import array
+import collections
+import dataclasses
+import hashlib
+import importlib.metadata
+import json
+import math
+import os
+from pathlib import Path
+import re
+import resource
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unicodedata
+import wave
+
+ROOT = Path(__file__).resolve().parent
+BASE = ROOT.parent
+RUNTIME = BASE/'__REQUIRED_RUNTIME_RELATIVE_PATH__'
+SITE = RUNTIME/'lib/python3.12/site-packages'
+ASSETS = BASE/'__REQUIRED_ASSET_DIRECTORY_RELATIVE_PATH__'
+MODELS = ASSETS/'models'
+REFERENCE = BASE/'__REQUIRED_REFERENCE_DIRECTORY_RELATIVE_PATH__'
+LEAF = '__REQUIRED_REFERENCE_FILE_STEM__'
+EVAL = BASE/'__REQUIRED_EVALUATOR_DIRECTORY_RELATIVE_PATH__'
+RATE, FIRST, LAST = 16000, 232000, 504000
+FRAMES, DURATION = LAST-FIRST, 17.
+PCM_SHA = '__REQUIRED_PCM16LE_SHA256__'
+FLOAT_SHA = '__REQUIRED_FLOAT32LE_SHA256__'
+CAP, RESERVE = 8*1024**2, 65536
+RSS_CAP, AS_CAP = 6*1024**3, 8*1024**3
+WORK, CLEANUP = 780, 120
+
+
+def encoded(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                      separators=(',', ':'), allow_nan=False).encode()
+
+
+def sha(path):
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def usage():
+    total = 0
+    for path in ROOT.rglob('*'):
+        if path.is_symlink():
+            raise RuntimeError('Symlink in fresh experiment directory')
+        if path.is_file():
+            total += path.stat().st_size
+    return total
+
+
+def emit(path, value, *, append=False, final=False):
+    payload = encoded(value)+b'\n'
+    old = path.stat().st_size if path.exists() and not append else 0
+    if usage()-old+len(payload) > CAP-(0 if final else RESERVE):
+        raise RuntimeError('Fresh logical-byte artifact cap')
+    with path.open('ab' if append else 'wb') as stream:
+        stream.write(payload)
+        stream.flush()
+
+
+def configure():
+    if not {0, 1}.issubset(os.sched_getaffinity(0)):
+        raise RuntimeError('Approved CPUs 0-1 unavailable')
+    os.sched_setaffinity(0, {0, 1})
+    os.setpriority(os.PRIO_PROCESS, 0, 19)
+    resource.setrlimit(resource.RLIMIT_AS, (AS_CAP, AS_CAP))
+    resource.setrlimit(resource.RLIMIT_CPU, (WORK, WORK))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (1024**2, 1024**2))
+    for key in ('OMP_NUM_THREADS', 'OMP_THREAD_LIMIT', 'OPENBLAS_NUM_THREADS',
+                'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS'):
+        os.environ[key] = '2'
+    os.environ.update(PYTHONDONTWRITEBYTECODE='1', HF_HUB_OFFLINE='1',
+                      TRANSFORMERS_OFFLINE='1', HF_HUB_DISABLE_TELEMETRY='1',
+                      CUDA_VISIBLE_DEVICES='')
+
+
+def pins(*, full):
+    files = []
+    for line in (ROOT/'sources.sha256').read_text().splitlines():
+        digest, name = line.split('  ', 1)
+        path = BASE/name
+        # Model/runtime binaries are checked once by the supervisor, and the
+        # native/MOSS owners also retain their unchanged runtime verification.
+        if full or path.suffix in ('.py', '.json', '.sha256'):
+            if sha(path) != digest:
+                raise RuntimeError('Pinned source/input changed: '+name)
+        files.append({'path': name, 'sha256': digest})
+    # Reuse the already-frozen official evaluator's source/binary closure.
+    old = BASE/'__REQUIRED_EVALUATOR_CLOSURE_PIN_FILE_RELATIVE_PATH__'
+    for line in old.read_text().splitlines():
+        digest, name = line.split('  ', 1)
+        if name.startswith('__REQUIRED_EVALUATOR_CLOSURE_RELATIVE_PREFIX__'):
+            if sha(BASE/name) != digest:
+                raise RuntimeError('Frozen evaluator changed: '+name)
+    return files
+
+
+def normalize(text):
+    text = re.sub(r'<[^>]*>', '', text)
+    text = unicodedata.normalize('NFKC', text).casefold()
+    return [c for c in text if not c.isspace()
+            and unicodedata.category(c)[0] not in 'PS']
+
+
+def fixed_pcm():
+    source = REFERENCE/(LEAF+'.ch0.wav')
+    if (source.stat().st_size != int('__REQUIRED_SOURCE_WAV_BYTES__') or sha(source) !=
+            '__REQUIRED_SOURCE_WAV_SHA256__'):
+        raise RuntimeError('Fixed source WAV changed')
+    with wave.open(str(source), 'rb') as src:
+        if (src.getnchannels(), src.getsampwidth(), src.getframerate(),
+                src.getnframes()) != (1, 2, RATE, 721600):
+            raise RuntimeError('Source WAV geometry changed')
+        src.setpos(FIRST)
+        pcm = src.readframes(FRAMES)
+    integers = array('h', pcm)
+    if sys.byteorder != 'little':
+        integers.byteswap()
+    floats = array('f', (x/32768. for x in integers))
+    if sys.byteorder != 'little':
+        floats.byteswap()
+    if (len(pcm) != 2*FRAMES or hashlib.sha256(pcm).hexdigest() != PCM_SHA
+            or hashlib.sha256(floats.tobytes()).hexdigest() != FLOAT_SHA):
+        raise RuntimeError('Fixed 17 s PCM/float identity changed')
+    return pcm
+
+
+def reference_selection():
+    path = REFERENCE/(LEAF+'.reference.json')
+    if sha(path) != '__REQUIRED_MANUAL_REFERENCE_JSON_SHA256__':
+        raise RuntimeError('Official reference changed')
+    reference = json.loads(path.read_text())
+    selected = []
+    for index, segment in enumerate(reference['segments']):
+        a, b = segment['absolute_start'], segment['absolute_end']
+        if a < 454. and b > 437.:
+            if not 437. <= a < b <= 454.:
+                raise RuntimeError('Frozen window cuts a manual segment')
+            tokens = normalize(segment['text'])
+            if ''.join(tokens) != segment['normalized_text']:
+                raise RuntimeError('Frozen transform differs from official normalized text')
+            selected.append(dict(segment, source_index=index, tokens=tokens,
+                                 local_start=a-437., local_end=b-437.))
+    selected.sort(key=lambda s: (s['absolute_start'], s['source_index']))
+    streams = collections.defaultdict(list)
+    for segment in selected:
+        streams[segment['speaker']].extend(segment['tokens'])
+    bounds = sorted({x for s in selected for x in
+                     (s['absolute_start'], s['absolute_end'])})
+    overlap = [[a-437., b-437.] for a, b in zip(bounds, bounds[1:])
+        if len({s['speaker'] for s in selected
+                if s['absolute_start'] < b and s['absolute_end'] > a}) >= 2]
+    seconds = sum(b-a for a, b in overlap)
+    counts = {s: len(tokens) for s, tokens in streams.items()}
+    if (len(selected) != 7 or counts != json.loads('__REQUIRED_REFERENCE_SPEAKER_CHARACTER_COUNTS_JSON__')
+            or len(overlap) != 5 or abs(seconds-2.026730777670894) > 1e-8):
+        raise RuntimeError('Frozen reference selection counts changed')
+    return {'source_seconds_half_open': [437., 454.], 'segments': selected,
+        'reference_streams': dict(streams), 'characters_by_speaker': counts,
+        'segments_count': 7, 'characters': 79, 'speaker_count': 2,
+        'overlap_spans': overlap, 'overlap_seconds': seconds,
+        'no_character_reference_times': True,
+        'left_silence_margin_seconds': min(s['absolute_start'] for s in selected)-437.,
+        'right_silence_margin_seconds': 454.-max(s['absolute_end'] for s in selected)}
+
+
+def prepare(out):
+    pcm = fixed_pcm()
+    ref = reference_selection()
+    emit(out/'reference-private.json', ref)
+    provenance = json.loads((REFERENCE/'official-clip-provenance.corrected.json').read_text())
+    invocation = json.loads((REFERENCE/'invocation-evidence.json').read_text())
+    if (provenance['download_pacing']['enforced'] is not False
+            or invocation['application_status'] != 'blocked_or_partial'):
+        raise RuntimeError('Historical acquisition qualifications changed')
+    emit(out/'input.json', {'source': str(REFERENCE/(LEAF+'.ch0.wav')),
+        'source_frames_half_open': [FIRST, LAST], 'sample_count': FRAMES,
+        'sample_rate': RATE, 'duration_seconds': DURATION,
+        'source_seconds_half_open': [437., 454.], 'pcm16le_sha256': PCM_SHA,
+        'float32le_sha256': FLOAT_SHA,
+        'reference_selection_sha256': sha(out/'reference-private.json'),
+        'acquisition_provenance': str(REFERENCE/'official-clip-provenance.corrected.json'),
+        'acquisition_invocation_evidence': str(REFERENCE/'invocation-evidence.json'),
+        'historical_pacing_enforced': False, 'historical_metadata_failure_preserved': True})
+    if usage()+len(pcm)+44 > CAP-RESERVE:
+        raise RuntimeError('Input WAV exceeds fresh-directory cap')
+    with wave.open(str(out/'input17.wav'), 'wb') as dst:
+        dst.setparams((1, 2, RATE, 0, 'NONE', 'not compressed'))
+        dst.writeframes(pcm)
+    return pcm
+
+
+def settings(out):
+    from audio_backend.settings import Settings
+    return Settings(data_dir=out, model_dir=MODELS, cpu_threads=2,
+        inference_device='cpu', asr_backend='sensevoice', diarization_backend='nemotron',
+        native_diarization_model=str(MODELS/'native-diarization/Nemotron-3-Diarization.q8_0.gguf'),
+        native_diarization_library=str(ASSETS/'vendor/native-diarization/linux-x86_64-cpu/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr_c.so'),
+        native_diarization_threads=2, overlap_backend='none', language='auto',
+        event_threshold=.25, process_memory_limit_bytes=RSS_CAP,
+        speaker_calibration_file=SITE/'audio_backend/profiles/eres2net-ami20-v1.json')
+
+
+class ObservedStream:
+    def __init__(self, raw):
+        self.raw, self.input = raw, None
+
+    def accept_waveform(self, sr, samples):
+        if self.input is not None:
+            raise RuntimeError('Repeated stream input')
+        self.input = {'sample_rate': sr, 'sample_count': len(samples),
+            'float32le_sha256': hashlib.sha256(samples.astype('<f4', copy=False).tobytes()).hexdigest()}
+        self.raw.accept_waveform(sr, samples)
+
+    @property
+    def result(self):
+        return self.raw.result
+
+
+class ObservedRecognizer:
+    def __init__(self, raw, out):
+        self.raw, self.out, self.calls = raw, out, 0
+
+    def create_stream(self):
+        return ObservedStream(self.raw.create_stream())
+
+    def decode_stream(self, stream):
+        self.calls += 1
+        wall, cpu = time.monotonic(), time.process_time()
+        self.raw.decode_stream(stream.raw)
+        native = stream.result
+        # Raw CTC output is durable before the installed adapter checks counts.
+        emit(self.out/'primary-ctc-native-private.jsonl', {'call': self.calls,
+            'text': str(native.text), 'tokens': list(native.tokens),
+            'timestamps': list(native.timestamps), 'language': str(native.lang),
+            'input': stream.input, 'wall_seconds': time.monotonic()-wall,
+            'cpu_seconds': time.process_time()-cpu}, append=True)
+
+
+def primary_worker(out):
+    from audio_backend.native_worker import NativeProcess
+    import audio_backend.inference.analyzer as installed
+    import sherpa_onnx as sherpa
+    if Path(installed.__file__).resolve() != SITE/'audio_backend/inference/analyzer.py':
+        raise RuntimeError('Wrong installed primary adapter')
+    config = settings(out)
+    emit(out/'primary-config.json', config.inference_config())
+    native, current = None, {'action': None}
+    responses = {}
+    try:
+        native = NativeProcess(config)
+        native.response_observer = lambda response: emit(out/'native-responses-private.jsonl',
+            {'action': current['action'], 'response': response}, append=True)
+        for action, arguments in [('reset', {'epoch_id': 'aishell4-fixed17'}),
+                ('push', {'wav': str(out/'input17.wav')}), ('finish', {}),
+                ('turns', {'start': 0., 'end': DURATION})]:
+            current['action'] = action
+            responses[action] = native.request(action,
+                lambda: time.monotonic() >= float(os.environ['QUALITY_WORK_DEADLINE']), **arguments)
+    finally:
+        if native is not None:
+            native.close()
+            code = native.proc.wait(timeout=1)
+            emit(out/'native-cleanup.json', {'returncode': code,
+                'original_handle_waited_and_reaped': True})
+            if code != 0:
+                raise RuntimeError('Native child close was not clean')
+    final = responses['finish']
+    if (final['input_seconds'] != DURATION or final['finished'] is not True
+            or final['stable_seconds'] != DURATION):
+        raise RuntimeError('Native final support differs')
+    diarization = {'turns': responses['turns']['turns'],
+                   'provenance': responses['reset']['provenance']}
+    emit(out/'native-diarization.json', diarization)
+    descriptor = sherpa.OfflineRecognizer.__dict__['from_sense_voice']
+    original = sherpa.OfflineRecognizer.from_sense_voice
+    wrappers, adapter_calls = [], []
+    expected = {'model': str(MODELS/'sensevoice/model.int8.onnx'),
+        'tokens': str(MODELS/'sensevoice/tokens.txt'), 'num_threads': 2,
+        'language': 'auto', 'use_itn': True, 'provider': 'cpu'}
+    def factory(cls, *args, **kwargs):
+        if wrappers or args or kwargs != expected:
+            raise RuntimeError('Unexpected SenseVoice constructor/config')
+        wrapped = ObservedRecognizer(original(**kwargs), out)
+        wrappers.append(wrapped)
+        return wrapped
+    sherpa.OfflineRecognizer.from_sense_voice = classmethod(factory)
+    analyzer = None
+    try:
+        analyzer = installed.AudioAnalyzer(config.inference_config())
+        transcribe = analyzer._transcribe
+        def observe_crop(path):
+            result = transcribe(path)
+            with wave.open(str(path), 'rb') as wav:
+                pcm = wav.readframes(wav.getnframes())
+                identity = {'frames': wav.getnframes(), 'sample_rate': wav.getframerate(),
+                    'pcm16le_sha256': hashlib.sha256(pcm).hexdigest()}
+            adapter_calls.append(identity)
+            emit(out/'primary-crop-adapters-private.jsonl',
+                {'call': len(adapter_calls), 'input': identity, 'adapter': result}, append=True)
+            return result
+        analyzer._transcribe = observe_crop
+        raw = analyzer.analyze(str(out/'input17.wav'), diarization=diarization)
+        emit(out/'primary-result-private.json', raw)
+        emit(out/'primary-calls.json', {'analyzer_calls': 1,
+            'sensevoice_initializations': len(wrappers),
+            'sensevoice_decode_calls': sum(w.calls for w in wrappers),
+            'crop_calls': len(adapter_calls), 'no_model_retry': True})
+        if raw['metadata']['duration_seconds'] != DURATION:
+            raise RuntimeError('Primary duration differs')
+    finally:
+        sherpa.OfflineRecognizer.from_sense_voice = descriptor
+        if analyzer is not None:
+            analyzer.close()
+
+
+def moss_worker(out):
+    from audio_backend.moss_handy_controller import MossController
+    from audio_backend.moss_handy_profile import NAME
+    from audio_backend.moss_handy_runner import context_frames
+    from audio_backend.native_lexical_alternatives import SourceSupport
+    pcm = fixed_pcm()
+    diarization = json.loads((out/'native-diarization.json').read_text())
+    native = diarization['provenance']
+    support = SourceSupport(source_generation=sha(out/'input17.wav'),
+        plan_sha256=sha(ROOT/'PROTOCOL.json'),
+        native_runtime_sha256=hashlib.sha256(encoded(native['diarization_runtime_files_sha256'])).hexdigest(),
+        core_sha256=hashlib.sha256(encoded({'frames': [0, FRAMES],
+            'diarization': diarization, 'native_finished': True})).hexdigest(),
+        source_frames=FRAMES, core_start_frame=0, core_end_frame=FRAMES,
+        start_frame=0, end_frame=FRAMES, pcm16le_sha256=PCM_SHA, float32le_sha256=FLOAT_SHA)
+    n_ctx = context_frames(FRAMES)
+    if n_ctx != 816:
+        raise RuntimeError('Unchanged MOSS context formula differs')
+    emit(out/'moss-input-contract.json', {'support': support.to_dict(),
+        'support_id': support.support_id, 'context': n_ctx, 'generation_reserve': 512,
+        'audio_tokens': 213, 'prompt_overhead': 86, 'timestamp_marker_characters': 5,
+        'native_adaptive_generation_ceiling': min(512, max(256, 2*213+128)),
+        'formula': '86 + ceil(272000/1280) + len(5)+len(10)+len(15) + 512',
+        'input_coverage': 'exact same 17 s PCM, without padding',
+        'support_kind': 'caller-bound direct quality diagnostic; not API owner attestation'})
+    scratch = out/'moss-owned'
+    scratch.mkdir(mode=0o700)
+    controller = MossController(scratch, profile_name=NAME,
+        model_path=str(MODELS/'MOSS-Transcribe-Diarize-Q8_0.gguf'))
+    job = controller.submit(support, pcm)
+    status = controller.run(job)
+    # Owned runner writes exact raw.bin before parsing. Preserve status regardless
+    # of subsequent terminal-state/schema checks. Do not discard the owner files.
+    emit(out/'moss-status-private.json', status)
+    raw = controller.exact_raw(job)
+    emit(out/'moss-raw-preservation.json', {'controller_raw_available': raw is not None,
+        'owned_raw_file_exists': (scratch/'raw.bin').exists(),
+        'raw_sha256': hashlib.sha256(raw).hexdigest() if raw is not None else None})
+    if status['state'] != 'returned_diagnostic' or status['result'] is None:
+        raise RuntimeError('MOSS did not return a valid diagnostic; raw remains retained')
+    emit(out/'moss-result-private.json', status['result'])
+    receipt = status['native_receipt']
+    if any(receipt[k] != 1 for k in ('construct_attempts', 'session_attempts', 'run_attempts')):
+        raise RuntimeError('MOSS call counts differ')
+
+
+def hypothesis(segments, text_key):
+    rows = []
+    for index, segment in enumerate(segments):
+        start, end = segment['start'], segment['end']
+        if not (math.isfinite(start) and math.isfinite(end) and 0 <= start < end <= DURATION):
+            raise RuntimeError('Hypothesis interval outside fixed input; no clipping')
+        stream = segment.get('speaker_local_id')
+        if stream is not None and not isinstance(stream, str):
+            raise RuntimeError('Unexpected model-local speaker label')
+        rows.append({'source_index': index, 'start': start, 'end': end,
+            'stream': stream if stream is not None else '__UNKNOWN__',
+            'text': segment[text_key], 'tokens': normalize(segment[text_key])})
+    return sorted(rows, key=lambda s: (s['start'], s['source_index']))
+
+
+def score_case(reference, rows):
+    from meeteval.io import SegLST
+    from meeteval.wer.wer.cp import cp_word_error_rate
+    from meeteval.wer.wer.di_cp import greedy_di_cp_word_error_rate
+    streams = collections.defaultdict(list)
+    for row in rows:
+        streams[row['stream']].extend(row['tokens'])
+    streams = {s: tokens for s, tokens in streams.items() if tokens}
+    cp = cp_word_error_rate(reference, streams)
+    ref = SegLST([{'speaker': speaker, 'words': ' '.join(tokens), 'segment_index': i}
+        for i, (speaker, tokens) in enumerate(reference.items())])
+    hyp = SegLST([{'speaker': row['stream'], 'words': ' '.join(row['tokens']), 'segment_index': i}
+        for i, row in enumerate(rows)])
+    di = greedy_di_cp_word_error_rate(ref, hyp, reference_sort=False, hypothesis_sort=False)
+    count = sum(map(len, streams.values()))
+    for metric in (cp, di):
+        if (metric.errors != metric.insertions+metric.deletions+metric.substitutions
+                or metric.length != sum(map(len, reference.values()))
+                or metric.length+metric.insertions-metric.deletions != count):
+            raise RuntimeError('Official metric conservation check failed')
+    return {'cpCER': dataclasses.asdict(cp), 'greedy_DI_cpCER': dataclasses.asdict(di),
+        'reference_characters': sum(map(len, reference.values())),
+        'hypothesis_characters': count, 'hypothesis_segments': len(rows),
+        'characters_by_hypothesis_stream': {s: len(t) for s, t in streams.items()},
+        'unknown_characters': len(streams.get('__UNKNOWN__', [])),
+        'hypothesis_streams': streams}
+
+
+def score_worker(out, mode):
+    if importlib.metadata.version('meeteval') != '0.4.3':
+        raise RuntimeError('Official evaluator version changed')
+    if mode == 'check':
+        rows = [{'stream': 'x', 'tokens': ['a']}, {'stream': 'y', 'tokens': ['b']},
+                {'stream': 'x', 'tokens': ['c']}, {'stream': 'y', 'tokens': ['d']}]
+        result = score_case({'A': ['a', 'b'], 'B': ['c', 'd']}, rows)
+        if result['greedy_DI_cpCER']['errors'] != 0 or result['cpCER']['errors'] == 0:
+            raise RuntimeError('Documented greedy DI reassignment smoke failed')
+        exact = score_case({'A': ['中', '文'], 'B': ['嗯']},
+            [{'stream': 'y', 'tokens': ['中', '文']}, {'stream': 'x', 'tokens': ['嗯']}])
+        if exact['cpCER']['errors'] or exact['greedy_DI_cpCER']['errors']:
+            raise RuntimeError('Character-token permutation smoke failed')
+        emit(out/'scorer-checks.json', {'status': 'passed', 'meeteval_version': '0.4.3',
+            'DI_documented_reassignment': result, 'character_permutation': exact})
+        return
+    reference = json.loads((out/'reference-private.json').read_text())['reference_streams']
+    primary = json.loads((out/'primary-result-private.json').read_text())
+    moss = json.loads((out/'moss-result-private.json').read_text())
+    if moss['schema_errors']:
+        raise RuntimeError('MOSS schema errors; raw retained, no selective phrase scoring')
+    cases = {'primary': hypothesis(primary['segments'], 'text'),
+             'moss': hypothesis(moss['diagnostic_phrases'], 'raw_text')}
+    # Identical frozen per-speaker reference and whole returned segments only.
+    emit(out/'score-inputs-private.json', {'reference_streams': reference, 'cases': cases})
+    results = {system: score_case(reference, rows) for system, rows in cases.items()}
+    emit(out/'scores-private.json', {'meeteval_version': '0.4.3',
+        'metrics': ['character-token cpCER', 'character-token standard greedy DI-cpCER'],
+        'window': [437., 454.], 'results': results,
+        'moss_flags': {k: moss[k] for k in ('complete_content', 'eos', 'truncated', 'aborted')},
+        'protocol_sha256': sha(ROOT/'PROTOCOL.json'),
+        'caveats': ['Single fixed-fixture quality diagnostic, not API qualification.',
+            'cpCER includes recognition and speaker-attribution errors.',
+            'Greedy DI-cpCER reassigns intact hypothesis segments; it is not an exact optimum and depends on segment grouping/order.',
+            'Local speaker labels are output streams, not verified personal identity.',
+            'No character timing gold, invented character times, or overlapping-reference chronology.',
+            'Primary uses unchanged crop/mixture ASR and simplified conversion; MOSS gets the full exact17 s input with no extra script conversion.',
+            'MOSS EOS and generation count remain unavailable; complete content is not certified.']})
+
+
+def model_free(out):
+    from audio_backend.moss_handy_runner import context_frames
+    from audio_backend.moss_handy_profile import NAME, profile
+    from audio_backend.inference.analyzer import AudioAnalyzer
+    if normalize('ＡＢ，嗯嗯<#>！ １２') != list('ab嗯嗯12'):
+        raise RuntimeError('Frozen character transform failed')
+    fixed_pcm()
+    selected = reference_selection()
+    if context_frames(FRAMES) != 816 or profile(NAME).payload()['maximum_calls'] != 1:
+        raise RuntimeError('Existing MOSS profile/context changed')
+    ordered = hypothesis([
+        {'start': 2., 'end': 3., 'speaker_local_id': None, 'text': '嗯'},
+        {'start': 0., 'end': 1., 'speaker_local_id': 'x', 'text': '中'}], 'text')
+    if [r['stream'] for r in ordered] != ['x', '__UNKNOWN__']:
+        raise RuntimeError('Whole-segment ordering/unknown preservation failed')
+    try:
+        hypothesis([{'start': -.01, 'end': 1., 'speaker_local_id': 'x', 'text': '中'}], 'text')
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError('Out-of-support phrase was silently accepted')
+    # Importing the unchanged class never constructs it or opens model sessions.
+    if not callable(AudioAnalyzer.analyze):
+        raise RuntimeError('Primary adapter missing')
+    emit(out/'checks.json', {'status': 'passed', 'model_calls': 0,
+        'selection_segments': selected['segments_count'], 'selection_characters': selected['characters'],
+        'checks': ['PCM/float hashes and exact17s geometry', '7 full manual segments and79 character normalization',
+            'no boundary cuts and2.0267307777s overlap', 'unchanged MOSS ctx816 formula/profile',
+            'NFKC/casefold/tag/punctuation transform with repeated fillers retained',
+            'whole-segment stable ordering and UNKNOWN preservation', 'outside-support intervals rejected'],
+        'syntax_and_import_only': True})
+
+
+def worker(stage, mode):
+    configure()
+    pins(full=False)
+    out = ROOT/('checks' if mode == 'check' else 'output')
+    tempfile.tempdir = str(out/'tmp')
+    if stage == 'primary':
+        return primary_worker(out)
+    if stage == 'moss':
+        return moss_worker(out)
+    if stage == 'score':
+        return score_worker(out, mode)
+    if stage == 'check':
+        return model_free(out)
+    raise RuntimeError('Unrecognized fixed worker stage')
+
+
+def supervise(mode):
+    started = time.monotonic()
+    configure()
+    import psutil
+    out = ROOT/('checks' if mode == 'check' else 'output')
+    out.mkdir(mode=0o700, exist_ok=False)
+    (out/'tmp').mkdir(mode=0o700)
+    peak, samples, reason, cleanup_error = 0, 0, None, None
+    processes, owned, stage_records = [], {}, []
+    deadline = started+WORK
+    os.environ['QUALITY_WORK_DEADLINE'] = str(deadline)
+    def observe():
+        nonlocal peak, samples
+        members = {os.getpid(): psutil.Process()}
+        for p in processes:
+            try:
+                parent = psutil.Process(p.pid)
+                if parent.create_time() != owned[p.pid]:
+                    continue
+                for proc in [parent]+parent.children(recursive=True):
+                    owned[proc.pid] = proc.create_time()
+                    members[proc.pid] = proc
+            except psutil.NoSuchProcess:
+                pass
+        # Remember positively observed identities even after their parent exits.
+        for pid, identity in list(owned.items()):
+            try:
+                proc = psutil.Process(pid)
+                if proc.create_time() == identity:
+                    members[pid] = proc
+            except psutil.NoSuchProcess:
+                pass
+        rss = 0
+        for proc in members.values():
+            try:
+                rss += proc.memory_info().rss
+            except psutil.NoSuchProcess:
+                pass
+        peak, samples = max(peak, rss), samples+1
+        disk = usage()
+        emit(out/'resources.jsonl', {'elapsed_seconds': time.monotonic()-started,
+             'sum_observed_owned_tree_rss_bytes': rss, 'fresh_logical_bytes': disk}, append=True)
+        if rss > RSS_CAP or disk > CAP-RESERVE or time.monotonic() >= deadline:
+            raise RuntimeError('Shared RSS, logical-byte, or780s work limit')
+    try:
+        manifest = pins(full=True)
+        emit(out/'manifest.json', {'pins': manifest, 'protocol_sha256': sha(ROOT/'PROTOCOL.json'),
+            'mode': mode, 'source_pin_file_sha256': sha(ROOT/'sources.sha256')})
+        if mode == 'run':
+            checks = ROOT/'checks'
+            checked = json.loads((checks/'manifest.json').read_text())
+            if (checked['pins'] != manifest
+                    or json.loads((checks/'checks.json').read_text())['status'] != 'passed'
+                    or json.loads((checks/'scorer-checks.json').read_text())['status'] != 'passed'
+                    or json.loads((checks/'supervisor.json').read_text())['status'] != 'passed'):
+                raise RuntimeError('Identically pinned focused checks required before models')
+        prepare(out)
+        schedule = [('check', RUNTIME/'bin/python3.12')] if mode == 'check' else [
+            ('primary', RUNTIME/'bin/python3.12'), ('moss', RUNTIME/'bin/python3.12')]
+        schedule.append(('score', EVAL/'eval/venv/bin/python'))
+        for stage, executable in schedule:
+            observe()
+            with (out/(stage+'-worker.log')).open('xb') as log:
+                began = time.monotonic()
+                p = subprocess.Popen([str(executable), '-I', '-B', str(Path(__file__).resolve()),
+                    '--worker', stage, mode], cwd=ROOT, env=dict(os.environ),
+                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                processes.append(p)
+                owned[p.pid] = psutil.Process(p.pid).create_time()
+                while p.poll() is None:
+                    observe()
+                    if log.tell() > 524288:
+                        raise RuntimeError('Worker log cap')
+                    time.sleep(.1)
+                code = p.wait()
+                observe()
+                live = []
+                for pid, identity in owned.items():
+                    try:
+                        proc = psutil.Process(pid)
+                        if proc.create_time() == identity and proc.status() != psutil.STATUS_ZOMBIE:
+                            live.append(pid)
+                    except psutil.NoSuchProcess:
+                        pass
+                record = {'stage': stage, 'returncode': code,
+                    'wall_seconds': time.monotonic()-began, 'remaining_live_observed_owned': live,
+                    'original_handle_waited_and_reaped': True}
+                stage_records.append(record)
+                emit(out/'stages.json', stage_records)
+                if code != 0 or live:
+                    raise RuntimeError('Worker failed or serial stage ownership not closed: '+stage)
+    except BaseException as exc:
+        reason = type(exc).__name__+': '+str(exc)
+    finally:
+        cleanup_deadline = min(started+WORK+CLEANUP, time.monotonic()+CLEANUP)
+        try:
+            for p in processes:
+                if p.poll() is None:
+                    os.killpg(p.pid, signal.SIGTERM)
+            live = []
+            for pid, identity in owned.items():
+                try:
+                    proc = psutil.Process(pid)
+                    if proc.create_time() == identity and proc.status() != psutil.STATUS_ZOMBIE:
+                        proc.terminate()
+                        live.append(proc)
+                except psutil.NoSuchProcess:
+                    pass
+            _, live = psutil.wait_procs(live, timeout=max(0., min(10., cleanup_deadline-time.monotonic())))
+            for proc in live:
+                if proc.create_time() == owned[proc.pid]:
+                    proc.kill()
+            for p in processes:
+                p.wait(timeout=max(.01, cleanup_deadline-time.monotonic()))
+            _, live = psutil.wait_procs(live, timeout=max(0., cleanup_deadline-time.monotonic()))
+            if live:
+                raise RuntimeError('Observed owned descendants not gone')
+            shutil.rmtree(out/'tmp')
+        except BaseException as exc:
+            cleanup_error = type(exc).__name__+': '+str(exc)
+        emit(out/'supervisor.json', {'status': 'failed' if reason or cleanup_error else 'passed',
+            'returncodes': [p.returncode for p in processes], 'stages': stage_records,
+            'termination_reason': reason, 'cleanup_error': cleanup_error,
+            'elapsed_seconds': time.monotonic()-started,
+            'peak_sampled_combined_rss_bytes': peak, 'samples': samples,
+            'all_original_handles_reaped': all(p.returncode is not None for p in processes),
+            'ownership_scope': 'positively observed owned identities; not kernel containment',
+            'cpu_affinity': sorted(os.sched_getaffinity(0)), 'nice': os.getpriority(os.PRIO_PROCESS, 0),
+            'per_process_address_space_bytes': AS_CAP, 'fresh_byte_accounting': 'logical st_size, not allocated blocks',
+            'fresh_logical_bytes_before_receipt': usage(), 'owned_pids': sorted(owned)}, final=True)
+    return int(bool(reason or cleanup_error))
+
+
+if __name__ == '__main__':
+    args = sys.argv[1:]
+    if len(args) == 3 and args[0] == '--worker' and args[2] in ('check', 'run'):
+        worker(args[1], args[2])
+    elif len(args) == 1 and args[0] in ('check', 'run'):
+        raise SystemExit(supervise(args[0]))
+    else:
+        raise SystemExit('Choose check or run only after frozen-source approval')

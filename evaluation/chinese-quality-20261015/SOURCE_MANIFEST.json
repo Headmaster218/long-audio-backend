@@ -1,0 +1,243 @@
+{
+  "schema": "chinese-quality-source-checkpoint-v1",
+  "date": "2026-10-15",
+  "status": "frozen_source_checkpoint",
+  "source_execution_status": "Historical evidence applies to the original source identified below. The configuration template remains unfilled and unexecuted.",
+  "public_protocol_status": "Public methodological restatement prepared after the experiment; not the original private execution protocol or a replacement for its private input pins.",
+  "sources": [
+    {
+      "id": "trusted_chinese_comparison",
+      "path": "src/compare.py.in",
+      "bytes": 32542,
+      "template_sha256": "0be6b069cfef9e629807f7e8f5c821cc209f58b5e9d46bbe5de68f469cf60538",
+      "executed_source_sha256": "19f31c9d4a13438788fe8256692b50be90693117e63fbf4c2a109ca90f74801b",
+      "required_configuration": [
+        {
+          "placeholder": "'__REQUIRED_RUNTIME_RELATIVE_PATH__'",
+          "meaning": "Existing production Python 3.12 runtime, relative to the experiment parent directory."
+        },
+        {
+          "placeholder": "'__REQUIRED_ASSET_DIRECTORY_RELATIVE_PATH__'",
+          "meaning": "Verified official model/native runtime assets, relative to the experiment parent directory."
+        },
+        {
+          "placeholder": "'__REQUIRED_REFERENCE_DIRECTORY_RELATIVE_PATH__'",
+          "meaning": "Private verified channel-0 source WAV, manual-reference derivative, and acquisition provenance directory."
+        },
+        {
+          "placeholder": "'__REQUIRED_REFERENCE_FILE_STEM__'",
+          "meaning": "Local basename shared by the .ch0.wav and .reference.json inputs for the fixed acquired source extent."
+        },
+        {
+          "placeholder": "'__REQUIRED_EVALUATOR_DIRECTORY_RELATIVE_PATH__'",
+          "meaning": "Existing MeetEval 0.4.3 evaluation directory, relative to the experiment parent directory."
+        },
+        {
+          "placeholder": "'__REQUIRED_PCM16LE_SHA256__'",
+          "meaning": "Verified SHA-256 of the exact fixed 17-second PCM16 little-endian input."
+        },
+        {
+          "placeholder": "'__REQUIRED_FLOAT32LE_SHA256__'",
+          "meaning": "Verified SHA-256 of the same input represented as float32 little-endian samples."
+        },
+        {
+          "placeholder": "'__REQUIRED_EVALUATOR_CLOSURE_PIN_FILE_RELATIVE_PATH__'",
+          "meaning": "Existing private source/binary pin inventory containing the verified evaluator closure."
+        },
+        {
+          "placeholder": "'__REQUIRED_EVALUATOR_CLOSURE_RELATIVE_PREFIX__'",
+          "meaning": "Exact relative prefix selecting evaluator entries from that existing closure inventory; retain the trailing slash."
+        },
+        {
+          "placeholder": "int('__REQUIRED_SOURCE_WAV_BYTES__')",
+          "meaning": "Verified byte length of the full local acquired WAV, including its original header."
+        },
+        {
+          "placeholder": "'__REQUIRED_SOURCE_WAV_SHA256__'",
+          "meaning": "Verified SHA-256 of the full local acquired WAV."
+        },
+        {
+          "placeholder": "'__REQUIRED_MANUAL_REFERENCE_JSON_SHA256__'",
+          "meaning": "Verified SHA-256 of the private official-manual-reference derivative."
+        },
+        {
+          "placeholder": "json.loads('__REQUIRED_REFERENCE_SPEAKER_CHARACTER_COUNTS_JSON__')",
+          "meaning": "Expected per-reference-stream character counts from the official annotations, encoded as a JSON object; totals remain 70 and 9."
+        }
+      ],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    },
+    {
+      "id": "trusted_chinese_heldout_comparison",
+      "source_kind": "derived_configuration_template",
+      "base_template_path": "src/compare.py.in",
+      "base_template_sha256": "0be6b069cfef9e629807f7e8f5c821cc209f58b5e9d46bbe5de68f469cf60538",
+      "derived_template_bytes": 32601,
+      "derived_template_sha256": "8b6fbb5cd9b31119bcac7599f242a00dbdaeb453c88338290ed23290845f0d31",
+      "executed_source_sha256": "ecb3914b328ddf9d45a7be422063fab40d3ba6bde1f247e22f9c18b32155adda",
+      "template_executed": false,
+      "executed_source_reconstruction_verified": true,
+      "derivation_instruction": "Starting with the unchanged base template, apply these exact substitutions in listed order, require the stated occurrence counts, then verify the derived template hash. Configure a separate private copy only afterward. No second public source file is required.",
+      "required_configuration": "Use the same required field names as the first template, but provide this interval’s independently verified PCM16/float32 identities and per-reference-stream character counts of 43 and 4. Regenerate all dependent private source/protocol pins.",
+      "exact_substitutions": [
+        {
+          "replace_exact": "\"\"\"Frozen 17 s Mandarin adapter diagnostic. No API, retries, or gold assignment.\"\"\"\n",
+          "with": "\"\"\"Frozen held-out 14.5 s Mandarin adapter diagnostic. No API, retries, or gold assignment.\"\"\"\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "RATE, FIRST, LAST = 16000, 232000, 504000\n",
+          "with": "RATE, FIRST, LAST = 16000, 0, 232000\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "FRAMES, DURATION = LAST-FIRST, 17.\n",
+          "with": "FRAMES, DURATION = LAST-FIRST, 14.5\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        raise RuntimeError('Fixed 17 s PCM/float identity changed')\n",
+          "with": "        raise RuntimeError('Fixed 14.5 s PCM/float identity changed')\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        if a < 454. and b > 437.:\n",
+          "with": "        if a < 437. and b > 422.5:\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "            if not 437. <= a < b <= 454.:\n",
+          "with": "            if not 422.5 <= a < b <= 437.:\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "                                 local_start=a-437., local_end=b-437.))\n",
+          "with": "                                 local_start=a-422.5, local_end=b-422.5))\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    overlap = [[a-437., b-437.] for a, b in zip(bounds, bounds[1:])\n",
+          "with": "    overlap = [[a-422.5, b-422.5] for a, b in zip(bounds, bounds[1:])\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    if (len(selected) != 7 or counts != json.loads('__REQUIRED_REFERENCE_SPEAKER_CHARACTER_COUNTS_JSON__')\n",
+          "with": "    if (len(selected) != 3 or counts != json.loads('__REQUIRED_REFERENCE_SPEAKER_CHARACTER_COUNTS_JSON__')\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "            or len(overlap) != 5 or abs(seconds-2.026730777670894) > 1e-8):\n",
+          "with": "            or len(overlap) != 2 or abs(seconds-1.1076319366295024) > 1e-8):\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    return {'source_seconds_half_open': [437., 454.], 'segments': selected,\n",
+          "with": "    return {'source_seconds_half_open': [422.5, 437.], 'segments': selected,\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'segments_count': 7, 'characters': 79, 'speaker_count': 2,\n",
+          "with": "        'segments_count': 3, 'characters': 47, 'speaker_count': 2,\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'left_silence_margin_seconds': min(s['absolute_start'] for s in selected)-437.,\n",
+          "with": "        'left_silence_margin_seconds': min(s['absolute_start'] for s in selected)-422.5,\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'right_silence_margin_seconds': 454.-max(s['absolute_end'] for s in selected)}\n",
+          "with": "        'right_silence_margin_seconds': 437.-max(s['absolute_end'] for s in selected)}\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'source_seconds_half_open': [437., 454.], 'pcm16le_sha256': PCM_SHA,\n",
+          "with": "        'source_seconds_half_open': [422.5, 437.], 'pcm16le_sha256': PCM_SHA,\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    with wave.open(str(out/'input17.wav'), 'wb') as dst:\n",
+          "with": "    with wave.open(str(out/'input14p5.wav'), 'wb') as dst:\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        for action, arguments in [('reset', {'epoch_id': 'aishell4-fixed17'}),\n",
+          "with": "        for action, arguments in [('reset', {'epoch_id': 'aishell4-heldout14p5'}),\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "                ('push', {'wav': str(out/'input17.wav')}), ('finish', {}),\n",
+          "with": "                ('push', {'wav': str(out/'input14p5.wav')}), ('finish', {}),\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        raw = analyzer.analyze(str(out/'input17.wav'), diarization=diarization)\n",
+          "with": "        raw = analyzer.analyze(str(out/'input14p5.wav'), diarization=diarization)\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    support = SourceSupport(source_generation=sha(out/'input17.wav'),\n",
+          "with": "    support = SourceSupport(source_generation=sha(out/'input14p5.wav'),\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    if n_ctx != 816:\n",
+          "with": "    if n_ctx != 783:\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'audio_tokens': 213, 'prompt_overhead': 86, 'timestamp_marker_characters': 5,\n",
+          "with": "        'audio_tokens': 182, 'prompt_overhead': 86, 'timestamp_marker_characters': 3,\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'native_adaptive_generation_ceiling': min(512, max(256, 2*213+128)),\n",
+          "with": "        'native_adaptive_generation_ceiling': min(512, max(256, 2*182+128)),\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'formula': '86 + ceil(272000/1280) + len(5)+len(10)+len(15) + 512',\n",
+          "with": "        'formula': '86 + ceil(232000/1280) + len(5)+len(10) + 512',\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'input_coverage': 'exact same 17 s PCM, without padding',\n",
+          "with": "        'input_coverage': 'exact same 14.5 s PCM, without padding',\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'window': [437., 454.], 'results': results,\n",
+          "with": "        'window': [422.5, 437.], 'results': results,\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'caveats': ['Single fixed-fixture quality diagnostic, not API qualification.',\n",
+          "with": "        'caveats': ['Held-out interval in the same recording/speakers; not independent data or API qualification.',\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "            'Primary uses unchanged crop/mixture ASR and simplified conversion; MOSS gets the full exact17 s input with no extra script conversion.',\n",
+          "with": "            'Primary uses unchanged crop/mixture ASR and simplified conversion; MOSS gets the full exact14.5 s input with no extra script conversion.',\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "    if context_frames(FRAMES) != 816 or profile(NAME).payload()['maximum_calls'] != 1:\n",
+          "with": "    if context_frames(FRAMES) != 783 or profile(NAME).payload()['maximum_calls'] != 1:\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "        'checks': ['PCM/float hashes and exact17s geometry', '7 full manual segments and79 character normalization',\n",
+          "with": "        'checks': ['PCM/float hashes and exact14.5s geometry', '3 full manual segments and47 character normalization',\n",
+          "expected_occurrences": 1
+        },
+        {
+          "replace_exact": "            'no boundary cuts and2.0267307777s overlap', 'unchanged MOSS ctx816 formula/profile',\n",
+          "with": "            'no boundary cuts and1.1076319366s overlap', 'unchanged MOSS ctx783 formula/profile',\n",
+          "expected_occurrences": 1
+        }
+      ]
+    }
+  ],
+  "historical_aggregate_results_status": "Both historical comparisons and their fixed-assignment arithmetic were checked. No model or evaluator execution was performed to prepare this checkpoint."
+}
