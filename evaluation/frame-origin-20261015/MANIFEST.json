@@ -1,0 +1,40 @@
+{
+  "schema": "frame-origin-public-source-checkpoint-v1",
+  "scope": "optional analyzer PCM frame-origin observation",
+  "status": "isolated candidate; not installed or deployment-qualified",
+  "historical_validation": {
+    "tests_passed": 13,
+    "qualification": "original pinned synthetic harness; arithmetic and call preservation only",
+    "models_or_native_children": 0,
+    "database_connections": 0
+  },
+  "public_test_template_executed": false,
+  "required_test_configuration": ["TEST_CPU", "SOURCE"],
+  "manifest_excludes_self": true,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4444,
+      "sha256": "55a80a901905e2101fc8bc7b5fcaf1a439611421cebc42346f5bd04fb86bae74",
+      "role": "project-facing scope, results, limitations and configuration"
+    },
+    {
+      "path": "worker.py",
+      "bytes": 26769,
+      "sha256": "888c69d84c754cf5070b9e6484bd0f301e60ba45ba13c0cc91bc79a3b195299d",
+      "role": "byte-identical tested candidate product module"
+    },
+    {
+      "path": "native_owned_cell_capture.py",
+      "bytes": 49974,
+      "sha256": "3da96370087edc2969fa2154f938f30d7411e2dd0b7cba0ff07f9dd1bcba474b",
+      "role": "byte-identical tested candidate product module"
+    },
+    {
+      "path": "test_frame_origin_observation.py",
+      "bytes": 26103,
+      "sha256": "44aa6771ba3f518aef06094d66edd03b0dba9facd4f35732664f2b9fac19f3b4",
+      "role": "unexecuted public template; test body and source pins preserved"
+    }
+  ]
+}
