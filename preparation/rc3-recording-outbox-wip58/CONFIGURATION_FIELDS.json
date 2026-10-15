@@ -1,0 +1,110 @@
+{
+  "fields": [
+    {
+      "description": "Absolute local workspace root without a trailing slash.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{WORKSPACE_ROOT}}"
+    },
+    {
+      "description": "Workspace-relative helper directory with resolved smoke.py/server_entry.py and a fresh output child.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{HELPER_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative assembled complete candidate source tree, including unchanged WIP57 dependencies.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_DIRECTORY}}"
+    },
+    {
+      "description": "SHA-256 of canonical JSON sorted direct-child [name,type] root entries using the helper algorithm; package inventory pin remains fixed.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_ROOT_SHA256}}"
+    },
+    {
+      "description": "SHA-256 of the exact resolved server_entry.py after binding its absolute candidate path.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{SERVER_ENTRY_SHA256}}"
+    },
+    {
+      "description": "Fresh capture identifier for one explicitly shared sample-coordinate domain.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{CAPTURE_ID}}"
+    },
+    {
+      "description": "Workspace-relative prepared assets directory with pinned models and native installation metadata.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{ASSETS_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative qualified Python 3.12 runtime whose installed baseline matches the fixed source lock and original overrides.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{RUNTIME_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative source-lock file with the unchanged pinned digest.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{SOURCE_LOCK_FILE}}"
+    },
+    {
+      "description": "Workspace-relative authorized fixture matching the unchanged 672044-byte/336000-frame SHA-256 pin.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{AMI_FIXTURE_FILE}}"
+    },
+    {
+      "description": "Fresh descriptive session name.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{SESSION_NAME}}"
+    },
+    {
+      "description": "Fresh local identity-group label.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{IDENTITY_GROUP}}"
+    },
+    {
+      "description": "Fresh idempotency key for at most one natural-seam MOSS request.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{MOSS_IDEMPOTENCY_KEY}}"
+    },
+    {
+      "description": "Absolute path equal to WORKSPACE_ROOT joined with CANDIDATE_DIRECTORY; this is the only inserted candidate import root.",
+      "occurrences": {
+        "helper/server_entry.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_ROOT_ABSOLUTE}}"
+    }
+  ],
+  "instruction": "Resolve every placeholder locally with Python-safe literal syntax. Bind the absolute candidate path, then compute the entry digest and root-layout digest. Keep values private. Full package/runtime/fixture/source-lock integrity pins are unchanged.",
+  "retained_environment_input": {
+    "name": "AUDIO_API_KEY",
+    "purpose": "Optional API authentication supplied privately at runtime.",
+    "value_included": false
+  },
+  "schema": "recording-outbox-configuration-fields-v1",
+  "template_behavior": "Actual v2 helper control flow, acceptance predicate and limits preserved. Only deployment paths, invocation identifiers, two relocation-sensitive pins and entry description are substituted. Templates unexecuted."
+}

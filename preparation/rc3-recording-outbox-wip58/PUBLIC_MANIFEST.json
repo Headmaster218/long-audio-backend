@@ -1,0 +1,149 @@
+{
+  "base_source": {
+    "previous_checkpoint": "preparation/rc3-recording-overlap-wip57",
+    "product_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+    "source_lock_path": "preparation/minimal-recovery-wip53/source.lock.json",
+    "source_lock_sha256": "4299d4d0e44fb79596770fac1809fc9d33b244a9b07fc8417e25339a4e46bb69",
+    "unchanged_v1_paths": [
+      "audio_backend/storage.py",
+      "audio_backend/lifecycle.py",
+      "audio_backend/native_owned_cell_jobs.py"
+    ]
+  },
+  "exclusions": [
+    "audio",
+    "transcripts",
+    "raw receipts",
+    "operational identities",
+    "local configuration",
+    "databases",
+    "runtime and model assets",
+    "logs",
+    "private inverse mappings",
+    "later capture retry fixes"
+  ],
+  "feature_source_manifest_sha256": "b3fb4d62595f0208372d6efab0b41e769a98bcc878b70b26064599ca342986dd",
+  "files": [
+    {
+      "bytes": 4007,
+      "path": "CONFIGURATION_FIELDS.json",
+      "sha256": "e79275b924b299620748c386a128f81cf676e4c3f48d9005bfdc85a464734639"
+    },
+    {
+      "bytes": 6809,
+      "path": "README.md",
+      "sha256": "94be7f89880c4e721ee28ed7d251766e2a4ff72238ca87b7fc496a09f60bfbc6"
+    },
+    {
+      "bytes": 44072,
+      "path": "audio_backend/app.py",
+      "sha256": "f083d955bfecf6107e19544bf09d96016f620e3429d4796ef7e1a06bfd9634e1"
+    },
+    {
+      "bytes": 45914,
+      "path": "audio_backend/native_owned_cell_capture.py",
+      "sha256": "5a88ffc215260c9513932f720c6782f449ff75db6a37c25bb98ee1585ef7f7fb"
+    },
+    {
+      "bytes": 72007,
+      "path": "audio_backend/native_owned_cell_store.py",
+      "sha256": "86157ea7a129160bfd17a270ca473e4c7782a95a0bd0feda46fc1e0ccf85e8e3"
+    },
+    {
+      "bytes": 51917,
+      "path": "audio_backend/recording_overlap.py",
+      "sha256": "314e7146ed7c20a34423c5901d64fd339b8dcad8b8cb46cfcb2e45f6671bea3f"
+    },
+    {
+      "bytes": 26540,
+      "path": "audio_backend/worker.py",
+      "sha256": "6667954e2ef8bbdddbda5b267957134c548a13c71c4bb2aa5bd4e968bd4ce8eb"
+    },
+    {
+      "bytes": 18329,
+      "path": "docs/RECORDING_OVERLAP_BATCHES.md",
+      "sha256": "a46a3d30d603197d6faa4a710fa881177cb6bd7119626da011e78c1b14a2720a"
+    },
+    {
+      "bytes": 6599,
+      "path": "helper/README.md",
+      "sha256": "4376b1db0950bdc6413a82ce8f70d4e9d16fb9831a37563909b3121986cff5ed"
+    },
+    {
+      "bytes": 212,
+      "path": "helper/server_entry.py.in",
+      "sha256": "718ab7e4e8a6cd638e3fb96a181bcd40acd2c9c597ba955dbfc055564f38d9ec"
+    },
+    {
+      "bytes": 48515,
+      "path": "helper/smoke.py.in",
+      "sha256": "8275cdc3cbe4d364147e7e997dd377b92d898a035dc42dc7ad96cf717a1cd0be"
+    },
+    {
+      "bytes": 42699,
+      "path": "tests/test_recording_overlap.py",
+      "sha256": "8c65b67f4b9f8e8e65d85ea9dc6589334fd8610b489371e22f3dfa8bc83c76b2"
+    }
+  ],
+  "historical_validation": {
+    "actual_helper": {
+      "canonical_seconds": 21,
+      "cleanup": "waited_no_known_live_children",
+      "derived_chunks": 2,
+      "durable_source_receipts": 2,
+      "elapsed_seconds": 15.82,
+      "exact_maps": 7,
+      "exit_code": 1,
+      "moss": "not_run_no_eligible_seam_cell",
+      "moss_accepted_jobs": 0,
+      "moss_dispatch_attempts": 0,
+      "native_input": "21 seconds, one epoch, no replay",
+      "observed_failure": {
+        "exception_class": "OperationalError",
+        "precise_query": "unrecorded",
+        "sqlite_code": 261,
+        "sqlite_name": "SQLITE_BUSY_RECOVERY",
+        "stage": "capture"
+      },
+      "optional_owner_dropped": 0,
+      "original_and_derived_bytes_verified": true,
+      "overall_integration": "failed_intended_full_integration",
+      "peak_sampled_tree_rss_bytes": 684707840,
+      "receipt_attempts_each": 1,
+      "receipt_gaps": 0,
+      "retained_cells": 1,
+      "segments": 16,
+      "source_count": 3,
+      "uploaded_seconds": 27
+    },
+    "model_free": {
+      "focused_cases": 35,
+      "focused_elapsed_seconds": 9.82,
+      "helper_self_test": "PASS",
+      "original_regressions": 12,
+      "regressions_elapsed_seconds": 4.06,
+      "remaining_children": 0,
+      "remaining_threads": 0
+    }
+  },
+  "manifest_self_hash": "Omitted to avoid circular hashing.",
+  "package_inventory": {
+    "encoding": "Use the exact helper preflight: sorted Path traversal of all regular audio_backend .py/.json files, no links; rows path relative to product root, bytes, sha256; UTF-8 JSON with ensure_ascii=False, sort_keys=True, separators=(comma,colon), allow_nan=False.",
+    "file_count": 102,
+    "sha256": "0aea123b5c046adba8ee766914cf12b3c347deddb4e9c8af3e07a4fa18ba03fe"
+  },
+  "parent_commit": "3038c536872d46e9466c045182e05c413a6db9c4",
+  "schema": "recording-outbox-public-source-v1",
+  "source_validation": {
+    "database_opened": false,
+    "eight_python_syntax_trees_parsed": true,
+    "feature_document_prose_sanitized": true,
+    "network_access": false,
+    "product_helper_imports": false,
+    "publication": false,
+    "six_python_feature_files_byte_exact": true,
+    "templates_and_feature_document_inverse_exact": true,
+    "tests_models_or_server_executed": false
+  },
+  "status": "Primary/deduplication and durable receipt-outbox milestone; optional capture failed; intended full integration failed; public templates unexecuted"
+}
