@@ -604,7 +604,7 @@ class Capture:
         if self.core_seams is not None:
             result['last_core_seam_reason'] = self.core_seams.last_reason
             result['core_seam_pending'] = self.core_seams.work_pending or self.core_seams.flight is not None
-            result['core_seam_reset_support'] = 'unsupported'
+            result['core_seam_reset_support'] = 'observed_replay'
         if self.seam_enabled:
             result.update(last_seam_reason=self.last_seam_reason, seam_tail_bytes=(
                 self._seam_tail.material_bytes if self._seam_tail is not None else 0),

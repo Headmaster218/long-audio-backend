@@ -2,6 +2,23 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev12：严格绑定的 reset-replay core 诊断
+
+沿用默认关闭的 `--native-owned-cells --native-owned-core-seams`，在同 epoch 诊断之外增加独立 reset-replay schema/policy。它只接受同一 fresh capture、连续观察到的 reset/epoch，以及边界两侧各 10 秒的精确来源绑定；不增加主音频、不改写主转写、不自动触发 MOSS。启用时请主动选择全新可选 store，最直接是新建独立数据目录，同时保留旧数据与全部旧 cells；不自动采用、覆盖或回填旧 store。
+
+- [dev12 中文发布说明与验证边界](docs/DEV12_RELEASE_NOTES_ZH.md)
+- [dev12 启用、API、迁移与重试说明](docs/DEV12_RESET_REPLAY_API_ZH.md)
+
+dev12 产品树的选定 authority/store/API/multicore 回归已单次通过 184 个测试及 103 个 subtests。标准离线 wheel 构建、隔离 target 安装、合资格环境中的 target import/CLI 检查通过，103 个包文件与源码、wheel、target 逐字节一致；未对安装后的包重跑 HTTP 或模型。之后仅刷新本说明和两篇新文档，包文件、测试与 pyproject 保持原字节。4 个既有 multicore fixtures 的 11 个文件仍保留，不声明全部删除。
+
+独立功能候选另有分开串行运行的 52 个模型无关用例覆盖：35 个既有、15 个负例、逻辑 300/3,600 秒各 1 例；一次 fixture KeyError 修正前的失败保留。该证据与 184 个产品回归分别计数，不是一次 236-case 通过。一小时用例是合成 native/ASR 的 122 次提交、13 个 epoch，不是一小时真实连续运行。
+
+另一次固定 344.5 秒 fixture（合成静音加官方 AMI 音频）的真实模型/API 案例，经独立补充审计确认 [290,310) support、[270,300)/[300,327) 主 core、未结束的右查询、一个绑定 MOSS 诊断及清理/最终 idle。原 helper 仍为 exit 1、success=false：结束后沿用的 16 个 observer 文件上限断言失败，实际 35 个完整文件已另行审计。不能将补充接受写成原 helper 干净通过；也不构成准确率、全局身份、通用 EOS、全内容或长时可靠性结论。
+
+## 保留的 dev11 历史背景
+
+以下 dev11 与 dev10 文字仅记录对应旧版本；其中“本产品树”等表述均指该历史版本。dev12 的功能、迁移与验收状态以上方新说明为准，历史通过不能替代 dev12 验收。
+
 ## 0.2.0rc3.dev11：同一 epoch 的相邻 core 诊断
 
 本开发源码增加默认关闭的 `--native-owned-core-seams`，须同时开启 `--native-owned-cells` 并使用新策略的可选 store。它为同一 capture run、reset 与 native epoch 内的相邻已提交 core 提供精确来源绑定的替代诊断 cell；不增加主音频、不改写主转写、不自动触发 MOSS。跨 300 秒 reset 与一小时长录音验收仍未完成。

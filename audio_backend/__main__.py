@@ -46,7 +46,7 @@ def main(argv=None):
     parser.add_argument('--verified-identity-policy',help='Explicit experimental verified-review JSON policy; applies only to newly requested verified groups')
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
-    parser.add_argument('--native-owned-core-seams',action='store_true',help='Candidate default-OFF same-epoch adjacent-core alternatives; requires --native-owned-cells and fresh optional store')
+    parser.add_argument('--native-owned-core-seams',action='store_true',help='Candidate default-OFF same-epoch and strictly validated reset-replay adjacent-core alternatives; requires --native-owned-cells and fresh optional store')
     parser.add_argument('--native-owned-seam-cells',action='store_true',help='UNQUALIFIED default-OFF two-commit seam alternatives; requires --native-owned-cells; explicit overlapping diagnostics only')
     parser.add_argument('--native-owned-support',action='store_true',help='Experimental volatile native overlap support for isolated PCM uploads up to20s; read-only, lost on restart')
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit volatile single MOSS job service; requires native-owned support, CPU and no overlap/fragment provider')

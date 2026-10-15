@@ -1,8 +1,9 @@
-"""Opt-in same-epoch adjacent-core alternatives and a compact primary outbox.
+"""Opt-in adjacent-core alternatives and a compact primary outbox.
 
 One genuine current response, no native push/ASR, no historical witness journal.
 Only exact canonical proof is durable; immutable source PCM is rechecked at drain.
 A fresh Capture run fences reset counters/epoch IDs after process restart.
+The reset-replay policy is separate; historical v3 semantics remain same-epoch.
 """
 from __future__ import annotations
 from dataclasses import asdict
@@ -19,6 +20,7 @@ from .native_owned_cells import (Cell, SourceSpan, SourceSupport, Turn, Unavaila
     MAX_TURNS, POLICY_SHA256 as V1_POLICY)
 
 SCHEMA = 'native-owned-core-seam-v3'
+RESET_SCHEMA = 'native-owned-reset-replay-core-seam-v1'
 COMPACT_BYTES = 2048
 MAX_COMPACTS = 2056
 PENDING_BYTES = 128 * 1024
@@ -29,14 +31,25 @@ POLICY = {'schema': SCHEMA, 'rate': RATE, 'support_frames': 20 * RATE,
           'primary': 'unchanged', 'reset_straddling': False,
           'selection': 'positive-half-open-distinct-epoch-local-label-overlap'}
 POLICY_SHA256 = sha(POLICY)
-# Kept distinct from v1/v2. Existing optional stores are never upgraded/adopted.
+RESET_POLICY = {**POLICY, 'schema': RESET_SCHEMA, 'reset_straddling': True,
+    'domain': 'same-capture-run-consecutive-observed-reset-epochs',
+    'support': 'exact-ten-seconds-per-adjacent-commit',
+    'witness': 'one-current-new-epoch-response-with-observed-replay-pcm'}
+RESET_POLICY_SHA256 = sha(RESET_POLICY)
+# Fresh isolated policy identity; existing optional stores are never adopted.
 def store_policy():
     from .native_owned_seam_cells import POLICY_SHA256 as V2_POLICY
-    return sha({'schema': 'native-owned-cell-store-policy-v3',
-                'accepted_cell_policies': sorted([V1_POLICY, V2_POLICY, POLICY_SHA256])})
+    return sha({'schema': 'native-owned-cell-store-policy-reset-replay-v1',
+                'accepted_cell_policies': sorted([V1_POLICY, V2_POLICY, POLICY_SHA256, RESET_POLICY_SHA256])})
 
 
-def is_core(doc):return type(doc) is dict and doc.get('schema') == SCHEMA
+def is_core(doc):return type(doc) is dict and doc.get('schema') in (SCHEMA, RESET_SCHEMA)
+
+
+def policy(schema):
+    if schema == SCHEMA:return POLICY_SHA256
+    if schema == RESET_SCHEMA:return RESET_POLICY_SHA256
+    raise Unavailable('core_seam_policy')
 
 
 def exact(value, names):
@@ -85,10 +98,25 @@ def validate_commit(commit):
     return p
 
 
-def geometry(commits):
+def geometry(commits, schema=SCHEMA):
+    """v3 remains strict by default; reset proofs must name the new contract."""
     left, right = [validate_commit(c) for c in commits]
-    if commits[0]['scope'] != commits[1]['scope']:
-        left_scope, right_scope = commits[0]['scope'], commits[1]['scope']
+    left_scope, right_scope = commits[0]['scope'], commits[1]['scope']
+    if schema == RESET_SCHEMA:
+        if any(left_scope[k] != right_scope[k] for k in ('session_id', 'kind', 'key', 'origin', 'run')):
+            raise Unavailable('core_seam_capture_domain_changed')
+        if (right_scope['index'] != left_scope['index'] + 1
+                or right_scope['reset'] != left_scope['reset'] + 1
+                or right_scope['epoch'] == left_scope['epoch']):
+            raise Unavailable('core_reset_transition')
+        boundary = right_scope['index'] * 300 * RATE
+        if left.logical_end != boundary or right.logical_start != boundary:
+            raise Unavailable('core_reset_boundary')
+        if left.logical_end - left.logical_start < SIDE_FRAMES or right.logical_end - right.logical_start < SIDE_FRAMES:
+            raise Unavailable('core_reset_short_side')
+    elif schema != SCHEMA:
+        raise Unavailable('core_seam_policy')
+    elif left_scope != right_scope:
         if left_scope['run'] == right_scope['run'] and any(left_scope[k] != right_scope[k] for k in ('reset','epoch','index')):
             raise Unavailable('core_seam_reset_unsupported')
         raise Unavailable('core_seam_capture_domain_changed')
@@ -122,18 +150,24 @@ def mapping(commits, shape):
 
 
 def ownership(doc):
-    return sha({'schema': SCHEMA, 'commits': [slot(c) for c in doc['commits']],
+    return sha({'schema': doc['schema'], 'commits': [slot(c) for c in doc['commits']],
                 'geometry': doc['geometry']})
 
 
 def coverage(doc):
     shape = doc['geometry']; commits = doc['commits']; scope = commits[0]['scope']
-    return {'kind': 'same_epoch_core_seam_alternative', 'scope_sha256': sha(scope),
+    result = {'kind': 'same_epoch_core_seam_alternative', 'scope_sha256': sha(scope),
         'frame_range': [shape['start_frame'], shape['end_frame']],
         'source_support_core_semantics': 'two_committed_core_envelope',
         'coverage_envelope_frames': [commits[0]['part']['logical_start'], commits[1]['part']['logical_end']],
         'primary_commit_refs': [anchor(c) for c in commits],
         'adds_primary_audio': False, 'automatic_dispatch': False}
+    if doc['schema'] == RESET_SCHEMA:
+        result.update(kind='reset_replay_core_seam_alternative',
+            scope_sha256=sha({'primary_scopes': [c['scope'] for c in commits], 'query_scope': commits[1]['scope']}),
+            primary_scope_sha256=[sha(c['scope']) for c in commits],
+            query_scope_sha256=sha(commits[1]['scope']))
+    return result
 
 
 def validate_query(query, right, shape, evidence):
@@ -171,11 +205,11 @@ def validate_document(proof):
     if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:raise Unavailable('proof_capacity')
     doc = json.loads(proof)
     exact(doc, 'schema policy commits geometry support dependencies query right_evidence selection publication_anchor selected coverage')
-    if not is_core(doc) or doc['policy'] != POLICY_SHA256 or doc['selected'] is not True:
+    if not is_core(doc) or doc['policy'] != policy(doc['schema']) or doc['selected'] is not True:
         raise Unavailable('core_seam_policy')
     commits = doc['commits']
     if type(commits) is not list or len(commits) != 2:raise Unavailable('core_seam_two_commits')
-    shape = geometry(commits)
+    shape = geometry(commits, doc['schema'])
     if doc['geometry'] != shape:raise Unavailable('core_seam_nondeterministic_geometry')
     parts = mapping(commits, shape)
     if doc['dependencies'] != [asdict(p) for p in parts]:raise Unavailable('core_seam_mapping')
@@ -201,9 +235,9 @@ def validate_document(proof):
     return doc, support, parts
 
 
-def make_cell(commits, query, evidence, pcm):
+def make_cell(commits, query, evidence, pcm, schema=SCHEMA):
     from .native_owned_seam_cells import selected_pair
-    shape = geometry(commits); parts = mapping(commits, shape)
+    shape = geometry(commits, schema); parts = mapping(commits, shape)
     chosen = selected_pair([query], shape['start_frame'], shape['end_frame'])
     contents = [p.content() for p in parts]
     support = SourceSupport(sha({'schema': 'immutable-source-cell-generation-v1', 'sources': contents}),
@@ -211,7 +245,7 @@ def make_cell(commits, query, evidence, pcm):
         sha({'commits': commits, 'geometry': shape, 'query': query}),
         commits[1]['part']['logical_end'], commits[0]['part']['logical_start'], commits[1]['part']['logical_end'],
         shape['start_frame'], shape['end_frame'], hashlib.sha256(pcm).hexdigest(), float32_digest(pcm))
-    doc = {'schema': SCHEMA, 'policy': POLICY_SHA256, 'commits': commits, 'geometry': shape,
+    doc = {'schema': schema, 'policy': policy(schema), 'commits': commits, 'geometry': shape,
         'support': support.to_dict(), 'dependencies': [asdict(p) for p in parts], 'query': query,
         'right_evidence': evidence, 'selection': chosen, 'publication_anchor': anchor(commits[1]), 'selected': True}
     doc['coverage'] = coverage(doc)
@@ -278,7 +312,8 @@ def transaction(db, chunk, offset, end, result):
             return 'existing_core_commit'
         if db.execute('SELECT COUNT(*) FROM native_core_commits').fetchone()[0] >= MAX_COMPACTS:
             raise Unavailable('core_receipt_row_capacity')
-        proof = packet['proof']; reason = packet['reason']; state = 'none'
+        proof = packet['proof']; reason = packet['reason']
+        state = 'gap' if reason == 'core_reset_short_side' else 'none'
         if proof is not None:
             if type(proof) is not bytes or not 1 <= len(proof) <= PENDING_BYTES:
                 reason = 'core_pending_payload_capacity'; proof = None; state = 'gap'
@@ -374,9 +409,12 @@ class CoreSeams:
                     return read_commit(db, rows[0][0], budget) if rows else None
                 left = c.authority._read(budget, 'core_previous', previous)
                 if left is None:return
-                shape = geometry([left, commit]); lo, hi = shape['start_frame'], shape['end_frame']
-                if not observed['epoch_index'] * 300 * RATE <= lo < hi <= (observed['epoch_index'] + 1) * 300 * RATE:
+                schema = RESET_SCHEMA if left['scope']['index'] != scope['index'] else SCHEMA
+                shape = geometry([left, commit], schema); lo, hi = shape['start_frame'], shape['end_frame']
+                if schema == SCHEMA and not observed['epoch_index'] * 300 * RATE <= lo < hi <= (observed['epoch_index'] + 1) * 300 * RATE:
                     raise Unavailable('core_seam_reset_unsupported')
+                if schema == RESET_SCHEMA and observed['replay_start'] > lo:
+                    raise Unavailable('core_reset_replay_missing')
                 # Full future half was pushed/processed by normal scheduling already.
                 if hi > observed['replay_start'] + observed['state']['processed']['frame']:
                     raise Unavailable('core_seam_future_unprocessed')
@@ -411,7 +449,7 @@ class CoreSeams:
                     'query_pcm16le_sha256': hashlib.sha256(query_pcm).hexdigest(),
                     'support_pcm16le_sha256': hashlib.sha256(pcm).hexdigest(), 'native': proof,
                     'turns': [{'label': t.label, 'original': [t.start, t.end]} for t in turns]}
-                cell = make_cell([left, commit], query, evidence, pcm)
+                cell = make_cell([left, commit], query, evidence, pcm, schema)
                 packet['proof'] = cell.proof; packet['reason'] = 'core_pending'; self.work_pending = True
                 self.last_reason = 'core_prepared'
         except Exception as exc:

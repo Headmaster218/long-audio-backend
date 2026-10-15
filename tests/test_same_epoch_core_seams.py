@@ -421,7 +421,8 @@ def test_isolated_upload_internal_core(factory):
 def test_actual_native_reset_is_explicitly_unsupported(factory):
     h=factory((300,));h.add(302);h.run()
     assert len(h.worker.native.process.resets)==2
-    assert h.rows()[-1]['reason']=='core_seam_reset_unsupported'
+    assert h.rows()[-1]['reason']=='core_reset_short_side'
+    assert h.rows()[-1]['state']=='gap'
     assert not h.cells()
     assert_disjoint_cover([r['frames'] for r in h.commits],0,302*RATE)
 
@@ -474,7 +475,7 @@ def test_reset_geometry_at_epoch_and_hour_boundary_is_not_adopted(factory,bounda
         c['scope']['index']=boundary//300-1+i
         c['scope']['epoch']=str(i+1)*32;c['scope']['reset']=i+1
     with pytest.raises(Unavailable,match='core_seam_reset_unsupported'):core.geometry(commits)
-    assert h.capture.health()['core_seam_reset_support']=='unsupported'
+    assert h.capture.health()['core_seam_reset_support']=='observed_replay'
 
 
 def test_ack_cancellation_between_select_and_update_is_not_acknowledged(factory,monkeypatch):
