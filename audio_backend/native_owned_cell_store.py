@@ -1066,6 +1066,12 @@ class CellStore:
         return result
 
     def _list(self, op, budget):
+        # Authorities without this optional optimization retain the same reads.
+        scope = getattr(self.authority, 'list_read_scope', None)
+        if scope is None:return self._list_rows(op, budget)
+        with scope(budget):return self._list_rows(op, budget)
+
+    def _list_rows(self, op, budget):
         scoped = op.kind == 'jobs_list'
         if scoped:sid, after, limit = op.payload
         else:sid, after = op.payload; limit = PAGE_ROWS

@@ -238,19 +238,53 @@ class PrimaryAuthority:
         self.store = store; self.path = Path(store.path).absolute()
         self.uploads = Path(store.settings.data_dir).absolute() / 'uploads'
         self.identity = _identity(self.path); self.owner = None
+        self._list_reads = threading.local()
+
+    @contextmanager
+    def list_read_scope(self, budget):
+        """Cache only a connection for one list, never a read snapshot or result."""
+        if getattr(self._list_reads, 'current', None) is not None:
+            raise Unavailable('nested_primary_list_read')
+        scope = {'budget': budget, 'thread': threading.get_ident(), 'db': None}
+        self._list_reads.current = scope
+        try:yield
+        finally:
+            self._list_reads.current = None
+            db = scope['db']; scope['db'] = None
+            if db is not None:db.close()
 
     @contextmanager
     def db(self, budget):
-        budget.check()
-        if _identity(self.path) != self.identity:raise Unavailable('primary_database_replaced')
-        db = sqlite3.connect(self.path.as_uri() + '?mode=ro', uri=True, timeout=0., isolation_level=None)
+        scope = getattr(self._list_reads, 'current', None)
+        db = scope['db'] if scope is not None else None
+        retained = False
         try:
-            db.row_factory = sqlite3.Row; db.set_progress_handler(budget.progress, 100)
-            db.execute('PRAGMA query_only=ON'); db.execute('PRAGMA busy_timeout=0')
+            budget.check()
+            if scope is not None and (scope['budget'] is not budget
+                    or scope['thread'] != threading.get_ident()):
+                raise Unavailable('primary_list_read_scope_mismatch')
+            if _identity(self.path) != self.identity:raise Unavailable('primary_database_replaced')
+            if db is None:
+                db = sqlite3.connect(self.path.as_uri() + '?mode=ro', uri=True, timeout=0., isolation_level=None)
+                db.row_factory = sqlite3.Row; db.set_progress_handler(budget.progress, 100)
+                db.execute('PRAGMA query_only=ON'); db.execute('PRAGMA busy_timeout=0')
+                if scope is not None:scope['db'] = db
+            if db.in_transaction:raise Unavailable('primary_read_snapshot_not_ended')
             yield db
             budget.check()
             if _identity(self.path) != self.identity:raise Unavailable('primary_database_replaced')
-        finally:db.close()
+            if scope is not None:
+                # _read still starts BEGIN for EVERY authority phase. Ending
+                # it here is essential: later phases and final list checks
+                # must see newly committed state, even on this connection.
+                db.execute('ROLLBACK')
+                budget.check()
+                if db.in_transaction:raise Unavailable('primary_read_snapshot_not_ended')
+                retained = True
+        finally:
+            if not retained and db is not None:
+                if scope is not None:scope['db'] = None
+                db.close()
 
     def _read(self, budget, phase, reader):
         """Retry only a complete read snapshot, within the ORIGINAL budget.
@@ -571,12 +605,31 @@ class Capture:
         except Exception as exc:
             self.witness.fail('native_response_budget_or_proof'); self._failure(exc)
 
-    def observe_pcm(self, kind, path, start, end):
+    def observe_pcm(self, kind, path, start, end, analyzer_local=None):
         if not self.owner.enabled or self.scope is None or self.witness.failure:return
         if kind == 'native' and not self.active:return
         try:
             with self.budget.phase():
+                expected = None
+                if analyzer_local is not None:
+                    # Only NativeCoordinator's integer-frame-derived local bounds
+                    # may be translated this way. Do not round arbitrary absolute
+                    # timestamps, native responses, or safe_cut commit boundaries.
+                    if (kind != 'analyzer' or type(analyzer_local) is not tuple or len(analyzer_local) != 3
+                            or any(type(v) not in (int, float) for v in (*analyzer_local, start, end))):
+                        raise Unavailable('invalid_analyzer_coordinates')
+                    origin, local_start, local_end = analyzer_local
+                    if exact_frame(origin, origin=self.scope_start) != integer(self.origin_frame):
+                        raise Unavailable('analyzer_origin_mismatch')
+                    if start != origin + local_start or end != origin + local_end:
+                        raise Unavailable('analyzer_translation_mismatch')
+                    # Preceding-upload context has valid negative local bounds.
+                    local_frames = tuple(exact_frame(abs(v)) * (-1 if v < 0 else 1)
+                                         for v in (local_start, local_end))
+                    expected = tuple(integer(self.origin_frame + v) for v in local_frames)
+                    start, end = (self.scope_start + v / RATE for v in expected)
                 a = exact_frame(start, origin=self.scope_start); b = exact_frame(end, origin=self.scope_start)
+                if expected is not None and (a, b) != expected:raise Unavailable('analyzer_frame_translation_loss')
                 if not 0 < b - a <= CORE_FRAMES:raise Unavailable('observed_window_capacity')
                 pcm = observed_pcm(path, b - a, self.budget)
                 if kind == 'native':self.witness.observe_pcm(a, b, pcm)
@@ -710,7 +763,7 @@ class Capture:
         self.last_seam_reason = 'seam_provisional'
 
     def commit_seam(self, cells):
-        from .native_owned_seam_cells import make_composite
+        from .native_owned_seam_cells import make_composite, geometry, validate_witness
         provisional = self._seam_provisional; self._seam_provisional = None
         if provisional is None:return cells
         original, token, reset, left, right, tail = provisional
@@ -728,14 +781,32 @@ class Capture:
                 if len(cells) >= BATCH_CELLS:
                     self.last_seam_reason = 'seam_batch_saturated'
                 else:
-                    composite = make_composite(left, right)
-                    if sum(len(c.pcm) + len(c.proof) for c in cells) + len(composite.pcm) + len(composite.proof) > HANDOFF_BYTES:
-                        self.last_seam_reason = 'seam_handoff_saturated'
-                    elif not self.authority.cell_valid(json.loads(composite.proof), budget, publishing=True):
-                        raise Unavailable('seam_both_commits_unavailable')
+                    try:composite = make_composite(left, right)
+                    except Unavailable as exc:
+                        # An unselected A-B seam must not discard valid B's
+                        # terminal tail before the next B-C seam is considered.
+                        if exc.args != ('no_same_response_native_overlap',):raise
+                        # Selection precedes full composite admission. Validate
+                        # unselected witnesses too, including a distinct tail.
+                        shape = geometry(left.commit['logical_start_frame'],
+                            left.commit['logical_end_frame'], right.commit['logical_end_frame'])
+                        validate_mapping((left.part, right.part), shape['start_frame'], shape['end_frame'])
+                        for index, piece in ((0, left), (1, right), (0, tail)):
+                            validate_witness(dict(piece.witness, commit_index=index),
+                                piece.commit, piece.scope, index,
+                                piece.part.logical_start, piece.part.logical_end)
+                        if (left.witness['native']['provenance'] != right.witness['native']['provenance']
+                                or left.witness['native']['observed_action_count'] >= right.witness['native']['observed_action_count']):
+                            raise Unavailable('seam_native_continuity')
+                        self.last_seam_reason = 'seam_no_native_overlap'
                     else:
-                        self._seam_current(token, reset)
-                        result = cells + (composite,); self.last_seam_reason = 'seam_validated_selected'
+                        if sum(len(c.pcm) + len(c.proof) for c in cells) + len(composite.pcm) + len(composite.proof) > HANDOFF_BYTES:
+                            self.last_seam_reason = 'seam_handoff_saturated'
+                        elif not self.authority.cell_valid(json.loads(composite.proof), budget, publishing=True):
+                            raise Unavailable('seam_both_commits_unavailable')
+                        else:
+                            self._seam_current(token, reset)
+                            result = cells + (composite,); self.last_seam_reason = 'seam_validated_selected'
             else:self.last_seam_reason = 'seam_tail_promoted'
             self._seam_current(token, reset)
             self._seam_tail = tail

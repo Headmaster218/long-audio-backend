@@ -1,8 +1,8 @@
-# dev9 本地 API：录音批次、主结果与显式 MOSS 诊断
+# dev10 本地 API：录音批次、主结果与显式 MOSS 诊断
 
-先按 [安装与启动](INSTALL_DEV9_ZH.md) 安装完整 dev9 产品。示例假设服务在 `http://127.0.0.1:8765`，使用 `legacy` Worker；若设置 API key，每次请求都要自行加入 Bearer header。所有服务 ID、revision 和 proof 绑定值均来自你本次实际响应，不能复用示例值。
+先按 [安装与启动](INSTALL_DEV10_ZH.md) 安装完整 dev10 产品。示例假设服务在 `http://127.0.0.1:8765`，使用 `legacy` Worker；若设置 API key，每次请求都要自行加入 Bearer header。所有服务 ID、revision 和 proof 绑定值均来自你本次实际响应，不能复用示例值。
 
-本版固定短样本已完成主路径、两个持久 receipt 和一个自然 MOSS 诊断，并通过保存结果的独立复核。完整验证范围及历史失败见 [发布说明](DEV9_RELEASE_NOTES_ZH.md)。这不是准确率、全局人物身份或 MOSS 完整内容保证。
+本页的路由和请求格式沿用 dev9。历史 dev9 固定短样本已完成主路径、两个持久 receipt 和一个自然 MOSS 诊断，并通过保存结果的独立复核；这不是 dev10 的重新验收。dev10 为 `0.2.0rc3.dev10` 开发分支；205 个既有选定用例和 46 个可移植新增用例已分两次源码回归通过。标准离线构建、安装/import 与一次已安装 wheel 的真实 HTTP smoke 通过，默认列表一页返回四个 retained cell；该次没有 dispatch MOSS，产物和结果已完成独立复核；retained PCM 是 API 报告状态，未另行下载或直接读取数据库核验。已完成的专项、真实样本观察和历史失败见[开发分支说明](DEV10_RELEASE_NOTES_ZH.md)。这些结果不保证准确率、全局人物身份或 MOSS 完整内容。
 
 ## 1. 先确定一个采样坐标域
 
@@ -16,7 +16,7 @@
 
 上传累计 27 秒；若两处重叠的 PCM 逐字节相同，就形成 21 秒唯一并集。示例坐标不是对任意文件的推测；请按自己的真实输入填写。若不知道位置，省略 `source_start_frame`，系统会保留原始来源但不会自动推断或安排 ASR。不同 PCM、空隙、未知位置均使整个批次 unresolved，不会丢弃冲突音频。
 
-每批上限为 16 个来源、32 个派生片段、300 秒唯一音频、32 MiB 录音复制预算；全局 128 MiB。每来源最多 120 秒、3,905,536 编码字节。更严格的服务参数和磁盘余量仍优先。只支持全部输入齐备后的 finalized batch，不是连续 sealed-prefix 或 48 小时录音缓冲。
+每批上限为 16 个来源、32 个派生片段、300 秒唯一音频、32 MiB 录音复制预算；全局 128 MiB。每来源最多 120 秒、3,905,536 编码字节。更严格的服务参数和磁盘余量仍优先。只支持全部输入齐备后的 finalized batch，不是连续 sealed-prefix 或 12–48 小时全语音录音验收。
 
 ## 2. 建立空 session 并上传全部来源
 
@@ -126,11 +126,13 @@ curl --fail-with-body -X POST "$API/sessions/$SID/recordings/$CAPTURE/cancel"
 - `native_owned_cells.cleanup_pending == false`
 - `moss_jobs.cleanup_pending == false`
 
-另外保留 native_owned_cells 的 status、dropped、last_capture_reason、last_seam_reason。`publication_pending` 可能是最后一次 capture 的历史标记；不能覆盖后来已 durable 的 receipt/cell 证据，也不能因为 idle 就隐藏该标记或历史 dropped。主成功、可选 warning、等待和未运行应分别显示。
+另外保留 native_owned_cells 的 status、dropped、last_capture_reason、last_seam_reason。`publication_pending` 可能是最后一次 capture 的历史标记；不能覆盖后来已 durable 的 receipt/cell 证据，也不能因为 idle 就隐藏该标记、历史 dropped 或 publication 失败。`handoffs_active_or_pending` 才表示当前活动/等待中的 owner 工作；数值为 0 也不证明所有过去的 publication 都成功。主成功、可选 warning、等待和未运行应分别显示。
 
 ```sh
 curl --fail-with-body "$API/sessions/$SID/native-owned-cells?after=0&limit=20"
 ```
+
+dev10 在单次列表操作内复用 PrimaryAuthority 的只读连接，每次权威读取仍以新的 `BEGIN`/`ROLLBACK` 事务取得当时状态，不缓存快照或结果。每次操作仍受 2 秒、150,000 SQL VM 步数及原有字节预算限制，最终来源/提交/receipt/session 校验不省略。返回错误或预算拒绝不等于空列表；保留失败详情，不以放宽预算或跳过校验重试。
 
 保存返回 jobs_epoch。后续页使用 next_cursor，并带 expected_jobs_epoch；按 has_more 完成分页，epoch 改变则重新发现。只选择自然生成、state=retained、实际保留 PCM 的 eligible cell。已测自然 seam 的 coverage.kind 为 `seam_overlap_alternative`。没有 eligible cell 就不发起任务；不能编造 cell/proof 或换入口绕过门控。
 
@@ -167,5 +169,7 @@ curl --fail-with-body "$API/sessions/$SID/moss-jobs/$JOB_ID/raw"
 ```
 
 reserved/running 仍在进行。达到明确终态、cleanup_pending=false 后检查内容是否可用。成功诊断状态为 returned_diagnostic，同时记录 process_cleanup_verified、result_available、raw_available。failed、cancelled、invalidated、清理阻塞和内容不可用不得写成成功。result 的 cell_binding 应再次吻合；raw 若 HTTP 200，按 X-Content-SHA256 校验原始 UTF-8 字节。
+
+dev10 的精确帧坐标观察与静音 seam 尾部保留只影响可选 capture；客户端不需要添加坐标容差、补造 proof 或改变主时间值。预期无重叠的 A–B seam 可以保留已验证 B 尾部供后续 B–C 使用，不会凭空生成 seam cell；格式、来源或权威校验失败仍拒绝。
 
 保留原主 segments。MOSS result/raw 是独立诊断，不自动替换、补齐或合并主文本；本次返回包含的局部说话人标签不是真实人物或全局身份。returned_diagnostic 不保证内容完整，时间戳、词句准确率和所有重叠声音恢复均需独立评估。

@@ -223,11 +223,13 @@ class StoreFixture(unittest.TestCase):
 
     def test_slow_optional_operation_times_out_without_caller_fsync(self):
         entered = threading.Event(); release = threading.Event(); original = self.owner._receipt
-        def slow(op, budget):entered.set(); release.wait(1.); return original(op, budget)
+        def slow(op, budget):entered.set(); release.wait(mod.OWNER_OP_SECONDS + .5); return original(op, budget)
         with patch.object(self.owner, '_receipt', side_effect=slow):
             started = time.monotonic(); op = self.owner.submit('receipt', self.receipt())
-            self.assertLess(time.monotonic() - started, .1); self.assertTrue(entered.wait(1.))
-            time.sleep(.51); release.set()
+            try:
+                self.assertLess(time.monotonic() - started, .1); self.assertTrue(entered.wait(1.))
+                time.sleep(max(0., op.deadline - time.monotonic()) + .02)
+            finally:release.set()
             self.assertEqual(wait_operation(self, op)['reason'], 'cooperative_deadline')
 
     def test_shutdown_unresolved_owner_retains_instance_lock(self):

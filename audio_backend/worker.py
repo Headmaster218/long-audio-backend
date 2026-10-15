@@ -241,8 +241,9 @@ class Worker:
             self._finish_native_support()
         return process
 
-    def _observe_native_pcm(self,kind,wav,start,end):
-        self._cell_call('observe_pcm',kind,wav,start,end)
+    def _observe_native_pcm(self,kind,wav,start,end,*,analyzer_local=None):
+        if analyzer_local is None:self._cell_call('observe_pcm',kind,wav,start,end)
+        else:self._cell_call('observe_pcm',kind,wav,start,end,analyzer_local)
         witness=self._native_capture
         if witness is not None:
             try:witness.observe_pcm(kind,wav,start,end)
@@ -393,7 +394,8 @@ class Worker:
                 capture_support=self.settings.speaker_support_enabled and (self.settings.speaker_support_max_records>0 or verified_query)
                 expected_generation=speaker_support.capture_generation(self.store,chunk) if capture_support else None
                 lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support)
-                self._observe_native_pcm('analyzer',wav,extract_start+origin,extract_end+origin)
+                self._observe_native_pcm('analyzer',wav,extract_start+origin,extract_end+origin,
+                    analyzer_local=(origin,extract_start,extract_end) if native is not None else None)
                 options=({'candidate_core_start':offset-extract_start,'candidate_core_end':end-extract_start,
                           'candidate_core_apply_safe_cut':end<chunk['duration']-1e-5,
                           'candidate_core_cut_lower':max(offset-extract_start+.5,end-extract_start-min(3.,self.settings.window_seconds*.25))}
