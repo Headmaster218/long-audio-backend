@@ -1,0 +1,350 @@
+"""One finite, source-frozen, model-free replay. Execute only after review."""
+from pathlib import Path
+import hashlib
+import importlib
+import importlib.util
+import json
+import logging
+import math
+import os
+import resource
+import signal
+import sqlite3
+import stat
+import sys
+import time
+import types
+
+ROOT = Path(__file__).resolve().parent.parent
+SOURCE = ROOT / '{{SOURCE_DATA_DIRECTORY}}'
+OUT = ROOT / '{{REPLAY_OUTPUT_DIRECTORY}}'
+CANDIDATE = ROOT / '{{CANDIDATE_STORE_FILE}}'
+STORE_SHA = 'd7e794ae441cacd6f48b711e0e3fa82bd2f47571be98e84c36bbec7cd56b770b'
+CAPTURE_SHA = '635a39a89bd408dd3f4a29a89991924f1ce7e1902fbe42a3ba713627ae3e81b8'
+SOURCE_PINS = {
+    'jobs.sqlite3': ('{{PRIMARY_DATABASE_SHA256}}', int('{{PRIMARY_DATABASE_BYTES}}')),
+    'native-owned-cells/cells.sqlite3': ('{{OPTIONAL_DATABASE_SHA256}}', int('{{OPTIONAL_DATABASE_BYTES}}')),
+}
+LIMIT = 4 * 1024**2
+BEGAN = time.monotonic()
+WORK_END = BEGAN + 110
+END = BEGAN + 120
+report = {'schema': 'owner-publication-replay-v1', 'status': 'preparing',
+          'originals': [], 'operations': [], 'diagnostics': [], 'lineage': {},
+          'limits': {'wall_seconds': 120, 'cleanup_reserve_seconds': 10,
+                     'cpu': 3, 'nice': 19, 'address_space_bytes': 1024**3,
+                     'rss_target_bytes': 256 * 1024**2, 'leaf_bytes': LIMIT,
+                     'result_bytes': 65536},
+          'historical_concurrency_reproduced': False, 'models_loaded': False}
+owner = None
+created_output = False
+originals = {}
+copy_hashes = {}
+
+
+def signature(path):
+    st = path.lstat()
+    if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.getuid():
+        raise RuntimeError('input_not_owned_regular')
+    return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+def sha_file(path):
+    h = hashlib.sha256()
+    with path.open('rb') as src:
+        while block := src.read(65536):h.update(block)
+    return h.hexdigest()
+
+
+def record_original(path, expected_hash=None, expected_size=None):
+    first = signature(path)
+    digest = sha_file(path)
+    if signature(path) != first:raise RuntimeError('original_changed_during_hash')
+    if expected_hash is not None and digest != expected_hash:raise RuntimeError('original_hash_mismatch')
+    if expected_size is not None and first[2] != expected_size:raise RuntimeError('original_size_mismatch')
+    originals[path] = (first, digest)
+    report['originals'].append({'path': str(path.relative_to(ROOT)), 'stat': first, 'sha256': digest})
+
+
+def allocated_bytes(st):
+    if not hasattr(st, 'st_blocks'):raise RuntimeError('allocated_accounting_unavailable')
+    return max(st.st_size, st.st_blocks * 512)
+
+
+def leaf_bytes():
+    root = OUT.lstat()
+    if not stat.S_ISDIR(root.st_mode):raise RuntimeError('unexpected_leaf_root')
+    total = allocated_bytes(root); files = 0; directories = 1; pending = [OUT]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                try:st = entry.stat(follow_symlinks=False)
+                except FileNotFoundError:continue  # The owner may retire a rollback journal.
+                if stat.S_ISREG(st.st_mode):
+                    files += 1
+                    if files > 24:raise RuntimeError('leaf_file_capacity')
+                elif stat.S_ISDIR(st.st_mode):
+                    directories += 1
+                    if directories > 8:raise RuntimeError('leaf_directory_capacity')
+                    pending.append(Path(entry.path))
+                else:raise RuntimeError('unexpected_leaf_entry')
+                total += allocated_bytes(st)
+    return total
+
+
+def guard():
+    if time.monotonic() >= WORK_END:raise TimeoutError('work_deadline')
+    size = leaf_bytes()
+    report['peak_observed_leaf_bytes'] = max(size, report.get('peak_observed_leaf_bytes', 0))
+    if size > LIMIT:raise RuntimeError('leaf_capacity')
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+    report['peak_rss_bytes'] = rss
+    if rss > 256 * 1024**2:raise RuntimeError('rss_target_exceeded')
+
+
+def save():
+    if not created_output:return
+    report['elapsed_seconds'] = round(time.monotonic() - BEGAN, 6)
+    encoded = (json.dumps(report, sort_keys=True, indent=2) + '\n').encode()
+    if len(encoded) > 65536:raise RuntimeError('result_capacity')
+    previous = allocated_bytes((OUT / 'result.json').lstat()) if (OUT / 'result.json').exists() else 0
+    # Reserve the full bounded result and one directory block before writing.
+    if leaf_bytes() - previous + 65536 + 4096 > LIMIT:raise RuntimeError('result_leaf_capacity')
+    (OUT / 'result.json').write_bytes(encoded)
+    if leaf_bytes() > LIMIT:raise RuntimeError('result_leaf_capacity')
+
+
+def copy_original(relative, dest):
+    source = SOURCE / relative
+    expected_hash, expected_size = SOURCE_PINS[relative]
+    for suffix in ('-wal', '-shm', '-journal'):
+        if Path(str(source) + suffix).exists():raise RuntimeError('original_sidecar_present')
+    record_original(source, expected_hash, expected_size)
+    with source.open('rb') as src, dest.open('xb') as dst:
+        while block := src.read(65536):dst.write(block)
+    dest.chmod(0o600)
+    if sha_file(dest) != expected_hash or (signature(source), sha_file(source)) != originals[source]:
+        raise RuntimeError('copy_binding_changed')
+    copy_hashes[dest] = expected_hash
+    guard()
+
+
+def compact(value):
+    if type(value) is bytes:return {'bytes': len(value), 'sha256': hashlib.sha256(value).hexdigest()}
+    if type(value) is store.SourceSupport:return compact(value.to_dict())
+    if type(value) is dict:
+        result = {}
+        for key, item in value.items():
+            if type(key) is not str:raise RuntimeError('unexpected_result_key')
+            if key == 'owner_generation':
+                if type(item) is not object:raise RuntimeError('unexpected_generation_type')
+                result[key] = {'is_current_owner': owner is not None and item is owner._epoch}
+            else:result[key] = compact(item)
+        return result
+    if type(value) in (tuple, list):return [compact(item) for item in value]
+    if value is None or type(value) in (str, int, bool):return value
+    if type(value) is float and math.isfinite(value):return value
+    raise RuntimeError('unexpected_result_type')
+
+
+def assert_compact_detail(cell):
+    # Authentic jobs_detail shape using the exact retained support/proof and
+    # current owner token; this assertion is entirely in memory.
+    result = {'cell_id': cell.cell_id, 'sequence': 3, 'revision': 1,
+              'state': 'retained', 'proof_sha256': hashlib.sha256(cell.proof).hexdigest(),
+              'support': cell.support, 'owner_generation': owner._epoch,
+              'pcm_retained': True, 'coverage': seam.coverage(json.loads(cell.proof)),
+              'status': 'available', 'detail': cell.proof}
+    projected = json.loads(json.dumps(compact(result), allow_nan=False))
+    assert projected['support'] == cell.support.to_dict()
+    assert projected['owner_generation'] == {'is_current_owner': True}
+    assert projected['detail'] == {'bytes': len(cell.proof), 'sha256': hashlib.sha256(cell.proof).hexdigest()}
+    assert compact({'owner_generation': object()}) == {'owner_generation': {'is_current_owner': False}}
+    try:compact({'unexpected': object()})
+    except RuntimeError as exc:assert str(exc) == 'unexpected_result_type'
+    else:raise AssertionError('opaque_result_not_refused')
+
+
+def wait_idle():
+    deadline = min(WORK_END, time.monotonic() + 5.)
+    while True:
+        guard(); health = owner.health()
+        if not health['owner_alive']:raise RuntimeError('owner_not_alive')
+        if health['status'] not in ('initializing', 'ready'):raise RuntimeError('owner_reported_failure')
+        if health['ready'] and not health['cleanup_pending'] and health['handoffs_active_or_pending'] == 0:return
+        if time.monotonic() >= deadline:raise TimeoutError('owner_idle_deadline')
+        time.sleep(.01)
+
+
+def operation(kind, payload, expected_status):
+    wait_idle(); guard()
+    dropped_before = owner.health()['dropped']
+    op = owner.submit(kind, payload)
+    if not isinstance(op, store.Operation):
+        report['operations'].append({'kind': kind, 'submission': compact(op)})
+        save(); raise RuntimeError('operation_not_accepted')
+    record = {'kind': kind, 'result': {'status': 'pending'}}
+    report['operations'].append(record); save()
+    # Waiting slices observe one operation only; they never submit a retry.
+    while not op.done.is_set():
+        guard()
+        if time.monotonic() >= op.deadline:raise TimeoutError('operation_deadline')
+        op.done.wait(min(.01, max(0., op.deadline - time.monotonic())))
+    result = op.wait(0)
+    record.update(result=compact(result), health=owner.health()); save()
+    if result.get('status') != expected_status or owner.health()['dropped'] != dropped_before:
+        raise RuntimeError('operation_refused')
+    if not op.slot_released.is_set():raise RuntimeError('operation_slot_not_released')
+    return result
+
+
+class RecordHandler(logging.Handler):
+    def emit(self, record):
+        if len(report['diagnostics']) < 32:
+            report['diagnostics'].append(record.getMessage()[:1024])
+
+
+def timeout_signal(signum, frame):
+    raise TimeoutError('process_wall_deadline')
+
+
+try:
+    if len(sys.argv) != 2 or sys.argv[1] != '--run':raise RuntimeError('explicit_run_required')
+    if OUT.exists():raise RuntimeError('fresh_output_required')
+    os.sched_setaffinity(0, {3}); os.setpriority(os.PRIO_PROCESS, 0, 19)
+    resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))
+    signal.signal(signal.SIGALRM, timeout_signal); signal.signal(signal.SIGTERM, timeout_signal)
+    signal.setitimer(signal.ITIMER_REAL, max(.01, END - time.monotonic()))
+    OUT.mkdir(mode=0o700)
+    created_output = True
+    if sha_file(CANDIDATE) != STORE_SHA:raise RuntimeError('candidate_store_pin')
+    import audio_backend
+    installed = Path(audio_backend.__file__).parent
+    if sha_file(installed / 'native_owned_cell_capture.py') != CAPTURE_SHA:
+        raise RuntimeError('installed_capture_pin')
+    if 'audio_backend.native_owned_cell_capture' in sys.modules:
+        raise RuntimeError('capture_imported_before_overlay')
+    spec = importlib.util.spec_from_file_location('audio_backend.native_owned_cell_store', CANDIDATE)
+    store = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = store; spec.loader.exec_module(store)
+    capture = importlib.import_module('audio_backend.native_owned_cell_capture')
+    cells_module = importlib.import_module('audio_backend.native_owned_cells')
+    seam = importlib.import_module('audio_backend.native_owned_seam_cells')
+    if capture.Receipt is not store.Receipt or capture.Budget is not store.Budget:
+        raise RuntimeError('overlay_type_identity')
+    store._LOGGER.handlers = [RecordHandler()]
+    store._LOGGER.propagate = False; store._LOGGER.setLevel(logging.WARNING)
+    primary_copy = OUT / 'primary.sqlite3'
+    cells_copy = OUT / 'retained-cells.sqlite3'
+    copy_original('jobs.sqlite3', primary_copy)
+    copy_original('native-owned-cells/cells.sqlite3', cells_copy)
+    # Extraction is immutable/read-only and capped before fetching any PCM.
+    with sqlite3.connect(cells_copy.as_uri() + '?mode=ro&immutable=1', uri=True, timeout=0.) as db:
+        db.row_factory = sqlite3.Row
+        counts = db.execute('SELECT (SELECT COUNT(*) FROM sources),(SELECT COUNT(*) FROM cells),'
+                            '(SELECT coalesce(sum(length(proof)+length(pcm)),0) FROM cells)').fetchone()
+        if tuple(counts[:2]) != (2, 3) or counts[2] > 2 * 1024**2:raise RuntimeError('retained_row_capacity')
+        receipts = [store.Receipt.decode(row[0]) for row in db.execute('SELECT receipt FROM sources ORDER BY cid LIMIT 2')]
+        retained = [dict(row) for row in db.execute('SELECT seq,cell_id,ownership,sid,cid,proof,pcm FROM cells ORDER BY seq LIMIT 3')]
+    db.close()
+    if sha_file(cells_copy) != copy_hashes[cells_copy]:raise RuntimeError('extraction_copy_changed')
+    # Remove only this newly created temporary extraction copy after closure;
+    # exact bounded rows remain in memory. This reserves room for rollback files.
+    cells_copy.unlink(); copy_hashes.pop(cells_copy)
+    with sqlite3.connect(primary_copy.as_uri() + '?mode=ro&immutable=1', uri=True, timeout=0.) as db:
+        db.row_factory = sqlite3.Row
+        rows = [dict(row) for row in db.execute('SELECT id,session_id,path,digest,status,duration,timeline_start,next_offset FROM chunks ORDER BY timeline_start LIMIT 3')]
+    db.close()
+    if len(rows) != 2 or any(row['status'] != 'completed' or row['duration'] != 10.5 or row['next_offset'] != 10.5 for row in rows):
+        raise RuntimeError('primary_row_geometry')
+    if [row['timeline_start'] for row in rows] != [0., 10.5]:raise RuntimeError('primary_row_order')
+    receipt_by_id = {receipt.chunk_id: receipt for receipt in receipts}
+    for row in rows:
+        path = Path(row['path']); receipt = receipt_by_id[row['id']]
+        if path.parent != SOURCE / 'uploads' or path.suffix != '.audio':raise RuntimeError('source_upload_path')
+        record_original(path, receipt.digest, receipt.size)
+        if signature(path) != receipt.signature or row['digest'] != receipt.digest:
+            raise RuntimeError('original_receipt_identity')
+    selected = []
+    for row in retained:
+        doc, support, parts = cells_module.validate_document(row['proof'])
+        anchor = seam.anchor(doc)
+        cell = cells_module.Cell(support, parts, row['proof'], row['pcm'], row['sid'], row['cid'],
+                                 anchor['start'], anchor['end'], anchor['sha256'])
+        if cell.cell_id != row['cell_id'] or cell.ownership != row['ownership']:
+            raise RuntimeError('retained_cell_identity')
+        selected.append(cell)
+    if [cell.chunk_id for cell in selected] != [rows[0]['id'], rows[1]['id'], rows[1]['id']]:
+        raise RuntimeError('publication_batch_order')
+    if [seam.is_composite(json.loads(cell.proof)) for cell in selected] != [False, False, True]:
+        raise RuntimeError('publication_batch_shape')
+    report['retained_cells'] = [{'cell_id': cell.cell_id, 'proof_sha256': hashlib.sha256(cell.proof).hexdigest(),
+                                 'pcm_sha256': hashlib.sha256(cell.pcm).hexdigest(), 'pcm_bytes': len(cell.pcm)} for cell in selected]
+    primary = types.SimpleNamespace(path=primary_copy, settings=types.SimpleNamespace(data_dir=SOURCE))
+    authority = capture.PrimaryAuthority(primary)
+    qualification = store.qualified_runtime(OUT)
+    if qualification is None:raise RuntimeError('runtime_unqualified')
+    owner = store.CellStore(OUT / 'new-optional-store', authority, enabled=True,
+                           qualification=qualification, seam_enabled=True)
+    authority.owner = owner
+    assert_compact_detail(selected[2])
+    report['compact_detail_assertion'] = 'passed'
+    report['lineage'] = {'primary_copy_sha256': copy_hashes[primary_copy],
+                         'fresh_primary_identity': authority.identity,
+                         'original_uploads_and_receipts_unchanged': True,
+                         'new_optional_namespace': str(owner.directory.relative_to(OUT)),
+                         'store_module_sha256': STORE_SHA, 'capture_module_sha256': CAPTURE_SHA,
+                         'maintenance_enabled': True, 'identity_checks_bypassed': False}
+    report['status'] = 'running'; save()
+    owner.start(); wait_idle()
+    for row in rows:operation('receipt', receipt_by_id[row['id']], 'receipt_retained')
+    operation('publish', (selected[0],), 'durable')
+    operation('publish', (selected[1], selected[2]), 'durable')
+    listing = operation('jobs_list', (rows[0]['session_id'], 0, 20), 'available')
+    if [item['cell_id'] for item in listing['cells']] != [cell.cell_id for cell in selected]:
+        raise RuntimeError('listed_cell_identity')
+    detail = operation('jobs_detail', (rows[0]['session_id'], selected[2].cell_id), 'available')
+    if detail.get('detail') != selected[2].proof:raise RuntimeError('detail_proof_identity')
+    report['status'] = 'operations_passed'
+except BaseException as exc:
+    # Diagnostic exception messages are fixed harness reasons only; do not emit
+    # arbitrary product messages, source paths or traceback text.
+    report['status'] = 'failed'
+    report['failure_class'] = type(exc).__name__[:64]
+    report['failure_reason'] = str(exc) if type(exc) in (RuntimeError, TimeoutError) and str(exc).replace('_', '').isalnum() else 'unclassified_exception'
+finally:
+    if owner is not None:
+        report['health_before_close'] = owner.health()
+        if report['health_before_close']['status'] != 'ready':
+            report['status'] = 'failed'; report['owner_failure_before_close'] = True
+        try:
+            close_result = owner.close(timeout=.5)
+            if owner._thread is not None and owner._thread.is_alive():
+                owner._thread.join(max(0., min(5., END - time.monotonic())))
+            report['owner_close_return'] = close_result
+            report['owner_thread_stopped'] = owner._thread is None or not owner._thread.is_alive()
+            report['owner_db_closed'] = owner._db is None
+            if not report['owner_thread_stopped'] or not report['owner_db_closed']:
+                report['status'] = 'failed'; report['cleanup_error'] = 'owner_not_closed'
+        except BaseException as exc:
+            report['status'] = 'failed'; report['cleanup_error'] = type(exc).__name__[:64]
+    try:
+        report['originals_unchanged_after'] = all((signature(path), sha_file(path)) == expected for path, expected in originals.items())
+        report['primary_copy_unchanged_after'] = all(sha_file(path) == digest for path, digest in copy_hashes.items())
+        if not report['originals_unchanged_after'] or not report['primary_copy_unchanged_after']:
+            report['status'] = 'failed'; report['integrity_error'] = 'input_changed'
+        if created_output:
+            size = leaf_bytes(); report['final_leaf_bytes_before_result'] = size
+            report['peak_rss_bytes'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+            if size > LIMIT or report['peak_rss_bytes'] > 256 * 1024**2:
+                report['status'] = 'failed'; report['resource_error'] = 'capacity'
+        if report['status'] == 'operations_passed' and report.get('owner_thread_stopped') and report.get('owner_db_closed'):
+            report['status'] = 'passed'
+        save()
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+print(json.dumps({'status': report['status'], 'result': str(OUT / 'result.json'),
+                  'owner_thread_stopped': report.get('owner_thread_stopped'),
+                  'owner_db_closed': report.get('owner_db_closed')}))
+sys.exit(0 if report['status'] == 'passed' else 1)

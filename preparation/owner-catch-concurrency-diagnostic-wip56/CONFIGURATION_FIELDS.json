@@ -1,0 +1,93 @@
+{
+  "execution_status": "All public templates are unexecuted; syntax checks are not test execution.",
+  "fields": [
+    {
+      "description": "Absolute path to the prior exact v1 audio_backend package, including supporting modules. Its store must match the unchanged BASE_SHA256. An absolute value replaces HERE.parent when joined.",
+      "occurrences": {
+        "test_owner_diagnostic.py.in": 1
+      },
+      "placeholder": "{{V1_BASELINE_PACKAGE_DIRECTORY}}"
+    },
+    {
+      "description": "ROOT-relative directory containing the closed original jobs.sqlite3, native-owned-cells/cells.sqlite3 and original uploads. ROOT is the script directory's parent. The existing receipt path/signature checks must still match.",
+      "occurrences": {
+        "concurrency.py.in": 1,
+        "replay.py.in": 1
+      },
+      "placeholder": "{{SOURCE_DATA_DIRECTORY}}"
+    },
+    {
+      "description": "ROOT-relative path to the included byte-exact owner-catch native_owned_cell_store.py; its unchanged STORE_SHA pin must match.",
+      "occurrences": {
+        "concurrency.py.in": 1,
+        "replay.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_STORE_FILE}}"
+    },
+    {
+      "description": "Lowercase 64-hex SHA-256 of the exact closed original primary database. Bind from independently verified local evidence, never from an untrusted copy.",
+      "occurrences": {
+        "concurrency.py.in": 1,
+        "replay.py.in": 1
+      },
+      "placeholder": "{{PRIMARY_DATABASE_SHA256}}"
+    },
+    {
+      "description": "Lowercase 64-hex SHA-256 of the exact closed original optional database, which is used only to extract authentic retained rows from a fresh copy.",
+      "occurrences": {
+        "concurrency.py.in": 1,
+        "replay.py.in": 1
+      },
+      "placeholder": "{{OPTIONAL_DATABASE_SHA256}}"
+    },
+    {
+      "description": "Decimal byte length of the same exact primary database. The numeric source literal is represented by int(placeholder) in the template.",
+      "occurrences": {
+        "concurrency.py.in": 1,
+        "replay.py.in": 1
+      },
+      "placeholder": "{{PRIMARY_DATABASE_BYTES}}"
+    },
+    {
+      "description": "Decimal byte length of the same exact optional database. The numeric source literal is represented by int(placeholder) in the template.",
+      "occurrences": {
+        "concurrency.py.in": 1,
+        "replay.py.in": 1
+      },
+      "placeholder": "{{OPTIONAL_DATABASE_BYTES}}"
+    },
+    {
+      "description": "ROOT-relative, absent output directory for the quiescent replay.",
+      "occurrences": {
+        "replay.py.in": 1
+      },
+      "placeholder": "{{REPLAY_OUTPUT_DIRECTORY}}"
+    },
+    {
+      "description": "ROOT-relative, absent output directory for one writer-held case. It must differ from every source and other output location.",
+      "occurrences": {
+        "concurrency.py.in": 1
+      },
+      "placeholder": "{{WRITER_HELD_OUTPUT_DIRECTORY}}"
+    },
+    {
+      "description": "ROOT-relative, absent output directory for one corrected commit-close case. It must differ from every source and other output location.",
+      "occurrences": {
+        "concurrency.py.in": 1
+      },
+      "placeholder": "{{COMMIT_CLOSE_OUTPUT_DIRECTORY}}"
+    },
+    {
+      "description": "ROOT-relative unused fallback directory name. Invalid case arguments are rejected before it is created.",
+      "occurrences": {
+        "concurrency.py.in": 1
+      },
+      "placeholder": "{{INVALID_CASE_OUTPUT_DIRECTORY}}"
+    }
+  ],
+  "instruction": "Replace every placeholder locally, preserving single-quoted Python string syntax. Do not include quotes, backslashes or newlines unless correctly escaped. Use decimal digits for byte lengths. Keep resolved paths, database pins and generated results private.",
+  "namespace_rule": "Use distinct absent output leaves, disjoint from source inputs. Preserve original upload locations and receipt signatures; do not rewrite proofs, receipts or store_meta to make a moved fixture pass.",
+  "root_rule": "For replay.py.in and concurrency.py.in, ROOT is Path(__file__).resolve().parent.parent. Paths configured relative to ROOT must remain inside that root so relative_to(ROOT) evidence checks remain valid.",
+  "schema": "owner-catch-concurrency-configuration-fields-v1",
+  "unchanged_public_pins": "Product source and runtime integrity pins remain exact. Only retained database hashes/lengths and local paths are configuration bindings."
+}

@@ -1,0 +1,83 @@
+{
+  "excluded": [
+    "retained data or raw reports",
+    "audio and transcript",
+    "private source/output paths",
+    "retained DB/upload/run hashes and operational identities",
+    "resolved local configuration",
+    "internal coordination"
+  ],
+  "files": [
+    {
+      "bytes": 4455,
+      "path": "CONFIGURATION_FIELDS.json",
+      "sha256": "e598f8948c5ada711559f670c7e4e3178e5145647d75ee9b8a34aa73be67e88f"
+    },
+    {
+      "bytes": 6864,
+      "path": "README.md",
+      "sha256": "5a2578d0a19db08eef69be2385114fc23593928baf5702e445c4074447b9dda7"
+    },
+    {
+      "bytes": 30591,
+      "path": "concurrency.py.in",
+      "sha256": "2cb526803b2f60c5ce3128f79d7692664fdc230d1f1c7efe2f6e904d11e1c15a"
+    },
+    {
+      "bytes": 71341,
+      "path": "native_owned_cell_store.py",
+      "sha256": "d7e794ae441cacd6f48b711e0e3fa82bd2f47571be98e84c36bbec7cd56b770b"
+    },
+    {
+      "bytes": 18950,
+      "path": "replay.py.in",
+      "sha256": "784d4f360a36ac7d07becb895467a9b380aa5ee209b2284b7638be566d4d9519"
+    },
+    {
+      "bytes": 8120,
+      "path": "test_owner_diagnostic.py.in",
+      "sha256": "b957b4bc98118cbaf38957606590b0af11c1b7fd0a302fad535ec53941843aca"
+    }
+  ],
+  "historical_validation": {
+    "budget_fix_claimed": false,
+    "corrected_final_validation_release": {
+      "measured_hold_ms": 173.149858,
+      "status": "passed"
+    },
+    "each_accepted_replay": {
+      "diagnostic_records": 0,
+      "dropped_operations": 0,
+      "operations": 6,
+      "retained_cells": 3
+    },
+    "historical_exception_identified": false,
+    "initial_schedule_miss": {
+      "cleanup_confirmed": true,
+      "measured_hold_ms": 201.850636,
+      "operations_succeeded": true,
+      "status": "schedule_not_reached"
+    },
+    "injected_owner_tests_passed": 6,
+    "native_inference_claimed": false,
+    "production_installation_claimed": false,
+    "quiescent_replay": "passed",
+    "writer_hold": {
+      "measured_ms": 101.744153,
+      "nominal_ms": 100,
+      "status": "passed"
+    }
+  },
+  "interpretation": "Controlled model-free non-reproductions do not identify the historical exception or establish production robustness.",
+  "manifest_self_hash": "Omitted to avoid circular hashing.",
+  "parent_commit": "158fbaad03beae38c8c622d0b8329b0d9e92a447",
+  "schema": "owner-catch-concurrency-public-source-v1",
+  "source_validation": {
+    "all_four_syntax_compile_passed": true,
+    "exact_inverse_passed": true,
+    "product_module_byte_exact": true,
+    "public_templates_executed": false
+  },
+  "status": "Source checkpoint; public templates unexecuted; historical aggregate results only",
+  "template_substitution_count": 17
+}
