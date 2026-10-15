@@ -1,0 +1,57 @@
+{
+  "fields": [
+    {
+      "description": "Absolute local workspace root, without a trailing slash.",
+      "occurrences": 1,
+      "placeholder": "{{WORKSPACE_ROOT}}"
+    },
+    {
+      "description": "Workspace-relative helper directory; its output directory must not exist before actual mode.",
+      "occurrences": 1,
+      "placeholder": "{{SMOKE_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative recovered assets directory with pinned demo, models and native installation receipt.",
+      "occurrences": 1,
+      "placeholder": "{{ASSETS_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative verified Python 3.12 runtime directory.",
+      "occurrences": 1,
+      "placeholder": "{{RUNTIME_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative source lock file matching the retained source-lock hash.",
+      "occurrences": 1,
+      "placeholder": "{{SOURCE_LOCK_FILE}}"
+    },
+    {
+      "description": "Fresh local identity-group label for this smoke invocation.",
+      "occurrences": 1,
+      "placeholder": "{{IDENTITY_GROUP}}"
+    },
+    {
+      "description": "Fresh stream label shared by the two adjacent uploads.",
+      "occurrences": 1,
+      "placeholder": "{{STREAM_ID}}"
+    },
+    {
+      "description": "Fresh idempotency-key prefix; upload index 0 or 1 is appended.",
+      "occurrences": 1,
+      "placeholder": "{{UPLOAD_IDEMPOTENCY_PREFIX}}"
+    },
+    {
+      "description": "Fresh idempotency key for the optional single MOSS job.",
+      "occurrences": 1,
+      "placeholder": "{{MOSS_IDEMPOTENCY_KEY}}"
+    }
+  ],
+  "hash_pins": "Unchanged source, candidate-file, interpreter and demo SHA-256 integrity pins are intentional.",
+  "instruction": "Replace literal placeholders locally; do not publish resolved values. Use values without quotes, backslashes or newlines unless correctly escaped for a single-quoted Python literal.",
+  "retained_environment_input": {
+    "name": "AUDIO_API_KEY",
+    "purpose": "Optional local API authentication; supply privately at runtime.",
+    "value_included": false
+  },
+  "schema": "local-smoke-template-fields-v1"
+}

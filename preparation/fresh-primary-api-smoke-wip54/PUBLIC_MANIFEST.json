@@ -1,0 +1,32 @@
+{
+  "configuration_substitution_count": 9,
+  "files": [
+    {
+      "bytes": 2130,
+      "path": "LOCAL_CONFIGURATION_FIELDS.json",
+      "sha256": "f08de73af545ec68214ef51fb3bcba394ce68873fb3cbe40d617d325467aa593"
+    },
+    {
+      "bytes": 3138,
+      "path": "README.md",
+      "sha256": "a1825a9f4a6ff6451bc591eb57de855af6f4b71bd281d779bc8e1392fc3de6e7"
+    },
+    {
+      "bytes": 20386,
+      "path": "smoke.py.in",
+      "sha256": "5913e9f39264320284f287766fd4670a2e5c4a3dfe22c4dacd8b214698381964"
+    }
+  ],
+  "functional_delta": "Auxiliary overlap-candidates row key: overlap_candidates -> regions",
+  "manifest_self_hash": "Omitted to avoid circular hashing; exact publication allowlist is maintained separately.",
+  "model_free_validation": {
+    "actual_mode_executed": false,
+    "address_space_limit_bytes": 268435456,
+    "existing_self_test": true,
+    "result": "passed",
+    "retained_empty_regions_and_tracks_shape": true,
+    "timeout_seconds": 30
+  },
+  "schema": "fresh-primary-smoke-public-source-v1",
+  "status": "Sanitized source revision; actual mode unexecuted"
+}
