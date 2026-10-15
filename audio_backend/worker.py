@@ -110,6 +110,7 @@ class Worker:
         self.native=None
         self.native_owned_support_cache=None
         self.native_owned_cells=None
+        self.recordings=None
         self._native_capture=None;self._native_capture_token=None
         self._native_capture_observation=None
         self.support_fingerprints=speaker_support.SourceFingerprints()
@@ -138,6 +139,10 @@ class Worker:
                 self.wake.wait(1); self.wake.clear(); continue
             if permit is None and fragments and fragments.process_next(self):
                 continue
+            if self.recordings is not None:
+                # Bounded model-free outbox maintenance; pending recording work
+                # stays staged while unrelated ordinary jobs remain claimable.
+                self.recordings.advance(self.native_owned_cells)
             watermark=None
             if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
                 try:

@@ -12,8 +12,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
+import re
 import sqlite3
 import stat
 import sys
@@ -41,6 +43,7 @@ MAX_PINS = 2
 PIN_RESERVATION_BYTES = 768 * 1024
 PAGE_ROWS = 20
 OP_SECONDS = .5
+OWNER_OP_SECONDS = 2.
 LOCK_SECONDS = .005
 SQL_STEPS = 150000
 SQL_PROJECTION_BYTES = 256 * 1024
@@ -49,12 +52,53 @@ SCHEMA = 'native-owned-cell-store-v1'
 ALLOWED_FILES = frozenset(('cells.sqlite3', 'cells.sqlite3-journal',
                           'cells.sqlite3-wal', 'cells.sqlite3-shm'))
 
+_DIAGNOSTIC_LIMIT = 32
+_DIAGNOSTIC_COUNT = 0
+_DIAGNOSTIC_LOCK = threading.Lock()
+_LOGGER = logging.getLogger(__name__)
+
+
+def _diagnostic(message, *args):
+    """Best-effort fixed-field records; never alter optional failure handling."""
+    global _DIAGNOSTIC_COUNT
+    if not _DIAGNOSTIC_LOCK.acquire(blocking=False):return
+    try:
+        if _DIAGNOSTIC_COUNT >= _DIAGNOSTIC_LIMIT:return
+        _DIAGNOSTIC_COUNT += 1
+    finally:_DIAGNOSTIC_LOCK.release()
+    try:_LOGGER.warning('%s', (message % args)[:1024])
+    except Exception:pass
+
+
+def _diagnostic_failure(stage, exc):
+    # Do not log exception messages, tracebacks, identifiers or source paths.
+    try:
+        if stage not in ('capture', 'seam_prepare', 'seam_commit'):return
+        name = type(exc).__name__
+        if re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,63}', name) is None:name = 'other'
+        code = getattr(exc, 'sqlite_errorcode', None)
+        if type(code) is not int or not 0 <= code <= (1 << 31) - 1:code = None
+        sql_name = getattr(exc, 'sqlite_errorname', None)
+        if type(sql_name) is not str or re.fullmatch('SQLITE_[A-Z0-9_]{1,64}', sql_name) is None:sql_name = None
+        _diagnostic('native_owned_capture_failure stage=%s exception_class=%s sqlite_code=%s sqlite_name=%s',
+                    stage, name, code, sql_name)
+    except Exception:pass
+
 
 class Budget:
     """Finite cooperative work, not a hard bound on individual OS calls."""
     def __init__(self):
         self.elapsed = 0.; self.read_bytes = 0; self.sql_bytes = 0; self.steps = 0
         self._began = None
+        self.seconds = OP_SECONDS; self.deadline = None
+        self._refusal_diagnosed = False
+
+    @classmethod
+    def for_owner(cls, operation=None):
+        budget = cls(); budget.seconds = OWNER_OP_SECONDS
+        # Queue time consumes the original admission deadline, never a reset.
+        budget.deadline = operation.deadline if operation is not None else None
+        return budget
 
     @contextmanager
     def phase(self):
@@ -68,11 +112,25 @@ class Budget:
             self._began = None
 
     def check(self):
-        elapsed = self.elapsed + (time.monotonic() - self._began if self._began is not None else 0.)
-        if elapsed > OP_SECONDS:
+        now = time.monotonic()
+        elapsed = self.elapsed + (now - self._began if self._began is not None else 0.)
+        if elapsed > self.seconds or (self.deadline is not None and now >= self.deadline):
+            self._diagnose_refusal('cooperative_deadline', elapsed, now)
             raise Unavailable('cooperative_deadline')
         if self.read_bytes > SOURCE_READ_BYTES or self.sql_bytes > SQL_PROJECTION_BYTES or self.steps > SQL_STEPS:
+            self._diagnose_refusal('operation_work_capacity', elapsed, now)
             raise Unavailable('operation_work_capacity')
+
+    def _diagnose_refusal(self, reason, elapsed, now):
+        if self._refusal_diagnosed:return
+        self._refusal_diagnosed = True
+        _diagnostic('native_owned_budget_refusal reason=%s elapsed=%g seconds=%g deadline_remaining=%s '
+                    'elapsed_exceeded=%d deadline_expired=%d '
+                    'read_bytes=%d read_limit=%d sql_bytes=%d sql_limit=%d steps=%d step_limit=%d',
+                    reason, elapsed, self.seconds,
+                    None if self.deadline is None else '%g' % (self.deadline - now),
+                    elapsed > self.seconds, self.deadline is not None and now >= self.deadline,
+                    self.read_bytes, SOURCE_READ_BYTES, self.sql_bytes, SQL_PROJECTION_BYTES, self.steps, SQL_STEPS)
 
     def read(self, count):
         integer(count, IO_BYTES); self.read_bytes += count; self.check()
@@ -307,16 +365,16 @@ class Operation:
     def __init__(self, kind, payload, epoch, wake=None):
         self.kind = kind; self.payload = payload; self.epoch = epoch
         self.done = threading.Event(); self.result = {'status': 'publication_pending'}
-        self.deadline = time.monotonic() + OP_SECONDS
+        self.deadline = time.monotonic() + OWNER_OP_SECONDS
         self.cancelled = threading.Event(); self.drained = threading.Event()
         self.slot_released = threading.Event()
         self._delivery_lock = threading.Lock(); self._wake = wake
         self._pin = None; self.state = 'accepted'
         self._abandon_reason = 'dispatch_abandoned'
 
-    def wait(self, timeout=.5):
+    def wait(self, timeout=OWNER_OP_SECONDS):
         # Internal model-free/read callers only. Worker/upload never call wait.
-        if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
+        if type(timeout) not in (int, float) or not 0 <= timeout <= OWNER_OP_SECONDS:
             raise ValueError('Bounded wait required')
         if self.kind == 'dispatch':
             self.done.wait(min(timeout, max(0., self.deadline - time.monotonic())))
@@ -328,7 +386,7 @@ class Operation:
                 return {'status': 'ready'}
             return {'status': 'unavailable' if self.drained.is_set() else 'pending',
                     'reason': self._abandon_reason}
-        self.done.wait(timeout)
+        self.done.wait(min(timeout, max(0., self.deadline - time.monotonic())))
         return self.result if self.done.is_set() else {'status': 'pending'}
 
     def check(self):
@@ -435,7 +493,7 @@ class Pin:
 
     def read(self):
         if self._released or self.cancelled.is_set():raise Unavailable('pin_cancelled')
-        budget = Budget()
+        budget = Budget.for_owner()
         with budget.phase():
             if not self.owner.authority.cell_valid(self.document, budget, publishing=False):
                 self.cancelled.set(); raise Unavailable('source_authority_unavailable')
@@ -683,7 +741,7 @@ class CellStore:
         return identities
 
     def _open(self):
-        budget = Budget()
+        budget = Budget.for_owner()
         self._check_parents(budget)
         # Verify build and actual loaded binaries before any on-disk connection
         # could inspect or recover an existing rollback journal.
@@ -752,7 +810,7 @@ class CellStore:
         after = ''
         while True:
             if self._stop.is_set():raise Unavailable('shutdown_pending')
-            budget = Budget()
+            budget = Budget.for_owner()
             with budget.phase():
                 self._scan(budget); db.set_progress_handler(budget.progress, 100)
                 rows = db.execute('SELECT cid,length(receipt) AS n FROM sources WHERE cid>? ORDER BY cid LIMIT 20', (after,)).fetchall()
@@ -819,6 +877,24 @@ class CellStore:
         if old:
             if old != receipt:raise Unavailable('conflicting_ingestion_receipt')
             return {'status': 'existing_receipt', 'receipt_id': old.receipt_id}
+        # A commit may succeed before a later budget/scan failure prevents the
+        # cache assignment. Reconcile that exact durable ID on the owner thread;
+        # repeated delivery must not loop on a UNIQUE violation until restart.
+        retained = self._db.execute('''SELECT length(receipt) AS n,
+            sid=? AND digest=? AS same FROM sources WHERE cid=?''',
+            (receipt.session_id, receipt.digest, receipt.chunk_id)).fetchone()
+        if retained is not None:
+            if not 1 <= retained['n'] <= RECEIPT_BYTES or not retained['same']:
+                raise Unavailable('conflicting_ingestion_receipt')
+            raw = self._db.execute('SELECT receipt FROM sources WHERE cid=?',
+                                   (receipt.chunk_id,)).fetchone()[0]
+            budget.projection(len(raw)); existing = Receipt.decode(raw)
+            if existing != receipt:raise Unavailable('conflicting_ingestion_receipt')
+            self._generation(op)
+            if not self.authority.receipt_valid(existing, budget):
+                raise Unavailable('source_authority_unavailable')
+            budget.check(); self._generation(op); self._receipts[receipt.chunk_id] = existing
+            return {'status': 'existing_receipt', 'receipt_id': existing.receipt_id}
         with self._transaction(budget):
             if self._db.execute('SELECT COUNT(*) FROM sources').fetchone()[0] >= MAX_RECEIPTS:
                 raise Unavailable('source_receipt_capacity')
@@ -1062,6 +1138,8 @@ class CellStore:
                         if pin.cell_id == item['cell_id']:pin.cancelled.set()
                     with self._transaction(budget):self._db.execute('DELETE FROM cells WHERE cell_id=?', (item['cell_id'],))
                 self._sweep_cell = item['seq']
+                # Yield only after this item and its cursor are complete.
+                if self._slot is not None:return
             return
         rows = self._db.execute('SELECT cid FROM sources WHERE cid>? ORDER BY cid LIMIT 20', (self._sweep_source,)).fetchall()
         if rows:
@@ -1071,6 +1149,7 @@ class CellStore:
                     with self._transaction(budget):self._db.execute('DELETE FROM sources WHERE cid=?', (item['cid'],))
                     self._receipts.pop(item['cid'], None)
                 self._sweep_source = item['cid']
+                if self._slot is not None:return
             return
         if self._sweep_generation is self._epoch:
             self._reconcile.clear(); self._cleanup_pending = False
@@ -1127,7 +1206,7 @@ class CellStore:
                         if op.cancelled.is_set() or time.monotonic() >= op.deadline:
                             op.payload = None; finish(op)
                         continue
-                budget = Budget()
+                budget = Budget.for_owner(op)
                 try:
                     with budget.phase():
                         self._db.set_progress_handler(budget.progress, 100)

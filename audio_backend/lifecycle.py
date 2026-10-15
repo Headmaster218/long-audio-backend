@@ -74,6 +74,8 @@ def delete_session(store, sid, delete_file=None):
                 raise ValueError('Pause or cancel the running chunk first, then wait for worker idle')
             db.execute('''INSERT OR IGNORE INTO session_file_cleanup(session_id,path,created)
                 SELECT session_id,path,? FROM chunks WHERE session_id=?''', (time.time(), sid))
+            from .recording_overlap import erase as erase_recording
+            erase_recording(db, sid)
             # Keep only a scrubbed ID tombstone for idempotent cleanup retry.
             # The change-feed erasure trigger removes historical text snapshots.
             db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))

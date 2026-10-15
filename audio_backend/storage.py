@@ -13,7 +13,7 @@ from . import event_candidate_store, lifecycle, overlap_store, speaker_support, 
 
 STREAM_PENDING_COUNT_SQL="""SELECT COUNT(*) FROM chunks c INDEXED BY chunk_queue
     CROSS JOIN stream_chunks sc ON sc.chunk_id=c.id
-    WHERE c.status IN ('queued','running','paused','waiting_input','failed')
+    WHERE c.status IN ('queued','running','paused','waiting_input','failed','staging')
     AND sc.session_id=? AND sc.stream_id=?"""
 
 
@@ -136,6 +136,8 @@ class Store:
             db.execute('BEGIN IMMEDIATE')
             event_candidate_store.init_schema(db)
             lifecycle.init_schema(db)
+            from .recording_overlap import init_schema as init_recording_schema
+            init_recording_schema(db)
             speaker_support.init_schema(db)
             verified_identity.init_schema(db)
             # Additive migration only. Existing rows remain NULL: a chunk's latest
@@ -173,6 +175,8 @@ class Store:
         with self.db() as db:
             db.execute("UPDATE chunks SET status='queued', error='Recovered after process restart' WHERE status='running'")
             lifecycle.recover_cancelled_streams(db)
+            from .recording_overlap import recover as recover_recordings
+            recover_recordings(db)
 
     def create_session(self, name, identity_group="default", identity_mode=None, processing_mode="legacy"):
         with self.db() as db:
@@ -223,7 +227,7 @@ class Store:
         # stream is one unit; an independent chunk is one unit. Recoverable
         # failed stream receipts remain in its bounded buffer so retry never
         # needs an extra slot and cannot strand dependent chunks.
-        live="(c.status IN ('queued','running','paused','waiting_input') OR (sc.stream_id IS NOT NULL AND c.status='failed'))"
+        live="(c.status IN ('queued','running','paused','waiting_input','staging') OR (sc.stream_id IS NOT NULL AND c.status='failed'))"
         count=db.execute("SELECT COUNT(DISTINCT CASE WHEN sc.stream_id IS NULL THEN 'chunk:'||c.id ELSE 'stream:'||sc.session_id||':'||sc.stream_id END) FROM chunks c LEFT JOIN stream_chunks sc ON sc.chunk_id=c.id WHERE "+live).fetchone()[0]
         retry=release_chunk_id is not None
         if retry:
@@ -245,43 +249,53 @@ class Store:
     def add_chunk(self, sid, key, digest, path, duration, offset=None, recorded_at=None, stream_id=None, stream_final=False, fragment_source=None):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
-            session = db.execute('SELECT * FROM sessions WHERE id=? AND deleted=0',(sid,)).fetchone()
-            if not session: raise KeyError('Session not found')
-            old = db.execute('SELECT id,digest FROM chunks WHERE session_id=? AND idempotency_key=?',(sid,key)).fetchone()
-            if old:
-                if old['digest'] != digest: raise ValueError('Idempotency key already used for different bytes')
-                check_duplicate_stream(db,old['id'],stream_id,stream_final)
-                return old['id'], False
-            if isinstance(duration,bool) or not isinstance(duration,(int,float)) or not math.isfinite(duration) or duration<=0:
-                raise ValueError('Chunk duration must be finite and positive')
-            if stream_id is not None and not stream_final and duration<.5-1e-6:
-                raise ValueError('Nonfinal stream fragments must contain at least0.5seconds; coalesce tiny packets or send an explicit final fragment')
-            self._check_queue_limit(db,sid,stream_id)
-            start = session['timeline_end'] if offset is None else offset
-            if session['processing_mode'] != 'legacy':
-                if fragment_source is None or fragment_source.sha256 != digest or duration != fragment_source.frames/16000:
-                    raise ValueError('Experimental upload requires server-verified PCM source')
-                total = db.execute('SELECT source FROM fragment_http_sources WHERE session_id=?',(sid,))
-                expected = sum(json.loads(row['source'])['frames'] for row in total)/16000
-                if start != expected:
-                    raise ValueError('Experimental uploads require exact contiguous frame offsets from zero')
-                if expected+duration > self.settings.max_audio_seconds:
-                    raise ValueError('Experimental stream duration limit exceeded')
-                start = expected
-            if start < 0 or not math.isfinite(start): raise ValueError('Invalid timeline offset')
-            # Existing chunk intervals are nonoverlapping. Only the latest
-            # predecessor whose start is before our end can intersect us.
-            predecessor=db.execute('SELECT id,timeline_start+duration AS endpoint FROM chunks WHERE session_id=? AND timeline_start<? ORDER BY timeline_start DESC LIMIT 1',(sid,start+duration)).fetchone()
-            if session['processing_mode']=='legacy' and predecessor and predecessor['endpoint']>start:
-                raise ValueError('Chunk overlaps an existing timeline interval')
-            cid = ident()
-            db.execute('INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,timeline_start,recorded_at,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (cid,sid,key,digest,str(path),duration,start,recorded_at,'queued',time.time()))
-            register_stream_chunk(db,cid,sid,stream_id,stream_final)
-            db.execute('UPDATE sessions SET timeline_end=MAX(timeline_end,?) WHERE id=?',(start+duration,sid))
-            if session['processing_mode'] != 'legacy':
-                self.fragment_http.register_upload(db,sid,cid,stream_id,fragment_source,stream_final)
-                db.execute('UPDATE sessions SET timeline_end=? WHERE id=?',((round(start*16000)+fragment_source.frames)/16000,sid))
-            return cid, True
+            return self._add_chunk(db, sid, key, digest, path, duration, offset,
+                recorded_at, stream_id, stream_final, fragment_source)
+
+    def _add_chunk(self, db, sid, key, digest, path, duration, offset=None, recorded_at=None,
+                   stream_id=None, stream_final=False, fragment_source=None, *, _status='queued'):
+        """Shared transaction body; recording batches publish staged ordinary chunks atomically."""
+        if _status not in ('queued', 'staging'):
+            raise ValueError('Invalid initial chunk state')
+        if _status == 'queued' and db.execute('SELECT 1 FROM recording_batches WHERE session_id=?', (sid,)).fetchone():
+            raise ValueError('Recording-reserved sessions accept work only through recording finish')
+        session = db.execute('SELECT * FROM sessions WHERE id=? AND deleted=0',(sid,)).fetchone()
+        if not session: raise KeyError('Session not found')
+        old = db.execute('SELECT id,digest FROM chunks WHERE session_id=? AND idempotency_key=?',(sid,key)).fetchone()
+        if old:
+            if old['digest'] != digest: raise ValueError('Idempotency key already used for different bytes')
+            check_duplicate_stream(db,old['id'],stream_id,stream_final)
+            return old['id'], False
+        if isinstance(duration,bool) or not isinstance(duration,(int,float)) or not math.isfinite(duration) or duration<=0:
+            raise ValueError('Chunk duration must be finite and positive')
+        if stream_id is not None and not stream_final and duration<.5-1e-6:
+            raise ValueError('Nonfinal stream fragments must contain at least0.5seconds; coalesce tiny packets or send an explicit final fragment')
+        self._check_queue_limit(db,sid,stream_id)
+        start = session['timeline_end'] if offset is None else offset
+        if session['processing_mode'] != 'legacy':
+            if fragment_source is None or fragment_source.sha256 != digest or duration != fragment_source.frames/16000:
+                raise ValueError('Experimental upload requires server-verified PCM source')
+            total = db.execute('SELECT source FROM fragment_http_sources WHERE session_id=?',(sid,))
+            expected = sum(json.loads(row['source'])['frames'] for row in total)/16000
+            if start != expected:
+                raise ValueError('Experimental uploads require exact contiguous frame offsets from zero')
+            if expected+duration > self.settings.max_audio_seconds:
+                raise ValueError('Experimental stream duration limit exceeded')
+            start = expected
+        if start < 0 or not math.isfinite(start): raise ValueError('Invalid timeline offset')
+        # Existing chunk intervals are nonoverlapping. Only the latest
+        # predecessor whose start is before our end can intersect us.
+        predecessor=db.execute('SELECT id,timeline_start+duration AS endpoint FROM chunks WHERE session_id=? AND timeline_start<? ORDER BY timeline_start DESC LIMIT 1',(sid,start+duration)).fetchone()
+        if session['processing_mode']=='legacy' and predecessor and predecessor['endpoint']>start:
+            raise ValueError('Chunk overlaps an existing timeline interval')
+        cid = ident()
+        db.execute('INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,timeline_start,recorded_at,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (cid,sid,key,digest,str(path),duration,start,recorded_at,_status,time.time()))
+        register_stream_chunk(db,cid,sid,stream_id,stream_final)
+        db.execute('UPDATE sessions SET timeline_end=MAX(timeline_end,?) WHERE id=?',(start+duration,sid))
+        if session['processing_mode'] != 'legacy':
+            self.fragment_http.register_upload(db,sid,cid,stream_id,fragment_source,stream_final)
+            db.execute('UPDATE sessions SET timeline_end=? WHERE id=?',((round(start*16000)+fragment_source.frames)/16000,sid))
+        return cid, True
 
     def claim(self):
         with self.db() as db:

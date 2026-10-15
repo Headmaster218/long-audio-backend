@@ -16,13 +16,14 @@ import sqlite3
 import stat
 import struct
 import threading
+import time
 
 from .native_owned_cells import (Unavailable, RollingWitness, SourceSpan, Cell,
     canonical, sha, text, digest, integer, exact_frame, validate_mapping, make_cells,
     RATE, MAX_FRAME, CORE_FRAMES, MAX_PARTS, IO_BYTES, PROOF_BYTES,
     intersect_mapping, BATCH_CELLS, HANDOFF_BYTES)
 from .native_owned_cell_store import (CellStore, Receipt, Budget, qualified_runtime,
-    RECEIPT_BYTES, LOCK_SECONDS, Operation)
+    RECEIPT_BYTES, LOCK_SECONDS, Operation, _diagnostic_failure, _diagnostic)
 
 _REGISTRY = {}
 _REGISTRY_LOCK = threading.Lock()
@@ -251,15 +252,52 @@ class PrimaryAuthority:
             if _identity(self.path) != self.identity:raise Unavailable('primary_database_replaced')
         finally:db.close()
 
+    def _read(self, budget, phase, reader):
+        """Retry only a complete read snapshot, within the ORIGINAL budget.
+
+        No write/commit is retried. Every failed connection is closed before
+        backoff. Projection/step/read counters and elapsed time accumulate.
+        """
+        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping'):
+            raise Unavailable('primary_read_phase')
+        attempt = 0
+        try:
+            with budget.phase():
+                for attempt in range(1, 4):
+                    budget.check()
+                    try:
+                        with self.db(budget) as db:
+                            db.execute('BEGIN')
+                            result = reader(db)
+                        budget.check()
+                        return result
+                    except sqlite3.OperationalError as exc:
+                        code = getattr(exc, 'sqlite_errorcode', None)
+                        if type(code) is not int or code not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_BUSY_RECOVERY) or attempt == 3:
+                            raise
+                    # Existing authority deadlines include this finite backoff; no
+                    # timeout, counter or proof/identity check is reset on retry.
+                    budget.check(); time.sleep(.005); budget.check()
+        except Exception as exc:
+            name = type(exc).__name__
+            if re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,63}', name) is None:name = 'other'
+            code = getattr(exc, 'sqlite_errorcode', None)
+            if type(code) is not int or not 0 <= code <= (1 << 31) - 1:code = None
+            sql_name = getattr(exc, 'sqlite_errorname', None)
+            if type(sql_name) is not str or re.fullmatch('SQLITE_[A-Z0-9_]{1,64}', sql_name) is None:sql_name = None
+            _diagnostic('native_owned_authority_read_failure phase=%s attempt=%d exception_class=%s sqlite_code=%s sqlite_name=%s',
+                        phase, attempt, name, code, sql_name)
+            raise
+
     def session_valid(self, sid, budget):
         text(sid)
-        with self.db(budget) as db:
-            row = db.execute("SELECT 1 FROM sessions WHERE id=? AND deleted=0 AND processing_mode='legacy'", (sid,)).fetchone()
-        return row is not None
+        def read(db):
+            return db.execute("SELECT 1 FROM sessions WHERE id=? AND deleted=0 AND processing_mode='legacy'", (sid,)).fetchone()
+        return self._read(budget, 'session', read) is not None
 
     def row(self, cid, budget):
         text(cid)
-        with self.db(budget) as db:
+        def read(db):
             lengths = db.execute('SELECT length(path),length(digest) FROM chunks WHERE id=?', (cid,)).fetchone()
             if lengths is None:return None
             if not 1 <= lengths[0] <= 4096 or lengths[1] != 64:raise Unavailable('primary_source_projection_capacity')
@@ -270,6 +308,7 @@ class PrimaryAuthority:
             if row is None:return None
             result = dict(row); budget.projection(len(canonical(result, 8192)))
             return result
+        return self._read(budget, 'source_row', read)
 
     def receipt_valid(self, receipt, budget):
         if type(receipt) is not Receipt:raise Unavailable('receipt_type')
@@ -317,7 +356,7 @@ class PrimaryAuthority:
             return False
         if publishing:
             if row['status'] not in ('running', 'completed'):return False
-            with self.db(budget) as db:
+            def read(db):
                 length = db.execute('SELECT length(metadata) FROM chunks WHERE id=?', (commit['chunk_id'],)).fetchone()
                 if length is None:return False
                 if length[0] is None or not 1 <= length[0] <= PROOF_BYTES:raise Unavailable('primary_commit_projection_capacity')
@@ -329,6 +368,8 @@ class PrimaryAuthority:
                         or metadata.get('native_diarization') != evidence['native']
                         or metadata.get('core_cut') != evidence['core_cut']):
                     return False
+                return True
+            if not self._read(budget, 'cell_commit', read):return False
         return True
 
     def seam_commit_current(self, commit, scope, part, budget):
@@ -347,12 +388,16 @@ class PrimaryAuthority:
                 or exact_frame(row['next_offset']) != commit['local_end_frame']
                 or exact_frame(row['timeline_start'], origin=origin) != commit['source_origin_frame']):
             return False
-        with self.db(budget) as db:
+        def read(db):
             metadata = seam_commit_projection(db, commit['chunk_id'], budget)
-            if metadata is None:return False
+            if metadata is None:return None
             first = db.execute("""SELECT c.timeline_start FROM stream_chunks sc INDEXED BY stream_order JOIN chunks c ON c.id=sc.chunk_id
                 WHERE sc.session_id=? AND sc.stream_id=? ORDER BY sc.position LIMIT 1""",
                 (scope['session_id'], scope['stream_id'])).fetchone()
+            return metadata, first
+        observed = self._read(budget, 'seam_commit', read)
+        if observed is None:return False
+        metadata, first = observed
         if (first is None or first[0] != origin
                 or metadata.get('native_diarization') != commit['evidence']['native']
                 or metadata.get('core_cut') != commit['evidence']['core_cut']):return False
@@ -360,10 +405,11 @@ class PrimaryAuthority:
         return again == row and self.receipt_valid(receipt, budget)
 
     def seam_adjacent(self, left, right, scope, budget):
-        with self.db(budget) as db:
-            rows = db.execute("""SELECT chunk_id,session_id,stream_id,position FROM stream_chunks
+        def read(db):
+            return db.execute("""SELECT chunk_id,session_id,stream_id,position FROM stream_chunks
                 WHERE chunk_id IN (?,?) ORDER BY position LIMIT 2""",
                 (left['chunk_id'], right['chunk_id'])).fetchall()
+        rows = self._read(budget, 'seam_adjacent', read)
         return (len(rows) == 2 and [r['chunk_id'] for r in rows] == [left['chunk_id'], right['chunk_id']]
             and all(r['session_id'] == scope['session_id'] and r['stream_id'] == scope['stream_id'] for r in rows)
             and rows[1]['position'] == rows[0]['position'] + 1)
@@ -385,7 +431,7 @@ class PrimaryAuthority:
         """A bounded exact local snapshot; never materialize a whole SourcePlan."""
         row = self.row(chunk['id'], budget)
         if row is None:raise Unavailable('primary_source_unavailable')
-        with self.db(budget) as db:
+        def read(db):
             if row['stream_id'] is None:rows = [row]
             else:
                 rows = db.execute('''SELECT c.id,c.session_id,c.timeline_start,c.duration,
@@ -411,6 +457,8 @@ class PrimaryAuthority:
                     raise Unavailable('source_ingestion_receipt_unavailable')
                 parts.append(SourceSpan(chunk['session_id'], source['id'], receipt.receipt_id,
                     receipt.digest, receipt.frames, a - origin, b - origin, a, b))
+            return tuple(parts)
+        parts = self._read(budget, 'mapping', read)
         validate_mapping(tuple(parts), start, end)
         return tuple(parts)
 
@@ -472,6 +520,7 @@ class Capture:
         self.last_seam_reason = 'not_observed'
 
     def _failure(self, exc):
+        _diagnostic_failure('capture', exc)
         reason = str(exc) if isinstance(exc, Unavailable) else ''
         self.last_reason = reason if re.fullmatch('[a-z_]{1,80}', reason) else 'optional_capture_unavailable'
         self.analyzer = None
@@ -560,6 +609,7 @@ class Capture:
                 if self.seam_enabled:
                     try:self.prepare_seam(chunk, native, parts, evidence, cells, a, b)
                     except Exception as exc:
+                        _diagnostic_failure('seam_prepare', exc)
                         # Optional composition must not discard already valid v1 cells.
                         self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_prepare_unavailable')
                 return cells
@@ -571,6 +621,7 @@ class Capture:
         if self.seam_enabled:
             try:cells = self.commit_seam(cells)
             except Exception as exc:
+                _diagnostic_failure('seam_commit', exc)
                 self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_commit_unavailable')
         if not cells:return {'status': self.last_reason}
         # Called only after the exact primary commit_window returned True.
@@ -721,6 +772,30 @@ class Capture:
         except Exception as exc:self._failure(exc); return None
         finally:
             if fd is not None:fd.close()
+
+    def observe_recording_receipt(self, token, sid, cid, final, timeline_start, stream_id):
+        """Freeze genuine upload observation for the primary recording outbox.
+
+        This is NOT committed primary authority. The caller atomically stores
+        the canonical payload beside its staged ordinary chunk; the existing
+        owner validates the committed row/path before any receipt acceptance.
+        No observation may be reconstructed from a path after restart.
+        """
+        if token is None:return None
+        try:
+            if type(token) is not UploadObservation or token.closed:
+                raise Unavailable('recording_upload_observation_required')
+            budget = Budget()
+            with budget.phase():
+                path = _owned_path(final, self.authority.uploads, '.audio')
+                final_sig = signature(regular(os.fstat(token.fd.fd)))
+                if final_sig[:4] != token.before[:4]:raise Unavailable('upload_descriptor_changed_before_rename')
+                _continuity(token.fd, path, final_sig, budget)
+                return Receipt(sid, cid, token.digest, token.frames, token.data_offset,
+                               token.total, final_sig, timeline_start, stream_id)
+        except Exception as exc:
+            self._failure(exc); return None
+        finally:token.close()
 
     def finish_upload(self, token, sid, cid, final, created):
         if token is None:return {'status': 'receipt_unavailable'}

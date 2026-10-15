@@ -72,6 +72,11 @@ class SessionRequest(BaseModel):
     identity_group: str=Field(default='default',min_length=1,max_length=100,pattern=r'^[A-Za-z0-9_.-]+$')
     identity_mode: Literal['legacy','verified_review_v1'] | None = None
     processing_mode: Literal['legacy','fragment_pcm16_v1'] = 'legacy'
+class RecordingFinishRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    expected_revision: int=Field(ge=0)
+    idempotency_key: str=Field(min_length=1,max_length=128)
+
 class ReviewAttestation(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     version: Literal['all_pooled_support_single_identified_voice_v1']
@@ -162,6 +167,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     worker=Worker(store,settings,analyzer_factory)
     lock=InstanceLock(settings.data_dir/'instance.lock')
     upload_lock=threading.Lock()
+    from .recording_overlap import RecordingOverlap
+    recordings=RecordingOverlap(store)
+    worker.recordings=recordings
     jobs=None
 
     @asynccontextmanager
@@ -217,6 +225,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 app.state.moss_jobs=jobs
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
+            from .recording_overlap import verify_paths as verify_recording_paths
+            verify_recording_paths(store)
             from .lifecycle import cleanup_pending
             cleanup_pending(store)
             # Only this process owns the directory, so incomplete upload/window remnants are safe to remove.
@@ -231,7 +241,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     elif entry.name.endswith('.audio'):
                         path=Path(entry.path)
                         raw=str(path.resolve())
-                        if not db.execute('SELECT 1 FROM chunks WHERE path=? LIMIT 1',(raw,)).fetchone() and not db.execute('SELECT 1 FROM session_file_cleanup WHERE path=? LIMIT 1',(str(path),)).fetchone(): path.unlink()
+                        if not db.execute('SELECT 1 FROM chunks WHERE path=? LIMIT 1',(raw,)).fetchone() and not db.execute('SELECT 1 FROM session_file_cleanup WHERE path=? LIMIT 1',(str(path),)).fetchone() and not db.execute('SELECT 1 FROM recording_sources WHERE path=? LIMIT 1',(raw,)).fetchone(): path.unlink()
             store.recover()
             fragments.recover()
             if settings.start_worker: worker.start()
@@ -292,6 +302,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     app=FastAPI(title='Local incremental audio analysis',version=__version__,lifespan=lifespan)
     app.state.store=store; app.state.worker=worker; app.state.settings=settings; app.state.fragments=fragments
     app.state.instance_lock=lock
+    app.state.recordings=recordings
     app.state.moss_jobs=None
     app.state.native_owned_cells_status='disabled_absent'
 
@@ -362,6 +373,69 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         with store.db() as db:
             rows=[dict(r) for r in db.execute('SELECT rowid AS cursor,id,status,duration,timeline_start,next_offset,recorded_at,created,error FROM chunks WHERE session_id=? AND rowid>? ORDER BY rowid LIMIT ?',(sid,after,limit))]
         return {'chunks':rows,'next_cursor':rows[-1]['cursor'] if rows else after}
+
+    @app.put('/sessions/{sid}/recordings/{capture_id}/sources',status_code=202)
+    async def recording_source(sid:str,capture_id:str,request:Request,
+            idempotency_key:Annotated[str,Header(min_length=1,max_length=128)],
+            source_start_frame:int | None=Query(None,ge=0,le=(1<<53)-1)):
+        """Original PCM16 mono16k WAV body; capture_id declares shared sample coordinates."""
+        from .recording_overlap import MAX_SOURCE_BYTES, BLOCK_FRAMES
+        if not upload_lock.acquire(blocking=False):
+            raise HTTPException(429,'Another upload or recording finalization is active')
+        path=None
+        try:
+            batch=recordings.begin(sid,capture_id)
+            path=recordings.source_path(batch)
+            maximum=min(MAX_SOURCE_BYTES,settings.max_upload_bytes)
+            length=request.headers.get('content-length')
+            if length is not None:
+                try:declared=int(length)
+                except ValueError:raise HTTPException(400,'Invalid Content-Length')
+                if not 0<declared<=maximum:raise HTTPException(413,'Recording source size limit exceeded')
+                recordings.admit_bytes(batch['id'],declared)
+            total=0
+            with path.open('xb') as out:
+                async for data in request.stream():
+                    total+=len(data)
+                    if total>maximum:raise HTTPException(413,'Recording source size limit exceeded')
+                    recordings.admit_bytes(batch['id'],len(data))
+                    # ASGI may supply a whole request block; copies and writes
+                    # remain bounded independently of the original WAV length.
+                    for start in range(0,len(data),BLOCK_FRAMES*2):
+                        await run_in_threadpool(out.write,memoryview(data)[start:start+BLOCK_FRAMES*2])
+                await run_in_threadpool(out.flush)
+                await run_in_threadpool(os.fsync,out.fileno())
+            receipt=await run_in_threadpool(recordings.accept,sid,capture_id,idempotency_key,path,source_start_frame)
+            return {**recordings.status(sid,capture_id),**receipt}
+        except RuntimeError as exc:
+            raise HTTPException(507,str(exc))
+        finally:
+            if path is not None:path.unlink(missing_ok=True)
+            upload_lock.release()
+
+    @app.get('/sessions/{sid}/recordings/{capture_id}')
+    def recording_status(sid:str,capture_id:str):
+        from starlette.responses import JSONResponse
+        return JSONResponse(recordings.status(sid,capture_id),headers={'Cache-Control':'private, no-store'})
+
+    @app.post('/sessions/{sid}/recordings/{capture_id}/cancel')
+    def recording_cancel(sid:str,capture_id:str):
+        result=recordings.cancel(sid,capture_id)
+        worker.notify()
+        return result
+
+    @app.post('/sessions/{sid}/recordings/{capture_id}/finish',status_code=202)
+    async def recording_finish(sid:str,capture_id:str,body:RecordingFinishRequest):
+        if not upload_lock.acquire(blocking=False):
+            raise HTTPException(429,'Another upload or recording finalization is active')
+        try:
+            result=await run_in_threadpool(recordings.finish,sid,capture_id,body.idempotency_key,
+                                           body.expected_revision,worker.native_owned_cells)
+            if result['state'] in ('queued','pending_receipts'):worker.notify()
+            return result
+        except RuntimeError as exc:
+            raise HTTPException(507,str(exc))
+        finally:upload_lock.release()
 
     @app.put('/sessions/{sid}/chunks',status_code=202)
     async def upload(sid:str,request:Request,

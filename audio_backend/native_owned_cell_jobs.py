@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 
-from .native_owned_cell_store import Operation, OP_SECONDS, LOCK_SECONDS
+from .native_owned_cell_store import Operation, OP_SECONDS, OWNER_OP_SECONDS, LOCK_SECONDS
 from .native_owned_cells import (Unavailable, SourceSupport, canonical, digest,
                                 integer, text, validate_document, PROOF_BYTES)
 from .native_owned_support_cache import ReadError
@@ -131,7 +131,7 @@ class CellJobsSource:
     def _read(self, kind, payload):
         self._current()
         result = self.owner.submit(kind, payload)
-        if isinstance(result, Operation):result = result.wait(OP_SECONDS)
+        if isinstance(result, Operation):result = result.wait(OWNER_OP_SECONDS)
         if result.get('status') != 'available':raise self._error(result)
         self._current()
         return result
@@ -160,7 +160,7 @@ class CellJobsSource:
             op = self.owner.submit('dispatch', payload)
             if not isinstance(op, Operation):raise self._error(op)
             self._pending = op
-            op.wait(OP_SECONDS)
+            op.wait(OWNER_OP_SECONDS)
             # No user callback runs under the cell owner's or delivery lock.
             opened = not self._closed and (admission_open is None or admission_open())
             result = op.claim(admission_open=opened)
