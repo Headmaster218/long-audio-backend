@@ -486,16 +486,28 @@ class Store:
                         proof=None
                     support_vectors.commit(self,db,support_refs[local_id][0],group,proof)
                 return support_refs[local_id]
-            def resolve_identity(local_id,raw):
-                if verified:
+            raw_turns=result.get('speaker_turns',[])
+            if verified:
+                # Score the whole window against one transaction/gallery snapshot
+                # before writing any immutable identity decision or projection.
+                drafts={}
+                for row in list(raw_turns)+[segment for segment in result['segments']
+                        if not segment.get('overlap') and not segment.get('is_overlap')]:
+                    local_id=row.get('speaker_local_id')
+                    if local_id is None or local_id in drafts:continue
                     retained=support_for(local_id,None)
                     value=prepared_support.get(str(local_id)) if isinstance(prepared_support,dict) else None
-                    speaker,score,status,decision,revision=verified_identity.resolve(
+                    drafts[local_id]=verified_identity.prepare_decision(
                         self,db,chunk,offset,group,local_id,metadata,value,retained)
+                verified_identity.exclude_overlap_collisions(drafts,raw_turns)
+                for local_id,snapshot in drafts.items():
+                    value=prepared_support.get(str(local_id)) if isinstance(prepared_support,dict) else None
+                    speaker,score,status,decision,revision=verified_identity.persist_decision(
+                        db,chunk,offset,group,local_id,value,snapshot)
                     decision_refs[local_id]=(decision,revision)
-                    return speaker,score,status,None
+                    local[local_id]=(speaker,score,status,None)
+            def resolve_identity(local_id,raw):
                 return self._window_identity(db,chunk,offset,metadata,group,local_id,raw)
-            raw_turns=result.get('speaker_turns',[])
             for turn in raw_turns:
                 local_id=turn.get('speaker_local_id')
                 if local_id is None:
@@ -515,6 +527,8 @@ class Store:
                 eligible=local_id is not None and not segment.get('overlap') and not segment.get('is_overlap')
                 if not eligible:
                     speaker,score,status,observation=None,None,'unknown',None
+                    if verified and local_id in local and local[local_id][2] in ('unknown_overlap_identity_conflict','unknown_overlap_identity_capacity'):
+                        speaker,score,status,observation=local[local_id]
                 else:
                     if key not in local:
                         local[key]=resolve_identity(local_id,segment.get('speaker_embedding'))
