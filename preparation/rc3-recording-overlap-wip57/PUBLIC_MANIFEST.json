@@ -1,0 +1,135 @@
+{
+  "base_product_commit": "1fc066910ca78b2e57d7a28f79b91cafc06f5dd5",
+  "exclusions": [
+    "audio",
+    "transcripts",
+    "raw API receipts",
+    "private run identifiers",
+    "local runtime configuration",
+    "databases",
+    "runtime/model assets",
+    "execution logs",
+    "private inverse mappings"
+  ],
+  "feature_source_manifest_sha256": "8811cf711e0219587c295aaa04bc9ae34d5f3541680c42c64f65d61cead179b3",
+  "files": [
+    {
+      "bytes": 4075,
+      "path": "CONFIGURATION_FIELDS.json",
+      "sha256": "94dca4803fbfda6e7eb2154683aefe3cea1f612e20aefb786add341f0ab35739"
+    },
+    {
+      "bytes": 6552,
+      "path": "README.md",
+      "sha256": "385668ea492a8fa98cfb2a2758fbf2a4fd92cff802e7ad8209fd10cb09faf217"
+    },
+    {
+      "bytes": 43806,
+      "path": "audio_backend/app.py",
+      "sha256": "a1bf7f1cd1b970f98d8b199ed612d02f1b421e7336d346eeb5c400661c2bed0c"
+    },
+    {
+      "bytes": 9571,
+      "path": "audio_backend/lifecycle.py",
+      "sha256": "25398066bcb13e433da99cbe573bcd970cfc5ac6ebb6e5c8ff28d00d552f62bb"
+    },
+    {
+      "bytes": 35906,
+      "path": "audio_backend/recording_overlap.py",
+      "sha256": "c536b009a4339e996e5469d63148326a1b0e8ed10981ae7cf790111ed4fec030"
+    },
+    {
+      "bytes": 54038,
+      "path": "audio_backend/storage.py",
+      "sha256": "9ee0291c8ed05387767d3393f36a8d1d514f7a0fb996f3e1cdd951bc072b9891"
+    },
+    {
+      "bytes": 13843,
+      "path": "docs/RECORDING_OVERLAP_BATCHES.md",
+      "sha256": "1df95e728444c455a40c5ac1e41f269ae8d570aeaa6c57e5f33fe66239bf1593"
+    },
+    {
+      "bytes": 15105,
+      "path": "docs/TESTED_API_GUIDE_ZH.md",
+      "sha256": "2521f9ea49f1e7eb9309ffe62abdff4dfde7bbb775832e39f5e4942d81665e80"
+    },
+    {
+      "bytes": 5460,
+      "path": "helper/README.md",
+      "sha256": "c6cb1f6030757989e81c9acda6706bd493d27e27a20d8c5f53f6d20343eccd4f"
+    },
+    {
+      "bytes": 212,
+      "path": "helper/server_entry.py.in",
+      "sha256": "718ab7e4e8a6cd638e3fb96a181bcd40acd2c9c597ba955dbfc055564f38d9ec"
+    },
+    {
+      "bytes": 40184,
+      "path": "helper/smoke.py.in",
+      "sha256": "54486cadccac3dd69ec92f8a089542795eddbc1831a88a9561bcaacd63386a57"
+    },
+    {
+      "bytes": 24383,
+      "path": "tests/test_recording_overlap.py",
+      "sha256": "386c2628ff873abccbf79754f568b82fd749286f7bb42ddca310b070a79180ad"
+    }
+  ],
+  "historical_validation": {
+    "actual_helper": {
+      "canonical_seconds": 21,
+      "cleanup": "waited_no_known_live_children",
+      "derived_chunks": 2,
+      "elapsed_seconds": 12.32,
+      "exact_maps": 7,
+      "exit_code": 0,
+      "initial_native_ingestion_statuses": [
+        "receipt_pending",
+        "busy"
+      ],
+      "moss": "not_run_no_eligible_seam_cell",
+      "native_input": "21 seconds, one epoch, no replay",
+      "optional_dropped": 1,
+      "optional_reason": "source_ingestion_receipt_unavailable",
+      "optional_retained_cells": 1,
+      "original_and_derived_bytes_verified": true,
+      "peak_sampled_tree_rss_bytes": 683499520,
+      "segments": 16,
+      "source_count": 3,
+      "uploaded_seconds": 27
+    },
+    "model_free_tests": {
+      "elapsed_seconds": 5.99,
+      "errors": 0,
+      "failures": 0,
+      "new": 20,
+      "original": 12,
+      "per_process_peak_rss_bytes": 133201920,
+      "skips": 0,
+      "total": 32
+    }
+  },
+  "manifest_self_hash": "Omitted to avoid circular hashing.",
+  "package_inventory": {
+    "encoding": "Canonical compact UTF-8 JSON list in sorted Path traversal order of all regular audio_backend .py/.json files; each row has path relative to product root, bytes and sha256; object keys sorted; allow_nan false; reject links. Path traversal order is the exact helper preflight algorithm.",
+    "file_count": 102,
+    "sha256": "6efdab77baae50749843694ca7a4f2e44ea7d563be42f0cfb2acb5b509d116cb"
+  },
+  "parent_commit": "442cf1f3a76902770d50254a6182f614c12d2b6e",
+  "schema": "recording-overlap-public-source-v1",
+  "source_lock": {
+    "path": "preparation/minimal-recovery-wip53/source.lock.json",
+    "sha256": "4299d4d0e44fb79596770fac1809fc9d33b244a9b07fc8417e25339a4e46bb69"
+  },
+  "source_validation": {
+    "all_seven_python_syntax_trees_parsed": true,
+    "database_opened": false,
+    "documentation_sanitized": true,
+    "five_python_feature_files_byte_exact": true,
+    "network_access": false,
+    "product_or_helper_imports": false,
+    "publication": false,
+    "templates_inverse_byte_exact": true,
+    "tests_or_models_run": false
+  },
+  "status": "Primary/deduplication milestone only; public templates unexecuted; optional receipt sequencing unresolved"
+}

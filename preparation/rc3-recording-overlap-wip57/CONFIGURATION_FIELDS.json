@@ -1,0 +1,110 @@
+{
+  "fields": [
+    {
+      "description": "Absolute local workspace root with no trailing slash.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{WORKSPACE_ROOT}}"
+    },
+    {
+      "description": "Workspace-relative helper directory containing resolved smoke.py and server_entry.py; output child must not already exist.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{HELPER_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative assembled complete product source directory; not this six-file overlay alone.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_DIRECTORY}}"
+    },
+    {
+      "description": "SHA-256 of canonical JSON sorted direct-child [name,type] entries of the assembled candidate root, using the helper algorithm; verify the package inventory pin independently.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_ROOT_SHA256}}"
+    },
+    {
+      "description": "SHA-256 of resolved server_entry.py, after its absolute candidate path is bound.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{SERVER_ENTRY_SHA256}}"
+    },
+    {
+      "description": "Fresh capture ID declaring one shared sample-coordinate domain; 1-128 permitted ASCII identifier characters.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{CAPTURE_ID}}"
+    },
+    {
+      "description": "Workspace-relative prepared assets directory with pinned models and installation metadata.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{ASSETS_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative verified Python 3.12 runtime directory; installed package must match the source lock and fixed overrides.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{RUNTIME_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative source lock file with the unchanged SHA-256 pin.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{SOURCE_LOCK_FILE}}"
+    },
+    {
+      "description": "Workspace-relative authorized fixture WAV matching the unchanged 672044-byte/336000-frame digest pin.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{AMI_FIXTURE_FILE}}"
+    },
+    {
+      "description": "Fresh descriptive session name.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{SESSION_NAME}}"
+    },
+    {
+      "description": "Fresh local identity-group label.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{IDENTITY_GROUP}}"
+    },
+    {
+      "description": "Fresh idempotency key for the optional single MOSS request.",
+      "occurrences": {
+        "helper/smoke.py.in": 1
+      },
+      "placeholder": "{{MOSS_IDEMPOTENCY_KEY}}"
+    },
+    {
+      "description": "Absolute path equal to WORKSPACE_ROOT joined with CANDIDATE_DIRECTORY; only this assembled candidate root is inserted.",
+      "occurrences": {
+        "helper/server_entry.py.in": 1
+      },
+      "placeholder": "{{CANDIDATE_ROOT_ABSOLUTE}}"
+    }
+  ],
+  "instruction": "Resolve every placeholder locally before execution. Keep deployment values private. Preserve Python literal syntax. The relocated entry and root-layout SHA-256 values are required bindings, while package/runtime/source-lock/fixture pins stay unchanged.",
+  "retained_environment_input": {
+    "name": "AUDIO_API_KEY",
+    "purpose": "Optional local API authentication supplied privately at runtime.",
+    "value_included": false
+  },
+  "schema": "recording-overlap-configuration-fields-v1",
+  "template_behavior": "Actual helper control flow and limits preserved. Local paths, invocation identifiers, relocated entry/root-layout integrity values and entry description are substituted. Public templates are unexecuted."
+}
