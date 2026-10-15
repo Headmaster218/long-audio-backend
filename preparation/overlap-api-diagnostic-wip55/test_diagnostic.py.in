@@ -1,0 +1,156 @@
+"""Focused model-free diagnostics tests; SQLite is memory-only."""
+from pathlib import Path
+import hashlib
+import importlib
+import sqlite3
+import sys
+import types
+import unittest
+from unittest.mock import patch
+
+HERE = Path(__file__).resolve().parent
+CANONICAL = HERE.parent / '{{BASELINE_PACKAGE_DIRECTORY}}'
+BASELINE_PINS = {
+    'native_owned_cell_store.py': '7ea280d9b5e2f1784daefa308d8dfce728f1d7b8a8554f2a587aedb6ccffd592',
+    'native_owned_cell_capture.py': '1a3e4c249e9def20341d01facc97b8f81383093d07520e58a0150b610ec3b726',
+}
+for filename, expected in BASELINE_PINS.items():
+    if hashlib.sha256((CANONICAL / filename).read_bytes()).hexdigest() != expected:
+        raise RuntimeError('Run focused comparison before replacing the pinned baseline modules')
+
+def modules(name, paths):
+    package = types.ModuleType(name); package.__path__ = [str(p) for p in paths]
+    sys.modules[name] = package
+    return tuple(importlib.import_module(name + '.' + child) for child in
+                 ('native_owned_cell_store', 'native_owned_cell_capture'))
+
+store, capture = modules('_diagnostic_audio_backend', (HERE, CANONICAL))
+original_store, original_capture = modules('_original_audio_backend', (CANONICAL,))
+
+class Diagnostics(unittest.TestCase):
+    def setUp(self):
+        store._DIAGNOSTIC_COUNT = 0
+        self.logger = patch.object(store._LOGGER, 'warning')
+        self.warning = self.logger.start()
+        self.addCleanup(self.logger.stop)
+
+    def messages(self):
+        return [call.args[0] % call.args[1:] for call in self.warning.call_args_list]
+
+    def test_exact_limits_and_owner_deadline_unchanged(self):
+        for name in ('OP_SECONDS', 'OWNER_OP_SECONDS', 'SQL_STEPS', 'SOURCE_READ_BYTES', 'SQL_PROJECTION_BYTES'):
+            self.assertEqual(getattr(store, name), getattr(original_store, name))
+        self.assertEqual(store.Budget().seconds, .5)
+        self.assertEqual(store.Budget.for_owner(types.SimpleNamespace(deadline=123.)).deadline, 123.)
+        self.assertEqual(store.Budget.for_owner().seconds, 2.)
+
+    def test_refusal_fields_priority_and_first_only(self):
+        cases = [({'elapsed': .6}, 'cooperative_deadline', 'elapsed_exceeded=1 deadline_expired=0'),
+                 ({'deadline': 10.}, 'cooperative_deadline', 'elapsed_exceeded=0 deadline_expired=1'),
+                 ({'read_bytes': store.SOURCE_READ_BYTES + 1}, 'operation_work_capacity', 'read_bytes=41943041'),
+                 ({'sql_bytes': store.SQL_PROJECTION_BYTES + 1}, 'operation_work_capacity', 'sql_bytes=262145'),
+                 ({'steps': store.SQL_STEPS + 1}, 'operation_work_capacity', 'steps=150001'),
+                 ({'elapsed': .6, 'steps': store.SQL_STEPS + 1}, 'cooperative_deadline', 'elapsed_exceeded=1')]
+        for fields, reason, detail in cases:
+            with self.subTest(fields=fields):
+                self.warning.reset_mock()
+                for module in (original_store, store):
+                    budget = module.Budget()
+                    for key, value in fields.items():setattr(budget, key, value)
+                    with patch.object(module.time, 'monotonic', return_value=10.):
+                        for _ in range(2):
+                            with self.assertRaisesRegex(module.Unavailable, '^' + reason + '$'):budget.check()
+                self.assertEqual(len(self.messages()), 1)
+                self.assertIn('reason=' + reason, self.messages()[0]); self.assertIn(detail, self.messages()[0])
+
+    def test_progress_return_and_real_sqlite_interruption(self):
+        for module in (original_store, store):
+            budget = module.Budget(); budget.steps = module.SQL_STEPS - 100
+            self.assertEqual(budget.progress(), 0)
+            self.assertEqual(budget.progress(), 1)
+            self.assertEqual(budget.steps, module.SQL_STEPS + 100)
+        self.warning.reset_mock()
+        budget = store.Budget(); budget.steps = store.SQL_STEPS
+        with sqlite3.connect(':memory:') as db:
+            db.set_progress_handler(budget.progress, 100)
+            with self.assertRaises(sqlite3.OperationalError) as caught:
+                db.execute('WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000) SELECT sum(x) FROM n').fetchone()
+        self.assertEqual(caught.exception.sqlite_errorcode, sqlite3.SQLITE_INTERRUPT)
+        store._diagnostic_failure('seam_commit', caught.exception)
+        self.assertEqual(len(self.messages()), 2)
+        self.assertIn('reason=operation_work_capacity', self.messages()[0])
+        self.assertIn('steps=150100', self.messages()[0])
+        self.assertIn('exception_class=OperationalError sqlite_code=9 sqlite_name=SQLITE_INTERRUPT', self.messages()[1])
+
+    def test_capture_failure_semantics(self):
+        for kind in ('ordinary', 'unavailable', 'noncanonical'):
+            results = []
+            for module in (original_capture, capture):
+                owner = types.SimpleNamespace(_epoch=object(), seam_enabled=True)
+                obj = module.Capture(owner, None); obj.analyzer = b'secret'; obj._seam_tail = object()
+                exc = ValueError('/private/path secret') if kind == 'ordinary' else module.Unavailable(
+                    'cooperative_deadline' if kind == 'unavailable' else '/private/path secret')
+                obj._failure(exc)
+                results.append((obj.last_reason, obj.last_seam_reason, obj.analyzer, obj._seam_tail, obj._seam_provisional))
+            self.assertEqual(results[0], results[1])
+        self.assertNotIn('secret', '\n'.join(self.messages()))
+        self.assertNotIn('/private', '\n'.join(self.messages()))
+
+    def test_seam_commit_catch_returns_existing_cells_status(self):
+        results = []
+        for module in (original_capture, capture):
+            obj = module.Capture(types.SimpleNamespace(_epoch=object(), seam_enabled=True), None)
+            with patch.object(obj, 'commit_seam', side_effect=sqlite3.OperationalError('private message')):
+                result = obj.committed(())
+            results.append((result, obj.last_reason, obj.last_seam_reason))
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1], ({'status': 'not_observed'}, 'not_observed', 'seam_commit_unavailable'))
+        self.assertIn('stage=seam_commit exception_class=OperationalError', self.messages()[0])
+
+    def test_seam_prepare_catch_preserves_selected_cells(self):
+        results = []
+        for module in (original_capture, capture):
+            authority = types.SimpleNamespace(mapping=lambda *a: (), original_pcm=lambda *a: b'12')
+            obj = module.Capture(types.SimpleNamespace(_epoch=object(), seam_enabled=True), authority)
+            obj.analyzer = b'12'; cells = ('selected',)
+            with patch.object(module, 'make_cells', return_value=cells), patch.object(obj, 'prepare_seam', side_effect=ValueError('private message')):
+                result = obj.prepare({'id': 'chunk'}, {'state': {}}, 0., 1 / 16000, {'metadata': {'core_cut': {}}})
+            results.append((result, obj.last_reason, obj.last_seam_reason, obj.analyzer))
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1], (('selected',), 'validated_selected', 'seam_prepare_unavailable', None))
+        self.assertIn('stage=seam_prepare exception_class=ValueError', self.messages()[0])
+
+    def test_committed_failure_return_unchanged(self):
+        results = []
+        for module in (original_capture, capture):
+            authority = types.SimpleNamespace(cell_valid=lambda *a, **kw: False)
+            obj = module.Capture(types.SimpleNamespace(_epoch=object(), seam_enabled=False), authority)
+            results.append(obj.committed((types.SimpleNamespace(proof=b'{}'),)))
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1], {'status': 'optional_unavailable', 'reason': 'primary_commit_or_source_unavailable'})
+
+    def test_bounded_sanitized_records_and_nonblocking_cap(self):
+        Odd = type('bad\nname' + 'x' * 100, (Exception,), {})
+        exc = Odd('private message'); exc.sqlite_errorcode = 'private'; exc.sqlite_errorname = 'SQLITE_BAD\nprivate'
+        store._diagnostic_failure('capture', exc)
+        self.assertIn('exception_class=other sqlite_code=None sqlite_name=None', self.messages()[0])
+        for _ in range(100):store._diagnostic_failure('capture', ValueError('private'))
+        self.assertEqual(len(self.messages()), store._DIAGNOSTIC_LIMIT)
+        self.assertTrue(all(len(m) <= 1024 and '\n' not in m for m in self.messages()))
+        before = len(self.messages())
+        with store._DIAGNOSTIC_LOCK:store._diagnostic_failure('capture', ValueError())
+        self.assertEqual(len(self.messages()), before)
+        store._DIAGNOSTIC_COUNT = 0
+        store._diagnostic('%s', 'x' * 2048)
+        self.assertEqual(len(self.messages()[-1]), 1024)
+
+    def test_logger_failure_cannot_replace_refusal_or_capture_mask(self):
+        self.warning.side_effect = RuntimeError('logging broken')
+        budget = store.Budget(); budget.steps = store.SQL_STEPS
+        self.assertEqual(budget.progress(), 1)
+        with self.assertRaisesRegex(store.Unavailable, '^operation_work_capacity$'):budget.check()
+        obj = capture.Capture(types.SimpleNamespace(_epoch=object(), seam_enabled=False), None)
+        obj._failure(ValueError('original'))
+        self.assertEqual(obj.last_reason, 'optional_capture_unavailable')
+
+if __name__ == '__main__':unittest.main(verbosity=2)

@@ -1,0 +1,375 @@
+import argparse, hashlib, io, json, os, re, shutil, signal, socket, subprocess
+import threading, time, urllib.error, urllib.request, wave
+from pathlib import Path
+BASE=Path('{{WORKSPACE_ROOT}}')
+HERE=BASE/'{{SMOKE_DIRECTORY}}'
+ASSETS=BASE/'{{ASSETS_DIRECTORY}}'
+RUNTIME=BASE/'{{RUNTIME_DIRECTORY}}'
+PYTHON=RUNTIME/'bin/python3.12'
+LOCK=BASE/'{{SOURCE_LOCK_FILE}}'
+LOCK_SHA='4299d4d0e44fb79596770fac1809fc9d33b244a9b07fc8417e25339a4e46bb69'
+CANDIDATE={
+ 'audio_backend/native_owned_cell_store.py':'7ea280d9b5e2f1784daefa308d8dfce728f1d7b8a8554f2a587aedb6ccffd592',
+ 'audio_backend/native_owned_cell_jobs.py':'071112ba59dc8728b838013195eb3c3a15b67f205cdd97da9517b2f8e2cc647e'}
+DEMO_SHA='0263b786f1375c96c121e52e48d79f4c6adcddb10b609b8bb67d5b35bd27d606'
+PROFILE='handy-moss-q8_0-cpu-experimental-v1'
+MIB,GIB=2**20,2**30
+WORK,TOTAL,LOG_CAP=1680,1800,256*1024
+class Stop(RuntimeError):pass
+
+def need(value,reason):
+    if not value:raise Stop(reason)
+def encode(value):
+    return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def filehash(path):
+    h=hashlib.sha256()
+    with path.open('rb') as f:
+        for b in iter(lambda:f.read(256*1024),b''):h.update(b)
+    return h.hexdigest()
+def ident(value,n=32):
+    need(type(value)is str and re.fullmatch('[a-f0-9]{%d}'%n,value),'bad ID')
+    return value
+
+def geometry(p):
+    need((p.nchannels,p.sampwidth,p.framerate,p.comptype)==(1,2,16000,'NONE') and p.nframes>=336000,'requires 21s mono16kPCM16')
+    return 168000
+
+def advance(page,after,key,epoch=None):
+    rows,nxt=page[key],page['next_cursor'];more=page.get('has_more',bool(rows))
+    need(type(rows)is list and type(nxt)is int and nxt>=after and (not more or nxt>after),'invalid pagination')
+    if epoch:need(page['jobs_epoch']==epoch,'jobs epoch changed')
+    return rows,nxt,more
+
+def remaining(start,now):
+    seconds=start+WORK-now;need(seconds>0,'work deadline reached');return seconds
+
+def idle_state(h):
+    owner=h.get('native_owned_cells',{});moss=h.get('moss_jobs',{});permit=moss.get('permit',{})
+    return dict(active_chunk=h.get('active_chunk','missing'),permit=permit.get('state'),primary_waiting=permit.get('primary_waiting'),
+      admission=permit.get('optional_admission_unavailable','missing'),
+      owner_ready=owner.get('ready'),handoffs=owner.get('handoffs_active_or_pending'),
+      owner_cleanup=owner.get('cleanup_pending'),moss_cleanup=moss.get('cleanup_pending'))
+
+def idle(h):
+    s=idle_state(h)
+    return (s['active_chunk'] is None and s['permit']=='IDLE' and s['primary_waiting'] is False
+      and (s['admission'] is None or s['admission'] is False) and s['owner_ready'] is True
+      and type(s['handoffs']) is int and s['handoffs']==0
+      and s['owner_cleanup'] is False and s['moss_cleanup'] is False)
+
+def binding(row,headers,proof):
+    need(headers['x-native-cell-state']=='retained' and headers['x-native-cell-pcm-retained']=='true','cell PCM unavailable')
+    need(sha(proof)==headers['x-native-cell-proof-sha256']==row['proof_sha256'],'proof changed')
+    need(headers['x-native-cell-id']==row['cell_id'],'cell changed')
+    doc=json.loads(proof);s=doc['support']
+    need(doc.get('schema')=='native-owned-seam-composite-v2' and (s['start_frame'],s['end_frame'],s['sample_rate'])==(8000,328000,16000),'wrong seam')
+    need(sha(encode(s))==row['support_id'],'support changed')
+    seq,rev=int(headers['x-native-cell-sequence']),int(headers['x-native-cell-revision'])
+    need((seq,rev)==(row['sequence'],row['revision']),'revision changed')
+    return dict(jobs_epoch=ident(headers['x-moss-jobs-epoch']),expected_cell_sequence=seq,expected_cell_revision=rev,
+      expected_proof_sha256=row['proof_sha256'],support_id=row['support_id'],profile=PROFILE,coverage_intent='overlapping_diagnostic')
+
+def self_test():
+    b=io.BytesIO()
+    with wave.open(b,'wb') as w:
+        w.setparams((1,2,16000,0,'NONE','not compressed'));w.writeframes(b'\0'*672000)
+    with wave.open(io.BytesIO(b.getvalue()),'rb') as w:assert geometry(w.getparams())==168000
+    assert advance(dict(cells=[],next_cursor=4,has_more=True,jobs_epoch='e'),0,'cells','e')==([],4,True)
+    assert advance(dict(regions=[dict(start=9.,end=12.)],next_cursor=1,has_more=False),0,'regions')==([dict(start=9.,end=12.)],1,False)
+    assert remaining(10,20)==1670
+    for check in (lambda:remaining(10,1690),lambda:advance(dict(cells=[],next_cursor=0,has_more=True),0,'cells')):
+        try:check()
+        except Stop:pass
+        else:raise AssertionError('deadline/cursor accepted')
+    support=dict(start_frame=8000,end_frame=328000,sample_rate=16000)
+    proof=encode(dict(schema='native-owned-seam-composite-v2',support=support))
+    row=dict(cell_id='a'*64,proof_sha256=sha(proof),support_id=sha(encode(support)),sequence=1,revision=2)
+    h={'x-native-cell-'+k:v for k,v in dict(state='retained',**{'pcm-retained':'true','proof-sha256':sha(proof),'id':'a'*64,'sequence':'1','revision':'2'}).items()}
+    h['x-moss-jobs-epoch']='b'*32
+    assert len(encode(binding(row,h,proof)))<=1024
+    h['x-native-cell-revision']='3'
+    try:binding(row,h,proof)
+    except Stop:pass
+    else:raise AssertionError('stale revision')
+    good=dict(active_chunk=None,native_owned_cells=dict(ready=True,handoffs_active_or_pending=0,cleanup_pending=False),
+      moss_jobs=dict(permit=dict(state='IDLE',primary_waiting=False,optional_admission_unavailable=None),cleanup_pending=False))
+    assert idle(good) and not idle({})
+    good['moss_jobs']['permit']['optional_admission_unavailable']=False;assert idle(good)
+    for path,value in [(('active_chunk',),'busy'),(('moss_jobs','permit','state'),'PRIMARY'),
+      (('moss_jobs','permit','primary_waiting'),True),(('moss_jobs','permit','optional_admission_unavailable'),'unavailable'),
+      (('native_owned_cells','ready'),False),(('native_owned_cells','handoffs_active_or_pending'),1),
+      (('native_owned_cells','cleanup_pending'),True),(('moss_jobs','cleanup_pending'),True)]:
+        bad=json.loads(encode(good));target=bad
+        for key in path[:-1]:target=target[key]
+        target[path[-1]]=value;assert not idle(bad),path
+    print('Self-test passed')
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,*args,**kwargs):raise Stop('redirect refused')
+
+class Run:
+    def __init__(self,port):
+        import psutil
+        self.ps=psutil;self.start=time.monotonic();self.port=port
+        self.out=HERE/'output';self.data=self.out/'data';self.proc=None;self.owned=False
+        self.done=threading.Event();self.lock=threading.Lock();self.known={}
+        self.peak=0;self.written=0;self.log_bytes=0;self.discarded=0;self.failure=None
+        self.reader=self.monitor=None;self.auth=os.getenv('AUDIO_API_KEY')
+        self.summary=dict(primary='not_run',moss='not_run',cleanup='not_started')
+        self.http=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+    def check(self):
+        need(not self.failure,self.failure or 'resource failure')
+        return remaining(self.start,time.monotonic())
+    def save(self,name,value):
+        raw=value if type(value)is bytes else encode(value)
+        need('/' not in name and len(raw)<=2*MIB and self.written+len(raw)<=15*MIB,'evidence cap')
+        with (self.out/name).open('xb') as f:f.write(raw)
+        self.written+=len(raw)
+    def request(self,method,path,body=None,key=None,cap=2*MIB,timeout=15):
+        headers={}
+        if self.auth:headers['Authorization']='Bearer '+self.auth
+        if body is not None:
+            headers['Content-Type']='application/octet-stream' if type(body)is bytes else 'application/json'
+            if type(body)is not bytes:body=encode(body)
+        if key:headers['Idempotency-Key']=key
+        req=urllib.request.Request('http://127.0.0.1:%d%s'%(self.port,path),body,headers,method=method)
+        try:reply=self.http.open(req,timeout=min(timeout,self.check()))
+        except urllib.error.HTTPError as e:reply=e
+        with reply:
+            raw=reply.read(cap+1);need(len(raw)<=cap,'HTTP response cap')
+            return reply.code,{k.lower():v for k,v in reply.headers.items()},raw
+    def json(self,method,path,body=None,key=None):
+        status,_,raw=self.request(method,path,body,key)
+        need(status in (200,201,202),'HTTP %d %s: %s'%(status,path,raw[:160].decode(errors='replace')))
+        return json.loads(raw)
+    def pages(self,route,key,cells=False):
+        after=0;epoch=None;result=[]
+        for i in range(64):
+            query='?after=%d&limit=%d'%(after,20 if cells else 100)
+            if epoch:query+='&expected_jobs_epoch='+epoch
+            p=self.json('GET',self.path+'/'+route+query);self.save('%s-%02d.json'%(route,i),p)
+            if cells and epoch is None:epoch=ident(p['jobs_epoch'])
+            rows,after,more=advance(p,after,key,epoch);result.extend(rows)
+            need(len(result)<=4096,'row cap')
+            if not more:return result
+        raise Stop('page cap')
+    def disk(self):
+        count=total=data=0
+        for root,dirs,files in os.walk(self.out,followlinks=False):
+            for name in dirs+files:
+                count+=1;need(count<=4096,'output entry cap')
+                p=Path(root)/name
+                try:st=p.lstat()
+                except FileNotFoundError:continue
+                need(not p.is_symlink(),'output symlink')
+                size=max(st.st_size,st.st_blocks*512);total+=size
+                if p==self.data or self.data in p.parents:data+=size
+        need(data<=128*MIB and total<=144*MIB,'output disk cap')
+        need(shutil.disk_usage(self.out).free>=5.5*GIB,'free disk floor')
+    def sample(self):
+        root=self.ps.Process();children=root.children(recursive=True);rss=root.memory_info().rss
+        need(len(children)<=128,'process cap')
+        with self.lock:
+            for p in children:
+                try:
+                    created=p.create_time();rss+=p.memory_info().rss
+                    need(p.pid not in self.known or self.known[p.pid]==created,'PID identity changed')
+                    self.known[p.pid]=created
+                except self.ps.NoSuchProcess:pass
+            need(len(self.known)<=128,'identity cap')
+        self.peak=max(self.peak,rss);need(rss<6*GIB,'aggregate RSS ceiling')
+    def watch(self):
+        tick=0
+        while not self.done.wait(.25):
+            try:
+                self.sample();tick+=1
+                if tick%4==0:self.disk()
+            except Exception as e:
+                self.failure=str(e)[:250];os.kill(os.getpid(),signal.SIGUSR1);return
+    def drain(self):
+        with (self.out/'server.log').open('xb') as f:
+            while block:=self.proc.stdout.read(4096):
+                keep=block[:max(0,LOG_CAP-self.log_bytes)];f.write(keep)
+                self.log_bytes+=len(keep);self.discarded+=len(block)-len(keep)
+    def preflight(self):
+        need(not self.out.exists(),'fresh output required')
+        need({0,1}<=os.sched_getaffinity(0),'CPU 0-1 unavailable')
+        os.sched_setaffinity(0,{0,1});os.setpriority(os.PRIO_PROCESS,0,19)
+        need(shutil.which('ffmpeg') and shutil.which('ffprobe'),'FFmpeg tools absent')
+        need(filehash(LOCK)==LOCK_SHA,'source lock changed')
+        for row in json.loads(LOCK.read_bytes())['files']:
+            if row['path'].startswith('audio_backend/'):
+                self.check();p=RUNTIME/'lib/python3.12/site-packages'/row['path']
+                need(filehash(p)==CANDIDATE.get(row['path'],row['sha256']),'pin: '+row['path'])
+        need(PYTHON.is_file() and PYTHON.resolve()==PYTHON,'canonical Python required')
+        need(filehash(PYTHON)=='fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7','Python pin')
+        need(not any(v and (k.startswith(('LD_','DYLD_')) or k in ('GLIBC_TUNABLES','TRANSCRIBE_LIBRARY','GGML_BACKEND_PATH')) for k,v in os.environ.items()),'loader override')
+        demo=BASE/'{{AMI_FIXTURE_FILE}}'
+        need(demo.stat().st_size==672044 and filehash(demo)==DEMO_SHA,'demo pin')
+        with wave.open(str(demo),'rb') as w:
+            params=w.getparams();geometry(params);pcm=w.readframes(336000)
+        need(len(pcm)==672000,'short PCM read');self.out.mkdir(mode=0o700);self.owned=True;self.disk()
+        self.save('input.json',dict(sha256=DEMO_SHA,header=params._asdict(),frames=[0,336000],pcm_sha256=sha(pcm)))
+        self.pieces=[]
+        for i in range(2):
+            b=io.BytesIO()
+            with wave.open(b,'wb') as w:
+                w.setparams((1,2,16000,0,'NONE','not compressed'));w.writeframes(pcm[i*336000:(i+1)*336000])
+            raw=b.getvalue();self.save('part%d.wav'%i,raw);self.pieces.append(raw)
+        self.native=json.loads((ASSETS/'vendor/native-diarization/linux-x86_64-cpu/installation.json').read_bytes())['settings']
+        for k in ('native_diarization_model','native_diarization_library'):
+            p=Path(self.native[k]);need(p.is_file() and p.resolve()==p and ASSETS in p.parents,'native path')
+    def launch(self):
+        with socket.socket() as probe:probe.bind(('127.0.0.1',self.port))
+        flags={'host':'127.0.0.1','port':self.port,'data-dir':self.data,'model-dir':ASSETS/'models','threads':2,
+          'memory-limit-gib':6,'device':'cpu','asr-backend':'sensevoice','diarization-backend':'nemotron',
+          'native-diarization-model':self.native['native_diarization_model'],'native-diarization-library':self.native['native_diarization_library'],
+          'native-diarization-threads':2,'speaker-calibration':'eres2net-ami20-v1','overlap-backend':'none','language':'auto',
+          'window-seconds':30,'event-threshold':.25,'moss-jobs-model':ASSETS/'models/MOSS-Transcribe-Diarize-Q8_0.gguf'}
+        cmd=[str(PYTHON),'-I','-B','-m','audio_backend']
+        for k,v in flags.items():cmd+=['--'+k,str(v)]
+        cmd+=['--native-owned-support','--native-owned-cells','--native-owned-seam-cells','--moss-jobs']
+        self.save('command.json',cmd)
+        env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1',PYTHONNOUSERSITE='1',OMP_NUM_THREADS='2',OMP_THREAD_LIMIT='2',OPENBLAS_NUM_THREADS='2',MKL_NUM_THREADS='2')
+        env.pop('PYTHONPATH',None);env.pop('PYTHONHOME',None)
+        self.proc=subprocess.Popen(cmd,cwd=self.out,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+        self.reader=threading.Thread(target=self.drain,daemon=True);self.reader.start()
+        self.monitor=threading.Thread(target=self.watch,daemon=True);self.monitor.start()
+        until=time.monotonic()+90
+        while time.monotonic()<until:
+            self.check();need(self.proc.poll() is None,'server exited')
+            try:health=self.json('GET','/health');break
+            except (urllib.error.URLError,TimeoutError,ConnectionError):time.sleep(.5)
+        else:raise Stop('startup timeout')
+        need(any(c.status=='LISTEN' and c.laddr.port==self.port for c in self.ps.Process(self.proc.pid).net_connections('tcp')),'listener unverified')
+        self.save('health-start.json',health)
+        need(health['asr_backend']=='sensevoice' and health['diarization_backend']=='nemotron' and health['worker_alive'],'backend health mismatch')
+    def primary(self):
+        s=self.json('POST','/sessions',dict(name='{{SESSION_NAME}}',identity_group='{{IDENTITY_GROUP}}',processing_mode='legacy'))
+        self.save('session.json',s);self.path='/sessions/'+ident(s['id']);chunks=[]
+        for i,pcm in enumerate(self.pieces):
+            route=self.path+'/chunks?timeline_start='+str(i*10.5)+'&stream_id={{STREAM_ID}}'+('&stream_final=true' if i else '')
+            r=self.json('PUT',route,pcm,'{{UPLOAD_IDEMPOTENCY_PREFIX}}'+str(i));self.save('upload%d.json'%i,r);chunks.append(ident(r['chunk']['id']))
+        self.pieces=[]
+        while True:
+            rows=[self.json('GET','/chunks/'+cid) for cid in chunks];states=[r['status'] for r in rows]
+            if all(s=='completed' for s in states) or any(s in ('failed','cancelled','paused') for s in states):break
+            time.sleep(1);self.check()
+        self.save('chunks-terminal.json',rows);segments=self.pages('segments','segments')
+        self.save('primary-transcript.txt',('\n'.join(str(r.get('text','')) for r in segments)+'\n').encode())
+        self.summary.update(primary='done' if all(s=='completed' for s in states) else 'failed_with_partial_results',segments=len(segments))
+        for route,key in [('speaker-turns','speaker_turns'),('events','events'),('event-candidates','event_candidates'),('overlap-candidates','regions'),('changes','changes')]:
+            try:self.pages(route,key)
+            except Exception as e:self.summary[route+'_error']=str(e)[:180]
+    def wait_idle(self):
+        started=time.monotonic();until=min(started+60,self.start+WORK)
+        rows=[];last=None;raw=None;ready=False
+        self.summary['moss']='not_run_optional_pending'
+        try:
+            for _ in range(61):
+                left=until-time.monotonic()
+                if left<=0:break
+                self.check()
+                code,_,body=self.request('GET','/health',timeout=min(1,left))
+                need(code==200,'idle health HTTP '+str(code))
+                raw=body;h=json.loads(raw);state=idle_state(h)
+                if state!=last:
+                    need(len(rows)<64,'idle transition cap')
+                    rows.append(dict(seconds=round(time.monotonic()-started,3),**state));last=state
+                if idle(h) and time.monotonic()<until:ready=True;break
+                pause=min(1,until-time.monotonic())
+                if pause>0:time.sleep(pause)
+            if not ready:
+                self.summary.update(moss='not_run_optional_pending_timeout',optional_error='optional idle wait timed out before cells GET')
+            return ready
+        finally:
+            if raw is not None:self.save('health-after-primary.json',raw)
+            self.save('idle-transitions.json',dict(limit_seconds=60,elapsed_seconds=round(time.monotonic()-started,3),idle=ready,transitions=rows))
+    def optional(self):
+        if self.summary['primary']!='done':return
+        if not self.wait_idle():return
+        cells=self.pages('native-owned-cells','cells',True)
+        selected=[r for r in cells if r['state']=='retained' and (r['start_frame'],r['end_frame'])==(8000,328000) and r.get('coverage',{}).get('kind')=='seam_overlap_alternative']
+        if not selected:self.summary['moss']='not_run_no_eligible_seam_cell';return
+        if self.check()<480:self.summary['moss']='not_run_time_reserve';return
+        row=selected[0];target=self.path+'/native-owned-cells/'+ident(row['cell_id'],64)
+        code,headers,proof=self.request('GET',target,cap=65536);need(code==200,'cell unavailable')
+        self.save('cell-proof.json',proof);self.save('cell-headers.json',headers);body=binding(row,headers,proof)
+        h=self.json('GET','/health');permit=h['moss_jobs']['permit']
+        need(h['active_chunk'] is None and permit['state']=='IDLE' and not permit['optional_admission_unavailable'] and not h['moss_jobs']['cleanup_pending'],'service not idle')
+        need(len(encode(body))<=1024,'MOSS body cap');self.save('moss-request.json',body)
+        job=self.json('POST',target+'/moss-jobs',body,'{{MOSS_IDEMPOTENCY_KEY}}');self.save('moss-accepted.json',job)
+        path=self.path+'/moss-jobs/'+ident(job['job_id']);self.summary['moss']='accepted'
+        while True:
+            d=self.json('GET',path)
+            if not d['cleanup_pending'] and d['state'] not in ('running','reserved'):break
+            self.check();time.sleep(1)
+        self.save('moss-terminal.json',d)
+        for kind,cap in [('result',256*1024),('raw',128*1024)]:
+            code,headers,raw=self.request('GET',path+'/'+kind,cap=cap)
+            self.save('moss-'+kind+'-response.json',dict(status=code,headers=headers))
+            if code==200:
+                if kind=='raw':need(sha(raw)==headers['x-content-sha256'],'raw hash')
+                self.save('moss-'+kind+('.txt' if kind=='raw' else '.json'),raw)
+        self.summary.update(moss=d['state'],moss_process_cleanup_verified=d['process_cleanup_verified'])
+    def cleanup(self):
+        signal.signal(signal.SIGUSR1,signal.SIG_IGN)
+        if self.proc is None:self.summary['cleanup']='no_server';return
+        end=min(self.start+TOTAL-5,time.monotonic()+105)
+        try:self.sample()
+        except Exception:pass
+        if self.proc.poll() is None:self.proc.terminate()
+        try:self.proc.wait(timeout=max(.1,min(30,end-time.monotonic())))
+        except subprocess.TimeoutExpired:pass
+        self.done.set()
+        if self.monitor:self.monitor.join(timeout=1)
+        with self.lock:known=dict(self.known)
+        live=[]
+        for pid,created in known.items():
+            try:
+                p=self.ps.Process(pid)
+                if p.create_time()==created and p.is_running():live.append(p)
+            except self.ps.NoSuchProcess:pass
+        for p in live:
+            try:p.terminate()
+            except self.ps.NoSuchProcess:pass
+        _,alive=self.ps.wait_procs(live,timeout=max(0,min(5,end-time.monotonic())))
+        for p in alive:
+            try:
+                if p.create_time()==known[p.pid]:p.kill()
+            except self.ps.NoSuchProcess:pass
+        if self.proc.poll() is None:self.proc.kill()
+        self.proc.wait(timeout=max(.1,end-time.monotonic()))
+        _,alive=self.ps.wait_procs(alive,timeout=max(0,min(10,end-time.monotonic())))
+        self.summary.update(server_returncode=self.proc.returncode,cleanup='waited_no_known_live_children' if not alive else 'unresolved_descendants')
+        if self.reader:self.reader.join(timeout=2)
+        if self.reader and self.reader.is_alive():
+            self.summary['cleanup']='unresolved_reader';raise Stop('log reader alive')
+        self.proc.stdout.close()
+
+def main():
+    parser=argparse.ArgumentParser();g=parser.add_mutually_exclusive_group(required=True)
+    g.add_argument('--self-test',action='store_true');g.add_argument('--run',action='store_true')
+    parser.add_argument('--port',type=int,default=8765);args=parser.parse_args()
+    if args.self_test:self_test();return
+    need(1024<=args.port<=65535,'invalid port');run=Run(args.port)
+    def stop(sig,frame):raise Stop('stop signal: '+str(sig))
+    for sig in (signal.SIGTERM,signal.SIGINT,signal.SIGALRM,signal.SIGUSR1):signal.signal(sig,stop)
+    signal.setitimer(signal.ITIMER_REAL,WORK)
+    try:
+        run.preflight();run.launch();run.primary()
+        try:run.optional()
+        except Exception as e:run.summary['optional_error']=str(e)[:300]
+    except Exception as e:run.summary['error']=str(e)[:300]
+    finally:
+        signal.setitimer(signal.ITIMER_REAL,max(.1,run.start+TOTAL-time.monotonic()))
+        try:run.cleanup()
+        except Exception as e:run.summary['cleanup_error']=str(e)[:300]
+        signal.setitimer(signal.ITIMER_REAL,0)
+        run.summary.update(elapsed_seconds=round(time.monotonic()-run.start,3),peak_sampled_tree_rss_bytes=run.peak,log_bytes=run.log_bytes,log_discarded=run.discarded,resource_error=run.failure)
+        if run.owned:
+            with (run.out/'summary.json').open('xb') as f:f.write(encode(run.summary))
+        print(json.dumps(run.summary,ensure_ascii=False))
+    if run.failure or run.summary['primary']!='done' or 'cleanup_error' in run.summary or run.summary['cleanup']=='unresolved_descendants':raise SystemExit(1)
+if __name__=='__main__':main()

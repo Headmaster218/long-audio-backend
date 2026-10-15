@@ -1,0 +1,95 @@
+{
+  "configuration_substitution_count": 23,
+  "exclusions": [
+    "audio",
+    "transcripts",
+    "raw API receipts",
+    "local runtime configuration",
+    "databases",
+    "execution logs",
+    "private paths",
+    "internal coordination"
+  ],
+  "files": [
+    {
+      "bytes": 4071,
+      "path": "CONFIGURATION_FIELDS.json",
+      "sha256": "92a2aa53905a42eae63afb224477b055fe305cb9501d0b5c493141f1ca23b382"
+    },
+    {
+      "bytes": 6666,
+      "path": "README.md",
+      "sha256": "179e16ac3793a9c3a292def36a82c6c75ba6091afa705a1bbbe690e8dd74935c"
+    },
+    {
+      "bytes": 44568,
+      "path": "native_owned_cell_capture.py",
+      "sha256": "635a39a89bd408dd3f4a29a89991924f1ce7e1902fbe42a3ba713627ae3e81b8"
+    },
+    {
+      "bytes": 70722,
+      "path": "native_owned_cell_store.py",
+      "sha256": "bb3091a5236c2a62647ce3cd4d4b54475f9c8809e50fbc61f2ecbf13757e852d"
+    },
+    {
+      "bytes": 23629,
+      "path": "smoke-diagnostic.py.in",
+      "sha256": "f9407f62d052633c7cd930b4ce8899a1b6120284d1e58ca9e131a010841ffb4e"
+    },
+    {
+      "bytes": 23515,
+      "path": "smoke-idle.py.in",
+      "sha256": "891a759e5caca97b1c209e5cb008710fbaa523c82ce4f5f91931321a5bbc816f"
+    },
+    {
+      "bytes": 9483,
+      "path": "test_diagnostic.py.in",
+      "sha256": "4577385834b1a7dcbb63cbbf8c3ac765f809295eee0ca4d7dfe21389ec6ef670"
+    }
+  ],
+  "functional_delta": "None; only documented local paths and invocation identifiers are placeholders. The two product modules are byte-exact.",
+  "historical_validation": {
+    "adjacent_uploads": 2,
+    "api_raw_retrieved": true,
+    "api_result_retrieved": true,
+    "diagnostic_phrase_count": 9,
+    "elapsed_seconds": 37.484,
+    "local_speaker_tag_count": 2,
+    "moss_jobs": 1,
+    "moss_process_cleanup_verified": true,
+    "moss_state": "returned_diagnostic",
+    "original_diagnostic_helper_exit_code": 0,
+    "original_preinstallation_model_free_tests": 9,
+    "original_preinstallation_model_free_tests_result": "PASS",
+    "peak_sampled_tree_rss_bytes": 1855344640,
+    "primary_segments": 16,
+    "prior_capture_failures_resolved": false,
+    "raw_output_bytes": 441,
+    "retained_owner_dropped_count": 1,
+    "retained_owner_warning": "optional_sql_or_io_failure",
+    "retained_support_frames_half_open": [
+      8000,
+      328000
+    ],
+    "support_sample_rate": 16000,
+    "upload_seconds_each": 10.5
+  },
+  "interpretation_limits": [
+    "No EOS or generated-token-count claim",
+    "No word-timing, speaker-identity, accuracy or completeness claim",
+    "No full production robustness or durability claim",
+    "Historical success is not a public-template execution result"
+  ],
+  "manifest_self_hash": "Omitted to avoid circular hashing.",
+  "parent_commit": "9712e77c6b035ce8a447a4451e947a2ae790a06d",
+  "schema": "overlap-api-diagnostic-public-source-v1",
+  "source_validation": {
+    "all_five_syntax_compile_passed": true,
+    "byte_exact_template_inverse_passed": true,
+    "product_modules_byte_exact": true,
+    "public_comparison_tests_executed": false,
+    "public_helpers_executed": false,
+    "source_code_executed": false
+  },
+  "status": "Source checkpoint; public templates unexecuted; historical aggregate functional result only"
+}

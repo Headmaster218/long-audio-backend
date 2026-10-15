@@ -1,0 +1,108 @@
+{
+  "fields": [
+    {
+      "description": "Absolute local workspace root, without a trailing slash.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{WORKSPACE_ROOT}}"
+    },
+    {
+      "description": "Workspace-relative helper directory with a fresh output child; use a different directory for each invocation.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{SMOKE_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative assets directory containing pinned models and native installation settings.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{ASSETS_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative verified Python 3.12 runtime directory containing the appropriate installed product revision.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{RUNTIME_DIRECTORY}}"
+    },
+    {
+      "description": "Workspace-relative source lock file matching the unchanged source-lock SHA-256 pin.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{SOURCE_LOCK_FILE}}"
+    },
+    {
+      "description": "Workspace-relative 21-second mono 16 kHz PCM16 WAV fixture matching the unchanged fixture SHA-256 pin.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{AMI_FIXTURE_FILE}}"
+    },
+    {
+      "description": "Fresh descriptive session name for this invocation.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{SESSION_NAME}}"
+    },
+    {
+      "description": "Fresh local identity-group label for this invocation.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{IDENTITY_GROUP}}"
+    },
+    {
+      "description": "Fresh URL-safe stream identifier shared by the two adjacent uploads.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{STREAM_ID}}"
+    },
+    {
+      "description": "Fresh idempotency-key prefix; the helper appends upload index 0 or 1.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{UPLOAD_IDEMPOTENCY_PREFIX}}"
+    },
+    {
+      "description": "Fresh idempotency key for the optional single MOSS job.",
+      "occurrences": {
+        "smoke-diagnostic.py.in": 1,
+        "smoke-idle.py.in": 1
+      },
+      "placeholder": "{{MOSS_IDEMPOTENCY_KEY}}"
+    },
+    {
+      "description": "Absolute local directory for the hash-pinned pre-diagnostic audio_backend package, including its supporting modules. The template joins this with HERE.parent; an absolute value intentionally replaces that prefix.",
+      "occurrences": {
+        "test_diagnostic.py.in": 1
+      },
+      "placeholder": "{{BASELINE_PACKAGE_DIRECTORY}}"
+    }
+  ],
+  "hash_pins": "All existing source-lock, interpreter, fixture, candidate and baseline SHA-256 pins are unchanged. This packet does not contain every pinned dependency.",
+  "instruction": "Replace every literal placeholder locally. Preserve Python string-literal syntax: use no quotes, backslashes or newlines unless correctly escaped. Keep resolved values private. The two helper invocations require independent fresh output locations and identifiers.",
+  "retained_environment_input": {
+    "name": "AUDIO_API_KEY",
+    "purpose": "Optional local API authentication; provide privately at runtime.",
+    "value_included": false
+  },
+  "schema": "overlap-api-diagnostic-configuration-fields-v1",
+  "template_behavior": "Only local paths and invocation identifiers were replaced. No functional correction or behavior change was applied."
+}
