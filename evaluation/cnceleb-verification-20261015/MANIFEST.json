@@ -1,0 +1,37 @@
+{
+  "schema": "cnceleb-sanitized-source-manifest-v1",
+  "date": "2026-10-15",
+  "scope": "Aggregate research report and protocol-only source; no dataset or model redistribution",
+  "files": [
+    {
+      "name": "README.md",
+      "bytes": 11910,
+      "sha256": "0bc58eb9ce0d299c335cf4095af369208cc221c06e335770a16117d9aef2c529"
+    },
+    {
+      "name": "score_policy.py",
+      "bytes": 8401,
+      "sha256": "1a6a371436feee733f86ece5a89850ae4ea5c8396501bb7f844298687e3989ea"
+    },
+    {
+      "name": "test_score_policy.py",
+      "bytes": 8198,
+      "sha256": "5730eada1b861af817f3d87515d33371bff69a793e0ca158f0b5d1fb0576fe6e"
+    }
+  ],
+  "manifest_self_hash": "Excluded to avoid self-reference",
+  "validation": {
+    "syntax": "Parsed with Python ast",
+    "unit_tests": {
+      "status": "PASS",
+      "tests": 16,
+      "elapsed_seconds": 0.019,
+      "exit_code": 0,
+      "address_space_cap_bytes": 268435456,
+      "timeout_seconds": 30,
+      "kill_grace_seconds": 5,
+      "mode": "Isolated standard-library unittest; no site packages or bytecode writes"
+    },
+    "inference": "No new inference performed for package preparation"
+  }
+}
