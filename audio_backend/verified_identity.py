@@ -17,6 +17,8 @@ MAX_POSITIVES = 4096
 MAX_NEGATIVES = 8192
 MAX_EVENTS = 32768
 MAX_PER_PERSON = 8
+MAX_OVERLAP_TURNS = 4096
+MAX_OVERLAP_LOCAL_IDS = 64
 POLICY_KEYS = {'schema_version','experimental','single_threshold','centroid_threshold','margin',
                'minimum_query_seconds','minimum_enrollment_seconds'}
 
@@ -447,7 +449,7 @@ def reference_vector(db,active):
     return raw,vector
 
 
-def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retained):
+def prepare_decision(store, db, chunk, offset, group, local_id, metadata, prepared, retained):
     """Match a transient query; retention and learning are independent decisions."""
     import math
     policy = group_policy(db,group)
@@ -535,7 +537,6 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
     support_id,support_status=retained
     vector_row=db.execute('SELECT id FROM speaker_support_vectors WHERE support_id=?',(support_id,)).fetchone() if support_id else None
     review_reason=('available' if vector_row else ('vector_proof_unavailable' if support_status=='available' else support_status))
-    decision_id=uuid.uuid4().hex
     snapshot={'identity_mode':MODE,'basis':'reviewed_reference_bank','experimental':True,
         'generation':generation,'profile_revision':policy['revision'],'availability_sequence':policy['availability'],
         'policy_sha256':policy['policy_sha256'],'space_id':proof['space_id'] if proof else None,
@@ -545,8 +546,68 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
         'negative_event_id':negative_event_id,
         'reference_event_ids':references,'support_id':support_id,'review_availability':review_reason,
         'automatic_query_is_human_verified':False}
+    # Pure decision preparation: immutable history is written only after the
+    # complete window has passed simultaneous-speaker conflict checks.
+    return snapshot
+
+
+def exclude_overlap_collisions(drafts, turns):
+    """Window-local symmetric abstention, never a permanent person relation.
+
+    Only accepted canonical assignments participate. Compute every collision
+    before changing a draft so that turn order cannot choose a winner.
+    """
+    import math
+    if len(turns) > MAX_OVERLAP_TURNS or len(drafts) > MAX_OVERLAP_LOCAL_IDS:
+        for snapshot in drafts.values():
+            if snapshot['original_person_id'] is not None:
+                snapshot.update(original_person_id=None,
+                    status='unknown_overlap_identity_capacity')
+        return
+    per_local = {}
+    for turn in turns:
+        local_id = turn.get('speaker_local_id')
+        if local_id is None or local_id not in drafts:
+            continue
+        start, end = turn.get('start'), turn.get('end')
+        if (type(start) not in (int, float) or type(end) not in (int, float)
+                or not math.isfinite(start) or not math.isfinite(end) or end <= start):
+            continue
+        person = drafts[local_id]['original_person_id']
+        if person is not None:
+            per_local.setdefault(local_id, []).append((start, end, person))
+    # Union same-ID fragments first. At most one interval per local ID can
+    # inhabit the sweep's active set, bounding work by T * K and edges by K².
+    intervals = []
+    for local_id, spans in per_local.items():
+        merged = []
+        for start, end, person in sorted(spans):
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(end, merged[-1][1]), person)
+            else:
+                merged.append((start, end, person))
+        intervals.extend((start, end, local_id, person) for start, end, person in merged)
+    conflicts = {}
+    # Same-local-ID duplicate fragments and touching endpoints are not edges.
+    intervals.sort(key=lambda row: (row[0], row[1], str(row[2])))
+    active = []
+    for start, end, local_id, person in intervals:
+        active = [row for row in active if row[0] > start]
+        for _, other_id, other_person in active:
+            if local_id != other_id and person == other_person:
+                conflicts.setdefault(local_id, set()).add(str(other_id))
+                conflicts.setdefault(other_id, set()).add(str(local_id))
+        active.append((end, local_id, person))
+    for local_id, others in conflicts.items():
+        drafts[local_id].update(original_person_id=None,
+            status='unknown_overlap_identity_conflict',
+            overlap_conflicting_local_ids=sorted(others))
+
+
+def persist_decision(db, chunk, offset, group, local_id, prepared, snapshot):
+    decision_id = uuid.uuid4().hex
     db.execute('INSERT INTO identity_decisions VALUES(?,?,?,?,?,?,?)',
-        (decision_id,group,generation,chunk['id'],offset,str(local_id),support.canonical(snapshot).decode()))
+        (decision_id,group,snapshot['generation'],chunk['id'],offset,str(local_id),support.canonical(snapshot).decode()))
     db.execute('INSERT INTO identity_decision_state(decision_id) VALUES(?)',(decision_id,))
     # Dependencies survive a full review quota. No raw query/PCM is retained here.
     parts=prepared.get('manifest',{}).get('source_parts',[]) if isinstance(prepared,dict) else []
@@ -556,7 +617,14 @@ def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retai
     for cid in source_ids:
         if db.execute('SELECT 1 FROM chunks WHERE id=? AND session_id=?',(cid,chunk['session_id'])).fetchone():
             db.execute('INSERT INTO identity_decision_sources VALUES(?,?)',(decision_id,cid))
-    return person,best,reason,decision_id,policy['revision']
+    return (snapshot['original_person_id'], snapshot['score'], snapshot['status'],
+            decision_id, snapshot['profile_revision'])
+
+
+def resolve(store, db, chunk, offset, group, local_id, metadata, prepared, retained):
+    """Single-query compatibility helper; Store uses joint window resolution."""
+    snapshot = prepare_decision(store, db, chunk, offset, group, local_id, metadata, prepared, retained)
+    return persist_decision(db, chunk, offset, group, local_id, prepared, snapshot)
 
 
 def decision(store,sid,decision_id):
