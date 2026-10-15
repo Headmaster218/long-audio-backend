@@ -1,0 +1,502 @@
+#!/usr/bin/env python3
+"""One fixed 20 s SenseVoice call; retained-core projection; official scoring."""
+from __future__ import annotations
+import collections
+import copy
+import dataclasses
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import resource
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import wave
+
+ROOT = Path(__file__).resolve().parent
+BASE = ROOT.parent
+RUNTIME = BASE/'__REQUIRED_RUNTIME_RELATIVE_PATH__'
+SITE = RUNTIME/'lib/python3.12/site-packages'
+MODELS = BASE/'__REQUIRED_MODEL_DIRECTORY_RELATIVE_PATH__'
+OLD = BASE/'__REQUIRED_SAVED_AMI_OUTPUT_RELATIVE_PATH__'
+EVAL = BASE/'__REQUIRED_AMI_EVALUATION_RELATIVE_PATH__'
+WAV = BASE/'__REQUIRED_AMI_21_SECOND_WAV_RELATIVE_PATH__'
+RATE, FIRST, LAST = 16000, 8000, 328000
+CAP, RESERVE = 4*1024**2, 65536
+RSS_CAP, AS_CAP = 1024**3, 2*1024**3
+WORK, CLEANUP = 240, 60
+
+
+def encode(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                      separators=(',', ':'), allow_nan=False).encode()
+
+
+def sha(path):
+    with Path(path).open('rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def usage():
+    total = 0
+    for p in ROOT.rglob('*'):
+        if p.is_symlink():
+            raise RuntimeError('Symlink in new experiment directory')
+        if p.is_file():
+            total += p.stat().st_size
+    return total
+
+
+def emit(path, value, *, append=False, final=False):
+    payload = encode(value)+b'\n'
+    old = path.stat().st_size if path.exists() and not append else 0
+    if usage()-old+len(payload) > CAP-(0 if final else RESERVE):
+        raise RuntimeError('Inclusive fresh-directory artifact cap')
+    with path.open('ab' if append else 'wb') as f:
+        f.write(payload)
+        f.flush()
+
+
+def pins():
+    result = []
+    for line in (ROOT/'sources.sha256').read_text().splitlines():
+        digest, name = line.split('  ', 1)
+        if sha(BASE/name) != digest:
+            raise RuntimeError('Pinned input changed: '+name)
+        result.append({'path': name, 'sha256': digest})
+    return result
+
+
+def configure():
+    if not {0, 1}.issubset(os.sched_getaffinity(0)):
+        raise RuntimeError('Approved CPUs 0-1 unavailable')
+    os.sched_setaffinity(0, {0, 1})
+    os.setpriority(os.PRIO_PROCESS, 0, 19)
+    resource.setrlimit(resource.RLIMIT_AS, (AS_CAP, AS_CAP))
+    resource.setrlimit(resource.RLIMIT_CPU, (WORK, WORK))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (1024**2, 1024**2))
+    for key in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
+                'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS'):
+        os.environ[key] = '2'
+    os.environ.update(PYTHONDONTWRITEBYTECODE='1', HF_HUB_OFFLINE='1',
+                      TRANSFORMERS_OFFLINE='1')
+
+
+def projection_turns():
+    chunks = json.loads((OLD/'chunks-terminal.json').read_text())
+    chunks.sort(key=lambda c: c['timeline_start'])
+    saved = json.loads((OLD/'speaker-turns-00.json').read_text())['speaker_turns']
+    if len(chunks) != 2 or len(saved) != 14:
+        raise RuntimeError('Unexpected retained native geometry')
+    reconstructed, audit, turns = [], [], []
+    for index, chunk in enumerate(chunks):
+        core_lo, core_hi = index*10.5, (index+1)*10.5
+        read_lo, read_hi = (0., 12.5) if index == 0 else (8.5, 21.)
+        meta = chunk['metadata']
+        assert chunk['timeline_start'] == core_lo and chunk['duration'] == 10.5
+        assert meta['duration_seconds'] == read_hi-read_lo
+        assert meta['diarization_backend'] == 'nemotron3-native'
+        rows = [r for r in saved if r['chunk_id'] == chunk['id']]
+        mapping = {}
+        for row in rows:
+            local = row['speaker_local_id']
+            if local in mapping and mapping[local] != row['speaker_id']:
+                raise RuntimeError('Inconsistent chunk-local registry mapping')
+            mapping[local] = row['speaker_id']
+        expected = []
+        for native in meta['diarization_turns']:
+            lo = max(core_lo, native['start']+read_lo)
+            hi = min(core_hi, native['end']+read_lo)
+            if hi <= lo:
+                continue
+            local = native['speaker_local_id']
+            expected.append((local, round(lo, 3), round(hi, 3)))
+            if local not in mapping:
+                raise RuntimeError('Missing saved registry mapping')
+            common_lo, common_hi = max(.5, lo)-.5, min(20.5, hi)-.5
+            record = {'chunk_id': chunk['id'], 'read': [read_lo, read_hi],
+                'core': [core_lo, core_hi], 'native_turn': native,
+                'owned_turn': [lo, hi], 'speaker_id': mapping[local]}
+            if common_hi > common_lo:
+                turn = {'start': common_lo, 'end': common_hi,
+                        'speaker_local_id': mapping[local]}
+                assert 0 <= turn['start'] < turn['end'] <= 20
+                turns.append(turn)
+                record['common_turn'] = turn
+            audit.append(record)
+        actual = [(r['speaker_local_id'], round(r['start'], 3), round(r['end'], 3))
+                  for r in rows]
+        if sorted(expected) != sorted(actual):
+            raise RuntimeError('Native read/core reconstruction disagrees with saved turns')
+        reconstructed.extend(expected)
+    assert len(reconstructed) == len(saved)
+    assert any(t['speaker_local_id'] is None for t in turns)
+    return turns, audit
+
+
+def project(adapter, turns, align_tokens, lexical_core, converter):
+    # One coordinate system and one 20 s projection, never the old 12.5 s reads.
+    units = [t for s in adapter['transcription'] for t in s.get('tokens', [])]
+    if any(not (0 <= t['offsets']['from'] < 20000 and
+                t['offsets']['from'] < t['offsets']['to'] <= 20000) for t in units):
+        raise RuntimeError('Out-of-window adapter unit; do not clamp or resplit')
+    segs = align_tokens(adapter['transcription'], turns, {}, 20., 5.)
+    before = [t['text'] for t in units]
+    after = [u['text'] for s in segs for u in s.get('_units', [])]
+    if before != after:
+        raise RuntimeError('Production lexical-unit conservation failed')
+    for s in segs:
+        s['raw_text'] = s['text']
+        s['text'] = converter.convert(s['text'])
+        s['confidence'] = None
+        for unit in s.get('_units', []):
+            unit['raw_text'] = unit['text']
+            unit['text'] = converter.convert(unit['text'])
+            unit['confidence'] = None
+    result = {'segments': segs, 'metadata': {}}
+    owned = lexical_core(result, 0., 20., [], 0.)
+    if owned is None:
+        if segs:
+            raise RuntimeError('Unexpected missing lexical ownership units')
+        owned = []
+    # With no prior window and anchors in [0,20), every lexical unit is owned once.
+    expected = ''.join(''.join(before).split())
+    actual = ''.join(''.join(s['raw_text'] for s in owned).split())
+    if actual != expected:
+        raise RuntimeError('Owned text conservation failed')
+    return {'segments': owned, 'metadata': result['metadata'],
+            'lexical_units_before': len(before), 'lexical_units_after': len(after),
+            'raw_text_conserved_ignoring_whitespace': True}
+
+
+def model_free(out, turns, audit, align_tokens, lexical_core, converter):
+    anchors = [0, 800, 9990, 10000, 19900]
+    tokens = [{'id': i, 'text': text, '_ctc_anchor': True,
+               'offsets': {'from': start, 'to': stop}}
+              for i, (text, start, stop) in enumerate(zip(
+                  [' Alpha', ' beta', ' gamma', ' delta', ' omega'],
+                  anchors, anchors[1:]+[20000]))]
+    probe = {'transcription': [{'tokens': tokens}]}
+    projected = project(probe, turns, align_tokens, lexical_core, converter)
+    assert projected['lexical_units_before'] == projected['lexical_units_after'] == 5
+    assert any(a['core'] == [10.5, 21.] and
+               a.get('common_turn', {}).get('start') == 10. for a in audit)
+    bad = copy.deepcopy(probe)
+    bad['transcription'][0]['tokens'][0]['offsets']['from'] = -1
+    try:
+        project(bad, turns, align_tokens, lexical_core, converter)
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError('Negative input anchor was silently clamped')
+    emit(out/'checks.json', {'status': 'passed', 'model_calls': 0,
+        'checks': ['two read-to-core coordinate reconstructions match 14 canonical turns',
+                   'original core seam maps to common t=10',
+                   'five synthetic lexical units at edges/seam conserved once',
+                   'out-of-range input token rejected before alignment'],
+        'synthetic_projection': projected})
+
+
+class Stream:
+    def __init__(self, raw, owner):
+        self.raw, self.owner = raw, owner
+        self.accepted = False
+
+    def accept_waveform(self, sr, samples):
+        if self.accepted or self.owner.calls:
+            raise RuntimeError('More than one planned stream input')
+        digest = hashlib.sha256(samples.astype('<f4', copy=False).tobytes()).hexdigest()
+        if sr != RATE or len(samples) != LAST-FIRST or digest != self.owner.float_hash:
+            raise RuntimeError('Actual model input differs from fixed window')
+        self.accepted = True
+        self.owner.input = {'sample_rate': sr, 'sample_count': len(samples),
+                            'float32_le_sha256': digest}
+        emit(self.owner.out/'compute-input.json', self.owner.input)
+        self.raw.accept_waveform(sr, samples)
+
+    @property
+    def result(self):
+        return self.raw.result
+
+
+class Recognizer:
+    def __init__(self, raw, out, float_hash):
+        self.raw, self.out, self.float_hash = raw, out, float_hash
+        self.streams, self.calls = 0, 0
+
+    def create_stream(self):
+        if self.streams:
+            raise RuntimeError('Second stream forbidden')
+        self.streams += 1
+        return Stream(self.raw.create_stream(), self)
+
+    def decode_stream(self, stream):
+        if self.calls or not stream.accepted:
+            raise RuntimeError('Unexpected decode')
+        self.calls += 1
+        wall, cpu = time.perf_counter(), time.process_time()
+        self.raw.decode_stream(stream.raw)
+        native = stream.result
+        # Persist all native output and actual input identity BEFORE adapter assertions.
+        emit(self.out/'native.json', {'text': str(native.text),
+            'tokens': list(native.tokens), 'timestamps': list(native.timestamps),
+            'lang': str(native.lang), 'input': self.input,
+            'decode_wall_seconds': time.perf_counter()-wall,
+            'decode_cpu_seconds': time.process_time()-cpu})
+
+
+def model_worker(mode, out):
+    configure()
+    pinned = pins()
+    turns, audit = projection_turns()
+    temp = out/'tmp'
+    temp.mkdir()
+    tempfile.tempdir = str(temp)
+    import numpy as np
+    import soundfile as sf
+    from opencc import OpenCC
+    from audio_backend.inference.analyzer import AudioAnalyzer, align_tokens
+    from audio_backend.boundaries import lexical_core
+    import audio_backend.inference.analyzer as source
+    assert Path(source.__file__).resolve() == SITE/'audio_backend/inference/analyzer.py'
+    converter = OpenCC('t2s')
+    emit(out/'manifest.json', {'pins': pinned, 'mode': mode,
+         'projection': 'retained original cores, saved registry map, one20s alignment',
+         'native_turn_reconstruction': audit, 'projection_turns': turns})
+    if mode == 'check':
+        model_free(out, turns, audit, align_tokens, lexical_core, converter)
+        return
+    checks = json.loads((ROOT/'checks/checks.json').read_text())
+    checked = json.loads((ROOT/'checks/manifest.json').read_text())
+    assert checks['status'] == 'passed' and checked['pins'] == pinned
+    with wave.open(str(WAV), 'rb') as src:
+        assert (src.getnchannels(), src.getsampwidth(), src.getframerate(),
+                src.getnframes()) == (1, 2, RATE, 336000)
+        src.setpos(FIRST)
+        pcm = src.readframes(LAST-FIRST)
+    assert len(pcm) == 640000
+    if usage()+len(pcm)+44 > CAP-RESERVE:
+        raise RuntimeError('Input WAV exceeds fresh-directory cap')
+    path = temp/'common20.wav'
+    with wave.open(str(path), 'wb') as dst:
+        dst.setnchannels(1); dst.setsampwidth(2); dst.setframerate(RATE)
+        dst.writeframes(pcm)
+    samples, sr = sf.read(path, dtype='float32')
+    assert sr == RATE and len(samples) == 320000 and np.isfinite(samples).all()
+    float_hash = hashlib.sha256(samples.astype('<f4', copy=False).tobytes()).hexdigest()
+    support = json.loads((OLD/'moss-result.json').read_text())['cell_binding']['support']
+    assert (support['start_frame'], support['end_frame'], support['sample_rate']) == (FIRST, LAST, RATE)
+    assert support['float32le_sha256'] == float_hash
+    assert support['pcm16le_sha256'] == hashlib.sha256(pcm).hexdigest()
+    emit(out/'input.json', {'source_sha256': sha(WAV), 'source_frames': [FIRST, LAST],
+        'source_seconds': [511., 531.], 'pcm16_sha256': hashlib.sha256(pcm).hexdigest(),
+        'float32_le_sha256': float_hash, 'wav_sha256': sha(path), 'sample_rate': sr,
+        'sample_count': len(samples)})
+    import sherpa_onnx as sherpa
+    descriptor = sherpa.OfflineRecognizer.__dict__['from_sense_voice']
+    original = sherpa.OfflineRecognizer.from_sense_voice
+    wrappers = []
+    expected = {'model': str(MODELS/'sensevoice/model.int8.onnx'),
+                'tokens': str(MODELS/'sensevoice/tokens.txt'), 'num_threads': 2,
+                'language': 'auto', 'use_itn': True, 'provider': 'cpu'}
+    def factory(cls, *args, **kwargs):
+        if wrappers or args or kwargs != expected:
+            raise RuntimeError('Unexpected initialization or SenseVoice options')
+        wall, cpu = time.perf_counter(), time.process_time()
+        raw = original(**kwargs)
+        wrapped = Recognizer(raw, out, float_hash)
+        wrappers.append(wrapped)
+        emit(out/'initialization.json', {'kwargs': kwargs,
+             'wall_seconds': time.perf_counter()-wall,
+             'cpu_seconds': time.process_time()-cpu})
+        return wrapped
+    sherpa.OfflineRecognizer.from_sense_voice = classmethod(factory)
+    analyzer = None
+    try:
+        analyzer = AudioAnalyzer({'model_dir': str(MODELS), 'asr_backend': 'sensevoice',
+            'device': 'cpu', 'cpu_threads': 2, 'language': 'auto',
+            'diarization_backend': 'nemotron', 'chinese_script': 'simplified'})
+        adapter = analyzer._transcribe_sensevoice(path)
+        emit(out/'adapter.json', adapter)
+        assert len(wrappers) == 1 and wrappers[0].calls == wrappers[0].streams == 1
+        projected = project(adapter, turns, align_tokens, lexical_core, converter)
+        emit(out/'projection.json', projected)
+    finally:
+        sherpa.OfflineRecognizer.from_sense_voice = descriptor
+        if analyzer is not None:
+            analyzer.close()
+
+
+def score_worker(out):
+    configure()
+    pins()
+    import importlib.metadata
+    from meeteval.io import SegLST
+    from meeteval.wer.wer.cp import cp_word_error_rate
+    from meeteval.wer.wer.di_cp import greedy_di_cp_word_error_rate
+    assert importlib.metadata.version('meeteval') == '0.4.3'
+    spec = importlib.util.spec_from_file_location('frozen_normalization', EVAL/'normalization.py')
+    normalizer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(normalizer)
+    saved = json.loads((EVAL/'output/SCORE_INPUTS_PRIVATE.json').read_text())
+    prior_cp = json.loads((EVAL/'output/SCORES.json').read_text())['results']
+    prior_di = json.loads((EVAL/'output/DI_SCORES.json').read_text())['results']
+    # Use already frozen midpoint baseline inputs, without rescoring or regrouping.
+    cases = [c for c in saved if c['window'] == 'common' and c['policy'] == 'midpoint']
+    assert {c['system'] for c in cases} == {'primary', 'moss'}
+    reference = cases[0]['reference_streams']
+    assert reference == cases[1]['reference_streams']
+    projected = json.loads((out/'projection.json').read_text())
+    segments = []
+    for i, s in enumerate(projected['segments']):
+        start, end = s['start']+511., s['end']+511.
+        segments.append({'source_index': i, 'stream': s['speaker_local_id'] or '__UNKNOWN__',
+            'start_time': start, 'end_time': end, 'midpoint': (start+end)/2,
+            'text': s['text'], 'tokens': normalizer.normalize_words(s['text'])})
+    selected = sorted([s for s in segments if 511. <= s['midpoint'] < 531.],
+                      key=lambda s: (s['start_time'], s['source_index']))
+    hyp = collections.defaultdict(list)
+    for s in selected:
+        hyp[s['stream']].extend(s['tokens'])
+    hyp = {s: ts for s, ts in hyp.items() if ts}
+    case = {'window': 'common', 'policy': 'midpoint', 'system': 'sensevoice_full20',
+            'reference_streams': reference, 'selected_segments': selected,
+            'hypothesis_streams': hyp}
+    emit(out/'score-input.json', case)
+    cp = cp_word_error_rate(reference, hyp)
+    ref = SegLST([{'speaker': speaker, 'words': ' '.join(tokens), 'segment_index': i}
+                  for i, (speaker, tokens) in enumerate(reference.items())])
+    hseg = SegLST([{'speaker': s['stream'], 'words': ' '.join(s['tokens']),
+                   'segment_index': i} for i, s in enumerate(selected)])
+    di = greedy_di_cp_word_error_rate(ref, hseg, reference_sort=False, hypothesis_sort=False)
+    results = [{'system': 'sensevoice_full20', 'cpwer': dataclasses.asdict(cp),
+                'greedy_di_cpwer': dataclasses.asdict(di),
+                'hypothesis_tokens': sum(map(len, hyp.values())),
+                'hypothesis_tokens_by_stream': {s: len(ts) for s, ts in hyp.items()}}]
+    for system in ('primary', 'moss'):
+        c = next(c for c in prior_cp if c['window'] == 'common' and
+                 c['hypothesis_edge_policy'] == 'midpoint' and c['system'] == system)
+        d = next(d for d in prior_di if d['window'] == 'common' and
+                 d['hypothesis_edge_policy'] == 'midpoint' and d['system'] == system)
+        results.append({'system': system, 'cpwer': c['metric_result'],
+            'greedy_di_cpwer': d['metric_result'],
+            'hypothesis_tokens': c['hypothesis_tokens'],
+            'hypothesis_tokens_by_stream': c['hypothesis_tokens_by_stream'],
+            'baseline_reused_without_rescoring': True})
+    emit(out/'scores.json', {'meeteval_version': '0.4.3', 'window': [511., 531.],
+         'results': results, 'protocol_sha256': sha(ROOT/'PROTOCOL.json')})
+
+
+def supervise(mode):
+    configure()
+    import psutil
+    out = ROOT/('checks' if mode == 'check' else 'output')
+    out.mkdir(exist_ok=False)
+    started = time.monotonic()
+    peak, samples, reason, cleanup_error = 0, 0, None, None
+    processes, owned = [], {}
+    schedule = [(RUNTIME/'bin/python3.12', '--model-worker', mode)]
+    if mode == 'run':
+        schedule.append((EVAL/'eval/venv/bin/python', '--score-worker', 'run'))
+    try:
+        for executable, entry, arg in schedule:
+            if time.monotonic()-started >= WORK:
+                raise RuntimeError('240 s shared work deadline')
+            with (out/(entry[2:]+'.log')).open('xb') as log:
+                p = subprocess.Popen([str(executable), '-I', '-B', str(Path(__file__).resolve()),
+                    entry, arg], cwd=str(ROOT), env=dict(os.environ), stdout=log,
+                    stderr=subprocess.STDOUT, start_new_session=True)
+                processes.append(p)
+                child = psutil.Process(p.pid)
+                identity = child.create_time()
+                owned[p.pid] = identity
+                while p.poll() is None:
+                    members = [psutil.Process()]
+                    try:
+                        if child.create_time() != identity:
+                            raise RuntimeError('Worker identity changed')
+                        members += [child]+child.children(recursive=True)
+                    except psutil.NoSuchProcess:
+                        p.wait()
+                        break
+                    rss = 0
+                    for proc in members:
+                        try:
+                            if proc.pid != os.getpid():
+                                owned[proc.pid] = proc.create_time()
+                            rss += proc.memory_info().rss
+                        except psutil.NoSuchProcess:
+                            pass
+                    peak, samples = max(peak, rss), samples+1
+                    elapsed, disk = time.monotonic()-started, usage()
+                    emit(out/'resources.jsonl', {'elapsed_seconds': elapsed,
+                        'sum_rss_bytes': rss, 'fresh_logical_bytes': disk}, append=True)
+                    if rss > RSS_CAP:
+                        raise RuntimeError('Sampled combined RSS limit')
+                    if elapsed >= WORK:
+                        raise RuntimeError('240 s shared work deadline')
+                    if disk > CAP-RESERVE or log.tell() > 524288:
+                        raise RuntimeError('Fresh disk or log cap')
+                    time.sleep(.1)
+                if p.wait() != 0:
+                    raise RuntimeError('Worker failed: '+entry)
+    except BaseException as exc:
+        reason = type(exc).__name__+': '+str(exc)
+    finally:
+        deadline = min(started+WORK+CLEANUP, time.monotonic()+CLEANUP)
+        try:
+            # Signals only reach our process groups or positively matched descendants.
+            for p in processes:
+                if p.poll() is None:
+                    os.killpg(p.pid, signal.SIGTERM)
+            live = []
+            for pid, identity in owned.items():
+                try:
+                    proc = psutil.Process(pid)
+                    if proc.create_time() == identity and proc.status() != psutil.STATUS_ZOMBIE:
+                        proc.terminate(); live.append(proc)
+                except psutil.NoSuchProcess:
+                    pass
+            _, live = psutil.wait_procs(live, timeout=max(0., min(10., deadline-time.monotonic())))
+            for proc in live:
+                if proc.create_time() == owned[proc.pid]:
+                    proc.kill()
+            for p in processes:
+                p.wait(timeout=max(.01, deadline-time.monotonic()))
+            _, live = psutil.wait_procs(live, timeout=max(0., deadline-time.monotonic()))
+            if live:
+                raise RuntimeError('Owned descendants not gone')
+            if (out/'tmp').exists():
+                shutil.rmtree(out/'tmp')
+        except BaseException as exc:
+            cleanup_error = type(exc).__name__+': '+str(exc)
+        emit(out/'supervisor.json', {'returncodes': [p.returncode for p in processes],
+            'termination_reason': reason, 'cleanup_error': cleanup_error,
+            'elapsed_seconds': time.monotonic()-started,
+            'peak_sampled_combined_rss_bytes': peak, 'samples': samples,
+            'all_children_reaped': all(p.returncode is not None for p in processes),
+            'cpu_affinity': sorted(os.sched_getaffinity(0)), 'nice': os.getpriority(os.PRIO_PROCESS, 0),
+            'address_space_limit': AS_CAP, 'owned_pids': sorted(owned)}, final=True)
+    return int(bool(reason or cleanup_error))
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) == 2 and args[0] == '--model-worker' and args[1] in ('check', 'run'):
+        model_worker(args[1], ROOT/('checks' if args[1] == 'check' else 'output'))
+        return 0
+    if args == ['--score-worker', 'run']:
+        score_worker(ROOT/'output')
+        return 0
+    if len(args) == 1 and args[0] in ('check', 'run'):
+        return supervise(args[0])
+    raise SystemExit('Choose check or run only after exact source review')
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

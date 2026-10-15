@@ -1,0 +1,49 @@
+import json,hashlib,math,collections,dataclasses,datetime
+from pathlib import Path
+from normalization import normalize_words
+from meeteval.wer.wer.cp import cp_word_error_rate
+B=Path(__file__).parent; S=Path('__REQUIRED_SAVED_AMI_HYPOTHESES_DIRECTORY__')
+assert json.loads((B/'output'/'BUILD_RESULT.json').read_text())['documented_smoke_examples_passed']
+refresult=json.loads((B/'output'/'REFERENCE_RESULT.json').read_text())
+assert hashlib.sha256((B/'normalization.py').read_bytes()).hexdigest()==refresult['normalizer_sha256']
+assert hashlib.sha256((B/'output'/'SCORING_PROTOCOL.json').read_bytes()).hexdigest()==refresult['scoring_protocol_sha256']
+refs=json.loads((B/'output'/'REFERENCE_WINDOWS.json').read_text())
+source_paths={'primary':S/'segments-00.json','moss':S/'moss-result.json'}
+input_mapping={'frozen_before_score_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'primary_text_field':'segments[].text (canonical saved product output; not raw_text)','primary_times':'crop-relative segment start/end plus510.5 seconds','moss_text_field':'diagnostic_phrases[].raw_text (parsed model phrase lexical text)','moss_times':'support-relative model times plus510.5+cell_binding.support.start_frame/sample_rate','moss_stream':'speaker_local_id is an unverified output-stream tag, not verified speaker identity','null_stream':'__UNKNOWN__','no_text_deduplication':True}
+(B/'output'/'INPUT_MAPPING.json').write_text(json.dumps(input_mapping,indent=2)+'\n')
+loaded={k:json.loads(p.read_text()) for k,p in source_paths.items()}
+support=loaded['moss']['cell_binding']['support'];assert support['sample_rate']==16000 and support['start_frame']==8000 and support['end_frame']==328000
+moss_offset=510.5+support['start_frame']/support['sample_rate'];assert moss_offset==511.
+hyps={}
+for name in ['primary','moss']:
+ segs=loaded[name]['segments'] if name=='primary' else loaded[name]['diagnostic_phrases']
+ out=[]
+ for i,s in enumerate(segs):
+  offset=510.5 if name=='primary' else moss_offset
+  start=float(s['start'])+offset;end=float(s['end'])+offset
+  assert math.isfinite(start) and math.isfinite(end) and end>=start
+  raw=s['text'] if name=='primary' else s['raw_text']
+  stream=s.get('speaker_id') if name=='primary' else s.get('speaker_local_id')
+  stream=stream if stream is not None else '__UNKNOWN__'
+  out.append({'source_index':i,'source_id':s.get('id',i),'stream':stream,'start_time':start,'end_time':end,'midpoint':(start+end)/2,'text':raw,'tokens':normalize_words(raw),'timestamp_quality':s.get('timestamp_kind',s.get('timing_scope'))})
+ hyps[name]=out
+results=[]; selection_audit=[]
+for window,r in refs.items():
+ lo,hi=r['source_seconds_half_open'];ref=collections.defaultdict(list)
+ for w in r['words']:ref[w['speaker']].extend(w['tokens'])
+ for policy in ['midpoint','any_overlap','fully_contained']:
+  select={'midpoint':lambda s:lo<=s['midpoint']<hi,'any_overlap':lambda s:s['end_time']>lo and s['start_time']<hi,'fully_contained':lambda s:s['start_time']>=lo and s['end_time']<=hi}[policy]
+  for name,segments in hyps.items():
+   selected=sorted([s for s in segments if select(s)],key=lambda s:(s['start_time'],s['source_index']))
+   hyp=collections.defaultdict(list)
+   for s in selected:hyp[s['stream']].extend(s['tokens'])
+   # Empty token streams are omitted; all nonempty null-ID content remains __UNKNOWN__.
+   hyp={k:v for k,v in hyp.items() if v}
+   er=cp_word_error_rate(dict(ref),hyp)
+   rec={'window':window,'source_seconds_half_open':[lo,hi],'hypothesis_edge_policy':policy,'system':name,'reference_tokens':sum(map(len,ref.values())),'hypothesis_tokens':sum(map(len,hyp.values())),'reference_tokens_by_speaker':{k:len(v) for k,v in ref.items()},'hypothesis_tokens_by_stream':{k:len(v) for k,v in hyp.items()},'unknown_stream_tokens':len(hyp.get('__UNKNOWN__',[])),'selected_segment_count':len(selected),'excluded_segment_count':len(segments)-len(selected),'selected_segments_crossing_window_edges':[s['source_id'] for s in selected if s['start_time']<lo or s['end_time']>hi],'cpwer':float(er.error_rate),'metric_result':dataclasses.asdict(er)}
+   results.append(rec)
+   selection_audit.append({'window':window,'policy':policy,'system':name,'selected_segments':selected,'reference_streams':dict(ref),'hypothesis_streams':hyp})
+report={'scorer':'meeteval.wer.wer.cp.cp_word_error_rate','meeteval_version':'0.4.3','input_files':{k:{'path':str(p),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for k,p in source_paths.items()},'reference_windows_sha256':hashlib.sha256((B/'output'/'REFERENCE_WINDOWS.json').read_bytes()).hexdigest(),'protocol_sha256':refresult['scoring_protocol_sha256'],'normalizer_sha256':refresult['normalizer_sha256'],'input_mapping_sha256':hashlib.sha256((B/'output'/'INPUT_MAPPING.json').read_bytes()).hexdigest(),'moss_flags':{k:loaded['moss'].get(k) for k in ['complete_content','truncated','aborted','eos','timestamp_quality','speaker_identity_valid']},'caveats':['Segment/model midpoint edge policy is boundary-ambiguous; no word alignment or proportional text trimming was invented.','MOSS only heard [511,531); full21s is unequal-coverage sensitivity.','MOSS local speaker tags are unverified output streams; cpWER permutation does not establish identity.','MOSS complete_content=false, eos=null, truncated=false: completion is not certified; truncation is not asserted.','Unknown primary speaker IDs remain one explicit nonempty __UNKNOWN__ stream.','English word scoring; Unicode non-English tokens remain error-bearing tokens.','Single-fixture diagnostic, no timestamp-accuracy or generalization claim.'],'results':results}
+(B/'output'/'SCORES.json').write_text(json.dumps(report,indent=2,default=str)+'\n')
+(B/'output'/'SCORE_INPUTS_PRIVATE.json').write_text(json.dumps(selection_audit,indent=2,ensure_ascii=False)+'\n')
+print(json.dumps(report,indent=2,default=str),flush=True)

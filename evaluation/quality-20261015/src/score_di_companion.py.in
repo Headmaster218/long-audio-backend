@@ -1,0 +1,103 @@
+"""Input adapter for official MeetEval; no metric algorithm is implemented here."""
+import collections
+import dataclasses
+import hashlib
+import json
+from pathlib import Path
+
+from meeteval.io import SegLST
+from meeteval.wer.wer.di_cp import greedy_di_cp_word_error_rate
+
+B = Path(__file__).parent
+O = B / 'output'
+sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+protocol_path = O / 'DI_SCORING_PROTOCOL.json'
+assert sha(protocol_path) == '__REQUIRED_DI_SCORING_PROTOCOL_SHA256__'
+protocol = json.loads(protocol_path.read_text())
+for filename, expected in protocol['pins'].items():
+    assert sha(O / filename) == expected, filename
+assert sha(B / 'normalization.py') == protocol['normalizer_sha256']
+inputs = json.loads((O / 'SCORE_INPUTS_PRIVATE.json').read_text())
+cp_results = json.loads((O / 'SCORES.json').read_text())['results']
+assert len(inputs) == len(cp_results) == 12
+
+# The official documented diarization-error example is a zero-error smoke test.
+smoke_ref = SegLST([
+    {'segment_index': i, 'speaker': s, 'words': w}
+    for i, (s, w) in enumerate([('A', 'a'), ('A', 'b'), ('B', 'c'), ('B', 'd')])
+])
+smoke_hyp = SegLST([
+    {'segment_index': i, 'speaker': s, 'words': w}
+    for i, (s, w) in enumerate([('A', 'a'), ('B', 'b'), ('A', 'c'), ('B', 'd')])
+])
+smoke = greedy_di_cp_word_error_rate(
+    smoke_ref, smoke_hyp, reference_sort=False, hypothesis_sort=False)
+assert smoke.errors == 0 and smoke.length == 4
+
+results = []
+for case, cp in zip(inputs, cp_results):
+    assert (case['window'], case['policy'], case['system']) == (
+        cp['window'], cp['hypothesis_edge_policy'], cp['system'])
+    segments = case['selected_segments']
+    assert segments == sorted(segments, key=lambda s: (s['start_time'], s['source_index']))
+    ref = SegLST([
+        {'speaker': speaker, 'words': ' '.join(tokens), 'segment_index': i}
+        for i, (speaker, tokens) in enumerate(case['reference_streams'].items())
+    ])
+    hyp = SegLST([
+        {'speaker': s['stream'], 'words': ' '.join(s['tokens']), 'segment_index': i}
+        for i, s in enumerate(segments)
+    ])
+    assert sum(len(s['words'].split()) for s in ref) == cp['reference_tokens']
+    assert sum(len(s['words'].split()) for s in hyp) == cp['hypothesis_tokens']
+    er = greedy_di_cp_word_error_rate(
+        ref, hyp, reference_sort=False, hypothesis_sort=False)
+    assert er.length == cp['reference_tokens']
+    assert er.errors == er.insertions + er.deletions + er.substitutions
+    assert er.length + er.insertions - er.deletions == cp['hypothesis_tokens']
+    assert len(er.assignment) == len(segments)
+    assignment_audit = [
+        {'source_index': s['source_index'], 'source_id': s['source_id'],
+         'original_stream': s['stream'], 'normalized_tokens': len(s['tokens']),
+         'metric_assigned_reference_stream': a}
+        for s, a in zip(segments, er.assignment)
+    ]
+    unknown_assignments = collections.Counter()
+    for a in assignment_audit:
+        if a['original_stream'] == '__UNKNOWN__':
+            unknown_assignments[a['metric_assigned_reference_stream']] += a['normalized_tokens']
+    results.append({
+        'window': case['window'], 'source_seconds_half_open': cp['source_seconds_half_open'],
+        'hypothesis_edge_policy': case['policy'], 'system': case['system'],
+        'reference_tokens': cp['reference_tokens'], 'hypothesis_tokens': cp['hypothesis_tokens'],
+        'reference_tokens_by_speaker': cp['reference_tokens_by_speaker'],
+        'original_hypothesis_tokens_by_stream': cp['hypothesis_tokens_by_stream'],
+        'unknown_stream_tokens': cp['unknown_stream_tokens'],
+        'indivisible_hypothesis_segments': len(segments),
+        'greedy_di_cpwer': float(er.error_rate), 'metric_result': dataclasses.asdict(er),
+        'cpwer_for_same_saved_input': cp['cpwer'],
+        'cpwer_minus_greedy_di_cpwer_percentage_points': (cp['cpwer'] - float(er.error_rate)) * 100,
+        'cpwer_minus_greedy_di_cpwer_errors': cp['metric_result']['errors'] - er.errors,
+        'unknown_tokens_by_metric_assigned_reference_stream': dict(unknown_assignments),
+        'segment_assignment_audit': assignment_audit,
+    })
+
+report = {
+    'scorer': protocol['metric'], 'meeteval_version': '0.4.3',
+    'protocol_sha256': sha(protocol_path), 'score_script_sha256': sha(Path(__file__)),
+    'input_pins': protocol['pins'], 'documented_smoke_example': dataclasses.asdict(smoke),
+    'interpretation': protocol['interpretation'], 'results': results,
+}
+out = O / 'DI_SCORES.json'
+assert not out.exists()
+out.write_text(json.dumps(report, indent=2) + '\n')
+for r in results:
+    m = r['metric_result']
+    print(json.dumps({k: r[k] for k in [
+        'window', 'hypothesis_edge_policy', 'system', 'reference_tokens', 'hypothesis_tokens',
+        'unknown_stream_tokens', 'indivisible_hypothesis_segments', 'greedy_di_cpwer',
+        'cpwer_minus_greedy_di_cpwer_percentage_points', 'cpwer_minus_greedy_di_cpwer_errors',
+        'unknown_tokens_by_metric_assigned_reference_stream'
+    ]} | {'errors': m['errors'], 'substitutions': m['substitutions'],
+          'deletions': m['deletions'], 'insertions': m['insertions']}))
+print(json.dumps({'output': str(out), 'bytes': out.stat().st_size, 'sha256': sha(out)}))

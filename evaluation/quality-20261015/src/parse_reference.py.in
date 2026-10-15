@@ -1,0 +1,48 @@
+import zipfile,xml.etree.ElementTree as ET,json,hashlib,math,collections
+from pathlib import Path
+from normalization import normalize_words
+B=Path(__file__).parent
+wanted=[f'words/ES2002a.{s}.words.xml' for s in 'ABCD']+['corpusResources/meetings.xml']
+archive=B/'downloads'/'ami_public_manual_1.6.2.zip'; extracted=[]
+with zipfile.ZipFile(archive) as z:
+ names=z.namelist()
+ for name in ['LICENCE.txt','LICENSE.txt','00README_MANUAL.txt']:
+  if name in names:wanted.append(name)
+ for name in wanted:
+  i=z.getinfo(name)
+  if i.file_size>2*1024**2:raise RuntimeError('member exceeds selective extraction bound')
+  data=z.read(name);p=B/'reference'/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+  extracted.append({'member':name,'bytes':len(data),'compressed_bytes':i.compress_size,'sha256':hashlib.sha256(data).hexdigest(),'zip_crc32':f'{i.CRC:08x}'})
+map_={}
+for m in ET.parse(B/'reference'/'corpusResources'/'meetings.xml').getroot():
+ if m.attrib.get('observation')=='ES2002a':
+  for s in m:
+   if 'nxt_agent' in s.attrib:map_[s.attrib['nxt_agent']]={k:v for k,v in s.attrib.items()}
+assert {k:v['global_name'] for k,v in map_.items()}==json.loads('__REQUIRED_AMI_REFERENCE_SPEAKER_MAP_JSON__'),map_
+words=[]; audit=collections.Counter(); excluded=[]
+for speaker in 'ABCD':
+ for e in ET.parse(B/'reference'/'words'/f'ES2002a.{speaker}.words.xml').getroot():
+  tag=e.tag.split('}')[-1]; audit['element_'+tag]+=1
+  wid=e.attrib.get('{http://nite.sourceforge.net/}id',e.attrib.get('id'))
+  text=''.join(e.itertext());tokens=normalize_words(text)
+  if tag!='w':continue
+  if not tokens:audit['punctuation_or_nonlexical_w']+=1;continue
+  try:start=float(e.attrib['starttime']);end=float(e.attrib['endtime'])
+  except (KeyError,ValueError):excluded.append({'id':wid,'reason':'missing_or_invalid_time'});continue
+  if not(math.isfinite(start) and math.isfinite(end)) or end<start:
+   excluded.append({'id':wid,'reason':'nonfinite_or_negative_duration'});continue
+  if start==end:audit['zero_duration_lexical_w']+=1
+  words.append({'word_id':wid,'speaker':map_[speaker]['global_name'],'local_speaker':speaker,'start_time':start,'end_time':end,'text':text,'tokens':tokens,'attributes':e.attrib,'midpoint':(start+end)/2})
+windows={};summary={}
+for label,(lo,hi) in {'common':(511.,531.),'full_crop_sensitivity':(510.5,531.5)}.items():
+ selected=[{**w,'crosses_window_start':w['start_time']<lo,'crosses_window_end':w['end_time']>hi,'crosses_seam':w['start_time']<521.<w['end_time']} for w in words if lo<=w['midpoint']<hi]
+ selected.sort(key=lambda w:(w['start_time'],w['end_time'],w['word_id']))
+ windows[label]={'source_seconds_half_open':[lo,hi],'words':selected}
+ counts=collections.Counter()
+ for w in selected:counts[w['speaker']]+=len(w['tokens'])
+ boundary=[{k:w[k] for k in ['word_id','speaker','start_time','end_time','crosses_window_start','crosses_window_end','crosses_seam']} for w in selected if any(w[k] for k in ('crosses_window_start','crosses_window_end','crosses_seam'))]
+ summary[label]={'source_seconds_half_open':[lo,hi],'lexical_xml_elements':len(selected),'normalized_word_tokens':sum(counts.values()),'normalized_tokens_per_speaker':dict(counts),'boundary_and_seam_words':boundary}
+report={'archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'members':extracted,'speaker_mapping':map_,'global_xml_audit':dict(audit),'excluded_time_records':excluded,'windows':summary,'scoring_protocol_sha256':hashlib.sha256((B/'output'/'SCORING_PROTOCOL.json').read_bytes()).hexdigest(),'normalizer_sha256':hashlib.sha256((B/'normalization.py').read_bytes()).hexdigest(),'official_sources':['https://groups.inf.ed.ac.uk/ami/download/','https://groups.inf.ed.ac.uk/ami/corpus/transcription.shtml','https://groups.inf.ed.ac.uk/ami/corpus/signals.shtml']}
+(B/'output'/'REFERENCE_WINDOWS.json').write_text(json.dumps(windows,indent=2,ensure_ascii=False)+'\n')
+(B/'output'/'REFERENCE_RESULT.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps(report,indent=2),flush=True)

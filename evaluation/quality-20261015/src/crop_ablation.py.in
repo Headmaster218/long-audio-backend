@@ -1,0 +1,557 @@
+#!/usr/bin/env python3
+"""Fixed, local, 28-call crop ablation; review before check or run."""
+from __future__ import annotations
+import hashlib
+import json
+import os
+from pathlib import Path
+import resource
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import wave
+
+ROOT = Path(__file__).resolve().parent
+BASE = ROOT.parent
+RUNTIME = BASE / '__REQUIRED_RUNTIME_RELATIVE_PATH__'
+SITE = RUNTIME / 'lib/python3.12/site-packages'
+ASSETS = BASE / '__REQUIRED_ASSETS_RELATIVE_PATH__'
+OLD = BASE / '__REQUIRED_HISTORICAL_OUTPUT_RELATIVE_PATH__'
+WAV = ASSETS / '__REQUIRED_OFFICIAL_CHINESE_WAV_RELATIVE_PATH__'
+RATE = 16000
+N = 1127530
+EXPECTED = [3, 2, 5, 3, 3, 3, 2]
+READS = [(0, 200000), (136000, 368000), (304000, 536000),
+         (472000, 704000), (640000, 872000), (808000, 1040000),
+         (976000, N)]
+CAP = 4 * 1024**2
+RESERVE = 65536
+RSS_CAP = 1024**3
+AS_CAP = 2 * 1024**3
+WORK_SECONDS = 240
+CLEANUP_SECONDS = 60
+
+
+def encode(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                      separators=(',', ':'), allow_nan=False).encode('utf-8')
+
+
+def sha(path):
+    with Path(path).open('rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def usage():
+    total = 0
+    for p in ROOT.rglob('*'):
+        if p.is_symlink():
+            raise RuntimeError('Symlink in owned experiment directory')
+        if p.is_file():
+            total += p.stat().st_size
+    return total
+
+
+def emit(path, value, *, append=False, final=False):
+    payload = encode(value) + b'\n'
+    old = path.stat().st_size if path.exists() and not append else 0
+    if usage() - old + len(payload) > CAP - (0 if final else RESERVE):
+        raise RuntimeError('Inclusive 4 MiB artifact budget reached')
+    with path.open('ab' if append else 'wb') as f:
+        f.write(payload)
+        f.flush()
+
+
+def textfile(path, value):
+    payload = value.encode('utf-8')
+    if usage() + len(payload) > CAP - RESERVE:
+        raise RuntimeError('Transcript exceeds inclusive artifact budget')
+    path.write_bytes(payload)
+
+
+def verify_pins():
+    rows = []
+    for line in (ROOT / 'sources.sha256').read_text().splitlines():
+        digest, filename = line.split('  ', 1)
+        path = BASE / filename
+        if sha(path) != digest:
+            raise RuntimeError('Pinned file changed: ' + filename)
+        rows.append({'path': filename, 'sha256': digest})
+    return rows
+
+
+def plan():
+    chunks = json.loads((OLD / 'chunks-terminal.json').read_text())
+    chunks.sort(key=lambda x: x['timeline_start'])
+    if len(chunks) != 7:
+        raise RuntimeError('Expected seven retained windows')
+    rows = []
+    for i, (chunk, read) in enumerate(zip(chunks, READS)):
+        lo = round(chunk['timeline_start'] * RATE)
+        hi = lo + round(chunk['duration'] * RATE)
+        m = chunk['metadata']
+        if (read != (max(0, lo - 32000), min(N, hi + 32000)) or
+                round(m['duration_seconds'] * RATE) != read[1] - read[0] or
+                m['core_cut']['actual'] != chunk['duration'] or
+                m['core_cut']['reason'] != 'fixed_or_final' or
+                m['asr_turn_batches'] != EXPECTED[i] or
+                m['non_speech_gate_triggered'] or
+                m['chinese_script'] != 'simplified'):
+            raise RuntimeError('Retained window differs from reviewed plan')
+        turns = m['diarization_turns']
+        crops = crop_plan(turns, read[1] - read[0])
+        if len(crops) != EXPECTED[i]:
+            raise RuntimeError('Unexpected native crop count')
+        rows.append({'index': i, 'read': list(read), 'core': [lo, hi],
+                     'turns': turns, 'crop_frames': crops,
+                     'chunk_id': chunk['id']})
+    if rows[0]['core'][0] != 0 or rows[-1]['core'][1] != N:
+        raise RuntimeError('Incomplete owned timeline')
+    if any(a['core'][1] != b['core'][0] for a, b in zip(rows, rows[1:])):
+        raise RuntimeError('Core gap or overlap')
+    return rows
+
+
+def crop_plan(turns, frames):
+    """Audit-only copy of production crop arithmetic; never drives inference."""
+    regions = []
+    for turn in sorted(turns, key=lambda t: (t['start'], t['end'])):
+        if regions and turn['start'] < regions[-1]['end'] - .15:
+            regions[-1]['end'] = max(regions[-1]['end'], turn['end'])
+            if regions[-1]['speaker_local_id'] != turn['speaker_local_id']:
+                regions[-1]['speaker_local_id'] = None
+        elif (regions and regions[-1]['speaker_local_id'] == turn['speaker_local_id']
+              and turn['start'] <= regions[-1]['end'] + .35):
+            regions[-1]['end'] = max(regions[-1]['end'], turn['end'])
+        else:
+            regions.append(dict(turn))
+    out = []
+    duration = frames / RATE
+    for i, r in enumerate(regions):
+        left = (regions[i-1]['end'] + r['start']) / 2 if i else 0.
+        right = ((r['end'] + regions[i+1]['start']) / 2
+                 if i+1 < len(regions) else duration)
+        start = max(0., min(r['start'], left), r['start'] - .35)
+        end = min(duration, max(r['end'], right), r['end'] + .35)
+        if i and regions[i-1]['end'] > r['start']:
+            start = left
+        if i+1 < len(regions) and r['end'] > regions[i+1]['start']:
+            end = right
+        if end > start:
+            out.append([int(start * RATE), int(end * RATE)])
+    return out
+
+
+def coverage(intervals, core):
+    merged = []
+    for lo, hi in sorted(intervals):
+        lo, hi = max(lo, core[0]), min(hi, core[1])
+        if hi <= lo:
+            continue
+        if merged and lo <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], hi)
+        else:
+            merged.append([lo, hi])
+    gaps, cursor = [], core[0]
+    for lo, hi in merged:
+        if lo > cursor:
+            gaps.append([cursor, lo])
+        cursor = hi
+    if cursor < core[1]:
+        gaps.append([cursor, core[1]])
+    return {'decoded_union_frames': merged, 'unsubmitted_frames': gaps,
+            'unsubmitted_frame_count': sum(b-a for a, b in gaps)}
+
+
+def configure():
+    if not {0, 1}.issubset(os.sched_getaffinity(0)):
+        raise RuntimeError('Approved CPU affinity 0-1 is unavailable')
+    os.sched_setaffinity(0, {0, 1})
+    os.setpriority(os.PRIO_PROCESS, 0, 19)
+    resource.setrlimit(resource.RLIMIT_AS, (AS_CAP, AS_CAP))
+    resource.setrlimit(resource.RLIMIT_CPU, (WORK_SECONDS, WORK_SECONDS))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (1024**2, 1024**2))
+    for key in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
+                'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS'):
+        os.environ[key] = '2'
+    os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+
+
+def read_window(row, destination):
+    lo, hi = row['read']
+    with wave.open(str(WAV), 'rb') as src:
+        if (src.getnchannels(), src.getsampwidth(), src.getframerate(),
+                src.getnframes()) != (1, 2, RATE, N):
+            raise RuntimeError('Fixture geometry changed')
+        src.setpos(lo)
+        pcm = src.readframes(hi - lo)
+    if len(pcm) != (hi - lo) * 2:
+        raise RuntimeError('Short fixture read')
+    if usage() + len(pcm) + 44 > CAP - RESERVE:
+        raise RuntimeError('Temporary read exceeds artifact budget')
+    with wave.open(str(destination), 'wb') as dst:
+        dst.setnchannels(1)
+        dst.setsampwidth(2)
+        dst.setframerate(RATE)
+        dst.writeframes(pcm)
+    return hashlib.sha256(pcm).hexdigest()
+
+
+def float_hash(samples):
+    return hashlib.sha256(samples.astype('<f4', copy=False).tobytes()).hexdigest()
+
+
+class Capture:
+    def __init__(self, out):
+        self.out = out
+        self.records = []
+        self.initializations = []
+        self.context = None
+        self.next_index = 0
+
+    def set_context(self, row, arm, samples):
+        self.context = (row, arm, samples)
+        self.selections = row['crop_frames'] if arm == 'A' else [[0, len(samples)]]
+        self.next_index = 0
+
+    def accept(self, sr, samples):
+        row, arm, full = self.context
+        if self.next_index >= len(self.selections) or len(self.records) >= 28:
+            raise RuntimeError('Unplanned SenseVoice call')
+        lo, hi = self.selections[self.next_index]
+        digest = float_hash(samples)
+        if sr != RATE or len(samples) != hi-lo or digest != float_hash(full[lo:hi]):
+            raise RuntimeError('Actual compute input differs from exact planned crop')
+        self.next_index += 1
+        return {'call_id': len(self.records) + 1, 'window': row['index'],
+                'arm': arm, 'frames': [row['read'][0]+lo, row['read'][0]+hi],
+                'read_relative_frames': [lo, hi], 'float32_le_sha256': digest,
+                'sample_count': len(samples), 'sample_rate': sr}
+
+
+class Stream:
+    def __init__(self, raw, capture):
+        self.raw, self.capture = raw, capture
+
+    def accept_waveform(self, sr, samples):
+        self.record = self.capture.accept(sr, samples)
+        started = time.perf_counter()
+        self.raw.accept_waveform(sr, samples)
+        self.record['accept_wall_seconds'] = time.perf_counter() - started
+
+    @property
+    def result(self):
+        return self.raw.result
+
+
+class Recognizer:
+    def __init__(self, raw, capture):
+        self.raw, self.capture = raw, capture
+
+    def create_stream(self):
+        return Stream(self.raw.create_stream(), self.capture)
+
+    def decode_stream(self, stream):
+        record = stream.record
+        emit(self.capture.out / 'calls.jsonl', dict(record, status='started'), append=True)
+        wall, cpu = time.perf_counter(), time.process_time()
+        try:
+            self.raw.decode_stream(stream.raw)
+        except BaseException as exc:
+            emit(self.capture.out / 'calls.jsonl', dict(record, status='failed',
+                 error=type(exc).__name__), append=True)
+            raise
+        record.update(decode_wall_seconds=time.perf_counter()-wall,
+                      decode_cpu_seconds=time.process_time()-cpu)
+        native = stream.result
+        record['native'] = {'text': str(native.text), 'tokens': list(native.tokens),
+                            'timestamps': list(native.timestamps), 'lang': str(native.lang)}
+        record['native_sha256'] = hashlib.sha256(encode(record['native'])).hexdigest()
+        record['status'] = 'completed'
+        self.capture.records.append(record)
+        emit(self.capture.out / 'calls.jsonl', record, append=True)
+
+
+def project(adapter, row, tail, align_tokens, lexical_core, converter):
+    duration = (row['read'][1]-row['read'][0])/RATE
+    segments = align_tokens(adapter['transcription'], row['turns'], {}, duration, 5.)
+    for seg in segments:
+        seg['raw_text'] = seg['text']
+        seg['text'] = converter.convert(seg['text'])
+        seg['confidence'] = None
+        for unit in seg.get('_units', []):
+            unit['raw_text'] = unit['text']
+            unit['text'] = converter.convert(unit['text'])
+            unit['confidence'] = None
+    result = {'segments': segments, 'metadata': {}}
+    lo, hi = [(x-row['read'][0])/RATE for x in row['core']]
+    owned = lexical_core(result, lo, hi, tail, row['read'][0]/RATE)
+    if owned is None:
+        if segments:
+            raise RuntimeError('Unexpected missing lexical ownership units')
+        owned = []
+    for seg in owned:
+        seg['start'] += row['core'][0]/RATE
+        seg['end'] += row['core'][0]/RATE
+    return owned, result['metadata'].get('boundary_tail', [])
+
+
+def model_free_checks(rows, out, AudioAnalyzer, align_tokens, lexical_core, converter):
+    import numpy as np
+    import soundfile as sf
+    for row in rows:
+        samples = np.arange(row['read'][1]-row['read'][0], dtype=np.int32)
+        samples = ((samples % 65536)-32768).astype(np.float32)/32768
+        seen = []
+        probe = object.__new__(AudioAnalyzer)
+        def fake_transcribe(path):
+            audio, sr = sf.read(path, dtype='float32')
+            lo, hi = row['crop_frames'][len(seen)]
+            if sr != RATE or not np.array_equal(audio, samples[lo:hi]):
+                raise RuntimeError('Production crop arithmetic disagrees with plan')
+            seen.append([lo, hi])
+            return {'transcription': [], 'result': {'language': 'zh'}}
+        probe._transcribe = fake_transcribe
+        probe._transcribe_turns(samples, row['turns'])
+        if seen != row['crop_frames']:
+            raise RuntimeError('Crop inventory mismatch')
+    # Model-free capture and separate-tail checks.
+    sample = np.arange(16, dtype=np.float32)/32768
+    row = {'index': 0, 'read': [0, 16], 'crop_frames': [[0, 16]]}
+    cap = Capture(out)
+    cap.set_context(row, 'B', sample)
+    assert cap.accept(RATE, sample)['sample_count'] == 16
+    cap.set_context(row, 'B', sample)
+    try:
+        cap.accept(RATE, sample+1)
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError('Altered compute input accepted')
+    token = {'id': 0, 'text': '甲', 'offsets': {'from': 100, 'to': 200}, '_ctc_anchor': True}
+    small = {'read': [0, 16000], 'core': [0, 16000], 'turns': []}
+    tails = {'A': [], 'B': []}
+    _, tails['A'] = project({'transcription': [{'tokens': [token]}]}, small,
+                            tails['A'], align_tokens, lexical_core, converter)
+    assert tails['B'] == [] and tails['A']
+    assert coverage([[0, 2], [1, 4]], [0, 5])['unsubmitted_frames'] == [[4, 5]]
+    emit(out/'checks.json', {'status': 'passed', 'model_calls': 0,
+         'expected_real_calls': 28,
+         'checks': ['seven exact reads/cores', '21 production crops',
+                    'capture input hash', 'separate tails', 'coverage union']})
+
+
+def worker(mode, out):
+    configure()
+    pins = verify_pins()
+    rows = plan()
+    temp = out / 'tmp'
+    temp.mkdir()
+    tempfile.tempdir = str(temp)
+    import numpy as np
+    import soundfile as sf
+    from opencc import OpenCC
+    from audio_backend.inference.analyzer import AudioAnalyzer, align_tokens
+    from audio_backend.boundaries import lexical_core
+    import audio_backend.inference.analyzer as source
+    if Path(source.__file__).resolve() != SITE/'audio_backend/inference/analyzer.py':
+        raise RuntimeError('Unexpected imported production adapter')
+    converter = OpenCC('t2s')
+    emit(out/'manifest.json', {'schema': 'sensevoice-crop-ablation-v1',
+         'mode': mode, 'pins': pins, 'windows': rows, 'expected_calls': {'A': 21, 'B': 7},
+         'scope': 'crop/context and recognition differences; no CER or accuracy claim'})
+    if mode == 'check':
+        model_free_checks(rows, out, AudioAnalyzer, align_tokens, lexical_core, converter)
+        return
+    if not (ROOT/'checks/checks.json').is_file():
+        raise RuntimeError('Reviewed model-free check result required before models')
+    checks = json.loads((ROOT/'checks/checks.json').read_text())
+    if checks.get('status') != 'passed':
+        raise RuntimeError('Model-free checks have not passed')
+    checked_manifest = json.loads((ROOT/'checks/manifest.json').read_text())
+    if checked_manifest['pins'] != pins:
+        raise RuntimeError('Source changed since model-free checks')
+    import sherpa_onnx as sherpa
+    capture = Capture(out)
+    descriptor = sherpa.OfflineRecognizer.__dict__['from_sense_voice']
+    original = sherpa.OfflineRecognizer.from_sense_voice
+    def observed_factory(cls, *args, **kwargs):
+        if capture.initializations:
+            raise RuntimeError('Unplanned second model initialization')
+        wall, cpu = time.perf_counter(), time.process_time()
+        raw = original(*args, **kwargs)
+        record = {'wall_seconds': time.perf_counter()-wall,
+                  'cpu_seconds': time.process_time()-cpu, 'kwargs': kwargs}
+        capture.initializations.append(record)
+        emit(out/'initialization.json', record)
+        return Recognizer(raw, capture)
+    sherpa.OfflineRecognizer.from_sense_voice = classmethod(observed_factory)
+    analyzer = None
+    tails = {'A': [], 'B': []}
+    all_segments = {'A': [], 'B': []}
+    coverage_rows = {'A': [], 'B': []}
+    try:
+        analyzer = AudioAnalyzer({'model_dir': str(ASSETS/'models'),
+            'asr_backend': 'sensevoice', 'device': 'cpu', 'cpu_threads': 2,
+            'diarization_backend': 'nemotron', 'language': 'auto',
+            'chinese_script': 'simplified'})
+        assert analyzer._sensevoice is None
+        for row in rows:
+            path = temp/'read.wav'
+            try:
+                pcm_hash = read_window(row, path)
+                samples, sr = sf.read(path, dtype='float32')
+                assert sr == RATE and np.isfinite(samples).all()
+                for arm in ('A', 'B'):
+                    capture.set_context(row, arm, samples)
+                    before = len(capture.records)
+                    wall = time.perf_counter()
+                    if arm == 'A':
+                        adapter = analyzer._transcribe_turns(samples, row['turns'])
+                    else:
+                        adapter = analyzer._transcribe_sensevoice(path)
+                    elapsed = time.perf_counter()-wall
+                    if capture.next_index != len(capture.selections):
+                        raise RuntimeError('Incomplete planned call selection')
+                    owned, tails[arm] = project(adapter, row, tails[arm], align_tokens,
+                                               lexical_core, converter)
+                    all_segments[arm].extend(owned)
+                    records = capture.records[before:]
+                    covered = coverage([x['frames'] for x in records], row['core'])
+                    coverage_rows[arm].append(covered)
+                    emit(out/'windows.jsonl', {'window': row['index'], 'arm': arm,
+                         'read_frames': row['read'], 'core_frames': row['core'],
+                         'read_pcm16_sha256': pcm_hash, 'adapter_wall_seconds': elapsed,
+                         'adapter': adapter,
+                         'adapter_sha256': hashlib.sha256(encode(adapter)).hexdigest(),
+                         'projected_segments': owned, 'boundary_tail': tails[arm],
+                         'coverage': covered, 'call_ids': [x['call_id'] for x in records]}, append=True)
+            finally:
+                path.unlink(missing_ok=True)
+        counts = {arm: sum(x['arm'] == arm for x in capture.records) for arm in ('A', 'B')}
+        if counts != {'A': 21, 'B': 7} or len(capture.initializations) != 1:
+            raise RuntimeError('Actual call inventory differs from frozen plan')
+        texts = {arm: '\n'.join(s['text'] for s in all_segments[arm])+'\n' for arm in ('A', 'B')}
+        old_text = (OLD/'primary-transcript.txt').read_text()
+        baseline_match = texts['A'] == old_text
+        content_match = ''.join(texts['A'].splitlines()) == ''.join(old_text.splitlines())
+        for arm, text in texts.items():
+            textfile(out/f'transcript-{arm}.txt', text)
+        metrics = {}
+        for arm in ('A', 'B'):
+            calls = [x for x in capture.records if x['arm'] == arm]
+            seconds = sum(x['sample_count'] for x in calls)/RATE
+            decode = sum(x['decode_wall_seconds'] for x in calls)
+            metrics[arm] = {'calls': len(calls), 'submitted_audio_seconds': seconds,
+                'decode_wall_seconds': decode, 'decode_cpu_seconds': sum(x['decode_cpu_seconds'] for x in calls),
+                'decode_rtf_unique_fixture': decode/(N/RATE),
+                'unsubmitted_core_seconds': sum(x['unsubmitted_frame_count'] for x in coverage_rows[arm])/RATE,
+                'transcript_sha256': hashlib.sha256(texts[arm].encode()).hexdigest()}
+        emit(out/'summary.json', {'status': 'completed', 'metrics': metrics,
+             'baseline_exact_transcript_match': baseline_match,
+             'baseline_text_excluding_linebreaks_match': content_match,
+             'quality_claim_allowed': False, 'cer': None,
+             'note': ('Exact baseline reproduced.' if baseline_match else
+                      'Line-break-only difference.' if content_match else
+                      'Baseline text diverged; no isolated quality claim.')})
+    finally:
+        sherpa.OfflineRecognizer.from_sense_voice = descriptor
+        if analyzer is not None:
+            analyzer.close()
+
+
+def supervise(mode):
+    configure()
+    import psutil
+    out = ROOT/('checks' if mode == 'check' else 'output')
+    out.mkdir(exist_ok=False)  # Never overwrite an attempt or automatically retry.
+    started = time.monotonic()
+    proc = None
+    reason = None
+    peak = 0
+    samples = 0
+    try:
+        with (out/'process.log').open('xb') as log:
+            proc = subprocess.Popen([str(RUNTIME/'bin/python3.12'), '-I', '-B',
+                str(Path(__file__).resolve()), '--worker', mode],
+                cwd=str(ROOT), env=dict(os.environ), stdout=log, stderr=subprocess.STDOUT,
+                start_new_session=True)
+            child = psutil.Process(proc.pid)
+            identity = child.create_time()
+            while proc.poll() is None:
+                try:
+                    if child.create_time() != identity:
+                        raise RuntimeError('Worker identity changed')
+                    processes = [psutil.Process(), child] + child.children(recursive=True)
+                except psutil.NoSuchProcess:
+                    proc.wait()
+                    break
+                rss = 0
+                for p in processes:
+                    try:
+                        rss += p.memory_info().rss
+                    except psutil.NoSuchProcess:
+                        pass
+                peak = max(peak, rss); samples += 1
+                elapsed = time.monotonic()-started
+                disk = usage()
+                emit(out/'resources.jsonl', {'elapsed_seconds': elapsed,
+                    'sum_rss_bytes': rss, 'experiment_logical_bytes': disk}, append=True)
+                if rss > RSS_CAP:
+                    reason = 'sampled_tree_rss_limit'
+                elif elapsed >= WORK_SECONDS:
+                    reason = '240_second_work_deadline'
+                elif disk > CAP-RESERVE:
+                    reason = 'inclusive_artifact_limit'
+                elif (out/'process.log').stat().st_size > 524288:
+                    reason = 'process_log_limit'
+                if reason:
+                    break
+                time.sleep(.1)
+    except BaseException as exc:
+        reason = type(exc).__name__ + ': ' + str(exc)
+    finally:
+        cleanup_deadline = min(started+WORK_SECONDS+CLEANUP_SECONDS,
+                               time.monotonic()+CLEANUP_SECONDS)
+        cleanup_error = None
+        try:
+            if proc is not None and proc.poll() is None:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    proc.wait(timeout=max(0., min(10., cleanup_deadline-time.monotonic())))
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait(timeout=max(.01, cleanup_deadline-time.monotonic()))
+            # Only this new attempt's scratch is removable, after worker exit.
+            if (proc is None or proc.poll() is not None) and (out/'tmp').exists():
+                shutil.rmtree(out/'tmp')
+        except BaseException as exc:
+            cleanup_error = type(exc).__name__ + ': ' + str(exc)
+        report = {'returncode': None if proc is None else proc.returncode,
+            'termination_reason': reason, 'cleanup_error': cleanup_error,
+            'elapsed_seconds': time.monotonic()-started,
+            'peak_sampled_sum_rss_bytes': peak, 'samples': samples,
+            'worker_reaped': proc is None or proc.poll() is not None}
+        emit(out/'supervisor.json', report, final=True)
+    return 0 if proc is not None and proc.returncode == 0 and reason is None and cleanup_error is None else 1
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) == 2 and args[0] == '--worker' and args[1] in ('check', 'run'):
+        out = ROOT/('checks' if args[1] == 'check' else 'output')
+        worker(args[1], out)
+        return 0
+    if len(args) != 1 or args[0] not in ('check', 'run'):
+        raise SystemExit('Choose check or run after source review')
+    return supervise(args[0])
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

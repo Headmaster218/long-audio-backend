@@ -1,0 +1,123 @@
+{
+  "schema": "quality-evaluation-source-checkpoint-v1",
+  "date": "2026-10-15",
+  "status": "frozen_source_checkpoint",
+  "source_execution_status": "Original source files were used for the completed experiments. Configuration templates were not executed. normalization.py is byte-identical to its executed source.",
+  "sources": [
+    {
+      "id": "crop_ablation",
+      "path": "src/crop_ablation.py.in",
+      "bytes": 24386,
+      "template_sha256": "f64c40ce86841ce9fcc72b3de6cf5437fe270fa9d0c4d02af4b0a3ff9a064c20",
+      "executed_source_sha256": "8b0f80706dbd8313f7fecac4fa4332be9222dde1336c3434e896b8ae76a2d02d",
+      "required_configuration": [
+        {
+          "placeholder": "'__REQUIRED_RUNTIME_RELATIVE_PATH__'",
+          "meaning": "Existing Python 3.12 runtime path relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_ASSETS_RELATIVE_PATH__'",
+          "meaning": "Verified official model and fixture asset directory relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_HISTORICAL_OUTPUT_RELATIVE_PATH__'",
+          "meaning": "Private historical chunk metadata and baseline transcript directory relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_OFFICIAL_CHINESE_WAV_RELATIVE_PATH__'",
+          "meaning": "Official Chinese fixture WAV path relative to the configured asset directory"
+        }
+      ],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    },
+    {
+      "id": "reference_parser",
+      "path": "src/parse_reference.py.in",
+      "bytes": 4021,
+      "template_sha256": "cf092160103eb494fff38aa593fc97fac9e31d6b34f1be70b08ca93573f6960a",
+      "executed_source_sha256": "d25e671b20f983aa84dc265d39f9dd95208f92af95ad9fcb6995b255cc483e67",
+      "required_configuration": [
+        {
+          "placeholder": "json.loads('__REQUIRED_AMI_REFERENCE_SPEAKER_MAP_JSON__')",
+          "meaning": "Expected ES2002a local-to-reference speaker mapping verified from official meeting metadata, encoded as a JSON object"
+        }
+      ],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    },
+    {
+      "id": "normalizer",
+      "path": "src/normalization.py",
+      "bytes": 268,
+      "template_sha256": "5e00c738fc4a6206c78c2b1f7dd4e34322d6d979407f12967d9ccf07f71c96a1",
+      "executed_source_sha256": "5e00c738fc4a6206c78c2b1f7dd4e34322d6d979407f12967d9ccf07f71c96a1",
+      "required_configuration": [],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    },
+    {
+      "id": "cpwer_adapter",
+      "path": "src/score_saved_hypotheses.py.in",
+      "bytes": 5881,
+      "template_sha256": "35077af3b34a8ae1da4815c2a89a5f758ca8005213b4fdefded34dcaf2e4a68a",
+      "executed_source_sha256": "e64b5a74f579645e9cde3ea60033ddcf8002cb8f8abb4ac90c45e870601912a3",
+      "required_configuration": [
+        {
+          "placeholder": "Path('__REQUIRED_SAVED_AMI_HYPOTHESES_DIRECTORY__')",
+          "meaning": "Absolute or explicitly resolved directory containing the private saved primary and MOSS JSON outputs"
+        }
+      ],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    },
+    {
+      "id": "di_cpwer_adapter",
+      "path": "src/score_di_companion.py.in",
+      "bytes": 5235,
+      "template_sha256": "16315e529a6cc5175302faa2b4b77bb6ed941d767616e4c4958bf6dad75fe95e",
+      "executed_source_sha256": "9910333b322993de11261e4f09380a264f72c6f3e0ce8769a904d2882790e487",
+      "required_configuration": [
+        {
+          "placeholder": "'__REQUIRED_DI_SCORING_PROTOCOL_SHA256__'",
+          "meaning": "SHA-256 of the locally frozen DI scoring protocol, whose pins bind all input artifacts"
+        }
+      ],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    },
+    {
+      "id": "ami_full_context_control",
+      "path": "src/ami_full_context.py.in",
+      "bytes": 23704,
+      "template_sha256": "8113e11bd1cc946b6e44b1eecfc8617ff241d4881977851be3d85621b17afd0f",
+      "executed_source_sha256": "f8c73f27de5a982a91bba7869212fa43624a35c2918e03d22c2bdb418b885ea6",
+      "required_configuration": [
+        {
+          "placeholder": "'__REQUIRED_RUNTIME_RELATIVE_PATH__'",
+          "meaning": "Existing production Python 3.12 runtime path relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_MODEL_DIRECTORY_RELATIVE_PATH__'",
+          "meaning": "Verified official model directory relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_SAVED_AMI_OUTPUT_RELATIVE_PATH__'",
+          "meaning": "Private retained primary and MOSS output directory relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_AMI_EVALUATION_RELATIVE_PATH__'",
+          "meaning": "Existing frozen AMI reference/scoring directory and evaluator runtime relative to the experiment parent directory"
+        },
+        {
+          "placeholder": "'__REQUIRED_AMI_21_SECOND_WAV_RELATIVE_PATH__'",
+          "meaning": "Verified 21-second AMI WAV relative to the experiment parent directory"
+        }
+      ],
+      "executed_source_reconstruction_verified": true,
+      "template_executed": false
+    }
+  ],
+  "aggregate_results_status": "Historical aggregate results checked; no new model or metric execution performed for this checkpoint.",
+  "configuration_templates_status": "Required local configuration remains unfilled; templates remain unexecuted."
+}
