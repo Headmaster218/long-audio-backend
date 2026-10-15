@@ -1,0 +1,133 @@
+{
+  "checkpoint_date": "2026-10-15",
+  "files": [
+    {
+      "bytes": 16384,
+      "path": "CONFIGURATION.md",
+      "sha256": "e08b7bc50223f65361cba3407489b1740012d1a84b4cbbe6e5940e6889f89d8c"
+    },
+    {
+      "bytes": 5320,
+      "path": "README.md",
+      "sha256": "678a7df59acd7226aa11181a75f7622b7b9e660ec1e0c2ad97a2d692e2d36567"
+    },
+    {
+      "bytes": 12277,
+      "path": "RESULTS.md",
+      "sha256": "38f3f0d49e6fad98695b0872757f92443d53f8296fc1768a269b66b2c7ac7312"
+    },
+    {
+      "bytes": 45881,
+      "path": "acceptance.py.in",
+      "sha256": "e9e872385218e693ae97df48a2a6f9027ff92e6f4c73cdbf24b03e438f7e4df0"
+    },
+    {
+      "bytes": 44608,
+      "path": "real12h.py.in",
+      "sha256": "94b47ae10f03f4fd24670dc9954d68946fd6cba89c9ffd21933f99454838f0d1"
+    },
+    {
+      "bytes": 32960,
+      "path": "real30.py.in",
+      "sha256": "10979f4f9ce06d0224517385562215c7c1db915b5b2aeedbdea522c759522df7"
+    }
+  ],
+  "historical_originals": [
+    {
+      "bytes": 45953,
+      "qualified_local_modes": [
+        "focused",
+        "prefix",
+        "logical"
+      ],
+      "scope": "FAKE_ANALYSIS_REAL_INFRASTRUCTURE_NO_WALL_SOAK_OR_MODEL_QUALITY",
+      "sha256": "24208d9ea2cafa79286db87432f50dedfe13a1aeaaa84b1467aa290c01ca9aa1",
+      "source": "acceptance.py",
+      "source_manifest_sha256": "c9758e55d23e345f73d4657a101cd83a713adc166c2f2e35b68fb31cf69f5b5b"
+    },
+    {
+      "actual_paced_run_terminal_status": "ACCEPTED_PRIMARY_PACED_30_MINUTES",
+      "bytes": 33281,
+      "qualification_limits": [
+        "136.570625_seconds_distinct_real_audio_plus_1663.429375_seconds_silence",
+        "no_quality_score",
+        "no_sustained_speech_load_or_12_hour_wall_soak",
+        "idle_graceful_restart_not_inflight_native_crash",
+        "49_optional_Unavailable_warnings_with_unlogged_historical_causes",
+        "optional_reliability_not_qualified"
+      ],
+      "qualified_local_modes": [
+        "model_free_source_function_check",
+        "paced_30_minute_primary_operational"
+      ],
+      "sha256": "3b4fd2b38333b9d5415fa298c9747eeebd6e5953b608cc86831dc38f190738cc",
+      "source": "real30.py",
+      "source_manifest_sha256": "a6fd2fc03cef0c41f68905900055778f235de5a754bb3251fa2f17720dd5572e"
+    }
+  ],
+  "manifest_self_hash": "Excluded to avoid self-reference; this manifest covers the other six public files.",
+  "preparation_actions": {
+    "git_writes": false,
+    "harness_execution": false,
+    "network_writes": false
+  },
+  "prepared_local_sources": [
+    {
+      "actual_paced_12_hour_result": "PENDING",
+      "bytes": 44929,
+      "readme_bytes": 8176,
+      "readme_sha256": "f470fc613559f7f479069d2bfd1e74b06c2b71969ae4eb24a6f2edf2d9ebf536",
+      "scope": "REAL_MODELS_PACED_12_HOURS_MOSTLY_DIGITAL_SILENCE_NO_QUALITY_SCORE",
+      "sha256": "ea897e84df2d4abc0bc3bca8146c0cb5e5c4743e8fee3e3af9f29b71cb01f9fe",
+      "source": "real12h.py",
+      "source_manifest_bytes": 6400,
+      "source_manifest_sha256": "9724925679b4c245b5b8cdc2458e4f04ad350e9803cad0f42467cf675e556915",
+      "source_qualification": "MODEL_FREE_SOURCE_FUNCTION_CHECK_PASSED_NO_REAL_RUN"
+    }
+  ],
+  "proposed_destination": {
+    "branch": "development/rc3-dev9-quality-evaluation",
+    "immutable_parent": "9c09883265b914df21c8a5f2b2474c96b07c2d0b",
+    "prefix": "evaluation/long-recording-20261015",
+    "product_equality_to_parent_established": false,
+    "published": false
+  },
+  "public_exclusions": [
+    "audio",
+    "transcripts",
+    "databases",
+    "raw_result_or_receipt_ledgers",
+    "captured_process_identities",
+    "runtime_logs"
+  ],
+  "public_files_exactly": [
+    "acceptance.py.in",
+    "real30.py.in",
+    "real12h.py.in",
+    "README.md",
+    "RESULTS.md",
+    "CONFIGURATION.md",
+    "MANIFEST.json"
+  ],
+  "public_template_qualification": "UNCONFIGURED_NOT_EXECUTED",
+  "resource_claim_limit": "Sampled RSS is not an instantaneous bound. Accelerated logical time is not wall-clock uptime.",
+  "results_freeze": "AUDITED_PRIOR_RESULTS_FROZEN_12H_MODEL_FREE_CHECK_PASSED_ACTUAL_RUN_PENDING",
+  "schema": "ordinary-stream-public-source-checkpoint-v1",
+  "status": "FROZEN_SOURCE_DRAFT_12H_REAL_RUN_PENDING_PUBLICATION_REVIEW",
+  "tested_product_python": {
+    "bytes": 1671402,
+    "files": 99,
+    "sha256": "06a6b81a8f2e8c31e98a04b52601aa03cce1ec69d40f20d0eb189f3bb140bee7"
+  },
+  "transformation": {
+    "all_other_source_bytes_preserved": true,
+    "changes": [
+      "private_path_bindings_to_explicit_placeholders",
+      "real30_and_real12h_supervisor_source_hash_to_configuration_placeholder"
+    ],
+    "does_not_establish_runtime_equivalence_of_new_configurations": true,
+    "inverse_reconstruction_byte_identical_all_three_originals": true,
+    "type": "exact_quoted_literal_substitution",
+    "verification": "static_byte_comparison_sha256_and_ast_parse_only"
+  }
+}

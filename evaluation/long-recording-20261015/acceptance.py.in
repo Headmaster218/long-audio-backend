@@ -1,0 +1,921 @@
+#!/usr/bin/env python3
+"""FAKE_ANALYSIS infrastructure acceptance. No real inference or quality claim.
+
+Source-only preparation is not a test result. Execute only the reviewed command.
+The service remains the unmodified ordinary create_app/Worker/SQLite/FFmpeg path.
+"""
+from __future__ import annotations
+
+import argparse
+from contextlib import asynccontextmanager, contextmanager
+import hashlib
+import http.client
+import json
+import os
+from pathlib import Path
+import resource
+import shutil
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+import wave
+
+BASE = Path('@@WORKSPACE_ROOT@@')
+HERE = BASE / '@@ACCEPTANCE_PACKET_REL@@'
+SOURCE = BASE / '@@PRODUCT_SOURCE_REL@@'
+PYTHON = BASE / '@@RUNTIME_PYTHON_REL@@'
+MIB, GIB = 2**20, 2**30
+RATE, FRAME_BYTES = 16000, 2
+RUN_CAP, GLOBAL_CAP, FREE_FLOOR = 2*GIB, 12*GIB, 11*GIB//2
+HEADROOM = 16*MIB
+SOURCE_CAP, RESPONSE_CAP, LOG_CAP = 64*1024, 2*MIB, MIB
+LABEL = 'FAKE_ANALYSIS / ACCELERATED_LOGICAL_12H / NO_QUALITY_OR_WALL_SOAK_CLAIM'
+
+
+class Stop(RuntimeError):
+    pass
+
+
+def need(ok, message):
+    if not ok:
+        raise Stop(message)
+
+
+def encoded(value):
+    return json.dumps(value, sort_keys=True, ensure_ascii=True,
+                      separators=(',', ':'), allow_nan=False).encode('utf-8')
+
+
+def file_hash(path):
+    h = hashlib.sha256()
+    with Path(path).open('rb') as f:
+        for block in iter(lambda: f.read(64*1024), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def product_pin():
+    """Hash sorted Python source inventory, including names/sizes/content hashes."""
+    h = hashlib.sha256()
+    count = total = 0
+    for path in sorted((SOURCE/'audio_backend').rglob('*.py')):
+        need(path.is_file() and not path.is_symlink(), 'Unexpected product source type')
+        size = path.stat().st_size
+        need(size < 2*MIB, 'Unexpected product file size')
+        h.update(encoded([path.relative_to(SOURCE).as_posix(), size, file_hash(path)])+b'\n')
+        count += 1
+        total += size
+    return dict(sha256=h.hexdigest(), files=count, bytes=total)
+
+
+def verify_source():
+    names = {'acceptance.py', 'README.md', 'MANIFEST.json'}
+    manifest_path = HERE/'MANIFEST.json'
+    need(manifest_path.stat().st_size <= 8192, 'Manifest size limit')
+    manifest = json.loads(manifest_path.read_bytes())
+    total = 0
+    for name in names:
+        path = HERE/name
+        need(path.is_file() and not path.is_symlink(), 'Invalid source inventory')
+        size = path.stat().st_size
+        need(size <= (48*1024 if name == 'acceptance.py' else 8192), 'Source file cap')
+        total += size
+    need(total <= SOURCE_CAP, 'Source aggregate cap')
+    for row in manifest['files']:
+        need(row['path'] in names-{'MANIFEST.json'}, 'Manifest inventory mismatch')
+        path = HERE/row['path']
+        need(path.stat().st_size == row['bytes'] and file_hash(path) == row['sha256'],
+             'Prepared source changed: '+row['path'])
+    need({r['path'] for r in manifest['files']} == names-{'MANIFEST.json'}, 'Missing source pin')
+    need(product_pin() == manifest['product_python'], 'Working product source changed')
+    need(PYTHON.is_file() and PYTHON.resolve() == PYTHON, 'Unexpected runtime interpreter')
+    need(file_hash(PYTHON) == manifest['python_sha256'], 'Runtime interpreter changed')
+    for name in ('guard.py','__init__.py'):
+        installed = PYTHON.parent.parent/'lib/python3.12/site-packages/audio_backend'/name
+        need(file_hash(installed) == file_hash(SOURCE/'audio_backend'/name),
+             'Installed FFmpeg supervisor differs from pinned product: '+name)
+    for name in ('ffmpeg', 'ffprobe'):
+        path = shutil.which(name)
+        need(path and Path(path).resolve() == Path(manifest[name]['path']).resolve(),
+             'Tool location changed: '+name)
+        need(file_hash(path) == manifest[name]['sha256'], 'Tool changed: '+name)
+    return manifest
+
+
+def envelope():
+    need(sys.platform.startswith('linux'), 'Reviewed Linux environment required')
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    need(0 < soft <= 8*GIB, 'Launch under prlimit --as=8589934592')
+    need({0, 1} <= os.sched_getaffinity(0), 'Approved CPUs 0-1 unavailable')
+    os.sched_setaffinity(0, {0, 1})
+    os.setpriority(os.PRIO_PROCESS, 0, 19)
+    need(os.getpriority(os.PRIO_PROCESS, 0) == 19, 'nice 19 was not applied')
+    need(not any(v and (k.startswith(('LD_', 'DYLD_')) or k in
+         ('GLIBC_TUNABLES', 'TRANSCRIBE_LIBRARY', 'GGML_BACKEND_PATH'))
+         for k, v in os.environ.items()), 'Unexpected loader override')
+    return dict(affinity=sorted(os.sched_getaffinity(0)), nice=19,
+                rlimit_as=[soft, hard], sampled_tree_rss_limit=6*GIB,
+                run_disk_limit=RUN_CAP, global_disk_limit=GLOBAL_CAP,
+                free_disk_floor=FREE_FLOOR)
+
+
+class FakeAnalyzer:
+    """Bounded test injection only. No models, embeddings or synthetic identities."""
+    def __init__(self, config):
+        self.data = Path(config['data_dir'])
+
+    def analyze(self, path, **kwargs):
+        # A test-owned barrier creates one positively observed active crash point.
+        arm = self.data.parent/'crash-arm'
+        if arm.exists():
+            ready = self.data.parent/'crash-ready'
+            with ready.open('w') as f:
+                f.write('FAKE_ANALYSIS active before commit\n')
+                f.flush()
+                os.fsync(f.fileno())
+            until = time.monotonic()+45
+            while arm.exists():
+                need(time.monotonic() < until, 'Fake crash barrier timed out')
+                time.sleep(.05)
+        with wave.open(str(path), 'rb') as w:
+            duration = w.getnframes()/w.getframerate()
+            need(0 < duration <= 60.01, 'Unbounded analyzer input')
+        # One small row per five seconds exercises durable nonempty histories.
+        segments = []
+        for i in range(int(duration/5)+1):
+            start = i*5+.05
+            end = min(start+.2, duration)
+            if end > start:
+                segments.append(dict(start=start, end=end, text='FAKE_ANALYSIS',
+                    asr_backend='FAKE_ANALYSIS', timestamp_kind='synthetic_test_only'))
+        return dict(segments=segments,
+            events=[dict(start=0., end=duration, label='FAKE_EVENT', score=.5,
+                         method='synthetic_test_only')],
+            speaker_turns=[dict(start=0., end=duration, speaker_local_id=None)],
+            metadata=dict(asr_backend='FAKE_ANALYSIS', model_execution='NOT_RUN_FAKE_ANALYSIS',
+                          models_executed=[], timestamp_semantics='synthetic_test_only'))
+
+    def close(self):
+        pass
+
+
+def server(args):
+    envelope()
+    verify_source()
+    need(args.data == str(HERE/(args.mode+'-run')/'data'), 'Unexpected server data directory')
+    sys.path.insert(0, str(SOURCE))
+    import uvicorn
+    from audio_backend.app import create_app
+    from audio_backend.settings import Settings
+    settings = Settings(data_dir=Path(args.data), api_key=None, disk_reserve_bytes=FREE_FLOOR+HEADROOM,
+        max_upload_bytes=2*MIB, process_memory_limit_bytes=6*GIB, cpu_threads=2,
+        max_pending_chunks=4, window_seconds=30, context_seconds=2,
+        start_worker=True, overlap_backend='none')
+    # No alternative endpoint, fake Store, direct work-state edits or model factory.
+    app = create_app(settings, analyzer_factory=FakeAnalyzer)
+    original_lifespan = app.router.lifespan_context
+    @asynccontextmanager
+    async def observed_lifespan(application):
+        async with original_lifespan(application):
+            yield
+        need(not application.state.worker.thread.is_alive(), 'Worker survived lifespan shutdown')
+        need(application.state.instance_lock.file is None, 'Instance lock not released')
+        need(not getattr(application.state,'shutdown_blocked',False), 'Product shutdown blocked')
+        need(application.state.fragments.cleanup_error is None, 'Fragment cleanup unresolved')
+        import psutil
+        marker = Path(args.data).parent/('server-clean-%d.json'%os.getpid())
+        raw = encoded(dict(pid=os.getpid(),created=psutil.Process().create_time(),
+                           lifespan_complete=True,worker_stopped=True,instance_lock_released=True))
+        with marker.open('xb') as f:
+            f.write(raw)
+            f.flush()
+            os.fsync(f.fileno())
+    app.router.lifespan_context = observed_lifespan
+    uvicorn.run(app, host='127.0.0.1', port=args.port, workers=1,
+                access_log=False, log_level='warning')
+
+
+def scan_tree(path, *, strict=False):
+    seen, count, total = set(), 0, 0
+    if not path.exists():
+        return 0
+    for root, dirs, files in os.walk(path, followlinks=False):
+        for name in ['.']+dirs+files:
+            item = Path(root) if name == '.' else Path(root)/name
+            try:
+                stat = item.lstat()
+            except FileNotFoundError:
+                continue
+            count += 1
+            need(count <= 250000, 'Filesystem scan entry cap')
+            if strict:
+                need(not item.is_symlink(), 'Unexpected symlink in run directory')
+            key = (stat.st_dev, stat.st_ino)
+            if key not in seen:
+                seen.add(key)
+                total += max(stat.st_size, stat.st_blocks*512)
+    return total
+
+
+class Run:
+    def __init__(self, args):
+        import psutil
+        self.ps = psutil
+        self.args = args
+        self.out = HERE/(args.mode+'-run')
+        self.data = self.out/'data'
+        self.client = self.out/'client.wav'
+        self.clock = time.monotonic()
+        self.work_seconds = 1800 if args.mode == 'logical' else 300
+        self.logical_chunks = 12 if args.mode == 'prefix' else 720
+        self.deadline = self.clock+self.work_seconds
+        self.proc = None
+        self.proc_created = None
+        self.log_thread = None
+        self.monitor = None
+        self.finished = threading.Event()
+        self.service_ready = threading.Event()
+        self.failure = None
+        self.logging_lock = threading.Lock()
+        self.peak_rss = self.peak_run = self.peak_global = 0
+        self.min_free = 1 << 64
+        self.rss_checks = self.disk_checks = 0
+        self.max_rss_gap = self.max_disk_gap = 0.
+        self.last_rss = self.last_disk = time.monotonic()
+        self.log_bytes = self.log_discarded = 0
+        self.telemetry_bytes = self.telemetry_rows = 0
+        self.peak_children = self.child_starts = 0
+        self.live = {}
+        self.owned_children = {}
+        self.sid = None
+        self.max_backlog = self.max_pending = 0
+        label = (LABEL if args.mode == 'logical' else 'FAKE_ANALYSIS / ACCELERATED_LOGICAL_12_MINUTE_PREFIX'
+                 if args.mode == 'prefix' else 'FAKE_ANALYSIS / FOCUSED_INFRASTRUCTURE')
+        self.report = dict(label=label,
+            mode=args.mode, outcome='not_started', quality='not_measured', real_models='not_run',
+            native_scheduling='not_exercised_by_fake_analyzer', wall_clock_soak=False,
+            planned_logical_seconds=128 if args.mode == 'focused' else self.logical_chunks*60,
+            work_deadline_seconds=self.work_seconds, cleanup_deadline_seconds=120)
+
+    def check(self, extra=0):
+        need(self.failure is None, self.failure or 'Monitor failure')
+        need(time.monotonic() < self.deadline, 'Work deadline exceeded')
+        if extra:
+            free = shutil.disk_usage(HERE).free
+            need(free-extra >= FREE_FLOOR+HEADROOM, 'Insufficient free disk for next write')
+            need(scan_tree(self.out, strict=True)+extra < RUN_CAP-HEADROOM, 'Run byte budget exhausted')
+
+    def save(self, name, value):
+        raw = encoded(value)+b'\n'
+        need('/' not in name and len(raw) <= 512*1024, 'Evidence size cap')
+        destination = self.out/name
+        need(not destination.exists(), 'Evidence would be overwritten')
+        with destination.open('xb') as f:
+            f.write(raw)
+
+    @contextmanager
+    def connect_db(self):
+        db = sqlite3.connect('file:'+str(self.data/'jobs.sqlite3')+'?mode=ro',
+                             uri=True, timeout=2)
+        db.row_factory = sqlite3.Row
+        try:
+            yield db
+        finally:
+            db.close()
+
+    def stats(self):
+        if not self.service_ready.is_set() or not (self.data/'jobs.sqlite3').exists():
+            return {}
+        with self.connect_db() as db:
+            rows = db.execute('SELECT status,count(*) n,sum(duration) duration,sum(next_offset) committed '
+                              'FROM chunks GROUP BY status').fetchall()
+            status = {r['status']:r['n'] for r in rows}
+            uploaded = sum(r['duration'] or 0 for r in rows)
+            committed = sum(r['committed'] or 0 for r in rows)
+            pending = sum(n for key,n in status.items() if key not in ('completed','cancelled'))
+            backlog = uploaded-committed
+            counts = {table:db.execute('SELECT count(*) FROM '+table).fetchone()[0]
+                for table in ('chunks','segments','events','speaker_turns','result_changes','stream_chunks')}
+        self.max_backlog = max(self.max_backlog, backlog)
+        self.max_pending = max(self.max_pending, pending)
+        return dict(status=status, admitted_seconds=uploaded, committed_seconds=committed,
+                    uncommitted_seconds=backlog, pending=pending, rows=counts)
+
+    def disk(self, global_scan=False):
+        now = time.monotonic()
+        used = scan_tree(self.out, strict=True)
+        free = shutil.disk_usage(HERE).free
+        self.peak_run, self.min_free = max(self.peak_run, used), min(self.min_free, free)
+        self.disk_checks += 1
+        self.max_disk_gap = max(self.max_disk_gap, now-self.last_disk)
+        self.last_disk = now
+        need(used < RUN_CAP-HEADROOM, 'Run disk safety threshold')
+        need(free >= FREE_FLOOR+HEADROOM, 'Free disk safety threshold')
+        sizes = {}
+        for name in ('jobs.sqlite3','jobs.sqlite3-wal','jobs.sqlite3-shm'):
+            path = self.data/name
+            try:
+                sizes[name] = path.stat().st_size
+            except FileNotFoundError:
+                sizes[name] = 0
+        sizes.update(uploads=scan_tree(self.data/'uploads'), temporary=scan_tree(self.data/'tmp'),
+                     optional_cells=scan_tree(self.data/'native-owned-cells'))
+        if global_scan:
+            workspace = scan_tree(BASE)
+            self.peak_global = max(self.peak_global, workspace)
+            need(workspace < GLOBAL_CAP-HEADROOM, 'Global disk safety threshold')
+        return dict(run_bytes=used, free_bytes=free, files=sizes,
+                    maximum_observed_workspace_bytes=self.peak_global)
+
+    def rss(self):
+        now = time.monotonic()
+        root = self.ps.Process()
+        descendants = root.children(recursive=True)
+        # Keep observed live children even if an exited parent reparents them.
+        candidates = {}
+        for p in descendants:
+            try:
+                if p.is_running():
+                    candidates[(p.pid,p.create_time())] = p
+            except self.ps.NoSuchProcess:
+                pass
+        for pid,created in set(self.live) | set(self.owned_children):
+            try:
+                p = self.ps.Process(pid)
+                if p.create_time() == created and p.is_running():
+                    candidates[(pid,created)] = p
+            except self.ps.NoSuchProcess:
+                pass
+        need(len(candidates) <= 128, 'Live descendant process cap')
+        live, rss = {}, root.memory_info().rss
+        for proc in candidates.values():
+            try:
+                identity = (proc.pid, proc.create_time())
+                if proc.status() == self.ps.STATUS_ZOMBIE:
+                    continue
+                live[identity] = True
+                rss += proc.memory_info().rss
+                need(set(proc.cpu_affinity()) <= {0,1}, 'Child affinity escaped approved CPUs')
+                need(proc.nice() == 19, 'Child niceness escaped envelope')
+            except self.ps.NoSuchProcess:
+                continue
+        self.child_starts += len(set(live)-set(self.live))
+        self.live = live  # Live identities only; no lifetime PID growth.
+        self.owned_children = dict(live)
+        self.peak_children = max(self.peak_children, len(live))
+        self.peak_rss = max(self.peak_rss, rss)
+        self.rss_checks += 1
+        self.max_rss_gap = max(self.max_rss_gap, now-self.last_rss)
+        self.last_rss = now
+        need(rss < 6*GIB, 'Sampled aggregate RSS limit')
+        return rss
+
+    def watch(self):
+        try:
+            next_disk = next_row = next_global = 0.
+            disk = {}
+            with (self.out/'resources.jsonl').open('xb') as f:
+                while not self.finished.is_set():
+                    now = time.monotonic()
+                    rss = self.rss()
+                    if now >= next_disk:
+                        disk = self.disk(now >= next_global)
+                        next_disk = now+2
+                        if now >= next_global:
+                            next_global = now+30
+                    if now >= next_row:
+                        row = dict(elapsed=round(now-self.clock,3), rss=rss, **disk,
+                                   progress=self.stats())
+                        raw = encoded(row)+b'\n'
+                        need(len(raw) <= 4096 and self.telemetry_bytes+len(raw) <= 2*MIB,
+                             'Telemetry output cap')
+                        f.write(raw)
+                        f.flush()
+                        self.telemetry_bytes += len(raw)
+                        self.telemetry_rows += 1
+                        next_row = now+10
+                    self.finished.wait(.25)
+        except BaseException as exc:
+            self.failure = type(exc).__name__+': '+str(exc)[:300]
+            self.kill_current()
+
+    def request(self, method, path, body=None, file=None, key=None, expect=(200,201,202)):
+        self.check()
+        need(path.startswith('/') and not path.startswith('//'), 'Invalid local path')
+        headers = {}
+        if body is not None:
+            body = encoded(body)
+            headers['Content-Type'] = 'application/json'
+        if file is not None:
+            need(body is None and file == self.client, 'Only the single client scratch file is uploaded')
+            headers['Content-Type'] = 'application/octet-stream'
+            headers['Content-Length'] = str(file.stat().st_size)
+        if key:
+            headers['Idempotency-Key'] = key
+        conn = http.client.HTTPConnection('127.0.0.1', self.args.port, timeout=min(10,max(.1,self.deadline-time.monotonic())))
+        try:
+            if file is not None:
+                with file.open('rb') as f:
+                    conn.request(method, path, body=f, headers=headers)
+                    response = conn.getresponse()
+                    raw = response.read(RESPONSE_CAP+1)
+            else:
+                conn.request(method, path, body=body, headers=headers)
+                response = conn.getresponse()
+                raw = response.read(RESPONSE_CAP+1)
+            need(len(raw) <= RESPONSE_CAP, 'HTTP response cap')
+            need(response.status in expect, 'HTTP %s for %s: %s' %
+                 (response.status, path[:160], raw[:180].decode(errors='replace')))
+            return response.status, json.loads(raw) if raw else None
+        finally:
+            conn.close()
+
+    def api(self, method, path, body=None, **kwargs):
+        return self.request(method,path,body,**kwargs)[1]
+
+    def log_reader(self, proc):
+        with (self.out/'server.log').open('ab') as f:
+            while block := proc.stdout.read(4096):
+                with self.logging_lock:
+                    keep = block[:max(0,LOG_CAP-self.log_bytes)]
+                    f.write(keep)
+                    self.log_bytes += len(keep)
+                    self.log_discarded += len(block)-len(keep)
+
+    def launch(self):
+        self.check()
+        self.service_ready.clear()
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',self.args.port))
+        command = [str(PYTHON),'-I','-B',str(HERE/'acceptance.py'),'--server',
+                   '--mode',self.args.mode,'--port',str(self.args.port),'--data',str(self.data)]
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1', PYTHONNOUSERSITE='1',
+                   OMP_NUM_THREADS='2', OMP_THREAD_LIMIT='2', OPENBLAS_NUM_THREADS='2', MKL_NUM_THREADS='2')
+        env.pop('PYTHONPATH',None)
+        env.pop('PYTHONHOME',None)
+        self.proc = subprocess.Popen(command, cwd=self.out, env=env,
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            start_new_session=True)
+        self.proc_created = self.ps.Process(self.proc.pid).create_time()
+        launches = self.report.setdefault('launches',[])
+        need(len(launches) < 2, 'Launch count exceeded fixed plan')
+        launches.append(dict(command=command,pid=self.proc.pid,created=self.proc_created))
+        self.log_thread = threading.Thread(target=self.log_reader,args=(self.proc,),daemon=True)
+        self.log_thread.start()
+        until = min(self.deadline,time.monotonic()+30)
+        while time.monotonic() < until:
+            self.check()
+            need(self.proc.poll() is None, 'Service exited during startup')
+            try:
+                health = self.api('GET','/health')
+                need(health['worker_alive'] is True, 'Worker not alive')
+                need(health['overlap_backend'] == 'none', 'Unexpected optional model backend')
+                self.service_ready.set()
+                return health
+            except (ConnectionError,OSError,http.client.HTTPException):
+                time.sleep(.1)
+        raise Stop('Startup deadline')
+
+    def descendants(self):
+        if self.proc is None:
+            return []
+        try:
+            root = self.ps.Process(self.proc.pid)
+            need(root.create_time() == self.proc_created, 'Server PID identity changed')
+            return [(p.pid,p.create_time()) for p in root.children(recursive=True)]
+        except self.ps.NoSuchProcess:
+            return []
+
+    def kill_current(self):
+        # Only this helper's positively owned child tree, never a port-based kill.
+        if self.proc is None:
+            return
+        children = list(set(self.descendants()) | set(self.live) | set(self.owned_children))
+        self.owned_children.update({x:True for x in children})
+        try:
+            root = self.ps.Process(self.proc.pid)
+            if root.create_time() == self.proc_created:
+                root.kill()
+        except self.ps.NoSuchProcess:
+            pass
+        for pid, created in children:
+            try:
+                p = self.ps.Process(pid)
+                if p.create_time() == created:
+                    p.kill()
+            except self.ps.NoSuchProcess:
+                pass
+
+    def stop_service(self, crash=False):
+        if self.proc is None:
+            return
+        self.service_ready.clear()
+        children = list(set(self.descendants()) | set(self.live))
+        self.owned_children.update({x:True for x in children})
+        if self.proc.poll() is None:
+            if crash:
+                self.kill_current()
+            else:
+                self.proc.terminate()
+        try:
+            code = self.proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            self.kill_current()
+            code = self.proc.wait(timeout=10)
+            need(False, 'Graceful service shutdown timed out')
+        if self.log_thread:
+            self.log_thread.join(timeout=5)
+            need(not self.log_thread.is_alive(), 'Log reader did not terminate')
+        # Installed Uvicorn restores and re-raises SIGTERM after graceful lifespan shutdown.
+        need(code in ((-signal.SIGKILL,) if crash else (0,-signal.SIGTERM)),
+             'Unexpected service exit code: '+str(code))
+        marker = self.out/('server-clean-%d.json'%self.proc.pid)
+        if crash:
+            need(not marker.exists(), 'Deliberate crash unexpectedly reported clean lifespan')
+        else:
+            need(marker.is_file() and marker.stat().st_size <= 1024, 'No terminal lifespan cleanup marker')
+            observed = json.loads(marker.read_bytes())
+            need(observed == dict(pid=self.proc.pid,created=self.proc_created,
+                lifespan_complete=True,worker_stopped=True,instance_lock_released=True),
+                'Terminal cleanup marker identity/content mismatch')
+        self.verify_children_gone(10)
+        self.report.setdefault('server_exits',[]).append(dict(pid=self.proc.pid,returncode=code,
+            deliberate_crash=crash,positive_wait=True,children_gone=True,clean_lifespan=not crash))
+        self.proc = None
+        self.proc_created = None
+
+    def verify_children_gone(self, seconds):
+        until = time.monotonic()+seconds
+        while True:
+            remaining = {}
+            for (pid, created) in tuple(self.owned_children):
+                try:
+                    p = self.ps.Process(pid)
+                    if p.create_time() == created and p.status() != self.ps.STATUS_ZOMBIE:
+                        remaining[(pid,created)] = True
+                except self.ps.NoSuchProcess:
+                    pass
+            self.owned_children = remaining
+            if not remaining:
+                return
+            need(time.monotonic() < until, 'Owned descendants survived shutdown')
+            time.sleep(.05)
+
+    def generate(self, seconds, position):
+        size = int(seconds*RATE)*FRAME_BYTES
+        self.check(size+44)
+        need(0 < seconds <= 60 and not self.client.exists(), 'One client file at a time')
+        with wave.open(str(self.client),'wb') as w:
+            w.setparams((1,2,RATE,0,'NONE','not compressed'))
+            for start in range(0,size,64*1024):
+                # Distinct deterministic signal blocks; never represented as speech.
+                seed = encoded(['synthetic-pcm-v1',position,start])
+                w.writeframesraw(hashlib.shake_256(seed).digest(min(64*1024,size-start)))
+        need(self.client.stat().st_size == size+44, 'Unexpected WAV length')
+        return file_hash(self.client)
+
+    def upload(self, index, seconds=60, *, key=None, offset=None, expect=(202,), final=False):
+        query = dict(stream_id='synthetic',timeline_start=str(index*seconds if offset is None else offset))
+        if final:
+            query['stream_final'] = 'true'
+        route = '/sessions/'+self.sid+'/chunks?'+urllib.parse.urlencode(query)
+        return self.request('PUT',route,file=self.client,key=key or 'part-%06d'%index,expect=expect)
+
+    def new_session(self, name):
+        result = self.api('POST','/sessions',dict(name=name,identity_group='fake-long-acceptance',processing_mode='legacy'))
+        need(isinstance(result.get('id'),str) and len(result['id']) == 32, 'Invalid session ID')
+        self.sid = result['id']
+        self.save('session.json',result)
+
+    def wait_progress(self, pending_below=None, complete=None):
+        until = self.deadline
+        while time.monotonic() < until:
+            self.check()
+            stats = self.stats()
+            need(not any(stats['status'].get(x,0) for x in ('failed','cancelled')), 'Failed/cancelled work')
+            if pending_below is not None and stats['pending'] < pending_below:
+                return stats
+            if complete is not None and stats['status'].get('completed',0) == complete and stats['pending'] == 0:
+                return stats
+            time.sleep(.1)
+        raise Stop('Processing did not reach target before work deadline')
+
+    def wait_idle(self):
+        while True:
+            self.check()
+            health = self.api('GET','/health')
+            need(health['worker_alive'] is True, 'Worker stopped before idle completion')
+            if health['active_chunk'] is None and not any((self.data/'tmp').iterdir()):
+                return
+            time.sleep(.05)
+
+    def retry_assertions(self, index, seconds, chunk_id):
+        before = self.api('GET','/sessions/'+self.sid)
+        duplicate = self.upload(index,seconds)[1]
+        need(duplicate['duplicate'] is True and duplicate['chunk']['id'] == chunk_id, 'Exact retry changed identity')
+        self.upload(index,seconds,offset=index*seconds+.25,expect=(409,))
+        self.upload(index,seconds,final=True,expect=(409,))
+        with self.client.open('r+b') as f:
+            f.seek(-1,2)
+            byte = f.read(1)
+            f.seek(-1,2)
+            f.write(bytes([byte[0]^1]))
+        self.upload(index,seconds,expect=(409,))
+        with self.client.open('r+b') as f:
+            f.seek(-1,2)
+            f.write(byte)
+        self.upload(index,seconds,key='rejected-gap',offset=before['timeline_end']+seconds,expect=(409,))
+        self.upload(index,seconds,key='rejected-overlap',offset=0,expect=(409,))
+        after = self.api('GET','/sessions/'+self.sid)
+        need(after['timeline_end'] == before['timeline_end'], 'Rejected upload changed timeline')
+        with self.connect_db() as db:
+            need(db.execute("SELECT count(*) FROM chunks WHERE idempotency_key IN ('rejected-gap','rejected-overlap')").fetchone()[0] == 0,
+                 'Rejected order request consumed key')
+
+    def focused(self):
+        self.new_session('FAKE_ANALYSIS focused 128-pending admission')
+        self.generate(1,0)
+        first = self.upload(0,1)[1]['chunk']['id']
+        self.api('POST','/chunks/'+first+'/pause')
+        need(self.api('GET','/chunks/'+first)['next_offset'] == 0, 'First tiny receipt advanced before pause')
+        self.retry_assertions(0,1,first)
+        self.client.unlink()
+        for i in range(1,128):
+            self.generate(1,i)
+            self.upload(i,1)
+            self.client.unlink()
+        before = self.api('GET','/sessions/'+self.sid)
+        need(self.stats()['pending'] == 128, 'Expected exactly 128 unfinished receipts')
+        self.generate(1,128)
+        self.upload(128,1,key='capacity-overflow',expect=(429,))
+        need(self.api('GET','/sessions/'+self.sid)['timeline_end'] == before['timeline_end'] == 128,
+             '429 changed stream timeline')
+        with self.connect_db() as db:
+            need(db.execute("SELECT count(*) FROM chunks WHERE idempotency_key='capacity-overflow'").fetchone()[0] == 0,
+                 '429 consumed key')
+        self.client.unlink()
+        self.api('POST','/sessions/'+self.sid+'/streams/synthetic/finish')
+        self.api('POST','/sessions/'+self.sid+'/streams/synthetic/finish')
+        self.api('POST','/chunks/'+first+'/resume')
+        final = self.wait_progress(complete=128)
+        need(final['committed_seconds'] == 128, 'Focused final checkpoint mismatch')
+        self.report['focused_assertions'] = dict(pending_limit=128, next_rejected=129,
+            rejected_key_unconsumed=True, timeline_unchanged=True, exact_retry=True,
+            changed_bytes_metadata_and_order_rejected=True, explicit_finish_twice=True)
+        self.final_audit(128,128)
+        self.retention_delete()
+
+    def prefix(self, limits=None):
+        result = {}
+        with self.connect_db() as db:
+            db.execute('BEGIN')
+            for table in ('segments','events','speaker_turns'):
+                high = db.execute('SELECT coalesce(max(id),0) FROM '+table).fetchone()[0] if limits is None else limits[table]['high']
+                h, count = hashlib.sha256(), 0
+                for row in db.execute('SELECT * FROM '+table+' WHERE id<=? ORDER BY id',(high,)):
+                    h.update(encoded(dict(row))+b'\n')
+                    count += 1
+                result[table] = dict(high=high,count=count,sha256=h.hexdigest())
+        return result
+
+    def crash_restart(self, index, chunk_id):
+        ready = self.out/'crash-ready'
+        until = min(self.deadline,time.monotonic()+40)
+        while not ready.exists():
+            self.check()
+            need(time.monotonic() < until, 'Did not observe active crash barrier')
+            time.sleep(.05)
+        health = self.api('GET','/health')
+        active = health['active_chunk']
+        need(active is not None, 'Crash point has no owned active chunk')
+        checkpoint = self.api('GET','/chunks/'+active)
+        prefix = self.prefix()
+        began = time.monotonic()
+        self.stop_service(crash=True)
+        need(self.prefix(prefix) == prefix, 'Crash changed committed prefix')
+        self.save('restart-before.json',dict(active=active,next_offset=checkpoint['next_offset'],prefix=prefix))
+        (self.out/'crash-arm').unlink()
+        ready.unlink()
+        self.launch()
+        need(self.prefix(prefix) == prefix, 'Restart changed existing committed IDs/content')
+        after = self.api('GET','/chunks/'+active)
+        need(after['next_offset'] >= checkpoint['next_offset'], 'Restart regressed checkpoint')
+        duplicate = self.upload(index)[1]
+        need(duplicate['duplicate'] and duplicate['chunk']['id'] == chunk_id, 'Post-restart exact retry duplicated input')
+        self.report['restart'] = dict(signal='SIGKILL', active_chunk=active,
+            committed_prefix_unchanged=True, checkpoint_nonregression=True,
+            exact_retry_same_id=True, recovery_to_api_seconds=round(time.monotonic()-began,3),
+            scope='Fake analyzer active window; native/model recovery is separate')
+
+    def logical(self):
+        count = self.logical_chunks
+        crash_index = count//2
+        self.new_session('FAKE_ANALYSIS accelerated logical '+str(count)+' minutes')
+        source_hash = hashlib.sha256()
+        with (self.out/'uploads.jsonl').open('xb') as ledger:
+            for i in range(count):
+                self.wait_progress(pending_below=4)
+                digest = self.generate(60,i)
+                if i == crash_index:
+                    (self.out/'crash-arm').write_bytes(b'one owned crash\n')
+                response = self.upload(i)[1]
+                need(response['duplicate'] is False, 'First upload unexpectedly duplicate')
+                chunk = response['chunk']
+                need(chunk['duration'] == 60 and chunk['timeline_start'] == i*60,
+                     'Admission geometry changed')
+                source_hash.update(encoded([i,digest])+b'\n')
+                ledger.write(encoded(dict(index=i,id=chunk['id'],sha256=digest,
+                    start_frame=i*60*RATE,frames=60*RATE))+b'\n')
+                ledger.flush()
+                if i == 0:
+                    self.retry_assertions(i,60,chunk['id'])
+                if i == crash_index:
+                    self.crash_restart(i,chunk['id'])
+                self.client.unlink()
+            self.api('POST','/sessions/'+self.sid+'/streams/synthetic/finish')
+            self.api('POST','/sessions/'+self.sid+'/streams/synthetic/finish')
+            final = self.wait_progress(complete=count)
+            need(final['committed_seconds'] == final['admitted_seconds'] == count*60,
+                 'Logical-duration checkpoint mismatch')
+        self.report.update(input_manifest_sha256=source_hash.hexdigest(), chunks=count,
+            canonical_frames=count*60*RATE, input_pcm_payload_bytes=count*60*RATE*FRAME_BYTES,
+            wav_header_bytes=count*44, logical_seconds=count*60,
+            elapsed_work_seconds=round(time.monotonic()-self.clock,3))
+        self.final_audit(count,count*60)
+        if self.args.mode == 'prefix':
+            elapsed = time.monotonic()-self.clock
+            self.report['timing_estimate'] = dict(observed_prefix_wall_seconds=round(elapsed,3),
+                conservative_720_chunk_linear_seconds=round(elapsed*720/count,3),
+                note='Includes startup/restart/final audit overhead repeated in extrapolation; estimate only. Review before full logical launch.')
+
+    def page_hash(self, route, key):
+        cursor = count = pages = 0
+        h = hashlib.sha256()
+        while True:
+            self.check()
+            page = self.api('GET','/sessions/'+self.sid+'/'+route+'?after=%d&limit=100'%cursor)
+            rows, nxt = page[key], page['next_cursor']
+            need(isinstance(rows,list) and len(rows) <= 100 and isinstance(nxt,int) and nxt >= cursor,
+                 'Invalid cursor page')
+            pages += 1
+            need(pages <= 20000, 'Result pagination cap')
+            for row in rows:
+                h.update(encoded(row)+b'\n')
+                count += 1
+            more = page.get('has_more', bool(rows))
+            need(not more or nxt > cursor, 'Pagination failed to advance')
+            cursor = nxt
+            if not more:
+                return dict(rows=count,pages=pages,next_cursor=cursor,sha256=h.hexdigest())
+
+    def final_audit(self, chunks, seconds):
+        self.wait_idle()
+        stats = self.stats()
+        need(stats['rows']['chunks'] == chunks and stats['rows']['stream_chunks'] == chunks,
+             'Unexpected durable receipt count')
+        need(stats['status'] == {'completed':chunks}, 'Not all receipts completed')
+        need(stats['admitted_seconds'] == stats['committed_seconds'] == seconds, 'Incomplete coverage')
+        with self.connect_db() as db:
+            need(db.execute('PRAGMA quick_check').fetchone()[0] == 'ok', 'SQLite integrity failure')
+            for table, columns in [('segments','chunk_id,start,end,text'),
+                                   ('events','chunk_id,start,end,label'),
+                                   ('speaker_turns','chunk_id,start,end')]:
+                duplicate = db.execute('SELECT 1 FROM '+table+' GROUP BY '+columns+' HAVING count(*)>1 LIMIT 1').fetchone()
+                need(duplicate is None, 'Duplicate committed natural key in '+table)
+            need(db.execute('SELECT count(*) FROM chunks WHERE abs(next_offset-duration)>0.000001').fetchone()[0] == 0,
+                 'Incomplete per-chunk checkpoint')
+            need(db.execute('SELECT count(*) FROM stream_chunks WHERE stream_final=1').fetchone()[0] == 1,
+                 'Finalized stream marker mismatch')
+        pages = {name:self.page_hash(name,key) for name,key in
+            [('chunks','chunks'),('segments','segments'),('events','events'),
+             ('speaker-turns','speaker_turns'),('changes','changes')]}
+        need(pages['chunks']['rows'] == chunks, 'Public receipt pagination count mismatch')
+        for route, table in [('segments','segments'),('events','events'),('speaker-turns','speaker_turns')]:
+            need(pages[route]['rows'] == stats['rows'][table] > 0, 'Public result count mismatch')
+        need(pages['changes']['rows'] == stats['rows']['result_changes'], 'Change feed count mismatch')
+        need(not list((self.data/'uploads').glob('*.part')), 'Leaked upload part')
+        need(not any((self.data/'tmp').iterdir()), 'Temporary worker files remain after drain')
+        disk = self.disk(True)
+        self.save('final-audit.json',dict(stats=stats,pages=pages,disk=disk,duplicate_natural_keys=0,
+                   change_feed_scope='complete bounded cursor replay; no in-memory materialization'))
+        self.report['audit'] = dict(complete=True,rows=stats['rows'],disk=disk,
+            observed_bytes_per_logical_hour=disk['run_bytes']/(seconds/3600),
+            note='Synthetic/fake output density; not a forecast for real speech DB growth')
+
+    def retention_delete(self):
+        # Only the disposable focused fixture is deleted, through its public API.
+        result = self.api('DELETE','/sessions/'+self.sid)
+        need(result.get('cleanup_pending',0) == 0, 'Session file cleanup remains pending')
+        self.request('GET','/sessions/'+self.sid,expect=(404,))
+        with self.connect_db() as db:
+            for table in ('chunks','segments','events','speaker_turns','result_changes','stream_chunks','stream_time_index'):
+                need(db.execute('SELECT count(*) FROM '+table).fetchone()[0] == 0,
+                     'Retention cleanup left rows: '+table)
+            need(db.execute('SELECT count(*) FROM session_file_cleanup').fetchone()[0] == 0,
+                 'Retention cleanup left file intents')
+        need(not any((self.data/'uploads').iterdir()), 'Retention cleanup left sources')
+        self.report['retention'] = dict(disposable_session_deleted=True, source_files_removed=True,
+            related_rows_removed=True, pending_cleanup=0,
+            database_file_shrinkage='not_required; SQLite may retain reusable pages')
+
+    def execute(self):
+        need(not self.out.exists(), 'Fresh named run directory required; never overwrite prior evidence')
+        self.report['envelope'] = envelope()
+        manifest = verify_source()
+        self.report['product_python'] = manifest['product_python']
+        self.report['source_manifest_sha256'] = file_hash(HERE/'MANIFEST.json')
+        need(scan_tree(BASE)+RUN_CAP <= GLOBAL_CAP, 'Cannot reserve 2 GiB below global ceiling')
+        need(shutil.disk_usage(HERE).free >= FREE_FLOOR+RUN_CAP, 'Cannot reserve run space above free floor')
+        self.out.mkdir(mode=0o700)
+        self.save('run-start.json',self.report)
+        self.monitor = threading.Thread(target=self.watch,daemon=True)
+        self.monitor.start()
+        signal.setitimer(signal.ITIMER_REAL,max(.1,self.deadline-time.monotonic()))
+        primary_error = None
+        try:
+            self.launch()
+            (self.focused if self.args.mode == 'focused' else self.logical)()
+            self.report['outcome'] = 'passed'
+        except BaseException as exc:
+            primary_error = exc
+            self.report['outcome'] = 'failed'
+            self.report['error'] = type(exc).__name__+': '+str(exc)[:500]
+        finally:
+            cleanup_start = time.monotonic()
+            self.deadline = cleanup_start+120
+            signal.setitimer(signal.ITIMER_REAL,120)
+            try:
+                self.stop_service()
+                self.verify_children_gone(10)
+                self.report['cleanup'] = 'verified_owned_processes_terminated'
+            except BaseException as exc:
+                self.kill_current()
+                self.report['outcome'] = 'failed'
+                self.report['cleanup'] = type(exc).__name__+': '+str(exc)[:300]
+                try:
+                    if self.proc is not None:
+                        code = self.proc.wait(timeout=10)
+                        if self.log_thread:
+                            self.log_thread.join(timeout=5)
+                            need(not self.log_thread.is_alive(), 'Log reader survived escalation')
+                        self.verify_children_gone(10)
+                        self.report['escalated_cleanup'] = dict(positive_wait=True,
+                            returncode=code,owned_children_gone=True)
+                except BaseException as cleanup_exc:
+                    self.report['escalated_cleanup'] = type(cleanup_exc).__name__+': '+str(cleanup_exc)[:300]
+            self.finished.set()
+            if self.monitor:
+                self.monitor.join(timeout=10)
+                if self.monitor.is_alive():
+                    self.report.update(outcome='failed',monitor='did_not_terminate')
+            if self.failure:
+                self.report.update(outcome='failed',monitor_failure=self.failure)
+            self.client.unlink(missing_ok=True)
+            try:
+                last_disk = self.disk(True)
+                self.report['final_disk'] = last_disk
+            except BaseException as exc:
+                self.report.update(outcome='failed',final_disk_error=str(exc)[:300])
+            self.report.update(total_wall_seconds=round(time.monotonic()-self.clock,3),
+                cleanup_seconds=round(time.monotonic()-cleanup_start,3), peak_sampled_tree_rss_bytes=self.peak_rss,
+                rss_sample_count=self.rss_checks, max_rss_sample_gap_seconds=round(self.max_rss_gap,3),
+                disk_sample_count=self.disk_checks,max_disk_sample_gap_seconds=round(self.max_disk_gap,3),
+                peak_live_children=self.peak_children, observed_child_starts=self.child_starts,
+                peak_run_bytes=self.peak_run, peak_observed_workspace_bytes=self.peak_global,
+                minimum_free_bytes=self.min_free, max_pending_receipts=self.max_pending,
+                max_uncommitted_audio_seconds=self.max_backlog, telemetry_rows=self.telemetry_rows,
+                telemetry_bytes=self.telemetry_bytes,log_bytes=self.log_bytes,discarded_log_bytes=self.log_discarded,
+                retained_data='prefix/logical modes retain test inputs/results; focused mode tests session deletion',
+                next_gate='Review measured growth before real-model shakedown or any 12h paced soak')
+            self.save('summary.json',self.report)
+            print(encoded(self.report).decode(),flush=True)
+            signal.setitimer(signal.ITIMER_REAL,0)
+        return 0 if self.report['outcome'] == 'passed' else 1
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--mode',choices=('focused','prefix','logical'),required=True)
+    parser.add_argument('--port',type=int,default=8877)
+    parser.add_argument('--server',action='store_true',help=argparse.SUPPRESS)
+    parser.add_argument('--data',default=None,help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    need(1024 <= args.port <= 65535, 'Invalid local port')
+    if args.server:
+        server(args)
+        return 0
+    need(args.data is None, 'Data directory override is not supported')
+    def interrupted(signum, frame):
+        raise Stop('Supervisor received signal '+str(signum))
+    for sig in (signal.SIGINT,signal.SIGTERM,signal.SIGALRM):
+        signal.signal(sig,interrupted)
+    return Run(args).execute()
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

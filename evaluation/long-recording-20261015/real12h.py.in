@@ -1,0 +1,935 @@
+#!/usr/bin/env python3
+"""REAL_MODELS / PACED_12_HOURS / MOSTLY_DIGITAL_SILENCE / NO_QUALITY_SCORE."""
+from __future__ import annotations
+import argparse
+from contextlib import asynccontextmanager
+import fcntl
+import hashlib
+import http.client
+import importlib.util
+import json
+import math
+import os
+import re
+from pathlib import Path
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+import wave
+
+BASE = Path('@@WORKSPACE_ROOT@@')
+HERE = BASE/'@@REAL12H_PACKET_REL@@'
+OLD = BASE/'@@ACCEPTANCE_PACKET_REL@@'
+SOURCE = BASE/'@@PRODUCT_SOURCE_REL@@'
+ASSETS = BASE/'@@ASSET_ROOT_REL@@'
+OLD_SHA = '@@SUPERVISOR_SOURCE_SHA256@@'
+RATE = 16000
+REAL_FRAMES = 2185130
+TOTAL_FRAMES = 691200000
+RECEIPTS, SILENCE_RECEIPTS = 732, 718
+NUMERIC_CAP, NUMERIC_ROWS = 16*1024**2, 65536
+RESOURCE_PERIOD = 120
+DIAGNOSTIC_LIMIT = 4096
+STARTUP, PACING, DRAIN, CLEANUP = 90, 43200, 300, 120
+RESTART_AT = 21620
+LATE_LIMIT = 1.0
+LABEL = 'REAL_MODELS / PACED_12_HOURS / MOSTLY_DIGITAL_SILENCE / NO_QUALITY_SCORE'
+SOURCES = (
+  ('demo', ASSETS/'@@DEMO_AUDIO_REL@@', 1127530, 168000),
+  ('aishell', BASE/'@@AISHELL_AUDIO_REL@@', 721600, 168000),
+  ('ami', BASE/'@@AMI_AUDIO_REL@@', 336000, 168000),
+  ('silence', None, TOTAL_FRAMES-REAL_FRAMES, 960000),
+)
+
+def sha(path):
+  value = hashlib.sha256()
+  with Path(path).open('rb') as f:
+    for block in iter(lambda: f.read(65536), b''):
+      value.update(block)
+  return value.hexdigest()
+
+def require(ok, message):
+  if not ok:
+    raise RuntimeError(message)
+
+def load_supervisor():
+  require(sha(OLD/'acceptance.py') == OLD_SHA, 'Frozen supervisor changed')
+  spec = importlib.util.spec_from_file_location('frozen_acceptance', OLD/'acceptance.py')
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  return module
+
+h = load_supervisor()
+
+def installed_pin():
+  root = h.PYTHON.parent.parent/'lib/python3.12/site-packages/audio_backend'
+  digest, count, size = hashlib.sha256(), 0, 0
+  for path in sorted(root.rglob('*.py')):
+    n = path.stat().st_size
+    require(n < 2*h.MIB and not path.is_symlink(), 'Installed source inventory type/size')
+    digest.update(h.encoded([path.relative_to(root).as_posix(), n, sha(path)])+b'\n')
+    count += 1
+    size += n
+  return dict(sha256=digest.hexdigest(), files=count, bytes=size)
+
+def verify_packet(full=False):
+  require((HERE/'MANIFEST.json').stat().st_size <= 8192, 'Manifest cap')
+  manifest = json.loads((HERE/'MANIFEST.json').read_bytes())
+  names = {'real12h.py', 'README.md', 'MANIFEST.json'}
+  require({x['path'] for x in manifest['files']} == names-{'MANIFEST.json'}, 'Source inventory')
+  require(sum((HERE/n).stat().st_size for n in names) <= 64*1024, 'Aggregate source cap')
+  for n in names:
+    p = HERE/n
+    require(p.is_file() and not p.is_symlink(), 'Source file type')
+    require(p.stat().st_size <= {'real12h.py':49152, 'README.md':8192, 'MANIFEST.json':8192}[n], 'Source file cap')
+  for row in manifest['files']:
+    p = HERE/row['path']
+    require(p.stat().st_size == row['bytes'] and sha(p) == row['sha256'], 'Adapter source changed')
+  for row in manifest['accepted_real30_source']:
+    p = BASE/row['path']
+    require(p.stat().st_size == row['bytes'] and sha(p) == row['sha256'], 'Accepted ancestor changed')
+  require(sha(OLD/'MANIFEST.json') == manifest['supervisor_manifest_sha256'], 'Supervisor manifest changed')
+  h.verify_source()
+  require(installed_pin() == manifest['installed_python'], 'Installed child source changed')
+  for row in manifest['inputs_and_profile']:
+    p = BASE/row['path']
+    require(p.stat().st_size == row['bytes'] and sha(p) == row['sha256'], 'Input/profile changed')
+  for scope, path, frames, step in SOURCES[:3]:
+    with wave.open(str(path), 'rb') as w:
+      require((w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()) ==
+          (RATE, 1, 2, frames), 'Input WAV geometry changed')
+  if full:
+    for row in manifest['models']:
+      p = BASE/row['path']
+      require(p.stat().st_size == row['bytes'] and sha(p) == row['sha256'], 'Model artifact changed')
+  return manifest
+
+def schedule():
+  global_frame = index = 0
+  for scope, path, total, step in SOURCES:
+    for start in range(0, total, step):
+      frames = min(step, total-start)
+      global_frame += frames
+      yield dict(index=index, scope=scope, path=path, start=start, frames=frames,
+                       due_frame=global_frame, final=start+frames == total)
+      index += 1
+
+def wait_due(due, check, clock=time.monotonic, sleep=time.sleep):
+  while True:
+    check()
+    remaining = due-clock()
+    if remaining <= 0:
+      return clock()-due
+    sleep(min(.1, remaining))
+
+def numeric_budget(size, rows, incoming):
+  require(0 <= size <= NUMERIC_CAP and 0 <= rows < NUMERIC_ROWS and
+          0 < incoming <= 1024 and size+incoming <= NUMERIC_CAP, 'Numeric output ceiling')
+
+class NumericLog:
+  def __init__(self, out):
+    self.path = out/'numeric.jsonl'
+    self.sequence = 0
+    self.window = 0
+    self.decodes = 0
+    self.failed = False
+
+  def emit(self, kind, **fields):
+    row = dict(kind=kind, pid=os.getpid(), monotonic=time.monotonic(), observer_failed=self.failed, **fields)
+    raw = h.encoded(row)+b'\n'
+    require(len(raw) <= 1024, 'Numeric record cap')
+    with self.path.open('ab') as f:
+      fcntl.flock(f, fcntl.LOCK_EX)
+      # One fixed eight-byte shared row count, under the same cross-process lock.
+      counter = self.path.with_suffix('.rows')
+      with counter.open('r+b' if counter.exists() else 'x+b') as c:
+        previous = c.read(9)
+        require(len(previous) in (0, 8), 'Numeric row counter shape')
+        rows = int.from_bytes(previous, 'little')
+        size = os.fstat(f.fileno()).st_size
+        require(bool(size) == bool(rows), 'Numeric row counter mismatch')
+        numeric_budget(size, rows, len(raw))
+        f.write(raw); f.flush()
+        c.seek(0); c.write((rows+1).to_bytes(8, 'little')); c.flush()
+
+def note(log, kind, **fields):
+  try:
+    log.emit(kind, **fields)
+  except BaseException:
+    mark_failed(log)
+
+def mark_failed(log):
+  log.failed = True
+  if isinstance(log, NumericLog):
+    try:
+      with (log.path.parent/'observer-failed').open('xb') as f:
+        f.write(b'Numeric observer incomplete\n'); f.flush(); os.fsync(f.fileno())
+    except OSError:
+      pass
+
+def input_frames(log, wav):
+  try:
+    with wave.open(str(wav), 'rb') as source:
+      return source.getnframes()
+  except BaseException:
+    mark_failed(log)
+    return None
+
+def observed_call(log, kind, call, **fields):
+  log.sequence += 1
+  token = log.sequence
+  began, cpu = time.monotonic(), time.process_time()
+  note(log, kind+'_begin', call=token, window=log.window, **fields)
+  try:
+    result = call()
+  except BaseException as exc:
+    note(log, kind+'_end', call=token, ok=False, exception=type(exc).__name__,
+                 wall=time.monotonic()-began, cpu=time.process_time()-cpu)
+    raise
+  note(log, kind+'_end', call=token, ok=True,
+             wall=time.monotonic()-began, cpu=time.process_time()-cpu)
+  return result
+
+def diagnostic_observer(original, unavailable, log):
+  count, lock = [0], threading.Lock()
+  def record(stage, exc):
+    if (type(exc) is not unavailable or type(stage) is not str or
+        stage not in ('capture', 'seam_prepare', 'seam_commit')):
+      return
+    if not lock.acquire(blocking=False):
+      return
+    try:
+      if count[0] >= DIAGNOSTIC_LIMIT:
+        return
+      count[0] += 1
+    finally:
+      lock.release()
+    # Exact pinned exception class: ordinary args/dict only; never str/repr/getattr.
+    args, data = exc.args, vars(exc)
+    reason = (args[0] if len(args) == 1 and type(args[0]) is str and
+              re.fullmatch('[a-z_]{1,80}', args[0]) else 'unclassified')
+    code, name = data.get('sqlite_errorcode'), data.get('sqlite_errorname')
+    if type(code) is not int or not 0 <= code <= (1 << 31)-1:
+      code = None
+    if type(name) is not str or re.fullmatch('SQLITE_[A-Z0-9_]{1,64}', name) is None:
+      name = None
+    note(log, 'optional_unavailable', stage=stage, exception_class='Unavailable',
+         reason=reason, sqlite_code=code, sqlite_name=name)
+  def observed(stage, exc):
+    try:
+      return original(stage, exc)
+    finally:
+      try:
+        record(stage, exc)
+      except BaseException:
+        # Even an observer failure cannot replace the original return/exception.
+        try:
+          mark_failed(log)
+        except BaseException:
+          pass
+  return observed
+
+def install_diagnostic_observer(log):
+  from audio_backend import native_owned_cell_capture as capture
+  from audio_backend import native_owned_cell_store as store
+  from audio_backend.native_owned_cells import Unavailable
+  require(capture._diagnostic_failure is store._diagnostic_failure, 'Diagnostic alias changed')
+  observed = diagnostic_observer(store._diagnostic_failure, Unavailable, log)
+  store._diagnostic_failure = capture._diagnostic_failure = observed
+
+class ObservedStream:
+  def __init__(self, raw):
+    self.raw, self.frames, self.rate = raw, 0, 0
+
+  def accept_waveform(self, rate, samples):
+    result = self.raw.accept_waveform(rate, samples)
+    self.frames += len(samples)
+    self.rate = rate
+    return result
+
+  def __getattr__(self, name):
+    return getattr(self.raw, name)
+
+class ObservedRecognizer:
+  def __init__(self, raw, log):
+    self.raw, self.log = raw, log
+
+  def create_stream(self, *args, **kwargs):
+    return ObservedStream(self.raw.create_stream(*args, **kwargs))
+
+  def decode_stream(self, stream):
+    self.log.decodes += 1
+    return observed_call(self.log, 'decode', lambda: self.raw.decode_stream(stream.raw),
+                             frames=stream.frames, rate=stream.rate)
+
+  def __getattr__(self, name):
+    return getattr(self.raw, name)
+
+class AnalyzerLaunchProxy:
+  def __init__(self, original):
+    self.original = original
+
+  def __getattr__(self, name):
+    return getattr(self.original, name)
+
+  def Popen(self, argv, *args, **kwargs):
+    if (isinstance(argv, list) and len(argv) == 5
+        and argv[:4] == [sys.executable, '-m', 'audio_backend.runner', '--serve']):
+      argv = [argv[0], '-I', '-B', str(HERE/'real12h.py'), '--analyzer-child', argv[4]]
+    return self.original.Popen(argv, *args, **kwargs)
+
+def analyzer_child(config):
+  verify_packet()
+  require(Path(config).resolve().is_relative_to(HERE/'real12h-run/data/tmp'), 'Unexpected analyzer config')
+  sys.path.insert(0, str(SOURCE))
+  import sherpa_onnx
+  from audio_backend.inference import AudioAnalyzer
+  from audio_backend import runner
+  log = NumericLog(HERE/'real12h-run')
+  note(log, 'analyzer_boot', bootstrap_sha256=sha(HERE/'real12h.py'))
+  original_factory = sherpa_onnx.OfflineRecognizer.from_sense_voice
+  def factory(*args, **kwargs):
+    return ObservedRecognizer(original_factory(*args, **kwargs), log)
+  sherpa_onnx.OfflineRecognizer.from_sense_voice = staticmethod(factory)
+  original_analyze = AudioAnalyzer.analyze
+  def analyze(self, wav, *args, **kwargs):
+    frames = input_frames(log, wav)
+    log.window += 1
+    before = log.decodes
+    result = observed_call(log, 'window', lambda: original_analyze(self, wav, *args, **kwargs), frames=frames)
+    try:
+      metadata = result.get('metadata', {})
+      candidates = metadata.get('event_candidates', [])
+      note(log, 'window_counts', window=log.window, frames=frames,
+                 actual_decode_calls=log.decodes-before,
+                 quiet_fast_path=bool(metadata.get('silence_fast_path', False)),
+                 event_model_windows=sum(bool(x.get('model_inference_executed', False)) for x in candidates))
+    except BaseException:
+      mark_failed(log)
+    return result
+  AudioAnalyzer.analyze = analyze
+  sys.argv = [str(HERE/'real12h.py'), '--serve', config]
+  runner.main()
+  note(log, 'analyzer_exit', windows=log.window, decode_attempts=log.decodes)
+
+def install_native_observer(log):
+  from audio_backend.native_worker import NativeProcess
+  original = NativeProcess.request
+  def request(self, action, stop, **kwargs):
+    fields = dict(action=action, native_pid=self.proc.pid, frames=0)
+    if action == 'push':
+      fields['frames'] = input_frames(log, kwargs.get('wav'))
+    result = observed_call(log, 'native', lambda: original(self, action, stop, **kwargs), **fields)
+    try:
+      state = result.get('state', result)
+      if 'input_seconds' in state:
+        note(log, 'native_state', action=action, native_pid=self.proc.pid,
+           input_frames=round(state['input_seconds']*RATE),
+           stable_frames=round(state['stable_seconds']*RATE),
+           processed_frames=round(state['processed_seconds']*RATE), finished=bool(state['finished']))
+    except BaseException:
+      mark_failed(log)
+    return result
+  NativeProcess.request = request
+
+def settings(data):
+  from audio_backend.settings import Settings
+  return Settings(data_dir=data, model_dir=ASSETS/'models', api_key=None,
+    disk_reserve_bytes=h.FREE_FLOOR+h.HEADROOM, max_upload_bytes=2*h.MIB,
+    process_memory_limit_bytes=6*h.GIB, cpu_threads=2, max_pending_chunks=4,
+    inference_device='cpu', asr_backend='sensevoice', diarization_backend='nemotron',
+    native_diarization_model=str(ASSETS/'@@NATIVE_MODEL_REL@@'),
+    native_diarization_library=str(ASSETS/'@@NATIVE_LIBRARY_REL@@'),
+    native_diarization_threads=2, speaker_calibration_file='eres2net-ami20-v1',
+    overlap_backend='none', language='auto', window_seconds=30, context_seconds=2,
+    event_threshold=.25, native_owned_support_enabled=True, native_owned_cells_enabled=True,
+    native_owned_seam_cells_enabled=True, moss_jobs_enabled=True,
+    moss_jobs_model_path=str(ASSETS/'@@MOSS_MODEL_REL@@'))
+
+def restart_evidence(latest, committed, admitted):
+  def frames(value):
+    require(type(value) in (int, float) and math.isfinite(value) and value >= 0,
+            'Restart frontier type')
+    result = round(value*RATE)
+    require(abs(value*RATE-result) < 1e-4, 'Restart frontier frame grid')
+    return result
+  state = json.loads(latest['metadata'] or '{}').get('native_diarization', {})
+  epoch = state.get('epoch_index')
+  require(type(epoch) is int and epoch >= 1, 'Restart lacks a genuine noninitial native epoch')
+  frontier = frames(latest['timeline_start'])+frames(latest['next_offset'])
+  owned_start, owned_end = frames(state['owned_start']), frames(state['owned_end'])
+  stable, processed, received = (frames(state[k]) for k in ('stable_until', 'processed_until', 'input_until'))
+  require(owned_start == epoch*300*RATE and owned_end == (epoch+1)*300*RATE,
+          'Restart native epoch geometry')
+  require(owned_start < frontier <= owned_end and frontier == frames(committed),
+          'Restart latest committed frontier mismatch')
+  require(frontier <= stable <= processed <= received <= frames(admitted) and
+          state.get('finished') is False, 'Restart native frontier/open-stream evidence')
+  expected = sum(item['frames'] for item in schedule()
+                 if item['scope'] == 'silence' and item['due_frame']/RATE <= RESTART_AT)
+  require(frames(admitted) == expected and 0 <= expected-frontier <= 4*960000,
+          'Restart latest admitted/committed coverage')
+  return dict(epoch_index=epoch, committed_frames=frontier, admitted_frames=expected,
+              owned_start_frames=owned_start, owned_end_frames=owned_end,
+              stable_frames=stable, processed_frames=processed, input_frames=received)
+
+def server(port):
+  h.envelope()
+  verify_packet()
+  sys.path.insert(0, str(SOURCE))
+  import psutil
+  import uvicorn
+  from audio_backend import resources
+  from audio_backend.app import create_app
+  resources.subprocess = AnalyzerLaunchProxy(resources.subprocess)
+  out = HERE/'real12h-run'
+  log = NumericLog(out)
+  install_native_observer(log)
+  install_diagnostic_observer(log)
+  app = create_app(settings(out/'data'))
+  original = app.router.lifespan_context
+  @asynccontextmanager
+  async def lifespan(application):
+    async with original(application):
+      yield
+    h.need(not application.state.worker.thread.is_alive(), 'Worker survived shutdown')
+    h.need(application.state.instance_lock.file is None, 'Instance lock not released')
+    h.need(not getattr(application.state, 'shutdown_blocked', False), 'Product shutdown blocked')
+    h.need(application.state.fragments.cleanup_error is None, 'Fragment cleanup unresolved')
+    raw = h.encoded(dict(pid=os.getpid(), created=psutil.Process().create_time(),
+      lifespan_complete=True, worker_stopped=True, instance_lock_released=True))
+    with (out/('server-clean-%d.json'%os.getpid())).open('xb') as f:
+      f.write(raw); f.flush(); os.fsync(f.fileno())
+  app.router.lifespan_context = lifespan
+  uvicorn.run(app, host='127.0.0.1', port=port, workers=1, access_log=False, log_level='warning')
+
+class RealRun(h.Run):
+  def __init__(self, args):
+    args.mode = 'real12h'
+    super().__init__(args)
+    self.out = HERE/'real12h-run'
+    self.data, self.client = self.out/'data', self.out/'client.wav'
+    self.work_seconds = STARTUP
+    self.deadline = self.clock+STARTUP
+    self.scopes = {}
+    self.pace_start = None
+    self.restarted = False
+    self.report = dict(label=LABEL, mode='real12h', outcome='not_started',
+      quality='not_scored', wall_clock_soak=False, input_pacing_seconds=PACING,
+      phase_limits_seconds=dict(startup=STARTUP, pacing=PACING, drain=DRAIN, cleanup=CLEANUP),
+      distinct_real_seconds=REAL_FRAMES/RATE, synthetic_silence_seconds=(TOTAL_FRAMES-REAL_FRAMES)/RATE,
+      input_pcm_payload_bytes=TOTAL_FRAMES*2, wav_header_bytes=RECEIPTS*44,
+      bootstrap_sha256=sha(HERE/'real12h.py'), frozen_supervisor_sha256=OLD_SHA)
+
+  def check(self, extra=0):
+    super().check(extra)
+    h.need(not (self.out/'observer-failed').exists(), 'Numeric observer failed')
+
+  def watch(self):
+    # Literal frozen Run.watch, changing only persisted cadence and sticky-marker check.
+    try:
+      next_disk = next_row = next_global = 0.
+      disk = {}
+      with (self.out/'resources.jsonl').open('xb') as f:
+        while not self.finished.is_set():
+          h.need(not (self.out/'observer-failed').exists(), 'Numeric observer failed')
+          now = time.monotonic()
+          rss = self.rss()
+          if now >= next_disk:
+            disk = self.disk(now >= next_global)
+            next_disk = now+2
+            if now >= next_global:
+              next_global = now+30
+          if now >= next_row:
+            row = dict(elapsed=round(now-self.clock,3), rss=rss, **disk, progress=self.stats())
+            raw = h.encoded(row)+b'\n'
+            h.need(len(raw) <= 4096 and self.telemetry_bytes+len(raw) <= 2*h.MIB,
+                   'Telemetry output cap')
+            f.write(raw); f.flush()
+            self.telemetry_bytes += len(raw)
+            self.telemetry_rows += 1
+            next_row = now+RESOURCE_PERIOD
+          self.finished.wait(.25)
+    except BaseException as exc:
+      self.failure = type(exc).__name__+': '+str(exc)[:300]
+      self.kill_current()
+
+  def execute(self):
+    signal.setitimer(signal.ITIMER_REAL, STARTUP)
+    h.envelope()
+    self.report['adapter_manifest_sha256'] = sha(HERE/'MANIFEST.json')
+    verify_packet(full=True)
+    return super().execute()
+
+  def save(self, name, value):
+    if name == 'summary.json':
+      value['retained_data'] = 'Four test sessions retained; no original input assets changed'
+      value['next_gate'] = 'Primary operational soak only; sustained-speech and optional MOSS quality remain separate gates'
+    super().save(name, value)
+
+  def health_check(self, health):
+    h.need(health['worker_alive'] and health['status'] == 'ok', 'API/Worker health')
+    for key, expected in [('asr_backend','sensevoice'), ('diarization_backend','nemotron'),
+                              ('overlap_backend','none'), ('inference_device','cpu')]:
+      h.need(health[key] == expected, 'Actual profile changed: '+key)
+    jobs = health['moss_jobs']
+    h.need(jobs['enabled'] and jobs['accepted_jobs'] == 0 and not jobs['cleanup_pending'], 'MOSS dispatch/cleanup changed')
+    h.need(health['speaker_policy']['calibration_profile_id'] == 'eres2net-ami20-v1', 'Calibration changed')
+    return jobs['permit']['state'] == 'IDLE'
+
+  def launch(self):
+    self.check()
+    self.service_ready.clear()
+    with socket.socket() as sock:
+      sock.bind(('127.0.0.1', self.args.port))
+    command = [str(h.PYTHON), '-I', '-B', str(HERE/'real12h.py'), '--server', '--port', str(self.args.port)]
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1', PYTHONNOUSERSITE='1',
+      OMP_NUM_THREADS='2', OMP_THREAD_LIMIT='2', OPENBLAS_NUM_THREADS='2', MKL_NUM_THREADS='2',
+      HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', HF_HUB_DISABLE_TELEMETRY='1')
+    env.pop('PYTHONPATH', None); env.pop('PYTHONHOME', None)
+    self.proc = subprocess.Popen(command, cwd=self.out, env=env, stdin=subprocess.DEVNULL,
+      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+    self.proc_created = self.ps.Process(self.proc.pid).create_time()
+    launches = self.report.setdefault('launches', [])
+    h.need(len(launches) < 2, 'Fixed two-launch plan exceeded')
+    launches.append(dict(command=command, pid=self.proc.pid, created=self.proc_created))
+    self.log_thread = threading.Thread(target=self.log_reader, args=(self.proc,), daemon=True)
+    self.log_thread.start()
+    until = min(self.deadline, time.monotonic()+30 if self.pace_start else self.clock+STARTUP)
+    while time.monotonic() < until:
+      self.check()
+      h.need(self.proc.poll() is None, 'API exited during startup')
+      try:
+        health = self.api('GET', '/health')
+        self.health_check(health)
+        self.service_ready.set()
+        return health
+      except (ConnectionError, OSError, http.client.HTTPException):
+        time.sleep(.1)
+    raise h.Stop('Startup bound exceeded')
+
+  def wait_idle(self):
+    while True:
+      self.check()
+      health = self.api('GET', '/health')
+      idle = self.health_check(health)
+      if health['active_chunk'] is None and idle:
+        return health
+      time.sleep(.05)
+
+  def stop_service(self, crash=False):
+    h.need(not crash, 'This run permits only an idle graceful restart')
+    super().stop_service(False)
+    if self.data.exists():
+      h.need(not any((self.data/'tmp').iterdir()), 'Worker/native temporary files leaked after shutdown')
+
+  def make_input(self, item):
+    self.check(item['frames']*2+44)
+    h.need(not self.client.exists(), 'Only one client WAV permitted')
+    with wave.open(str(self.client), 'wb') as output:
+      output.setparams((1, 2, RATE, 0, 'NONE', 'not compressed'))
+      source = wave.open(str(item['path']), 'rb') if item['path'] else None
+      try:
+        if source:
+          source.setpos(item['start'])
+        remaining = item['frames']
+        while remaining:
+          frames = min(32768, remaining)
+          raw = source.readframes(frames) if source else b'\0'*(frames*2)
+          h.need(len(raw) == frames*2, 'Short input read')
+          output.writeframesraw(raw)
+          remaining -= frames
+      finally:
+        if source:
+          source.close()
+    h.need(self.client.stat().st_size == item['frames']*2+44, 'WAV geometry mismatch')
+    return sha(self.client)
+
+  def restart(self, next_due):
+    began = time.monotonic()
+    self.deadline = next_due+LATE_LIMIT
+    signal.setitimer(signal.ITIMER_REAL, max(.01, self.deadline-began))
+    self.wait_idle()
+    sid = self.scopes['silence']
+    with self.connect_db() as db:
+      h.need(db.execute("SELECT count(*) FROM chunks WHERE session_id<>? AND status='completed'", (sid,)).fetchone()[0] == 14,
+             'Real recordings did not complete before synthetic restart')
+      committed, admitted = db.execute('SELECT sum(next_offset),sum(duration) FROM chunks WHERE session_id=?', (sid,)).fetchone()
+      latest = db.execute('SELECT timeline_start,next_offset,metadata FROM chunks '
+        'WHERE session_id=? AND next_offset>0 ORDER BY timeline_start+next_offset DESC,seq DESC LIMIT 1', (sid,)).fetchone()
+      h.need(latest is not None, 'Restart lacks committed silence')
+      evidence = restart_evidence(latest, committed, admitted)
+      checkpoints = {row['id']:row['next_offset'] for row in db.execute('SELECT id,next_offset FROM chunks')}
+    prefix = self.prefix()
+    self.stop_service()
+    self.launch()
+    h.need(self.prefix(prefix) == prefix, 'Restart changed committed result prefix')
+    with self.connect_db() as db:
+      for row in db.execute('SELECT id,next_offset FROM chunks'):
+        h.need(row['next_offset'] >= checkpoints[row['id']], 'Restart checkpoint regressed')
+    self.report['restart'] = dict(kind='idle_graceful', scheduled_seconds=RESTART_AT,
+      actual_seconds=began-self.pace_start, duration_seconds=time.monotonic()-began,
+      synthetic_committed_seconds=committed, synthetic_epoch_index=evidence['epoch_index'],
+      latest_silence_native_state=evidence,
+      prefix_unchanged=True, checkpoint_nonregression=True,
+      scope='Open synthetic stream tail recovery; no in-flight native crash claim')
+    self.restarted = True
+    self.deadline = self.pace_start+PACING+DRAIN
+    signal.setitimer(signal.ITIMER_REAL, max(.01, self.deadline-time.monotonic()))
+
+  def pacing_check(self):
+    self.check()
+    if time.monotonic() < getattr(self, 'next_progress_check', 0):
+      return
+    self.next_progress_check = time.monotonic()+1
+    stats = self.stats()
+    h.need(not any(stats.get('status', {}).get(x, 0) for x in ('failed','cancelled')), 'Failed/cancelled work')
+    h.need(stats.get('pending', 0) <= 4, 'Pacing backlog exceeds four pending receipts')
+
+  def logical(self):
+    for scope, path, frames, step in SOURCES:
+      response = self.api('POST', '/sessions', dict(name='real12h-'+scope,
+        identity_group='real12h-'+scope, processing_mode='legacy'))
+      self.scopes[scope] = response['id']
+    self.save('sessions.json', self.scopes)
+    self.pace_start = time.monotonic()
+    self.report['startup_seconds'] = self.pace_start-self.clock
+    h.need(self.report['startup_seconds'] <= STARTUP, 'Startup exceeded 90 seconds')
+    self.deadline = self.pace_start+PACING+DRAIN
+    signal.setitimer(signal.ITIMER_REAL, PACING+DRAIN)
+    digest = hashlib.sha256()
+    with (self.out/'admissions.jsonl').open('xb') as ledger:
+      for item in schedule():
+        due = self.pace_start+item['due_frame']/RATE
+        content_sha = self.make_input(item)
+        if not self.restarted and due > self.pace_start+RESTART_AT:
+          wait_due(self.pace_start+RESTART_AT, self.pacing_check)
+          self.restart(due)
+        late = wait_due(due, self.pacing_check)
+        h.need(late <= LATE_LIMIT, 'Missed fixed pacing deadline; clock is never shifted')
+        self.sid = self.scopes[item['scope']]
+        query = urllib.parse.urlencode(dict(stream_id=item['scope'], timeline_start=item['start']/RATE))
+        h.need(self.stats()['pending'] < 4, 'Admission would exceed four pending receipts')
+        sent = time.monotonic()
+        h.need(sent-due <= LATE_LIMIT, 'Admission missed fixed pacing deadline')
+        result = self.request('PUT', '/sessions/'+self.sid+'/chunks?'+query,
+          file=self.client, key='real12h-%03d'%item['index'], expect=(202,))[1]
+        chunk = result['chunk']
+        h.need(result['duplicate'] is False and abs(chunk['duration']-item['frames']/RATE) < 1e-8,
+                       'New receipt geometry/identity changed')
+        h.need(abs(chunk['timeline_start']-item['start']/RATE) < 1e-8, 'Scope offset changed')
+        row = {k:v for k,v in item.items() if k != 'path'}
+        row.update(id=chunk['id'], sha256=content_sha, sent_seconds=sent-self.pace_start,
+                           ack_seconds=time.monotonic()-self.pace_start, late_seconds=late)
+        raw = h.encoded(row)+b'\n'
+        ledger.write(raw); ledger.flush(); digest.update(raw)
+        self.client.unlink()
+        if item['final']:
+          self.api('POST', '/sessions/'+self.sid+'/streams/'+item['scope']+'/finish')
+    h.need(self.restarted, 'Required controlled restart did not occur')
+    h.need(time.monotonic()-self.pace_start >= PACING, 'Input pacing window was shortened')
+    self.report.update(wall_clock_soak=True, admissions_sha256=digest.hexdigest(), receipts=RECEIPTS, canonical_frames=TOTAL_FRAMES,
+                           last_admission_ack_seconds=time.monotonic()-self.pace_start)
+    self.wait_progress(complete=RECEIPTS)
+    self.audit_real()
+    self.report['drain_seconds_after_pacing'] = time.monotonic()-(self.pace_start+PACING)
+
+  def audit_real(self):
+    health = self.wait_idle()
+    stats = self.stats()
+    h.need(stats['status'] == {'completed':RECEIPTS}, 'Not all 732 receipts completed')
+    h.need(abs(stats['committed_seconds']-PACING) < 1e-7, 'Incomplete frame coverage')
+    pages = {}
+    with self.connect_db() as db:
+      h.need(db.execute('PRAGMA quick_check').fetchone()[0] == 'ok', 'SQLite quick_check')
+      h.need(db.execute('SELECT count(*) FROM stream_chunks WHERE stream_final=1').fetchone()[0] == 4,
+                   'Expected exactly four finalized scopes')
+      h.need(db.execute('SELECT count(*) FROM chunks WHERE abs(next_offset-duration)>0.000001').fetchone()[0] == 0,
+                   'Checkpoint is not complete')
+      for table, columns in [('segments','chunk_id,start,end,text'), ('events','chunk_id,start,end,label'),
+                                   ('speaker_turns','chunk_id,start,end')]:
+        h.need(db.execute('SELECT 1 FROM '+table+' GROUP BY '+columns+' HAVING count(*)>1 LIMIT 1').fetchone() is None,
+                       'Duplicate natural result key')
+      for scope, sid in self.scopes.items():
+        self.sid = sid
+        counts = {}
+        for route, key, table in [('chunks','chunks','chunks'), ('segments','segments','segments'),
+            ('events','events','events'), ('speaker-turns','speaker_turns','speaker_turns'),
+            ('changes','changes','result_changes')]:
+          counts[route] = self.page_hash(route, key)
+          sql = ('SELECT count(*) FROM '+table+' WHERE session_id=?' if table in ('chunks','result_changes')
+                           else 'SELECT count(*) FROM '+table+' r JOIN chunks c ON c.id=r.chunk_id WHERE c.session_id=?')
+          expected = db.execute(sql, (sid,)).fetchone()[0]
+          h.need(counts[route]['rows'] == expected, 'Public cursor count mismatch: '+scope+'/'+route)
+        h.need(counts['chunks']['rows'] == dict(demo=7, aishell=5, ami=2, silence=SILENCE_RECEIPTS)[scope], 'Scope receipt count')
+        pages[scope] = counts
+    h.need(not (self.out/'observer-failed').exists(), 'Numeric observer failed')
+    accounting = summarize_numeric(self.out/'numeric.jsonl')
+    h.need(accounting['decode_success'] > 0 and accounting['quiet_windows'] > 0, 'Real decode/quiet accounting missing')
+    h.need(accounting['native_push_success'] > 0 and accounting['native_processes'] >= 2, 'Native/restart accounting missing')
+    h.need(accounting['incomplete_calls'] == accounting['failed_calls'] == 0, 'Incomplete/failed observer calls')
+    h.need(accounting['windows'] > 0 and accounting['analyzer_boots'] == accounting['analyzer_exits'], 'Observer lifecycle incomplete')
+    h.need(accounting['window_success'] == accounting['windows'] and
+           accounting['window_decode_sum'] == accounting['decode_success'], 'Window/decode accounting mismatch')
+    disk = self.disk(True)
+    self.save('final-audit.json', dict(stats=stats, pages=pages, accounting=accounting, disk=disk,
+      optional_cells_health=health.get('native_owned_cells'), moss_jobs=health['moss_jobs']))
+    self.report.update(accounting=accounting, final_moss_accepted_jobs=health['moss_jobs']['accepted_jobs'],
+      audit=dict(complete=True, rows=stats['rows'], disk=disk),
+      growth_scope='12-hour mostly quiet workload; measured DB growth is not a sustained-speech forecast',
+      twelve_hour_pcm16_payload_floor=1382400000)
+
+def summarize_numeric(path):
+  totals = dict(decode_success=0, decode_input_frames=0, decode_wall_seconds=0., windows=0,
+    window_success=0, window_decode_sum=0,
+    quiet_windows=0, zero_decode_windows=0, event_model_windows=0, native_push_success=0,
+    native_input_frames_including_replay=0, native_resets=0, native_processes=0,
+    analyzer_boots=0, analyzer_exits=0, failed_calls=0, incomplete_calls=0,
+    optional_unavailable={})
+  active, previous_native = {}, None
+  with path.open('rb') as f:
+    fcntl.flock(f, fcntl.LOCK_EX)
+    require(os.fstat(f.fileno()).st_size <= NUMERIC_CAP, 'Numeric replay byte cap')
+    rows_seen = 0
+    for i, raw in enumerate(f):
+      require(i < NUMERIC_ROWS and len(raw) <= 1024, 'Numeric replay bounds')
+      rows_seen += 1
+      row = json.loads(raw)
+      require(not row.get('observer_failed'), 'Sticky observer failure')
+      kind = row['kind']
+      if kind.endswith('_begin'):
+        key = (row['pid'], row['call'])
+        require(key not in active and len(active) < 8, 'Observer call pairing')
+        active[key] = row
+      elif kind.endswith('_end'):
+        before = active.pop((row['pid'], row['call']))
+        require(kind[:-4] == before['kind'][:-6], 'Observer kind pairing')
+        if not row['ok']:
+          totals['failed_calls'] += 1
+        elif kind == 'decode_end':
+          totals['decode_success'] += 1
+          totals['decode_input_frames'] += before['frames']
+          totals['decode_wall_seconds'] += row['wall']
+        elif kind == 'window_end':
+          totals['window_success'] += 1
+        elif kind == 'native_end':
+          pid = before['native_pid']
+          if pid != previous_native:
+            totals['native_processes'] += 1
+            previous_native = pid
+          if before['action'] == 'push':
+            totals['native_push_success'] += 1
+            totals['native_input_frames_including_replay'] += before['frames']
+          if before['action'] == 'reset':
+            totals['native_resets'] += 1
+      elif kind == 'window_counts':
+        totals['windows'] += 1
+        totals['window_decode_sum'] += row['actual_decode_calls']
+        totals['quiet_windows'] += row['quiet_fast_path']
+        totals['zero_decode_windows'] += row['actual_decode_calls'] == 0
+        totals['event_model_windows'] += row['event_model_windows']
+      elif kind == 'analyzer_boot':
+        totals['analyzer_boots'] += 1
+      elif kind == 'analyzer_exit':
+        totals['analyzer_exits'] += 1
+      elif kind == 'optional_unavailable':
+        key = row['stage']+'/'+row['reason']
+        counts = totals['optional_unavailable']
+        counts[key] = counts.get(key, 0)+1
+    with path.with_suffix('.rows').open('rb') as c:
+      counter = c.read(9)
+    require(len(counter) == 8 and int.from_bytes(counter, 'little') == rows_seen,
+            'Numeric replay row count mismatch')
+  totals['numeric_rows'] = rows_seen
+  totals['incomplete_calls'] = len(active)
+  return totals
+
+def model_free_check():
+  counts, frames, last = {}, 0, 0
+  for item in schedule():
+    counts[item['scope']] = counts.get(item['scope'], 0)+1
+    frames += item['frames']
+    require(item['due_frame'] > last, 'Pacing order')
+    last = item['due_frame']
+  require(counts == dict(demo=7, aishell=5, ami=2, silence=SILENCE_RECEIPTS) and frames == TOTAL_FRAMES, 'Fixed pacing inventory')
+  items = list(schedule())
+  require(len(items) == RECEIPTS and sum(x['final'] for x in items) == 4 and
+          sum(x['frames'] for x in items if x['path']) == REAL_FRAMES, 'Receipt/final/real count')
+  require(sum(x['frames'] == 960000 for x in items if x['scope'] == 'silence') == 717 and
+          items[-1]['frames'] == 694870 and items[-1]['due_frame'] == PACING*RATE,
+          'Silence residual and final due')
+  require(TOTAL_FRAMES*2 == 1382400000 and RECEIPTS*44 == 32208, 'PCM/header byte inventory')
+  before = max(x['due_frame'] for x in items if x['due_frame']/RATE < RESTART_AT)/RATE
+  after = min(x['due_frame'] for x in items if x['due_frame']/RATE > RESTART_AT)/RATE
+  require((before, after) == (21616.570625, 21676.570625) and
+          before < RESTART_AT < after and LATE_LIMIT == 1., 'Fixed restart admission gap')
+  require((STARTUP, PACING, DRAIN, CLEANUP) == (90,43200,300,120) and
+          STARTUP+PACING+DRAIN+CLEANUP == 43710, 'Independent phase limits')
+  telemetry_rows = (STARTUP+PACING+DRAIN+CLEANUP)//RESOURCE_PERIOD+1
+  require(RESOURCE_PERIOD == 120 and telemetry_rows*4096 <= 2*h.MIB, 'Resource persistence ceiling')
+  def rejects(call):
+    try:
+      call()
+    except RuntimeError:
+      return
+    raise RuntimeError('Expected bound rejection missing')
+  numeric_budget(NUMERIC_CAP-1024, NUMERIC_ROWS-1, 1024)
+  for size, rows, incoming in ((NUMERIC_CAP-1023,0,1024), (0,NUMERIC_ROWS,1),
+                                 (0,0,1025), (-1,0,1)):
+    rejects(lambda: numeric_budget(size, rows, incoming))
+  # Representative native evidence; the live predicate derives its epoch/frontier.
+  state = dict(epoch_index=71, owned_start=21300., owned_end=21600.,
+               stable_until=21460.16, processed_until=21462.16,
+               input_until=21480., finished=False)
+  latest = dict(timeline_start=21420., next_offset=40.16, metadata=json.dumps({'native_diarization':state}))
+  require(restart_evidence(latest,21460.16,21480.)['epoch_index'] == 71, 'Native restart evidence')
+  rejects(lambda: restart_evidence(latest,21460.16,21420.))
+  rejects(lambda: restart_evidence(latest,21400.,21480.))
+  bad = dict(latest, metadata=json.dumps({'native_diarization':dict(state,epoch_index=70)}))
+  rejects(lambda: restart_evidence(bad,21460.16,21480.))
+  now = [0.]
+  require(wait_due(2., lambda: None, lambda: now[0], lambda seconds: now.__setitem__(0, now[0]+seconds)) == 0,
+      'Pacing wait shortened or overshot')
+  token, caught = object(), ValueError('fixed observer exception')
+  class Log:
+    sequence = window = decodes = 0
+    def __init__(self): self.rows = []
+    def emit(self, kind, **fields): self.rows.append(dict(kind=kind, **fields))
+  class RawStream:
+    def accept_waveform(self, rate, samples): return token
+  class RawRecognizer:
+    calls = 0
+    def create_stream(self): return RawStream()
+    def decode_stream(self, stream):
+      require(isinstance(stream, RawStream), 'Proxy leaked into original decode')
+      self.calls += 1
+      if self.calls == 2: raise caught
+      return token
+  log, raw = Log(), RawRecognizer()
+  recognizer = ObservedRecognizer(raw, log)
+  stream = recognizer.create_stream()
+  require(stream.accept_waveform(RATE, (0, 0, 0)) is token, 'Waveform return changed')
+  require(recognizer.decode_stream(stream) is token, 'Decode return changed')
+  try:
+    recognizer.decode_stream(stream)
+  except ValueError as exc:
+    require(exc is caught, 'Decode exception changed')
+  else:
+    raise RuntimeError('Decode exception was swallowed')
+  require(raw.calls == 2 and len(log.rows) == 4 and log.rows[0]['frames'] == 3, 'Decode count/input observer')
+  class BrokenLog(Log):
+    def emit(self, kind, **fields): raise OSError('fixed sink failure')
+  broken = BrokenLog()
+  require(observed_call(broken, 'test', lambda: token) is token and broken.failed, 'Sink changed return/call')
+  def fail(): raise caught
+  try:
+    observed_call(broken, 'test', fail)
+  except ValueError as exc:
+    require(exc is caught, 'Sink replaced original exception')
+  else:
+    raise RuntimeError('Sink swallowed original exception')
+  class Unavailable(ValueError):
+    pass
+  calls = []
+  def original_diagnostic(stage, exc):
+    calls.append((stage, exc))
+    return token
+  diagnostic_log = Log()
+  diagnostic = diagnostic_observer(original_diagnostic, Unavailable, diagnostic_log)
+  safe = Unavailable('source_changed_during_unlocked_io')
+  safe.sqlite_errorcode, safe.sqlite_errorname = 5, 'SQLITE_BUSY'
+  require(diagnostic('capture', safe) is token and calls == [('capture',safe)], 'Diagnostic changed return/call')
+  require(diagnostic_log.rows[-1] == dict(kind='optional_unavailable', stage='capture',
+    exception_class='Unavailable', reason='source_changed_during_unlocked_io',
+    sqlite_code=5, sqlite_name='SQLITE_BUSY'), 'Diagnostic fixed fields')
+  class Unsafe:
+    def __str__(self): raise AssertionError('Diagnostic called str')
+    def __repr__(self): raise AssertionError('Diagnostic called repr')
+  for args in (('/private/path',), ('secret words',), ('a'*81,), (), ('safe','second'), (Unsafe(),)):
+    diagnostic('seam_prepare', Unavailable(*args))
+    require(diagnostic_log.rows[-1]['reason'] == 'unclassified', 'Diagnostic raw message escaped')
+  class ChildUnavailable(Unavailable):
+    @property
+    def args(self): raise AssertionError('Diagnostic inspected subclass')
+  prior = len(diagnostic_log.rows)
+  diagnostic('capture', ChildUnavailable('safe'))
+  diagnostic('unknown_stage', safe)
+  require(len(diagnostic_log.rows) == prior, 'Diagnostic widened type/stage scope')
+  for _ in range(DIAGNOSTIC_LIMIT+8):
+    diagnostic('capture', safe)
+  require(len(diagnostic_log.rows) == DIAGNOSTIC_LIMIT and len(calls) == DIAGNOSTIC_LIMIT+17, 'Diagnostic cap changed original calls')
+  broken_diagnostic = diagnostic_observer(original_diagnostic, Unavailable, broken)
+  require(broken_diagnostic('capture', safe) is token, 'Diagnostic sink replaced return')
+  def failed_diagnostic(stage, exc):
+    calls.append((stage,exc))
+    raise caught
+  try:
+    diagnostic_observer(failed_diagnostic, Unavailable, broken)('capture', safe)
+  except ValueError as exc:
+    require(exc is caught, 'Diagnostic sink replaced original exception')
+  else:
+    raise RuntimeError('Diagnostic swallowed original exception')
+  class FakeSubprocess:
+    def __init__(self): self.rows = []
+    def Popen(self, argv, *args, **kwargs):
+      self.rows.append((argv, args, kwargs))
+      if kwargs.get('error'): raise caught
+      return token
+  original = FakeSubprocess()
+  proxy = AnalyzerLaunchProxy(original)
+  options = dict(stdin=token, stdout=token, env={'fixed':'yes'}, text=True)
+  target = [sys.executable, '-m', 'audio_backend.runner', '--serve', '/fixed/config.json']
+  require(proxy.Popen(target, token, **options) is token, 'Launch return changed')
+  require(original.rows[0] == ([sys.executable,'-I','-B',str(HERE/'real12h.py'),'--analyzer-child','/fixed/config.json'], (token,), options), 'Exact target/options rewrite')
+  for other in ([sys.executable,'-m','audio_backend.native_runner','config'],
+                  [*target, 'extra'], [sys.executable,'-m','audio_backend.runner','--fragment-serve'],
+                  tuple(target), ['ffmpeg','-version']):
+    require(proxy.Popen(other) is token and original.rows[-1][0] is other, 'Non-analyzer launch changed')
+  try:
+    proxy.Popen(['ffprobe'], error=True)
+  except ValueError as exc:
+    require(exc is caught, 'Launch exception changed')
+  else:
+    raise RuntimeError('Launch exception swallowed')
+  return dict(label='MODEL_FREE_SOURCE_FUNCTION_CHECK', schedule_receipts=RECEIPTS, canonical_frames=frames,
+    simulated_wait_seconds=now[0], observer_return_exception_preserved=True,
+    restart_previous_due=before, restart_next_due=after, total_phase_ceiling_seconds=43710,
+    resource_row_ceiling=telemetry_rows, numeric_byte_cap=NUMERIC_CAP, numeric_row_cap=NUMERIC_ROWS,
+    diagnostic_return_exception_sink_preserved=True, diagnostic_fields_bounded=True,
+    exact_analyzer_only_argv_rewrite=True, real_models_run=False, real_pacing_run=False)
+
+def main():
+  parser = argparse.ArgumentParser(description=__doc__)
+  mode = parser.add_mutually_exclusive_group(required=True)
+  mode.add_argument('--check', action='store_true')
+  mode.add_argument('--run', action='store_true')
+  mode.add_argument('--server', action='store_true', help=argparse.SUPPRESS)
+  mode.add_argument('--analyzer-child', metavar='CONFIG', help=argparse.SUPPRESS)
+  parser.add_argument('--port', type=int, default=8878)
+  args = parser.parse_args()
+  require(1024 <= args.port <= 65535, 'Invalid local port')
+  if args.analyzer_child:
+    analyzer_child(args.analyzer_child)
+    return 0
+  if args.server:
+    server(args.port)
+    return 0
+  def interrupted(signum, frame):
+    raise h.Stop('Supervisor received signal '+str(signum))
+  for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGALRM):
+    signal.signal(sig, interrupted)
+  if args.check:
+    signal.setitimer(signal.ITIMER_REAL, 30)
+    h.envelope()
+    verify_packet()
+    print(h.encoded(model_free_check()).decode(), flush=True)
+    signal.setitimer(signal.ITIMER_REAL, 0)
+    return 0
+  return RealRun(args).execute()
+
+if __name__ == '__main__':
+  raise SystemExit(main())
