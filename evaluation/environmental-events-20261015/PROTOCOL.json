@@ -1,0 +1,552 @@
+{
+  "schema": "environmental-event-pilot-public-v1",
+  "date": "2026-10-15",
+  "purpose": "Small fixed development checkpoint; not a representative or held-out accuracy estimate.",
+  "selection_before_predictions": true,
+  "fixtures": {
+    "total": 29,
+    "esc50_clips": 24,
+    "esc50_seconds_each": 5,
+    "dcase_mixtures": 3,
+    "dcase_seconds_each": 120,
+    "digital_zero_seconds": [
+      5,
+      120
+    ],
+    "total_seconds": 605
+  },
+  "esc50": {
+    "repository": "https://github.com/karolpiczak/ESC-50",
+    "commit": "33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6",
+    "metadata_url": "https://raw.githubusercontent.com/karolpiczak/ESC-50/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/meta/esc50.csv",
+    "attribution_url": "https://github.com/karolpiczak/ESC-50/blob/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/README.md",
+    "license_url": "https://github.com/karolpiczak/ESC-50/blob/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/LICENSE",
+    "license": "CC BY-NC 3.0; research-only noncommercial use for this pilot. Original source attributions remain applicable.",
+    "license_sha256": "f6aec3a3283a2efdcbb1feff334adad7ab17c097bdec0cbb4eebdb9e16886074",
+    "selection": "Fixed category allocation in specified order; lexicographic filename within category; global unique src_file; no predictions inspected.",
+    "category_order_and_counts": [
+      [
+        "rain",
+        6
+      ],
+      [
+        "door_wood_knock",
+        3
+      ],
+      [
+        "door_wood_creaks",
+        3
+      ],
+      [
+        "engine",
+        2
+      ],
+      [
+        "train",
+        2
+      ],
+      [
+        "pouring_water",
+        2
+      ],
+      [
+        "wind",
+        2
+      ],
+      [
+        "keyboard_typing",
+        2
+      ],
+      [
+        "clapping",
+        2
+      ]
+    ],
+    "selection_detail": "In the listed category order, sort all metadata filenames lexicographically and take the requested count, skipping any src_file already chosen globally. No random sampling or prediction-based filtering.",
+    "fold_counts": {
+      "1": 22,
+      "2": 2
+    },
+    "clips": [
+      {
+        "filename": "1-17367-A-10.wav",
+        "category": "rain",
+        "src_file": "17367",
+        "fold": "1",
+        "git_blob_sha1": "600d0516d95f997df769d9f259faa59b69546938",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-21189-A-10.wav",
+        "category": "rain",
+        "src_file": "21189",
+        "fold": "1",
+        "git_blob_sha1": "2b8bd44c4e58123af544a10ca4e95104f4995c8e",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-26222-A-10.wav",
+        "category": "rain",
+        "src_file": "26222",
+        "fold": "1",
+        "git_blob_sha1": "9720340897157fda4c4616a2bc90449160c688e4",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-29561-A-10.wav",
+        "category": "rain",
+        "src_file": "29561",
+        "fold": "1",
+        "git_blob_sha1": "e6deb5219c3c5e3fb734dbc58e08a74d27f49647",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-50060-A-10.wav",
+        "category": "rain",
+        "src_file": "50060",
+        "fold": "1",
+        "git_blob_sha1": "fa97131072e1897acd7f94259cabc4fcf404ffed",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-54958-A-10.wav",
+        "category": "rain",
+        "src_file": "54958",
+        "fold": "1",
+        "git_blob_sha1": "bfe2f997dbf1df865dce4f47cc3975caed229d83",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-101336-A-30.wav",
+        "category": "door_wood_knock",
+        "src_file": "101336",
+        "fold": "1",
+        "git_blob_sha1": "d9587f8b6be7acad322344f767974f8220c32b07",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-103995-A-30.wav",
+        "category": "door_wood_knock",
+        "src_file": "103995",
+        "fold": "1",
+        "git_blob_sha1": "ba06bc6b47a665428a936f6a87371d76dbebc559",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-103999-A-30.wav",
+        "category": "door_wood_knock",
+        "src_file": "103999",
+        "fold": "1",
+        "git_blob_sha1": "f5f182e7ac2ec208c542794b3b4c7f2eb69c70c8",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-51805-A-33.wav",
+        "category": "door_wood_creaks",
+        "src_file": "51805",
+        "fold": "1",
+        "git_blob_sha1": "e76b7419086e1d057c8b4f39d2f2724990944efc",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "2-123712-A-33.wav",
+        "category": "door_wood_creaks",
+        "src_file": "123712",
+        "fold": "2",
+        "git_blob_sha1": "ee262de577775cc8c3d027e85117240abc4d197c",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "2-70344-A-33.wav",
+        "category": "door_wood_creaks",
+        "src_file": "70344",
+        "fold": "2",
+        "git_blob_sha1": "a4f715bfdca0370e30f28cdc59809d316edcb5b6",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-18527-A-44.wav",
+        "category": "engine",
+        "src_file": "18527",
+        "fold": "1",
+        "git_blob_sha1": "69e9d208aa1e77dc3a150cdcb23a434d86b0f0de",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-22882-A-44.wav",
+        "category": "engine",
+        "src_file": "22882",
+        "fold": "1",
+        "git_blob_sha1": "a80becdaed9184b22ff05356be316014473bf357",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-119125-A-45.wav",
+        "category": "train",
+        "src_file": "119125",
+        "fold": "1",
+        "git_blob_sha1": "6492592fd5eea80b1cb069d8b8705af103c3a709",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-54065-A-45.wav",
+        "category": "train",
+        "src_file": "54065",
+        "fold": "1",
+        "git_blob_sha1": "dd6b1cce6e8e91b37e37603e7cd9c1d00b96e839",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-118559-A-17.wav",
+        "category": "pouring_water",
+        "src_file": "118559",
+        "fold": "1",
+        "git_blob_sha1": "cf9730f8b43cdf122c1fc5fca6bf486a68603b6a",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-50625-A-17.wav",
+        "category": "pouring_water",
+        "src_file": "50625",
+        "fold": "1",
+        "git_blob_sha1": "bca54fe53fb7464d4c79631e17be7ae809b1bac5",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-137296-A-16.wav",
+        "category": "wind",
+        "src_file": "137296",
+        "fold": "1",
+        "git_blob_sha1": "1b131c2ae008a5ca149cf232d4786218963129f7",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-29532-A-16.wav",
+        "category": "wind",
+        "src_file": "29532",
+        "fold": "1",
+        "git_blob_sha1": "63ab5236b2711cf0eb240c75882dbdf45a900a2e",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-137-A-32.wav",
+        "category": "keyboard_typing",
+        "src_file": "137",
+        "fold": "1",
+        "git_blob_sha1": "a4627b2fff44a1955cd94fb309c4e9abc143f1dc",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-53501-A-32.wav",
+        "category": "keyboard_typing",
+        "src_file": "53501",
+        "fold": "1",
+        "git_blob_sha1": "8d4cb5bd76ea0d495f57c9b3e59d5397ddf31e1f",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-104089-A-22.wav",
+        "category": "clapping",
+        "src_file": "104089",
+        "fold": "1",
+        "git_blob_sha1": "c20ab5012239c15c2cbbd71a2a5b2bb04a4cb522",
+        "expected_bytes": 441044
+      },
+      {
+        "filename": "1-105224-A-22.wav",
+        "category": "clapping",
+        "src_file": "105224",
+        "fold": "1",
+        "git_blob_sha1": "e74b1cd6a6c79a2fef3aea3deced550b3b428919",
+        "expected_bytes": 441044
+      }
+    ],
+    "audio_url_template": "https://raw.githubusercontent.com/karolpiczak/ESC-50/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/audio/{filename}",
+    "truth": "rain, door_wood_knock and door_wood_creaks establish positive clip presence only. Other categories are diagnostic confusers, not verified target-negative clips. Engine/train do not establish driving/subway positives.",
+    "positive_mapping": {
+      "rain": "rain",
+      "door_wood_knock": "door",
+      "door_wood_creaks": "door"
+    }
+  },
+  "dcase2016_task2": {
+    "source": "https://archive.org/details/dcase2016_task2_train_dev",
+    "official_task": "https://dcase.community/challenge2016/task-sound-event-detection-in-synthetic-audio",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "selection": "Frozen before inference: lowest density monophonic EBR filename -6; middle density polyphonic EBR filename 0; highest density polyphonic EBR filename +6. Three distinct combined noise/density/polyphony conditions, not controlled contrasts.",
+    "filename_ebr_caveat": "README enumerates filename XX={-6,0,6} but subsequent prose says -12 to 0 dB. Report filename EBR tokens only, do not reinterpret.",
+    "archives": [
+      {
+        "name": "dcase2016_task2_train_dev.zip",
+        "bytes": 125450464,
+        "sha256": "789563e5631974cfa4d219cc7978f0059587e13b7fb84d4eb95ae1a8da7fece1",
+        "sha1": "8595dfaeb2a5fcaa42dc466ca9aac4c003751741",
+        "md5": "4e1b5e8887159193e8624dec801eb9e7"
+      },
+      {
+        "name": "dcase2016_task2_dev_samplesList.zip",
+        "bytes": 8003,
+        "sha256": "6ddac4d136346d71bbccb0f29805a2bf064441e0c2267834352f4488aecfb902",
+        "sha1": "0002f00ab0bdeaf88c97d2d06bbb1cd52ae6efbb"
+      }
+    ],
+    "archive_url_template": "https://archive.org/download/dcase2016_task2_train_dev/{name}",
+    "mixtures": [
+      {
+        "id": "dev_1_ebr_-6_nec_1_poly_0",
+        "audio_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/sound/dev_1_ebr_-6_nec_1_poly_0.wav",
+        "audio_bytes": 10584044,
+        "audio_crc32": 812358223,
+        "duration": 120,
+        "annotation_sha256": "2c021c3cbf843d37b59aaf5da8f51a382ef80a7439bf38e155f3ead5747af69f",
+        "samples_sha256": "7baee618f493940c8ee3b53e9e401c17fdb54c0cfa47c8f9ada08fd9b067b52d",
+        "door_reference_intervals": 2
+      },
+      {
+        "id": "dev_1_ebr_0_nec_3_poly_1",
+        "audio_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/sound/dev_1_ebr_0_nec_3_poly_1.wav",
+        "audio_bytes": 10584044,
+        "audio_crc32": 2413787578,
+        "duration": 120,
+        "annotation_sha256": "59a55002a54c7a57c87f84d0fc4f0011b06357fa5977c2b51318f0c43e4b0035",
+        "samples_sha256": "0d591420d5cd8691826a8c238ddbd185b8cb5d64b318f8645190b0b881cc7563",
+        "door_reference_intervals": 6
+      },
+      {
+        "id": "dev_1_ebr_6_nec_5_poly_1",
+        "audio_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/sound/dev_1_ebr_6_nec_5_poly_1.wav",
+        "audio_bytes": 10584044,
+        "audio_crc32": 3406525594,
+        "duration": 120,
+        "annotation_sha256": "66c3d0a0ebf58dca086c198c14c61603eafa1056c9ba5356e50ba800b343149c",
+        "samples_sha256": "c4c80e7bcbbd13721a6b578dc87814509d2c45b5ff3746f1444bf7e272ea5960",
+        "door_reference_intervals": 10
+      }
+    ],
+    "mapping": {
+      "knock": "door",
+      "doorslam": "door"
+    },
+    "truth": "All 120 seconds of each recording are exhaustively annotated for broad door = knock or doorslam. Absence of both gives door-negative bins, possibly containing other office sounds. No other target receives negative truth.",
+    "door_reference_intervals": 18,
+    "positive_1s_bins": 29,
+    "negative_1s_bins": 331,
+    "source_reuse": {
+      "occurrences": 99,
+      "unique_original_samples": 90,
+      "pairwise_shared": {
+        "1-2": 1,
+        "1-3": 1,
+        "2-3": 7
+      }
+    },
+    "independence_caveat": "The three correlated development mixtures use isolated training sources; 99 appearances represent 90 unique sources. No source-disjoint or model-training-disjoint evaluation is established."
+  },
+  "model": {
+    "name": "sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+    "release_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/audio-tagging-models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15.tar.bz2",
+    "license_recorded_in_product_manifest": "Apache-2.0",
+    "license_source": "https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+    "files": [
+      {
+        "name": "model.onnx",
+        "bytes": 91932865,
+        "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34"
+      },
+      {
+        "name": "class_labels_indices.csv",
+        "bytes": 14675,
+        "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429"
+      }
+    ],
+    "provider": "cpu",
+    "threads": 2,
+    "top_k": 527,
+    "window_seconds": 5,
+    "hop_seconds": 2.5,
+    "config": {
+      "event_threshold": 0.25,
+      "event_thresholds": {
+        "rain": 0.25,
+        "driving": 0.25,
+        "subway": 0.25,
+        "door": 0.25,
+        "music": 0.25,
+        "silence": 1.0
+      },
+      "event_release_ratio": 1.0,
+      "event_silence_peak": 1e-05
+    },
+    "taxonomy_caveat": "Broad-door references include creaks, while the unchanged detector mapping excludes the model class Creak.",
+    "release_archive": {
+      "bytes": 111034072,
+      "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6",
+      "hash_provenance": "Pinned product-manifest artifact identity, not a claim of a provider-signed SHA-256 manifest."
+    }
+  },
+  "preprocessing": {
+    "input_audio": "Complete original mono 44100 Hz, 16-bit PCM recordings. No cropping, trimming, seeking, time shift or tempo change.",
+    "output": "Mono 16000 Hz little-endian float32; 80000 samples per 5-second inference window.",
+    "ffmpeg": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "filter": "aresample=resampler=swr:filter_size=32:phase_shift=10:linear_interp=1:exact_rational=1:cutoff=0.97:dither_method=none",
+    "zero_controls": "Generate float32 digital zeros at 16000 Hz for 5 and 120 seconds. They must yield only silence covering the full interval and zero model calls."
+  },
+  "metrics": {
+    "primary_dcase": "Half-open 1-second bins. Any strictly positive overlap marks presence. Union duplicate/overlapping supports, then pool TP/FP/FN/TN across complete recordings. Precision=TP/(TP+FP); recall=TP/(TP+FN); F1=2TP/(2TP+FP+FN). Undefined denominators produce null.",
+    "esc50": "Per-category positive-only clip hit if any detected event has the mapped label. Precision, true negatives and all-target accuracy are not identifiable from weak tags.",
+    "supplemental": "Existing greedy same-label interval matching at IoU >= 0.3. No shifts, collars or clipping. Coarse merged/chunked supports are not physical event occurrences; no onset/offset precision claim."
+  },
+  "results": {
+    "model_load_attempts": 1,
+    "compute_attempts": 165,
+    "compute_completed": 165,
+    "fixtures": 29,
+    "dcase_door_one_second_segments": {
+      "tp": 11,
+      "fp": 38,
+      "fn": 18,
+      "tn": 293,
+      "segments": 360,
+      "precision": 0.22448979591836735,
+      "recall": 0.3793103448275862,
+      "f1": 0.28205128205128205
+    },
+    "esc_positive_clip_hits": {
+      "rain": {
+        "clips": 6,
+        "hits": 6,
+        "positive_clip_hit_rate": 1.0,
+        "precision": null
+      },
+      "door_wood_knock": {
+        "clips": 3,
+        "hits": 3,
+        "positive_clip_hit_rate": 1.0,
+        "precision": null
+      },
+      "door_wood_creaks": {
+        "clips": 3,
+        "hits": 2,
+        "positive_clip_hit_rate": 0.6666666666666666,
+        "precision": null
+      }
+    },
+    "zero_controls_pass": true
+  },
+  "dcase_per_mixture": [
+    {
+      "id": "dev_1_ebr_-6_nec_1_poly_0",
+      "one_second_door_segments": {
+        "tp": 2,
+        "fp": 6,
+        "fn": 1,
+        "tn": 111,
+        "segments": 120,
+        "precision": 0.25,
+        "recall": 0.6666666666666666,
+        "f1": 0.36363636363636365
+      },
+      "supplemental_greedy_iou": {
+        "reference_events": 2,
+        "hypothesis_events": 2,
+        "matched_reference_events": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    {
+      "id": "dev_1_ebr_0_nec_3_poly_1",
+      "one_second_door_segments": {
+        "tp": 3,
+        "fp": 15,
+        "fn": 7,
+        "tn": 95,
+        "segments": 120,
+        "precision": 0.16666666666666666,
+        "recall": 0.3,
+        "f1": 0.21428571428571427
+      },
+      "supplemental_greedy_iou": {
+        "reference_events": 6,
+        "hypothesis_events": 4,
+        "matched_reference_events": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    {
+      "id": "dev_1_ebr_6_nec_5_poly_1",
+      "one_second_door_segments": {
+        "tp": 6,
+        "fp": 17,
+        "fn": 10,
+        "tn": 87,
+        "segments": 120,
+        "precision": 0.2608695652173913,
+        "recall": 0.375,
+        "f1": 0.3076923076923077
+      },
+      "supplemental_greedy_iou": {
+        "reference_events": 10,
+        "hypothesis_events": 5,
+        "matched_reference_events": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    }
+  ],
+  "execution_observation": {
+    "elapsed_seconds": 20.553953973998432,
+    "peak_sampled_group_plus_monitor_rss_bytes": 332115968,
+    "maximum_sample_gap_seconds": 0.10533137600577902,
+    "maximum_observed_new_disk_bytes": 174112768,
+    "limits": "Two CPU threads; 1 GiB sampled process-group-plus-monitor RSS ceiling; 2 GiB per-process virtual address-space ceiling; 540-second work deadline; 600-second outer deadline; 512 MiB new-disk ceiling.",
+    "caveat": "Single observed run. Sampled work-phase memory is not a continuous peak guarantee; elapsed time is not a model-only latency benchmark."
+  },
+  "uncovered": [
+    "music",
+    "driving",
+    "subway",
+    "natural quiet/silence"
+  ],
+  "unchanged": [
+    "model weights",
+    "detector taxonomy",
+    "thresholds",
+    "release policy"
+  ],
+  "reproducibility": {
+    "metric_helpers": "metrics.py copies the four frozen pure helpers unchanged; tests use synthetic interval records and no model.",
+    "evaluated_source_sha256": {
+      "audio_backend/__init__.py": {
+        "bytes": 108,
+        "sha256": "f9943e18f64a268566f06cb709de709c5c5c57bb4f4af1b31e20cb73a7763b36"
+      },
+      "audio_backend/events/__init__.py": {
+        "bytes": 237,
+        "sha256": "a3cac77c5c60a086023d63acacda5ff230d4e0a878e2cc74efac8c2eb5195ffa"
+      },
+      "audio_backend/events/detector.py": {
+        "bytes": 5843,
+        "sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0"
+      },
+      "audio_backend/events/provenance.py": {
+        "bytes": 3132,
+        "sha256": "0e57fab110cda6ee75244b5f2ab368a01753c66c812a11791f138b1d0122f56f"
+      },
+      "scripts/benchmarks/score_predictions.py": {
+        "bytes": 14491,
+        "sha256": "da365a52a221fd5cd7577f48b5a5c914c2a6e9c8e97116abecfe576147ca1149"
+      }
+    },
+    "checksum_provenance": "ESC Git-blob SHA-1 identities come from the pinned upstream Git tree. DCASE SHA-1 values are acquisition pins; archive SHA-256 values are locally calculated byte identities. Model SHA-256 values are observed local file identities. None is asserted to be a provider-signed SHA-256 manifest.",
+    "scope": "Reconstruct source fixtures from public upstream datasets under their licenses. This checkpoint contains aggregate observations, selection metadata and pure scoring helpers, not a standalone model runner.",
+    "evaluated_source_commit": "76175dfce9475fe1d04799b6cf2d7aeea2045de7",
+    "evaluated_source_tree": "6baba64a2a6a4b2dd3ec2f40dc89ae1e4352d9aa",
+    "evaluated_detector_url": "https://github.com/Headmaster218/long-audio-backend/blob/76175dfce9475fe1d04799b6cf2d7aeea2045de7/audio_backend/events/detector.py"
+  }
+}
