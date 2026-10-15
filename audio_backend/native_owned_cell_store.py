@@ -1079,7 +1079,9 @@ class CellStore:
         if scoped:integer(after, (1 << 63) - 1)
         else:integer(after)
         self._generation(op)
+        session_start = budget.sql_bytes
         if not self.authority.session_valid(sid, budget):raise Unavailable('session_unavailable')
+        final_sql = budget.sql_bytes - session_start
         self._generation(op)
         rows = self._db.execute('SELECT seq,cell_id,state,revision FROM cells WHERE sid=? AND seq>? ORDER BY seq LIMIT 20', (sid, after)).fetchall()
         result = []; checks = []; cursor = after
@@ -1094,19 +1096,30 @@ class CellStore:
                 expected_sequence=item['seq'] if scoped else None,
                 expected_revision=item['revision'] if scoped else None)
             self._generation(op)
+            authority_start = budget.sql_bytes
             if self.authority.cell_valid(doc, budget, publishing=False):
+                authority_sql = budget.sql_bytes - authority_start
                 if scoped:
                     support = SourceSupport.from_dict(doc['support'])
-                    result.append({'sequence': item['seq'], 'cell_id': item['cell_id'],
+                    entry = {'sequence': item['seq'], 'cell_id': item['cell_id'],
                         'revision': item['revision'], 'state': item['state'],
                         'support_id': support.support_id, 'proof_sha256': hashlib.sha256(proof).hexdigest(),
                         'start_frame': support.start_frame, 'end_frame': support.end_frame,
-                        'core_start_frame': support.core_start_frame, 'core_end_frame': support.core_end_frame})
-                else:result.append(dict(item))
-                if is_composite(doc):result[-1]['coverage'] = seam_coverage(doc)
-                checks.append(doc)
+                        'core_start_frame': support.core_start_frame, 'core_end_frame': support.core_end_frame}
+                else:entry = dict(item)
+                if is_composite(doc):entry['coverage'] = seam_coverage(doc)
+                # Reserve only measured byte costs, never authority values or
+                # snapshots. Every included cell is still revalidated below.
+                # The attempted candidate's proof/reads remain fully charged.
+                projected = len(canonical(result + [entry], PROOF_BYTES))
+                if checks and budget.sql_bytes + projected + final_sql + authority_sql > SQL_PROJECTION_BYTES:
+                    if budget.sql_bytes + len(canonical(result, PROOF_BYTES)) + final_sql > SQL_PROJECTION_BYTES:
+                        raise Unavailable('operation_work_capacity')
+                    break  # Do not include or advance past this candidate.
+                result.append(entry); checks.append(doc); final_sql += authority_sql
             self._generation(op)
             cursor = item['seq']
+        if rows and cursor == after:raise Unavailable('operation_work_capacity')
         encoded = canonical(result, PROOF_BYTES); budget.projection(len(encoded))
         self._generation(op)
         if any(not self.authority.cell_valid(doc, budget, publishing=False) for doc in checks):
