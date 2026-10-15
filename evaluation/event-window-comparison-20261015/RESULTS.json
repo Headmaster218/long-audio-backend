@@ -1,0 +1,405 @@
+{
+ "schema": "environmental-event-window-results-public-v1",
+ "date": "2026-10-15",
+ "comparison_execution": "COMPLETED",
+ "independent_audit": {
+  "status": "PASS",
+  "scope": "All 664 complete 527-label score receipts checked; category maxima and emitted events independently reconstructed; per-file/pooled metrics, calibration-before-heldout order, execution identity, source/model hashes, sampled resources and owned cleanup verified."
+ },
+ "production_defaults_changed": false,
+ "splits": {
+  "calibration": {
+   "baseline_5s_2.5s": {
+    "door_reference_count": 12,
+    "covered_door_reference_count": 4,
+    "missed_door_reference_count": 8,
+    "false_positive_support_seconds": 35.54999999999999,
+    "drawer_confuser_false_positive_seconds": 2.240000000000011,
+    "drawer_reference_seconds": 6.450000000000005,
+    "one_second_door_segments": {
+     "tp": 6,
+     "fp": 33,
+     "fn": 12,
+     "tn": 189,
+     "segments": 240,
+     "precision": 0.15384615384615385,
+     "recall": 0.3333333333333333,
+     "f1": 0.21052631578947367
+    },
+    "files": 2
+   },
+   "experimental_2s_1s": {
+    "door_reference_count": 12,
+    "covered_door_reference_count": 7,
+    "missed_door_reference_count": 5,
+    "false_positive_support_seconds": 19.349999999999994,
+    "drawer_confuser_false_positive_seconds": 3.570000000000009,
+    "drawer_reference_seconds": 6.450000000000005,
+    "one_second_door_segments": {
+     "tp": 11,
+     "fp": 12,
+     "fn": 7,
+     "tn": 210,
+     "segments": 240,
+     "precision": 0.4782608695652174,
+     "recall": 0.6111111111111112,
+     "f1": 0.5365853658536586
+    },
+    "files": 2
+   }
+  },
+  "heldout": {
+   "baseline_5s_2.5s": {
+    "door_reference_count": 12,
+    "covered_door_reference_count": 2,
+    "missed_door_reference_count": 10,
+    "false_positive_support_seconds": 11.18,
+    "drawer_confuser_false_positive_seconds": 0,
+    "drawer_reference_seconds": 4.519999999999996,
+    "one_second_door_segments": {
+     "tp": 3,
+     "fp": 10,
+     "fn": 15,
+     "tn": 212,
+     "segments": 240,
+     "precision": 0.23076923076923078,
+     "recall": 0.16666666666666666,
+     "f1": 0.1935483870967742
+    },
+    "files": 2
+   },
+   "experimental_2s_1s": {
+    "door_reference_count": 12,
+    "covered_door_reference_count": 3,
+    "missed_door_reference_count": 9,
+    "false_positive_support_seconds": 12.249999999999993,
+    "drawer_confuser_false_positive_seconds": 0.8199999999999932,
+    "drawer_reference_seconds": 4.519999999999996,
+    "one_second_door_segments": {
+     "tp": 4,
+     "fp": 10,
+     "fn": 14,
+     "tn": 212,
+     "segments": 240,
+     "precision": 0.2857142857142857,
+     "recall": 0.2222222222222222,
+     "f1": 0.25
+    },
+    "files": 2
+   }
+  }
+ },
+ "per_file": [
+  {
+   "id": "dev_1_ebr_0_nec_2_poly_0",
+   "split": "calibration",
+   "arm": "baseline_5s_2.5s",
+   "duration": 120,
+   "compute_attempts": 47,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 5,
+     "fp": 29,
+     "fn": 2,
+     "tn": 84,
+     "segments": 120,
+     "precision": 0.14705882352941177,
+     "recall": 0.7142857142857143,
+     "f1": 0.24390243902439024
+    },
+    "door_reference_count": 4,
+    "covered_door_reference_count": 3,
+    "missed_door_reference_count": 1,
+    "false_positive_support_seconds": 30.92999999999999,
+    "drawer_confuser_false_positive_seconds": 2.240000000000011,
+    "drawer_reference_seconds": 2.240000000000011
+   }
+  },
+  {
+   "id": "dev_1_ebr_0_nec_2_poly_0",
+   "split": "calibration",
+   "arm": "experimental_2s_1s",
+   "duration": 120,
+   "compute_attempts": 119,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 7,
+     "fp": 8,
+     "fn": 0,
+     "tn": 105,
+     "segments": 120,
+     "precision": 0.4666666666666667,
+     "recall": 1.0,
+     "f1": 0.6363636363636364
+    },
+    "door_reference_count": 4,
+    "covered_door_reference_count": 4,
+    "missed_door_reference_count": 0,
+    "false_positive_support_seconds": 12.83999999999999,
+    "drawer_confuser_false_positive_seconds": 2.240000000000011,
+    "drawer_reference_seconds": 2.240000000000011
+   }
+  },
+  {
+   "id": "dev_1_ebr_0_nec_4_poly_1",
+   "split": "calibration",
+   "arm": "baseline_5s_2.5s",
+   "duration": 120,
+   "compute_attempts": 47,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 1,
+     "fp": 4,
+     "fn": 10,
+     "tn": 105,
+     "segments": 120,
+     "precision": 0.2,
+     "recall": 0.09090909090909091,
+     "f1": 0.125
+    },
+    "door_reference_count": 8,
+    "covered_door_reference_count": 1,
+    "missed_door_reference_count": 7,
+    "false_positive_support_seconds": 4.62,
+    "drawer_confuser_false_positive_seconds": 0,
+    "drawer_reference_seconds": 4.209999999999994
+   }
+  },
+  {
+   "id": "dev_1_ebr_0_nec_4_poly_1",
+   "split": "calibration",
+   "arm": "experimental_2s_1s",
+   "duration": 120,
+   "compute_attempts": 119,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 4,
+     "fp": 4,
+     "fn": 7,
+     "tn": 105,
+     "segments": 120,
+     "precision": 0.5,
+     "recall": 0.36363636363636365,
+     "f1": 0.42105263157894735
+    },
+    "door_reference_count": 8,
+    "covered_door_reference_count": 3,
+    "missed_door_reference_count": 5,
+    "false_positive_support_seconds": 6.510000000000006,
+    "drawer_confuser_false_positive_seconds": 1.3299999999999983,
+    "drawer_reference_seconds": 4.209999999999994
+   }
+  },
+  {
+   "id": "test_1_ebr_0_nec_2_poly_0",
+   "split": "heldout",
+   "arm": "baseline_5s_2.5s",
+   "duration": 120,
+   "compute_attempts": 47,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 3,
+     "fp": 10,
+     "fn": 2,
+     "tn": 105,
+     "segments": 120,
+     "precision": 0.23076923076923078,
+     "recall": 0.6,
+     "f1": 0.3333333333333333
+    },
+    "door_reference_count": 4,
+    "covered_door_reference_count": 2,
+    "missed_door_reference_count": 2,
+    "false_positive_support_seconds": 11.18,
+    "drawer_confuser_false_positive_seconds": 0,
+    "drawer_reference_seconds": 1.7999999999999972
+   }
+  },
+  {
+   "id": "test_1_ebr_0_nec_2_poly_0",
+   "split": "heldout",
+   "arm": "experimental_2s_1s",
+   "duration": 120,
+   "compute_attempts": 119,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 3,
+     "fp": 7,
+     "fn": 2,
+     "tn": 108,
+     "segments": 120,
+     "precision": 0.3,
+     "recall": 0.6,
+     "f1": 0.4
+    },
+    "door_reference_count": 4,
+    "covered_door_reference_count": 2,
+    "missed_door_reference_count": 2,
+    "false_positive_support_seconds": 8.68,
+    "drawer_confuser_false_positive_seconds": 0.6599999999999966,
+    "drawer_reference_seconds": 1.7999999999999972
+   }
+  },
+  {
+   "id": "test_1_ebr_0_nec_4_poly_1",
+   "split": "heldout",
+   "arm": "baseline_5s_2.5s",
+   "duration": 120,
+   "compute_attempts": 47,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 0,
+     "fp": 0,
+     "fn": 13,
+     "tn": 107,
+     "segments": 120,
+     "precision": null,
+     "recall": 0.0,
+     "f1": 0.0
+    },
+    "door_reference_count": 8,
+    "covered_door_reference_count": 0,
+    "missed_door_reference_count": 8,
+    "false_positive_support_seconds": 0,
+    "drawer_confuser_false_positive_seconds": 0,
+    "drawer_reference_seconds": 2.719999999999999
+   }
+  },
+  {
+   "id": "test_1_ebr_0_nec_4_poly_1",
+   "split": "heldout",
+   "arm": "experimental_2s_1s",
+   "duration": 120,
+   "compute_attempts": 119,
+   "metrics": {
+    "one_second_door_segments": {
+     "tp": 1,
+     "fp": 3,
+     "fn": 12,
+     "tn": 104,
+     "segments": 120,
+     "precision": 0.25,
+     "recall": 0.07692307692307693,
+     "f1": 0.11764705882352941
+    },
+    "door_reference_count": 8,
+    "covered_door_reference_count": 1,
+    "missed_door_reference_count": 7,
+    "false_positive_support_seconds": 3.569999999999993,
+    "drawer_confuser_false_positive_seconds": 0.1599999999999966,
+    "drawer_reference_seconds": 2.719999999999999
+   }
+  }
+ ],
+ "heldout_error_breakdown": {
+  "baseline_5s_2.5s": {
+   "knock_covered": 2,
+   "knock_references": 6,
+   "doorslam_covered": 0,
+   "doorslam_references": 6
+  },
+  "experimental_2s_1s": {
+   "knock_covered": 3,
+   "knock_references": 6,
+   "doorslam_covered": 0,
+   "doorslam_references": 6
+  },
+  "experimental_drawer_only_false_positive_seconds": 0.82,
+  "observed_source_labels_for_drawer_only_positives": [
+   "Door",
+   "Knock"
+  ],
+  "interpretation": "Exhaustive annotations show drawer-only sound within the accepted supports. The observed source labels were Door/Knock, not Cupboard open or close. This is descriptive score/annotation evidence, not acoustic causal proof. Taxonomy mismatch does not explain away zero doorslam coverage."
+ },
+ "calibration_gate": {
+  "advanced": true,
+  "status": "ADVANCED",
+  "no_retuning": true,
+  "rule": "Strictly higher pooled 1s-segment F1 and no fewer covered door references.",
+  "total_compute_attempts_before_heldout": 332
+ },
+ "history": {
+  "original": {
+   "status": "INCOMPLETE",
+   "cause": "Prediction-row serialization size bound failed after the first calibration file completed both arms.",
+   "valid_score_calls_retained": 166,
+   "exit_code": 1,
+   "elapsed_seconds": 12.158347110991599,
+   "historical_status_preserved": true
+  },
+  "continuation": {
+   "status": "COMPLETED",
+   "retained_score_calls_reconstructed_without_model_replay": 166,
+   "new_score_calls": 498,
+   "new_score_calls_completed": 498,
+   "exit_code": 0,
+   "positive_wait": true,
+   "elapsed_seconds": 34.003751804993954,
+   "peak_sampled_rss_bytes": 350281728,
+   "maximum_work_phase_sample_gap_seconds": 0.1265653900045436,
+   "known_remaining_owned_processes_after_cleanup": 0
+  },
+  "total_score_calls": 664,
+  "total_model_loads": 2,
+  "reconstruction": "Retained all-527 outputs recreated the first file with the same category maxima, postprocessing and metrics; baseline matched the original saved events and metrics exactly. No audio decode or model replay was used for reconstruction; unavailable RMS/peak fields were omitted.",
+  "resource_caveat": "Continuation elapsed time is separate from the historical original elapsed time, not combined wall time or model-only latency. RSS is sampled over the owned execution group plus monitor, not a continuous peak guarantee or host-wide observation."
+ },
+ "digital_zero_controls": [
+  {
+   "arm": "baseline_5s_2.5s",
+   "passed": true,
+   "compute_attempts": 0,
+   "windows": 47
+  },
+  {
+   "arm": "experimental_2s_1s",
+   "passed": true,
+   "compute_attempts": 0,
+   "windows": 119
+  }
+ ],
+ "api_persistence_check": {
+  "status": "VERIFIED_TWO_EXPOSED_POSITIVE_CLIPS",
+  "separate_from_window_comparison": true,
+  "elapsed_seconds": 6.665,
+  "inputs": [
+   {
+    "filename": "1-17367-A-10.wav",
+    "category": "rain",
+    "sha256": "d732acd2e0c7c40405968010f49f250740c86998fc416eff2ed5330fc8c89dea",
+    "url": "https://raw.githubusercontent.com/karolpiczak/ESC-50/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/audio/1-17367-A-10.wav"
+   },
+   {
+    "filename": "1-101336-A-30.wav",
+    "category": "door_wood_knock",
+    "sha256": "e738266e395e378102f74e0920b05ff5937543788420d5b2a6b8d3df8bdb3910",
+    "url": "https://raw.githubusercontent.com/karolpiczak/ESC-50/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/audio/1-101336-A-30.wav"
+   }
+  ],
+  "observations": [
+   {
+    "end": 5.0,
+    "inference_windows": 1,
+    "source_label": "Rain on surface",
+    "start": 0.0,
+    "target": "rain"
+   },
+   {
+    "end": 5.0,
+    "inference_windows": 1,
+    "source_label": "Knock",
+    "start": 0.0,
+    "target": "door"
+   }
+  ],
+  "verified": [
+   "Two separate 5-second sessions; one actual classifier inference window per clip.",
+   "HTTP event/candidate fields and post-cleanup read-only SQLite rows agree, including source labels, scores, support timing, category scores and model provenance.",
+   "Event change-feed numeric score agrees with the SQLite JSON projection; observed representation difference was approximately 4.44e-16."
+  ],
+  "interpretation": "Functional persistence only: previously exposed positive examples, not accuracy, generalization, or precise-onset validation. Scores are uncalibrated model outputs.",
+  "license": "ESC-50 CC BY-NC 3.0; noncommercial research-only use, original source attribution applies.",
+  "license_url": "https://github.com/karolpiczak/ESC-50/blob/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/LICENSE",
+  "attribution_url": "https://github.com/karolpiczak/ESC-50/blob/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/README.md"
+ }
+}

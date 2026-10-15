@@ -1,0 +1,193 @@
+{
+ "schema": "environmental-event-window-comparison-public-v1",
+ "date": "2026-10-15",
+ "purpose": "Fixed exploratory comparison of classifier support windows; no production-default change.",
+ "selection_and_scoring_frozen_before_predictions": true,
+ "arms": {
+  "baseline_5s_2.5s": {
+   "window_seconds": 5,
+   "hop_seconds": 2.5
+  },
+  "experimental_2s_1s": {
+   "window_seconds": 2,
+   "hop_seconds": 1,
+   "experimental": true
+  }
+ },
+ "model": {
+  "name": "sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+  "release_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/audio-tagging-models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15.tar.bz2",
+  "files": [
+   {
+    "name": "model.onnx",
+    "bytes": 91932865,
+    "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34"
+   },
+   {
+    "name": "class_labels_indices.csv",
+    "bytes": 14675,
+    "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429"
+   }
+  ],
+  "provider": "cpu",
+  "threads": 2,
+  "top_k": 527
+ },
+ "unchanged_policy": {
+  "event_threshold": 0.25,
+  "event_release_ratio": 1.0,
+  "event_silence_peak": 1e-05,
+  "category_aggregation": "Maximum mapped category score across all 527 model labels.",
+  "product_door_model_labels": [
+   "Door",
+   "Sliding door",
+   "Slam",
+   "Knock",
+   "Cupboard open or close"
+  ],
+  "postprocessing": "Existing product threshold/merge/chunk behavior, with maximum emitted support length 5 seconds for both arms.",
+  "default_change": false,
+  "calibrated_probabilities": false
+ },
+ "selection": "Fixed dev_1 EBR0 NEC2/POLY0 and NEC4/POLY1; lexicographically first official evaluation WAV matching each same condition. No outcome substitutions.",
+ "dataset": {
+  "name": "DCASE 2016 Task 2 synthetic office-sound mixtures",
+  "official_task_url": "https://dcase.community/challenge2016/task-sound-event-detection-in-synthetic-audio",
+  "train_development_provider": "https://archive.org/details/dcase2016_task2_train_dev",
+  "evaluation_provider": "https://archive.org/details/dcase2016_task2_test_public",
+  "attribution": "DCASE 2016 Task 2; test-package credits Grégoire Lafay, IRCCYN, Ecole Centrale de Nantes, France.",
+  "archives": [
+   {
+    "name": "dcase2016_task2_train_dev.zip",
+    "bytes": 125450464,
+    "sha256": "789563e5631974cfa4d219cc7978f0059587e13b7fb84d4eb95ae1a8da7fece1"
+   },
+   {
+    "name": "dcase2016_task2_test_public.zip",
+    "bytes": 328618451,
+    "sha256": "615d930026cf89de695057f9a9e48d77c07325059daf742c3dcc2ab780d0af8f"
+   }
+  ],
+  "split_independence": "The official task describes the evaluation source pool as independent of training/development. This is protocol-level source-pool separation; independence between the two selected heldout mixtures is not established, and model pretraining overlap is unknown.",
+  "calibration_exposure": "Both calibration mixtures belong to development material overlapping sources exposed in the earlier pilot; the two calibration mixtures also share sources.",
+  "filename_ebr": "All four filenames have literal EBR token 0; inconsistent upstream dB-range prose is not reinterpreted.",
+  "license_discrepancy": "The official-linked evaluation provider declares CC BY 4.0; the DCASE datalist says CC BY 3.0. The test-package README supplies task attribution but no resolving license statement.",
+  "provider_metadata_url": "https://archive.org/metadata/dcase2016_task2_test_public",
+  "datalist_url": "https://dcase-repo.github.io/dcase_datalist/datasets/sounds/dcase2016_task2_eval.html",
+  "use": "Research-only evaluation. No audio is redistributed; original dataset licenses and attribution requirements remain applicable."
+ },
+ "fixtures": [
+  {
+   "id": "dev_1_ebr_0_nec_2_poly_0",
+   "split": "calibration",
+   "duration": 120,
+   "archive": "dcase2016_task2_train_dev.zip",
+   "audio_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/sound/dev_1_ebr_0_nec_2_poly_0.wav",
+   "audio_pin": {
+    "bytes": 10584044,
+    "sha256": "637bf56e5145ac388325803ab08e15fa2e1485f9afa22c6a572ad74c432faa22"
+   },
+   "annotation_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/annotation/dev_1_ebr_0_nec_2_poly_0.txt",
+   "annotation_pin": {
+    "bytes": 434,
+    "sha256": "3e6ceeec1fce1855a3ea7cf4a09b37b351207cafb9ae8ef498a1a145982e078b"
+   },
+   "physical_door_reference_count": 4
+  },
+  {
+   "id": "dev_1_ebr_0_nec_4_poly_1",
+   "split": "calibration",
+   "duration": 120,
+   "archive": "dcase2016_task2_train_dev.zip",
+   "audio_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/sound/dev_1_ebr_0_nec_4_poly_1.wav",
+   "audio_pin": {
+    "bytes": 10584044,
+    "sha256": "9b793a9746174fae42241bd3a6443e429b4e3cfef192c677518f31073a730214"
+   },
+   "annotation_member": "dcase2016_task2_train_dev/dcase2016_task2_dev/annotation/dev_1_ebr_0_nec_4_poly_1.txt",
+   "annotation_pin": {
+    "bytes": 872,
+    "sha256": "4c84faf6bbe7e69f77b21d3d20611558d9c5e4211383771973dec08030ecf1a2"
+   },
+   "physical_door_reference_count": 8
+  },
+  {
+   "id": "test_1_ebr_0_nec_2_poly_0",
+   "split": "heldout",
+   "duration": 120,
+   "archive": "dcase2016_task2_test_public.zip",
+   "audio_member": "dcase2016_task2_test_public/sound/test_1_ebr_0_nec_2_poly_0.wav",
+   "audio_pin": {
+    "bytes": 10584044,
+    "sha256": "50e13b5c893d240ddc05b088fea732106ac7264a49cfa66f444e8d6d94c3883c"
+   },
+   "annotation_member": "dcase2016_task2_test_public/annotation/test_1_ebr_0_nec_2_poly_0.txt",
+   "annotation_pin": {
+    "bytes": 436,
+    "sha256": "81e43ae77dea82370ff635f963e4a7d081a2c94b62e7ca45024d40f8dd5a794e"
+   },
+   "physical_door_reference_count": 4
+  },
+  {
+   "id": "test_1_ebr_0_nec_4_poly_1",
+   "split": "heldout",
+   "duration": 120,
+   "archive": "dcase2016_task2_test_public.zip",
+   "audio_member": "dcase2016_task2_test_public/sound/test_1_ebr_0_nec_4_poly_1.wav",
+   "audio_pin": {
+    "bytes": 10584044,
+    "sha256": "5453d74881c26e86b3e6ef25774948e4b93730a6011e18dd8a92abf2b25dedbe"
+   },
+   "annotation_member": "dcase2016_task2_test_public/annotation/test_1_ebr_0_nec_4_poly_1.txt",
+   "annotation_pin": {
+    "bytes": 878,
+    "sha256": "4280650b131a8f6aa0227298cf8cab24b9017fb35217fe4e7acfb308686c6d6e"
+   },
+   "physical_door_reference_count": 8
+  }
+ ],
+ "preprocessing": {
+  "input": "Complete 120-second mono 44100 Hz, 16-bit PCM files, from original time zero.",
+  "output": "Mono 16000 Hz little-endian float32; 80000 samples per baseline window, 32000 per experimental window.",
+  "filter": "aresample=resampler=swr:filter_size=32:phase_shift=10:linear_interp=1:exact_rational=1:cutoff=0.97:dither_method=none",
+  "timeline": "No seek, trim, time shift or tempo change; identical full-file conversion for both arms.",
+  "boundary": "Existing window_starts until recording covered, real support end; silence peak <=1e-5 before padding; only final partial crop padded to its own arm length. No planned 120s input requires padding."
+ },
+ "metrics": {
+  "segment": "Half-open 1s bins; any positive overlap; pooled TP/FP/FN/TN and P/R/F1.",
+  "covered_reference": "One count per annotated knock or doorslam with strictly positive overlap against union predicted broad-door support.",
+  "false_positive_support_seconds": "Measure(predicted door union minus annotated door union).",
+  "drawer_confuser_false_positive_seconds": "Measure((predicted door union intersect annotated drawer union) minus annotated door union); exclude true-door/polyphonic overlap.",
+  "reference_taxonomy": "Annotated knock plus doorslam only. These physical-door references are narrower than the product broad-door category, which also includes cupboard opening/closing. Specific drawer-associated errors must be interpreted from the observed source labels, not assumed to be cupboard classifications.",
+  "negative_truth": "Complete knock/doorslam annotations define physical-door-negative time only. Such time may contain other sounds or valid broad product-category sounds.",
+  "precision": "TP / (TP + FP); null if denominator is zero.",
+  "recall": "TP / (TP + FN); null if denominator is zero.",
+  "f1": "2*TP / (2*TP + FP + FN); null if denominator is zero.",
+  "pooling": "Sum confusion counts across files, then calculate rates; do not average per-file rates.",
+  "covered_reference_caveat": "Any positive overlap counts a reference once; this is not a one-to-one event match, IoU threshold, event-count accuracy, or precise onset/offset measure."
+ },
+ "execution_plan": {
+  "order": "Digital-zero controls; both arms on each calibration file; freeze gate result; heldout only if gate passes. Baseline then candidate for every file.",
+  "calibration_gate": "Strictly higher pooled half-open 1s-segment broad-door F1 AND no fewer covered physical door references. Failure is NOT_ADVANCED with no heldout inference, no tuning, no retry.",
+  "windows_per_120s_file": {
+   "baseline_5s_2.5s": 47,
+   "experimental_2s_1s": 119
+  },
+  "distinct_audio_seconds": 480,
+  "total_score_calls": 664,
+  "no_retuning": true,
+  "unsupported_input_policy": "Stop on incompatibility; no fallback to five-second padding or outcome-dependent substitutions."
+ },
+ "two_second_support": {
+  "status": "experimental",
+  "qualification": "Variable-frame mechanics accepted the inputs. No documented supported 2-second minimum or 2-second quality guarantee was established.",
+  "tagging_docs": "https://k2-fsa.github.io/sherpa/onnx/audio-tagging/index.html",
+  "model_docs": "https://k2-fsa.github.io/sherpa/onnx/audio-tagging/pretrained_models.html",
+  "localization": "Clip-level classifier supports do not establish precise physical event onset or offset."
+ },
+ "source_identity": {
+  "detector_sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0",
+  "metric_formulas": "Unchanged half-open one-second segment definitions and rate formulas from the preceding environmental-event pilot.",
+  "hash_scope": "Hashes identify observed bytes, not provider-signed provenance or absence of model-training overlap."
+ }
+}
