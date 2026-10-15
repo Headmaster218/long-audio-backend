@@ -73,7 +73,7 @@ def _diagnostic(message, *args):
 def _diagnostic_failure(stage, exc):
     # Do not log exception messages, tracebacks, identifiers or source paths.
     try:
-        if stage not in ('capture', 'seam_prepare', 'seam_commit'):return
+        if stage not in ('capture', 'seam_prepare', 'seam_commit', 'core_seam_prepare', 'core_seam_drain'):return
         name = type(exc).__name__
         if re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,63}', name) is None:name = 'other'
         code = getattr(exc, 'sqlite_errorcode', None)
@@ -513,13 +513,18 @@ class Pin:
 class CellStore:
     """No growing thread set, active+pending queue, or retained omitted-row log."""
     def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None,
-                 seam_enabled=False):
+                 seam_enabled=False, core_seam_enabled=False):
         self.directory = Path(directory)
         self.path = self.directory / 'cells.sqlite3'
         self.authority = authority; self.enabled = enabled; self.qualification = qualification
         if type(seam_enabled) is not bool:raise Unavailable('invalid_seam_flag')
         self.seam_enabled = seam_enabled
         self._store_policy = STORE_POLICY_SHA256 if seam_enabled else POLICY_SHA256
+        if type(core_seam_enabled) is not bool:raise Unavailable('invalid_core_seam_flag')
+        self.core_seam_enabled = core_seam_enabled
+        if core_seam_enabled:
+            from .native_owned_core_seams import store_policy
+            self._store_policy = store_policy()
         self.instance_lock = instance_lock  # Retained while owner cleanup is unresolved.
         self._lock = threading.Lock(); self._wake = threading.Event(); self._stop = threading.Event()
         self._reconcile = threading.Event(); self._ready = threading.Event()
@@ -603,12 +608,17 @@ class CellStore:
         finally:self._lock.release()
 
     def _publication_policy(self, cells):
-        # The qualified writer stays byte-identical. Profile admission happens
-        # before its handoff and is checked again by the sole owner before SQL.
+        # Profile admission happens before handoff and is rechecked by the sole
+        # owner before SQL. _insert_cell/transactions/caps stay unchanged; the
+        # opt-in post-publication revocation classification is a reviewed delta.
         for cell in cells:
             doc, _, _ = validate_document(cell.proof)
-            if is_composite(doc):
-                if self._store_policy != STORE_POLICY_SHA256:
+            from .native_owned_core_seams import is_core, store_policy
+            if is_core(doc):
+                if not self.core_seam_enabled or self._store_policy != store_policy():
+                    return 'core_seams_disabled_or_policy'
+            elif is_composite(doc):
+                if self._store_policy not in (STORE_POLICY_SHA256, store_policy()):
                     return 'incompatible_legacy_cell_policy'
                 if not self.seam_enabled:return 'seam_composites_disabled'
         return None
@@ -792,7 +802,9 @@ class CellStore:
                 if tables != {'store_meta', 'sources', 'cells', 'dependencies'}:
                     raise Unavailable('optional_schema_mismatch')
                 row = db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
-                if (row is None or row['policy'] not in (POLICY_SHA256, STORE_POLICY_SHA256)
+                from .native_owned_core_seams import store_policy
+                accepted_store_policies = ((store_policy(),) if self.core_seam_enabled else (POLICY_SHA256, STORE_POLICY_SHA256))
+                if (row is None or row['policy'] not in accepted_store_policies
                         or tuple(row)[:1] + tuple(row)[2:] != binding[:1] + binding[2:]):
                     raise Unavailable('optional_primary_binding_mismatch')
                 # Existing known profiles keep their durable policy. No upgrade,
@@ -940,7 +952,17 @@ class CellStore:
             results.append({'cell_id': cell.cell_id, 'status': status})
         self._generation(op)
         for cell in op.payload:
-            if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
+            doc = json.loads(cell.proof)
+            if not self.authority.cell_valid(doc, budget, publishing=True):
+                superseded = getattr(self.authority, 'v1_publication_superseded', None)
+                try:advanced = self.core_seam_enabled and superseded is not None and superseded(doc, budget)
+                except Exception:
+                    self.revoked(); raise
+                if advanced:
+                    self._generation(op)
+                    # Keep the failed/unknown publication outcome. Expected v1
+                    # metadata supersession must not revoke independent v3 work.
+                    raise Unavailable('primary_commit_advanced_after_publication')
                 self.revoked(); raise Unavailable('source_changed_after_publication_commit')
         self._durable = min(self._durable + sum(r['status'] in ('retained', 'not_retained_pcm', 'existing') for r in results), (1 << 31) - 1)
         return {'status': 'durable', 'cells': results}
@@ -985,6 +1007,8 @@ class CellStore:
         policy = doc['policy']
         anchor = seam_anchor(doc) if is_composite(doc) else doc['commit']
         accepted = (POLICY_SHA256, SEAM_POLICY_SHA256) if self._store_policy == STORE_POLICY_SHA256 else (POLICY_SHA256,)
+        from .native_owned_core_seams import store_policy, POLICY_SHA256 as CORE_POLICY
+        if self._store_policy == store_policy():accepted = (POLICY_SHA256, SEAM_POLICY_SHA256, CORE_POLICY)
         if (canonical(doc) != proof or policy not in accepted
                 or type(doc.get('dependencies')) is not list or not 1 <= len(doc['dependencies']) <= MAX_PARTS
                 or anchor['chunk_id'] != row['cid']

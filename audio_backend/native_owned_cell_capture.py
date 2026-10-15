@@ -292,7 +292,7 @@ class PrimaryAuthority:
         No write/commit is retried. Every failed connection is closed before
         backoff. Projection/step/read counters and elapsed time accumulate.
         """
-        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping'):
+        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping', 'core_commit', 'core_previous', 'core_pending'):
             raise Unavailable('primary_read_phase')
         attempt = 0
         try:
@@ -365,6 +365,8 @@ class PrimaryAuthority:
 
     def cell_valid(self, doc, budget, *, publishing):
         if self.owner is None:raise Unavailable('receipt_owner_unavailable')
+        from .native_owned_core_seams import is_core, current as core_current
+        if is_core(doc):return core_current(self, doc, budget)
         from .native_owned_seam_cells import is_composite
         if is_composite(doc):return self.seam_valid(doc, budget)
         dependencies = doc.get('dependencies')
@@ -405,6 +407,31 @@ class PrimaryAuthority:
                 return True
             if not self._read(budget, 'cell_commit', read):return False
         return True
+
+    def v1_publication_superseded(self, doc, budget):
+        """Classify a failed publication, never make it successful.
+
+        Only an ordinary v1 core with a strictly advanced committed frontier,
+        unchanged fresh source/session authority and running/completed status
+        can avoid revoking unrelated pending work. Equal-frontier drift and
+        cancellation/deletion/mutation still fail closed.
+        """
+        from .native_owned_cells import POLICY_SHA256
+        if (type(doc) is not dict or 'schema' in doc or doc.get('policy') != POLICY_SHA256
+                or self.owner is None):return False
+        generation = self.owner._epoch
+        if not self.cell_valid(doc, budget, publishing=False):return False
+        commit = doc['commit']; row = self.row(commit['chunk_id'], budget)
+        if (row is None or row['status'] not in ('running', 'completed')
+                or exact_frame(row['next_offset']) <= commit['end']):return False
+        if not self.session_valid(row['session_id'], budget):return False
+        if not self.cell_valid(doc, budget, publishing=False):return False
+        again = self.row(commit['chunk_id'], budget)
+        stable = ('id', 'session_id', 'path', 'digest', 'duration', 'timeline_start', 'stream_id')
+        return (again is not None and all(again[key] == row[key] for key in stable)
+            and again['status'] in ('running', 'completed')
+            and exact_frame(again['next_offset']) >= exact_frame(row['next_offset'])
+            and generation is self.owner._epoch)
 
     def seam_commit_current(self, commit, scope, part, budget):
         """Both completed rows retain their ORIGINAL commitment, even on reads."""
@@ -552,6 +579,18 @@ class Capture:
         self._seam_generation = object(); self._seam_owner_generation = owner._epoch
         self._seam_tail = None; self._seam_provisional = None; self._seam_disabled = False
         self.last_seam_reason = 'not_observed'
+        self.core_seams = None
+        if getattr(owner, 'core_seam_enabled', False):
+            from .native_owned_core_seams import CoreSeams
+            self.core_seams = CoreSeams(self)
+
+    def prepare_core_seam(self, *args):
+        if self.core_seams is not None:return self.core_seams.prepare(*args)
+
+    def drain_core_seams(self, status=None):
+        if self.core_seams is not None:
+            if status is not None:self.core_seams.last_reason = status
+            return self.core_seams.drain()
 
     def _failure(self, exc):
         _diagnostic_failure('capture', exc)
@@ -562,6 +601,10 @@ class Capture:
 
     def health(self):
         result = dict(self.owner.health(), last_capture_reason=self.last_reason)
+        if self.core_seams is not None:
+            result['last_core_seam_reason'] = self.core_seams.last_reason
+            result['core_seam_pending'] = self.core_seams.work_pending or self.core_seams.flight is not None
+            result['core_seam_reset_support'] = 'unsupported'
         if self.seam_enabled:
             result.update(last_seam_reason=self.last_seam_reason, seam_tail_bytes=(
                 self._seam_tail.material_bytes if self._seam_tail is not None else 0),
@@ -707,7 +750,8 @@ class Capture:
 
     def prepare_seam(self, chunk, native, mapping, evidence, cells, a, b):
         from .native_owned_seam_cells import Piece, SIDE_FRAMES, TAIL_BYTES, WORKING_BYTES, STORE_POLICY_SHA256
-        if self.owner._store_policy != STORE_POLICY_SHA256:
+        from .native_owned_core_seams import store_policy
+        if self.owner._store_policy not in (STORE_POLICY_SHA256, store_policy()):
             raise Unavailable('incompatible_legacy_cell_policy')
         if self._seam_disabled or self.scope is None or self.scope[0] != 'stream':
             raise Unavailable('seam_explicit_stream_required')
@@ -932,7 +976,8 @@ def register(store, *, fragment_provider_factory=None, instance_lock=None):
         reason = configuration_reason(settings, fragment_provider_factory)
         profile = None if reason else qualified_runtime(settings.data_dir)
         owner = CellStore(directory, authority, enabled=enabled, qualification=profile, instance_lock=instance_lock,
-            seam_enabled=bool(getattr(settings, 'native_owned_seam_cells_enabled', False)))
+            seam_enabled=bool(getattr(settings, 'native_owned_seam_cells_enabled', False)),
+            core_seam_enabled=bool(getattr(settings, 'native_owned_core_seams_enabled', False)))
         authority.owner = owner; capture = Capture(owner, authority)
         _REGISTRY[key] = capture
     finally:_REGISTRY_LOCK.release()

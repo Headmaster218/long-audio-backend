@@ -143,6 +143,7 @@ class Worker:
                 # Bounded model-free outbox maintenance; pending recording work
                 # stays staged while unrelated ordinary jobs remain claimable.
                 self.recordings.advance(self.native_owned_cells)
+            self._cell_call('drain_core_seams')
             watermark=None
             if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
                 try:
@@ -441,8 +442,10 @@ class Worker:
                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
                 previous=result['metadata'].get('boundary_tail',[])
                 selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
+                self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
                 if self.interrupted(chunk['id']): raise InterruptedError()
                 if not self.store.commit_window(chunk,offset,end,result): return
                 self._publish_native_support(native,offset,end)
                 self._cell_call('committed',selected_cells)
+                self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
             offset=end

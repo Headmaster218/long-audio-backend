@@ -56,7 +56,8 @@ def number(value):
 
 
 def is_composite(doc):
-    return type(doc) is dict and doc.get('schema') == SCHEMA
+    from .native_owned_core_seams import is_core
+    return type(doc) is dict and (doc.get('schema') == SCHEMA or is_core(doc))
 
 
 def anchor(doc):
@@ -69,6 +70,8 @@ def coverage(doc):
 
 def ownership(doc):
     """Stable coordinate ownership deliberately excludes all evidence hashes."""
+    from .native_owned_core_seams import is_core, ownership as core_ownership
+    if is_core(doc):return core_ownership(doc)
     scope = doc['scope']
     return sha({'schema': 'two-commit-seam-ownership-v2',
         'session_id': scope['session_id'], 'stream_id': scope['stream_id'],
@@ -227,6 +230,8 @@ def coverage_projection(scope, shape, commits, runtime):
 def validate_document(proof):
     if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:raise Unavailable('proof_capacity')
     doc = json.loads(proof)
+    from .native_owned_core_seams import is_core, validate_document as validate_core
+    if is_core(doc):return validate_core(proof)
     exact(doc, 'schema policy scope geometry support dependencies commits native_witnesses selection publication_anchor selected coverage')
     if doc['schema'] != SCHEMA or doc['policy'] != POLICY_SHA256 or doc['selected'] is not True:
         raise Unavailable('proof_policy_or_selection')
@@ -287,6 +292,11 @@ def validate_document(proof):
 
 
 def validate_cell_pcm(doc, pcm):
+    from .native_owned_core_seams import is_core
+    if is_core(doc):
+        if hashlib.sha256(pcm).hexdigest() != doc['query']['support_pcm16le_sha256']:
+            raise Unavailable('core_seam_pcm_mismatch')
+        return
     split = 2 * doc['geometry']['left_frames']
     for witness, piece in zip(doc['native_witnesses'], (memoryview(pcm)[:split], memoryview(pcm)[split:])):
         if hashlib.sha256(piece).hexdigest() != witness['piece_pcm16le_sha256']:

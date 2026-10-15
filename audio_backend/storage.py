@@ -156,6 +156,9 @@ class Store:
             verified_identity.install_lifecycle(db)
             from .fragment_http import init_schema
             init_schema(db)
+            if getattr(settings, 'native_owned_core_seams_enabled', False):
+                from .native_owned_core_seams import init_schema as init_core_seams
+                init_core_seams(db)
 
     @contextmanager
     def db(self):
@@ -531,6 +534,12 @@ class Store:
                 resolved_local_identities={key:{'speaker_id':None if verified else value[0],'speaker_status':'identity_decision_required' if verified else value[2],'speaker_turn_ids':local_turn_ids.get(key,[])} for key,value in local.items()})
             status='completed' if end>=chunk['duration']-1e-5 else current['status']
             provenance=update_provenance(current['provenance'],metadata,offset)
+            if getattr(self.settings, 'native_owned_core_seams_enabled', False):
+                from .native_owned_core_seams import transaction as commit_core_seam
+                optional_reason = commit_core_seam(db, chunk, offset, end, result)
+                result['_native_core_seam_status'] = optional_reason
+                if optional_reason is not None:
+                    metadata['native_core_seam'] = {'status': optional_reason}
             db.execute('UPDATE chunks SET next_offset=?,status=?,metadata=?,provenance=? WHERE id=?',(end,status,json.dumps(metadata),json.dumps(provenance),chunk['id']))
             if status=='completed':wake_stream_successor(db,chunk['id'])
             return True
