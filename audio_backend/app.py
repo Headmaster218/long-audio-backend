@@ -15,6 +15,7 @@ from typing import Annotated, Literal
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import JSONResponse
 from .settings import Settings
 from .storage import Store, ident
 from .worker import Worker
@@ -76,6 +77,15 @@ class RecordingFinishRequest(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     expected_revision: int=Field(ge=0)
     idempotency_key: str=Field(min_length=1,max_length=128)
+
+class RecordingPageRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    page_number: int=Field(ge=1,le=1024)
+    capture_origin_frame: int | None=Field(default=None,ge=0,le=(1<<53)-1)
+
+class RecordingSealRequest(RecordingFinishRequest):
+    end_frame: int=Field(ge=0,le=(1<<53)-1)
+    eos: bool=False
 
 class ReviewAttestation(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
@@ -236,6 +246,10 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     else: os.unlink(entry.path)
             with store.db() as db, os.scandir(settings.data_dir/'uploads') as entries:
                 for entry in entries:
+                    # Page-owned originals and orphan staging remain quota-charged.
+                    # Only exact-page retry or journalled session erasure may remove them.
+                    if entry.name.startswith('ro-') and '-page-' in entry.name:
+                        continue
                     if entry.name.endswith('.part'):
                         os.unlink(entry.path)
                     elif entry.name.endswith('.audio'):
@@ -373,6 +387,74 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         with store.db() as db:
             rows=[dict(r) for r in db.execute('SELECT rowid AS cursor,id,status,duration,timeline_start,next_offset,recorded_at,created,error FROM chunks WHERE session_id=? AND rowid>? ORDER BY rowid LIMIT ?',(sid,after,limit))]
         return {'chunks':rows,'next_cursor':rows[-1]['cursor'] if rows else after}
+
+    @app.post('/sessions/{sid}/recordings/{capture_id}/pages',status_code=202)
+    def recording_page_create(sid:str,capture_id:str,body:RecordingPageRequest):
+        if not upload_lock.acquire(blocking=False):
+            raise HTTPException(429,'Another upload or recording finalization is active')
+        try:return recordings.create_page(sid,capture_id,body.page_number,body.capture_origin_frame)
+        finally:upload_lock.release()
+
+    @app.get('/sessions/{sid}/recordings/{capture_id}/pages')
+    def recording_page_list(sid:str,capture_id:str,after:int=Query(0,ge=0,le=1024),limit:int=Query(32,ge=1,le=64)):
+        return JSONResponse(recordings.list_pages(sid,capture_id,after,limit),headers={'Cache-Control':'private, no-store'})
+
+    @app.get('/sessions/{sid}/recordings/{capture_id}/pages/{page_number}')
+    def recording_page_status(sid:str,capture_id:str,page_number:int):
+        return JSONResponse(recordings.page_status(sid,capture_id,page_number),headers={'Cache-Control':'private, no-store'})
+
+    @app.put('/sessions/{sid}/recordings/{capture_id}/pages/{page_number}/sources',status_code=202)
+    async def recording_page_source(sid:str,capture_id:str,page_number:int,request:Request,
+            idempotency_key:Annotated[str,Header(min_length=1,max_length=128)],
+            source_start_frame:int | None=Query(None,ge=0,le=(1<<53)-1)):
+        from .recording_overlap import MAX_SOURCE_BYTES,BLOCK_FRAMES
+        if not upload_lock.acquire(blocking=False):
+            raise HTTPException(429,'Another upload or recording finalization is active')
+        path=None;reservation=None
+        try:
+            with store.db() as db:
+                recordings._session(db,sid);batch=recordings._batch(db,sid,capture_id)
+                page=recordings._page(db,batch['id'],page_number)
+            path=recordings.source_path(batch,page)
+            maximum=min(MAX_SOURCE_BYTES,settings.max_upload_bytes)
+            length=request.headers.get('content-length')
+            if length is not None:
+                try:declared=int(length)
+                except ValueError:raise HTTPException(400,'Invalid Content-Length')
+                if not 0<declared<=maximum:raise HTTPException(413,'Recording source size limit exceeded')
+            else:declared=maximum
+            reservation=recordings.reserve_page_bytes(batch,page,declared)
+            total=0
+            with path.open('xb') as out:
+                async for data in request.stream():
+                    total+=len(data)
+                    if total>declared:raise HTTPException(413,'Recording upload exceeds reserved size')
+                    for start in range(0,len(data),BLOCK_FRAMES*2):
+                        block=memoryview(data)[start:start+BLOCK_FRAMES*2]
+                        recordings._page_resources(len(block))
+                        await run_in_threadpool(out.write,block)
+                if length is not None and total!=declared:raise HTTPException(400,'Recording Content-Length mismatch')
+                await run_in_threadpool(out.flush)
+                await run_in_threadpool(os.fsync,out.fileno())
+            receipt=await run_in_threadpool(recordings.accept_page,sid,capture_id,page_number,idempotency_key,path,source_start_frame)
+            return {**recordings.page_status(sid,capture_id,page_number),**receipt}
+        except RuntimeError as exc:raise HTTPException(507,str(exc))
+        finally:
+            if path is not None:path.unlink(missing_ok=True)
+            if reservation is not None:recordings.release_reservation(reservation)
+            upload_lock.release()
+
+    @app.post('/sessions/{sid}/recordings/{capture_id}/pages/{page_number}/seal',status_code=202)
+    async def recording_page_seal(sid:str,capture_id:str,page_number:int,body:RecordingSealRequest):
+        if not upload_lock.acquire(blocking=False):
+            raise HTTPException(429,'Another upload or recording finalization is active')
+        try:
+            result=await run_in_threadpool(recordings.seal_page,sid,capture_id,page_number,
+                body.idempotency_key,body.expected_revision,body.end_frame,body.eos,worker.native_owned_cells)
+            if result['state'] in ('published','pending_receipts'):worker.notify()
+            return result
+        except RuntimeError as exc:raise HTTPException(507,str(exc))
+        finally:upload_lock.release()
 
     @app.put('/sessions/{sid}/recordings/{capture_id}/sources',status_code=202)
     async def recording_source(sid:str,capture_id:str,request:Request,

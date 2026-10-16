@@ -7,7 +7,7 @@ import math
 import time
 import uuid
 from pathlib import Path
-from .boundary_store import init_stream_schema, register_stream_chunk, check_duplicate_stream, wake_stream_successor
+from .boundary_store import init_stream_schema, register_stream_chunk, check_duplicate_stream, wake_stream_successor, PUBLISHED_CHUNK_SQL
 from . import event_candidate_store, lifecycle, overlap_store, speaker_support, support_vectors, verified_identity, identity_canonical
 
 
@@ -251,7 +251,7 @@ class Store:
             row = db.execute('SELECT id,digest FROM chunks WHERE session_id=? AND idempotency_key=?',(sid,key)).fetchone()
             return dict(row) if row else None
 
-    def _check_queue_limit(self,db,sid=None,stream_id=None,release_chunk_id=None):
+    def _check_queue_limit(self,db,sid=None,stream_id=None,release_chunk_id=None,additional=1):
         # The legacy setting name bounds work units: an explicit continuous
         # stream is one unit; an independent chunk is one unit. Recoverable
         # failed stream receipts remain in its bounded buffer so retry never
@@ -265,15 +265,15 @@ class Store:
         if sid is not None and stream_id is not None:
             fragments=db.execute(STREAM_PENDING_COUNT_SQL,(sid,stream_id)).fetchone()[0]
             if fragments:
-                if not retry and fragments>=128:
+                if not retry and fragments+additional>128:
                     raise OverflowError('Stream has128 pending fragments; wait for processing, retry/cancel its blocked predecessor, or finalize the stream')
                 return count
         if count>=self.settings.max_pending_chunks:
             raise OverflowError('Durable work queue is full; finish or cancel an existing work unit')
         return count
 
-    def capacity(self,sid=None,stream_id=None):
-        with self.db() as db:return self._check_queue_limit(db,sid,stream_id)
+    def capacity(self,sid=None,stream_id=None,additional=1):
+        with self.db() as db:return self._check_queue_limit(db,sid,stream_id,additional=additional)
 
     def add_chunk(self, sid, key, digest, path, duration, offset=None, recorded_at=None, stream_id=None, stream_final=False, fragment_source=None):
         with self.db() as db:
@@ -329,7 +329,7 @@ class Store:
     def claim(self):
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
-            row = db.execute("""SELECT c.* FROM chunks c JOIN sessions s ON s.id=c.session_id WHERE c.status='queued' AND s.processing_mode='legacy' AND NOT EXISTS (
+            row = db.execute(f"""SELECT c.* FROM chunks c JOIN sessions s ON s.id=c.session_id WHERE c.status='queued' AND s.processing_mode='legacy' AND {PUBLISHED_CHUNK_SQL} AND NOT EXISTS (
                 SELECT 1 FROM stream_chunks sc JOIN stream_chunks prior
                 ON prior.session_id=sc.session_id AND prior.stream_id=sc.stream_id AND prior.position=sc.position-1
                 JOIN chunks pc ON pc.id=prior.chunk_id WHERE sc.chunk_id=c.id AND pc.status!='completed')

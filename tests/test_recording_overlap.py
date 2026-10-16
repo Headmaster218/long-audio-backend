@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 
 from audio_backend import recording_overlap as mod
 from audio_backend.app import create_app
-from audio_backend.boundary_store import context_parts
+from audio_backend.boundary_store import context_parts, stream_info
 from audio_backend.settings import Settings
 from audio_backend.storage import Store
 from audio_backend.worker import Worker
@@ -518,6 +518,46 @@ def test_actual_native_cell_ingestion_hook_preserves_descriptor_contract(native)
     assert all(len(row[1]) <= 1024 for row in payloads(native))
 
 
+def test_staged_receipt_attests_before_mapping_and_atomic_release(native, monkeypatch):
+    """Real primary/owner receipt path remains valid while inference is fenced."""
+    from audio_backend.boundary_store import stream_info
+    from audio_backend.native_owned_cell_store import Budget, Operation, Receipt
+    from audio_backend.native_owned_cells import Unavailable
+    advance = native.recording.advance
+    publish = native.recording._publish_pending
+    monkeypatch.setattr(native.recording, 'advance', lambda *args, **kwargs: False)
+    result = native_batch(native, 16000)
+    cid, payload, _ = payloads(native)[0]
+    receipt = Receipt.decode(payload)
+    _, work = paths(native.store, native.sid)
+    chunk = work[0]
+    assert result['state'] == 'pending_receipts' and native.store.claim() is None
+    with Budget().phase() as budget:
+        assert native.capture.authority.row(cid, budget)['status'] == 'staging'
+        assert native.capture.authority.receipt_valid(receipt, budget)
+    with Budget().phase() as budget, pytest.raises(Unavailable, match='primary_source_unpublished'):
+        native.capture.authority.mapping(chunk, 0., 0, 16000, budget)
+    operation = native.owner.submit('receipt', receipt)
+    assert type(operation) is Operation and operation.slot_released.wait(3)
+    assert native.owner.receipt(cid) == receipt
+    monkeypatch.setattr(native.recording, 'advance', advance)
+    monkeypatch.setattr(native.recording, '_publish_pending', lambda *args, **kwargs: False)
+    advance(native.capture, force=True)  # Persist the exact current-owner acknowledgement.
+    assert native.recording.status(native.sid, 'capture.one')['optional_receipts']['durable'] == 1
+    assert stream_info(native.store, chunk) is None and native.store.claim() is None
+    with Budget().phase() as budget, pytest.raises(Unavailable, match='primary_source_unpublished'):
+        native.capture.authority.mapping(chunk, 0., 0, 16000, budget)
+    with native.store.db() as db:
+        bid = db.execute('SELECT id FROM recording_batches WHERE session_id=?', (native.sid,)).fetchone()[0]
+    assert publish(bid, native.capture)
+    assert not publish(bid, native.capture)
+    assert stream_info(native.store, chunk)['final']
+    with Budget().phase() as budget:
+        parts = native.capture.authority.mapping(chunk, 0., 0, 16000, budget)
+        assert native.capture.authority.original_pcm(parts, budget) == pcm(16000)
+    assert native.store.claim()['id'] == cid
+
+
 @pytest.mark.parametrize('change', ['file', 'map'])
 def test_publication_revalidates_files_and_complete_map(fixture, monkeypatch, change):
     store, recording, sid = fixture
@@ -594,6 +634,10 @@ def test_initial_busy_and_admission_race_keep_exact_observations(native, monkeyp
         assert result['work_chunks'][0]['native_receipt_status'] == 'owner_busy_pending'
         assert all(row['receipt_attempts'] == 0 for row in result['work_chunks'])
         assert native.store.claim() is None
+        for chunk in paths(native.store, native.sid)[1]:
+            assert stream_info(native.store, chunk) is None
+            with pytest.raises(ValueError, match='not published'):
+                context_parts(native.store, chunk, chunk['timeline_start'], chunk['timeline_start'] + chunk['duration'])
     finally:
         release.set(); assert busy.slot_released.wait(3)
     submit = native.owner.submit
@@ -605,6 +649,7 @@ def test_initial_busy_and_admission_race_keep_exact_observations(native, monkeyp
     monkeypatch.setattr(native.owner, 'submit', refused_once)
     native.recording.advance(native.capture, force=True)
     assert payloads(native) == stable and native.store.claim() is None
+    assert all(stream_info(native.store, chunk) is None for chunk in paths(native.store, native.sid)[1])
     result = drain(native)
     assert result['state'] == 'queued' and result['optional_receipts']['ready']
     assert native.owner.health()['accepted'] == 3  # One list and two receipts.
@@ -850,6 +895,7 @@ def test_owner_deadline_keeps_payload_pending_until_exact_retry(native, monkeypa
     assert operation.slot_released.wait(3)
     assert operation.result['reason'] == 'cooperative_deadline'
     assert native.store.claim() is None and payloads(native) == stable
+    assert stream_info(native.store, paths(native.store, native.sid)[1][0]) is None
     native.recording.advance(native.capture, force=True)
     assert native.recording.status(native.sid, 'capture.one')['state'] == 'pending_receipts'
     result = drain(native)

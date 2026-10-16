@@ -13,7 +13,10 @@ def database():
       CREATE TABLE stream_chunks(chunk_id TEXT PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,stream_id TEXT NOT NULL,stream_final INTEGER NOT NULL DEFAULT 0,
       position INTEGER NOT NULL,upload_stream_final INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(session_id,stream_id,position));''')
+      UNIQUE(session_id,stream_id,position));
+      CREATE TABLE recording_batches(id TEXT PRIMARY KEY,state TEXT NOT NULL);
+      CREATE TABLE recording_pages(id TEXT PRIMARY KEY,released INTEGER NOT NULL);
+      CREATE TABLE recording_work(chunk_id TEXT PRIMARY KEY,batch_id TEXT NOT NULL,page_id TEXT);''')
     return db
 
 

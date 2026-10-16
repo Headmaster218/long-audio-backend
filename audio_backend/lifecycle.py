@@ -5,6 +5,7 @@ first, retaining a private, replayable cleanup receipt, then unlink owned files.
 No cleanup pass materializes all session paths in memory.
 """
 from pathlib import Path
+import re
 import time
 
 
@@ -21,7 +22,8 @@ def unlink_owned(store, raw):
     """Never follow a retained path outside this service's upload directory."""
     path = Path(raw)
     uploads = (store.settings.data_dir / 'uploads').resolve()
-    if path.parent.resolve() != uploads or path.suffix != '.audio':
+    page_temp = re.fullmatch(r'ro-[0-9a-f]{32}-page-[0-9a-f]{32}-(?:source-[0-9a-f]{32}|work-[0-9]+)\.part', path.name) is not None
+    if not path.is_absolute() or path.parent.resolve() != uploads or (path.suffix != '.audio' and not page_temp):
         raise ValueError('Cleanup path is not an owned uploaded audio file')
     # Unlink a symlink itself rather than resolving and deleting its target.
     path.unlink(missing_ok=True)
@@ -75,7 +77,7 @@ def delete_session(store, sid, delete_file=None):
             db.execute('''INSERT OR IGNORE INTO session_file_cleanup(session_id,path,created)
                 SELECT session_id,path,? FROM chunks WHERE session_id=?''', (time.time(), sid))
             from .recording_overlap import erase as erase_recording
-            erase_recording(db, sid)
+            erase_recording(db, sid, store.settings.data_dir / 'uploads')
             # Keep only a scrubbed ID tombstone for idempotent cleanup retry.
             # The change-feed erasure trigger removes historical text snapshots.
             db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))
@@ -129,6 +131,11 @@ def cancel_descendants(db, cid):
     own = db.execute('SELECT * FROM stream_chunks WHERE chunk_id=?', (cid,)).fetchone()
     if not own:
         return 0
+    batch = db.execute("SELECT id FROM recording_batches WHERE session_id=? AND mode='sealed_pages' AND ?='recording.'||id", (own['session_id'], own['stream_id'])).fetchone()
+    if batch:
+        from .recording_overlap import abort_capture
+        abort_capture(db, batch['id'])
+        return 0
     count = db.execute('''UPDATE chunks SET status='cancelled',error=? WHERE
         status IN ('queued','running','paused','failed','waiting_input') AND id IN (
         SELECT chunk_id FROM stream_chunks WHERE session_id=? AND stream_id=? AND position>?)''',
@@ -142,6 +149,10 @@ def cancel_descendants(db, cid):
 
 def recover_cancelled_streams(db):
     """Repair dependent jobs stranded by older versions, using disk-backed SQL."""
+    from .recording_overlap import abort_capture
+    for row in db.execute("""SELECT b.id FROM recording_batches b WHERE b.mode='sealed_pages' AND EXISTS (
+        SELECT 1 FROM recording_work w JOIN chunks c ON c.id=w.chunk_id WHERE w.batch_id=b.id AND c.status='cancelled')"""):
+        abort_capture(db,row['id'])
     db.execute('''UPDATE chunks SET status='cancelled',error=
         'Cancelled because an earlier stream chunk was cancelled; committed results retained'
         WHERE status IN ('queued','running','paused','failed','waiting_input')
@@ -152,6 +163,7 @@ def recover_cancelled_streams(db):
             WHERE own.chunk_id=chunks.id AND previous.status='cancelled')''')
     db.execute('''UPDATE stream_chunks AS tail SET stream_final=1 WHERE stream_final=0
         AND session_id IN (SELECT id FROM sessions WHERE processing_mode='legacy')
+        AND session_id NOT IN (SELECT session_id FROM recording_batches WHERE mode='sealed_pages')
         AND NOT EXISTS (SELECT 1 FROM stream_chunks later WHERE later.session_id=tail.session_id
             AND later.stream_id=tail.stream_id AND later.position>tail.position)
         AND EXISTS (SELECT 1 FROM stream_chunks member JOIN chunks c ON c.id=member.chunk_id

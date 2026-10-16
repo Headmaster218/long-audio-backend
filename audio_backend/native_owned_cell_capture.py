@@ -490,15 +490,19 @@ class PrimaryAuthority:
 
     def mapping(self, chunk, scope_start, start, end, budget):
         """A bounded exact local snapshot; never materialize a whole SourcePlan."""
+        from .boundary_store import PUBLISHED_CHUNK_SQL
         row = self.row(chunk['id'], budget)
         if row is None:raise Unavailable('primary_source_unavailable')
         def read(db):
+            if not db.execute(f'SELECT 1 FROM chunks c WHERE c.id=? AND {PUBLISHED_CHUNK_SQL}',
+                    (chunk['id'],)).fetchone():
+                raise Unavailable('primary_source_unpublished')
             if row['stream_id'] is None:rows = [row]
             else:
-                rows = db.execute('''SELECT c.id,c.session_id,c.timeline_start,c.duration,
+                rows = db.execute(f'''SELECT c.id,c.session_id,c.timeline_start,c.duration,
                     ti.timeline_start AS indexed_start,ti.timeline_end AS indexed_end
                     FROM stream_time_index ti INDEXED BY stream_time_end JOIN chunks c ON c.id=ti.chunk_id
-                    WHERE ti.session_id=? AND ti.stream_id=? AND ti.timeline_end>?
+                    WHERE ti.session_id=? AND ti.stream_id=? AND ti.timeline_end>? AND {PUBLISHED_CHUNK_SQL}
                     ORDER BY ti.timeline_end,ti.position LIMIT 129''',
                     (chunk['session_id'], row['stream_id'], scope_start + start / RATE)).fetchall()
             parts = []

@@ -31,6 +31,9 @@ class Settings:
     context_seconds: float = 2.0
     max_upload_bytes: int = 8 * 1024**3
     disk_reserve_bytes: int = 2 * 1024**3
+    recording_capture_bytes: int = 1024**3
+    recording_total_bytes: int = 4 * 1024**3
+    recording_disk_reserve_bytes: int = 11 * 1024**3 // 2
     max_pending_chunks: int = 64
     max_sessions: int = 1000
     max_active_uploads: int = 1
@@ -137,6 +140,11 @@ class Settings:
             self.speaker_min_query_seconds=policy['minimum_matching_query_seconds']
         if not isinstance(self.process_memory_limit_bytes,int) or not 256*1024**2 <= self.process_memory_limit_bytes <= 10*1024**3:
             raise ValueError('Memory budget must be 256 MiB to 10 GiB; use 6 GiB on this host')
+        for name in ('recording_capture_bytes', 'recording_total_bytes'):
+            if type(getattr(self, name)) is not int or getattr(self, name) <= 0:
+                raise ValueError(f'{name} must be a positive integer')
+        if type(self.recording_disk_reserve_bytes) is not int or self.recording_disk_reserve_bytes < 0:
+            raise ValueError('recording_disk_reserve_bytes must be a nonnegative integer')
         for name in ('max_upload_bytes','max_pending_chunks','max_sessions','max_speakers_per_session','max_speaker_observations_per_group','max_matched_speaker_observations_per_group','max_speaker_examples_per_person','max_speaker_templates_total','max_speaker_observations_total'):
             if not isinstance(getattr(self,name),int) or getattr(self,name)<=0: raise ValueError(f'{name} must be a positive integer')
         if not isinstance(self.speaker_support_enabled,bool):raise ValueError('speaker_support_enabled must be boolean')
