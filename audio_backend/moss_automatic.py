@@ -15,6 +15,8 @@ from .native_owned_cells import (Cell, Unavailable, canonical, sha, validate_doc
     SourceSpan, PROOF_BYTES, BATCH_CELLS, exact_frame)
 from .native_owned_support_cache import ReadError
 
+_WINDOW_READ_DEFERRED = object()
+
 TABLE = 'moss_automatic_intents_v1'
 USAGE = 'moss_automatic_usage_v1'
 MAX_ROWS, SESSION_ROWS = 4096, 1024
@@ -326,13 +328,25 @@ class Automatic:
 
     def before_window(self,chunk):
         if not enabled(self.store.settings):return True
-        with self.results._database() as db:
-            if not recording(db,chunk['id']):return True
-            try:capacity(db,chunk['session_id'])
-            except ReadError as exc:self.last_reason=exc.reason; return False
-            from .native_owned_core_seams import MAX_COMPACTS
-            if db.execute('SELECT COUNT(*) FROM native_core_commits').fetchone()[0]>=MAX_COMPACTS:
-                self.last_reason='automatic_compact_capacity'; return False
+        from .moss_result_store import _ReadDeferred
+        try:
+            with self.results._database() as db:
+                if not recording(db,chunk['id']):return True
+                try:capacity(db,chunk['session_id'])
+                except ReadError as exc:self.last_reason=exc.reason; return False
+                from .native_owned_core_seams import MAX_COMPACTS
+                if db.execute('SELECT COUNT(*) FROM native_core_commits').fetchone()[0]>=MAX_COMPACTS:
+                    self.last_reason='automatic_compact_capacity'; return False
+        except _ReadDeferred as exc:
+            self.last_reason='automatic_preflight_read_deferred'
+            try:
+                import logging
+                fields={'operation':'read','callsite':'before_window','phase':exc.phase,
+                    'reason':'result_storage_unavailable','sqlite_code':exc.sqlite_code}
+                logging.getLogger(__name__).warning('moss_automatic_preflight_deferred %s',
+                    json.dumps(fields,sort_keys=True),extra={'automatic_preflight_deferred':fields})
+            except BaseException:pass
+            return _WINDOW_READ_DEFERRED
         if not self.current():self.last_reason='automatic_configuration_unavailable'; return False
         self.results._headroom()
         return True

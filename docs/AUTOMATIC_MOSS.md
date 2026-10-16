@@ -1,4 +1,4 @@
-# Automatic timestamped-recording MOSS dispatch (dev24)
+# Automatic timestamped-recording MOSS dispatch (dev25)
 
 This release adds a finite, default-off automatic dispatch
 path. It retains eligible overlap intents during primary processing and gives
@@ -159,6 +159,29 @@ There is no new model thread, database table, retry ledger or persistent schedul
 The RAM grant/snapshot state starts empty on restart; durable accepted/unknown
 work remains governed by the existing no-replay rule. Manual 64-key acceptance
 ledger semantics and all quotas remain unchanged.
+
+## Read-contention pre-window barrier (dev25)
+
+Before preparing a native window, automatic mode checks the existing recording,
+intent and compact capacity through a read-only result-store connection. Only a
+numeric SQLite BUSY/LOCKED at the read begin/body phase may produce the private
+pre-window deferral, and only after that connection closes successfully. The
+ordinary public error mapping remains HTTP503/result_storage_unavailable.
+
+The Worker keeps the durable offset and existing proofs, uses the existing
+conditional queued transition and ordinary process cleanup, then waits on its
+stop event for 100 ms before rechecking. It does not execute optional work on
+that deferred iteration. No native window is skipped and no accepted attempt
+is replayed. Capacity/configuration backpressure retains its existing behavior.
+A fixed callsite/operation/phase/reason/numeric-code record identifies this
+specific deferral; log sink failure cannot change the outcome.
+
+Deadline/VM exhaustion, I/O, changed database identity, schema errors, failed
+connection closure, writes and uncertain commits are not reclassified. There
+are no SQL retries inside the database context, higher busy timeout, larger
+budget, or uncertain-publication relaxation. Repeated contention may continue
+to delay progress; this is not a finite recovery-time guarantee. See
+[DEV25_PREFLIGHT_DEFERRAL_ZH.md](DEV25_PREFLIGHT_DEFERRAL_ZH.md) for qualification.
 
 ## State, restart and save fences
 

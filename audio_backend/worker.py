@@ -11,6 +11,7 @@ from .boundaries import lexical_core, safe_cut
 from .boundary_store import stream_info, context_parts, wait_for_input
 from .native_worker import NativeCoordinator
 from .storage import _ClaimDeferred
+from .moss_automatic import _WINDOW_READ_DEFERRED
 from .overlap_ownership import own_candidates,validate_candidates
 from . import speaker_support, event_candidate_store
 
@@ -194,13 +195,14 @@ class Worker:
                 elif self.moss_automatic is not None:self.moss_automatic.step()
                 self.wake.wait(1); self.wake.clear(); continue
             self.current_chunk=chunk['id']
-            normal=False
+            normal=False;preflight_deferred=False
             try:
                 if intent is not None and not intent.entered:intent.wait(lambda:self.interrupted(chunk['id']))
                 self._begin_native_support(chunk,watermark)
                 self._fair_core_handoff=fair
                 yielded=self.process(chunk)
                 normal=True
+                preflight_deferred=yielded is _WINDOW_READ_DEFERRED
                 if fair and yielded is True:self.store.requeue_core(chunk)
             except InterruptedError:
                 if self.stop_event.is_set():
@@ -214,6 +216,11 @@ class Worker:
                     if intent.entered:permit.finish_cohort(normal=normal)
                     intent.release()
                 self.current_chunk=None
+            if preflight_deferred:
+                # Unknown preflight is not an idle optional opportunity. The
+                # exact offset remains queued after ordinary process cleanup.
+                self.stop_event.wait(.1)
+                continue
             if fair:self._automatic_handoff(request=True)
 
     def _automatic_handoff(self, *, request=False):
@@ -405,13 +412,14 @@ class Worker:
             if self.moss_automatic is not None:
                 from .moss_automatic import enabled,recording
                 with self.store.db() as db:automatic=enabled(self.settings) and recording(db,chunk['id'])
-                if automatic and not self.moss_automatic.before_window(chunk):
+                preflight=self.moss_automatic.before_window(chunk) if automatic else True
+                if preflight is _WINDOW_READ_DEFERRED or not preflight:
                     # Yield before native preparation. The unchanged offset is
                     # durable; process/permit cleanup runs on the ordinary exit.
                     with self.store.db() as db:
                         db.execute("UPDATE chunks SET status='queued',error=? WHERE id=? AND status='running'",
                             (self.moss_automatic.last_reason,chunk['id']))
-                    return
+                    return _WINDOW_READ_DEFERRED if preflight is _WINDOW_READ_DEFERRED else None
             check_resources(self.settings, 4*1024**2)
             info=stream_info(self.store,chunk)
             origin=chunk['timeline_start']

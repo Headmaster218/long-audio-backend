@@ -158,6 +158,13 @@ def build_metadata(identity, *, context, support, cell_binding=None, observed=No
     return metadata
 
 
+class _ReadDeferred(ReadError):
+    """A closed read-only transaction was refused by numeric SQLite contention."""
+    def __init__(self, phase, code):
+        super().__init__(503, 'result_storage_unavailable')
+        self.phase, self.sqlite_code = phase, code
+
+
 class MossResultStore:
     def __init__(self, store, *, clock=time.monotonic):
         self.path, self.settings, self.clock = Path(store.path).resolve(), store.settings, clock
@@ -192,7 +199,7 @@ class MossResultStore:
     def _database(self, *, write=False, budget=None):
         budget = budget if budget is not None else [self.clock() + WRITE_SECONDS, 0]
         deadline, db = budget[0], None
-        phase, first_budget = 'headroom_before', None
+        phase, first_budget, deferred = 'headroom_before', None, None
         def refused(error):
             # Fixed, bounded fields only. Never inspect a message, SQL, or path;
             # even a broken logging sink must not replace the original outcome.
@@ -266,12 +273,21 @@ class MossResultStore:
                     refused(error); self.write_blocked = True
         except (OSError, sqlite3.Error) as error:
             refused(error)
-            raise ReadError(503, 'result_storage_unavailable') from None
+            code = getattr(error, 'sqlite_errorcode', None)
+            if (not write and phase in ('begin', 'body') and first_budget is None
+                    and isinstance(error, sqlite3.OperationalError)
+                    and type(code) is int and 0 <= code < 2**31
+                    and (code & 0xff) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)):
+                deferred = (phase, code)
+            else:raise ReadError(503, 'result_storage_unavailable') from None
         except ReadError as error:
             if error.reason == 'result_storage_unavailable':refused(error)
             raise
         finally:
             if db is not None:db.close()
+        # No safe deferral exists until the read connection positively closes.
+        # A close error retains the original failure behavior instead.
+        if deferred is not None:raise _ReadDeferred(*deferred) from None
 
     def bind_recovery(self, instance_lock):
         """Capture a crash boundary only while the actual startup owner is held."""
