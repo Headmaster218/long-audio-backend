@@ -99,6 +99,7 @@ class Settings:
     native_owned_seam_cells_enabled: bool = False
     native_owned_core_seams_enabled: bool = False
     native_owned_compact_gc_enabled: bool = False
+    native_owned_receipt_gc_enabled: bool = False
     moss_result_max_rows: int = 65536
     moss_result_max_rows_per_session: int = 16384
     moss_result_max_bytes: int = 2 * 1024**3
@@ -172,6 +173,10 @@ class Settings:
             raise ValueError('native_owned_compact_gc_enabled must be boolean')
         if self.native_owned_compact_gc_enabled and not (self.native_owned_cells_enabled and self.native_owned_core_seams_enabled):
             raise ValueError('native_owned_compact_gc_enabled requires native_owned_cells_enabled and native_owned_core_seams_enabled')
+        if type(self.native_owned_receipt_gc_enabled) is not bool:
+            raise ValueError('native_owned_receipt_gc_enabled must be boolean')
+        if self.native_owned_receipt_gc_enabled and not self.native_owned_compact_gc_enabled:
+            raise ValueError('native_owned_receipt_gc_enabled requires native_owned_compact_gc_enabled')
         if type(self.native_owned_seam_cells_enabled) is not bool:
             raise ValueError('native_owned_seam_cells_enabled must be boolean')
         if self.native_owned_seam_cells_enabled and not self.native_owned_cells_enabled:

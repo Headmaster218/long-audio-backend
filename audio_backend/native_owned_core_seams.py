@@ -758,3 +758,135 @@ class CoreSeams:
             from .native_owned_cell_store import _diagnostic_failure
             _diagnostic_failure('core_seam_drain', exc)
             self.last_reason = str(exc) if isinstance(exc, Unavailable) else 'core_drain_pending'
+
+
+def collect_receipts(owner, op, budget, result=None):
+    """Delete only exact orphan receipts, under owner and primary claim fences.
+
+    The primary connection is read-only apart from BEGIN IMMEDIATE/ROLLBACK;
+    only sources in the optional store are mutated. Both connections share the
+    original two-second/SQL-step/projection budget. The compact scan is one
+    bounded current-table membership check, not one history scan per source.
+    """
+    from .native_owned_cell_store import Receipt, RECEIPT_BYTES
+    from .native_owned_cell_capture import _identity
+    from .recording_overlap import (receipt_gc_source, receipt_gc_prefix, receipt_gc_pending_roots,
+        RECEIPT_GC_PREFIX_ROWS, RECEIPT_GC_PREFIX_STREAMS)
+    if result is None:result={'scanned':0,'retired':0,'protected':0,'body_bytes':0,'prefix_rows':0}
+    result.update(status='no_eligible_receipts',reason='receipt_gc_page_protected')
+    if owner._compact_gc_unknown is not None:raise Unavailable('receipt_gc_compact_pending')
+    if owner._receipt_gc_prefix_generation is not owner._epoch:
+        owner._receipt_gc_prefixes.clear();owner._receipt_gc_prefix_generation=owner._epoch
+    cursor=owner._receipt_gc_cursor;plans=[]
+    with owner.authority.store.db() as db:
+        db.execute('PRAGMA busy_timeout=5');db.set_progress_handler(budget.progress,100)
+        try:
+            budget.check();db.execute('BEGIN IMMEDIATE')
+            roots=_gc_guard(owner,op,db,budget)
+            capture=owner._retention_capture
+            if (not owner.receipt_gc_enabled or not capture._retention_worker.settings.native_owned_receipt_gc_enabled):
+                raise Unavailable('receipt_gc_binding_unavailable')
+            if capture.core_seams.work_pending or capture.witness.pending is not None:
+                raise Unavailable('compact_gc_pending_proof')
+            if owner._receipt_gc_unknown is not None:
+                # No cache authority or successful-deletion attribution until
+                # every exact planned ID has been reread on the owner thread.
+                observed=[]
+                for cid,raw in owner._receipt_gc_unknown:
+                    receipt=Receipt.decode(raw)
+                    row=owner._db.execute('''SELECT sid=? AND digest=? AND receipt=?
+                        FROM sources WHERE cid=?''',(receipt.session_id,receipt.digest,raw,cid)).fetchone()
+                    budget.projection(16)
+                    if row is not None and not row[0]:raise Unavailable('receipt_gc_unknown_changed')
+                    observed.append((cid,receipt if row is not None else None))
+                if _gc_guard(owner,op,db,budget) != roots:raise Unavailable('receipt_gc_roots_changed')
+                budget.check();db.execute('ROLLBACK')
+                for cid,receipt in observed:
+                    if receipt is None:owner._receipts.pop(cid,None)
+                    else:owner._receipts[cid]=receipt
+                result.update(status='reconciled',reason='receipt_gc_exact_reread')
+                return result
+            rows=owner._db.execute('SELECT cid,length(receipt) FROM sources WHERE cid>? ORDER BY cid LIMIT ?',
+                (cursor,COMPACT_GC_BATCH)).fetchall();budget.projection(len(rows)*160)
+            if not rows:cursor=''
+            cids=[text(row[0]) for row in rows]
+            # No cid index exists in the compact table. Its existing MAX_COMPACTS
+            # cap plus the shared VM-step budget bounds this single scan. An
+            # exhausted budget defers rather than weakening any root predicate.
+            compact_roots=set()
+            if cids:
+                marks=','.join('?' for _ in cids)
+                compact_roots={row[0] for row in db.execute(
+                    'SELECT DISTINCT cid FROM native_core_commits WHERE cid IN ('+marks+')',cids)}
+                budget.projection(len(compact_roots)*128)
+            seen={};pending_roots={}
+            for cid,n in rows:
+                cursor=cid;result['scanned']+=1;budget.check()
+                if not 1 <= n <= RECEIPT_BYTES:raise Unavailable('receipt_gc_roots_changed')
+                raw=owner._db.execute('SELECT receipt FROM sources WHERE cid=? AND length(receipt) BETWEEN 1 AND ?',
+                    (cid,RECEIPT_BYTES)).fetchone()
+                if raw is None:raise Unavailable('receipt_gc_roots_changed')
+                raw=raw[0];budget.projection(len(raw));result['body_bytes']+=len(raw)
+                receipt=Receipt.decode(raw)
+                exact=owner._db.execute('SELECT sid=? AND digest=? FROM sources WHERE cid=?',
+                    (receipt.session_id,receipt.digest,cid)).fetchone();budget.projection(16)
+                if receipt.chunk_id != cid or not exact[0] or owner.receipt(cid) != receipt:
+                    raise Unavailable('receipt_gc_roots_changed')
+                source=receipt_gc_source(db,receipt,budget)
+                if source is None:
+                    result['protected']+=1;continue
+                key=(receipt.session_id,source['batch_id'])
+                if key not in seen:
+                    pending_roots[key]=receipt_gc_pending_roots(db,source['batch_id'],cids,budget)
+                    prior=owner._receipt_gc_prefixes.get(key)
+                    prefix,count=receipt_gc_prefix(db,receipt.session_id,source,prior,budget,
+                        RECEIPT_GC_PREFIX_ROWS-result['prefix_rows'])
+                    result['prefix_rows']+=count
+                    if key not in owner._receipt_gc_prefixes and len(owner._receipt_gc_prefixes)>=RECEIPT_GC_PREFIX_STREAMS:
+                        owner._receipt_gc_prefixes.pop(next(iter(owner._receipt_gc_prefixes)))
+                    owner._receipt_gc_prefixes[key]=prefix;seen[key]=prefix
+                prefix=seen[key]
+                future=prefix['frame']-prefix['origin']
+                protected_start=capture.receipt_retention_start(receipt.session_id,receipt.stream_id,future)
+                end=source['capture_start_frame']-source['origin']+receipt.frames
+                aliases,intervals=pending_roots[key]
+                source_start=source['capture_start_frame']
+                pending_alias=cid in aliases or any(max(source_start,a)<min(source_start+receipt.frames,b) for a,b in intervals)
+                eligible=(source['position']<prefix['position'] and end<=protected_start
+                    and cid not in roots and cid not in compact_roots and not pending_alias)
+                if owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1',(cid,)).fetchone():eligible=False
+                # Supported insertion always records normalized dependencies.
+                # Anchor fallback also keeps malformed/metadata-only cells. It
+                # may scan <=MAX_CELLS entries (cid is not indexed), charged by
+                # the same VM budget; we never parse/copy arbitrary proof blobs.
+                if owner._db.execute('SELECT 1 FROM cells WHERE cid=? LIMIT 1',(cid,)).fetchone():eligible=False
+                budget.projection(32)
+                if not eligible:
+                    result['protected']+=1;continue
+                plans.append((cid,raw,receipt,source,protected_start,future))
+            if _gc_guard(owner,op,db,budget)!=roots:raise Unavailable('receipt_gc_roots_changed')
+            if plans:
+                owner.retention_changed()
+                with owner._transaction(budget):
+                    for cid,raw,receipt,source,start,future in plans:
+                        if (receipt_gc_source(db,receipt,budget)!=source
+                                or capture.receipt_retention_start(receipt.session_id,receipt.stream_id,future)!=start
+                                or cid in roots or _gc_outbox_root(db,cid,budget)
+                                or owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1',(cid,)).fetchone()
+                                or owner._db.execute('SELECT 1 FROM cells WHERE cid=? LIMIT 1',(cid,)).fetchone()):
+                            raise Unavailable('receipt_gc_roots_changed')
+                        budget.projection(32)
+                        if owner._db.execute('DELETE FROM sources WHERE cid=? AND sid=? AND digest=? AND receipt=?',
+                            (cid,receipt.session_id,receipt.digest,raw)).rowcount!=1:
+                            raise Unavailable('receipt_gc_roots_changed')
+                    if _gc_guard(owner,op,db,budget)!=roots:raise Unavailable('receipt_gc_roots_changed')
+                    budget.check()
+                    # Install suppression BEFORE the possibly successful COMMIT.
+                    # _transaction never retries writes and owns rollback.
+                    owner._receipt_gc_unknown=tuple((cid,raw) for cid,raw,*_ in plans)
+                result.update(status='retired',reason='receipt_gc_retired',retired=len(plans))
+            db.execute('ROLLBACK');budget.check()
+            if _identity(owner.authority.path)!=owner.authority.identity:raise Unavailable('compact_gc_primary_changed')
+        finally:db.set_progress_handler(None,0)
+    owner._receipt_gc_cursor=cursor
+    return result

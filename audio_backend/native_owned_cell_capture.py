@@ -637,9 +637,32 @@ class Capture:
         if self.core_seams.flight is not None:raise Unavailable('compact_gc_pending_proof')
         if self.active or self._seam_provisional is not None:
             raise Unavailable('compact_gc_producer_roots_pending')
-        # All source receipts, including replay material, are retained. Core
-        # preparation's exact previous compact is separately protected in SQL.
+        # Source GC additionally proves a completed-prefix replay frontier.
+        # Core preparation's exact previous compact is protected in SQL.
         return frozenset(() if self._seam_tail is None else (self._seam_tail.part.chunk_id,))
+
+    def receipt_retention_start(self, sid, stream, future_frame):
+        """Future reset replay plus context; an empty queue is never a proof."""
+        self.retention_roots()
+        if not self.owner.receipt_gc_enabled or not self._retention_worker.settings.native_owned_receipt_gc_enabled:
+            raise Unavailable('receipt_gc_binding_unavailable')
+        integer(future_frame)
+        # Both native_worker and native-owned proof policy use 300-second
+        # epochs and 339200 frames (21.2 seconds) of replay/context preroll.
+        start = max(0, future_frame // (300 * RATE) * (300 * RATE) - 339200)
+        context = self._retention_worker.settings.context_seconds
+        if type(context) not in (int, float) or not 0 <= context <= 5:
+            raise Unavailable('receipt_gc_context_unknown')
+        # This currently cannot precede the 21.2-second replay bound, but is
+        # explicit even with no retained analyzer and follows Worker extraction.
+        start = min(start, max(0, future_frame - round(context * RATE)))
+        if self.analyzer is not None:
+            if self.scope is None or len(self.scope) != 3:
+                raise Unavailable('receipt_gc_context_unknown')
+            if self.scope == ('stream', sid, stream):
+                if self.scope_start != 0.:raise Unavailable('receipt_gc_context_unknown')
+                start = min(start, integer(self.analyzer_start))
+        return start
 
     def prepare_core_seam(self, *args):
         if self.core_seams is not None:return self.core_seams.prepare(*args)
@@ -1041,7 +1064,8 @@ def register(store, *, fragment_provider_factory=None, instance_lock=None):
         owner = CellStore(directory, authority, enabled=enabled, qualification=profile, instance_lock=instance_lock,
             seam_enabled=bool(getattr(settings, 'native_owned_seam_cells_enabled', False)),
             core_seam_enabled=bool(getattr(settings, 'native_owned_core_seams_enabled', False)),
-            compact_gc_enabled=bool(getattr(settings, 'native_owned_compact_gc_enabled', False)))
+            compact_gc_enabled=bool(getattr(settings, 'native_owned_compact_gc_enabled', False)),
+            receipt_gc_enabled=bool(getattr(settings, 'native_owned_receipt_gc_enabled', False)))
         authority.owner = owner; capture = Capture(owner, authority)
         _REGISTRY[key] = capture
     finally:_REGISTRY_LOCK.release()

@@ -1,4 +1,60 @@
-# Optional evidence retention and compact reclamation
+# Optional evidence retention and reclamation
+
+## Current dev18: opt-in orphan source receipts
+
+`--native-owned-receipt-gc` defaults off and requires compact GC, cells and
+core-seams, with the existing qualified runtime and exact application-bound
+single `Worker.loop`. It retires only exact orphan source receipts from proven
+completed, published and released sealed recording pages. Continuous-prefix,
+producer-context, compact/proof, retained-cell and replay roots must all permit
+retirement. Missing context or an incomplete prefix is conservative protection.
+It does not reclaim cells, PCM, recording outboxes, primary results or committed
+MOSS structured history. The 4,096 receipt / 1,024 cell / 2,056 compact caps stay
+unchanged. Existing terminal outbox optional-capacity gaps are not automatically
+repaired when capacity later becomes available.
+
+The owner uses the existing shared slot and budgets: at most eight candidates,
+28 prefix rows and eight cached stream prefixes; 32 KiB body reads inside the
+256 KiB projection budget, two cooperative seconds and 150,000 SQL steps.
+The compact/receipt pair leaves a completion-based one-second scheduling floor.
+Ordinary handoffs, reconciliation and active work can postpone maintenance.
+A fresh optional-owner reopen clears the prefix cache and rebuilds it in bounded
+steps. This is not a hard-preemptive or zero-latency service.
+
+`GET /health` adds the cached `native_owned_cells.receipt_gc` projection.
+`enabled`, `status`, `reason`, process-local `attempts`/`retired`, last-pass
+counts, prefix limits and `uncertain_ids` describe that collector only. Its
+scope is `orphan_completed_sealed_page_receipts_only`. Unknown commit outcomes
+are reconciled without attributing later absence to successful retirement.
+Retention occupancy remains a last-observed, potentially dirty or stale
+projection with lower-bound references, not a complete global root proof.
+No manual GC route, automatic age eviction, schema migration or `VACUUM` is added.
+
+Frozen functional source passed 72 focused tests and a separate 574 selected
+regression cases with 38 subtests. Separate pilot, logical-12h and logical-48h
+metadata-only stress cases passed. The 48h fixture admitted 16,458 receipts and
+16,951 compacts over 588 pages, peaked at 1,119 receipts / 30 compacts and ended
+at 3 / 1. Each page supplied eight paired scheduling opportunities; actual
+maintenance comprised 8,036 GC calls plus 4,704 retention refreshes, not eight
+calls per page. The modeled idle allowance was 98.709 seconds per logical hour,
+a lower bound excluding owner wake/handoff latency. Measured maintenance was
+0.710 seconds per logical hour, with startup sweeps separately accounted for.
+After a midpoint reopen, prefix proof conservatively lagged and caught up.
+
+Those fixtures contain no PCM or models. Synthetic receipt observation replaces
+both file checks and receipt-valid primary-row revalidation; page publication
+and idle cadence are simulated. Actual production admission SQL, scheduling
+predicates, collectors and bounded operation budgets are exercised. This does
+not qualify real-duration/full-speech performance, busy-foreground throughput,
+general VFS safety or power-loss durability. See the [dev18 practical guide](DEV18_ORPHAN_RECEIPT_GC_ZH.md)
+for exact counts, limitations and the byte-identical reusable stress source.
+
+Committed MOSS structured results retain the [dev17 history contract](MOSS_HANDY_JOBS.md#durable-structured-history).
+Full independent raw text remains volatile. The following dev16 account is
+preserved as a historical snapshot; its compact-only target and volatile-MOSS
+statements are not the complete current dev18 contract.
+
+## Historical dev16 compact-only qualification
 
 The dev16 candidate adds conservative retention telemetry and an explicitly enabled,
 compact-only maintenance path. The normal primary transcript is independent of

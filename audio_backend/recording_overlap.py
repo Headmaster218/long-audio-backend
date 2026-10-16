@@ -1492,3 +1492,148 @@ def abort_capture(db, bid):
         WHERE status IN ('queued','running','paused','failed','waiting_input','staging')
         AND id IN (SELECT chunk_id FROM recording_work WHERE batch_id=?)""",(bid,))
     db.execute("UPDATE recording_work SET receipt_state='cancelled',native_receipt_status='recording_aborted' WHERE batch_id=? AND receipt_state='pending'",(bid,))
+
+
+# Receipt GC uses existing publication authority, never a new durable frontier.
+RECEIPT_GC_PREFIX_ROWS = MAX_PAGE_CHUNKS
+RECEIPT_GC_PREFIX_STREAMS = 8
+
+
+def receipt_gc_source(db, receipt, budget):
+    """Exact, completed sealed-page source; retained outbox is historical evidence.
+
+    receipt_state='durable' records its original acknowledgement, not a promise
+    that optional source metadata remains retained forever. The outbox payload,
+    recording mapping, original files and primary outputs are never rewritten.
+    """
+    row = db.execute('''SELECT w.batch_id,w.position,w.capture_start_frame,w.frames,
+        b.capture_origin_frame AS origin,b.capture_end_frame,b.state AS batch_state,
+        p.page_number,p.start_frame,p.end_frame,
+        c.status='completed' AND c.next_offset=c.duration AND c.session_id=?
+          AND c.digest=? AND c.duration=? AND c.timeline_start=?
+          AND s.deleted=0 AND s.processing_mode='legacy'
+          AND b.session_id=c.session_id AND b.mode='sealed_pages' AND b.state!='aborted'
+          AND p.batch_id=b.id AND p.released=1 AND p.state='published'
+          AND w.receipt_state='durable' AND w.receipt_id=? AND w.native_receipt=?
+          AND sc.session_id=c.session_id AND sc.stream_id=? AND sc.position=w.position
+          AND ti.session_id=c.session_id AND ti.stream_id=sc.stream_id AND ti.position=sc.position
+          AND ti.timeline_start=c.timeline_start AND ti.timeline_end=c.timeline_start+c.duration AS same
+        FROM recording_work w JOIN recording_batches b ON b.id=w.batch_id
+        JOIN recording_pages p ON p.id=w.page_id JOIN chunks c ON c.id=w.chunk_id
+        JOIN sessions s ON s.id=c.session_id JOIN stream_chunks sc ON sc.chunk_id=c.id
+        JOIN stream_time_index ti ON ti.chunk_id=c.id WHERE w.chunk_id=?''',
+        (receipt.session_id,receipt.digest,receipt.frames/RATE,receipt.timeline_start,
+         receipt.receipt_id,receipt.encoded,receipt.stream_id,receipt.chunk_id)).fetchone()
+    budget.projection(256)
+    if row is None or not row['same'] or receipt.stream_id != 'recording.' + row['batch_id']:return None
+    origin = row['origin']
+    if (type(origin) is not int or not 0 <= origin <= MAX_COORDINATE
+            or type(row['capture_end_frame']) is not int
+            or not origin <= row['capture_start_frame'] < row['capture_start_frame'] + row['frames'] <= row['capture_end_frame']
+            or row['frames'] != receipt.frames
+            or receipt.timeline_start != (row['capture_start_frame']-origin)/RATE
+            or not row['start_frame'] <= row['capture_start_frame'] < row['capture_start_frame']+row['frames'] <= row['end_frame']):
+        return None
+    return dict(row)
+
+
+def receipt_gc_prefix(db, sid, source, previous, budget, remaining):
+    """Prove at most one complete page within the attempt's shared row budget.
+
+    The memo is process/owner-epoch local and capped by the caller. Completed
+    chunks cannot be pause/resume/retry/cancel targets (Store.set_state), and
+    recovery changes only running chunks. Released pages cannot be unreleased;
+    sealed-page publication appends only at capture_end_frame. Those supported
+    API invariants make a proved prefix monotone. A restart starts at page 1;
+    deletion/revocation/binding changes discard the memo. No history scan or
+    empty-queue inference can manufacture a frontier.
+    """
+    bid=source['batch_id'];origin=source['origin'];stream='recording.'+bid
+    initial={'page_number':0,'position':0,'frame':origin,'origin':origin,'anchor':None}
+    prior=initial if previous is None else previous
+    if prior['origin'] != origin:raise Unavailable('receipt_gc_prefix_changed')
+    if prior['anchor'] is not None:
+        # Exact bounded anchor check detects loss/replacement of the memo's edge.
+        row=db.execute('''SELECT w.chunk_id,w.position,w.capture_start_frame,w.frames,p.id,p.end_frame
+            FROM recording_work w JOIN chunks c ON c.id=w.chunk_id
+            JOIN recording_pages p ON p.id=w.page_id
+            WHERE w.batch_id=? AND w.position=? AND c.session_id=? AND c.status='completed'
+              AND c.next_offset=c.duration AND p.released=1 AND p.state='published' ''',
+            (bid,prior['position']-1,sid)).fetchone()
+        budget.projection(256)
+        if row is None or tuple(row) != prior['anchor']:raise Unavailable('receipt_gc_prefix_changed')
+    if remaining <= 0:return prior,0
+    page=db.execute('''SELECT id,start_frame,end_frame,eos,released,state
+        FROM recording_pages WHERE batch_id=? AND page_number=?''',
+        (bid,prior['page_number']+1)).fetchone()
+    budget.projection(192)
+    if page is None or page['released'] != 1 or page['state'] != 'published':return prior,0
+    a,b=page['start_frame'],page['end_frame']
+    if (type(a) is not int or type(b) is not int or a != prior['frame'] or not a < b <= source['capture_end_frame']
+            or b-a > MAX_PAGE_CHUNKS*CHUNK_FRAMES or (not page['eos'] and (b-origin)%CHUNK_FRAMES)):
+        return prior,0
+    expected=(b-a+CHUNK_FRAMES-1)//CHUNK_FRAMES
+    if expected > remaining:return prior,0
+    # page_id,position and batch_id,position are existing indexed orderings.
+    # LEFT joins preserve missing authority rows, which must stop the prefix.
+    rows=db.execute('''SELECT w.chunk_id,w.position,w.capture_start_frame,w.frames,
+        c.status='completed' AND c.next_offset=c.duration AND c.duration=w.frames/16000.0
+          AND c.timeline_start=(w.capture_start_frame-?)/16000.0 AND c.session_id=?
+          AND w.batch_id=? AND w.receipt_state='durable'
+          AND sc.session_id=c.session_id AND sc.stream_id=? AND sc.position=w.position
+          AND ti.session_id=c.session_id AND ti.stream_id=sc.stream_id AND ti.position=sc.position
+          AND ti.timeline_start=c.timeline_start AND ti.timeline_end=c.timeline_start+c.duration AS same
+        FROM recording_work w LEFT JOIN chunks c ON c.id=w.chunk_id
+        LEFT JOIN stream_chunks sc ON sc.chunk_id=w.chunk_id LEFT JOIN stream_time_index ti ON ti.chunk_id=w.chunk_id
+        WHERE w.page_id=? ORDER BY w.position LIMIT ?''',
+        (origin,sid,bid,stream,page['id'],expected)).fetchall()
+    budget.projection(len(rows)*256)
+    # An exact end-position probe catches an extra row without projecting it.
+    extra=db.execute('SELECT 1 FROM recording_work WHERE page_id=? AND position>=? LIMIT 1',
+        (page['id'],prior['position']+expected)).fetchone();budget.projection(16)
+    if len(rows) != expected or extra is not None:return prior,len(rows)
+    frame=a
+    for index,row in enumerate(rows):
+        if (not row['same'] or row['position'] != prior['position']+index
+                or row['capture_start_frame'] != frame or row['frames'] != min(CHUNK_FRAMES,b-frame)):
+            return prior,len(rows)
+        frame+=row['frames']
+    if frame != b:return prior,len(rows)
+    last=rows[-1]
+    return {'page_number':prior['page_number']+1,'position':prior['position']+expected,
+        'frame':b,'origin':origin,'anchor':(last['chunk_id'],last['position'],last['capture_start_frame'],
+            last['frames'],page['id'],b)},len(rows)
+
+
+def receipt_gc_pending_roots(db, bid, candidates, budget):
+    """Pending historical aliases remain roots even before outbox staging."""
+    page=db.execute('SELECT id FROM recording_pages WHERE batch_id=? AND released=0',(bid,)).fetchone()
+    budget.projection(128)
+    if page is None:return set(),()
+    rows=db.execute('''SELECT source_start_frame,frames FROM recording_sources
+        WHERE page_id=? ORDER BY seq LIMIT ?''',(page[0],MAX_SOURCES+1)).fetchall()
+    budget.projection(len(rows)*32)
+    if len(rows)>MAX_SOURCES:raise Unavailable('receipt_gc_roots_changed')
+    intervals=[]
+    for a,n in rows:
+        if type(a) is not int or type(n) is not int or not 0<=a<a+n<=MAX_COORDINATE or n>MAX_SOURCE_FRAMES:
+            raise Unavailable('receipt_gc_context_unknown')
+        intervals.append((a,a+n))
+    # The existing sealed-page manifest admits at most 912 mapping rows,
+    # including repeated per-source mappings. Probe one extra row without
+    # materializing payloads; excess metadata is not accepted as authority.
+    count=db.execute('''SELECT COUNT(*) FROM (SELECT 1
+        FROM recording_sources s INDEXED BY recording_page_sources
+        CROSS JOIN recording_ranges r ON r.source_id=s.id
+        WHERE s.page_id=? LIMIT 913)''',(page[0],)).fetchone()[0]
+    budget.projection(16)
+    if count>912:raise Unavailable('receipt_gc_roots_changed')
+    marks=','.join('?' for _ in candidates)
+    # Keep the indexed page-sources side outermost; ranges has source_id as
+    # its primary-key prefix. Only the eight exact candidate IDs are projected.
+    roots={text_row[0] for text_row in db.execute('''SELECT DISTINCT r.chunk_id
+        FROM recording_sources s INDEXED BY recording_page_sources
+        CROSS JOIN recording_ranges r ON r.source_id=s.id
+        WHERE s.page_id=? AND r.chunk_id IN ('''+marks+')',(page[0],*candidates))}
+    budget.projection(len(roots)*128)
+    return roots,tuple(intervals)

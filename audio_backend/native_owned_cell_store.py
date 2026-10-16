@@ -514,7 +514,7 @@ class Pin:
 class CellStore:
     """No growing thread set, active+pending queue, or retained omitted-row log."""
     def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None,
-                 seam_enabled=False, core_seam_enabled=False, compact_gc_enabled=False):
+                 seam_enabled=False, core_seam_enabled=False, compact_gc_enabled=False, receipt_gc_enabled=False):
         self.directory = Path(directory)
         self.path = self.directory / 'cells.sqlite3'
         self.authority = authority; self.enabled = enabled; self.qualification = qualification
@@ -532,6 +532,15 @@ class CellStore:
         self._compact_gc_last = {'status': 'not_observed' if compact_gc_enabled else 'disabled',
             'reason': 'compact_gc_not_observed' if compact_gc_enabled else 'compact_gc_disabled',
             'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0}
+        if type(receipt_gc_enabled) is not bool or receipt_gc_enabled and not compact_gc_enabled:
+            raise Unavailable('invalid_receipt_gc_flag')
+        self.receipt_gc_enabled = receipt_gc_enabled
+        self._receipt_gc_cursor = ''; self._receipt_gc_next = 0.; self._receipt_gc_unknown = None
+        self._receipt_gc_prefixes = {}; self._receipt_gc_prefix_generation = None
+        self._receipt_gc_attempts = 0; self._receipt_gc_retired = 0
+        self._receipt_gc_last = {'status': 'not_observed' if receipt_gc_enabled else 'disabled',
+            'reason': 'receipt_gc_not_observed' if receipt_gc_enabled else 'receipt_gc_disabled',
+            'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0, 'prefix_rows': 0}
         if core_seam_enabled:
             from .native_owned_core_seams import store_policy
             self._store_policy = store_policy()
@@ -593,7 +602,8 @@ class CellStore:
             'last_observed_allocated_bytes': self._charge, 'total_bytes_limit': TOTAL_BYTES,
             'working_reservation_bytes': WORKING_RESERVATION_BYTES,
             'working_memory_measured': False, 'quota_qualification': 'pinned-runtime-only' if self.qualification else 'unqualified',
-            'retention': self._retention_health(), 'compact_gc': self._compact_gc_health()}
+            'retention': self._retention_health(), 'compact_gc': self._compact_gc_health(),
+            'receipt_gc': self._receipt_gc_health()}
 
     def _compact_gc_health(self):
         from .native_owned_core_seams import COMPACT_GC_BATCH, COMPACT_GC_BODY_BYTES
@@ -654,6 +664,77 @@ class CellStore:
                 self._compact_gc_retired = min(self._compact_gc_retired + result['retired'], (1 << 31) - 1)
             self._compact_gc_unknown = None
         self._compact_gc_last = dict(result)
+        return result
+
+    def _receipt_gc_health(self):
+        from .recording_overlap import RECEIPT_GC_PREFIX_ROWS, RECEIPT_GC_PREFIX_STREAMS
+        last = self._receipt_gc_last
+        return {'enabled': self.receipt_gc_enabled, 'status': last['status'], 'reason': last['reason'],
+            'attempts': self._receipt_gc_attempts, 'retired': self._receipt_gc_retired,
+            'last_scanned': last['scanned'], 'last_retired': last['retired'],
+            'last_protected': last['protected'], 'last_body_bytes': last['body_bytes'],
+            'last_prefix_rows': last['prefix_rows'], 'prefix_row_limit': RECEIPT_GC_PREFIX_ROWS,
+            'prefix_stream_limit': RECEIPT_GC_PREFIX_STREAMS,
+            'uncertain_ids': len(self._receipt_gc_unknown or ()), 'max_batch': 8,
+            'scope': 'orphan_completed_sealed_page_receipts_only',
+            'source_receipt_limit': MAX_RECEIPTS, 'cell_limit': MAX_CELLS}
+
+    def _schedule_receipt_gc(self):
+        # Called after existing compact GC, in its same single owner slot.
+        if not self.receipt_gc_enabled or time.monotonic() < self._receipt_gc_next:return False
+        occupied = self._retention_snapshot[2]['sources']['occupied']
+        if self._receipt_gc_unknown is None and (occupied is None or occupied < 1):return False
+        if not self._lock.acquire(blocking=False):return False
+        try:
+            if self._slot is not None or self._closed or self._admission_closed or self._reconcile.is_set():return False
+            self._slot = Operation('receipt_gc', (), self._epoch, self._wake)
+            self._wake.set(); return True
+        finally:self._lock.release()
+
+    def _collect_receipts(self, op, budget):
+        """Owner-only bounded maintenance; uncertain cache entries stay hidden."""
+        from .native_owned_core_seams import collect_receipts
+        self._receipt_gc_attempts = min(self._receipt_gc_attempts + 1, (1 << 31) - 1)
+        result = {'status': 'deferred', 'reason': 'receipt_gc_unavailable',
+            'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0, 'prefix_rows': 0}
+        try:
+            with budget.phase():
+                if not self.receipt_gc_enabled or not self.compact_gc_enabled:
+                    raise Unavailable('receipt_gc_disabled')
+                if self._slot is not op or op.kind != 'receipt_gc':raise Unavailable('receipt_gc_slot_unavailable')
+                self._generation(op)
+                if self._admission_closed or not self._ready.is_set() or op.cancelled.is_set():
+                    raise Unavailable('receipt_gc_admission_closed')
+                self._db.set_progress_handler(budget.progress, 100); self._scan(budget)
+                result = collect_receipts(self, op, budget, result=result)
+                self._scan(budget); budget.check(); self._generation(op)
+                if self._admission_closed or op.cancelled.is_set():raise Unavailable('receipt_gc_admission_closed')
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, Unavailable) else ''
+            allowed = ('receipt_gc_disabled', 'receipt_gc_slot_unavailable', 'receipt_gc_admission_closed',
+                'receipt_gc_binding_unavailable', 'receipt_gc_context_unknown', 'receipt_gc_prefix_changed',
+                'receipt_gc_roots_changed', 'receipt_gc_unknown_changed', 'receipt_gc_compact_pending',
+                'compact_gc_binding_unavailable', 'compact_gc_producer_active', 'compact_gc_pending_proof',
+                'compact_gc_producer_roots_pending', 'compact_gc_generation_changed',
+                'compact_gc_primary_changed', 'compact_gc_admission_closed',
+                'publication_generation_revoked', 'cooperative_deadline', 'operation_work_capacity')
+            result.update(status='unknown' if self._receipt_gc_unknown is not None else 'deferred',
+                reason=reason if reason in allowed else 'receipt_gc_unavailable', retired=0)
+            self._receipt_gc_prefixes.clear()
+        finally:
+            try:self._db.set_progress_handler(None, 0)
+            except Exception:result.update(status='unknown' if self._receipt_gc_unknown is not None else 'deferred',
+                reason='receipt_gc_unavailable', retired=0)
+            self._receipt_gc_next = time.monotonic() + RETENTION_REFRESH_SECONDS
+            # Leave the existing retry-floor gap after the pair, even when
+            # a slow compact/source pass consumed its entire owner budget.
+            self._compact_gc_next = max(self._compact_gc_next, self._receipt_gc_next)
+        if result['status'] == 'retired':
+            for cid, _ in self._receipt_gc_unknown:self._receipts.pop(cid, None)
+            self._receipt_gc_retired = min(self._receipt_gc_retired + result['retired'], (1 << 31) - 1)
+            self._receipt_gc_unknown = None
+        elif result['status'] == 'reconciled':self._receipt_gc_unknown = None
+        self._receipt_gc_last = dict(result)
         return result
 
     def retention_changed(self):
@@ -749,6 +830,8 @@ class CellStore:
 
     def receipt(self, cid):
         if not self._ready.is_set() or self._closed:return None
+        # A late optional DELETE commit cannot leave ambiguous cache authority.
+        if any(item[0] == cid for item in (self._receipt_gc_unknown or ())):return None
         # Receipt objects are immutable and only installed after durable commit.
         return self._receipts.get(cid)
 
@@ -809,6 +892,7 @@ class CellStore:
     def revoked(self):
         # A single generation/event, not an unbounded per-session cleanup queue.
         self._epoch = object(); self._cleanup_pending = True; self._reconcile.set()
+        self._receipt_gc_prefixes.clear()
         for pin in tuple(self._pins.values()):pin.cancelled.set()
         op = self._slot
         if op is not None and op.kind == 'dispatch':op.abandon('cell_revoked')
@@ -1068,6 +1152,8 @@ class CellStore:
     def _receipt(self, op, budget):
         receipt = op.payload; self._generation(op)
         if not self.authority.receipt_valid(receipt, budget):raise Unavailable('source_authority_unavailable')
+        if any(item[0] == receipt.chunk_id for item in (self._receipt_gc_unknown or ())):
+            raise Unavailable('receipt_gc_commit_unknown')
         old = self._receipts.get(receipt.chunk_id)
         if old:
             if old != receipt:raise Unavailable('conflicting_ingestion_receipt')
@@ -1428,12 +1514,17 @@ class CellStore:
                 if op is None and self._admission_closed:continue
                 if op is None and not self._reconcile.is_set():
                     if self._schedule_compact_gc():continue
+                    if self._schedule_receipt_gc():continue
                     if time.monotonic() < self._retention_next_refresh:continue
                     budget = Budget.for_owner()
                     self._refresh_retention(budget)
                     continue
                 if op is not None and op.kind == 'compact_gc':
                     op.result = self._collect_compacts(op, Budget.for_owner(op))
+                    op.payload = None; finish(op)
+                    continue
+                if op is not None and op.kind == 'receipt_gc':
+                    op.result = self._collect_receipts(op, Budget.for_owner(op))
                     op.payload = None; finish(op)
                     continue
                 if op is not None and op.kind == 'dispatch':
