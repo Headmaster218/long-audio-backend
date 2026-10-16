@@ -18,6 +18,14 @@ PROJECTION_WRAPPER_RESERVE=128
 FAMILIES=frozenset({'rain','driving','subway','door','music','silence'})
 PRIVATE_VOICE_LABELS=frozenset({'Male speech, man speaking','Female speech, woman speaking','Child speech, kid speaking','Baby cry, infant cry','Children shouting','Children playing'})
 STATUS='unverified_model_candidate'
+TEMPORAL_KIND='framemn_temporal_v1'
+TEMPORAL_PROFILE='knock-001-median9-experimental-v1'
+TEMPORAL_COMMIT='1aa47e482f7e89904cba2338999345025d8b4e36'
+TEMPORAL_CHECKPOINT='4a0fe320d5369987b772394c51881fb20a602967e6842f72f3e5c8181065ece7'
+TEMPORAL_LABELMAP='89c223c4b1d5b5fefbccc10e5a652221a8c4fd70ab46a8a1885670e889719348'
+TEMPORAL_CONTEXT='independent_160000_sample_tiles;median9_across_tile_seams;reflect_only_analyzer_endpoints'
+TEMPORAL_MAX_RUNS=125
+
 
 def init_schema(db):
     db.execute('''CREATE TABLE IF NOT EXISTS event_candidates (
@@ -83,6 +91,12 @@ def _provenance(metadata):
     return _json(out,MAX_PROVENANCE_BYTES)
 
 def _payload(candidate):
+    kind=candidate.get('payload_kind')
+    if kind is not None:
+        if kind!=TEMPORAL_KIND:raise ValueError('Unknown candidate payload kind')
+        return _temporal_payload(candidate)
+    if 'temporal' in candidate or 'candidate_provenance' in candidate:
+        raise ValueError('Temporal evidence requires an explicit payload kind')
     labels=candidate.get('top_labels',[])
     if not isinstance(labels,list) or len(labels)>100:raise ValueError('Invalid candidate top-label list')
     unique={}
@@ -112,6 +126,121 @@ def _payload(candidate):
     for key in ('speech_score','rms','peak'):
         if key in candidate:result[key]=_number(candidate[key],key,0,1 if key=='speech_score' else None)
     return _json(result,MAX_PAYLOAD_BYTES)
+
+def _integer(value,name,low,high):
+    if isinstance(value,bool) or not isinstance(value,int) or not low<=value<=high:
+        raise ValueError('Invalid temporal '+name)
+    return value
+
+
+def _pairs(value,name,upper):
+    if not isinstance(value,list) or len(value)>TEMPORAL_MAX_RUNS:
+        raise ValueError('Invalid temporal '+name+' count')
+    result=[];previous=-1
+    for pair in value:
+        if not isinstance(pair,list) or len(pair)!=2:raise ValueError('Invalid temporal '+name)
+        first=_integer(pair[0],name,0,upper);last=_integer(pair[1],name,0,upper)
+        # Adjacent runs are not canonical and must have been merged by decoding.
+        if last<=first or first<=previous:raise ValueError('Invalid temporal '+name+' order')
+        result.append([first,last]);previous=last
+    return result
+
+
+def _temporal_provenance(candidate):
+    raw=candidate.get('candidate_provenance')
+    constants={'model':'FrameMN10','checkpoint_sha256':TEMPORAL_CHECKPOINT,
+        'checkpoint_integrity':'local_first_seen_sha256_not_publisher_digest',
+        'labelmap_identity':'audioset_strong_447_at_'+TEMPORAL_COMMIT,
+        'upstream_commit':TEMPORAL_COMMIT,'context_semantics':TEMPORAL_CONTEXT,
+        'profile':TEMPORAL_PROFILE}
+    if not isinstance(raw,dict) or set(raw)!=(set(constants)|{'labelmap_sha256'}):
+        raise ValueError('Invalid temporal provenance fields')
+    if any(type(raw[key]) is not str or raw[key]!=value for key,value in constants.items()):
+        raise ValueError('Invalid temporal provenance identity')
+    digest=raw['labelmap_sha256']
+    if digest!=TEMPORAL_LABELMAP:
+        raise ValueError('Invalid temporal labelmap identity')
+    result={**constants,'labelmap_sha256':digest,'candidate_source':'framemn_temporal_candidate',
+        'scores_calibrated':False,'provenance_truncated':False}
+    result['fingerprint']=hashlib.sha256(_json(result,MAX_PROVENANCE_BYTES).encode()).hexdigest()
+    return _json(result,MAX_PROVENANCE_BYTES)
+
+
+def _temporal(candidate):
+    raw=candidate.get('temporal')
+    fixed={'profile':TEMPORAL_PROFILE,'target_label':'Knock','target_class_index':228,
+        'threshold':.01,'median_frames':9,'grid_samples':640,'sample_rate':SAMPLE_RATE}
+    fields=set(fixed)|{'tile_start_sample','tile_sample_count','analyzer_sample_count',
+        'frame_runs','raw_target_peak','filtered_target_peak'}
+    owned={'owned_sample_runs','owned_tile_sample_range'}
+    if not isinstance(raw,dict) or set(raw) not in (fields,fields|owned):
+        raise ValueError('Invalid temporal payload fields')
+    for key,value in fixed.items():
+        if type(raw[key]) is not type(value) or raw[key]!=value:raise ValueError('Invalid temporal '+key)
+    total=_integer(raw['analyzer_sample_count'],'analyzer samples',1,960160)
+    first=_integer(raw['tile_start_sample'],'tile start',0,total-1)
+    count=_integer(raw['tile_sample_count'],'tile samples',1,160000)
+    if first%160000 or count!=min(160000,total-first):raise ValueError('Invalid temporal tile geometry')
+    frames=(count+639)//640
+    runs=_pairs(raw['frame_runs'],'frame runs',frames)
+    result={**fixed,'tile_start_sample':first,'tile_sample_count':count,'analyzer_sample_count':total,
+        'frame_runs':runs,'raw_target_peak':_number(raw['raw_target_peak'],'raw target peak',0,1),
+        'filtered_target_peak':_number(raw['filtered_target_peak'],'filtered target peak',0,1)}
+    if 'owned_sample_runs' in raw:
+        bounds=raw['owned_tile_sample_range']
+        if not isinstance(bounds,list) or len(bounds)!=2:raise ValueError('Invalid temporal owned bounds')
+        lo=_integer(bounds[0],'owned first sample',0,count);hi=_integer(bounds[1],'owned last sample',0,count)
+        if hi<=lo:raise ValueError('Invalid temporal owned bounds')
+        actual=_pairs(raw['owned_sample_runs'],'owned sample runs',count)
+        expected=[[max(lo,a*640),min(hi,b*640,count)] for a,b in runs
+                  if min(hi,b*640,count)>max(lo,a*640)]
+        if actual!=expected:raise ValueError('Temporal owned support is not exact core intersection')
+        result.update(owned_sample_runs=actual,owned_tile_sample_range=[lo,hi])
+    return result
+
+
+def _temporal_payload(candidate):
+    temporal=_temporal(candidate)
+    _temporal_provenance(candidate)
+    if (candidate.get('method')!='framemn10_knock_temporal_experimental' or
+            candidate.get('model_inference_executed') is not True or
+            candidate.get('onset_precision_seconds') is not None or
+            candidate.get('time_precision')!='model_score_grid' or
+            candidate.get('category_scores',{})!={} or 'speech_score' in candidate):
+        raise ValueError('Invalid temporal candidate semantics')
+    # Reuse the legacy bounded label sanitizer, without interpreting those raw
+    # maxima as decoded temporal evidence or category scores.
+    raw_labels=candidate.get('top_labels',[])
+    # Validate even suppressed entries, then filter before the diagnostic top-k.
+    _payload({'top_labels':raw_labels})
+    private=PRIVATE_VOICE_LABELS|{'Baby laughter','Child singing','Female singing','Male singing'}
+    labels=json.loads(_payload({'top_labels':[item for item in raw_labels if item['label'] not in private]}))
+    result={'payload_kind':TEMPORAL_KIND,'method':candidate['method'],
+        'model_inference_executed':True,'top_labels':labels['top_labels'],
+        'top_labels_truncated':labels['top_labels_truncated'],'category_scores':{},
+        'top_labels_semantics':'raw_per_class_tile_maxima_diagnostic_only',
+        'ownership':'core_intersection','time_axis':'session_timeline',
+        'support_semantics':'Original model tile; frame_runs are unverified original grid support',
+        'scores_calibrated':False,'temporal':temporal,
+        'temporal_time_axis':'tile_relative','temporal_interval_convention':'half_open',
+        'temporal_owned_support_units':'samples','temporal_original_support_units':'score_frames',
+        'timing_note':'40 ms grid is neither onset accuracy nor end-to-end latency'}
+    return _json(result,MAX_PAYLOAD_BYTES)
+
+
+def _own_temporal(candidate,start,end):
+    temporal=_temporal(candidate)
+    if 'owned_sample_runs' in temporal:raise ValueError('Temporal candidate already owned')
+    first=temporal['tile_start_sample'];count=temporal['tile_sample_count']
+    if candidate['start']!=first/SAMPLE_RATE or candidate['end']!=(first+count)/SAMPLE_RATE:
+        raise ValueError('Temporal model tile timestamps do not match sample geometry')
+    lo=max(first,_sample_boundary(start));hi=min(first+count,_sample_boundary(end))
+    if hi<=lo:return None
+    lo-=first;hi-=first
+    runs=[[max(lo,a*640),min(hi,b*640,count)] for a,b in temporal['frame_runs']
+          if min(hi,b*640,count)>max(lo,a*640)]
+    return dict(temporal,owned_sample_runs=runs,owned_tile_sample_range=[lo,hi])
+
 
 def _diagnostic_evidence(candidate):
     """Retain validated public evidence, raw timing and a hash, never private labels."""
@@ -158,6 +287,7 @@ def own_candidates(metadata,start,end):
         precision=candidate.get('onset_precision_seconds')
         if precision is not None:_number(precision,'onset precision',0,60)
         _payload(candidate)  # Exclusion must not bypass the existing evidence validation.
+        temporal=(_own_temporal(candidate,start,end) if candidate.get('payload_kind')==TEMPORAL_KIND else None)
         lo=max(start,support_start);hi=min(end,support_end)
         if hi<=lo:continue
         # Use explicit half-up ties: round-to-even can turn an
@@ -171,11 +301,16 @@ def own_candidates(metadata,start,end):
                 'core_input_seconds':[start,end],'intersection_input_seconds':[lo,hi],
                 'intersection_frames':[first,last],'sample_rate':SAMPLE_RATE})
             continue
-        candidates.append(dict(candidate,start=lo-start,end=hi-start,
+        if candidate.get('payload_kind')==TEMPORAL_KIND and temporal is None:continue
+        owned=dict(candidate,start=lo-start,end=hi-start,
             support_start=candidate['start']-start,support_end=candidate['end']-start,
             time_axis='core_relative',ownership='core_intersection',
             _source_candidate_index=index,
-            support_semantics='original model window; not verified event onset/end'))
+            support_semantics='original model window; not verified event onset/end')
+        if temporal is not None:
+            owned['temporal']=temporal
+            _payload(owned)  # Refuse overflow; never truncate decoded support.
+        candidates.append(owned)
     return candidates
 
 
@@ -217,7 +352,8 @@ def commit_candidates(db,chunk,offset,candidates,provenance):
     prepared=[]
     for index,item in enumerate(candidates):
         if not isinstance(item,dict) or item.get('time_axis')!='core_relative' or item.get('ownership')!='core_intersection':raise ValueError('Candidates must be rebased to owned core')
-        start=_number(item.get('start'),'start',0,60);end=_number(item.get('end'),'end',0,60)
+        owned_limit=60.01 if item.get('payload_kind')==TEMPORAL_KIND else 60
+        start=_number(item.get('start'),'start',0,owned_limit);end=_number(item.get('end'),'end',0,owned_limit)
         support_start=_number(item.get('support_start',start),'support start',-60,120)
         support_end=_number(item.get('support_end',end),'support end',-60,120)
         if end<=start or offset+end>duration+1e-6:raise ValueError('Candidate owned interval outside chunk')
@@ -225,6 +361,18 @@ def commit_candidates(db,chunk,offset,candidates,provenance):
         precision=item.get('onset_precision_seconds')
         if precision is not None:precision=_number(precision,'onset precision',0,60)
         payload=_payload(item)
+        row_provenance=record_provenance
+        time_precision='window_support'
+        if item.get('payload_kind')==TEMPORAL_KIND:
+            temporal=_temporal(item)
+            if 'owned_sample_runs' not in temporal:raise ValueError('Temporal candidate lacks core ownership')
+            bounds=[_sample_boundary(start-support_start),_sample_boundary(end-support_start)]
+            if temporal['owned_tile_sample_range']!=bounds:
+                raise ValueError('Temporal row and nested core ownership disagree')
+            if _sample_boundary(support_end-support_start)!=temporal['tile_sample_count']:
+                raise ValueError('Temporal original support geometry mismatch')
+            row_provenance=_temporal_provenance(item)
+            time_precision='model_score_grid'
         absolute=[origin+start,origin+end,origin+support_start,origin+support_end]
         if not all(math.isfinite(value) for value in absolute):raise ValueError('Nonfinite candidate projection')
         if absolute[1]<=absolute[0] or absolute[3]<=absolute[2]:
@@ -240,7 +388,7 @@ def commit_candidates(db,chunk,offset,candidates,provenance):
                 'owned_core_seconds':[start,end],'support_core_seconds':[support_start,support_end],
                 'absolute_seconds':absolute,'timeline_core_origin':origin}]
             continue
-        prepared.append((chunk['id'],offset,index,*absolute,STATUS,'window_support',precision,payload,record_provenance))
+        prepared.append((chunk['id'],offset,index,*absolute,STATUS,time_precision,precision,payload,row_provenance))
     inserted=0
     for values in prepared:
         cursor=db.execute('''INSERT INTO event_candidates(chunk_id,analysis_offset,candidate_index,start,end,support_start,support_end,status,time_precision,onset_precision_seconds,payload,provenance)

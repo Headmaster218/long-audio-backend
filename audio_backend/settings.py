@@ -3,6 +3,25 @@ from pathlib import Path
 import os
 import math
 
+FRAMEMN_PROFILE = 'knock-001-median9-experimental-v1'
+
+
+def validate_framemn_options(enabled, checkpoint_path, profile):
+    """Validate policy only; never import a model runtime or open a checkpoint."""
+    if type(enabled) is not bool:
+        raise ValueError('framemn_enabled must be boolean')
+    if profile != FRAMEMN_PROFILE:
+        raise ValueError('FrameMN requires the fixed experimental Knock profile')
+    if not enabled:
+        if checkpoint_path is not None:
+            raise ValueError('FrameMN checkpoint requires explicit enablement')
+        return
+    if (not isinstance(checkpoint_path, (str, Path)) or not str(checkpoint_path)
+            or len(str(checkpoint_path).encode('utf-8')) > 4096
+            or '\x00' in str(checkpoint_path) or not Path(checkpoint_path).is_absolute()):
+        raise ValueError('FrameMN requires an explicit absolute local checkpoint path')
+
+
 @dataclass
 class Settings:
     data_dir: Path = field(default_factory=lambda: Path(os.getenv('AUDIO_DATA_DIR', './audio-data')).resolve())
@@ -51,6 +70,9 @@ class Settings:
     whisper_cli: str | None = None
     language: str = 'auto'
     event_threshold: float = .25
+    framemn_enabled: bool = False
+    framemn_checkpoint_path: str | Path | None = None
+    framemn_profile: str = FRAMEMN_PROFILE
     speaker_calibration_file: str | Path | None = None
     speaker_calibration_profile: dict | None = field(default=None,init=False,repr=False)
     speaker_centroid_threshold: float | None = field(default=None,init=False)
@@ -87,6 +109,7 @@ class Settings:
     def __post_init__(self):
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
+        validate_framemn_options(self.framemn_enabled, self.framemn_checkpoint_path, self.framemn_profile)
         if type(self.moss_jobs_enabled) is not bool:
             raise ValueError('moss_jobs_enabled must be boolean')
         if self.moss_jobs_model_path is not None and not self.moss_jobs_enabled:
@@ -211,5 +234,9 @@ class Settings:
                 'speaker_min_query_seconds':self.speaker_min_query_seconds,
                 'max_segment_seconds': 5.0, 'max_chunk_seconds': 60}
 
+        # Omit disabled optional policy entirely to preserve the legacy config.
+        if self.framemn_enabled:
+            config.update(framemn_enabled=True, framemn_checkpoint_path=str(self.framemn_checkpoint_path),
+                          framemn_profile=self.framemn_profile)
         if self.whisper_cli: config['whisper_cli']=str(self.whisper_cli)
         return config

@@ -35,6 +35,11 @@ class AudioAnalyzer:
     """
     def __init__(self, config: dict | None = None):
         self.config = dict(config or {})
+        from ..settings import FRAMEMN_PROFILE, validate_framemn_options
+        validate_framemn_options(self.config.get('framemn_enabled', False),
+                                 self.config.get('framemn_checkpoint_path'),
+                                 self.config.get('framemn_profile', FRAMEMN_PROFILE))
+        self._framemn = None  # The optional runtime is never imported when disabled.
         if self.config.get('overlap_backend','none') not in {'none','mossformer2_experimental','dicow_en_experimental','moss_td_experimental'}:
             raise ValueError('Unsupported experimental overlap backend')
         self.backend = self.config.get('asr_backend','whisper')
@@ -94,7 +99,7 @@ class AudioAnalyzer:
                       'event_artifact_identity_status': 'hashed_local_files'}
                      if event_artifacts_required else
                      {'event_artifact_identity_status': 'not_checked_silence'})
-        return {
+        metadata = {
             **artifacts,
             'event_policy_revision': 'audioset-window-v1',
             'event_window_seconds': 5.0, 'event_hop_seconds': 2.5, 'event_max_seconds': 5.0,
@@ -125,9 +130,16 @@ class AudioAnalyzer:
                          warning],
         }
 
+        if self.config.get('framemn_enabled', False):
+            from ..settings import FRAMEMN_PROFILE
+            metadata['effective_config'].update(framemn_enabled=True, framemn_profile=FRAMEMN_PROFILE)
+            metadata['framemn_provenance'] = {'enabled': True, 'profile': FRAMEMN_PROFILE}
+        return metadata
+
     def close(self):
         self.closed = True
         self._sensevoice = None
+        self._framemn = None
         gc.collect()
 
     def _embedding_space_metadata(self):
@@ -169,6 +181,10 @@ class AudioAnalyzer:
             provenance = self._metadata_provenance(event_artifacts_required=not silence_fast_path)
             provenance.update(getattr(self,'_support_diarization',{}))
             if silence_fast_path:
+                if self.config.get('framemn_enabled', False):
+                    provenance.update(framemn_status='not_run_silence',
+                        framemn_model_inference_executed=False, framemn_model_call_count=0,
+                        framemn_expected_model_calls=0, framemn_candidate_count=0)
                 return {'segments': [], 'speaker_turns': [], **self._embedding_vector_result(), 'events': [{'start': 0., 'end': duration, 'label': 'silence', 'score': 1., 'method': 'peak-amplitude fast path'}],
                         'metadata': {**provenance, **self._embedding_space_metadata(), 'duration_seconds': duration,
                                      'processing_seconds': round(time.monotonic()-t, 3),
@@ -261,8 +277,17 @@ class AudioAnalyzer:
                     native_overlap_detected=bool(overlap_regions),
                     candidate_tracks=len(overlap_candidates.get('tracks',[])),separation_enabled=True,
                     note='Experimental candidate sources are separate unverified evidence; the ordinary transcript remains mixture ASR.')
+            # Finish every primary decision before running the experimental side channel.
+            # Temporal scores never enter Zipformer events, speech scores or the ASR veto.
+            primary_candidate_count = len(event_details)
+            if self.config.get('framemn_enabled', False):
+                stage = time.monotonic()
+                temporal_candidates, temporal_metadata = self._framemn_candidates(samples, event_details)
+                event_details = event_details + temporal_candidates
+                provenance.update(temporal_metadata)
+                timings['framemn'] = round(time.monotonic() - stage, 3)
             gc.collect()
-            return {'segments': segments, 'events': events, 'overlap_candidates':overlap_candidates,
+            result = {'segments': segments, 'events': events, 'overlap_candidates':overlap_candidates,
                     **self._embedding_vector_result(),
 
                     'speaker_turns':[dict(turn,speaker_embedding=embeddings.get(turn['speaker_local_id'])) for turn in turns],
@@ -280,6 +305,98 @@ class AudioAnalyzer:
                 'asr_turn_batches': transcript.get('asr_turn_batches',1), 'asr_strategy': strategy, 'chinese_script': script, 'language': transcript.get('result', {}).get('language'), 'languages': sorted(set([x for x in [transcript.get('result',{}).get('language'),*transcript.get('recovered_languages',[])] if x])), 'asr_recovered_regions': recovered, 'duration_seconds': duration,
                 'processing_seconds': round(time.monotonic()-t, 3), 'stage_seconds': timings, 'diarization_turns': turns,
                 'event_candidates': event_details}}
+            if self.config.get('framemn_enabled', False):
+                self._bound_framemn_result(result, primary_candidate_count)
+            return result
+
+    def _framemn_candidates(self, samples, primary_candidates):
+        """Fail the optional side channel closed; preserve primary results and policy."""
+        from ..settings import FRAMEMN_PROFILE
+        from ..event_candidate_store import MAX_WINDOWS_PER_COMMIT, own_candidates
+        expected = (len(samples) + 159999) // 160000
+        metadata = {'framemn_status': 'failed', 'framemn_model_inference_executed': False,
+                    'framemn_model_call_count': 0, 'framemn_expected_model_calls': expected,
+                    'framemn_candidate_count': 0,
+                    'framemn_provenance': {'enabled': True, 'profile': FRAMEMN_PROFILE}}
+        failure_code = 'initialization_failed'
+        try:
+            if self._framemn is None:
+                from ..events.framemn import FrameMNDetector
+                self._framemn = FrameMNDetector(self.config['framemn_checkpoint_path'], profile=FRAMEMN_PROFILE)
+            failure_code = 'inference_failed'
+            candidates = self._framemn.detect(samples)
+            failure_code = 'candidate_validation_failed'
+            if not isinstance(candidates, list) or len(candidates) != expected or not 1 <= expected <= 7:
+                raise ValueError('Invalid temporal tile count')
+            if (type(self._framemn.model_call_count) is not int
+                    or type(self._framemn.expected_model_calls) is not int
+                    or self._framemn.model_call_count != expected
+                    or self._framemn.expected_model_calls != expected
+                    or self._framemn.model_inference_executed is not True):
+                raise ValueError('Incomplete temporal execution evidence')
+            if len(primary_candidates) + len(candidates) > MAX_WINDOWS_PER_COMMIT:
+                failure_code = 'candidate_limit_exceeded'
+                raise ValueError('Combined candidate row limit exceeded')
+            if [candidate.get('temporal', {}).get('tile_start_sample') for candidate in candidates] != list(range(0, len(samples), 160000)):
+                raise ValueError('Invalid temporal tile inventory')
+            for candidate in candidates:
+                temporal = candidate['temporal']
+                if (temporal.get('analyzer_sample_count') != len(samples)
+                        or temporal.get('tile_sample_count') != min(160000, len(samples) - temporal['tile_start_sample'])):
+                    raise ValueError('Temporal tile does not match the actual analyzer input')
+            if any(candidate.get('candidate_provenance') != self._framemn.provenance for candidate in candidates):
+                raise ValueError('Inconsistent temporal provenance')
+            # The ledger validates both original and owned payload bounds, including
+            # the 8 KiB row cap, before these rows can affect primary persistence.
+            own_candidates({'event_candidates': candidates}, 0., len(samples) / 16000)
+            metadata.update(framemn_status='completed', framemn_candidate_count=len(candidates))
+        except (InterruptedError, KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            candidates = []
+            metadata['framemn_failure_code'] = failure_code
+            # Exception messages can contain private paths or runtime internals.
+            name = type(exc).__name__
+            metadata['framemn_failure_class'] = (name[:64] if name.isascii() and name.isidentifier() else 'Exception')
+        finally:
+            if self._framemn is not None:
+                count = getattr(self._framemn, 'model_call_count', 0)
+                if type(count) is int and 0 <= count <= expected:
+                    metadata['framemn_model_call_count'] = count
+                else:
+                    candidates = []
+                    metadata.update(framemn_status='failed', framemn_candidate_count=0,
+                                    framemn_failure_code='execution_evidence_invalid',
+                                    framemn_failure_class='ValueError')
+                metadata['framemn_model_inference_executed'] = (
+                    getattr(self._framemn, 'model_inference_executed', False) is True
+                    or metadata['framemn_model_call_count'] > 0)
+                # Keep identities namespaced; never relabel the primary Zipformer.
+                identity = getattr(self._framemn, 'provenance', {})
+                if isinstance(identity, dict):
+                    for key in ('model', 'checkpoint_integrity', 'labelmap_identity',
+                                'context_semantics', 'profile', 'upstream_commit',
+                                'checkpoint_sha256', 'labelmap_sha256'):
+                        value = identity.get(key)
+                        if not isinstance(value, str) or not 0 < len(value) <= 256:
+                            continue
+                        if (key.endswith('_sha256') and (len(value) != 64
+                                or any(c not in '0123456789abcdef' for c in value))):
+                            continue
+                        metadata['framemn_provenance'][key] = value
+        return candidates, metadata
+
+    @staticmethod
+    def _bound_framemn_result(result, primary_candidate_count):
+        """Honor the worker's existing 8 MiB JSON cap without sacrificing primary rows."""
+        metadata = result['metadata']
+        if metadata['framemn_status'] != 'completed':
+            return
+        # Match worker.validate_result exactly (default ASCII escaping).
+        if len(json.dumps(result, allow_nan=False)) > 8 * 1024**2:
+            metadata['event_candidates'] = metadata['event_candidates'][:primary_candidate_count]
+            metadata.update(framemn_status='failed', framemn_candidate_count=0,
+                            framemn_failure_code='result_limit_exceeded', framemn_failure_class='ValueError')
 
     def _diarize(self, a):
         import sherpa_onnx as s

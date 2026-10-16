@@ -43,6 +43,9 @@ def main(argv=None):
     parser.add_argument('--language', default='auto', help='auto, zh, en, or a supported Whisper language code')
     parser.add_argument('--window-seconds', type=float, default=30)
     parser.add_argument('--event-threshold', type=float, default=.25)
+    parser.add_argument('--framemn', action='store_true', help='EXPERIMENTAL default-off temporal Knock candidate side channel; does not change events or ASR')
+    parser.add_argument('--framemn-checkpoint', type=Path, help='User-supplied local FrameMN10 checkpoint; no automatic downloads')
+    parser.add_argument('--framemn-profile', choices=('knock-001-median9-experimental-v1',), default='knock-001-median9-experimental-v1')
     parser.add_argument('--verified-identity-policy',help='Explicit experimental verified-review JSON policy; applies only to newly requested verified groups')
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
@@ -57,6 +60,10 @@ def main(argv=None):
     parser.add_argument('--speaker-profile-strategy', choices=['max','centroid'], default='max', help='Score only explicit human-merged examples; never adapt from automatic matches')
     parser.add_argument('--speaker-calibration', help='Opt-in model-bound policy: eres2net-ami20-v1 or a local profile JSON; controls speaker thresholds and scoring')
     args = parser.parse_args(argv)
+    if args.framemn_checkpoint and not args.framemn:
+        parser.error('--framemn-checkpoint requires --framemn')
+    if args.framemn and not args.framemn_checkpoint:
+        parser.error('--framemn requires an explicit --framemn-checkpoint')
     if args.native_owned_core_seams and not args.native_owned_cells:
         parser.error('--native-owned-core-seams requires --native-owned-cells')
     if args.native_owned_seam_cells and not args.native_owned_cells:
@@ -143,6 +150,9 @@ def main(argv=None):
               'Existing SenseVoice custom and Nemotron OpenMDW model licenses still apply.',file=sys.stderr)
         uvicorn.run(create_app(settings,fragment_provider_factory=CPUFactory(manifest)),host=args.host,port=args.port,workers=1)
         return
+    if args.framemn:
+        import sys
+        print('EXPERIMENTAL FrameMN temporal candidates use CPU and a user-supplied local checkpoint. Only Knock > 0.01 with median9 is enabled; no event promotion. Code license does not establish checkpoint redistribution rights. See docs/FRAMEMN_EXPERIMENTAL_CANDIDATES.md.', file=sys.stderr)
     if args.device == 'vulkan':
         import sys
         print('WARNING: Vulkan path is untested on this CPU-only validation host. RAM watchdog does not measure VRAM; validate aggregate RAM+VRAM on target hardware.', file=sys.stderr)
@@ -201,7 +211,10 @@ def main(argv=None):
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         verified_identity_policy_file=args.verified_identity_policy,
-                        event_threshold=args.event_threshold)
+                        event_threshold=args.event_threshold,
+                        framemn_enabled=args.framemn,
+                        framemn_checkpoint_path=str(args.framemn_checkpoint.resolve()) if args.framemn_checkpoint else None,
+                        framemn_profile=args.framemn_profile)
     uvicorn.run(create_app(settings), host=args.host, port=args.port, workers=1)
 
 if __name__ == '__main__':

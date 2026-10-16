@@ -131,6 +131,8 @@ def packaged_bytes(path):
 
 def selected_files():
     roots=['README.md','pyproject.toml','.gitignore','model-manifest.json','native-runtime-manifest.json','overlap-model-manifest.json','dicow-model-manifest.json','moss-td-model-manifest.json','moss-td-cpp-model-manifest.json','requirements-moss-td-cpp.txt','requirements-moss-td.txt','requirements-dicow.txt','requirements-metrics-lock.txt','requirements-overlap.txt','requirements-inference.txt','requirements-lock-linux-py312.txt']
+    # The optional namespaced MIT source closure must ship its original notice.
+    roots.append('audio_backend/events/_vendor/framemn/LICENSE')
     selected=[ROOT/x for x in roots if (ROOT/x).is_file()]
     # Preserve exact measured, project-owned study entrypoints at their original
     # relative paths; downloaded third-party Python is deliberately not included.

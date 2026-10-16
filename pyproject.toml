@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "long-audio-backend"
-version = "0.2.0rc3.dev12"
+version = "0.2.0rc3.dev13"
 description = "Local, bounded-resource incremental audio analysis API"
 requires-python = ">=3.12"
 dependencies = [
@@ -26,4 +26,4 @@ testpaths = ["tests"]
 addopts = "-ra"
 
 [tool.setuptools.package-data]
-audio_backend = ["profiles/*.json"]
+audio_backend = ["profiles/*.json", "events/_vendor/framemn/LICENSE", "events/_vendor/framemn/ADAPTATION.json"]

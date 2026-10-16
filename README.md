@@ -2,6 +2,28 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev13：默认关闭的 FrameMN 时间候选
+
+这是 dev13 开发源码检查点，基于已发布 dev12 源码 `76175dfce9475fe1d04799b6cf2d7aeea2045de7`；未创建 release/tag。
+
+新增显式选择的本地 FrameMN 旁路，仅向现有候选账本写入未验证的时间证据。默认关闭，不替换 Zipformer，不改变主事件、ASR 非语音门控或转写结果；没有新增 API 端点或数据库表。
+
+- [dev13 源码安装、默认启动与本地 checkpoint 选择](docs/INSTALL_DEV13_ZH.md)
+- [dev13 功能检查与验证边界](docs/DEV13_FUNCTIONAL_CHECK_ZH.md)
+- [FrameMN 参数、候选字段与故障契约](docs/FRAMEMN_EXPERIMENTAL_CANDIDATES.md)
+
+固定策略为 `knock-001-median9-experimental-v1`：447 类标签中的 Knock（索引 228），九帧中值滤波后严格 `score > 0.01`。阈值来自小规模五标签并集实验，单独用于 Knock 仍属描述性实验，不代表独立验证的准确率或生产能力。40 ms 是输出分数网格，不是起止精度或端到端延迟。
+
+模型按 10 秒 tile 顺序运行，单次 analyzer 输入最多 60.01 秒。中值滤波跨内部 tile 接缝，只在实际 analyzer 两端反射；模型上下文仍按 tile 独立。结果取决于 analyzer 的输入与边界，不保证任意重分块结果一致。原始帧支持与 core 实际拥有的样本支持分开保留，读取方式见候选字段说明。
+
+基础及 inference 依赖未改变。可选 Torch 系列运行时与 checkpoint 由部署者事先准备；不自动安装、下载或启用。缺少依赖、checkpoint 不符或候选验证失败会显式记录可选旁路失败，保留主路径；静音输入不运行 FrameMN。源码保留上游 MIT 通知和适配记录，但 checkpoint 专项再分发权尚未明确，包中不含权重。
+
+本轮选定源码回归在一次完整运行中通过 224 个测试与 166 个 subtests；另一次独立选定复跑通过 153 个测试，两者不累计。已有分数的解码一致性检查及一次 30 秒真实模型/源码 API 功能检查已完成：主任务 done，五次 FrameMN 调用、五条时间候选、13 条原有候选、零失败窗口，HTTP、变化流与只读数据库结果一致，独立复核确认结果、存储一致性和进程退出。本轮未验证安装后的 dev13 包、wheel 或隔离 target，也不构成新的质量、内存资格或长时运行结论。
+
+## 保留的 dev12 及更早历史
+
+以下文字完整保留对应旧版本的功能与验证记录；其中“本产品树”“本版”等均指各自历史版本。旧版本构建、安装和模型测试不替代 dev13 验收。dev13 当前状态以上方说明和两篇 dev13 文档为准。
+
 ## 0.2.0rc3.dev12：严格绑定的 reset-replay core 诊断
 
 沿用默认关闭的 `--native-owned-cells --native-owned-core-seams`，在同 epoch 诊断之外增加独立 reset-replay schema/policy。它只接受同一 fresh capture、连续观察到的 reset/epoch，以及边界两侧各 10 秒的精确来源绑定；不增加主音频、不改写主转写、不自动触发 MOSS。启用时请主动选择全新可选 store，最直接是新建独立数据目录，同时保留旧数据与全部旧 cells；不自动采用、覆盖或回填旧 store。

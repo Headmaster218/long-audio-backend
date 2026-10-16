@@ -38,7 +38,32 @@ PROVENANCE_KEYS=('inference_revision','asr_backend','timestamp_semantics','asr_m
                  'diarization_backend','diarization_runtime_version','diarization_fingerprint',
                  'diarization_model_license','diarization_model_license_url','diarization_local_capacity',
                  'diarization_geometry','diarization_morphology_guard_seconds',
-                 'diarization_epoch_input_cap_seconds','diarization_cpu_affinity_enforced')
+                 'diarization_epoch_input_cap_seconds','diarization_cpu_affinity_enforced',
+                 'framemn_provenance')
+
+def _retain_framemn_execution(provenance, metadata, offset):
+    """Bounded per-chunk committed-window totals, separate from stable identities."""
+    status = metadata.get('framemn_status')
+    if status not in {'completed', 'failed', 'not_run_silence'}:
+        return
+    completed = metadata.get('framemn_model_call_count')
+    expected = metadata.get('framemn_expected_model_calls')
+    executed = metadata.get('framemn_model_inference_executed')
+    if (type(completed) is not int or type(expected) is not int
+            or not 0 <= completed <= expected <= 7 or type(executed) is not bool):
+        raise ValueError('Invalid FrameMN execution counters')
+    totals = provenance.setdefault('framemn_execution', {
+        'schema': 'framemn_execution_v1', 'scope': 'committed_chunk_windows',
+        'window_count': 0, 'completed_model_calls': 0, 'expected_model_calls': 0,
+        'model_inference_windows': 0, 'failed_windows': 0, 'silence_windows': 0})
+    totals['window_count'] += 1
+    totals['completed_model_calls'] += completed
+    totals['expected_model_calls'] += expected
+    totals['model_inference_windows'] += int(executed)
+    totals['failed_windows'] += int(status == 'failed')
+    totals['silence_windows'] += int(status == 'not_run_silence')
+    totals['last_window_offset'] = offset
+
 
 def update_provenance(previous, metadata, offset):
     """Retain up to 16 distinct stable configurations; never relabel historical rows.
@@ -48,6 +73,7 @@ def update_provenance(previous, metadata, offset):
     """
     provenance=json.loads(previous) if previous else {'variants':[], 'variants_truncated':False}
     event_candidate_store.retain_projection_diagnostics(provenance,metadata,offset)
+    _retain_framemn_execution(provenance, metadata, offset)
     stable={key:metadata[key] for key in PROVENANCE_KEYS if metadata.get(key) not in (None,{},[],'')}
     if not stable or metadata.get('silence_fast_path'):
         return provenance
