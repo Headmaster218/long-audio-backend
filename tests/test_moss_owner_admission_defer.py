@@ -101,7 +101,7 @@ def test_real_slot_same_driver_child_and_accepted_identity(automatic_cell_jobs,p
             elif mode=='resource':fault.set()
             elif mode=='child_exit':children[0].terminate();children[0].wait(timeout=3)
         return answer
-    def check(gate,where):
+    def check(gate,where,**kwargs):
         calls.append(where)
         chosen=(where==phase and not holding and (phase=='before_admission' or calls.count('before_spawn')==2))
         if chosen:
@@ -115,7 +115,7 @@ def test_real_slot_same_driver_child_and_accepted_identity(automatic_cell_jobs,p
                     if fault.is_set():raise ResourceLimit('private resource detail')
                     return original_check(*a,**k)
                 drivers[0].guard.check=resource_check
-        return real_check(gate,where)
+        return real_check(gate,where,**kwargs)
     def inner(driver,where,cancelled):
         try:return real_inner(driver,where,cancelled)
         finally:

@@ -229,6 +229,7 @@ class Worker:
         if permit is None or automatic is None:return
         if self.stop_event.is_set():permit.abandon_automatic_turn();return
         if permit.sampling_recovery_pending:permit.recover_primary_sampling()
+        automatic.maintain_text_storage(stop=self.stop_event.is_set)
         if request and automatic.primary_yield_due():permit.request_automatic_turn()
         with permit.automatic_turn() as granted:
             if granted:automatic.step(stop=self.stop_event.is_set)

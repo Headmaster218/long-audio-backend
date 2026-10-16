@@ -114,6 +114,9 @@ def failure_observation(phase, error):
                     'owner_lock_busy', 'one_total_handoff_slot', 'optional_sql_or_io_failure',
                     'cooperative_deadline', 'operation_work_capacity', 'cell_revoked',
                     'cell_binding_changed', 'source_changed_after_read', 'revoked_generation') else 'other'}
+    from .native_execution_permit import optional_sample_failure
+    sampling = optional_sample_failure(error)
+    if sampling is not None:value['sampling'] = sampling
     return value
 
 
@@ -151,6 +154,10 @@ def terminal_outcome(status):
     error = cleanup.get('cleanup_failure')
     outcome['cleanup_failure_type'] = _error_type(error.get('type')) if type(error) is dict else 'other' if error else None
     outcome['cleanup_scope'] = 'observed_owned_only'
+    # Reserve the existing manager's bounded rejection/state/pin fields. An
+    # additive diagnostic never turns a previously valid outcome into oversize.
+    if ('sampling' in outcome.get('failure', {}) and len(encoded(outcome)) + 192 > 1024):
+        outcome['failure'].pop('sampling')
     if len(encoded(outcome)) > 1024:raise ValueError('Terminal outcome capacity')
     return outcome
 
@@ -251,7 +258,11 @@ class OwnedDriver:
 
     def wait(self, cancelled):
         while self.proc.poll() is None:
-            if self._service_gate is not None:self._service_gate.check('running')
+            if self._service_gate is not None:
+                if getattr(self._service_gate, '_automatic_text', False) is True:
+                    self._service_gate.check('running', _driver_deadline=self.guard.deadline,
+                        _driver_cancelled=cancelled)
+                else:self._service_gate.check('running')
             if cancelled.is_set():
                 raise Cancelled('Publication cancelled')
             self.guard.check()

@@ -152,7 +152,7 @@ class _ServiceGate:
     def _automatic_cancelled(self):
         return self.record['cancelled'].is_set() or self.record['lease'].cancelled.is_set()
 
-    def check(self, phase):
+    def check(self, phase, *, _driver_deadline=None, _driver_cancelled=None):
         owner, record = self.owner, self.record
         if (owner.clock() >= record['deadline']
                 or owner._source_expired(record)):
@@ -160,7 +160,34 @@ class _ServiceGate:
         if not record['lease'].released and record['lease'].cancelled.is_set():
             record['cancelled'].set()
         if record['origin'] == 'durable_cell':owner.cell_source.publication_current(record['token'])
-        owner.permit.check_optional(record, phase)
+        if phase == 'running' and self._automatic_text and _driver_deadline is not None:
+            def remaining():
+                job_left = record['deadline'] - owner.clock()
+                driver_left = _driver_deadline - time.monotonic()
+                if job_left <= 0:
+                    record['cancelled'].set()
+                    error = AdmissionError('optional_cancelled')
+                    error._optional_execution_deadline = True
+                    raise error
+                if driver_left <= 0:
+                    from .fragment_model_guard import ResourceLimit
+                    error = ResourceLimit('Candidate job deadline')
+                    error._optional_execution_deadline = True
+                    raise error
+                return min(job_left, driver_left)
+            def cancelled():
+                return (self._automatic_cancelled
+                    or _driver_cancelled is not None and _driver_cancelled.is_set())
+            owner.permit.check_optional(record, phase,
+                running_remaining=remaining, running_cancelled=cancelled)
+            # The bounded wait/sample may outlast a source generation change.
+            # This existing in-memory guard runs after the permit lock is released.
+            if record['origin'] == 'durable_cell':owner.cell_source.publication_current(record['token'])
+            remaining()
+            if cancelled():
+                record['cancelled'].set()
+                raise AdmissionError('optional_cancelled')
+        else:owner.permit.check_optional(record, phase)
         if phase in ('before_input', 'before_spawn', 'before_admission'):
             owner._validate(record)
         if record['cancelled'].is_set():
@@ -381,6 +408,35 @@ class MossJobs:
             with self._lock:
                 self._probe_reconcile_active = False
                 self._probe_reconcile_after = time.monotonic() + 1.
+
+    def maintain_automatic_text_storage(self, automatic, *, stop):
+        """Retry only the exact cleaned retained owner's immutable publication.
+
+        This is not model admission and needs no automatic turn. The manager
+        gate keeps the live record stable; the permit check holds no SQL work.
+        """
+        with self._gate():
+            record = self._live
+            if (automatic is not self.automatic or self._pending_record is not None
+                    or record is None or record.get('automatic_key') is None
+                    or not record['storage_pending'] or not record['cleaned']
+                    or not record['process_cleanup_verified'] or record['purge_pending']):return False
+            lease, thread = record.get('lease'), record.get('thread')
+            if (lease is None or not lease.released or thread is not None and thread.is_alive()
+                    or self._probe_unresolved(record)
+                    or record.get('speaker_probe', {}).get('commit_pending')):return False
+            if (record['history_snapshot'] is None and not
+                    (record.get('terminal_pending') and type(record.get('terminal_metadata')) is bytes)):return False
+            with self.permit._condition:
+                if (self.permit._optional is not record
+                        or self.permit._optional_kind != 'automatic_text'):return False
+            now = time.monotonic()
+            if stop() or now < automatic.next_attempt:return False
+            # Reserve the existing scheduling floor only for an eligible retry.
+            # Failure retains the same owner/payload. No wait or inference here.
+            automatic.next_attempt = now + 1.
+            self._persist_locked(record)
+            return True
 
     def automatic_ready_hint(self):
         """Bounded metadata-only hint; never reconcile/publish under primary."""

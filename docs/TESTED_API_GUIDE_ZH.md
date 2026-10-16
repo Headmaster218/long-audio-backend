@@ -1,3 +1,9 @@
+# dev32 增量状态：清理后的存储等待
+
+自动文本的 `storage_pending=true` 可以表示清理已完成，但冻结的结果或失败 outcome 尚未获得精确持久确认。Worker 在申请下一次可选执行之前提供存储维护机会；该路径不启动模型、不重新复制输入、不申请新租约。仍需观察同一自动文本 owner、清理与 probe 状态、采样/身份故障及新鲜完整 health，不能仅凭 `storage_pending` 把任意阻塞当作健康等待。持续未确认直到客户端截止时间仍属于未完成。
+
+运行中自动文本的私有 busy-census 等待最多 250 ms，随后一次新采样最多 250 ms；原始截止时间不延长。固定 `outcome.failure.sampling` 诊断可说明 subtype、reservation_held、sample_age_ms、wait_ms、grace_used 及已有 phase/cause。时间年龄仅供报告，不允许使用旧 RSS 准入；新增字段为可选，容量不足时省略。详见 [dev32 说明](DEV32_RETAINED_STORAGE_ZH.md)。下方历史章节保留对应版本范围。
+
 # dev31 增量状态：有限资源采样恢复
 
 `moss_jobs.permit.optional_admission_unavailable == "primary_sampling_unavailable"` 表示暂时无法获得完整资源视图，当前不能据此准入新的可选模型任务。结合新字段 `primary_sampling_pending`、`primary_sampling_exhaustions`、`completed_primary_sampling_recoveries` 和 `primary_sampling_failure` 观察等待与恢复。只有完整核对成功才更新资源记账；首次采样失败记录在恢复后仍保留，不能单凭记录存在判断仍在等待。

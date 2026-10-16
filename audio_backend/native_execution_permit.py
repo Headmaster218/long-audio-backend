@@ -24,6 +24,8 @@ MAX_ROWS, MAX_IDENTITIES, SAMPLE_SECONDS = 4096, 128, .250
 _LOG = logging.getLogger(__name__)
 _SAMPLE_BUDGET = object()
 SAMPLING_RETRY_SECONDS = 1.
+_OPTIONAL_SAMPLE = object()
+OPTIONAL_BUSY_GRACE = .250
 _OBSERVATION_PHASES = frozenset(('caller_identity', 'process_enumeration',
     'remembered_identity', 'family_selection', 'selected_identity', 'selected_rss',
     'selected_recheck', 'host_memory', 'disk_free', 'bind_identity', 'sample',
@@ -43,7 +45,35 @@ class AdmissionError(RuntimeError):
 
 class _SampleSkipped(AdmissionError):
     """No observation was made; never a new ownership failure."""
-    def __init__(self):super().__init__('process_sample_unavailable')
+    def __init__(self, subtype='skipped'):
+        super().__init__('process_sample_unavailable')
+        self.subtype = subtype
+
+
+class _SampleBusy(_SampleSkipped):
+    def __init__(self):super().__init__('busy_flight')
+
+
+def optional_sample_failure(error):
+    """Private fixed scalars; no messages, process identities or stale RSS."""
+    value = getattr(error, '_optional_sample_failure', None)
+    if type(value) is not tuple or len(value) != 8 or value[0] is not _OPTIONAL_SAMPLE:return None
+    _, subtype, held, age, waited, phase, cause, grace = value
+    if (type(subtype) is not str or subtype not in ('busy_flight','stale_generation','cooldown',
+            'recovery_not_due','skipped','wall_budget','rows_budget','census_failure',
+            'resource_limit','cancelled','deadline','ownership_changed','sampling_pending','sticky','other')
+            or type(held) is not bool
+            or age is not None and (type(age) is not int or not 0 <= age <= 2**31 - 1)
+            or type(waited) is not int or not 0 <= waited <= 250
+            or type(grace) is not bool):return None
+    return {'subtype':subtype,'reservation_held':held,'sample_age_ms':age,
+        'wait_ms':waited,'grace_used':grace,
+        'phase':phase if type(phase) is str and phase in _OBSERVATION_PHASES else None,
+        'cause':cause if type(cause) is str and cause in ('AdmissionError','NoSuchProcess',
+            'ZombieProcess','AccessDenied','Error','PermissionError','FileNotFoundError',
+            'ProcessLookupError','OSError','KeyError','TypeError','ValueError','RuntimeError',
+            'TimeoutExpired','other') else None}
+
 
 
 def _sample_exhausted(kind, elapsed=None, rows=0):
@@ -104,7 +134,7 @@ class ProcessSample:
     resampled: bool = False
 
 
-def service_sample(settings, *, clock=time.monotonic, known=()):
+def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None):
     """Bounded current accounting; a discarded census never proves an exit.
 
     One fresh census may replace an indeterminate non-caller identity read.
@@ -112,7 +142,7 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
     accounting, not proof about unseen historical descendants or PID reuse.
     """
     started = last_clock = clock()
-    deadline = started + SAMPLE_SECONDS
+    deadline = min(started + SAMPLE_SECONDS, deadline) if deadline is not None else started + SAMPLE_SECONDS
     enumerated = 0
     def time_exhausted():
         nonlocal last_clock
@@ -303,6 +333,7 @@ class NativeExecutionPermit:
         self._sampling_retry_after = 0.
         self._sampling_failure = None
         self._sampling_exhaustions = self._sampling_recoveries = 0
+        self._last_sample_at = None
 
     @contextmanager
     def claim_probe(self):
@@ -426,24 +457,24 @@ class NativeExecutionPermit:
         except Exception:return False
         with self._condition:return not self._sampling_pending and not self._unavailable
 
-    def _take_sample(self, *, observe=False, recovery_only=False):
+    def _take_sample(self, *, observe=False, recovery_only=False, sample_deadline=None):
         token = None
         phase = 'sample'
         try:
             with self._condition:
                 pending = self._sampling_pending
-                if self._sample_flight is not None:raise _SampleSkipped()
-                if recovery_only and not self.sampling_recovery_pending:raise _SampleSkipped()
+                if self._sample_flight is not None:raise _SampleBusy()
+                if recovery_only and not self.sampling_recovery_pending:raise _SampleSkipped('recovery_not_due')
                 if pending:
                     if (not observe or not self.sampling_recovery_pending
-                            or self._sample_clock() < self._sampling_retry_after):raise _SampleSkipped()
+                            or self._sample_clock() < self._sampling_retry_after):raise _SampleSkipped('cooldown')
                     # Reserved before sampling so concurrent callers cannot
                     # bypass the floor. Every exit releases only this token.
                     self._sampling_retry_after = self._sample_clock() + SAMPLING_RETRY_SECONDS
                 known = tuple(self._known_identities_locked().items())
                 generation = self._sample_generation
                 token = self._sample_flight = object()
-            current = (service_sample(self.settings, known=known) if self._sampler is service_sample
+            current = (service_sample(self.settings, known=known, deadline=sample_deadline) if self._sampler is service_sample
                        else self._sampler(self.settings))
             if len(current.identities) > MAX_IDENTITIES:
                 raise AdmissionError('process_identity_budget')
@@ -454,7 +485,7 @@ class NativeExecutionPermit:
                 # A newer bind/retire/failure/shutdown invalidates this sample.
                 # Neither stale accounting nor a stale successful clear escapes.
                 if (self._sample_flight is not token or generation is not self._sample_generation
-                        or pending and self._closed):raise _SampleSkipped()
+                        or pending and self._closed):raise _SampleSkipped('stale_generation')
                 latest = self._known_identities_locked()
                 if len(set(latest) | set(current.identities)) > MAX_IDENTITIES:
                     raise AdmissionError('primary_identity_budget')
@@ -488,6 +519,12 @@ class NativeExecutionPermit:
                 observed = {pid:row[0] for pid,row in current.identities.items()}
                 for key, children in staged.items():self._handles[key]['children'] = children
                 self._observed = observed
+                # Reporting only. A diagnostic clock failure cannot change an
+                # otherwise completed sample or authorize cached accounting.
+                try:
+                    stamp = self._sample_clock()
+                    self._last_sample_at = stamp if type(stamp) in (int,float) and math.isfinite(stamp) else None
+                except Exception:self._last_sample_at = None
                 if current.resampled:
                     self._completed_sample_retries = min(2**31 - 1, self._completed_sample_retries + 1)
                 if current.confirmed_exits:
@@ -628,9 +665,13 @@ class NativeExecutionPermit:
         for proc in processes:
             self.finish_primary(proc, normal=normal)
 
-    def _resource_check(self, *, reserve):
-        try:sample = self._take_sample()
-        except _SampleSkipped:raise AdmissionError('process_sample_unavailable') from None
+    def _resource_check(self, *, reserve, sample_deadline=None):
+        try:sample = self._take_sample(sample_deadline=sample_deadline)
+        except _SampleSkipped as skipped:
+            error = AdmissionError('process_sample_unavailable')
+            error._optional_sample_skip = (_OPTIONAL_SAMPLE,
+                'busy_flight' if type(skipped) is _SampleBusy else skipped.subtype)
+            raise error from None
         if sample.rss >= self.settings.process_memory_limit_bytes:
             raise AdmissionError('service_memory_budget')
         if sample.disk_free < max(DISK_RESERVE, self.settings.disk_reserve_bytes):
@@ -676,22 +717,75 @@ class NativeExecutionPermit:
             self._optional_kind = owner_kind
             self._state = 'OPTIONAL_RESERVED'
 
-    def check_optional(self, token, phase='running'):
+    def check_optional(self, token, phase='running', *, running_remaining=None, running_cancelled=None):
+        # Only an existing automatic text owner can wait for a competing census.
+        # The one absolute grace costs <=250ms, then a fresh census <=250ms;
+        # both are clipped to the original execution deadlines, never refreshed.
         with self._condition:
-            if self._optional is not token:
-                raise AdmissionError('optional_ownership_changed')
-            primary = (any(x.granted or x.entered for x in self._primary.values())
-                if self._optional_kind == 'automatic_text' else bool(self._primary))
-            if (self._closed or primary or self._cancel.is_set()
-                    or not self._configuration_current() or self._unavailable):
-                self._cancel.set()
-                raise AdmissionError('optional_cancelled')
+            automatic = self._optional_kind == 'automatic_text' and phase == 'running'
+            eligible = automatic and running_remaining is not None and running_cancelled is not None
+            began = grace_ended = None
+            def current():
+                if self._optional is not token:raise AdmissionError('optional_ownership_changed')
+                primary = (any(x.granted or x.entered for x in self._primary.values())
+                    if self._optional_kind == 'automatic_text' else bool(self._primary))
+                if (self._closed or primary or self._cancel.is_set()
+                        or not self._configuration_current() or self._unavailable
+                        or eligible and (self._optional_kind != 'automatic_text' or running_cancelled())):
+                    raise AdmissionError('optional_cancelled')
+                return running_remaining() if eligible else None
             try:
-                self._resource_check(reserve=phase in ('reserved', 'before_spawn'))
-            except Exception:
-                self._cancel.set()
+                remaining = current()
+                try:
+                    self._resource_check(reserve=phase in ('reserved','before_spawn'))
+                except AdmissionError as error:
+                    if (not eligible or type(error) is not AdmissionError or
+                            getattr(error,'_optional_sample_skip',None) != (_OPTIONAL_SAMPLE,'busy_flight')):raise
+                    began = time.monotonic()
+                    until = began + OPTIONAL_BUSY_GRACE
+                    while True:
+                        remaining = current()
+                        now = time.monotonic()
+                        if now >= until:raise error
+                        if self._sample_flight is None:
+                            grace_ended = now
+                            break
+                        # Condition.wait releases every recursive condition hold.
+                        self._condition.wait(min(.05, until-now, remaining))
+                    remaining = current()
+                    # Exactly one new full observation; no failed sample retry.
+                    try:self._resource_check(reserve=False, sample_deadline=time.monotonic()+remaining)
+                    except Exception:
+                        running_remaining()  # Preserve an expired execution deadline's cause.
+                        raise
+                if eligible:current()
+                self._state = 'OPTIONAL_RUNNING'
+            except Exception as error:
+                if self._optional is token:self._cancel.set()
+                try:
+                    skip = getattr(error,'_optional_sample_skip',None)
+                    budget = _authenticated_exhaustion(error)
+                    detail = getattr(error,'_sample_observation',{})
+                    reason = error.reason if type(error) is AdmissionError else None
+                    subtype = (skip[1] if type(skip) is tuple and len(skip)==2 and skip[0] is _OPTIONAL_SAMPLE else
+                        budget[0]+'_budget' if budget is not None else
+                        'deadline' if getattr(error,'_optional_execution_deadline',False) is True else
+                        'ownership_changed' if reason=='optional_ownership_changed' else
+                        'sampling_pending' if self._sampling_pending and self._unavailable == 'primary_sampling_unavailable' else
+                        'sticky' if self._unavailable else
+                        'cancelled' if reason=='optional_cancelled' else
+                        'resource_limit' if reason in ('service_memory_budget','service_disk_reserve','service_host_reserve',
+                            'service_envelope_budget','service_host_envelope') else
+                        'census_failure' if type(detail) is dict and detail else 'other')
+                    now = self._sample_clock();age = None
+                    if self._last_sample_at is not None and type(now) in (int,float) and math.isfinite(now):
+                        age = min(2**31-1,max(0,int((now-self._last_sample_at)*1000)))
+                    waited = 0 if began is None else min(250,max(0,int(((grace_ended if grace_ended is not None else time.monotonic())-began)*1000)))
+                    error._optional_sample_failure = (_OPTIONAL_SAMPLE,subtype,self._optional is token,age,waited,
+                        detail.get('phase') if type(detail) is dict else None,
+                        detail.get('cause_class') if type(detail) is dict else None,began is not None)
+                except Exception:pass
                 raise
-            self._state = 'OPTIONAL_RUNNING'
 
     def cleaning(self, token):
         with self._condition:

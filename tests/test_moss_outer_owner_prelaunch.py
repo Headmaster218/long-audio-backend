@@ -56,7 +56,7 @@ def test_real_outer_slot_keeps_one_identity_before_any_child(automatic_cell_jobs
             elif mode=='job_deadline':record['deadline']=f.clock()-1
             elif mode=='resource':fault.set()
         return answer
-    def check(gate,where):
+    def check(gate,where,**kwargs):
         calls.append(where)
         if where=='before_spawn' and not holding:
             assert calls.count('before_spawn')==1 and not c.status(jid)['invocation_possible']
@@ -69,7 +69,7 @@ def test_real_outer_slot_keeps_one_identity_before_any_child(automatic_cell_jobs
                     if fault.is_set():raise ResourceLimit('private resource detail')
                     return original(*args,**kwargs)
                 drivers[0].guard.check=sample
-        return real_check(gate,where)
+        return real_check(gate,where,**kwargs)
     def outer():
         try:return real_outer()
         finally:

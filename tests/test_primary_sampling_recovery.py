@@ -240,7 +240,7 @@ def test_worker_handoff_has_bounded_recovery_without_model_readiness(mode):
     p._sampler=lambda _:(samples.append(p._condition._is_owned()),fixture.sample())[1]
     worker=object.__new__(Worker);worker.settings=SimpleNamespace(_native_execution_permit=p)
     worker.stop_event=threading.Event()
-    worker.moss_automatic=SimpleNamespace(primary_yield_due=lambda:(hints.append(1),False)[1],step=lambda **kw:steps.append(kw))
+    worker.moss_automatic=SimpleNamespace(maintain_text_storage=lambda **_:False,primary_yield_due=lambda:(hints.append(1),False)[1],step=lambda **kw:steps.append(kw))
     if mode=='stop':worker.stop_event.set()
     if mode=='sticky':p.mark_unavailable()
     if mode=='primary_arrivals':
@@ -256,7 +256,7 @@ def test_worker_handoff_has_bounded_recovery_without_model_readiness(mode):
 def test_persistent_budget_failure_keeps_primary_progress_and_recovery_backoff():
     p,now=make();exhaust(p);worker=object.__new__(Worker)
     worker.settings=SimpleNamespace(_native_execution_permit=p);worker.stop_event=threading.Event()
-    worker.moss_automatic=SimpleNamespace(primary_yield_due=lambda:False,step=lambda **kw:pytest.fail('no optional work'))
+    worker.moss_automatic=SimpleNamespace(maintain_text_storage=lambda **_:False,primary_yield_due=lambda:False,step=lambda **kw:pytest.fail('no optional work'))
     for index,stamp in enumerate((.2,1.,1.5,2.)):
         now[0]=stamp
         with p.primary_span('worker'),census.censuses([census.caller()],[census.caller()]),patch.object(mod,'MAX_ROWS',0):

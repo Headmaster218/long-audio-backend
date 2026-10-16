@@ -397,6 +397,13 @@ class Automatic:
         else:del self._round[sid]
         return key
 
+    def maintain_text_storage(self, *, stop=lambda:False):
+        # Retained text ownership deliberately prevents a new automatic turn.
+        # Its exact metadata-only acknowledgement must be reachable first.
+        if self.jobs is None or stop() or time.monotonic() < self.next_attempt:return False
+        try:return self.jobs.maintain_automatic_text_storage(self, stop=stop)
+        except Exception:return False  # Ownership and the frozen payload remain.
+
     def primary_yield_due(self):
         """Bounded metadata hint; no proof/PCM, admission or storage retry."""
         try:
