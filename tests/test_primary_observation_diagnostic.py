@@ -229,12 +229,13 @@ class SamplerDiagnosticTests(unittest.TestCase):
         caller = self.Process(os.getpid(), 0)
         child = self.Process(901, caller.pid, 2.)
         permit = mod.NativeExecutionPermit(settings())
-        with patch.object(mod.psutil, 'Process', return_value=caller), \
-             patch.object(mod.psutil, 'process_iter', return_value=[caller, child]), \
+        with patch.object(mod.psutil, 'Process', side_effect=lambda pid: caller if pid == caller.pid else child), \
+             patch.object(mod.psutil, 'process_iter', return_value=[caller, child]) as census, \
              patch.object(child, method, side_effect=failure), \
              patch.object(mod.psutil, 'virtual_memory', return_value=SimpleNamespace(available=10 * 1024**3)), \
              patch.object(mod.shutil, 'disk_usage', return_value=SimpleNamespace(free=10 * 1024**3)):
             permit.observe_primary()
+        self.assertEqual(census.call_count, 2 if stage == 'selected_identity' else 1)
         item = permit.status()['primary_observation_failure']
         self.assertEqual(item['operation'], 'observe_primary')
         self.assertEqual(item['phase'], stage)
@@ -243,7 +244,7 @@ class SamplerDiagnosticTests(unittest.TestCase):
         self.assertEqual(item['reason'], 'process_sample_unavailable')
         self.assertEqual(permit._unavailable, 'primary_ownership_uncertain')
 
-    def test_exit_between_enumeration_and_first_identity(self):
+    def test_persistent_exit_between_enumeration_and_first_identity(self):
         self.run_failure('selected_identity', 'create_time', mod.psutil.NoSuchProcess(901))
 
     def test_exit_before_rss(self):

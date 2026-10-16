@@ -1,4 +1,4 @@
-# Automatic timestamped-recording MOSS dispatch (dev27)
+# Automatic timestamped-recording MOSS dispatch (dev28)
 
 This release adds a finite, default-off automatic dispatch
 path. It retains eligible overlap intents during primary processing and gives
@@ -364,3 +364,51 @@ The additive `confirmed_sample_exits` counter and copied first
 with no cleanup meaning or logging callback. See
 [DEV26_PROCESS_EXIT_SAMPLING_ZH.md](DEV26_PROCESS_EXIT_SAMPLING_ZH.md) for the
 preserved failed actual run and separately qualified model-free tests.
+
+
+## Current resource observation and automatic prelaunch deferral (dev28)
+
+An exact non-caller `NoSuchProcess` at the first selected-identity read can
+trigger one fresh complete process census. The two passes share the original
+250 ms deadline, 4,096 enumerated-row budget and 128-identity union cap. Every
+first selected PID/parent edge, obtained creation identity, prior observed
+identity and original-handle/child binding is carried. Surviving carried PIDs
+remain selected even when orphaned; parent or creation conflicts refuse. A
+missing carried PID requires a fresh exact absence lookup. Partial RSS,
+identities and observation counters are discarded. Publication checks the
+latest owned bindings again, including absent-row identity replacement.
+
+This establishes only later valid current-resource accounting. It does not
+identify the historical process, prove a normal exit, exclude unseen historical
+descendants or provide a security containment guarantee. Root loss, access
+failure, detected reuse, unaccounted surviving identities, the second failure
+and exhausted caps remain fail-closed. Original handles, child records, positive
+waits and the sticky uncertainty latch are unchanged. The successful-resample
+counter is separate from the existing confirmed-RSS-exit counter and grants no
+cleanup or owner-release credit.
+
+Automatic prelaunch deferral applies only to the controller's own
+`before_spawn` gate, after its one driver is constructed and before
+`invocation_possible` becomes true. Only an exact SQLite OperationalError with
+a supported numeric BUSY/LOCKED code from the read-only `automatic_intent`
+BEGIN/reader body may carry the private deferral witness. Connection closure,
+unchanged authority identity and the original read budget must all be positively
+checked first. Connect, setup, close, I/O, interrupt, budget and identity failures
+remain ordinary failures. Shared/manual authority phases cannot carry this
+witness.
+
+Waiting is cancellation-aware, at most 100 ms per interval, and holds neither a
+SQLite transaction nor the permit condition. Each complete gate pass rechecks
+source, lease, cancellation and permit state with its existing separately
+bounded validation Budget. These read counters are not cumulative across gate
+passes. The unchanged original driver and job deadlines bound the whole wait;
+inputs, accepted identity, lease, permit and driver are reused. The initial
+`before_input` gate and all checks inside `start`/admission remain single-shot.
+No native invocation, write, uncertain commit or accepted historical attempt is
+retried. Persistent contention can end before invocation with zero counts.
+
+Durable no-result observations additionally retain only existing fixed gate
+error categories, whitelisted public reasons and allowed numeric SQLite
+code/name pairs. Unknown values stay redacted. No messages, SQL, paths,
+arguments, audio or stdout are added. These prospective diagnostics do not
+recover the cause of earlier outcomes recorded as `other`.

@@ -71,110 +71,132 @@ class ProcessSample:
     available: int
     disk_free: int
     confirmed_exits: int = 0
+    resampled: bool = False
 
 
 def service_sample(settings, *, clock=time.monotonic, known=()):
-    """Bounded strict full-service observation; never confers kill authority."""
+    """Bounded current accounting; a discarded census never proves an exit.
+
+    One fresh census may replace an indeterminate non-caller identity read.
+    Both passes share the time/row/identity caps. This is asynchronous observed
+    accounting, not proof about unseen historical descendants or PID reuse.
+    """
     deadline = clock() + SAMPLE_SECONDS
-    rows = {}
     phase = 'caller_identity'
     try:
         caller = psutil.Process(os.getpid())
         caller_created = caller.create_time()
-        phase = 'process_enumeration'
-        for index, process in enumerate(psutil.process_iter(['pid', 'ppid'])):
-            if index >= MAX_ROWS or clock() >= deadline:
-                raise AdmissionError('process_sample_budget')
-            info = process.info
-            pid, parent = info['pid'], info['ppid']
-            if type(pid) is not int or type(parent) is not int or pid in rows:
-                raise AdmissionError('process_identity_uncertain')
-            rows[pid] = (parent, process)
-        selected = {caller.pid}
         remembered = dict(known)
-        phase = 'remembered_identity'
-        if len(remembered) > MAX_IDENTITIES:
-            raise AdmissionError('process_identity_budget')
-        for pid, created in remembered.items():
-            if clock() >= deadline:
-                raise AdmissionError('process_sample_budget')
-            if pid in rows:
-                selected.add(pid)
-            else:
-                try:
-                    psutil.Process(pid).create_time()
-                except psutil.NoSuchProcess:
-                    continue
-                raise AdmissionError('remembered_identity_unobserved')
-        if len(selected) > MAX_IDENTITIES:
-            raise AdmissionError('process_identity_budget')
-        phase = 'family_selection'
-        for _ in range(MAX_IDENTITIES):
-            added = {pid for pid, (parent, _) in rows.items() if parent in selected} - selected
-            if not added:
-                break
-            selected.update(added)
-            if len(selected) > MAX_IDENTITIES or clock() >= deadline:
-                raise AdmissionError('process_identity_budget')
-        else:
-            raise AdmissionError('process_identity_budget')
-        if caller.pid not in rows:
-            raise AdmissionError('caller_identity_uncertain')
-        identities = {}
-        total = caller_rss = confirmed_exits = 0
-        for pid in selected:
-            if clock() >= deadline:
-                raise AdmissionError('process_sample_budget')
-            parent, process = rows[pid]
-            phase = 'selected_identity'
-            created = process.create_time()
-            # Establish identity and the enumerated parent before an RSS exit
-            # can be treated as absence. Original handles are never reaped here.
-            if (process.ppid() != parent or
-                    pid in remembered and remembered[pid] != created):
-                raise AdmissionError('process_identity_uncertain')
-            if pid == caller.pid and created != caller_created:
-                raise AdmissionError('caller_identity_uncertain')
-            phase = 'selected_rss'
+        carried_parents, carried_created = {}, {}
+        enumerated = 0
+        for attempt in range(2):
+            rows, obtained = {}, {}
+            selected = {caller.pid}
+            pid = None
             try:
-                rss = process.memory_info().rss
-            except psutil.NoSuchProcess as error:
-                if type(error) is not psutil.NoSuchProcess or pid == caller.pid:
-                    raise
-                ancestor, seen = parent, {pid}
-                while ancestor != caller.pid:
-                    if ancestor not in selected or ancestor in seen:
-                        raise error
-                    seen.add(ancestor)
-                    ancestor = rows[ancestor][0]
-                # One independent lookup, no retry or is_running() shortcut:
-                # any returned PID (including reuse) remains uncertain.
-                try:
-                    psutil.Process(pid)
-                except psutil.NoSuchProcess as confirmation:
-                    if type(confirmation) is not psutil.NoSuchProcess:
+                phase = 'caller_identity'
+                if attempt and psutil.Process(caller.pid).create_time() != caller_created:
+                    raise AdmissionError('caller_identity_uncertain')
+                phase = 'process_enumeration'
+                for process in psutil.process_iter(['pid', 'ppid']):
+                    if enumerated >= MAX_ROWS or clock() >= deadline:
+                        raise AdmissionError('process_sample_budget')
+                    enumerated += 1
+                    info = process.info
+                    row_pid, parent = info['pid'], info['ppid']
+                    if type(row_pid) is not int or type(parent) is not int or row_pid in rows:
+                        raise AdmissionError('process_identity_uncertain')
+                    rows[row_pid] = (parent, process)
+                phase = 'remembered_identity'
+                tracked = dict(remembered)
+                for old_pid, created in carried_created.items():
+                    if old_pid in tracked and tracked[old_pid] != created:
+                        raise AdmissionError('process_identity_uncertain')
+                    tracked[old_pid] = created
+                required = set(tracked) | set(carried_parents) | {caller.pid}
+                if len(required) > MAX_IDENTITIES:
+                    raise AdmissionError('process_identity_budget')
+                for old_pid in required - {caller.pid}:
+                    if clock() >= deadline:
+                        raise AdmissionError('process_sample_budget')
+                    if old_pid in rows:
+                        selected.add(old_pid)
+                    else:
+                        # This absent row grants only current-accounting
+                        # completion. It never reaps/removes an owned handle.
+                        try:
+                            psutil.Process(old_pid)
+                        except psutil.NoSuchProcess as error:
+                            if type(error) is not psutil.NoSuchProcess:raise
+                            continue
+                        raise AdmissionError('remembered_identity_unobserved')
+                phase = 'family_selection'
+                for _ in range(MAX_IDENTITIES):
+                    added = {p for p, (parent, _) in rows.items() if parent in selected} - selected
+                    if not added:break
+                    selected.update(added)
+                    if len(selected | required) > MAX_IDENTITIES or clock() >= deadline:
+                        raise AdmissionError('process_identity_budget')
+                else:
+                    raise AdmissionError('process_identity_budget')
+                if caller.pid not in rows:
+                    raise AdmissionError('caller_identity_uncertain')
+                identities = {}
+                total = caller_rss = confirmed_exits = 0
+                for pid in selected:
+                    if clock() >= deadline:
+                        raise AdmissionError('process_sample_budget')
+                    parent, process = rows[pid]
+                    phase = 'selected_identity'
+                    # Retry uses independent public objects, not iterator cache.
+                    if attempt:process = psutil.Process(pid)
+                    created = process.create_time()
+                    if pid in tracked and tracked[pid] != created:
+                        raise AdmissionError('process_identity_uncertain')
+                    if pid == caller.pid and created != caller_created:
+                        raise AdmissionError('caller_identity_uncertain')
+                    obtained[pid] = created
+                    if (process.ppid() != parent or
+                            pid in carried_parents and carried_parents[pid] != parent):
+                        raise AdmissionError('process_identity_uncertain')
+                    phase = 'selected_rss'
+                    try:
+                        rss = process.memory_info().rss
+                    except psutil.NoSuchProcess as error:
+                        if type(error) is not psutil.NoSuchProcess or pid == caller.pid:raise
+                        ancestor, seen = parent, {pid}
+                        while ancestor != caller.pid:
+                            if ancestor not in selected or ancestor in seen:raise error
+                            seen.add(ancestor); ancestor = rows[ancestor][0]
+                        try:
+                            psutil.Process(pid)
+                        except psutil.NoSuchProcess as confirmation:
+                            if type(confirmation) is not psutil.NoSuchProcess:raise
+                            confirmed_exits += 1
+                            continue
                         raise
-                    confirmed_exits += 1
-                    continue
-                raise
-            phase = 'selected_recheck'
-            if process.create_time() != created or process.ppid() != parent or type(rss) is not int or rss < 0:
-                raise AdmissionError('process_identity_uncertain')
-            if pid in remembered and remembered[pid] != created:
-                raise AdmissionError('process_identity_uncertain')
-            if pid == caller.pid and created != caller_created:
-                raise AdmissionError('caller_identity_uncertain')
-            identities[pid] = (created, parent, rss)
-            total += rss
-            if pid == caller.pid:
-                caller_rss = rss
-        phase = 'host_memory'
-        available = psutil.virtual_memory().available
-        phase = 'disk_free'
-        free = shutil.disk_usage(settings.data_dir).free
-        if clock() >= deadline:
-            raise AdmissionError('process_sample_budget')
-        return ProcessSample(identities, total, caller_rss, available, free, confirmed_exits)
+                    phase = 'selected_recheck'
+                    if process.create_time() != created or process.ppid() != parent or type(rss) is not int or rss < 0:
+                        raise AdmissionError('process_identity_uncertain')
+                    identities[pid] = (created, parent, rss)
+                    total += rss
+                    if pid == caller.pid:caller_rss = rss
+                phase = 'host_memory'
+                available = psutil.virtual_memory().available
+                phase = 'disk_free'
+                free = shutil.disk_usage(settings.data_dir).free
+                if clock() >= deadline:raise AdmissionError('process_sample_budget')
+                return ProcessSample(identities, total, caller_rss, available, free,
+                                     confirmed_exits, bool(attempt))
+            except psutil.NoSuchProcess as error:
+                if (attempt or type(error) is not psutil.NoSuchProcess
+                        or phase != 'selected_identity' or pid == caller.pid):raise
+                # Carry ALL selected candidates, even ones not yet queried.
+                # No first-pass RSS, identities or confirmation counts escape.
+                carried_parents = {p:rows[p][0] for p in selected}
+                carried_created = obtained
+                if len(set(remembered) | set(carried_parents)) > MAX_IDENTITIES:
+                    raise AdmissionError('process_identity_budget')
     except AdmissionError as error:
         _sample_observation(error, phase)
         raise
@@ -234,6 +256,7 @@ class NativeExecutionPermit:
         self._unavailable = None
         self._primary_observation_failure = None
         self._confirmed_sample_exits = 0
+        self._completed_sample_retries = 0
         self._sample_exit_confirmation = None
         self._configuration_current = lambda: True
 
@@ -336,20 +359,42 @@ class NativeExecutionPermit:
         finally:
             intent.release()
 
+    def _known_identities_locked(self):
+        known = dict(self._observed)
+        for record in self._handles.values():
+            for pid, created in ((record['pid'], record['created']), *record['children'].items()):
+                if pid in known and known[pid] != created:
+                    raise AdmissionError('primary_identity_uncertain')
+                known[pid] = created
+        if len(known) > MAX_IDENTITIES:
+            raise AdmissionError('primary_identity_budget')
+        return known
+
     def _take_sample(self):
         with self._condition:
-            known = tuple(self._observed.items())
+            known = tuple(self._known_identities_locked().items())
         current = (service_sample(self.settings, known=known) if self._sampler is service_sample
                    else self._sampler(self.settings))
         if len(current.identities) > MAX_IDENTITIES:
             raise AdmissionError('process_identity_budget')
-        if type(current.confirmed_exits) is not int or not 0 <= current.confirmed_exits <= MAX_IDENTITIES:
+        if (type(current.confirmed_exits) is not int or not 0 <= current.confirmed_exits <= MAX_IDENTITIES
+                or type(current.resampled) is not bool):
             raise AdmissionError('process_identity_uncertain')
         with self._condition:
+            latest = self._known_identities_locked()
+            if len(set(latest) | set(current.identities)) > MAX_IDENTITIES:
+                raise AdmissionError('primary_identity_budget')
+            prior = dict(known)
+            if any(latest[pid] != prior[pid] for pid in set(latest) & set(prior)):
+                raise AdmissionError('primary_identity_uncertain')
+            if any(pid not in prior and pid not in current.identities for pid in latest):
+                raise AdmissionError('primary_identity_uncertain')
             for pid, row in current.identities.items():
-                if pid in self._observed and self._observed[pid] != row[0]:
+                if pid in latest and latest[pid] != row[0]:
                     raise AdmissionError('process_identity_uncertain')
             self._observed = {pid:row[0] for pid,row in current.identities.items()}
+            if current.resampled:
+                self._completed_sample_retries = min(2**31 - 1, self._completed_sample_retries + 1)
             if current.confirmed_exits:
                 if self._sample_exit_confirmation is None:
                     self._sample_exit_confirmation = {'phase': 'selected_rss',
@@ -581,6 +626,7 @@ class NativeExecutionPermit:
                 'optional_admission_unavailable': self._unavailable,
                 # Observation only; never substitutes for original wait/cleanup.
                 'confirmed_sample_exits': self._confirmed_sample_exits,
+                'completed_current_sample_retries': self._completed_sample_retries,
                 'sample_exit_confirmation': (dict(self._sample_exit_confirmation)
                     if self._sample_exit_confirmation is not None else None),
                 'primary_observation_failure': (dict(self._primary_observation_failure)

@@ -29,6 +29,9 @@ from .native_owned_cell_store import (CellStore, Receipt, Budget, qualified_runt
 
 _REGISTRY = {}
 _REGISTRY_LOCK = threading.Lock()
+# In-process witness only: same public exception, no new replay authority.
+_CLOSED_AUTOMATIC_READ_BUSY = object()
+_PRELAUNCH_READ_BUSY_CODES = frozenset((5, 261, 517, 773, 6, 262, 518))
 
 
 def _sample_gap_cut(turns, start, target, a, b, window):
@@ -289,7 +292,7 @@ class PrimaryAuthority:
             if db is not None:db.close()
 
     @contextmanager
-    def db(self, budget):
+    def db(self, budget, *, _closure=None):
         scope = getattr(self._list_reads, 'current', None)
         db = scope['db'] if scope is not None else None
         retained = False
@@ -320,6 +323,7 @@ class PrimaryAuthority:
             if not retained and db is not None:
                 if scope is not None:scope['db'] = None
                 db.close()
+                if _closure is not None:_closure['closed'] = True
 
     def _read(self, budget, phase, reader):
         """Retry only a complete read snapshot, within the ORIGINAL budget.
@@ -334,14 +338,31 @@ class PrimaryAuthority:
             with budget.phase():
                 for attempt in range(1, 4):
                     budget.check()
+                    closure = {'closed': False}; body_error = None
                     try:
-                        with self.db(budget) as db:
-                            db.execute('BEGIN')
-                            result = reader(db)
+                        context = (self.db(budget, _closure=closure) if phase == 'automatic_intent'
+                                   else self.db(budget))
+                        with context as db:
+                            try:
+                                db.execute('BEGIN')
+                                result = reader(db)
+                            except sqlite3.OperationalError as exc:
+                                body_error = exc
+                                raise
                         budget.check()
                         return result
                     except sqlite3.OperationalError as exc:
                         code = getattr(exc, 'sqlite_errorcode', None)
+                        if (phase == 'automatic_intent' and type(exc) is sqlite3.OperationalError
+                                and exc is body_error and closure['closed']
+                                and type(code) is int and code in _PRELAUNCH_READ_BUSY_CODES):
+                            # Only this positively closed read body can be deferred
+                            # by the controller before invocation becomes possible.
+                            budget.check()
+                            if _identity(self.path) != self.identity:
+                                raise Unavailable('primary_database_replaced')
+                            budget.check()
+                            exc._closed_automatic_read_busy = _CLOSED_AUTOMATIC_READ_BUSY
                         if type(code) is not int or code not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_BUSY_RECOVERY) or attempt == 3:
                             raise
                     # Existing authority deadlines include this finite backoff; no

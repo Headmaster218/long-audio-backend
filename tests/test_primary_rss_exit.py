@@ -99,15 +99,20 @@ def test_only_exact_no_such_at_rss_can_confirm(error):
 
 
 @pytest.mark.parametrize('stage', ['identity', 'parent', 'post_identity', 'post_parent'])
-def test_other_disappearance_phases_still_refuse(stage):
+def test_persistent_identity_or_other_disappearance_phases_still_refuse(stage):
     child = Process(901, os.getpid())
     method = 'create_time' if 'identity' in stage else 'ppid'
     good = child.created if method == 'create_time' else child.parent
     effects = [good, mod.psutil.NoSuchProcess(901)] if stage.startswith('post_') else mod.psutil.NoSuchProcess(901)
-    with census(child=child) as (_, _, calls), patch.object(child, method, side_effect=effects), \
+    # Initial identity/parent loss now gets one fresh census. Keep this
+    # persistent-failure fixture bound to the same child on the fresh lookup.
+    with census(child=child, confirmation=child) as (_, _, calls), patch.object(child, method, side_effect=effects), \
          pytest.raises(mod.AdmissionError):
         mod.service_sample(settings())
-    assert calls == [os.getpid()]
+    if stage.startswith('post_'):
+        assert calls == [os.getpid()]
+    else:
+        assert calls.count(child.pid) == 1 and calls.count(os.getpid()) in (2, 3)
 
 
 @pytest.mark.parametrize('fault', ['known_identity', 'parent_changed', 'caller_rss', 'caller_identity'])

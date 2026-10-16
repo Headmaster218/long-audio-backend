@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -48,7 +49,24 @@ _ADMISSION_REASONS = frozenset(('optional_cancelled', 'primary_or_optional_busy'
     'process_identity_budget', 'remembered_identity_unobserved', 'caller_identity_uncertain',
     'process_sample_unavailable', 'resident_identity_uncertain', 'unclassified_service_child',
     'service_envelope_budget', 'service_host_envelope', 'jobs_configuration_unavailable',
-    'optional_ownership_changed', 'publication_fence_busy'))
+    'optional_ownership_changed', 'publication_fence_busy', 'optional_prelaunch_deadline'))
+
+
+# Existing gate exceptions have fixed public reasons; never retain their messages.
+_GATE_UNAVAILABLE_REASONS = frozenset(('cooperative_deadline', 'operation_work_capacity',
+    'primary_database_replaced', 'primary_read_snapshot_not_ended',
+    'primary_list_read_scope_mismatch', 'nested_primary_list_read', 'primary_read_phase',
+    'primary_source_projection_capacity', 'primary_source_unavailable',
+    'primary_commit_or_source_unavailable'))
+_GATE_READ_REASONS = frozenset(('feature_disabled', 'cell_revoked', 'cell_owner_unavailable',
+    'cell_binding_changed', 'automatic_configuration_unavailable', 'automatic_source_revoked',
+    'session_not_found', 'cell_unavailable', 'cell_pcm_not_retained', 'response_closed'))
+_GATE_SQLITE_CODES = {1:'SQLITE_ERROR', 5:'SQLITE_BUSY', 261:'SQLITE_BUSY_RECOVERY',
+    517:'SQLITE_BUSY_SNAPSHOT', 773:'SQLITE_BUSY_TIMEOUT', 6:'SQLITE_LOCKED',
+    262:'SQLITE_LOCKED_SHAREDCACHE', 518:'SQLITE_LOCKED_VTAB', 7:'SQLITE_NOMEM',
+    8:'SQLITE_READONLY', 9:'SQLITE_INTERRUPT', 10:'SQLITE_IOERR', 11:'SQLITE_CORRUPT',
+    13:'SQLITE_FULL', 14:'SQLITE_CANTOPEN', 17:'SQLITE_SCHEMA', 21:'SQLITE_MISUSE',
+    26:'SQLITE_NOTADB'}
 
 
 def _error_type(value):
@@ -58,8 +76,26 @@ def _error_type(value):
 def failure_observation(phase, error):
     """Fixed scalars only; never exception messages or arbitrary attributes."""
     from .native_execution_permit import AdmissionError
+    from .native_owned_cells import Unavailable
+    from .native_owned_support_cache import ReadError
+    from .fragment_model_guard import ResourceLimit
+    gate_types = {Unavailable:'Unavailable', ReadError:'ReadError',
+                  ResourceLimit:'ResourceLimit', sqlite3.OperationalError:'OperationalError'}
     value = {'phase':phase if phase in _FAILURE_PHASES else 'other',
-             'type':_error_type(type(error).__name__)}
+             'type':gate_types.get(type(error), _error_type(type(error).__name__))}
+    if type(error) is Unavailable:
+        args = BaseException.__getattribute__(error, 'args')
+        reason = args[0] if len(args) == 1 else None
+        value['reason'] = reason if type(reason) is str and reason in _GATE_UNAVAILABLE_REASONS else 'other'
+    if type(error) is ReadError:
+        reason = error.reason
+        value['reason'] = reason if type(reason) is str and reason in _GATE_READ_REASONS else 'other'
+    if type(error) is sqlite3.OperationalError:
+        code = getattr(error, 'sqlite_errorcode', None)
+        name = getattr(error, 'sqlite_errorname', None)
+        code = code if type(code) is int and code in _GATE_SQLITE_CODES else None
+        value['sqlite_code'] = code
+        value['sqlite_name'] = name if type(name) is str and name == _GATE_SQLITE_CODES.get(code) else 'other'
     if type(error) is AdmissionError:
         reason = error.reason
         value['reason'] = reason if type(reason) is str and reason in _ADMISSION_REASONS else 'other'
@@ -273,6 +309,40 @@ class MossController:
             self._claim_identity = None
         return confirmed
 
+    def _check_before_spawn(self):
+        from .native_owned_cell_capture import _CLOSED_AUTOMATIC_READ_BUSY
+        from .native_execution_permit import AdmissionError
+        # The single already-constructed driver owns this original deadline.
+        # Initial before_input and every check within start remain single-shot.
+        # Each gate validation keeps its ordinary independent read Budget; only
+        # this existing driver deadline and the job deadline span outer retries.
+        deferred = False
+        while True:
+            if self._cancel.is_set():raise Cancelled('Cancelled before child creation')
+            try:
+                self._service_gate.check('before_spawn')
+                if deferred:
+                    if time.monotonic() >= self._driver.guard.deadline:
+                        raise AdmissionError('optional_prelaunch_deadline')
+                    self._driver.guard.check()
+                return
+            except sqlite3.OperationalError as error:
+                if (type(error) is not sqlite3.OperationalError or
+                        getattr(error, '_closed_automatic_read_busy', None) is not _CLOSED_AUTOMATIC_READ_BUSY):
+                    raise
+            deferred = True
+            guard = self._driver.guard
+            remaining = guard.deadline - time.monotonic()
+            if remaining <= 0:raise AdmissionError('optional_prelaunch_deadline')
+            guard.check()
+            if self._cancel.wait(min(.1, remaining)):
+                raise Cancelled('Cancelled before child creation')
+            if time.monotonic() >= guard.deadline:
+                raise AdmissionError('optional_prelaunch_deadline')
+            guard.check()
+            self._claim_matches()
+            if profile(self.profile.name) != self.profile:raise ValueError('Frozen profile changed')
+
     def run(self, job_id):
         with self._lock:
             job = self._require(job_id)
@@ -304,7 +374,7 @@ class MossController:
             phase = 'before_spawn'
             if self._service_gate is not None:
                 self._driver._service_gate = self._service_gate
-                self._service_gate.check('before_spawn')
+                self._check_before_spawn()
             # Conservative: start can send admission and then fail. No retry.
             job['invocation_possible'] = True
             phase = 'start'
