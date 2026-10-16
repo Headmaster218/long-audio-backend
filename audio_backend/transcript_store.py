@@ -27,6 +27,7 @@ _PRIMARY_LENGTH = '+'.join("COALESCE(length(CAST(s." + field + " AS BLOB)),0)"
 class TranscriptStore:
     def __init__(self, store, *, clock=time.monotonic):
         self.path, self.clock = Path(store.path).resolve(), clock
+        self.speaker_links_enabled = bool(getattr(getattr(store,'settings',None),'recording_speaker_links_enabled',False))
         st = self.path.stat()
         self.database_identity = (st.st_dev, st.st_ino)
 
@@ -167,16 +168,21 @@ class TranscriptStore:
         rows = [db.execute(query, (seq, sid)).fetchone() for seq in sorted(sequences)]
         return cls._check_descriptor_lengths(rows)
 
-    @staticmethod
-    def _revision(db, sid, session):
+    def _revision(self, db, sid, session):
         counter = session['transcript_revision']
         if type(counter) is not int or counter < 0:
             c.fail('transcript_revision_unavailable')
         change = db.execute('''SELECT cursor FROM result_changes INDEXED BY result_changes_session
             WHERE session_id=? ORDER BY cursor DESC LIMIT 1''', (sid,)).fetchone()
-        return c.digest({'policy': c.POLICY_HASH, 'session': sid,
+        links_revision = None
+        if self.speaker_links_enabled:
+            from .recording_speaker_link_store import read_session_revision
+            links_revision = read_session_revision(db, sid)
+        value = {'policy': c.POLICY_HASH, 'session': sid,
             'primary_change_max': change[0] if change else 0,
-            'transcript_revision': counter, 'timeline_end': session['timeline_end']})
+            'transcript_revision': counter, 'timeline_end': session['timeline_end']}
+        if self.speaker_links_enabled:value['speaker_links_revision'] = links_revision
+        return c.digest(value)
 
     @staticmethod
     def _binding(db, sid, row):
@@ -317,6 +323,37 @@ class TranscriptStore:
             authority='historical_snapshot', source_current='not_checked')
         return candidate, result, meta
 
+    def _speaker_annotations(self, db, sid, candidates, intersecting):
+        """Read only the saved small decisions for page-local recording jobs."""
+        if not self.speaker_links_enabled:return []
+        from .recording_speaker_link_store import read_saved_for_recording
+        scopes, by_job = {}, {}
+        for row, *_ in intersecting:
+            recording_ids = []
+            for cid in (row['cid1'], row['cid2']):
+                if cid is None:continue
+                record = db.execute('SELECT batch_id FROM recording_work WHERE chunk_id=?', (cid,)).fetchone()
+                if record is not None:recording_ids.append(record[0])
+            if not recording_ids or len(set(recording_ids)) != 1:continue
+            rid = recording_ids[0]
+            if rid not in scopes:
+                try:scopes[rid] = read_saved_for_recording(db, sid, rid)
+                except (ReadError, ValueError, TypeError, AttributeError):
+                    # An optional malformed decision cannot hide durable text.
+                    # Scalar sidecar headers still bind this page's cursor.
+                    scopes[rid] = {'state':'probe_unavailable','reason':'saved_links_unavailable'}
+            by_job[row['job_id']] = scopes[rid]
+        for candidate in candidates:
+            saved = by_job.get(candidate['job_id'], {'state':'probe_unavailable'})
+            for index, phrase in enumerate(candidate['phrases']):
+                phrase['recording_speaker_link'] = c.speaker_annotation(saved,
+                    candidate['job_id'], candidate['result_sha256'], index)
+        # Only small scalar metadata is included at page level. All vectors,
+        # native proof and per-crop geometry remain private immutable evidence.
+        return [{'recording_id':rid, **{key:saved.get(key) for key in
+            ('scope_id','state','revision','decision_revision','policy_sha256','space_id')}}
+            for rid,saved in sorted(scopes.items())]
+
     def page(self, sid, *, block=0, cursor=None):
         if type(block) is not int or not 0 <= block <= c.MAX_FRAME // c.BLOCK_FRAMES:
             c.fail('invalid_transcript_block', 409)
@@ -357,16 +394,20 @@ class TranscriptStore:
                 c.fail('unresolved_capacity')
             primary = self._primary(db, sid, block, chunks)
             candidates = [self._result(db, sid, *item)[0] for item in intersecting]
+            link_scopes = self._speaker_annotations(db, sid, candidates, intersecting)
             check()
             value = project(block, primary, candidates, notices)
             value.update(session_id=sid, revision=revision, policy_sha256=c.POLICY_HASH,
+                recording_speaker_links={'enabled':self.speaker_links_enabled, 'scopes':link_scopes,
+                    'authority':'anonymous_provisional_recording_only', 'automatic_gallery_enrollment':False},
                 reading_status='provisional_display_preference', complete_content=False, eos=None,
                 history_scope='automatic_timestamped_recording_only',
                 unsupported_history='unbound_manual_and_legacy_history_is_not_placed',
                 unplaced_history_check='not_performed_by_time_page',
                 binding_audit_path=f'/sessions/{sid}/transcript/binding-audit',
                 next_cursor=c.cursor(sid, block + 1, revision) if end < extent else None)
-            return c.response(value)
+            if not self.speaker_links_enabled:value.pop('recording_speaker_links')
+            return c.transcript_response(value)
 
     def binding_audit(self, sid, *, cursor=None):
         """Keyset-paged placement audit, independent of temporal discovery.

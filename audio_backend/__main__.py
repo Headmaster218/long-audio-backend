@@ -65,6 +65,8 @@ def main(argv=None):
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit single MOSS job service with durable structured history; requires native-owned support, CPU and no overlap/fragment provider')
     parser.add_argument('--moss-jobs-model',type=Path,help='Explicit local fixed-profile MOSS model; does not enable jobs implicitly')
     parser.add_argument('--moss-automatic',action='store_true',help='Candidate default-OFF automatic timestamped recording MOSS dispatch; requires MOSS jobs, native-owned support/cells/core-seams and the ordinary Worker; excludes legacy seam-cells')
+    parser.add_argument('--recording-speaker-links', action='store_true', help='EXPERIMENTAL default-off recording-scoped anonymous speaker links; 32-node cap; requires automatic MOSS')
+    parser.add_argument('--recording-speaker-model', type=Path, help='Explicit existing local audited speaker.onnx; no downloads or gallery enrollment')
     parser.add_argument('--speaker-threshold', type=float, default=.75)
     parser.add_argument('--new-speaker-threshold', type=float, default=.45)
     parser.add_argument('--speaker-margin', type=float, default=.10)
@@ -86,6 +88,10 @@ def main(argv=None):
         parser.error('--native-owned-compact-gc requires --native-owned-cells and --native-owned-core-seams')
     if args.native_owned_seam_cells and not args.native_owned_cells:
         parser.error('--native-owned-seam-cells requires --native-owned-cells')
+    if args.recording_speaker_links and (not args.moss_automatic or not args.recording_speaker_model):
+        parser.error('--recording-speaker-links requires --moss-automatic and --recording-speaker-model')
+    if args.recording_speaker_model and not args.recording_speaker_links:
+        parser.error('--recording-speaker-model requires --recording-speaker-links')
     if args.moss_jobs_model and not args.moss_jobs:
         parser.error('MOSS jobs model requires --moss-jobs')
     if args.moss_automatic and not (args.moss_jobs and args.native_owned_support
@@ -239,6 +245,8 @@ def main(argv=None):
                         moss_result_max_rows_per_session=args.moss_result_max_rows_per_session,
                         moss_result_max_bytes=args.moss_result_max_bytes,
                         moss_result_max_bytes_per_session=args.moss_result_max_bytes_per_session,
+                        recording_speaker_links_enabled=args.recording_speaker_links,
+                        recording_speaker_model_path=str(args.recording_speaker_model.resolve()) if args.recording_speaker_model else None,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         moss_automatic_enabled=args.moss_automatic,

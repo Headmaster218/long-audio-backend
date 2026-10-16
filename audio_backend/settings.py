@@ -107,6 +107,8 @@ class Settings:
     moss_jobs_enabled: bool = False
     moss_jobs_model_path: str | None = None
     moss_automatic_enabled: bool = False
+    recording_speaker_links_enabled: bool = False
+    recording_speaker_model_path: str | None = None
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
     speaker_support_total_pcm_bytes: int = 64 * 1024**2
@@ -148,6 +150,17 @@ class Settings:
             if (type(self.moss_jobs_model_path) is not str or len(self.moss_jobs_model_path.encode('utf-8')) > 4096
                     or not Path(self.moss_jobs_model_path).is_absolute()):
                 raise ValueError('MOSS jobs requires an explicit absolute local model path')
+        if type(self.recording_speaker_links_enabled) is not bool:
+            raise ValueError('recording_speaker_links_enabled must be boolean')
+        if self.recording_speaker_model_path is not None and not self.recording_speaker_links_enabled:
+            raise ValueError('Recording speaker model requires explicit enablement')
+        if self.recording_speaker_links_enabled:
+            if not self.moss_automatic_enabled:
+                raise ValueError('Recording speaker links require automatic recording MOSS')
+            path = self.recording_speaker_model_path
+            if (type(path) is not str or not path or len(path.encode('utf-8')) > 4096
+                    or '\x00' in path or not Path(path).is_absolute()):
+                raise ValueError('Recording speaker links require an explicit absolute local model path')
         if self.verified_identity_policy_file is not None:
             from .verified_identity import policy_file
             self.verified_identity_policy=policy_file(self.verified_identity_policy_file)

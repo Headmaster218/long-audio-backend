@@ -181,3 +181,54 @@ def response(value):
     raw = encoded(value)
     if len(raw) > MAX_RESPONSE_BYTES: fail('unresolved_capacity')
     return raw
+
+
+def transcript_response(value):
+    """Optional view fields never displace a legal durable-text response."""
+    if len(encoded(value)) <= MAX_RESPONSE_BYTES:return response(value)
+    if 'recording_speaker_links' not in value:return response(value)
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            item.pop('recording_speaker_link', None)
+            stack.extend(item.values())
+        elif isinstance(item, list):stack.extend(item)
+    value.pop('recording_speaker_links')
+    # Shorter than the existing provisional_display_preference marker, so even
+    # an exactly full legal text page retains explicit optional-capacity status.
+    value['reading_status'] = 'provisional_links_omitted_cap'
+    return response(value)
+
+
+SPEAKER_LINK_STATES = frozenset(('provisional_linked','source_scoped','insufficient_clean_support',
+    'probe_unavailable','probe_interrupted','links_stale','capacity_exhausted'))
+
+
+def speaker_annotation(saved, job_id, result_sha256, phrase_index):
+    """Whitelisted public annotation: no vectors or full native proof payloads."""
+    state = saved.get('state', 'probe_unavailable')
+    if saved.get('scope_id') is None:state = 'probe_unavailable'
+    if state not in SPEAKER_LINK_STATES:state = 'probe_unavailable'
+    value = {'status':state, 'provisional_speaker_id':None,
+        'scope':'recording', 'speaker_identity_valid':False, 'profile_update_allowed':False,
+        'policy_sha256':saved.get('policy_sha256'), 'space_id':saved.get('space_id'),
+        'revision':saved.get('revision'), 'decision_revision':saved.get('decision_revision')}
+    if state == 'links_stale':return value
+    for item in saved.get('jobs', []):
+        if (item.get('job_id'),item.get('result_sha256')) == (job_id,result_sha256):
+            status=item.get('default_status',item.get('status'))
+            if status in SPEAKER_LINK_STATES:value['status']=status
+            break
+    for item in saved.get('annotations', []):
+        if (item.get('job_id'),item.get('result_sha256'),item.get('phrase_index')) == (job_id,result_sha256,phrase_index):
+            status = item.get('status')
+            if status not in SPEAKER_LINK_STATES:return value
+            value['status'] = status
+            if status == 'provisional_linked':value['provisional_speaker_id']=item.get('provisional_speaker_id')
+            for key in ('node_id','proof_sha256','source_key','reason','duplicate_evidence'):
+                if key in item:value[key]=item[key]
+            return value
+    # A linked scope is not evidence that an unprobed phrase shares a speaker.
+    if value['status'] == 'provisional_linked':value['status']='insufficient_clean_support'
+    return value

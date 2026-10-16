@@ -168,6 +168,8 @@ class Store:
             init_automatic(db)
             from .recording_overlap import init_schema as init_recording_schema
             init_recording_schema(db)
+            from .recording_speaker_link_store import init_schema as init_recording_links
+            init_recording_links(db)
             speaker_support.init_schema(db)
             verified_identity.init_schema(db)
             # Additive migration only. Existing rows remain NULL: a chunk's latest

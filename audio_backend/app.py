@@ -193,10 +193,11 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     recordings=RecordingOverlap(store)
     worker.recordings=recordings
     jobs=None
+    speaker_links=None
 
     @asynccontextmanager
     async def lifespan(app):
-        nonlocal jobs
+        nonlocal jobs, speaker_links
         registered_cells=None
         lock.acquire()
         try:
@@ -206,6 +207,17 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 results.reconcile()
             except Exception:
                 app.state.moss_result_recovery_status='unavailable'
+            if settings.recording_speaker_links_enabled:
+                try:
+                    from .recording_speaker_link_store import RecordingSpeakerLinkStore
+                    from .recording_speaker_links import reconcile_batches
+                    speaker_links=RecordingSpeakerLinkStore(store)
+                    speaker_links.bind_recovery(lock)
+                    speaker_links.reconcile(recompute=reconcile_batches)
+                except Exception:
+                    # Optional annotations never prevent primary/text startup.
+                    speaker_links=None
+                    app.state.recording_speaker_links_status='probe_unavailable'
             fragments.initialize_factory_once()
             if settings.native_owned_support_enabled:
                 try:
@@ -250,7 +262,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                         # Durable cell unavailability does not disable rolling
                         # jobs or acquire any new native execution authority.
                         app.state.native_owned_cell_jobs_status='adapter_unavailable'
-                jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source,result_store=results)
+                jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source,result_store=results,speaker_links=speaker_links)
                 app.state.moss_jobs=jobs
                 automatic.capture=registered_cells; automatic.jobs=jobs; jobs.automatic=automatic
                 if settings.moss_automatic_enabled and (registered_cells is None or cell_source is None):
@@ -327,6 +339,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 if jobs is not None and getattr(settings,'_native_execution_permit',None) is jobs.permit:
                     del settings._native_execution_permit
                 results.revoke_recovery()
+                if speaker_links is not None:speaker_links.revoke_recovery()
                 lock.release()
             else:
                 # Keep the live instance lock referenced while ownership is

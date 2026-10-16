@@ -20,7 +20,8 @@ from audio_backend.moss_handy_profile import NAME, canonical, profile, runtime_s
 from audio_backend.native_lexical_alternatives import SourceSupport
 
 CAPS = {'owner.json': 1024, 'request.json': 16384, 'support.wav': 640044,
-        'raw.bin': 131072, 'result.json': 8192}
+        'raw.bin': 131072, 'result.json': 8192, 'probe-result.json': 65536,
+        **{'probe-%d.pcm' % index: 64000 for index in range(4)}}
 SCRATCH_BYTES = 2 * 1024**2
 
 
@@ -210,6 +211,13 @@ def main(directory, request_sha):
         if hashlib.sha256(raw_request).hexdigest() != request_sha:
             raise ValueError('Request pin differs')
         request = json.loads(raw_request)
+        if request.get('kind') == 'recording-speaker-probes-v1':
+            # This is a fresh admitted child after MOSS model/session closure
+            # and positive reap; it can only run the fixed optional extractor.
+            deadline = time.monotonic() + 10.
+            from audio_backend.recording_speaker_probe_runner import child
+            child(directory, request, identity=scratch_identity, check=check)
+            return
         if set(request) != {'job_id', 'support', 'profile_name', 'profile_sha256', 'model_path'}:
             raise ValueError('Unexpected child request fields')
         support = SourceSupport.from_dict(request['support'])

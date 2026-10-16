@@ -83,6 +83,8 @@ def delete_session(store, sid, delete_file=None):
             db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))
             from .moss_result_store import erase_session as erase_moss_results
             erase_moss_results(db, sid)
+            from .recording_speaker_link_store import erase_session as erase_recording_links
+            erase_recording_links(db, sid)
             from .moss_automatic import erase_session as erase_automatic
             erase_automatic(db,sid)
             from .fragment_http import erase

@@ -171,9 +171,26 @@ class _ServiceGate:
             self.record['cancelled'].set()
 
 
+class _SpeakerProbeGate:
+    def __init__(self, owner, probe):
+        self.owner, self.probe = owner, probe
+
+    def check(self, phase):
+        if not self.owner._links_enabled():self.probe['cancelled'].set()
+        self.owner.permit.check_optional(self.probe, phase)
+        if self.probe['cancelled'].is_set():raise AdmissionError('optional_cancelled')
+
+    def cleaning(self):self.owner.permit.cleaning(self.probe)
+
+    def cleanup_sample(self):
+        try:self.owner.permit._resource_check(reserve=False)
+        except Exception:self.probe['cancelled'].set()
+
+
 class MossJobs:
     def __init__(self, store, cache, permit, *, clock=time.monotonic,
-                 _driver_factory=OwnedDriver, _thread_factory=threading.Thread, cell_source=None, result_store=None):
+                 _driver_factory=OwnedDriver, _thread_factory=threading.Thread, cell_source=None, result_store=None,
+                 speaker_links=None, _probe_factory=None):
         self.store, self.cache, self.permit, self.clock = store, cache, permit, clock
         self.jobs_epoch = uuid.uuid4().hex
         self.results = result_store if result_store is not None else MossResultStore(store)
@@ -185,6 +202,11 @@ class MossJobs:
         self._closed = False
         self.cell_source = cell_source
         self.automatic = None
+        self.speaker_links = speaker_links
+        self._probe_factory = _probe_factory
+        self._probe_staging_bytes = 0
+        self._probe_reconcile_after = 0.
+        self._probe_reconcile_active = False
         self._pending_record = None
         self.stopped = False
         cache.jobs_owner = self
@@ -271,6 +293,12 @@ class MossJobs:
                 self._retire(record)
 
     def _retire(self, record):
+        probe = record.get('speaker_probe')
+        if probe is not None and probe.get('commit_pending'):
+            raise ReadError(503, 'speaker_probe_storage_pending')
+        if probe is not None and (probe.get('operation') is not None and not probe['operation'].cleaned
+                or record['thread'] is not None and record['thread'].is_alive()):
+            raise ReadError(503, 'speaker_probe_cleanup_pending')
         if record['storage_pending']:raise ReadError(503, 'result_storage_pending')
         record['history_snapshot'] = None
         record['admission_metadata'] = None
@@ -296,6 +324,8 @@ class MossJobs:
 
     def _cancel_record(self, record):
         record['cancelled'].set()
+        probe = record.get('speaker_probe')
+        if probe is not None:probe['cancelled'].set()
         if record is self._pending_record or (record.get('process_cleanup_verified')
                 and record.get('lease') is not None and record['lease'].released):
             try:
@@ -322,14 +352,35 @@ class MossJobs:
     def submit_cell(self, sid, cell_id, request, key, *, _admission_open=None):
         return self._submit('durable_cell', sid, cell_id, request, key, _admission_open)
 
+    def _reconcile_speaker_links(self):
+        if not self._links_enabled():return
+        with self._lock:
+            record = self._live
+            if (self._probe_reconcile_active or time.monotonic() < self._probe_reconcile_after
+                    or record is not None and (self._probe_unresolved(record)
+                        or record['thread'] is not None and record['thread'].is_alive())):return
+            self._probe_reconcile_active = True
+        try:
+            from .recording_speaker_links import reconcile_batches
+            self.speaker_links.reconcile(recompute=reconcile_batches, limit=16)
+        except BaseException:pass  # One optional scope/SQL failure cannot block text work.
+        finally:
+            with self._lock:
+                self._probe_reconcile_active = False
+                self._probe_reconcile_after = time.monotonic() + 1.
+
     def automatic_idle(self):
+        self._reconcile_speaker_links()
+        record = self._live
+        if record is not None:self._retry_probe_storage(record)
         with self._gate():
             self._drain_pending(); self._recover_acknowledged()
             record=self._live
             if record is None:return self._pending_record is None
             if record['storage_pending']:self._persist_locked(record)
             thread=record['thread']
-            return (not record['storage_pending'] and record['cleaned']
+            return (not record.get('speaker_probe',{}).get('commit_pending')
+                and not self._probe_unresolved(record) and not record['storage_pending'] and record['cleaned']
                 and (thread is None or not thread.is_alive()) and self._pending_record is None)
 
     def submit_automatic(self,intent):
@@ -469,8 +520,235 @@ class MossJobs:
         except BaseException:
             self._cancel_record(record)
         finally:
+            # Only bounded source copying occurs before the existing text finish.
+            # The MOSS controller already positively reaped its child.
+            try:self._stage_speaker_probe(record)
+            except BaseException:
+                if getattr(self.store.settings,'recording_speaker_links_enabled',False):
+                    record.setdefault('speaker_probe',self._empty_speaker_probe())
             self._finish(record)
             self._await_memory_cleanup(record)
+            try:self._run_speaker_probe(record)
+            except BaseException:pass  # Text was already committed independently.
+
+    @staticmethod
+    def _probe_unresolved(record):
+        probe = record.get('speaker_probe')
+        return bool(probe and probe.get('operation') is not None and not probe['operation'].cleaned)
+
+    def _links_enabled(self):
+        return (self.speaker_links is not None and not self._closed
+            and bool(getattr(self.store.settings, 'recording_speaker_links_enabled', False)))
+
+    @staticmethod
+    def _empty_speaker_probe():
+        return {'state':'probe_unavailable', 'cancelled':threading.Event(), 'operation':None,
+            'batch':None, 'crops':(), 'charge_bytes':0, 'reservation':None,
+            'commit_pending':False, 'commit_retrying':False, 'terminal_state':None,
+            'resolve_only':False, 'attempt_key':None}
+
+    def _stage_speaker_probe(self, record):
+        """Capture at most four owned copies while the full CellLease is charged."""
+        if (not getattr(self.store.settings,'recording_speaker_links_enabled',False)
+                or record['origin'] != 'durable_cell' or record.get('automatic_key') is None):return
+        probe = record['speaker_probe'] = self._empty_speaker_probe()
+        if not self._links_enabled():return
+        from .recording_speaker_probe_runner import STAGING_BYTES, MAX_OUTPUT_BYTES, expected_space, cleanup_verified
+        try:
+            lease = record['lease']
+            if lease.released or lease.cancelled.is_set() or record['cancelled'].is_set():return
+            status = record['controller'].status(record['controller_id'])
+            receipt = status.get('native_receipt') or {}
+            if (not cleanup_verified(status.get('cleanup')) or not status.get('publication_valid')
+                    or status.get('result') is None or not receipt.get('model_closed')
+                    or not receipt.get('session_closed')):return
+            self._validate(record)
+            if hashlib.sha256(record['token'].proof).hexdigest() != record['token'].proof_sha256:return
+            projection = {**status['result'], 'cell_binding':record['token'].projection()}
+            result_sha = hashlib.sha256(encoded(projection)).hexdigest()
+            # Reserve the separate fixed staging before allocating crop copies.
+            with self._lock:
+                if self._probe_staging_bytes:return
+                self._probe_staging_bytes = probe['charge_bytes'] = STAGING_BYTES
+            from .recording_speaker_links import capture_candidates
+            space, space_id = expected_space()
+            batch, crops = capture_candidates(lease.support, lease.pcm, record['token'].proof,
+                projection, record['job_id'], result_sha, space)
+            if (len(crops) > 4 or len(encoded(batch)) + sum(map(len,crops)) + MAX_OUTPUT_BYTES > STAGING_BYTES
+                    or any(type(crop) is not bytes or len(crop) != 64000 for crop in crops)):
+                raise ValueError('Probe staging capacity')
+            self.cell_source.publication_current(record['token'])
+            if lease.released or lease.cancelled.is_set() or record['cancelled'].is_set():return
+            probe.update(batch=batch, crops=crops, result_sha256=result_sha, space=space, space_id=space_id)
+            probe['state'] = 'source_scoped' if crops else 'insufficient_clean_support'
+        except BaseException:
+            probe['state'] = 'probe_unavailable'
+        finally:
+            if probe['batch'] is None:self._drop_probe_staging(probe)
+
+    def _drop_probe_staging(self, probe):
+        probe['crops'], probe['batch'] = (), None
+        with self._lock:
+            if probe['charge_bytes']:
+                self._probe_staging_bytes -= probe['charge_bytes']
+                probe['charge_bytes'] = 0
+
+    def _run_speaker_probe(self, record):
+        """Text is already committed; this phase cannot change its lifecycle."""
+        probe = record.get('speaker_probe')
+        if probe is None:return
+        reserved = False
+        batch = probe['batch']
+        try:
+            snapshot = record.get('history_snapshot')
+            if (batch is None or not self._links_enabled() or not record['durable_result_available']
+                    or record['storage_pending'] or snapshot is None
+                    or snapshot.result_sha256 != probe.get('result_sha256')
+                    or record['cancelled'].is_set() or not record['cleaned']):
+                probe['state'] = 'probe_unavailable'
+                return
+            sid, jid = record['session_id'], record['job_id']
+            recording_id = self.speaker_links.recording_for_job(sid, jid, snapshot.result_sha256)
+            from .recording_speaker_links import POLICY_SHA256, reconcile_batches
+            probe['attempt_key'] = (sid,recording_id,jid,snapshot.result_sha256)
+            probe['commit_pending'] = True
+            probe['resolve_only'] = True  # A lost reserve acknowledgement never authorizes inference.
+            probe['terminal_state'] = 'probe_unavailable'
+            admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
+                POLICY_SHA256, probe['space'], max_nodes=len(probe['crops']), cancelled=probe['cancelled'], batch=batch)
+            probe['reservation'] = admission
+            if not admission.get('should_probe'):
+                probe['commit_pending'] = False
+                probe['state'] = admission.get('state', 'probe_unavailable')
+                return
+            if probe['crops']:
+                # Fresh ownership/event after the old MOSS permit was released.
+                # Primary preemption only sets the probe event, never record.cancelled.
+                try:
+                    self.permit.reserve_optional(probe, probe['cancelled'], probe['cancelled'].set)
+                    reserved = True
+                except Exception:
+                    probe['state'] = 'probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable'
+                if reserved:
+                    from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
+                    from .moss_handy_runner import float_bytes, samples_from_pcm
+                    # Safe now: copies and retained text no longer depend on MOSS scratch.
+                    record['controller'].discard(record['controller_id'])
+                    record['controller'] = record['controller_id'] = None
+                    request = {'kind':KIND, 'job_id':jid, 'space_id':probe['space_id'],
+                        'model_path':self.store.settings.recording_speaker_model_path,
+                        'crops':[{'index':index, 'pcm_sha256':hashlib.sha256(crop).hexdigest(),
+                            'float32_sha256':hashlib.sha256(float_bytes(samples_from_pcm(crop))).hexdigest()}
+                            for index,crop in enumerate(probe['crops'])]}
+                    operation = ProbeOperation(self.directory, request, probe['crops'],
+                        gate=_SpeakerProbeGate(self, probe), driver_factory=self._probe_factory or ProbeDriver)
+                    probe['operation'] = operation
+                    try:
+                        output = operation.run(probe['cancelled'])
+                        if operation.cleaned and not probe['cancelled'].is_set():
+                            for node, result in zip(batch['nodes'], output['nodes']):node['vector'] = result['vector']
+                            probe['state'] = 'source_scoped'
+                        else:probe['state'] = 'probe_interrupted'
+                    except BaseException:
+                        probe['state'] = 'probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable'
+                    finally:
+                        self.permit.release_optional(probe, cleaned=operation.cleaned)
+                    if not operation.cleaned:
+                        probe['state'] = 'probe_interrupted'
+                        return  # Keep exact claim, handle, permit and staging charged.
+            # Failed/absent probes still receive immutable bounded terminal evidence.
+            if probe['state'] != 'source_scoped':
+                for node in batch['nodes']:node.pop('vector', None)
+            probe['commit_pending'] = True
+            probe['resolve_only'] = False
+            probe['terminal_state'] = probe['state']
+            self._publish_probe_batch(probe)
+        except BaseException as exc:
+            probe['state'] = 'capacity_exhausted' if getattr(exc,'reason',None) == 'capacity_exhausted' else 'probe_unavailable'
+        finally:
+            operation = probe['operation']
+            clean = operation is None or operation.cleaned
+            if reserved:self.permit.release_optional(probe, cleaned=clean)
+            if clean and not probe['commit_pending']:self._drop_probe_staging(probe)
+
+    def _publish_probe_batch(self, probe):
+        if probe['resolve_only']:
+            return self._resolve_probe_attempt(probe)
+        try:self.speaker_links.commit(probe['reservation'], probe['batch'], state=probe['terminal_state'])
+        except ReadError as exc:
+            if exc.reason == 'session_not_found':
+                probe['commit_pending'] = False
+                probe['state'] = 'probe_interrupted'
+                return  # Explicit session erasure also erases this pending copy.
+            if exc.reason in ('probe_unavailable','automatic_source_unplaced','automatic_binding_invalid',
+                    'automatic_history_binding_invalid','transcript_result_invalid',
+                    'transcript_result_hash_invalid','speaker_link_commit_conflict'):
+                # Revoked current authority cannot be published or retried forever.
+                # The immutable reservation still permits a historical unavailable outcome.
+                return self._resolve_probe_attempt(probe)
+            raise
+        probe['commit_pending'] = False
+        # No SQL/manager/publication lock is held while scoring originals.
+        from .recording_speaker_links import reconcile_batches
+        try:
+            decision = self.speaker_links.recompute_scope(probe['reservation']['scope_id'],
+                reconcile_batches, cancelled=probe['cancelled'])
+            probe['state'] = decision['state'] if decision['saved'] else (
+                probe['terminal_state'] if probe['cancelled'].is_set() else decision.get('state','links_stale'))
+        except BaseException:
+            probe['state'] = 'links_stale'
+
+    def _resolve_probe_attempt(self, probe):
+        # Exact same-owner job/result/prepared-proof identity only. Resolving a
+        # lost acknowledgement never starts inference or promotes old evidence.
+        prepared = {**probe['batch'], 'nodes':[{key:value for key,value in node.items()
+            if key != 'vector'} for node in probe['batch']['nodes']]}
+        try:
+            outcome = self.speaker_links.resolve_attempt(*probe['attempt_key'], prepared,
+                state='probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable',
+                token=probe['reservation'].get('token') if probe['reservation'] else None)
+        except ReadError as exc:
+            if exc.reason != 'session_not_found':raise
+            outcome = {'resolved':True,'state':'probe_interrupted'}
+        if not outcome['resolved']:raise ReadError(503,'speaker_probe_storage_pending')
+        probe['commit_pending'] = False
+        probe['state'] = outcome['state']
+
+    def _retry_probe_storage(self, record):
+        probe = record.get('speaker_probe')
+        thread = record.get('thread')
+        if (probe is None or not probe.get('commit_pending') or self._probe_unresolved(record)
+                or thread is not None and thread.is_alive()):return
+        with self._lock:
+            if probe['commit_retrying']:return
+            probe['commit_retrying'] = True
+        try:
+            self._publish_probe_batch(probe)  # Idempotent metadata only, never inference.
+        except BaseException:
+            probe['state'] = 'probe_unavailable'
+        finally:
+            probe['commit_retrying'] = False
+            if not probe['commit_pending']:self._drop_probe_staging(probe)
+
+    def _cleanup_speaker_probe(self, record):
+        probe = record.get('speaker_probe')
+        if probe is None or probe['operation'] is None:return True
+        probe['cancelled'].set()
+        # Cleanup-only, never another inference. The exact original handle stays
+        # attached to the record until positive reap and private scratch cleanup.
+        try:clean = probe['operation'].cleanup()
+        except BaseException:clean = False
+        self.permit.release_optional(probe, cleaned=clean)
+        if clean:
+            if probe['reservation'] is not None and probe['batch'] is not None:
+                for node in probe['batch']['nodes']:node.pop('vector',None)
+                probe['terminal_state'] = 'probe_interrupted'
+                probe['commit_pending'] = True
+                probe['resolve_only'] = False
+                try:self._publish_probe_batch(probe)
+                except BaseException:probe['state'] = 'probe_unavailable'
+            if not probe['commit_pending']:self._drop_probe_staging(probe)
+        return clean
 
     def _start_pending_cleanup(self, record):
         # The same single service handoff, cleanup only; no accepted key or
@@ -737,6 +1015,8 @@ class MossJobs:
                 record['storage_pending'] = False
                 raise ReadError(404, 'session_not_found')
             self._persist_locked(record)
+        self._retry_probe_storage(record)  # Existing storage-only route never starts a model.
+        with self._gate():
             return (503 if record['storage_pending'] else 200), self._summary(record)
 
     def _summary(self, record):
@@ -746,7 +1026,7 @@ class MossJobs:
             'jobs_epoch':self.jobs_epoch, 'state':record['state'], 'profile':NAME,
             'support_id':record['support_id'], 'capture_epoch':record['capture_epoch'],
             'revision':record['revision'],
-            'cleanup_pending':not record['cleaned'] or record['purge_pending'] or bool(record['lease'] and not record['lease'].released),
+            'cleanup_pending':self._probe_unresolved(record) or not record['cleaned'] or record['purge_pending'] or bool(record['lease'] and not record['lease'].released),
             'process_cleanup_verified':record['process_cleanup_verified'],
             'memory_cleanup_pending':record['purge_pending'] or bool(record['lease'] and not record['lease'].released),
             'invocation_possible':record['invocation_possible'],
@@ -762,6 +1042,12 @@ class MossJobs:
             'structured_retention':'durable_until_explicit_session_deletion', 'raw_retention':'volatile',
             'retention':{'kind':'volatile', 'ttl_seconds':TTL_SECONDS, 'expired':record['expired']},
             'eos':None, 'complete_content':False}
+        probe = record.get('speaker_probe')
+        if probe is not None:
+            value['recording_speaker_links'] = {'state':probe['state'],
+                'cleanup_pending':bool(probe.get('operation') and not probe['operation'].cleaned),
+                'staging_charge_bytes':probe.get('charge_bytes',0),
+                'storage_pending':probe.get('commit_pending',False)}
         if record['origin'] == 'durable_cell':
             value['cell_binding'] = record['token'].projection() if record['token'] is not None else record['cell_binding']
         return value
@@ -822,15 +1108,16 @@ class MossJobs:
             self._cancel_record(record)
             record['raw'] = record['result'] = None
             thread = record['thread']
-            if record['state'] == 'cleanup_blocked' and (thread is None or not thread.is_alive()):
+            if (record['state'] == 'cleanup_blocked' or self._probe_unresolved(record)) and (thread is None or not thread.is_alive()):
                 retry = self._thread_factory(target=self._retry_cleanup, args=(record,), name='moss-cleanup', daemon=True)
                 record['thread'] = retry
                 try:retry.start()
                 except Exception:pass  # Retain a possibly-started original thread reference.
-            return (200 if record['cleaned'] else 202), self._summary(record)
+            return (200 if record['cleaned'] and not self._probe_unresolved(record) else 202), self._summary(record)
 
     def _retry_cleanup(self, record):
         try:
+            if self._probe_unresolved(record):self._cleanup_speaker_probe(record)
             if (not record['process_cleanup_verified'] and record['controller'] is not None
                     and record['controller_id'] is not None):
                 record['controller'].retry_cleanup(record['controller_id'])
@@ -851,11 +1138,16 @@ class MossJobs:
                     if self.results.is_deleted(sid):
                         record['history_snapshot'] = None
                         record['storage_pending'] = record['durable_result_available'] = False
+                        probe = record.get('speaker_probe')
+                        if probe is not None and not self._probe_unresolved(record):
+                            probe['commit_pending'] = False
+                            probe['state'] = 'probe_interrupted'
+                            self._drop_probe_staging(probe)
                     if record is self._live and record['cleaned']:
                         self._retire(record)
             except Exception:
                 record['purge_pending'] = True
-            return (not record['cleaned'] or record['purge_pending']
+            return (self._probe_unresolved(record) or not record['cleaned'] or record['purge_pending']
                     or bool(record['lease'] and not record['lease'].released))
         return False
 
@@ -876,6 +1168,11 @@ class MossJobs:
             if not record['cleaned'] and record['process_cleanup_verified']:
                 self._finish(record)
             if not record['cleaned']:return False
+            self._retry_probe_storage(record)
+            if record.get('speaker_probe',{}).get('commit_pending'):return False
+            probe = record.get('speaker_probe')
+            if probe is not None and probe.get('operation') is not None and not probe['operation'].cleaned:
+                if not self._cleanup_speaker_probe(record):return False
             try:
                 with self._gate():
                     if record['storage_pending']:self._persist_locked(record)
@@ -894,7 +1191,12 @@ class MossJobs:
         except Exception:pass
         record = self._live
         return {'enabled':self._enabled(), 'jobs_epoch':self.jobs_epoch,
-            'cleanup_pending':bool(self._pending_record) or bool(self.cell_source and self.cell_source.cleanup_pending) or bool(record and (not record['cleaned'] or record['purge_pending'] or (record['lease'] and not record['lease'].released))),
+            'cleanup_pending':bool(record and self._probe_unresolved(record)) or bool(self._pending_record) or bool(self.cell_source and self.cell_source.cleanup_pending) or bool(record and (not record['cleaned'] or record['purge_pending'] or (record['lease'] and not record['lease'].released))),
+            'speaker_probe_staging_bytes':self._probe_staging_bytes,
+            'speaker_probe_state':record.get('speaker_probe',{}).get('state') if record else None,
+            'speaker_probe_storage_pending':bool(record and record.get('speaker_probe',{}).get('commit_pending')),
+            'speaker_probe_cleanup_pending':bool(record and record.get('speaker_probe')
+                and record['speaker_probe'].get('operation') and not record['speaker_probe']['operation'].cleaned),
             'storage_pending':bool(record and record['storage_pending']),
             'result_reconciliation':self.results.reconciliation_status(),
             'accepted_jobs':len(self._records), 'epoch_capacity':MAX_ACCEPTED,
