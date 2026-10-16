@@ -6,8 +6,9 @@ schema, primary analysis path, model, dependency, version, or default. Success
 means all normalized PCM was accepted and EOS published/queued. Analysis can
 still be pending. Functional fake-analyzer tests do not establish acoustic
 quality, one-hour acoustic throughput, or real-time inference performance.
-The experimental `--append` / `--finalize` modes below add a bounded registry of
-separately normalized originals. The existing `--final` path and journals remain
+The opt-in `--append` / `--finalize` modes below add bounded, paged metadata for
+separately normalized originals. Fresh journals use append-v3; existing v1/v2
+journals retain their old policies without migration. The existing `--final` path and journals remain
 separate and compatible.
 
 ```sh
@@ -150,7 +151,9 @@ conflict. A different ID cannot reuse the same physical original. Identical PCM
 in distinct originals at their next contiguous placements is permitted and is
 not treated as an alias. If an input is incomplete, resume that input ID before
 adding another. A lost journal cannot adopt an existing capture; v1 and v2
-journals cannot migrate or reopen one another.
+journals cannot migrate or reopen one another; a saved v2 append journal is
+selected automatically and keeps its original limits. A v3 client never adopts
+archives or an existing capture when its exact checkpoint is missing.
 
 Append JSON distinguishes `input_complete`, `awaiting_input`, and
 `capture_finalized`; `frames` includes staged input, `published_frames` includes
@@ -160,44 +163,111 @@ and requires nonempty clean EOF for every registered original. Its intent is
 saved before EOS, fences all new IDs, and survives interruption. Finalization
 success still does not mean analysis is complete.
 
-### Bounded registry and recovery
+### Bounded v3 registry and recovery
 
-- `--max-inputs M` permits 1..32 originals, default 32 for a new journal. Omit it
-  on resume to reuse the frozen value; changing it conflicts. Originals total
-  at most 8 GiB across the registry, rather than 8 GiB per appended original.
-- Aggregate output remains at most two hours, 25 pages, and 105 source records.
-  This is a temporary experimental ceiling; it is not a long-duration claim.
-  Raising it also requires reviewing page/journal/name/backpressure bounds.
-- At most 16 separate original-owned pieces fit a page, matching the existing
-  server limit. Before admitting an input, the uploader reserves enough slots
-  for it to fill the current page: retained pieces + ceil(remaining frames /
-  1,920,000) must be <=16. Too many tiny originals are refused before admission;
-  retry or finalize the existing tail. No automatic origin merging occurs.
-- Per-input journal records are <=8 KiB, pieces <=1 KiB, page control metadata
-  <=2 KiB, globals <=16 KiB, and all JSON <=512 KiB. Paths are <=4096 encoded
-  bytes, IDs <=128 ASCII characters. Diagnostics are bounded, not cumulative.
-- One page contains at most 9,408,704 WAV bytes. With allocation rounding,
-  metadata replacement and safety allowance it remains within the existing
-  12 MiB spool budget. Retained tail, partial writes, and cleanup remnants all
-  count. Only missing page capacity is reserved beside a tail. The existing
-  64 KiB I/O, 512 MiB sampled RSS, deadline, and 5.5 GiB free-disk bounds remain.
+Fresh append-v3 journals default to **12 logical hours and 64 original IDs**.
+The duration is normalized emitted PCM, independent of the invocation timeout.
+Caller order determines placement; names, dates and timestamps are not sorted or
+used for automatic alignment.
 
-The v2 journal records each original's identity/normalization recipe, stable ID,
-global start, local emitted count and clean EOF. Each piece retains input-local
-and capture ranges plus WAV/PCM hashes, keys and server IDs. This remains client
-bookkeeping; existing server source/range receipts are authoritative.
+- `--max-hours H`: integer 1..48, default 12 on creation.
+- `--max-inputs M`: integer 1..128, default 64 on creation.
+- `--max-original-bytes B`: aggregate read-only original-file bytes, default
+  8 GiB, explicit finite maximum 64 GiB. This does not authorize server storage.
+- Omit these options on resume to load their frozen values. An explicit conflict
+  refuses before new decode or HTTP mutation. The v1 finalized-file mode rejects
+  append-only options; saved v2 journals retain 2 hours / at most 32 originals
+  and their old journal/reader behavior, with no automatic migration.
+- At 48 hours: 2,764,800,000 frames, at most 588 pages, and 16,458 derived
+  10.5-second work chunks. The final page is 222 seconds and its final work
+  chunk is 24,000 frames. Page/source geometry remains 294/120 seconds.
+- At most 16 original-owned pieces fit a page. The conservative total piece
+  bound is 16 × configured maximum pages (9,408 at 48 hours). Input admission
+  reserves enough remaining slots to finish the pending page. Many tiny originals
+  can exhaust those slots; retry or explicitly finalize the existing tail.
+- Checkpoint and HTTP JSON remain at most 512 KiB. One active input record is
+  at most 8 KiB; one piece at most 1 KiB; page controls at most 2 KiB. An immutable
+  released-page archive is at most 32 KiB, a completed-input archive 12 KiB.
+  Paths are at most 4096 UTF-8 bytes; IDs at most 128 ASCII characters.
+- One page contains at most 9,408,704 WAV bytes. The allocated PCM spool limit
+  remains 12 MiB, with 32 MiB allocated metadata and 48 MiB total owned client
+  state caps. Controls, directories, atomic temporaries, and retiring PCM count.
+  Unsupported allocation geometry fails explicitly rather than enlarging limits.
+- The independent 5.5 GiB free-space floor, 64 KiB I/O, 512 MiB sampled RSS guard,
+  30-second HTTP timeout, and 12-hour invocation deadline remain unchanged.
 
-Every invocation rehashes registered originals and checks their recipes before
-HTTP or cleanup. Completed originals are not decoded again. Only an incomplete
-active original is replayed from its beginning: saved published spans are
-stream-hashed without disk regeneration; pending pieces are checked in place.
-After exact source/server reconciliation, missing active-input pieces may be
-rebuilt from matching replay. Missing/corrupt completed-original tail, changed
-server history, extra pages or EOS without a saved request fails closed.
-Only exact owned uncommitted or released files are cleaned; another original's
-pending tail stays. Piece and cursor checkpoints are atomic. Seal/finish retries
-replay their saved immutable requests even after a published GET. No conflict
-creates replacement IDs, captures, or duplicated work.
+The checkpoint keeps scalar counters/frontiers, one active input, one active
+page, one archive transition, and one bounded retirement list. Completed original
+metadata and released pages are immutable numbered JSON archives. All original
+IDs/descriptors/recipes and source request/placement/hash/server receipts remain
+available; this is client bookkeeping, not new server provenance.
+
+Startup validates the entire local history and its committed terminal hashes
+before any archive drives mutation. Two compact authenticity-only bytearrays
+retain at most (588 + 128) × 32 = **22,912 bytes**, with no historical JSON record
+or remote-response map. Every later archive read verifies its exact bytes again
+against those terminal-checked bindings. A forward hash-chain prefix alone is
+never treated as authenticated. Missing, reordered, altered, unbound, aliased,
+or unexpected archive files fail closed and are preserved for diagnosis.
+
+Archive intent is saved before writing, syncing, and atomically promoting a receipt without replacing an existing file.
+The exact two-name hardlink crash window is recognized only when both names,
+inode, link count, canonical bytes and durable transition intent match. Its
+temporary is removed only after full committed-history reconciliation; every
+other archive alias is refused. Only
+an exact saved intent can reconcile a crash-created archive. The checkpoint
+then commits its count/head and a page-bound retirement list; owned PCM is
+removed and its directory synced before retirement is cleared. No next page
+starts while the preceding page is retiring. Checkpoint `.next`, archive
+`archive.next`, and simultaneous retiring PCM are included in reservations.
+ENOSPC, EDQUOT, fsync, or rename failures stop without claiming EOS. The last
+committed checkpoint remains authoritative; a newer-looking temporary is never
+adopted. The original and unrelated files are never automatically deleted.
+
+Every invocation rehashes registered originals and checks their decoder recipes
+before HTTP replay or cleanup. Completed originals are not decoded again. Only
+an incomplete active original is replayed from its beginning: published spans
+are stream-hashed without regeneration; pending pieces are checked in place.
+Missing active-input pieces may be rebuilt after exact reconciliation. A missing
+or corrupt completed-original tail remains fatal.
+
+All saved remote pages and capture totals are reconciled before mutation.
+Released seal requests are then streamed and exactly replayed, because page GET
+does not expose their frozen seal key/revision. Restart is O(history) in requests
+and original bytes, not constant time; metadata-only replay is not a fresh
+old-audio integrity check. Changes to server IDs, hashes, placement, page sets,
+extra EOS, or frozen request identity cannot create replacement captures or IDs.
+
+Worker backpressure scans restart at cursor zero and inspect every row up to the
+configured duration-derived chunk cap, including failures beyond row 1500. A
+fixed **16-row batch** conservatively fits long Unicode errors within the
+unchanged 512 KiB wire cap, even with escaped JSON. At 48 hours this permits at
+most 1029 responses. Sparse global rowids are valid; wrong/non-progress cursors,
+excess rows, and failed/paused/cancelled work fail explicitly. Exact-full batches
+require a final empty sentinel when needed. No persistent cursor can hide a
+previously observed row that later fails.
+
+At the exact duration limit, only a bounded EOF probe is permitted; one extra
+frame refuses without creating page 589 or implying EOS. Finalization intent
+still requires clean EOF for every input, fences new IDs, and uses the original
+exact seal or finish request after uncertain responses.
+
+### Server capacity is separate
+
+A 48-hour logical metadata fixture is not a 48-hour physical ingest or acoustic
+qualification. Source plus derived canonical PCM alone is 11,059,200,000 bytes;
+existing reservations require at least 11,368,005,632 bytes before headers,
+allocation rounding, prior data, and caller originals. Default server retained
+copy limits (1 GiB per capture / 4 GiB global) must refuse this workload.
+Explicit server `--recording-capture-mib` and `--recording-total-mib` settings
+accept 1..65536 MiB but never bypass allocation census, concurrent reservations,
+or the free-space floor. Capacity failures are HTTP 507 and stop; genuine queue
+or lock contention remains HTTP 429 and retries within the deadline.
+
+Primary-duration support does not qualify long optional seam/MOSS retention.
+Existing optional owner capacities remain 4,096 source receipts, 1,024 cells,
+and 2,056 compact core commits. Capacity gaps must remain visible; no automatic
+original or receipt deletion is added here.
 
 Broader CLI overlap remains unsupported. The existing server API can compare
 known-coordinate overlapping PCM and preserve exact aliases or report conflicts;
@@ -226,3 +296,43 @@ Short fault cases cover EOF/tail/request/cleanup/finalize crashes, missing activ
 tail reconstruction, ownership/integrity failures, frozen registry/slot/frame
 bounds and legacy compatibility. These are validation requirements, not a claim
 that hour-long acoustic inference or real-time throughput has been qualified.
+
+The long-capture validation target additionally includes actual append-v3 archive
+serialization/recovery for synthetic 12/24/48-hour metadata, 588 pages and
+16,458 work rows, registry maxima, page 99/100 and 587/588, frozen-cap conflicts,
+late worker failures, post-scan archive tampering, and archive/checkpoint/retirement
+crash points. Synthetic metadata contains no 48-hour audio and cannot replace
+the existing exact two-hour real-PCM/HTTP conservation gate. Qualification is
+reported only for tests actually executed against the final pinned source.
+
+
+### Executed dev15 checks (2026-10-16)
+
+The current implementation passed 242 focused cases, seven long-metadata cases,
+and the exact two-input/two-hour PCM/HTTP case: 250 selected model-free cases.
+This is not a full repository suite. The implementation and test bytes remained
+identical throughout; only this guide and the README were then updated with
+these results.
+
+The two-hour case passed in 34.63 seconds with 97,017,856 bytes sampled peak RSS
+and 706,904,064 bytes peak aggregate candidate artifacts. Its assertions cover
+115,200,000 frames, 25 pages, 74 sources, 686 work chunks (120,000 frames in the
+last chunk), exact streamed PCM conservation, source-range lineage, lost-response
+replay, completed-original decode avoidance, and idempotent finalization. It
+uses real HTTP and fake analysis, not hour-long acoustic inference.
+
+The actual v3 journal metadata fixture represented 48 originals, 588 pages,
+1,787 source pieces, and 16,458 derived work chunks. Maximum checkpoint size
+was 3,161 bytes; allocated history metadata was 2,646,016 bytes and terminal
+authentication bindings were 20,352 bytes. Seven metadata cases completed in
+27.62 seconds with 96,829,440 bytes sampled peak RSS. These contain no 48-hour
+PCM. Existing schema tests exercised all 16,458 rows and late-page cursors;
+the separate namespace fixture contained 18,221 ordinary zero-byte files.
+
+The measurements also expose existing history-dependent costs: at 48-hour
+metadata scale the stream-wake query used 724,256 SQLite VM steps, and the
+namespace census visited 18,224 entries with 18,223 stats. These are not constant
+costs or a long-duration throughput guarantee. Optional receipt/core capacity,
+physical storage admission, real model latency and 12–48-hour wall-clock
+reliability remain separate limitations. Prior dev14 acoustic and installation
+results are historical; no new dev15 acoustic result is implied.

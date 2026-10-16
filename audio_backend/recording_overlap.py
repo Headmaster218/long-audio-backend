@@ -47,6 +47,10 @@ MAX_HISTORY_PER_SOURCE = 13
 MAX_HISTORY_REFS = 208
 
 
+class RecordingStorageCapacityError(RuntimeError):
+    """Retained recording copies need explicit storage capacity before retry."""
+
+
 def init_schema(db):
     db.execute('''CREATE TABLE IF NOT EXISTS recording_batches (
         id TEXT PRIMARY KEY, session_id TEXT NOT NULL UNIQUE REFERENCES sessions(id),
@@ -1033,7 +1037,7 @@ class RecordingOverlap:
             if (total + reserve > self.settings.recording_total_bytes
                     or capture + reserve > self.settings.recording_capture_bytes
                     or page and own + reserve > MAX_BATCH_BYTES + METADATA_RESERVATION):
-                raise OverflowError('Recording page/capture/retained-copy quota reached')
+                raise RecordingStorageCapacityError('Recording page/capture/retained-copy quota reached')
             self._page_resources(reserve + metadata + sum(r['bytes'] for r in self._reservations.values()))
             token = uuid.uuid4().hex
             self._reservations[token] = {'batch_id': batch['id'], 'page_id': page['id'] if page else None, 'bytes': reserve}

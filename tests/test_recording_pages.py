@@ -1,15 +1,20 @@
 """Model-free sealed-page continuation tests using real WAV files and SQLite.
 
 These fixtures test ownership, fences, lifecycle and quotas, not acoustic quality.
-No worker, model, network service or downloaded artifact is required. The largest
-fixture retains about 86 MiB of original and canonical PCM at the real 128-work
-backpressure boundary. Test runners must keep their temporary root in this copy.
+No worker, model, network service or downloaded artifact is required. Logical
+48-hour cases exercise existing metadata/indexes with absent audio, plus a
+separate zero-byte filename/stat census. The largest real-PCM fixture retains
+about 86 MiB at the 128-work backpressure boundary. Test runners must keep their
+temporary root in this copy.
 """
 from array import array
 from contextlib import contextmanager
 import errno
 import hashlib
 import io
+import inspect
+import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -551,11 +556,11 @@ def test_configurable_quota_counts_uncommitted_and_orphan_copies(fixture, suffix
     total, capture, own = recording._page_census(batch['id'], page['id'])
     assert (total, capture, own) == (initial_total + charge, initial_capture + charge, initial_page + charge)
     store.settings.recording_capture_bytes = capture - 1
-    with pytest.raises(OverflowError, match='quota'):
+    with pytest.raises(mod.RecordingStorageCapacityError, match='quota'):
         recording.reserve_page_bytes(batch, page, 0)
     store.settings.recording_capture_bytes = 1024**3
     store.settings.recording_total_bytes = total - 1
-    with pytest.raises(OverflowError, match='quota'):
+    with pytest.raises(mod.RecordingStorageCapacityError, match='quota'):
         recording.reserve_page_bytes(batch, page, 0)
     store.settings.recording_total_bytes = total + 4096
     token = recording.reserve_page_bytes(batch, page, 1)
@@ -571,7 +576,7 @@ def test_fixed_page_quota_includes_allocated_staging_copy(fixture):
     # Sparse size is charged even if the filesystem has not allocated blocks.
     with path.open('wb') as output:
         output.truncate(32 * 1024**2 + 1)
-    with pytest.raises(OverflowError, match='quota'):
+    with pytest.raises(mod.RecordingStorageCapacityError, match='quota'):
         recording.reserve_page_bytes(batch, page, 0)
     assert recording.page_status(sid, CAPTURE, 1)['sources'] == []
     assert path.exists()
@@ -602,7 +607,7 @@ def test_concurrent_reservations_cannot_both_spend_last_slot(fixture, setting):
         thread.join(3)
         assert not thread.is_alive()
     assert len(tokens) == 1 and len(failures) == 1
-    assert isinstance(failures[0], OverflowError)
+    assert isinstance(failures[0], mod.RecordingStorageCapacityError)
     recording.release_reservation(tokens[0])
     retry = recording.reserve_page_bytes(batch, page, 4096)
     recording.release_reservation(retry)
@@ -1279,3 +1284,559 @@ def test_noncapacity_materialization_oserror_stays_integrity_unresolved(fixture,
     assert paths(store, sid) == before
     assert recording.page_status(sid, CAPTURE, 1) == first
     assert all(Path(row['path']).exists() for row in before[0] + before[1])
+
+
+@pytest.mark.parametrize('overrides,expected', [([], (1024, 4096)),
+    (['--recording-capture-mib', '12288', '--recording-total-mib', '65536'], (12288, 65536))])
+def test_recording_copy_budget_launcher_defaults_and_propagation(tmp_path, monkeypatch, overrides, expected):
+    from audio_backend.__main__ import main
+    import audio_backend.app as application
+    import uvicorn
+    calls = []
+    monkeypatch.setattr(application, 'create_app', lambda settings: settings)
+    monkeypatch.setattr(uvicorn, 'run', lambda settings, **kwargs: calls.append((settings, kwargs)))
+    main(['--data-dir', str(tmp_path), *overrides])
+    settings, options = calls.pop()
+    assert (settings.recording_capture_bytes, settings.recording_total_bytes) == tuple(n * 1024**2 for n in expected)
+    assert settings.recording_disk_reserve_bytes == 11 * 1024**3 // 2
+    assert settings.disk_reserve_bytes == 2 * 1024**3
+    assert options == {'host': '127.0.0.1', 'port': 8765, 'workers': 1}
+    assert not calls and not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('flag', ['--recording-capture-mib', '--recording-total-mib'])
+@pytest.mark.parametrize('value', ['0', '-1', '65537', '1.5', 'nan', 'inf'])
+def test_recording_copy_budget_launcher_rejects_unbounded_or_noninteger_values(flag, value):
+    from audio_backend.__main__ import main
+    with pytest.raises(SystemExit) as failure:
+        main([flag, value])
+    assert failure.value.code == 2
+
+
+def test_recording_launcher_has_no_free_floor_lowering_flag():
+    from audio_backend.__main__ import main
+    with pytest.raises(SystemExit) as failure:
+        main(['--recording-disk-reserve-mib', '0'])
+    assert failure.value.code == 2
+
+
+@pytest.mark.parametrize('operation', ['create_page', 'reserve_page_bytes', 'seal_page'])
+@pytest.mark.parametrize('failure,expected', [(mod.RecordingStorageCapacityError('copy quota'), 507),
+    (OSError(errno.ENOSPC, 'full disk'), 507), (OSError(errno.EDQUOT, 'disk quota'), 507),
+    (OSError(errno.EIO, 'integrity failure'), 500), (OverflowError('queue/count busy'), 429)])
+def test_page_http_capacity_mapping_is_narrow(tmp_path, monkeypatch, operation, failure, expected):
+    cfg = Settings(data_dir=tmp_path, recording_disk_reserve_bytes=0,
+                   disk_reserve_bytes=0, start_worker=False)
+    app = create_app(cfg)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        sid = client.post('/sessions', json={'name': 'capacity mapping'}).json()['id']
+        url = f'/sessions/{sid}/recordings/{CAPTURE}/pages'
+        if operation != 'create_page':
+            assert client.post(url, json={'page_number': 1, 'capture_origin_frame': 0}).status_code == 202
+        def fail(*args, **kwargs):
+            raise failure
+        with monkeypatch.context() as patch:
+            patch.setattr(app.state.recordings, operation, fail)
+            if operation == 'create_page':
+                response = client.post(url, json={'page_number': 1, 'capture_origin_frame': 0})
+            elif operation == 'reserve_page_bytes':
+                response = client.put(url + '/1/sources?source_start_frame=0', content=wav_bytes(pcm(1)),
+                                      headers={'Idempotency-Key': 'capacity.source'})
+            else:
+                response = client.post(url + '/1/seal', json={'expected_revision': 0,
+                    'idempotency_key': 'capacity.seal', 'end_frame': 0, 'eos': True})
+        assert response.status_code == expected
+        assert ('retry-after' in response.headers) is (expected == 429)
+        assert app.state.recordings._reservations == {}
+        # An error never leaves the HTTP upload lock held.
+        retry = client.post(url, json={'page_number': 1, 'capture_origin_frame': 0})
+        assert retry.status_code == 202
+
+
+def test_page_http_free_floor_and_upload_lock_keep_distinct_statuses(tmp_path, monkeypatch):
+    cfg = Settings(data_dir=tmp_path, start_worker=False)
+    app = create_app(cfg)
+    with TestClient(app) as client:
+        sid = client.post('/sessions', json={'name': 'floor and lock'}).json()['id']
+        url = f'/sessions/{sid}/recordings/{CAPTURE}/pages'
+        floor = cfg.recording_disk_reserve_bytes
+        monkeypatch.setattr(resources, 'tree_rss', lambda: 0)
+        monkeypatch.setattr(resources.psutil, 'virtual_memory', lambda: SimpleNamespace(available=1024**3))
+        monkeypatch.setattr(resources.shutil, 'disk_usage', lambda path: SimpleNamespace(free=floor - 1))
+        refused = client.post(url, json={'page_number': 1, 'capture_origin_frame': 0})
+        assert refused.status_code == 507 and 'reserve' in refused.json()['detail']
+        with app.state.store.db() as db:
+            assert db.execute('SELECT COUNT(*) FROM recording_pages').fetchone()[0] == 0
+            assert db.execute('SELECT COUNT(*) FROM recording_batches').fetchone()[0] == 0
+        endpoint = next(route.endpoint for route in app.routes if route.name == 'recording_page_create')
+        lock = inspect.getclosurevars(endpoint).nonlocals['upload_lock']
+        with lock:
+            assert client.post(url, json={'page_number': 1, 'capture_origin_frame': 0}).status_code == 429
+        monkeypatch.setattr(resources.shutil, 'disk_usage', lambda path: SimpleNamespace(free=16 * 1024**3))
+        assert client.post(url, json={'page_number': 1, 'capture_origin_frame': 0}).status_code == 202
+        monkeypatch.setattr(resources.shutil, 'disk_usage', lambda path: SimpleNamespace(free=floor - 1))
+        response = client.put(url + '/1/sources?source_start_frame=0', content=wav_bytes(pcm(Q)),
+                              headers={'Idempotency-Key': 'floor.source'})
+        assert response.status_code == 507
+        monkeypatch.setattr(resources.shutil, 'disk_usage', lambda path: SimpleNamespace(free=16 * 1024**3))
+        assert client.put(url + '/1/sources?source_start_frame=0', content=wav_bytes(pcm(Q)),
+                         headers={'Idempotency-Key': 'floor.source'}).status_code == 202
+        monkeypatch.setattr(resources.shutil, 'disk_usage', lambda path: SimpleNamespace(free=floor - 1))
+        request = {'expected_revision': 1, 'idempotency_key': 'floor.seal', 'end_frame': Q}
+        assert client.post(url + '/1/seal', json=request).status_code == 507
+        assert client.get(url + '/1').json()['state'] == 'sealed'
+        monkeypatch.setattr(resources.shutil, 'disk_usage', lambda path: SimpleNamespace(free=16 * 1024**3))
+        assert client.post(url + '/1/seal', json=request).json()['released']
+
+
+@pytest.mark.parametrize('error_number', [errno.ENOSPC, errno.EDQUOT, errno.EIO])
+def test_page_http_generated_errno_retains_frozen_identity(tmp_path, monkeypatch, error_number):
+    cfg = Settings(data_dir=tmp_path, recording_disk_reserve_bytes=0,
+                   disk_reserve_bytes=0, start_worker=False)
+    app = create_app(cfg)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        recording, store = app.state.recordings, app.state.store
+        sid = client.post('/sessions', json={'name': 'exact errno retry'}).json()['id']
+        first = first_page(recording, sid)
+        create(recording, sid, 2)
+        put(recording, sid, 2, 'second', pcm(2 * Q, Q), Q)
+        batch, page = batch_and_page(recording, sid, 2)
+        before = paths(store, sid)
+        url = f'/sessions/{sid}/recordings/{CAPTURE}/pages/2/seal'
+        request = {'expected_revision': 1, 'idempotency_key': 'http.exact', 'end_frame': 3 * Q}
+        target = recording.uploads / f"ro-{batch['id']}-page-{page['id']}-work-002.part"
+        with monkeypatch.context() as patch:
+            hits = inject_generated_failure(patch, 'rename', error_number, target)
+            failed = client.post(url, json=request)
+        assert hits == ['rename']
+        assert failed.status_code == (500 if error_number == errno.EIO else 507)
+        current = recording.page_status(sid, CAPTURE, 2)
+        assert current['state'] == ('unresolved' if error_number == errno.EIO else 'sealed')
+        assert [row['id'] for row in current['sources']] == [before[0][-1]['id']]
+        assert current['work_chunks'] == current['ranges'] == [] and not current['released']
+        assert paths(store, sid) == before and recording.page_status(sid, CAPTURE, 1) == first
+        with store.db() as db:
+            frozen = tuple(db.execute('SELECT seal_key,seal_request,revision FROM recording_pages WHERE id=?', (page['id'],)).fetchone())
+        assert frozen[0] == request['idempotency_key'] and frozen[2] == 1
+        assert client.post(url, json={**request, 'idempotency_key': 'changed'}).status_code == 409
+        retry = client.post(url, json=request)
+        assert retry.status_code == 202
+        assert retry.json()['released'] is (error_number != errno.EIO)
+        with store.db() as db:
+            assert tuple(db.execute('SELECT seal_key,seal_request,revision FROM recording_pages WHERE id=?', (page['id'],)).fetchone()) == frozen
+        assert recording._reservations == {}
+
+
+@pytest.mark.parametrize('setting', ['recording_capture_bytes', 'recording_total_bytes'])
+def test_default_budget_rejects_projected_48h_charge_with_507_and_explicit_retry(tmp_path, monkeypatch, setting):
+    cfg = Settings(data_dir=tmp_path, recording_disk_reserve_bytes=0,
+                   disk_reserve_bytes=0, start_worker=False)
+    app = create_app(cfg)
+    with TestClient(app) as client:
+        sid = client.post('/sessions', json={'name': 'synthetic accounting only'}).json()['id']
+        recording = app.state.recordings
+        frames = 48 * 3600 * RATE
+        projected = frames * 4 + 589 * mod.METADATA_RESERVATION
+        assert projected == 11368005632
+        assert (cfg.recording_capture_bytes, cfg.recording_total_bytes) == (1024**3, 4 * 1024**3)
+        # Synthetic census, no audio allocation. Leave only the selected default
+        # undersized so both independent hard budgets are exercised.
+        setattr(cfg, 'recording_total_bytes' if setting == 'recording_capture_bytes' else 'recording_capture_bytes', 64 * 1024**3)
+        monkeypatch.setattr(recording, '_page_census', lambda *args: (projected, projected, 0))
+        monkeypatch.setattr(recording, '_page_resources', lambda additional=0: None)
+        url = f'/sessions/{sid}/recordings/{CAPTURE}/pages'
+        body = {'page_number': 1, 'capture_origin_frame': 0}
+        assert client.post(url, json=body).status_code == 507
+        assert not recording._reservations
+        setattr(cfg, setting, 64 * 1024**3)
+        assert client.post(url, json=body).status_code == 202
+
+
+def seed_logical_metadata(store, recording, sid, hours, origin=100003):
+    """Existing schema/index fixture only: absent audio and no owner receipts.
+
+    Hold at most one page's three source descriptors; insert each work/map row
+    immediately. Synthetic completed status is not inference/publication proof.
+    """
+    frames = hours * 3600 * RATE
+    pages = math.ceil(frames / (28 * Q))
+    chunks = math.ceil(frames / Q)
+    bid = f'{1:032x}'
+    stream = 'recording.' + bid
+    with store.db() as db:
+        db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,mode,state,
+            capture_origin_frame,capture_end_frame,eos,revision) VALUES(?,?,?,0,'sealed_pages','queued',?,?,1,?)''',
+            (bid, sid, CAPTURE, origin, origin + frames, pages))
+        for number in range(1, pages + 1):
+            pid = f'{1000 + number:032x}'
+            start = (number - 1) * 28 * Q
+            end = min(frames, number * 28 * Q)
+            sources = []
+            for offset in range(start, end, mod.MAX_SOURCE_FRAMES):
+                source_id = f'{100000 + number * 16 + len(sources):032x}'
+                source_frames = min(mod.MAX_SOURCE_FRAMES, end - offset)
+                sources.append((source_id, offset, source_frames))
+            db.execute('''INSERT INTO recording_pages(id,batch_id,page_number,revision,state,released,
+                start_frame,end_frame,eos,created) VALUES(?,?,?,?,'published',1,?,?,?,0)''',
+                (pid, bid, number, len(sources), origin + start, origin + end, int(number == pages)))
+            for source_id, offset, source_frames in sources:
+                db.execute('''INSERT INTO recording_sources(id,batch_id,page_id,idempotency_key,digest,path,
+                    frames,bytes,source_start_frame,format,created) VALUES(?,?,?,?,?,?,?,?,?,?,0)''',
+                    (source_id, bid, pid, 'synthetic.' + source_id, 'a' * 64,
+                     str(recording.uploads / f'ro-{bid}-page-{pid}-source-{source_id}.audio'),
+                     source_frames, source_frames * 2 + 44, origin + offset, mod.FORMAT))
+            for offset in range(start, end, Q):
+                position = offset // Q
+                cid = f'{1000000 + position:032x}'
+                size = min(Q, end - offset)
+                db.execute('''INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,
+                    timeline_start,status,created) VALUES(?,?,?,?,?,?,?,'completed',0)''',
+                    (cid, sid, f'{stream}.{position}', 'b' * 64,
+                     str(recording.uploads / f'ro-{bid}-page-{pid}-work-{position:03}.audio'), size / RATE, offset / RATE))
+                db.execute('''INSERT INTO stream_chunks(chunk_id,session_id,stream_id,position,
+                    stream_final,upload_stream_final) VALUES(?,?,?,?,?,?)''',
+                    (cid, sid, stream, position, int(position == chunks - 1), int(position == chunks - 1)))
+                db.execute('''INSERT INTO recording_work(chunk_id,batch_id,page_id,position,frames,bytes,
+                    capture_start_frame,native_receipt_status,receipt_state) VALUES(?,?,?,?,?,?,?,'disabled','gap')''',
+                    (cid, bid, pid, position, size, size * 2 + 44, origin + offset))
+                for source_id, source_start, source_frames in sources:
+                    a, b = max(offset, source_start), min(offset + size, source_start + source_frames)
+                    if a < b:
+                        db.execute('''INSERT INTO recording_ranges(batch_id,source_id,chunk_id,source_start_frame,
+                            capture_start_frame,work_start_frame,frames,relation) VALUES(?,?,?,?,?,?,?,'owner')''',
+                            (bid, source_id, cid, a - source_start, origin + a, a - offset, b - a))
+        db.execute('UPDATE sessions SET timeline_end=? WHERE id=?', (frames / RATE, sid))
+    return {'frames': frames, 'pages': pages, 'chunks': chunks, 'origin': origin, 'batch_id': bid, 'stream_id': stream}
+
+
+def metadata_query_observations(store, recording, sid, geometry, monkeypatch):
+    """Count actual SQLite VM instructions; report scans without timing gates."""
+    report = {}
+    with store.db() as db:
+        @contextmanager
+        def borrowed():
+            yield db
+        with monkeypatch.context() as patch:
+            patch.setattr(store, 'db', borrowed)
+            def measure(name, operation):
+                steps = [0]
+                def count():
+                    steps[0] += 1
+                    return 0
+                db.set_progress_handler(count, 1)
+                try:
+                    result = operation()
+                finally:
+                    db.set_progress_handler(None, 0)
+                report[name] = steps[0]
+                db.commit()
+                return result
+            tail = geometry['chunks'] - 1
+            cid = f'{1000000 + tail:032x}'
+            measure('capture_summary_vm', lambda: recording.status(sid, CAPTURE))
+            measure('page_list_vm', lambda: recording.list_pages(sid, CAPTURE, after=max(0, geometry['pages'] - 32)))
+            measure('page_detail_vm', lambda: recording.page_status(sid, CAPTURE, geometry['pages']))
+            measure('historical_position_vm', lambda: db.execute('SELECT * FROM recording_work WHERE batch_id=? AND position=?',
+                                                               (geometry['batch_id'], tail)).fetchone())
+            for label, start in [('early', 1.25), ('middle', geometry['frames'] / RATE / 2),
+                                 ('tail', geometry['frames'] / RATE - 61.25)]:
+                parts = measure('context_' + label + '_vm', lambda: boundary.context_parts(store, {'id': cid}, start, start + 60))
+                assert sum(part['read_duration'] for part in parts) == pytest.approx(60)
+            db.execute("UPDATE chunks SET status='waiting_input' WHERE id=?", (cid,))
+            measure('global_queue_admission_vm', lambda: store._check_queue_limit(db, sid, geometry['stream_id'], additional=1))
+            measure('stream_wake_vm', lambda: boundary._wake_published_stream(db, sid, geometry['stream_id']))
+            assert db.execute('SELECT status FROM chunks WHERE id=?', (cid,)).fetchone()[0] == 'queued'
+            db.execute("UPDATE chunks SET status='completed' WHERE id=?", (cid,))
+            queries = {
+                'page_list': ('SELECT * FROM recording_pages WHERE batch_id=? AND page_number>? ORDER BY page_number LIMIT ?',
+                              (geometry['batch_id'], geometry['pages'] - 1, 32)),
+                'page_ranges': ('''SELECT r.source_id,r.chunk_id,r.source_start_frame FROM recording_ranges r
+                    JOIN recording_sources s ON s.id=r.source_id WHERE s.page_id=?
+                    ORDER BY r.source_id,r.source_start_frame LIMIT 913''', (f"{1000 + geometry['pages']:032x}",)),
+                'historical_position': ('SELECT * FROM recording_work WHERE batch_id=? AND position=?', (geometry['batch_id'], tail)),
+                'chunk_cursor': ('SELECT rowid,id,status FROM chunks WHERE session_id=? AND rowid>? ORDER BY rowid LIMIT ?', (sid, 0, 500)),
+                'context': (boundary.CONTEXT_PARTS_SQL, (sid, geometry['stream_id'], 1.25)),
+            }
+            report['plans'] = {name: [row['detail'] for row in db.execute('EXPLAIN QUERY PLAN ' + sql, args)]
+                               for name, (sql, args) in queries.items()}
+    assert all(value > 0 for name, value in report.items() if name != 'plans')
+    assert any('SEARCH' in line and 'batch_id=? AND page_number>?' in line for line in report['plans']['page_list'])
+    assert any('SEARCH' in line and 'batch_id=? AND position=?' in line for line in report['plans']['historical_position'])
+    assert any('stream_time_end' in line for line in report['plans']['context'])
+    return report
+
+
+@pytest.mark.parametrize('hours,pages,chunks', [(2, 25, 686), (12, 147, 4115), (24, 294, 8229), (48, 588, 16458)])
+def test_logical_long_metadata_existing_indexes_summary_details_and_http_cursors(fixture, monkeypatch, hours, pages, chunks, record_property):
+    store, recording, sid = fixture
+    geometry = seed_logical_metadata(store, recording, sid, hours)
+    assert (geometry['pages'], geometry['chunks']) == (pages, chunks)
+    summary = recording.status(sid, CAPTURE)
+    assert summary['page_count'] == summary['released_pages'] == pages
+    assert summary['capture_end_frame'] == geometry['origin'] + hours * 3600 * RATE
+    assert summary['eos'] and summary['pending_page'] is None
+    assert summary['limits']['max_pages'] == 1024
+    assert not {'sources', 'work_chunks', 'ranges'}.intersection(summary)
+    if hours == 48:
+        assert summary['capture_end_frame'] > 2**31 and geometry['frames'] == 2764800000
+    for limit in (32, 64):
+        cursor = seen = 0
+        while True:
+            result = recording.list_pages(sid, CAPTURE, after=cursor, limit=limit)
+            if not result['pages']:
+                assert result['next_cursor'] == cursor == pages
+                break
+            assert len(result['pages']) <= limit
+            for page in result['pages']:
+                seen += 1
+                assert page['page_number'] == seen
+                assert not {'sources', 'work_chunks', 'ranges'}.intersection(page)
+            assert result['next_cursor'] > cursor
+            cursor = result['next_cursor']
+        assert seen == pages
+    for number in sorted({1, pages, *[n for n in (99, 100, 587, 588) if n <= pages]}):
+        detail = recording.page_status(sid, CAPTURE, number)
+        assert len(detail['sources']) <= 3 and len(detail['work_chunks']) <= 28
+        assert len(detail['ranges']) <= 31
+        assert detail['optional_receipts'] == {'pending': 0, 'durable': 0, 'gaps': 0, 'ready': False}
+        source_ids = {row['id'] for row in detail['sources']}
+        assert all(row['source_id'] in source_ids for row in detail['ranges'])
+        assert sum(row['frames'] for row in detail['ranges']) == detail['end_frame'] - detail['start_frame']
+        assert len(json.dumps(detail).encode()) < 512 * 1024
+    final = recording.page_status(sid, CAPTURE, pages)
+    assert final['work_chunks'][-1]['position'] == chunks - 1
+    if hours == 48:
+        assert final['end_frame'] - final['start_frame'] == 222 * RATE
+        assert len(final['work_chunks']) == 22 and final['work_chunks'][-1]['frames'] == 24000
+        assert final['work_chunks'][-1]['position'] == 16457
+    with store.db() as db:
+        assert db.execute('SELECT COUNT(*) FROM stream_time_index').fetchone()[0] == chunks
+        for position in (999, 1000, 9999, 10000, 16457):
+            if position < chunks:
+                row = db.execute('SELECT * FROM recording_work WHERE batch_id=? AND position=?', (geometry['batch_id'], position)).fetchone()
+                assert row['capture_start_frame'] == geometry['origin'] + position * Q
+    observations = metadata_query_observations(store, recording, sid, geometry, monkeypatch)
+    record_property('logical_metadata_costs', json.dumps({'hours': hours, **observations}, sort_keys=True))
+    print('LOGICAL_METADATA_ONLY ' + json.dumps({'hours': hours, **observations}, sort_keys=True))
+    # Use the real existing HTTP cursor route, with no worker or audio IO.
+    # Fake completed rows must never enter analysis or owner receipt recovery.
+    app = create_app(store.settings)
+    with TestClient(app) as client:
+        cursor = seen = responses = 0
+        while True:
+            response = client.get(f'/sessions/{sid}/chunks', params={'after': cursor, 'limit': 500})
+            assert response.status_code == 200 and len(response.content) < 512 * 1024
+            result = response.json()
+            if not result['chunks']:
+                assert result['next_cursor'] == cursor
+                break
+            responses += 1
+            for row in result['chunks']:
+                assert row['cursor'] > cursor and row['id'] == f'{1000000 + seen:032x}'
+                cursor = row['cursor']
+                seen += 1
+            assert result['next_cursor'] == cursor
+        assert seen == chunks and responses == math.ceil(chunks / 500)
+        if hours == 48:
+            assert responses == 33
+    assert not any(recording.uploads.iterdir())
+    artifacts = sum(max(path.stat().st_size, path.stat().st_blocks * 512)
+                    for path in store.settings.data_dir.rglob('*') if path.is_file())
+    assert artifacts <= 128 * 1024**2
+
+
+def test_page_http_rejects_coordinates_outside_exact_integer_range(tmp_path):
+    cfg = Settings(data_dir=tmp_path, recording_disk_reserve_bytes=0,
+                   disk_reserve_bytes=0, start_worker=False)
+    with TestClient(create_app(cfg)) as client:
+        sid = client.post('/sessions', json={'name': 'exact integer bounds'}).json()['id']
+        url = f'/sessions/{sid}/recordings/{CAPTURE}/pages'
+        assert client.post(url, json={'page_number': 1, 'capture_origin_frame': 2**53}).status_code == 422
+        origin = 2**53 - 2
+        assert client.post(url, json={'page_number': 1, 'capture_origin_frame': origin}).status_code == 202
+        assert client.put(url + f'/1/sources?source_start_frame={2**53}', content=wav_bytes(pcm(1)),
+                          headers={'Idempotency-Key': 'too.large'}).status_code == 422
+        assert client.put(url + f'/1/sources?source_start_frame={origin}', content=wav_bytes(pcm(2)),
+                          headers={'Idempotency-Key': 'overflow.end'}).status_code == 409
+        assert client.post(url + '/1/seal', json={'expected_revision': 0,
+            'idempotency_key': 'too.large.end', 'end_frame': 2**53, 'eos': True}).status_code == 422
+        current = client.get(url + '/1').json()
+        assert current['revision'] == 0 and current['state'] == 'open' and not current['sources']
+
+
+def test_logical_maximum_page_projection_stays_under_client_json_cap(fixture):
+    store, recording, sid = fixture
+    geometry = seed_logical_metadata(store, recording, sid, 2)
+    pid = f'{1001:032x}'
+    with store.db() as db:
+        db.execute('DELETE FROM recording_ranges WHERE source_id IN (SELECT id FROM recording_sources WHERE page_id=?)', (pid,))
+        db.execute('DELETE FROM recording_sources WHERE page_id=?', (pid,))
+        for index in range(16):
+            source_id = f'{900000 + index:032x}'
+            db.execute('''INSERT INTO recording_sources(id,batch_id,page_id,idempotency_key,digest,path,
+                frames,bytes,source_start_frame,format,created) VALUES(?,?,?,?,?,?,?,?,?,?,0)''',
+                (source_id, geometry['batch_id'], pid, f'{index:03}' + 'k' * 125, 'a' * 64,
+                 str(recording.uploads / (source_id + '.audio')), mod.MAX_SOURCE_FRAMES,
+                 mod.MAX_SOURCE_BYTES, mod.MAX_COORDINATE - mod.MAX_SOURCE_FRAMES, mod.FORMAT))
+            # Projection-envelope stress only, deliberately not an audio-map
+            # authority fixture: max accepted row count and wide integer fields.
+            db.executemany('''INSERT INTO recording_ranges(batch_id,source_id,chunk_id,source_start_frame,
+                capture_start_frame,work_start_frame,frames,relation) VALUES(?,?,?,?,?,?,?,'exact_alias')''',
+                ((geometry['batch_id'], source_id, f'{1000000 + (n % 28):032x}', n,
+                  mod.MAX_COORDINATE - 1, mod.MAX_COORDINATE - 1, 1) for n in range(57)))
+        db.execute('''UPDATE recording_work SET native_receipt_status=?,receipt_id=?,receipt_attempts=2147483647
+            WHERE page_id=?''', ('x' * 128, 'r' * 128, pid))
+    detail = recording.page_status(sid, CAPTURE, 1)
+    assert (len(detail['sources']), len(detail['work_chunks']), len(detail['ranges'])) == (16, 28, 912)
+    assert len(json.dumps(detail).encode()) < 512 * 1024
+    with store.db() as db:
+        db.execute('''INSERT INTO recording_ranges(batch_id,source_id,chunk_id,source_start_frame,
+            capture_start_frame,work_start_frame,frames,relation) VALUES(?,?,?,?,?,?,?,'exact_alias')''',
+            (geometry['batch_id'], f'{900000:032x}', f'{1000000:032x}', 58, 58, 58, 1))
+    with pytest.raises(ValueError, match='projection exceeds'):
+        recording.page_status(sid, CAPTURE, 1)
+
+
+def test_logical_retained_namespace_census_counts_every_file_and_orphan(fixture, monkeypatch, record_property):
+    """18,221 empty files measure name/stat cost only, not 48h PCM throughput."""
+    store, recording, sid = fixture
+    create(recording, sid, 1, 0)
+    batch, page = batch_and_page(recording, sid)
+    retained = 1763 + 16458
+    for index in range(retained):
+        (recording.uploads / f"ro-{batch['id']}-historical-{index:05}.audio").touch(exist_ok=False)
+    orphan = recording.uploads / f"ro-{batch['id']}-page-{page['id']}-orphan.part"
+    orphan.write_bytes(b'orphan')
+    foreign = recording.uploads / ('ro-' + 'f' * 32 + '-other.audio')
+    foreign.write_bytes(b'foreign')
+    (recording.uploads / 'unrelated.txt').write_bytes(b'preserve')
+    actual_scan = os.scandir
+    counts = {'entries': 0, 'stats': 0}
+    class Entry:
+        def __init__(self, entry):
+            self.entry = entry
+            self.name, self.path = entry.name, entry.path
+        def stat(self, **kwargs):
+            counts['stats'] += 1
+            return self.entry.stat(**kwargs)
+        def is_file(self, **kwargs):
+            return self.entry.is_file(**kwargs)
+    @contextmanager
+    def scan(path):
+        with actual_scan(path) as entries:
+            def bounded_entries():
+                for entry in entries:
+                    counts['entries'] += 1
+                    yield Entry(entry)
+            yield bounded_entries()
+    with monkeypatch.context() as patch:
+        patch.setattr(mod.os, 'scandir', scan)
+        total, capture, own = recording._page_census(batch['id'], page['id'])
+        census = dict(counts)
+        assert census == {'entries': retained + 3, 'stats': retained + 2}
+        counts.update(entries=0, stats=0)
+        recording._cleanup_page_work(batch, page)
+        cleanup = dict(counts)
+        assert cleanup == {'entries': retained + 3, 'stats': 0}
+        def forbidden(*args, **kwargs):
+            pytest.fail('Read-only page/detail/list paths must not census/hash/materialize audio')
+        patch.setattr(recording, '_page_census', forbidden)
+        patch.setattr(mod, '_hash', forbidden)
+        patch.setattr(recording, '_materialize', forbidden)
+        recording.status(sid, CAPTURE)
+        recording.page_status(sid, CAPTURE, 1)
+        recording.list_pages(sid, CAPTURE)
+    orphan_bytes = max(orphan.stat().st_size, orphan.stat().st_blocks * 512)
+    foreign_bytes = max(foreign.stat().st_size, foreign.stat().st_blocks * 512)
+    # Empty files have no PCM allocation; census still stats every owned name.
+    assert (total, capture, own) == (2 * mod.METADATA_RESERVATION + orphan_bytes + foreign_bytes,
+        2 * mod.METADATA_RESERVATION + orphan_bytes, mod.METADATA_RESERVATION + orphan_bytes)
+    report = {'ordinary_zero_byte_files': retained, 'census': census, 'cleanup': cleanup,
+              'audio_allocated': False, 'physical_48h_ingestion': 'not_run'}
+    record_property('logical_namespace_costs', json.dumps(report, sort_keys=True))
+    print('LOGICAL_NAMESPACE_ONLY ' + json.dumps(report, sort_keys=True))
+    assert (recording.uploads / 'unrelated.txt').read_bytes() == b'preserve'
+    # Bound the actual test artifact allocation, including directory blocks.
+    allocated = sum(max(path.stat().st_size, path.stat().st_blocks * 512)
+                    for path in store.settings.data_dir.rglob('*'))
+    assert allocated <= 128 * 1024**2
+
+
+def test_optional_capacity_is_visible_separately_from_primary_page_release(native_pages, monkeypatch):
+    from audio_backend.native_owned_cell_store import Operation
+    native = native_pages
+    submitted = []
+    def at_capacity(kind, payload):
+        assert kind == 'receipt'
+        submitted.append(payload)
+        operation = Operation(kind, payload, native.owner._epoch)
+        operation.result = {'status': 'optional_unavailable', 'reason': 'source_receipt_capacity'}
+        operation.done.set()
+        operation.slot_released.set()
+        return operation
+    monkeypatch.setattr(native.owner, 'submit', at_capacity)
+    assert native_page(native, 1)['state'] == 'pending_receipts'
+    stable = receipt_payloads(native)
+    result = drain_page(native, 1)
+    assert result['released'] and submitted and receipt_payloads(native) == stable
+    assert result['optional_receipts'] == {'pending': 0, 'durable': 0, 'gaps': 1, 'ready': False}
+    cid = result['work_chunks'][0]['chunk_id']
+    assert result['work_chunks'][0]['native_receipt_status'] == 'source_receipt_capacity'
+    # This is a metadata visibility fixture, not a core/model execution claim.
+    with native.store.db() as db:
+        db.execute('UPDATE chunks SET metadata=? WHERE id=?',
+                   (json.dumps({'native_core_seam': {'status': 'core_receipt_row_capacity'}}), cid))
+    url = f'/sessions/{native.sid}/recordings/{CAPTURE}/pages/1'
+    public = native.client.get(url).json()
+    assert public['released'] and public['optional_receipts']['gaps'] == 1
+    row = public['work_chunks'][0]
+    assert row['receipt_state'] == 'gap' and row['native_receipt_status'] == 'source_receipt_capacity'
+    listed = native.client.get(f'/sessions/{native.sid}/chunks').json()['chunks'][0]
+    assert listed['id'] == cid and listed['status'] == 'queued' and 'metadata' not in listed
+    detail = native.client.get('/chunks/' + cid).json()
+    assert detail['metadata']['native_core_seam']['status'] == 'core_receipt_row_capacity'
+    assert detail['status'] == 'queued'  # Neither optional failure claims primary completion.
+
+
+@pytest.mark.parametrize('blocker,expected', [('copy_quota', 507), ('work_queue', 429)])
+def test_page_http_real_quota_or_queue_refusal_preserves_exact_retry(tmp_path, blocker, expected):
+    cfg = Settings(data_dir=tmp_path, recording_disk_reserve_bytes=0,
+                   disk_reserve_bytes=0, max_pending_chunks=1, start_worker=False)
+    app = create_app(cfg)
+    with TestClient(app) as client:
+        recording, store = app.state.recordings, app.state.store
+        sid = client.post('/sessions', json={'name': 'exact capacity retry'}).json()['id']
+        create(recording, sid, 1, 0)
+        receipt = put(recording, sid, 1, 'immutable.original', pcm(Q), 0)
+        batch, page = batch_and_page(recording, sid)
+        if blocker == 'copy_quota':
+            _, capture, _ = recording._page_census(batch['id'], page['id'])
+            cfg.recording_capture_bytes = capture
+        else:
+            other = store.create_session('independent queue work')['id']
+            path = recording.uploads / 'queue-fixture.audio'
+            path.write_bytes(wav_bytes(pcm(1)))
+            queued, _ = store.add_chunk(other, 'queue.fixture', hashlib.sha256(path.read_bytes()).hexdigest(), str(path), 1 / RATE)
+        url = f'/sessions/{sid}/recordings/{CAPTURE}/pages/1/seal'
+        request = {'expected_revision': 1, 'idempotency_key': 'same.frozen.request', 'end_frame': Q}
+        refused = client.post(url, json=request)
+        assert refused.status_code == expected
+        assert ('retry-after' in refused.headers) is (expected == 429)
+        current = recording.page_status(sid, CAPTURE, 1)
+        assert current['state'] == 'sealed' and not current['released']
+        assert current['sources'][0]['id'] == receipt['source_id']
+        assert current['work_chunks'] == [] and not recording._reservations
+        with store.db() as db:
+            frozen = tuple(db.execute('SELECT seal_key,seal_request,revision FROM recording_pages WHERE id=?', (page['id'],)).fetchone())
+        assert client.post(url, json={**request, 'idempotency_key': 'replacement'}).status_code == 409
+        if blocker == 'copy_quota':
+            cfg.recording_capture_bytes = 1024**3
+        else:
+            # Explicit synthetic queue completion; no inference claim.
+            with store.db() as db:
+                db.execute("UPDATE chunks SET status='completed' WHERE id=?", (queued,))
+        released = client.post(url, json=request)
+        assert released.status_code == 202 and released.json()['released']
+        assert client.post(url, json=request).json() == released.json()
+        with store.db() as db:
+            assert tuple(db.execute('SELECT seal_key,seal_request,revision FROM recording_pages WHERE id=?', (page['id'],)).fetchone()) == frozen

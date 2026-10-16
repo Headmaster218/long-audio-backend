@@ -18,6 +18,10 @@ def main(argv=None):
     parser.add_argument('--model-dir', type=Path, default=Path(os.getenv('AUDIO_MODEL_DIR','models')))
     parser.add_argument('--threads', type=int, choices=range(1,5), default=4)
     parser.add_argument('--memory-limit-gib', type=float, default=6.0)
+    parser.add_argument('--recording-capture-mib', type=int, default=1024,
+                        help='Explicit retained recording-copy budget per capture, 1..65536 MiB; free-space floor still applies')
+    parser.add_argument('--recording-total-mib', type=int, default=4096,
+                        help='Explicit global retained recording-copy budget, 1..65536 MiB; free-space floor still applies')
     parser.add_argument('--device', choices=('cpu','vulkan'), default='cpu')
     parser.add_argument('--asr-backend', choices=('whisper','sensevoice'), default='whisper', help='SenseVoice is opt-in with a custom model license; see README')
     parser.add_argument('--diarization-backend',choices=('pyannote','nemotron'),default='pyannote',help='Nemotron native is opt-in;8 local speakers per bounded epoch, separate model license')
@@ -60,6 +64,9 @@ def main(argv=None):
     parser.add_argument('--speaker-profile-strategy', choices=['max','centroid'], default='max', help='Score only explicit human-merged examples; never adapt from automatic matches')
     parser.add_argument('--speaker-calibration', help='Opt-in model-bound policy: eres2net-ami20-v1 or a local profile JSON; controls speaker thresholds and scoring')
     args = parser.parse_args(argv)
+    for name in ('recording_capture_mib','recording_total_mib'):
+        if not 1 <= getattr(args,name) <= 65536:
+            parser.error('--'+name.replace('_','-')+' must be an integer in 1..65536 MiB')
     if args.framemn_checkpoint and not args.framemn:
         parser.error('--framemn-checkpoint requires --framemn')
     if args.framemn and not args.framemn_checkpoint:
@@ -179,6 +186,8 @@ def main(argv=None):
     import uvicorn
     settings = Settings(data_dir=args.data_dir, model_dir=args.model_dir,
                         cpu_threads=args.threads, process_memory_limit_bytes=int(args.memory_limit_gib*2**30),
+                        recording_capture_bytes=args.recording_capture_mib*1024**2,
+                        recording_total_bytes=args.recording_total_mib*1024**2,
                         overlap_backend=args.overlap_backend,
                         dicow_python=str(args.dicow_python) if args.dicow_python else None,
                         dicow_model_dir=str(args.dicow_model_dir) if args.dicow_model_dir else None,

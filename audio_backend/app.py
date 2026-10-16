@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from fractions import Fraction
 import asyncio
+import errno
 import hashlib
 import hmac
 import json
@@ -177,7 +178,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     worker=Worker(store,settings,analyzer_factory)
     lock=InstanceLock(settings.data_dir/'instance.lock')
     upload_lock=threading.Lock()
-    from .recording_overlap import RecordingOverlap
+    from .recording_overlap import RecordingOverlap, RecordingStorageCapacityError
     recordings=RecordingOverlap(store)
     worker.recordings=recordings
     jobs=None
@@ -341,6 +342,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     async def capacity(request,exc):
         from starlette.responses import JSONResponse
         return JSONResponse({'detail':str(exc)},status_code=429,headers={'Retry-After':'30'})
+    @app.exception_handler(RecordingStorageCapacityError)
+    async def recording_storage_capacity(request,exc):
+        return JSONResponse({'detail':str(exc)},status_code=507)
 
     @app.get('/health')
     def health():
@@ -393,6 +397,10 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         if not upload_lock.acquire(blocking=False):
             raise HTTPException(429,'Another upload or recording finalization is active')
         try:return recordings.create_page(sid,capture_id,body.page_number,body.capture_origin_frame)
+        except RuntimeError as exc:raise HTTPException(507,str(exc))
+        except OSError as exc:
+            if exc.errno in (errno.ENOSPC,errno.EDQUOT):raise HTTPException(507,str(exc)) from exc
+            raise
         finally:upload_lock.release()
 
     @app.get('/sessions/{sid}/recordings/{capture_id}/pages')
@@ -439,6 +447,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             receipt=await run_in_threadpool(recordings.accept_page,sid,capture_id,page_number,idempotency_key,path,source_start_frame)
             return {**recordings.page_status(sid,capture_id,page_number),**receipt}
         except RuntimeError as exc:raise HTTPException(507,str(exc))
+        except OSError as exc:
+            if exc.errno in (errno.ENOSPC,errno.EDQUOT):raise HTTPException(507,str(exc)) from exc
+            raise
         finally:
             if path is not None:path.unlink(missing_ok=True)
             if reservation is not None:recordings.release_reservation(reservation)
@@ -454,6 +465,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if result['state'] in ('published','pending_receipts'):worker.notify()
             return result
         except RuntimeError as exc:raise HTTPException(507,str(exc))
+        except OSError as exc:
+            if exc.errno in (errno.ENOSPC,errno.EDQUOT):raise HTTPException(507,str(exc)) from exc
+            raise
         finally:upload_lock.release()
 
     @app.put('/sessions/{sid}/recordings/{capture_id}/sources',status_code=202)

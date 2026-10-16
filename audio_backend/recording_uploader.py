@@ -5,7 +5,7 @@ are changed. One continuous decode per original, one page on disk, one request.
 Keep legacy --final, or use bounded --append followed by explicit --finalize.
 """
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import argparse
 import hashlib
 import http.client
@@ -116,8 +116,10 @@ class Limits:
                 raise ValueError(f'{name} must be positive')
         for name in ('input_bytes', 'output_frames', 'spool_bytes', 'disk_floor', 'rss_bytes'):
             if type(getattr(self, name)) is not int: raise ValueError(f'{name} must be integer')
-        if self.output_frames > 2 * 3600 * RATE:
-            raise ValueError('This finite journal supports at most two emitted hours')
+        if self.output_frames > 48 * 3600 * RATE:
+            raise ValueError('This finite journal supports at most 48 emitted hours')
+        if self.input_bytes > 64 * 1024**3:
+            raise ValueError('Original byte capacity exceeds 64 GiB')
         if self.spool_bytes < PAGE_BYTES + 2 * JSON_BYTES + 65536:
             raise ValueError('Spool budget cannot reserve one page and atomic metadata')
 
@@ -456,7 +458,10 @@ class Uploader:
                 raise ValueError('Explicit bounded session and capture IDs are required')
         if type(capture_origin_frame) is not int or not 0 <= capture_origin_frame < (1 << 53) - 2 * 3600 * RATE:
             raise ValueError('Explicit integer capture origin is required')
-        self.limits = limits or Limits(); self.guard = Guard(self.limits, cancel)
+        self.limits = limits or Limits()
+        if self.limits.output_frames > 2 * 3600 * RATE:
+            raise ValueError('Legacy journals support at most two emitted hours')
+        self.guard = Guard(self.limits, cancel)
         self.http = transport or HTTPTransport(api, self.guard)
         self.api = api.rstrip('/'); self.input = input; self.origin = capture_origin_frame
         self.sid = session_id; self.capture = capture_id
@@ -558,7 +563,7 @@ class Uploader:
             except (HTTPFailure, Uncertain) as exc: self._retry(exc)
 
     def _blocked_worker(self):
-        # Bounded pagination; do not wait for waiting_input/completed analysis at publication.
+        # Legacy v1/v2 retains its original finite scan policy.
         cursor = 0
         for _ in range(3):
             result = self.get('/sessions/' + self.sid + '/chunks?after=' + str(cursor) + '&limit=500')
@@ -856,7 +861,7 @@ class AppendJournal(Journal):
         self.data['spool'] = [n for n in self.data['spool'] if n in keep]; self.save()
 
 
-class AppendUploader(Uploader):
+class LegacyAppendUploader(Uploader):
     """Sequential immutable originals; file completion never implies capture EOS."""
     def __init__(self, *, input=None, input_id=None, input_start_frame=None, max_inputs=None,
                  append=False, finalize=False, session_id, capture_id, capture_origin_frame,
@@ -877,7 +882,10 @@ class AppendUploader(Uploader):
                 raise ValueError('Explicit bounded session and capture IDs are required')
         if type(capture_origin_frame) is not int or not 0 <= capture_origin_frame < (1 << 53) - 2 * 3600 * RATE:
             raise ValueError('Explicit integer capture origin is required')
-        self.limits = limits or Limits(); self.guard = Guard(self.limits, cancel)
+        self.limits = limits or Limits()
+        if self.limits.output_frames > 2 * 3600 * RATE:
+            raise ValueError('Legacy journals support at most two emitted hours')
+        self.guard = Guard(self.limits, cancel)
         self.http = transport or HTTPTransport(api, self.guard)
         self.api = api.rstrip('/'); self.input = input; self.input_id = input_id
         self.input_start = input_start_frame; self.max_inputs = max_inputs; self.finalize = finalize
@@ -939,8 +947,11 @@ class AppendUploader(Uploader):
                 raise Incomplete('Unexpected server publication')
         return remote
 
+    def _iter_inputs(self): return iter(self.journal.data['inputs'])
+    def _iter_pages(self): return iter(self.journal.data['pages'])
+
     def _verify_originals(self):
-        for entry in self.journal.data['inputs']:
+        for entry in self._iter_inputs():
             self._check_original_location(entry['identity']['path'])
             original = Original(entry['identity']['path'], self.guard)
             try:
@@ -950,7 +961,7 @@ class AppendUploader(Uploader):
             finally: original.close()
 
     def _verify_tail(self, allow_missing_active=False):
-        for row in self.journal.data['pages']:
+        for row in self._iter_pages():
             if row['released']: continue
             for piece in row['pieces']:
                 path = self.journal.owned(piece['name'])
@@ -1014,7 +1025,7 @@ class AppendUploader(Uploader):
     def _replay_active(self):
         """Only incomplete originals decode again; published spans never use spool."""
         j = self.journal
-        for row in j.data['pages']:
+        for row in self._iter_pages():
             for piece in row['pieces']:
                 if piece['input_id'] != self.entry['id']: continue
                 if self.reader.frames != piece['input_start']: raise Incomplete('Replay cursor mismatch')
@@ -1207,6 +1218,317 @@ class AppendUploader(Uploader):
                 j.lock.release()
 
 
+from .recording_uploader_history import (PagedJournal, POLICY as APPEND_V3_POLICY,
+    DEFAULT_FRAMES as APPEND_DEFAULT_FRAMES, DEFAULT_INPUTS as APPEND_DEFAULT_INPUTS,
+    MAX_INPUTS as APPEND_MAX_INPUTS, MAX_INPUT_BYTES as APPEND_MAX_INPUT_BYTES)
+
+
+class AppendUploader(LegacyAppendUploader):
+    """Fresh jobs use v3; old v2 journals keep their exact loader/resume policy."""
+    def __new__(cls, **kwargs):
+        # Read-only dispatch is revalidated by the selected loader under the lock.
+        # Never choose a journal by temporary timestamps or an archive directory.
+        path = Path(kwargs['state_dir']) / 'uploader.json'
+        if os.path.lexists(path):
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > JSON_BYTES:
+                raise Incomplete('Unsafe/oversized journal policy probe')
+            fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+            with os.fdopen(fd, 'rb') as stream:
+                if _signature(os.fstat(stream.fileno())) != _signature(info): raise Incomplete('Journal changed during policy probe')
+                data = _parse(stream.read(JSON_BYTES + 1))
+            if data.get('policy') == APPEND_POLICY:
+                old = dict(kwargs)
+                hours = old.pop('max_hours', None); size = old.pop('max_original_bytes', None)
+                if hours is not None or size is not None:
+                    raise Incomplete('Legacy v2 frozen policy does not accept v3 capacity options')
+                return LegacyAppendUploader(**old)
+        return object.__new__(cls)
+
+    def __init__(self, *, input=None, input_id=None, input_start_frame=None, max_inputs=None,
+                 max_hours=None, max_original_bytes=None, append=False, finalize=False,
+                 session_id, capture_id, capture_origin_frame, state_dir,
+                 api='http://127.0.0.1:8765', limits=None, cancel=None, transport=None,
+                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe'):
+        if bool(append) == bool(finalize): raise ValueError('Select exactly one append/finalize mode')
+        if append and (not isinstance(input, (str, os.PathLike)) or not isinstance(input_id, str)
+                or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', input_id)):
+            raise ValueError('Append requires one immutable input and a stable input ID')
+        if finalize and any(v is not None for v in (input, input_id, input_start_frame)):
+            raise ValueError('Finalize takes no input, input ID, or input coordinate')
+        if input_start_frame is not None and (type(input_start_frame) is not int or not 0 <= input_start_frame <= (1 << 53) - 1):
+            raise ValueError('Input start must be an exact integer capture frame')
+        if max_inputs is not None and (type(max_inputs) is not int or not 1 <= max_inputs <= APPEND_MAX_INPUTS):
+            raise ValueError('Maximum inputs must be between 1 and 128')
+        if max_hours is not None and (type(max_hours) is not int or not 1 <= max_hours <= 48):
+            raise ValueError('Maximum hours must be an integer between 1 and 48')
+        if max_original_bytes is not None and (type(max_original_bytes) is not int or not 1 <= max_original_bytes <= APPEND_MAX_INPUT_BYTES):
+            raise ValueError('Maximum original bytes must be between 1 and 64 GiB')
+        for value in (session_id, capture_id):
+            if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', value):
+                raise ValueError('Explicit bounded session and capture IDs are required')
+        if type(capture_origin_frame) is not int or not 0 <= capture_origin_frame <= (1 << 53) - 1:
+            raise ValueError('Explicit exact integer capture origin is required')
+        base_limits = limits or Limits()
+        self.requested_frames = (max_hours * 3600 * RATE if max_hours is not None else
+                                 base_limits.output_frames if limits and limits.output_frames != Limits.output_frames else None)
+        self.requested_bytes = (max_original_bytes if max_original_bytes is not None else
+                                base_limits.input_bytes if limits and limits.input_bytes != Limits.input_bytes else None)
+        self.limits = replace(base_limits, output_frames=self.requested_frames or APPEND_DEFAULT_FRAMES,
+                              input_bytes=self.requested_bytes or Limits.input_bytes)
+        self.guard = Guard(self.limits, cancel); self.http = transport or HTTPTransport(api, self.guard)
+        self.api = api.rstrip('/'); self.input = input; self.input_id = input_id
+        self.input_start = input_start_frame; self.max_inputs = max_inputs; self.finalize = finalize
+        self.origin = capture_origin_frame; self.sid = session_id; self.capture = capture_id
+        self.base = '/sessions/' + quote(session_id, safe='') + '/recordings/' + quote(capture_id, safe='')
+        self.state_path = Path(state_dir).resolve(); self._check_original_location(input)
+        self.journal = PagedJournal(state_dir, self.guard, sys.modules[__name__])
+        self.ffmpeg = ffmpeg; self.ffprobe = ffprobe; self.source = self.reader = None; self.entry = None
+
+    def _iter_inputs(self): return self.journal.iter_inputs()
+    def _iter_pages(self): return self.journal.iter_pages()
+
+    def _blocked_worker(self):
+        # Errors can contain 2,000 Unicode characters. Sixteen rows leave ample
+        # room inside the unchanged 512 KiB wire limit, including JSON escaping.
+        # Global rowids may be sparse; count rows, never compare cursor to a cap.
+        batch = 16; maximum = (self.limits.output_frames + 168000 - 1) // 168000
+        cursor = total = 0
+        for _ in range(maximum // batch + 1):
+            result = self.get('/sessions/' + self.sid + '/chunks?after=' + str(cursor) + '&limit=' + str(batch))
+            if not isinstance(result, dict): raise Incomplete('Malformed worker response')
+            rows = result.get('chunks'); next_cursor = result.get('next_cursor')
+            if not isinstance(rows, list) or len(rows) > batch:
+                raise Incomplete('Malformed worker cursor batch')
+            previous = cursor
+            for chunk in rows:
+                if not isinstance(chunk, dict): raise Incomplete('Malformed worker row')
+                if chunk.get('session_id', self.sid) != self.sid: raise Incomplete('Unexpected worker row membership')
+                if (not isinstance(chunk.get('id'), str) or not 1 <= len(chunk['id']) <= 128
+                        or not isinstance(chunk.get('status'), str)):
+                    raise Incomplete('Malformed worker row identity/status')
+                row_cursor = chunk.get('cursor')
+                if type(row_cursor) is not int or row_cursor <= previous:
+                    raise Incomplete('Malformed/non-progress worker cursor')
+                previous = row_cursor; total += 1
+                if total > maximum: raise Incomplete('Unexpected session chunk bound')
+                if chunk.get('status') in ('failed', 'paused', 'cancelled'):
+                    raise Incomplete('Admission blocked by worker ' + chunk['status'] + ': ' + str(chunk.get('id', '')))
+            if type(next_cursor) is not int or next_cursor != previous:
+                raise Incomplete('Malformed/non-progress worker next cursor')
+            if len(rows) < batch: return
+            cursor = next_cursor
+        raise Incomplete('Unexpected session chunk bound')
+
+    def _reconcile_capture(self):
+        """Complete read-only remote reconciliation precedes replay or local mutation."""
+        d = self.journal.data; present = released = 0; end = self.origin; pending = None; saved_eos = bool(d.get('finish'))
+        for row in self._iter_pages():
+            remote = self.get(self._page_path(row['number']), missing=True)
+            saved_eos = saved_eos or bool(row.get('seal', {}).get('eos'))
+            if remote is None:
+                if row.get('server_id') or row['released']: raise Incomplete('Previously accepted server page disappeared')
+                continue
+            self._match(row, remote); present += 1
+            if row['released'] and not remote['released']: raise Incomplete('Published server page lost release')
+            if remote['released']: released += 1; end = remote['end_frame']
+            elif pending is not None: raise Incomplete('Multiple pending remote pages')
+            else: pending = remote['page_number']
+        status = self.get(self.base, missing=True)
+        if status is None:
+            if present or d['pages_done']: raise Incomplete('Previously accepted capture disappeared')
+            session = self.get('/sessions/' + self.sid)
+            if (session.get('processing_mode', 'legacy') != 'legacy'
+                    or self.get('/sessions/' + self.sid + '/chunks?limit=1')['chunks']):
+                raise Incomplete('Local-only tail no longer has its empty legacy session')
+        else:
+            remote_pending = status['pending_page']['page_number'] if status['pending_page'] else None
+            if ((status['capture_id'], status['capture_origin_frame'], status['mode']) !=
+                    (self.capture, self.origin, 'sealed_pages') or status['state'] == 'aborted'
+                    or status.get('policy') != 'sealed-recording-exact-overlap-v1'
+                    or status.get('format') != 'wav-pcm16le-16000-mono'
+                    or status['page_count'] != present or status['released_pages'] != released
+                    or status['capture_end_frame'] != end or remote_pending != pending):
+                raise Incomplete('Capture history/frontier differs from journal')
+            if status['eos'] and (not d['finalize_requested'] or not saved_eos or end != self.origin + d['emitted_frames']):
+                raise Incomplete('Capture unexpectedly finalized without saved EOS request')
+            if d['complete'] and not status['eos']: raise Incomplete('Finalized capture lost EOS')
+
+    def _pending(self): return self.journal.data['active_page']
+
+    def _publish(self, row, eos):
+        end = row['pieces'][-1]['normalized_start'] + row['pieces'][-1]['frames']
+        self._create(row)
+        for piece in row['pieces']: self._put(row, piece)
+        self._seal(row, end, eos)
+        self.journal.archive_page(); self.journal.cleanup()
+
+    def _new_piece(self, row):
+        j = self.journal; d = j.data; index = len(row['pieces'])
+        if index >= PAGE_SOURCES: raise Incomplete('Pending page source capacity exhausted')
+        if d['source_count'] >= 16 * j.max_pages: raise Incomplete('Source history capacity exhausted')
+        capacity = min(SOURCE_FRAMES, PAGE_FRAMES - sum(p['frames'] for p in row['pieces']),
+                       self.limits.output_frames - d['emitted_frames'])
+        if capacity <= 0: raise Incomplete('Aggregate decoded output frame limit reached')
+        name = f"{d['job']}-p{row['number']}-s{index}.wav"
+        path = j.owned(name); part = j.owned(name + '.part')
+        if path.exists() or part.exists(): raise Incomplete('Unreconciled owned append spool')
+        d['spool'].extend([name, name + '.part']); j.save()
+        start = d['emitted_frames']; local_start = self.entry['frames']; count = 0; digest = hashlib.sha256()
+        with part.open('xb') as raw:
+            with wave.open(raw, 'wb') as output:
+                output.setnchannels(1); output.setsampwidth(2); output.setframerate(RATE)
+                while count < capacity:
+                    j.budget(READ_BYTES + 4096)
+                    block = self._read(min(READ_BYTES // 2, capacity - count))
+                    if not block: break
+                    output.writeframesraw(block); digest.update(block); count += len(block) // 2
+            raw.flush(); os.fsync(raw.fileno())
+        if not count:
+            part.unlink(); _fsync_dir(j.path)
+            d['spool'].remove(name); d['spool'].remove(name + '.part'); j.save(); return None
+        os.replace(part, path); _fsync_dir(j.path)
+        found = inspect_pcm16_source(name, path)
+        piece = {'name': name, 'key': f"{d['job']}.p{row['number']}.s{index}",
+                 'input_id': self.entry['id'], 'input_start': local_start, 'normalized_start': start,
+                 'capture_start': self.origin + start, 'frames': count, 'bytes': path.stat().st_size,
+                 'digest': found.sha256, 'pcm_sha256': digest.hexdigest()}
+        if len(_json(piece)) + 256 > 1024: raise Incomplete('Piece receipt metadata reservation exceeded')
+        row['pieces'].append(piece); self.entry['frames'] += count; d['emitted_frames'] += count; d['source_count'] += 1
+        j.save(); return piece
+
+    def _result(self, entry=None):
+        d = self.journal.data
+        return {'input_complete': bool(entry and entry['clean_eof']),
+                'awaiting_input': not d['complete'] and not d['finalize_requested'] and d['active_input'] is None,
+                'capture_finalized': d['complete'], 'frames': d['emitted_frames'],
+                'published_frames': d['published_frames'], 'staged_frames': d['emitted_frames'] - d['published_frames'],
+                'inputs': d['input_count'], 'pages': d['page_count'], 'sources': d['source_count'],
+                'max_spool_bytes': self.journal.max_spool,
+                'max_pcm_read': self.reader.max_read if self.reader else 0, 'peak_sampled_rss': self.guard.peak_rss,
+                'meaning': ('EOS accepted; analysis may still be pending' if d['complete'] else
+                            'Finalization pending; resume --finalize' if d['finalize_requested'] else
+                            'Input accepted without capture EOS')}
+
+    def _complete_input(self):
+        j = self.journal; d = j.data; row = d['active_page']
+        if row is not None and not row['pieces']:
+            d['active_page'] = None; d['page_count'] -= 1
+        self.source.verify(rehash=True)
+        if not self.entry['frames']: raise Incomplete('Empty normalized input is unsupported')
+        self.entry['clean_eof'] = True; d['incomplete_reason'] = None; j.save()
+        j.archive_input(); j.cleanup()
+        return self._result(self.entry)
+
+    def run(self):
+        j = self.journal; j.lock.acquire()
+        try:
+            target = {'api': self.api, 'session_id': self.sid, 'capture_id': self.capture, 'origin': self.origin, 'format': FORMAT}
+            loaded = j.load()
+            if loaded is not None:
+                if loaded['identity'] != target: raise SourceChanged('Append target differs from journal')
+                caps = loaded['caps']
+                if self.max_inputs is not None and self.max_inputs != caps['max_inputs']: raise Incomplete('Maximum inputs differs from frozen journal')
+                if self.requested_frames is not None and self.requested_frames != caps['output_frames']: raise Incomplete('Maximum duration differs from frozen journal')
+                if self.requested_bytes is not None and self.requested_bytes != caps['input_bytes']: raise Incomplete('Maximum original bytes differs from frozen journal')
+                self.limits = replace(self.limits, output_frames=caps['output_frames'], input_bytes=caps['input_bytes']); self.guard.limits = self.limits
+                self._verify_originals()
+            elif self.finalize: raise Incomplete('Finalize requires this capture\'s append journal')
+            if self.origin + self.limits.output_frames > (1 << 53) - 1: raise ValueError('Capture origin plus frozen frame cap exceeds exact integers')
+            if self.input is not None:
+                self.source = Original(self.input, self.guard)
+                recipe = decoder_recipe(self.source, self.guard, self.ffmpeg, self.ffprobe)
+            if loaded is None:
+                if self.input_start is not None and self.input_start != self.origin: raise Incomplete('First input must start at the declared capture origin')
+                session = self.get('/sessions/' + self.sid)
+                if session.get('processing_mode', 'legacy') != 'legacy': raise Incomplete('Require an existing empty legacy session')
+                if self.get(self.base, missing=True) is not None: raise Incomplete('Capture exists without this exact journal')
+                if self.get('/sessions/' + self.sid + '/chunks?limit=1')['chunks']: raise Incomplete('Session is not empty')
+                j.initialize(target, self.max_inputs or APPEND_DEFAULT_INPUTS)
+            d = j.data; existing = next((e for e in self._iter_inputs() if e['id'] == self.input_id), None); new_entry = None
+            if self.finalize:
+                if not d['input_count'] or not d['emitted_frames'] or d['active_input'] and not d['active_input']['clean_eof']:
+                    raise Incomplete('Finalize requires nonempty, clean EOF for every registered input')
+            elif existing:
+                if (existing['identity'] != self.source.identity or existing['decoder'] != recipe
+                        or self.input_start is not None and self.input_start != self.origin + existing['normalized_start']):
+                    raise SourceChanged('Input ID identity, recipe, or placement conflict')
+                self.entry = existing
+            else:
+                if d['finalize_requested']: raise Incomplete('Capture finalization is fenced; no new inputs')
+                if d['active_input'] and not d['active_input']['clean_eof']: raise Incomplete('Resume the incomplete input ID before appending')
+                if d['input_count'] >= d['caps']['max_inputs']: raise Incomplete('Input registry capacity reached')
+                if self.input_start is not None and self.input_start != self.origin + d['emitted_frames']:
+                    raise Incomplete('Only contiguous append is supported; gaps/overlap are refused')
+                for entry in self._iter_inputs():
+                    if (entry['identity']['path'] == self.source.identity['path'] or entry['identity']['signature'][:2] == self.source.identity['signature'][:2]):
+                        raise SourceChanged('Original already has a stable input ID')
+                if d['input_bytes'] + self.source.identity['signature'][2] > self.limits.input_bytes: raise Incomplete('Aggregate original byte limit reached')
+                if d['emitted_frames'] >= self.limits.output_frames: raise Incomplete('Aggregate output frame capacity reached')
+                row = self._pending(); pieces = row['pieces'] if row and not row['released'] else []
+                remaining = min(PAGE_FRAMES - sum(p['frames'] for p in pieces), self.limits.output_frames - d['emitted_frames'])
+                if len(pieces) + (remaining + SOURCE_FRAMES - 1) // SOURCE_FRAMES > PAGE_SOURCES:
+                    raise Incomplete('Insufficient pending-page source slots; retry existing input or finalize')
+                new_entry = {'id': self.input_id, 'identity': self.source.identity, 'decoder': recipe,
+                             'normalized_start': d['emitted_frames'], 'frames': 0, 'clean_eof': False}
+                if len(_json(new_entry)) + 128 > 8192: raise Incomplete('Input metadata reservation exceeded')
+            self._verify_tail(allow_missing_active=True)
+            self._reconcile_capture()
+            # Each archive is authenticated again here, after all local/remote GET checks.
+            for row in self._iter_pages():
+                if row['released']: self._seal(row, row['seal']['end_frame'] - self.origin, row['seal']['eos'])
+            j.recover()
+            if existing and not existing['clean_eof']:
+                self.entry = d['active_input']; self.reader = PCMReader(self.source, recipe, self.guard)
+                self._replay_active(); self._verify_tail()
+            if d['complete']:
+                if d.get('finish'): self._finish()
+                return self._result(existing)
+            if self.finalize:
+                d['finalize_requested'] = True; j.save()
+                row = self._pending()
+                if row: self._publish(row, True)
+                else:
+                    last = j.read_archive('page', d['pages_done']) if d['pages_done'] else None
+                    # Recovery already replayed the exact saved EOS seal. A lost
+                    # completion checkpoint must not mint a second finish intent.
+                    if not (last and last['seal']['eos']): self._finish()
+                d['complete'] = True; d['incomplete_reason'] = None; j.save(); j.cleanup()
+                return self._result()
+            if existing and existing['clean_eof']: return self._result(existing)
+            if d['finalize_requested']: raise Incomplete('Finalization in progress; rerun --finalize')
+            if new_entry:
+                d['active_input'] = new_entry; d['input_count'] += 1
+                d['input_bytes'] += new_entry['identity']['signature'][2]; self.entry = new_entry; j.save()
+                self.reader = PCMReader(self.source, recipe, self.guard)
+            while True:
+                row = self._pending()
+                if row and sum(p['frames'] for p in row['pieces']) == PAGE_FRAMES:
+                    self._publish(row, False); row = None
+                # At the exact duration bound, only a one-frame EOF probe is legal.
+                # Never register or allocate an empty page beyond max_pages.
+                if d['emitted_frames'] == self.limits.output_frames:
+                    if self._read(1): raise Incomplete('Aggregate decoded output frame limit reached')
+                    return self._complete_input()
+                if row is None:
+                    if d['retirement']: raise Incomplete('Retiring page must finish cleanup before another page')
+                    if d['page_count'] >= j.max_pages: raise Incomplete('Append page capacity exhausted')
+                    row = {'number': d['page_count'] + 1, 'pieces': [], 'released': False}
+                    d['active_page'] = row; d['page_count'] += 1; j.save()
+                remaining = min(PAGE_FRAMES - sum(p['frames'] for p in row['pieces']), self.limits.output_frames - d['emitted_frames'])
+                j.budget(remaining * 2 + (PAGE_SOURCES - len(row['pieces'])) * 4096)
+                piece = self._new_piece(row)
+                if piece is None or self.reader.clean: return self._complete_input()
+        finally:
+            # Never salvage a partially advanced in-memory transition into a new
+            # checkpoint after an error. The last durable checkpoint is authority.
+            try:
+                if self.reader is not None: self.reader.close()
+            finally:
+                if self.source is not None: self.source.close()
+                j.lock.release()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input')
@@ -1221,16 +1543,18 @@ def main(argv=None):
     parser.add_argument('--input-id')
     parser.add_argument('--input-start-frame', type=int)
     parser.add_argument('--max-inputs', type=int)
+    parser.add_argument('--max-hours', type=int, help='New append duration cap, 1..48 hours; default12; frozen on creation')
+    parser.add_argument('--max-original-bytes', type=int, help='Aggregate original bytes, default8GiB; at most64GiB; frozen')
     parser.add_argument('--api', default='http://127.0.0.1:8765')
     parser.add_argument('--disk-floor-bytes', type=int, default=Limits.disk_floor)
     parser.add_argument('--deadline-seconds', type=float, default=Limits.deadline_seconds)
     args = vars(parser.parse_args(argv))
-    limits = Limits(disk_floor=args.pop('disk_floor_bytes'), deadline_seconds=args.pop('deadline_seconds'))
     try:
+        limits = Limits(disk_floor=args.pop('disk_floor_bytes'), deadline_seconds=args.pop('deadline_seconds'))
         if args.pop('final'):
-            if not args.get('input') or any(args.get(k) is not None for k in ('input_id', 'input_start_frame', 'max_inputs')):
+            if not args.get('input') or any(args.get(k) is not None for k in ('input_id', 'input_start_frame', 'max_inputs', 'max_hours', 'max_original_bytes')):
                 raise ValueError('--final requires one input and no append-only options')
-            for name in ('append', 'finalize', 'input_id', 'input_start_frame', 'max_inputs'): args.pop(name)
+            for name in ('append', 'finalize', 'input_id', 'input_start_frame', 'max_inputs', 'max_hours', 'max_original_bytes'): args.pop(name)
             result = Uploader(**args, final=True, limits=limits).run()
         else: result = AppendUploader(**args, limits=limits).run()
         print(json.dumps(result, sort_keys=True)); return 0
