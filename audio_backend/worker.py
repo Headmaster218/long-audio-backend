@@ -112,7 +112,7 @@ class Worker:
         self.native_owned_support_cache=None
         self.native_owned_cells=None
         self.recordings=None
-        self.moss_automatic=None
+        self.moss_automatic=None;self._fair_core_handoff=False
         self._native_capture=None;self._native_capture_token=None
         self._native_capture_observation=None
         self.support_fingerprints=speaker_support.SourceFingerprints()
@@ -132,6 +132,12 @@ class Worker:
         try: return self.store.chunk(cid)['status']!='running'
         except KeyError: return True
     def loop(self):
+        try:self._run_loop()
+        finally:
+            permit=getattr(self.settings, '_native_execution_permit', None)
+            if permit is not None:permit.abandon_automatic_turn()
+
+    def _run_loop(self):
         while not self.stop_event.is_set():
             fragments=getattr(self.store,'fragment_http',None)
             permit=getattr(self.settings, '_native_execution_permit', None)
@@ -154,42 +160,70 @@ class Worker:
                 except Exception:
                     # Optional observation never takes authority over primary work.
                     pass
-            intent=None
+            from .moss_automatic import enabled
+            fair=permit is not None and self.moss_automatic is not None and enabled(self.settings)
+            intent=None;chunk=None
             try:
                 if permit is None:
                     chunk=self.store.claim()
                 else:
                     with permit.claim_probe():
-                        chunk=self.store.claim()
+                        chunk=self.store.claim(probe=True) if fair else self.store.claim()
                         if chunk is not None:
-                            self.current_chunk=chunk['id']
                             intent=permit.primary_intent('worker')
+                    if fair and intent is not None:
+                        # The row stays queued throughout the optional wait.
+                        intent.wait(self.stop_event.is_set, handoff=self._automatic_handoff)
+                        with permit.claim_probe():chunk=self.store.claim()
             except _ClaimDeferred:
+                if intent is not None:intent.release()
                 # An unknown queue is not an idle queue. Release the probe,
                 # wait interruptibly, then recheck primary work before MOSS.
                 self.stop_event.wait(.1)
                 continue
+            except InterruptedError:
+                if intent is not None:intent.release()
+                if self.stop_event.is_set():break
+                continue
+            except BaseException:
+                if intent is not None:intent.release()
+                raise
             if chunk is None:
-                if self.moss_automatic is not None:self.moss_automatic.step()
+                if intent is not None:intent.release()
+                if fair:self._automatic_handoff(request=True)
+                elif self.moss_automatic is not None:self.moss_automatic.step()
                 self.wake.wait(1); self.wake.clear(); continue
             self.current_chunk=chunk['id']
             normal=False
             try:
-                if intent is not None:intent.wait(lambda:self.interrupted(chunk['id']))
+                if intent is not None and not intent.entered:intent.wait(lambda:self.interrupted(chunk['id']))
                 self._begin_native_support(chunk,watermark)
-                self.process(chunk)
+                self._fair_core_handoff=fair
+                yielded=self.process(chunk)
                 normal=True
+                if fair and yielded is True:self.store.requeue_core(chunk)
             except InterruptedError:
                 if self.stop_event.is_set():
                     with self.store.db() as db:
                         db.execute("UPDATE chunks SET status='queued' WHERE id=? AND status='running'",(chunk['id'],))
             except Exception as exc: self.store.fail(chunk['id'],f'{type(exc).__name__}: {exc}')
             finally:
+                self._fair_core_handoff=False
                 self._finish_native_support()
                 if intent is not None:
                     if intent.entered:permit.finish_cohort(normal=normal)
                     intent.release()
                 self.current_chunk=None
+            if fair:self._automatic_handoff(request=True)
+
+    def _automatic_handoff(self, *, request=False):
+        permit=getattr(self.settings, '_native_execution_permit', None)
+        automatic=self.moss_automatic
+        if permit is None or automatic is None:return
+        if self.stop_event.is_set():permit.abandon_automatic_turn();return
+        if request and automatic.primary_yield_due():permit.request_automatic_turn()
+        with permit.automatic_turn() as granted:
+            if granted:automatic.step(stop=self.stop_event.is_set)
 
     def _begin_native_support(self,chunk,watermark):
         cache=self.native_owned_support_cache
@@ -281,7 +315,7 @@ class Worker:
             process=None if self.analyzer_factory else AnalyzerProcess(self.settings,config)
             permit=getattr(self.settings, '_native_execution_permit', None)
             if process and permit is not None:permit.bind_primary(process)
-            try: self._process_windows(chunk,process)
+            try: return self._process_windows(chunk,process)
             except BaseException:
                 if self.native:self.native.close();self.native=None
                 raise
@@ -488,3 +522,6 @@ class Worker:
                     self._cell_call('committed',selected_cells)
                     self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
             offset=end
+            if self._fair_core_handoff and self.moss_automatic is not None and self.moss_automatic.primary_yield_due():
+                permit=getattr(self.settings, '_native_execution_permit', None)
+                if permit is not None and permit.request_automatic_turn():return True

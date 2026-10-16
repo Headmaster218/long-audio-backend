@@ -1,13 +1,13 @@
-# 0.2.0rc3.dev19: automatic timestamped-recording MOSS dispatch
+# Automatic timestamped-recording MOSS dispatch (dev24)
 
 This release adds a finite, default-off automatic dispatch
 path. It retains eligible overlap intents during primary processing and gives
-them a bounded publication/admission opportunity when the ordinary Worker is
-idle. There is no per-job POST for automatic dispatch. The source qualification
+them a bounded publication/admission opportunity at an eligible committed-core
+handoff or when the ordinary Worker is idle. There is no per-job POST for automatic dispatch. The source qualification
 and installed-package checks, with their separate limits, are recorded below.
 
-Primary transcription and MOSS diagnostics remain separate outputs. A
-reconciled, duplicate-free transcript is explicitly still outstanding. Automatic
+Primary transcription and MOSS diagnostics remain separate outputs. The separate read-only unified transcript is provisional; see
+[UNIFIED_TRANSCRIPT.md](UNIFIED_TRANSCRIPT.md). Automatic
 dispatch does not establish complete overlap recovery, word accuracy, global
 speaker identity, EOS or complete model content.
 
@@ -90,7 +90,7 @@ remain separate and continue to apply. The existing 8 MiB result-write allowance
 2 MiB scratch allowance and disk free-space floor are unchanged.
 
 At capacity, primary processing yields at the unchanged core offset. Automatic
-work can drain on Worker idle opportunities. A missing PCM source, full cell
+work can drain on committed-core handoffs and Worker idle opportunities. A missing PCM source, full cell
 store, busy shared slot or other temporary admission blocker leaves the intent
 pending and preserves its proof; it is never represented as inferred success.
 Automatic publication does not insert a metadata-only cell on a PCM-capacity
@@ -110,24 +110,55 @@ limits, owner handoff limits, copied-pin budgets and native-process concurrency
 are unchanged. Optional compact/receipt reclamation cannot erase an intent's
 pending or accepted authority to manufacture space.
 
-## Idle scheduling and the shared execution slot
+## Fair handoff and the shared execution slot
 
-After the ordinary Worker's claim returns no work, one bounded automatic
-publication/admission opportunity may run. It uses the exact intent proof plus exact retained compact
-authority, while rechecking current receipts, source mapping, PCM and session
-status. It does not loosen manual ordinary-cell publication checks.
+Dev24 distinguishes queued primary requests, a granted waiting cohort, and
+executing owners. A due automatic turn freezes the current granted cohort
+(at most one Worker and one probe). New primary requests queue for the next
+cohort and do not extend the current one. After positive completion and cleanup,
+one selected automatic candidate gets its bounded opportunity before the next
+queued cohort is granted. An executing or already-granted primary always fences
+optional admission. The Worker leaves its database row queued while waiting;
+only after grant does it repeat eligibility checks and claim the current row.
+It holds no database transaction or manager lock during that wait.
+
+The primary unit is one safely committed core, with durable next_offset, complete
+receipt publication and ordinary analyzer cleanup. No live analyzer is carried
+across MOSS. When the automatic queue is empty, disabled or globally blocked,
+the existing per-input analyzer path continues. A last-moment admission or source
+race can still cause an unproductive reload. Reload and native context replay
+costs require real-model measurement; synthetic continuity is not a speed claim.
+
+Selection uses an immutable RAM snapshot of at most 256 queued/published keys,
+at most 64 per session, read through the existing indexed metadata projection.
+Sessions rotate after each selected key; all captured keys are visited or
+boundedly skipped before a new snapshot. New arrivals wait for the next snapshot.
+Deleted, stale or blocked keys consume their visit but keep their durable state
+unless an existing authoritative transition changes it. A continuously eligible
+captured key is visited within 256 opportunities; a new arrival within 512,
+conditional on healthy opportunities. These are selection bounds, not time or
+successful-inference guarantees. Accepted/unknown attempts are never replayed.
+
+A selected queued key may continue publication, exact acknowledgement and
+admission in the same turn, using the original 2-second publication-operation
+deadline. An unknown flight is retained without spinning, resubmitting or
+refreshing its budget. Acceptance keeps the existing atomic result reservation
+and accepted-intent link; result commit marks that intent committed atomically.
 
 Automatic and manual requests share the existing single MOSS execution/storage
-slot, permit and native cleanup obligations. There is at most one live automatic
-record and one owner handoff for the opportunity. There is no new model thread
-or concurrent automatic inference. Finishing automatic work does not accumulate
-entries in the manual 64 accepted epoch-key ledger; its limits and manual
-idempotency semantics are unchanged.
+slot, permit and native cleanup obligations. One admitted automatic text owner
+is protected from queued primary arrivals through its existing 300-second
+execution and 60-second cleanup limits and bounded first terminal publication.
+Setup, validation and publication retain their separate existing bounds; 360
+seconds is not a total primary-wait SLA. Explicit cancellation, shutdown,
+revocation, disablement, resource/deadline failure and ownership uncertainty
+still stop or fence work. Manual optional policy is unchanged. A post-text
+speaker probe is a separate, preemptible owner and yields to primary requests.
 
-Busy execution, unavailable PCM or capacity pressure does not consume an intent.
-Acceptance creates the existing result reservation and links the accepted intent
-atomically before controller handoff. A result commit marks that intent
-`committed` in the same transaction.
+There is no new model thread, database table, retry ledger or persistent scheduler.
+The RAM grant/snapshot state starts empty on restart; durable accepted/unknown
+work remains governed by the existing no-replay rule. Manual 64-key acceptance
+ledger semantics and all quotas remain unchanged.
 
 ## State, restart and save fences
 
@@ -143,7 +174,16 @@ primary cancellation/deletion predicates veto a save. The guard order is manager
 gate, source publication-generation fence, permit condition, then primary/result
 database transaction. No owner handoff, native call, thread join or source/config
 callback occurs while these guards are held. This does not retroactively change
-historical manual-save semantics.
+historical manual-save semantics. The exact automatic text owner remains held
+through the first bounded publication attempt. A lost commit acknowledgement or
+generic storage/readback failure retains the computed immutable snapshot and
+blocks ownership release, even if cancellation also arrives. Existing exact
+committed-result readback or a positively acknowledged terminal outcome may
+resolve it; an authoritative deletion/source veto releases only an already
+cleaned exact owner with no uncertain probe. The Worker scheduling pump does not
+automatically resolve retained uncertain text commits. Cleanup or publication
+uncertainty can therefore block primary indefinitely pending explicit recovery;
+no timeout silently clears that state.
 
 Pending and accepted intent rows are indexed roots for both compact and receipt
 GC, including both sides of a seam. Session deletion removes its intents in the
@@ -170,7 +210,7 @@ includes candidate/pending counts, oldest queue age, a blocker reason, in-flight
 publication, and `discovery_complete`. Failed unfinished recording work keeps
 discovery incomplete, including an explicit cross-run boundary refusal.
 
-## Source validation and release boundary
+## Historical dev19 qualification (not dev24 acceptance)
 
 The frozen functional source passed 92 focused model-free cases and, in a
 separate run, 634 existing regression cases with 46 subtests. The runs used
@@ -217,14 +257,15 @@ short checks do not establish transcription quality, EOS, global speaker identit
 complete overlap recovery, throughput, crash durability or long-recording
 qualification.
 
-### Restart and bounded revocation
+## Current restart and bounded revocation
 
 Already-durable unadmitted proofs can resume publication/admission after restart;
 committed structured history is readable with models disabled. New primary
-capture at an existing cross-run boundary is refused by the exact native-domain
-checks with unchanged offset and an explicit reason. This version does not
-provide seamless mid-recording discovery recovery or carry native IDs across
-process runs. Accepted attempts without an exact live owner are shown as
+capture may use the separate restart-replay proof only when a fresh response
+covers the exact retained support under its strict source/run/runtime checks;
+see [RESTART_REPLAY_CORE_SEAM_CANDIDATE.md](RESTART_REPLAY_CORE_SEAM_CANDIDATE.md).
+Insufficient replay is explicitly refused. Native IDs do not continue across
+process runs, and arbitrary seamless restart recovery is not guaranteed. Accepted attempts without an exact live owner are shown as
 `interrupted_or_unknown`, including same-process uncertain admission.
 
 Source revocation/close attempts the publication fence for at most the existing
@@ -238,3 +279,12 @@ Automatic structured output is provided through durable history. Its volatile
 live-result and raw endpoints report `automatic_history_only`; availability
 flags are false after proof retirement. No current-source authority is inferred
 from a historical result.
+
+## Dev24 qualification
+
+The scheduling source, ownership diagnostic and packaging checks have separate
+receipts. See [DEV24_FAIR_SCHEDULING_ZH.md](DEV24_FAIR_SCHEDULING_ZH.md). Historical
+model observations above do not qualify the new scheduling policy or its real
+reload cost. The first-failure ownership diagnostic records only fixed phase,
+reason and exception categories plus already-observed scalar facts. It does not
+clear the sticky fail-closed latch or infer a historical failure cause.

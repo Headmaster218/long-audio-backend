@@ -342,7 +342,7 @@ class Store:
             db.execute('UPDATE sessions SET timeline_end=? WHERE id=?',((round(start*16000)+fragment_source.frames)/16000,sid))
         return cid, True
 
-    def claim(self):
+    def claim(self, *, probe=False):
         from .moss_automatic import enabled,recording,capacity
         automatic=enabled(self.settings)
         with self.db() as db:
@@ -368,6 +368,7 @@ class Store:
                 if automatic:self._automatic_claim_after=None
                 return None
             for row in rows:
+                previous=getattr(self,'_automatic_claim_after',None)
                 if automatic:self._automatic_claim_after=(row['created'],row['id'])
                 if automatic and recording(db,row['id']):
                     try:
@@ -381,10 +382,20 @@ class Store:
                         if owner is not None:owner.last_reason=getattr(exc,'reason','automatic_capacity_unavailable')
                         continue
                 chosen=db.execute('SELECT * FROM chunks WHERE id=?',(row['id'],)).fetchone()
+                if probe:
+                    # Keep this eligible key for the post-grant real claim.
+                    if automatic:self._automatic_claim_after=previous
+                    return dict(chosen)
                 db.execute("UPDATE chunks SET status='running',error=NULL WHERE id=?",(row['id'],))
                 if automatic:self._automatic_claim_after=None
                 return dict(chosen)
             return None
+
+    def requeue_core(self, chunk):
+        # Only a successful, cleaned core yield calls this conditional transition.
+        with self.db() as db:
+            db.execute("""UPDATE chunks SET status='queued' WHERE id=? AND status='running'
+                AND next_offset>? AND next_offset<duration""",(chunk['id'],chunk['next_offset']))
 
     def set_state(self, cid, action):
         from .fragment_http import is_experimental

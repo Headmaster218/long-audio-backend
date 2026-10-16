@@ -6,8 +6,10 @@ permit. The primary cohort remains concurrent (one Worker and one upload).
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+import logging
 import os
 import shutil
+import subprocess
 import threading
 import time
 
@@ -18,12 +20,47 @@ WRAPPER_RESERVE = 16 * 1024**2
 HOST_RESERVE = 2 * 1024**3
 DISK_RESERVE = int(5.5 * 1024**3)
 MAX_ROWS, MAX_IDENTITIES, SAMPLE_SECONDS = 4096, 128, .250
+_LOG = logging.getLogger(__name__)
+_OBSERVATION_PHASES = frozenset(('caller_identity', 'process_enumeration',
+    'remembered_identity', 'family_selection', 'selected_identity', 'selected_rss',
+    'selected_recheck', 'host_memory', 'disk_free', 'bind_identity', 'sample',
+    'family_tracking', 'resident_check', 'original_wait', 'descendant_check'))
+_OBSERVATION_REASONS = frozenset(('process_sample_budget', 'process_identity_uncertain',
+    'process_identity_budget', 'remembered_identity_unobserved', 'caller_identity_uncertain',
+    'process_sample_unavailable', 'primary_identity_budget', 'primary_identity_uncertain',
+    'primary_handle_unknown', 'resident_identity_uncertain', 'primary_wait_unconfirmed',
+    'primary_descendant_unresolved'))
 
 
 class AdmissionError(RuntimeError):
     def __init__(self, reason):
         super().__init__(reason)
         self.reason = reason
+
+
+def _observation_class(error):
+    classes = ((AdmissionError, 'AdmissionError'), (psutil.NoSuchProcess, 'NoSuchProcess'),
+        (psutil.ZombieProcess, 'ZombieProcess'), (psutil.AccessDenied, 'AccessDenied'),
+        (psutil.Error, 'Error'), (PermissionError, 'PermissionError'),
+        (FileNotFoundError, 'FileNotFoundError'), (ProcessLookupError, 'ProcessLookupError'),
+        (OSError, 'OSError'), (KeyError, 'KeyError'), (TypeError, 'TypeError'),
+        (ValueError, 'ValueError'), (RuntimeError, 'RuntimeError'),
+        (subprocess.TimeoutExpired, 'TimeoutExpired'))
+    if error is None:return None
+    return next((name for kind, name in classes if type(error) is kind), 'other')
+
+
+def _observation_errno(error):
+    if type(error) not in (OSError, PermissionError, FileNotFoundError, ProcessLookupError):return None
+    value = BaseException.__getattribute__(error, 'errno')
+    return value if type(value) is int and 0 <= value <= 65535 else None
+
+
+def _sample_observation(error, phase, cause=None):
+    # Attach sanitized scalars only; retain the original public exception reason.
+    error._sample_observation = {'phase': phase if phase in _OBSERVATION_PHASES else 'other',
+        'cause_class': _observation_class(cause), 'errno': _observation_errno(cause)}
+    return error
 
 
 @dataclass(frozen=True)
@@ -39,9 +76,11 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
     """Bounded strict full-service observation; never confers kill authority."""
     deadline = clock() + SAMPLE_SECONDS
     rows = {}
+    phase = 'caller_identity'
     try:
         caller = psutil.Process(os.getpid())
         caller_created = caller.create_time()
+        phase = 'process_enumeration'
         for index, process in enumerate(psutil.process_iter(['pid', 'ppid'])):
             if index >= MAX_ROWS or clock() >= deadline:
                 raise AdmissionError('process_sample_budget')
@@ -52,6 +91,7 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
             rows[pid] = (parent, process)
         selected = {caller.pid}
         remembered = dict(known)
+        phase = 'remembered_identity'
         if len(remembered) > MAX_IDENTITIES:
             raise AdmissionError('process_identity_budget')
         for pid, created in remembered.items():
@@ -67,6 +107,7 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
                 raise AdmissionError('remembered_identity_unobserved')
         if len(selected) > MAX_IDENTITIES:
             raise AdmissionError('process_identity_budget')
+        phase = 'family_selection'
         for _ in range(MAX_IDENTITIES):
             added = {pid for pid, (parent, _) in rows.items() if parent in selected} - selected
             if not added:
@@ -84,8 +125,11 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
             if clock() >= deadline:
                 raise AdmissionError('process_sample_budget')
             parent, process = rows[pid]
+            phase = 'selected_identity'
             created = process.create_time()
+            phase = 'selected_rss'
             rss = process.memory_info().rss
+            phase = 'selected_recheck'
             if process.create_time() != created or process.ppid() != parent or type(rss) is not int or rss < 0:
                 raise AdmissionError('process_identity_uncertain')
             if pid in remembered and remembered[pid] != created:
@@ -96,42 +140,52 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
             total += rss
             if pid == caller.pid:
                 caller_rss = rss
+        phase = 'host_memory'
         available = psutil.virtual_memory().available
+        phase = 'disk_free'
         free = shutil.disk_usage(settings.data_dir).free
         if clock() >= deadline:
             raise AdmissionError('process_sample_budget')
         return ProcessSample(identities, total, caller_rss, available, free)
-    except (psutil.Error, OSError, KeyError, TypeError, ValueError):
-        raise AdmissionError('process_sample_unavailable') from None
+    except AdmissionError as error:
+        _sample_observation(error, phase)
+        raise
+    except (psutil.Error, OSError, KeyError, TypeError, ValueError) as error:
+        raise _sample_observation(AdmissionError('process_sample_unavailable'), phase, error) from None
 
 
 class PrimaryIntent:
     def __init__(self, owner, kind):
-        self.owner, self.kind, self.entered, self.released = owner, kind, False, False
+        self.owner, self.kind = owner, kind
+        self.granted = self.entered = self.released = False
 
-    def wait(self, stop=None):
+    def wait(self, stop=None, *, handoff=None):
         owner = self.owner
-        with owner._condition:
-            while owner._optional is not None:
-                if stop is not None and stop():
+        while True:
+            with owner._condition:
+                if self.released or stop is not None and stop():
                     self.release()
                     raise InterruptedError('Primary wait interrupted')
-                owner._condition.wait(.05)
-            if stop is not None and stop():
-                self.release()
-                raise InterruptedError('Primary wait interrupted')
-            self.entered = True
-            owner._local.intent = self
-        return self
+                if self.granted and owner._optional is None:
+                    self.entered = True
+                    owner._local.intent = self
+                    return self
+            # Only the existing Worker supplies this bounded scheduling pump.
+            # Never run it under the permit condition or a SQLite transaction.
+            if handoff is not None:handoff()
+            with owner._condition:
+                if not self.granted or owner._optional is not None:
+                    owner._condition.wait(.05)
 
     def release(self):
         owner = self.owner
         with owner._condition:
             if not self.released:
                 self.released = True
-                owner._primary.pop(self.kind, None)
+                if owner._primary.get(self.kind) is self:owner._primary.pop(self.kind)
                 if getattr(owner._local, 'intent', None) is self:
                     owner._local.intent = None
+                owner._grant_primary_locked()
                 owner._condition.notify_all()
 
 
@@ -144,10 +198,13 @@ class NativeExecutionPermit:
         self._observed = {}
         self._probe = False
         self._optional = None
+        self._optional_kind = None
+        self._handoff = self._turn = None
         self._cancel = self._cancel_callback = None
         self._state = 'IDLE'
         self._closed = False
         self._unavailable = None
+        self._primary_observation_failure = None
         self._configuration_current = lambda: True
 
     @contextmanager
@@ -169,7 +226,9 @@ class NativeExecutionPermit:
         # primary/result DB. No native/owner callback or join under these locks.
         if not self._condition.acquire(timeout=.005):raise AdmissionError('publication_fence_busy')
         try:
-            if self._closed or record['cancelled'].is_set() or self._primary:
+            if (self._closed or record['cancelled'].is_set()
+                    or self._optional is not record or self._optional_kind != 'automatic_text'
+                    or any(x.granted or x.entered for x in self._primary.values())):
                 raise AdmissionError('optional_cancelled')
             yield
         finally:self._condition.release()
@@ -183,7 +242,8 @@ class NativeExecutionPermit:
                 raise RuntimeError('Primary participant already active')
             intent = PrimaryIntent(self, kind)
             self._primary[kind] = intent
-            if self._optional is not None:
+            self._grant_primary_locked()
+            if self._optional is not None and self._optional_kind != 'automatic_text':
                 self._cancel.set()  # Publication invalidation precedes termination.
                 callback = self._cancel_callback
         if callback is not None:
@@ -192,6 +252,46 @@ class NativeExecutionPermit:
             except Exception:
                 pass  # Optional ownership remains held, never silently released.
         return intent
+
+    def _grant_primary_locked(self):
+        # A due handoff freezes the existing granted identities. Arrivals stay
+        # queued until its one opportunity closes (or its exact owner releases).
+        if self._optional is None and self._handoff is None:
+            for intent in self._primary.values():intent.granted = True
+
+    def request_automatic_turn(self):
+        with self._condition:
+            if self._closed or self._unavailable or self._optional is not None:return False
+            if self._handoff is None:self._handoff = object()
+            self._condition.notify_all()
+            return True
+
+    @contextmanager
+    def automatic_turn(self):
+        token = None
+        with self._condition:
+            if (self._handoff is not None and self._turn is None and self._optional is None
+                    and not self._probe and not any(x.granted for x in self._primary.values())):
+                token = self._turn = self._handoff
+                self._local.turn = token
+        try:yield token is not None
+        finally:
+            if token is not None:
+                with self._condition:
+                    if self._turn is token:
+                        self._turn = self._handoff = None
+                        self._local.turn = None
+                        self._grant_primary_locked()
+                        self._condition.notify_all()
+
+    def abandon_automatic_turn(self):
+        # Shutdown can discard only a non-owned scheduling hint, never a live
+        # optional token or a turn currently executing its bounded callback.
+        with self._condition:
+            if self._turn is None:
+                self._handoff = None
+                self._grant_primary_locked()
+                self._condition.notify_all()
 
     @contextmanager
     def primary_span(self, kind='probe', stop=None):
@@ -224,8 +324,42 @@ class NativeExecutionPermit:
         with self._condition:
             self._unavailable = reason
 
+    def _record_primary_failure(self, operation, phase, error):
+        record = None
+        with self._condition:
+            self.mark_unavailable()
+            if self._primary_observation_failure is not None:return
+            try:
+                reason = error.reason if type(error) is AdmissionError else None
+                if reason is not None and (type(reason) is not str or reason not in _OBSERVATION_REASONS):reason = 'other'
+                cause = BaseException.__getattribute__(error, '__context__')
+                cause_class, errno = _observation_class(cause), _observation_errno(error)
+                if type(error) is AdmissionError:
+                    observed = getattr(error, '_sample_observation', None)
+                    if type(observed) is dict:
+                        phase = observed.get('phase', phase)
+                        cause_class, errno = observed.get('cause_class'), observed.get('errno')
+                handles = len(self._handles)
+                descendants = sum(len(row['children']) for row in self._handles.values())
+                record = {'operation': operation if operation in ('bind_primary', 'observe_primary', 'finish_primary') else 'other',
+                    'phase': phase if type(phase) is str and phase in _OBSERVATION_PHASES else 'other',
+                    'exception_class': _observation_class(error),
+                    'cause_class': cause_class if cause_class is None or type(cause_class) is str and cause_class in ('AdmissionError', 'NoSuchProcess',
+                        'ZombieProcess', 'AccessDenied', 'Error', 'PermissionError', 'FileNotFoundError',
+                        'ProcessLookupError', 'OSError', 'KeyError', 'TypeError', 'ValueError',
+                        'RuntimeError', 'TimeoutExpired', 'other') else 'other',
+                    'reason': reason, 'errno': errno if type(errno) is int and 0 <= errno <= 65535 else None,
+                    'handle_count': handles if 0 <= handles <= MAX_IDENTITIES else None,
+                    'descendant_count': descendants if 0 <= descendants <= MAX_IDENTITIES else None}
+                self._primary_observation_failure = record
+            except Exception:
+                return  # A diagnostic failure cannot undo the existing latch.
+        try:_LOG.warning('primary_ownership_observation %s', dict(record))
+        except Exception:pass
+
     def bind_primary(self, process, *, resident=None):
         """Remember original handle identity; observation errors never escape."""
+        phase = 'bind_identity'
         try:
             proc = process.proc if hasattr(process, 'proc') else process
             with self._condition:
@@ -235,12 +369,14 @@ class NativeExecutionPermit:
                 self._handles[id(proc)] = {'proc': proc, 'pid': proc.pid, 'created': created,
                     'resident': resident, 'children': {}, 'idle': False}
             self.observe_primary()
-        except Exception:
-            self.mark_unavailable()
+        except Exception as error:
+            self._record_primary_failure('bind_primary', phase, error)
 
     def observe_primary(self):
+        phase = 'sample'
         try:
             sample = self._take_sample()
+            phase = 'family_tracking'
             with self._condition:
                 for record in self._handles.values():
                     family = {record['pid']}
@@ -257,25 +393,30 @@ class NativeExecutionPermit:
                         record['children'][pid] = identity
                     if sum(1 + len(x['children']) for x in self._handles.values()) > MAX_IDENTITIES:
                         raise AdmissionError('primary_identity_budget')
-        except Exception:
-            self.mark_unavailable()
+        except Exception as error:
+            self._record_primary_failure('observe_primary', phase, error)
 
     def finish_primary(self, process, *, normal=False):
         """Positive original wait/reap or explicit resident-idle is required."""
         proc = process.proc if hasattr(process, 'proc') else process
+        phase = 'sample'
         try:
             self.observe_primary()
             with self._condition:
+                phase = 'original_wait'
                 record = self._handles.get(id(proc))
                 if record is None or record['proc'] is not proc:
                     raise AdmissionError('primary_handle_unknown')
+                phase = 'resident_check'
                 if normal and record['resident'] is not None and record['resident']():
                     if (proc.poll() is not None or psutil.Process(proc.pid).create_time() != record['created']):
                         raise AdmissionError('resident_identity_uncertain')
                     record['idle'] = True
                     return
+                phase = 'original_wait'
                 if proc.poll() is None or proc.wait(timeout=0) is None:
                     raise AdmissionError('primary_wait_unconfirmed')
+                phase = 'descendant_check'
                 for pid, created in ((record['pid'], record['created']), *record['children'].items()):
                     try:
                         live = psutil.Process(pid)
@@ -284,8 +425,8 @@ class NativeExecutionPermit:
                     except psutil.NoSuchProcess:
                         pass
                 del self._handles[id(proc)]
-        except Exception:
-            self.mark_unavailable()
+        except Exception as error:
+            self._record_primary_failure('finish_primary', phase, error)
 
     def finish_cohort(self, *, normal):
         with self._condition:
@@ -323,23 +464,30 @@ class NativeExecutionPermit:
                 raise AdmissionError('service_host_envelope')
         return sample
 
-    def reserve_optional(self, token, cancelled, cancel_callback):
+    def reserve_optional(self, token, cancelled, cancel_callback, *, owner_kind='preemptible'):
+        if owner_kind not in ('preemptible', 'automatic_text'):raise ValueError('Unknown optional owner')
         with self._condition:
             if self._closed or not self._configuration_current():
                 raise AdmissionError('jobs_configuration_unavailable')
-            if self._optional is not None or self._primary or self._probe:
+            turn = (owner_kind == 'automatic_text' and self._turn is not None
+                    and getattr(self._local, 'turn', None) is self._turn)
+            primary = any(x.granted or x.entered for x in self._primary.values()) if turn else bool(self._primary)
+            if self._optional is not None or primary or self._probe or self._handoff is not None and not turn:
                 raise AdmissionError('primary_or_optional_busy')
             if self._unavailable:
                 raise AdmissionError(self._unavailable)
             self._resource_check(reserve=True)
             self._optional, self._cancel, self._cancel_callback = token, cancelled, cancel_callback
+            self._optional_kind = owner_kind
             self._state = 'OPTIONAL_RESERVED'
 
     def check_optional(self, token, phase='running'):
         with self._condition:
             if self._optional is not token:
                 raise AdmissionError('optional_ownership_changed')
-            if (self._closed or self._primary or self._cancel.is_set()
+            primary = (any(x.granted or x.entered for x in self._primary.values())
+                if self._optional_kind == 'automatic_text' else bool(self._primary))
+            if (self._closed or primary or self._cancel.is_set()
                     or not self._configuration_current() or self._unavailable):
                 self._cancel.set()
                 raise AdmissionError('optional_cancelled')
@@ -363,12 +511,16 @@ class NativeExecutionPermit:
                 self._state = 'OPTIONAL_BLOCKED'
                 return
             self._optional = self._cancel = self._cancel_callback = None
+            self._optional_kind = None
             self._state = 'IDLE'
+            self._grant_primary_locked()
             self._condition.notify_all()
 
     def close_admission(self):
         with self._condition:
             self._closed = True
+            if self._turn is None:self._handoff = None
+            self._grant_primary_locked()
             if self._cancel is not None:
                 self._cancel.set()
             callback = self._cancel_callback
@@ -382,5 +534,12 @@ class NativeExecutionPermit:
         with self._condition:
             return {'state': self._state if self._optional is not None else ('PRIMARY' if self._primary else 'IDLE'),
                 'primary_waiting': any(not x.entered for x in self._primary.values()),
+                'primary_queued': sum(not x.granted for x in self._primary.values()),
+                'primary_granted_waiting': sum(x.granted and not x.entered for x in self._primary.values()),
+                'primary_executing': sum(x.entered for x in self._primary.values()),
+                'automatic_turn_pending': self._handoff is not None,
+                'optional_owner_kind': self._optional_kind,
                 'optional_admission_unavailable': self._unavailable,
+                'primary_observation_failure': (dict(self._primary_observation_failure)
+                    if self._primary_observation_failure is not None else None),
                 'admission_closed': self._closed}

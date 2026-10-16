@@ -254,27 +254,25 @@ def test_source_generation_revoked_after_seal_before_save_vetoes_result(automati
     assert sum(driver.starts for driver in f.drivers) == 1
 
 
-def test_primary_arrives_after_cleanup_storage_waits_without_native_replay(automatic_cell_jobs):
+def test_primary_arrives_after_cleanup_text_commits_before_primary_grant(automatic_cell_jobs):
     f = automatic_cell_jobs; cell, _ = f.ready_cell(frames=16)
     intent = manager_intent(f, cell); f.owner.submit_automatic(intent)
     original = f.owner.results.match_committed; primary = []
-    def preempt_between_observation_and_guard(*args, **kwargs):
+    def arrive_between_observation_and_guard(*args, **kwargs):
         same = original(*args, **kwargs)
-        assert f.permit._optional is None  # The native process/pin are already cleaned.
+        assert f.permit._optional is f.owner._live
         primary.append(f.permit.primary_intent('probe'))
+        assert not primary[-1].granted
         return same
     try:
-        with patch.object(f.owner.results, 'match_committed', side_effect=preempt_between_observation_and_guard):
+        with patch.object(f.owner.results, 'match_committed', side_effect=arrive_between_observation_and_guard):
             record = f.finish()
-        assert record['storage_pending'] and not record['durable_result_available']
-        assert result_rows(f.store)[0]['state'] == candidate(f.store, intent['candidate_key'])['state'] == 'accepted'
-        assert not record['cancelled'].is_set()
+        assert not record['storage_pending'] and record['durable_result_available']
+        assert result_rows(f.store)[0]['state'] == candidate(f.store, intent['candidate_key'])['state'] == 'committed'
+        assert not record['cancelled'].is_set() and primary[0].granted
+        assert f.permit._optional is None
     finally:
         for claim in primary:claim.release()
-    sealed = record['history_snapshot']
-    code, response = f.owner.retry_storage('session', record['job_id'], f.owner.jobs_epoch)
-    assert code == 200 and response['durable_result_available']
-    assert f.owner.results.result('session', record['job_id']) == sealed.result_json
     assert sum(driver.starts for driver in f.drivers) == 1
 
 
@@ -978,7 +976,7 @@ def test_publish_auto_pcm_capacity_never_creates_metadata_only_and_keeps_intent_
     assert len(insert_calls) == int(capacity == 'sqlite_full')  # No metadata fallback INSERT.
     f.settings.moss_automatic_enabled = True
     automatic = auto.Automatic(f.store, history.MossResultStore(f.store),
-        capture=f.capture, jobs=SimpleNamespace(_enabled=lambda: True))
+        capture=f.capture, jobs=SimpleNamespace(_enabled=lambda: True, automatic_idle=lambda: True))
     op.result = outcome; op.slot_released.set(); op.done.set()
     automatic.flight = (intent['candidate_key'], op, cell.cell_id)
     automatic.step()

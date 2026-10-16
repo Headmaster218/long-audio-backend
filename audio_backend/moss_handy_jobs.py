@@ -369,6 +369,18 @@ class MossJobs:
                 self._probe_reconcile_active = False
                 self._probe_reconcile_after = time.monotonic() + 1.
 
+    def automatic_ready_hint(self):
+        """Bounded metadata-only hint; never reconcile/publish under primary."""
+        with self._gate():
+            if self._pending_record is not None:return False
+            record=self._live
+            if record is None:return True
+            thread=record['thread']
+            return (record['cleaned'] and not record['storage_pending']
+                and not self._probe_unresolved(record)
+                and not record.get('speaker_probe',{}).get('commit_pending')
+                and (thread is None or not thread.is_alive()))
+
     def automatic_idle(self):
         self._reconcile_speaker_links()
         record = self._live
@@ -455,7 +467,8 @@ class MossJobs:
             record['history_identity'] = HistoryIdentity(record['job_id'], sid, self.jobs_epoch, key, digest)
             reserved = False
             try:
-                self.permit.reserve_optional(record, cancelled, lambda:self._cancel_record(record))
+                self.permit.reserve_optional(record, cancelled, lambda:self._cancel_record(record),
+                    **({'owner_kind':'automatic_text'} if automatic is not None else {}))
                 reserved = True
                 self._validate(record)
                 if self._live is not None:self._retire(self._live)
@@ -927,9 +940,15 @@ class MossJobs:
             record['cancelled'].set()
         record['cleaned'] = True
         if candidate is not None:self._seal_history_locked(record, candidate)
-        self.permit.release_optional(record, cleaned=True)
-        if record['history_snapshot'] is not None:self._persist_locked(record)
+        if record.get('automatic_key') is not None:
+            record['terminal_pending']=record['history_snapshot'] is None
+            record['storage_pending']=True
+            self._persist_locked(record)
+        elif record['history_snapshot'] is not None:
+            self.permit.release_optional(record, cleaned=True)
+            self._persist_locked(record)
         else:
+            self.permit.release_optional(record, cleaned=True)
             try:self.results.no_result(record['history_identity'],**(
                 {'automatic_key':record['automatic_key'],'interrupted':record['cancelled'].is_set() or record['invalidated']}
                 if record.get('automatic_key') is not None else {}))
@@ -973,9 +992,23 @@ class MossJobs:
 
     def _persist_locked(self, record):
         snapshot = record['history_snapshot']
-        if snapshot is None or record['durable_result_available']:return
+        key=record.get('automatic_key')
+        if snapshot is None:
+            if key is None or not record.get('terminal_pending'):return
+            try:
+                self.results.no_result(record['history_identity'],automatic_key=key,
+                    interrupted=record['cancelled'].is_set() or record['invalidated'])
+            except Exception as exc:
+                if not (isinstance(exc,ReadError) and exc.reason in
+                        ('session_not_found','automatic_publication_veto','automatic_intent_missing')):
+                    record['storage_pending']=True
+                    self.permit.release_optional(record,cleaned=False)
+                    return
+            record['terminal_pending']=record['storage_pending']=False
+            self.permit.release_optional(record,cleaned=True)
+            return
+        if record['durable_result_available']:return
         try:
-            key=record.get('automatic_key')
             if key is None:self.results.commit(snapshot)
             elif self.results.match_committed(snapshot,automatic_key=key):pass
             else:
@@ -986,25 +1019,37 @@ class MossJobs:
                 if not owner._publication_guard.acquire(timeout=LOCK_SECONDS):
                     raise ReadError(503,'automatic_publication_fence_busy')
                 try:
+                    # These authoritative flags are already protected by the
+                    # source guard. Observe an explicit veto before cancellation
+                    # can mask it; a failed exact readback never reaches here.
+                    if (token.generation is not owner._epoch or owner._closed or owner._admission_closed
+                            or owner._publication_revoke_pending
+                            or self.cell_source._closed or self._closed
+                            or not self.store.settings.moss_automatic_enabled or not self.store.settings.moss_jobs_enabled):
+                        raise ReadError(409,'automatic_publication_veto')
                     with self.permit.automatic_publication_guard(record):
-                        if (token.generation is not owner._epoch or owner._closed or owner._admission_closed
-                                or owner._publication_revoke_pending
-                                or self.cell_source._closed or self._closed
-                                or not self.store.settings.moss_automatic_enabled or not self.store.settings.moss_jobs_enabled):
-                            raise ReadError(409,'automatic_publication_veto')
                         self.results.commit(snapshot,automatic_key=key)
                 finally:owner._publication_guard.release()
         except Exception as exc:
-            if ((isinstance(exc, ReadError) and exc.reason in ('session_not_found','automatic_publication_veto','automatic_intent_missing'))
-                    or record.get('automatic_key') is not None and record['cancelled'].is_set()):
+            if (isinstance(exc, ReadError) and exc.reason in
+                    ('session_not_found','automatic_publication_veto','automatic_intent_missing')):
                 record['history_snapshot'] = None
                 record['result'] = record['raw'] = None
                 record['storage_pending'] = False
                 record['invalidated'] = True
             else:record['storage_pending'] = True
+            if key is not None:self.permit.release_optional(record,cleaned=not record['storage_pending'])
             return
         record['durable_result_available'] = True
         record['storage_pending'] = False
+        if key is not None:self.permit.release_optional(record,cleaned=True)
+
+    def _release_deleted_text_owner(self,record):
+        lease=record.get('lease')
+        if (record.get('automatic_key') is not None and record['cleaned']
+                and record['process_cleanup_verified'] and lease is not None and lease.released
+                and not self._probe_unresolved(record)):
+            self.permit.release_optional(record,cleaned=True)
 
     def retry_storage(self, sid, jid, epoch):
         self._epoch(epoch)
@@ -1013,6 +1058,7 @@ class MossJobs:
             if self.results.is_deleted(sid):
                 record['history_snapshot'] = None
                 record['storage_pending'] = False
+                self._release_deleted_text_owner(record)
                 raise ReadError(404, 'session_not_found')
             self._persist_locked(record)
         self._retry_probe_storage(record)  # Existing storage-only route never starts a model.
@@ -1138,6 +1184,7 @@ class MossJobs:
                     if self.results.is_deleted(sid):
                         record['history_snapshot'] = None
                         record['storage_pending'] = record['durable_result_available'] = False
+                        self._release_deleted_text_owner(record)
                         probe = record.get('speaker_probe')
                         if probe is not None and not self._probe_unresolved(record):
                             probe['commit_pending'] = False

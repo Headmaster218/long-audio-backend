@@ -88,13 +88,13 @@ def test_worker_survives_contention_recovers_once_or_cancels(queued,with_permit,
     if permit is not None:settings._native_execution_permit=permit
     worker=Worker(store,settings)
     optional=[];processed=[];claims=[]
-    worker.moss_automatic=SimpleNamespace(step=lambda:optional.append('dispatch'))
+    worker.moss_automatic=SimpleNamespace(step=lambda **_:optional.append('dispatch'),primary_yield_due=lambda:False)
     worker.stop_event=TrackedStop(permit,optional)
     worker.wake.set()  # A pending input wake cannot defeat the contention backoff.
     claim=store.claim
-    def counted_claim():
+    def counted_claim(**kwargs):
         claims.append(time.monotonic())
-        return claim()
+        return claim(**kwargs)
     store.claim=counted_claim
     def process(chunk):
         processed.append(chunk['id'])

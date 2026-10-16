@@ -5,6 +5,7 @@ MossJobs own all PCM, native execution and cleanup. Historical admissions are
 never inference retry instructions.
 """
 from contextlib import contextmanager
+from collections import deque
 import hashlib
 import json
 import sqlite3
@@ -315,7 +316,8 @@ def authority_valid(authority,key,doc,budget):
 class Automatic:
     def __init__(self,store,results,*,capture=None,jobs=None):
         self.store,self.results,self.capture,self.jobs=store,results,capture,jobs
-        self.flight=None; self.next_attempt=0.; self.last_reason='not_started'; self.cursor=0
+        self.flight=None; self.next_attempt=0.; self.last_reason='not_started'
+        self._round={};self._sessions=deque()
         self.closed=False
 
     def current(self):
@@ -358,51 +360,99 @@ class Automatic:
                 raise ReadError(409,'automatic_source_revoked')
         return True
 
-    def step(self):
-        if not self.current() or time.monotonic()<self.next_attempt:return
+    def _snapshot(self):
+        if self._sessions:return True
+        with self.results._database() as db:
+            rows=[]
+            for state in ('queued','published'):
+                rows.extend(db.execute(f"SELECT seq,sid,candidate_key,state FROM {TABLE} INDEXED BY auto_state_seq WHERE state=? ORDER BY seq LIMIT ?",
+                    (state,MAX_PENDING+1)).fetchall())
+        if len(rows)>MAX_PENDING:raise ReadError(503,'automatic_pending_capacity')
+        grouped={}
+        for row in sorted(rows,key=lambda x:x['seq']):
+            group=grouped.setdefault(row['sid'],deque());group.append((row['seq'],row['candidate_key']))
+            if len(group)>SESSION_PENDING:raise ReadError(503,'automatic_session_pending_capacity')
+        self._round=grouped;self._sessions=deque(sorted(grouped))
+        return bool(self._sessions)
+
+    def _select_key(self):
+        if not self._snapshot():return None
+        sid=self._sessions.popleft();group=self._round[sid]
+        _,key=group.popleft()
+        if group:self._sessions.append(sid)
+        else:del self._round[sid]
+        return key
+
+    def primary_yield_due(self):
+        """Bounded metadata hint; no proof/PCM, admission or storage retry."""
+        try:
+            if not self.current() or time.monotonic()<self.next_attempt:return False
+            permit=self.jobs.permit
+            state=permit.status()
+            if state['admission_closed'] or state['optional_admission_unavailable'] or permit._optional is not None:return False
+            if not self.jobs.automatic_ready_hint():return False
+            if self.flight is not None:return self.flight[1].slot_released.is_set()
+            if self.capture.owner._slot is not None:return False
+            return self._snapshot()
+        except Exception:return False
+
+    def _admit_key(self,key):
+        selected=self.read_candidate(key)
+        if selected is None or selected['state']!='published':return
+        try:self.jobs.submit_automatic(selected)
+        except ReadError as exc:self.note(key,exc.reason)
+
+    def _finish_flight(self,stop):
+        key,op,cell_id=self.flight
+        # The existing owner deadline includes queue time. No new budget, no
+        # second publication operation, and no wait on unknown model attempts.
+        while not op.slot_released.is_set():
+            remaining=op.deadline-time.monotonic()
+            if stop() or remaining<=0:
+                self.last_reason='automatic_publication_pending';return
+            op.slot_released.wait(min(.05,remaining))
+        if stop():return
+        outcome=op.result or {};rows=outcome.get('cells',[])
+        if outcome.get('status')=='durable' and len(rows)==1 and rows[0].get('cell_id')==cell_id:
+            status=rows[0].get('status')
+            if status in ('retained','existing'):
+                self.note(key,'awaiting_admission',published=True)
+                self.flight=None
+                self._admit_key(key);return
+            if status=='not_retained_pcm':self.note(key,'cell_pcm_not_retained');self.flight=None;return
+            if status=='not_retained_metadata_capacity':self.note(key,'cell_metadata_capacity');self.flight=None;return
+        self.note(key,'automatic_publication_unacknowledged');self.flight=None
+
+    def step(self, *, stop=lambda:False):
+        if not self.current() or time.monotonic()<self.next_attempt or stop():return
         self.next_attempt=time.monotonic()+1.
         try:
-            if self.flight is not None:
-                key,op,cell_id=self.flight
-                if not op.slot_released.is_set():self.last_reason='automatic_publication_pending';return
-                self.flight=None; outcome=op.result or {}; rows=outcome.get('cells',[])
-                if outcome.get('status')=='durable' and len(rows)==1 and rows[0].get('cell_id')==cell_id:
-                    status=rows[0].get('status')
-                    if status in ('retained','existing'):
-                        self.note(key,'awaiting_admission',published=True);return
-                    if status=='not_retained_pcm':self.note(key,'cell_pcm_not_retained');return
-                    if status=='not_retained_metadata_capacity':self.note(key,'cell_metadata_capacity');return
-                self.note(key,'automatic_publication_unacknowledged');return
             if not self.jobs.automatic_idle():self.last_reason='automatic_job_slot_occupied';return
-            with self.results._database() as db:
-                choices=[]
-                for state in ('queued','published'):
-                    row=db.execute(f'SELECT {COLUMNS} FROM {TABLE} INDEXED BY auto_state_seq WHERE state=? AND seq>? ORDER BY seq LIMIT 1',(state,self.cursor)).fetchone()
-                    if row is not None:choices.append(row)
-                selected=dict(min(choices,key=lambda r:r['seq'])) if choices else None
-                unknown=db.execute(f"SELECT 1 FROM {TABLE} INDEXED BY auto_state_seq WHERE state='accepted' LIMIT 1").fetchone()
-            if selected is None:
-                self.cursor=0;self.last_reason='automatic_recovery_required' if unknown else 'automatic_idle';return
-            self.cursor=selected['seq'];key=selected['candidate_key']
-            if selected['state']=='published':
-                try:self.jobs.submit_automatic(selected)
-                except ReadError as exc:self.note(key,exc.reason)
-                return
+            if self.flight is not None:
+                self._finish_flight(stop);return
+            key=self._select_key()
+            if key is None:
+                with self.results._database() as db:
+                    unknown=db.execute(f"SELECT 1 FROM {TABLE} INDEXED BY auto_state_seq WHERE state='accepted' LIMIT 1").fetchone()
+                self.last_reason='automatic_recovery_required' if unknown else 'automatic_idle';return
+            selected=self.read_candidate(key)
+            if selected is None or selected['state'] not in ('queued','published'):return
+            if selected['state']=='published':self._admit_key(key);return
             from .native_owned_cell_store import Budget,Operation
             from .native_owned_seam_cells import anchor
-            from .native_owned_cells import SourceSupport
             if self.capture.owner._slot is not None:self.note(key,'cell_owner_busy');return
             selected=self.read_candidate(key,proof=True)
-            if selected is None or selected['state']!='queued':return
+            if selected is None or selected['state']!='queued' or stop():return
             with Budget().phase() as budget:
                 doc,support,parts=validate_document(selected['proof'])
                 if not authority_valid(self.capture.authority,key,doc,budget):
                     self.note(key,'automatic_source_unavailable');return
-                pcm=self.capture.authority.original_pcm(parts,budget); a=anchor(doc)
+                pcm=self.capture.authority.original_pcm(parts,budget);a=anchor(doc)
                 cell=Cell(support,parts,selected['proof'],pcm,selected['sid'],a['chunk_id'],a['start'],a['end'],a['sha256'])
                 op=self.capture.owner.submit('publish_auto',(key,cell))
-                if isinstance(op,Operation):self.flight=(key,op,cell.cell_id);self.last_reason='automatic_publication_pending'
-                else:self.note(key,'cell_owner_busy')
+                if isinstance(op,Operation):self.flight=(key,op,cell.cell_id)
+                else:self.note(key,'cell_owner_busy');return
+            self._finish_flight(stop)
         except Exception as exc:
             self.last_reason=exc.reason if isinstance(exc,ReadError) else 'automatic_maintenance_pending'
 
