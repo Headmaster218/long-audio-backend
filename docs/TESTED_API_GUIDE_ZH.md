@@ -1,4 +1,54 @@
-# dev10 本地 API：录音批次、主结果与显式 MOSS 诊断
+# dev20 当前 API：只读统一转写与精确证据
+
+本节适用于 `0.2.0rc3.dev20`。下方 dev10 输入与诊断示例保留为历史说明，不代表当前版本重新完成了那些安装或模型验收。当前版本的构建和检查状态见 [dev20 资格说明](DEV20_UNIFIED_TRANSCRIPT_QUALIFICATION.md)，完整选择与错误契约见 [统一转写契约](UNIFIED_TRANSCRIPT.md)。
+
+## 读取当前统一显示
+
+使用已有 session 的实际 ID；以下变量均由你自己的服务和响应提供。服务启用 API key 时沿用 Bearer 访问控制。没有启用 API key 时省略该 header。读取已有结果不要求启用模型、MOSS 执行或自动调度，不会触发新推理。
+
+```sh
+API=http://127.0.0.1:8765
+curl --fail-with-body "$API/sessions/$SID/transcript" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+- `reading`：按来源坐标选出的实际统一显示，状态为 `provisional_display_preference`。完整 MOSS 支持替换完整主 ASR 单元，未受影响的主文本保留；相邻作业的内部连接可以穿过主单元，但整体必须覆盖该单元。
+- `baseline_reading`：原主 ASR 单元的独立参考视图。原主结果 API 保持不变。
+- `selected_runs`：被选择的支持区间及所替换主证据引用。
+- `alternatives`：全部被替换主单元和未选中的相交模型候选。未解决的候选含完整可放置的 `candidate_reading`；无法放置的词不能凭空赋时，查看其完整 `result_ref`。
+- `complete_content: false`、`eos: null`：不把显示偏好解释为完整识别或已确认结束。模型时间戳未经验证，`word_times` 为空。相同文字、同时说话的局部标签和不同坐标的重复词不会按文本相等而删除。
+
+MOSS `speaker_scope` 只在同一任务、结果哈希和局部标签内成立。主 ASR 标签在 chunk、窗口起点和局部标签内成立；窗口信息不足时保持未知。两者均不提供跨来源的全局人物身份。
+
+## 固定分页与完整候选
+
+每页固定 60 秒。后续页使用上次返回的 `next_cursor` 原值；为 null 时结束。相同状态下重试稳定，相关主证据、自动状态或提交结果变化后旧 cursor 返回 409，应重新读取首个所需页。也可用非负整数 `block` 指定固定页，不应同时提供冲突的 cursor/block。
+
+```sh
+curl --fail-with-body --get "$API/sessions/$SID/transcript" \
+  --data-urlencode "cursor=$CURSOR" -H "Authorization: Bearer $API_KEY"
+```
+
+跨 60 秒页边界的 MOSS 支持不进入主选择；它仍作为未解决候选显示。每个证据只有一个 `home_block`，其他页仅给 `reference_only` 引用，不再次复制正文。合并显示时只展示 home block 的完整证据一次，不把跨页引用当作缺失文本或新识别。
+
+每页最多 16 个相交已提交 MOSS 结果，总负载最多 2 MiB、响应最多 256 KiB、完整主单元最多 128 个。自动绑定最多 1,024 条、累计 4 MiB 是**整个 session 的投影限制**，每页都检查，分页不能绕过；16 条结果只是普通密集页的计数上限。密集页、长 session 或大 alternatives 仍可能明确返回 503，不能当作空结果或完整转写。此 API 没有更小窗口参数；需要时使用原主结果和 MOSS 结果历史接口。未知、pending、取消或无法映射的来源保持显式状态，不猜测位置。
+
+## 精确证据读回
+
+从响应复制实际 `source_ref` 或完整结果的 `result_ref`：
+
+```sh
+curl --fail-with-body "$API/sessions/$SID/transcript/evidence/$SOURCE_REF" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+主证据引用包含当前主单元 ID 和不可变 ASR 字段/正文的规范哈希，不含可变人物分配。返回完整精确文本及当前证据状态；字段已经改变返回 409、单元缺失返回 404。这里不提供历史主文本重放。MOSS 引用按任务、不可变结果哈希和原始短语索引精确查找，`all` 可读完整保存结果；它是历史快照，不证明来源现在仍有效或模型内容完整。删除 session 后两类证据均不可读。
+
+下列历史指南中的输入示例与显式 MOSS 诊断仍需各自的前置条件；本节只读接口不会代替来源验证、自动调度或模型配置。
+
+---
+
+# 历史 dev10 API：录音批次、主结果与显式 MOSS 诊断
 
 先按 [安装与启动](INSTALL_DEV10_ZH.md) 安装完整 dev10 产品。示例假设服务在 `http://127.0.0.1:8765`，使用 `legacy` Worker；若设置 API key，每次请求都要自行加入 Bearer header。所有服务 ID、revision 和 proof 绑定值均来自你本次实际响应，不能复用示例值。
 

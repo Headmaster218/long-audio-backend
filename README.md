@@ -2,6 +2,26 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev20：只读、暂定的统一转写
+
+新增 `GET /sessions/{sid}/transcript` 和 `GET /sessions/{sid}/transcript/evidence/{source_ref}`，关闭模型及自动调度时也能读取现有证据。主响应 `reading` 是实际的统一显示结果：仅按已验证来源的采样坐标，选择完整覆盖所涉主 ASR 单元的相邻 MOSS 支持区间；保留未受影响的主文本，并在 `baseline_reading` 和完整链接的 alternatives 中保留原始主结果及未选中的模型候选。它是 `provisional_display_preference`，不保证内容完整、质量更好或 EOS 已知，也不会修剪单词、按字符串去重或推断跨任务人物身份。原主结果接口语义不变。
+
+分页固定为 60 秒。每页最多 16 个相交 MOSS 结果、累计 2 MiB 结果负载、128 个完整主单元和 256 KiB 响应；**每个 session 最多 1,024 条自动绑定描述、累计 4 MiB 绑定**，每页都检查整个 session，不能靠分页绕过。16 条结果上限解决普通密集页的计数问题，不承诺任意长的自动 session 可投影。超限明确拒绝，不能当作空转写；没有更小窗口重试参数，必要时使用原主结果及结果历史接口。跨页支持仍是明确未解决候选，不强行拼接。旧 cursor 遇到相关证据变化返回 409。
+
+主证据只提供当前精确哈希匹配的完整 ASR 字段，已改变返回 409、已缺失返回 404，不重放历史主文本。MOSS 证据使用不可变任务、结果哈希和原始索引，仍只代表历史快照。MOSS 说话人范围限定在任务和结果内，主 ASR 标签限定在 chunk、窗口和局部标签内，不是全局身份。
+
+最终计数上限为 16 的源码通过 92 个模型无关专项用例。此前同一投影算法和存储实现、计数上限为 8 的版本通过 726 个既有回归用例及 46 个子测试；最终上限变更后未重跑该完整回归组。三组已保存结果的关闭模型 GET 检查通过，最终响应与此前版本逐字节一致。检查使用真实应用注册的路由和访问/响应生命周期逻辑，但没有进入应用 lifespan，不是服务启动验收；没有新增模型推理。固定的小样本比较显示去除了重复来源覆盖，但中文 17 秒样例的 cpCER 从 40.51% 退步到 87.34%。指标差距与任务局部说话人标签的碎片化相容，不能单独归因或宣称统一结果提高了识别与身份准确率。
+
+本版不增加依赖、数据库表、持久投影索引或后台 worker。dev20 离线构建和安装资格以本版[资格说明](docs/DEV20_UNIFIED_TRANSCRIPT_QUALIFICATION.md)为准，不能沿用 dev19 的安装结果。
+
+- [统一转写契约、选择规则与资源边界](docs/UNIFIED_TRANSCRIPT.md)
+- [当前中文 API 读回示例](docs/TESTED_API_GUIDE_ZH.md)
+- [聚合检查结果和已知退步](docs/DEV20_UNIFIED_TRANSCRIPT_QUALIFICATION.md)
+
+## 保留的 dev19 及更早历史
+
+以下版本的能力、模型观察和安装记录只属于相应历史快照；其中“统一结果未实现”等描述不适用于上述 dev20 只读暂定投影。
+
 ## 0.2.0rc3.dev19：默认关闭的自动 MOSS 调度
 
 新增显式 `--moss-automatic`，默认关闭。首个保证的输入范围是带已验证设备时间线映射、持久来源回执及精确保留 PCM 的时间戳 `recording_work`；合资格 overlap 证据写为持久意图，在普通 Worker 空闲时自动提交独立 MOSS 诊断，无需逐项 POST。须同时启用 `--moss-jobs --native-owned-support --native-owned-cells --native-owned-core-seams`，继承 CPU、Nemotron、`overlap_backend=none`、显式本地模型和普通 Worker 前置条件；拒绝与旧上传 seam 开关 `--native-owned-seam-cells` 组合，只包含普通 cell 和 core/reset seam。

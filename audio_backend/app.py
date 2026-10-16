@@ -47,7 +47,7 @@ class _NativeSupportReadLifetime:
     """Hold bounded response buffers until the outer ASGI send has finished."""
     def __init__(self,app):self.app=app
     async def __call__(self,scope,receive,send):
-        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/native-owned-cells','/moss-jobs','/moss-automatic'))
+        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/native-owned-cells','/moss-jobs','/moss-automatic','/transcript'))
         if not private:return await self.app(scope,receive,send)
         done=threading.Event()
         scope['_native_support_read_done']=done
@@ -868,6 +868,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     app.state.moss_result_store=results
     app.state.moss_response_budget=response_budget
     register_routes(app, lambda:jobs, _assign_native_read_lease, result_store=results, get_response_budget=history_budget, automatic=automatic)
+    from .transcript_http import register_routes as register_transcript_routes
+    register_transcript_routes(app, store, _assign_native_read_lease, history_budget)
     app.add_middleware(_NativeSupportReadLifetime)
     return app
 
