@@ -17,7 +17,7 @@ import uuid
 from .native_owned_cells import (Cell, SourceSpan, SourceSupport, Turn, Unavailable,
     canonical, sha, digest, integer, text, exact_frame, float32_digest,
     validate_mapping, intersect_mapping, selection, RATE, CORE_FRAMES, PROOF_BYTES,
-    MAX_TURNS, POLICY_SHA256 as V1_POLICY)
+    MAX_TURNS, MAX_PARTS, POLICY_SHA256 as V1_POLICY)
 
 SCHEMA = 'native-owned-core-seam-v3'
 RESET_SCHEMA = 'native-owned-reset-replay-core-seam-v1'
@@ -25,6 +25,8 @@ COMPACT_BYTES = 2048
 MAX_COMPACTS = 2056
 PENDING_BYTES = 128 * 1024
 MAX_PENDING = 4
+COMPACT_GC_BATCH = 8
+COMPACT_GC_BODY_BYTES = 2 * COMPACT_GC_BATCH * COMPACT_BYTES
 SIDE_FRAMES = 10 * RATE
 POLICY = {'schema': SCHEMA, 'rate': RATE, 'support_frames': 20 * RATE,
           'witness': 'one-current-response', 'domain': 'capture-run-reset-epoch',
@@ -273,6 +275,21 @@ def init_schema(db):
         WHEN NEW.deleted=1 BEGIN DELETE FROM native_core_commits WHERE sid=NEW.id; END''')
 
 
+def retention_counts(db, budget):
+    """Bounded read-only occupancy, not a complete cross-store root graph."""
+    budget.check()
+    present = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='native_core_commits'").fetchone()
+    if present is None:return {'occupied': 0, 'pending': 0, 'pending_bytes': 0}
+    row = db.execute('''SELECT COUNT(*),COALESCE(SUM(pending IS NOT NULL OR state='pending'),0),
+        COALESCE(SUM(length(pending)),0) FROM native_core_commits''').fetchone()
+    budget.projection(96)
+    if not 0 <= row[0] <= MAX_COMPACTS or not 0 <= row[1] <= MAX_PENDING:
+        raise Unavailable('retention_compact_capacity')
+    if not 0 <= row[2] <= MAX_PENDING * PENDING_BYTES:
+        raise Unavailable('retention_pending_capacity')
+    return {'occupied': row[0], 'pending': row[1], 'pending_bytes': row[2]}
+
+
 def read_commit(db, slot_id, budget):
     row = db.execute('SELECT length(body) AS n FROM native_core_commits WHERE slot=?', (slot_id,)).fetchone()
     if row is None:return None
@@ -284,6 +301,208 @@ def read_commit(db, slot_id, budget):
     budget.projection(len(row[0])); commit = json.loads(row[0]); validate_commit(commit)
     if canonical(commit, COMPACT_BYTES) != row[0] or slot(commit) != slot_id:raise Unavailable('core_receipt_corrupt')
     return commit
+
+
+def _gc_guard(owner, op, db, budget):
+    """Primary BEGIN IMMEDIATE is the supported Worker.loop claim fence.
+
+    A claim that won first leaves a running row before current_chunk is set.
+    current_chunk covers paused/completed-but-still-publishing work. If an API
+    pauses that tiny claim gap, the unchanged Worker interruption check rejects
+    it before preparation. Direct process/prepare calls are not this contract.
+    """
+    from .native_owned_cell_capture import _identity
+    budget.check(); owner._generation(op)
+    if owner._admission_closed or op.cancelled.is_set() or owner._slot is not op:
+        raise Unavailable('compact_gc_admission_closed')
+    capture = owner._retention_capture
+    if capture is None:raise Unavailable('compact_gc_binding_unavailable')
+    if _identity(owner.authority.path) != owner.authority.identity:
+        raise Unavailable('compact_gc_primary_changed')
+    roots = set(capture.retention_roots())
+    if db.execute("SELECT 1 FROM chunks INDEXED BY chunk_queue WHERE status='running' LIMIT 1").fetchone():
+        raise Unavailable('compact_gc_producer_active')
+    counts = retention_counts(db, budget)
+    if counts['pending']:raise Unavailable('compact_gc_pending_proof')
+    # Cancelled/unreleased copied pins are still roots until exact drainage.
+    for pin in tuple(owner._pins.values()):
+        dependencies = pin.document.get('dependencies')
+        if type(dependencies) is not list or not 1 <= len(dependencies) <= MAX_PARTS:
+            raise Unavailable('compact_gc_producer_roots_pending')
+        for dependency in dependencies:roots.add(text(dependency['chunk_id']))
+    budget.projection(64); budget.check()
+    return frozenset(roots)
+
+
+def _gc_outbox_root(db, cid, budget):
+    row = db.execute('''SELECT 1 FROM recording_work rw
+        JOIN recording_batches rb ON rb.id=rw.batch_id
+        LEFT JOIN recording_pages rp ON rp.id=rw.page_id
+        WHERE rw.chunk_id=? AND ((rw.page_id IS NULL AND rb.state!='queued')
+            OR (rw.page_id IS NOT NULL AND COALESCE(rp.released,0)!=1)) LIMIT 1''', (cid,)).fetchone()
+    budget.projection(16)
+    return row is not None
+
+
+def _gc_stream_source(db, commit, budget):
+    """Return a verified completed stream position, otherwise protect it."""
+    p = validate_commit(commit); scope = commit['scope']
+    if scope['kind'] != 'stream':return None
+    row = db.execute('''SELECT
+        c.status='completed' AND s.deleted=0 AND s.processing_mode='legacy'
+          AND c.session_id=? AND c.digest=? AND sc.session_id=? AND sc.stream_id=?
+          AND ti.session_id=? AND ti.stream_id=? AND ti.position=sc.position
+          AND ti.timeline_start=c.timeline_start AND ti.timeline_end=c.timeline_start+c.duration AS same,
+        c.next_offset,c.timeline_start,c.duration,sc.position,
+        (SELECT first.timeline_start FROM stream_chunks first_sc
+         JOIN chunks first ON first.id=first_sc.chunk_id
+         WHERE first_sc.session_id=sc.session_id AND first_sc.stream_id=sc.stream_id
+         ORDER BY first_sc.position LIMIT 1) AS origin
+        FROM chunks c JOIN sessions s ON s.id=c.session_id
+        JOIN stream_chunks sc ON sc.chunk_id=c.id JOIN stream_time_index ti ON ti.chunk_id=c.id
+        WHERE c.id=?''', (p.session_id, p.source_sha256, p.session_id, scope['key'], p.session_id, scope['key'], p.chunk_id)).fetchone()
+    budget.projection(192)
+    if row is None or not row[0] or row[5] is None:return None
+    origin = float.fromhex(scope['origin'])
+    if (float(row[5]) != origin or exact_frame(row[1]) != exact_frame(row[3])
+            or exact_frame(row[3]) != p.source_frames or p.source_end > exact_frame(row[1])
+            or exact_frame(row[2], origin=origin) != p.logical_start - p.source_start):
+        return None
+    integer(row[4], (1 << 63) - 1)
+    if _gc_outbox_root(db, p.chunk_id, budget):return None
+    return row[4]
+
+
+def _gc_exact_row(db, slot_id, commit, raw, budget):
+    p = commit['part']
+    row = db.execute('''SELECT sid=? AND cid=? AND scope_key=? AND logical_end=?
+        AND pending IS NULL AND state!='cancelled' AND body=?
+        FROM native_core_commits WHERE slot=?''',
+        (p['session_id'], p['chunk_id'], scope_key(commit['scope']), p['logical_end'], raw, slot_id)).fetchone()
+    budget.projection(16)
+    return row is not None and bool(row[0])
+
+
+def _gc_receipt(owner, commit):
+    p = commit['part']; receipt = owner.receipt(p['chunk_id'])
+    return (receipt is not None and receipt.session_id == p['session_id']
+            and receipt.receipt_id == p['receipt_sha256'] and receipt.digest == p['source_sha256']
+            and receipt.frames == p['source_frames'] and receipt.stream_id == commit['scope']['key']
+            and exact_frame(receipt.timeline_start, origin=float.fromhex(commit['scope']['origin']))
+                == p['logical_start'] - p['source_start'])
+
+
+def collect_compacts(owner, op, budget, result=None):
+    """One primary-only transaction; never writes through PrimaryAuthority.
+
+    Only completed stream sources behind a verified later completed source are
+    considered. All receipts/cells/results stay intact. The owner slot excludes
+    new cell/pin admission while primary BEGIN IMMEDIATE excludes new claims.
+    No write/COMMIT is retried, and no absent ID alone is attributed to this GC.
+    """
+    from .native_owned_cell_capture import _identity
+    if result is None:result = {'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0}
+    result.update(status='no_eligible_compacts', reason='compact_gc_page_protected')
+    if _identity(owner.authority.path) != owner.authority.identity:
+        raise Unavailable('compact_gc_primary_changed')
+    cursor = owner._compact_gc_cursor; plans = []
+    # Store.db owns rollback/close. Override its ordinary 15-second connection
+    # busy timeout BEFORE any transaction or SQL work; never retry this write.
+    with owner.authority.store.db() as db:
+        db.execute('PRAGMA busy_timeout=5'); db.set_progress_handler(budget.progress, 100)
+        try:
+            budget.check(); db.execute('BEGIN IMMEDIATE')
+            roots = _gc_guard(owner, op, db, budget)
+            if owner._compact_gc_unknown is not None:
+                absent = 0
+                for slot_id, raw in owner._compact_gc_unknown:
+                    row = db.execute('SELECT body=? FROM native_core_commits WHERE slot=?', (raw, slot_id)).fetchone()
+                    budget.projection(16)
+                    if row is None:absent += 1
+                    elif not row[0]:raise Unavailable('compact_gc_unknown_changed')
+                _gc_guard(owner, op, db, budget); budget.check()
+                db.execute('ROLLBACK')
+                result.update(status='reconciled', reason='absent_after_unknown_commit' if absent
+                              else 'present_after_unknown_commit')
+                return result
+            rows = db.execute('''SELECT slot FROM native_core_commits WHERE slot>?
+                ORDER BY slot LIMIT ?''', (cursor, COMPACT_GC_BATCH)).fetchall()
+            budget.projection(len(rows) * 64)
+            if not rows:cursor = ''
+            for item in rows:
+                budget.check(); slot_id = digest(item[0])
+                commit = read_commit(db, slot_id, budget)
+                if commit is None:raise Unavailable('compact_gc_roots_changed')
+                raw = canonical(commit, COMPACT_BYTES); result['body_bytes'] += len(raw)
+                result['scanned'] += 1; cursor = slot_id
+                p = commit['part']; cid = p['chunk_id']
+                eligible = _gc_exact_row(db, slot_id, commit, raw, budget)
+                if cid in roots:eligible = False
+                if owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1', (cid,)).fetchone():
+                    eligible = False
+                budget.projection(16)
+                if not _gc_receipt(owner, commit):eligible = False
+                position = _gc_stream_source(db, commit, budget) if eligible else None
+                if position is None:
+                    result['protected'] += 1; continue
+                key = scope_key(commit['scope'])
+                latest = db.execute('''SELECT slot,logical_end FROM native_core_commits
+                    WHERE sid=? AND scope_key=? ORDER BY logical_end DESC LIMIT 2''',
+                    (p['session_id'], key)).fetchall()
+                budget.projection(160)
+                if (not latest or latest[0][0] == slot_id or latest[0][1] <= p['logical_end']
+                        or len(latest) == 2 and latest[0][1] == latest[1][1]):
+                    result['protected'] += 1; continue
+                frontier_id = digest(latest[0][0]); frontier = read_commit(db, frontier_id, budget)
+                if frontier is None:raise Unavailable('compact_gc_roots_changed')
+                frontier_raw = canonical(frontier, COMPACT_BYTES)
+                result['body_bytes'] += len(frontier_raw)
+                if result['body_bytes'] > COMPACT_GC_BODY_BYTES:raise Unavailable('operation_work_capacity')
+                frontier_position = _gc_stream_source(db, frontier, budget)
+                fp = frontier['part']
+                if (frontier_position is None or frontier_position <= position or fp['chunk_id'] == cid
+                        or not _gc_receipt(owner, frontier)
+                        or fp['session_id'] != p['session_id'] or scope_key(frontier['scope']) != key
+                        or fp['logical_end'] <= p['logical_end']
+                        or not _gc_exact_row(db, frontier_id, frontier, frontier_raw, budget)):
+                    result['protected'] += 1; continue
+                plans.append((slot_id, raw, commit, frontier_id, frontier_raw, frontier))
+            if _gc_guard(owner, op, db, budget) != roots:
+                raise Unavailable('compact_gc_roots_changed')
+            # No proof bytes cross the boundary again. Every exact body/frontier
+            # and root predicate is rechecked under the same claim/owner fence.
+            for slot_id, raw, commit, frontier_id, frontier_raw, frontier in plans:
+                cid = commit['part']['chunk_id']
+                if (not _gc_exact_row(db, slot_id, commit, raw, budget)
+                        or not _gc_exact_row(db, frontier_id, frontier, frontier_raw, budget)
+                        or _gc_stream_source(db, commit, budget) is None
+                        or _gc_stream_source(db, frontier, budget) is None
+                        or not _gc_receipt(owner, commit) or not _gc_receipt(owner, frontier)
+                        or cid in roots or _gc_outbox_root(db, cid, budget)
+                        or owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1', (cid,)).fetchone()):
+                    raise Unavailable('compact_gc_roots_changed')
+                budget.projection(16)
+            if plans:
+                owner.retention_changed()
+                for slot_id, raw, *_ in plans:
+                    if db.execute('DELETE FROM native_core_commits WHERE slot=? AND body=? AND pending IS NULL',
+                                  (slot_id, raw)).rowcount != 1:
+                        raise Unavailable('compact_gc_roots_changed')
+                if _gc_guard(owner, op, db, budget) != roots:
+                    raise Unavailable('compact_gc_roots_changed')
+                budget.check()
+                owner._compact_gc_unknown = tuple((item[0], item[1]) for item in plans)
+                db.execute('COMMIT')
+                result.update(status='retired', reason='compact_gc_retired', retired=len(plans))
+            else:db.execute('ROLLBACK')
+            budget.check()
+            if _identity(owner.authority.path) != owner.authority.identity:
+                raise Unavailable('compact_gc_primary_changed')
+        finally:
+            # Rollback is owned here/Store.db, with progress cancellation removed.
+            db.set_progress_handler(None, 0)
+    owner._compact_gc_cursor = cursor
+    return result
 
 
 def transaction(db, chunk, offset, end, result):

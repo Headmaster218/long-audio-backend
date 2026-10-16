@@ -203,6 +203,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     from .native_owned_cell_capture import register as register_cells
                     registered_cells=register_cells(store,fragment_provider_factory=fragment_provider_factory,instance_lock=lock)
                     worker.native_owned_cells=registered_cells
+                    if registered_cells is not None and settings.native_owned_compact_gc_enabled:
+                        registered_cells.bind_retention_worker(worker)
                     if worker.native_owned_cells is not None:worker.native_owned_cells.owner.start()
                 except Exception:
                     app.state.native_owned_cells_status='registration_unavailable'

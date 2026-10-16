@@ -54,6 +54,7 @@ def main(argv=None):
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
     parser.add_argument('--native-owned-core-seams',action='store_true',help='Candidate default-OFF same-epoch and strictly validated reset-replay adjacent-core alternatives; requires --native-owned-cells and fresh optional store')
+    parser.add_argument('--native-owned-compact-gc',action='store_true',help='Candidate default-OFF orphan compact reclamation for completed stream sources; keeps all source receipts/cells/results; requires --native-owned-cells and --native-owned-core-seams')
     parser.add_argument('--native-owned-seam-cells',action='store_true',help='UNQUALIFIED default-OFF two-commit seam alternatives; requires --native-owned-cells; explicit overlapping diagnostics only')
     parser.add_argument('--native-owned-support',action='store_true',help='Experimental volatile native overlap support for isolated PCM uploads up to20s; read-only, lost on restart')
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit volatile single MOSS job service; requires native-owned support, CPU and no overlap/fragment provider')
@@ -73,6 +74,8 @@ def main(argv=None):
         parser.error('--framemn requires an explicit --framemn-checkpoint')
     if args.native_owned_core_seams and not args.native_owned_cells:
         parser.error('--native-owned-core-seams requires --native-owned-cells')
+    if args.native_owned_compact_gc and not (args.native_owned_cells and args.native_owned_core_seams):
+        parser.error('--native-owned-compact-gc requires --native-owned-cells and --native-owned-core-seams')
     if args.native_owned_seam_cells and not args.native_owned_cells:
         parser.error('--native-owned-seam-cells requires --native-owned-cells')
     if args.moss_jobs_model and not args.moss_jobs:
@@ -217,6 +220,7 @@ def main(argv=None):
                         native_owned_cells_enabled=args.native_owned_cells,
                         native_owned_seam_cells_enabled=args.native_owned_seam_cells,
                         native_owned_core_seams_enabled=args.native_owned_core_seams,
+                        native_owned_compact_gc_enabled=args.native_owned_compact_gc,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         verified_identity_policy_file=args.verified_identity_policy,

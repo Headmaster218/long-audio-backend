@@ -292,7 +292,7 @@ class PrimaryAuthority:
         No write/commit is retried. Every failed connection is closed before
         backoff. Projection/step/read counters and elapsed time accumulate.
         """
-        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping', 'core_commit', 'core_previous', 'core_pending'):
+        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping', 'core_commit', 'core_previous', 'core_pending', 'retention'):
             raise Unavailable('primary_read_phase')
         attempt = 0
         try:
@@ -322,6 +322,10 @@ class PrimaryAuthority:
             _diagnostic('native_owned_authority_read_failure phase=%s attempt=%d exception_class=%s sqlite_code=%s sqlite_name=%s',
                         phase, attempt, name, code, sql_name)
             raise
+
+    def retention_counts(self, budget):
+        from .native_owned_core_seams import retention_counts
+        return self._read(budget, 'retention', lambda db: retention_counts(db, budget))
 
     def session_valid(self, sid, budget):
         text(sid)
@@ -584,16 +588,67 @@ class Capture:
         self._seam_tail = None; self._seam_provisional = None; self._seam_disabled = False
         self.last_seam_reason = 'not_observed'
         self.core_seams = None
+        self._retention_worker = None
         if getattr(owner, 'core_seam_enabled', False):
             from .native_owned_core_seams import CoreSeams
             self.core_seams = CoreSeams(self)
+
+    def bind_retention_worker(self, worker):
+        """Only the app's one ordinary Worker.loop supplies the idle fence.
+
+        Direct calls to process/_process_windows/prepare are not this contract.
+        Bind before owner.start; an absent/replaced/dead worker never means idle.
+        """
+        if not self.owner.compact_gc_enabled:return False
+        from .worker import Worker
+        if (type(worker) is not Worker or worker.store is not self.authority.store
+                or worker.settings is not self.authority.store.settings
+                or worker.native_owned_cells is not self or self.authority.owner is not self.owner
+                or self.owner.authority is not self.authority or self.core_seams is None
+                or configuration_reason(worker.settings) is not None
+                or not worker.settings.native_owned_compact_gc_enabled
+                or not worker.settings.native_owned_cells_enabled or not worker.settings.native_owned_core_seams_enabled
+                or self.owner.configuration_reason is not None
+                or self._retention_worker not in (None, worker)
+                or self.owner._retention_capture not in (None, self)):
+            raise Unavailable('compact_gc_binding_unavailable')
+        self._retention_worker = worker; self.owner._retention_capture = self
+        self.retention_roots()
+        return True
+
+    def retention_roots(self):
+        """Bounded in-memory roots; call only behind the primary claim fence."""
+        from .worker import Worker
+        worker = self._retention_worker; owner = self.owner
+        target = getattr(getattr(worker, 'thread', None), '_target', None)
+        if (type(worker) is not Worker or getattr(target, '__self__', None) is not worker
+                or getattr(target, '__func__', None) is not Worker.loop
+                or worker.store is not self.authority.store or worker.settings is not self.authority.store.settings
+                or worker.native_owned_cells is not self or owner._retention_capture is not self
+                or owner.authority is not self.authority or self.authority.owner is not owner
+                or configuration_reason(worker.settings) is not None
+                or not worker.settings.native_owned_compact_gc_enabled
+                or not worker.settings.native_owned_cells_enabled or not worker.settings.native_owned_core_seams_enabled
+                or not owner.enabled or not owner.core_seam_enabled or not owner.compact_gc_enabled
+                or owner.configuration_reason is not None or self.core_seams is None):
+            raise Unavailable('compact_gc_binding_unavailable')
+        if worker.current_chunk is not None:raise Unavailable('compact_gc_producer_active')
+        if self.core_seams.generation is not owner._epoch:raise Unavailable('compact_gc_generation_changed')
+        if self.core_seams.flight is not None:raise Unavailable('compact_gc_pending_proof')
+        if self.active or self._seam_provisional is not None:
+            raise Unavailable('compact_gc_producer_roots_pending')
+        # All source receipts, including replay material, are retained. Core
+        # preparation's exact previous compact is separately protected in SQL.
+        return frozenset(() if self._seam_tail is None else (self._seam_tail.part.chunk_id,))
 
     def prepare_core_seam(self, *args):
         if self.core_seams is not None:return self.core_seams.prepare(*args)
 
     def drain_core_seams(self, status=None):
         if self.core_seams is not None:
-            if status is not None:self.core_seams.last_reason = status
+            if status is not None:
+                self.core_seams.last_reason = status
+                self.owner.retention_changed()
             return self.core_seams.drain()
 
     def _failure(self, exc):
@@ -605,6 +660,10 @@ class Capture:
 
     def health(self):
         result = dict(self.owner.health(), last_capture_reason=self.last_reason)
+        if 'retention' in result:
+            result['retention']['roots'].update(producer_active=int(self.active),
+                seam_tail=int(self._seam_tail is not None), seam_provisional=int(self._seam_provisional is not None),
+                core_flight=int(self.core_seams is not None and self.core_seams.flight is not None))
         if self.core_seams is not None:
             result['last_core_seam_reason'] = self.core_seams.last_reason
             result['core_seam_pending'] = self.core_seams.work_pending or self.core_seams.flight is not None
@@ -981,7 +1040,8 @@ def register(store, *, fragment_provider_factory=None, instance_lock=None):
         profile = None if reason else qualified_runtime(settings.data_dir)
         owner = CellStore(directory, authority, enabled=enabled, qualification=profile, instance_lock=instance_lock,
             seam_enabled=bool(getattr(settings, 'native_owned_seam_cells_enabled', False)),
-            core_seam_enabled=bool(getattr(settings, 'native_owned_core_seams_enabled', False)))
+            core_seam_enabled=bool(getattr(settings, 'native_owned_core_seams_enabled', False)),
+            compact_gc_enabled=bool(getattr(settings, 'native_owned_compact_gc_enabled', False)))
         authority.owner = owner; capture = Capture(owner, authority)
         _REGISTRY[key] = capture
     finally:_REGISTRY_LOCK.release()

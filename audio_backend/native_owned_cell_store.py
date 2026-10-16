@@ -47,6 +47,7 @@ OWNER_OP_SECONDS = 2.
 LOCK_SECONDS = .005
 SQL_STEPS = 150000
 SQL_PROJECTION_BYTES = 256 * 1024
+RETENTION_REFRESH_SECONDS = 1.
 SOURCE_READ_BYTES = 40 * 1024**2
 SCHEMA = 'native-owned-cell-store-v1'
 ALLOWED_FILES = frozenset(('cells.sqlite3', 'cells.sqlite3-journal',
@@ -513,7 +514,7 @@ class Pin:
 class CellStore:
     """No growing thread set, active+pending queue, or retained omitted-row log."""
     def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None,
-                 seam_enabled=False, core_seam_enabled=False):
+                 seam_enabled=False, core_seam_enabled=False, compact_gc_enabled=False):
         self.directory = Path(directory)
         self.path = self.directory / 'cells.sqlite3'
         self.authority = authority; self.enabled = enabled; self.qualification = qualification
@@ -522,6 +523,15 @@ class CellStore:
         self._store_policy = STORE_POLICY_SHA256 if seam_enabled else POLICY_SHA256
         if type(core_seam_enabled) is not bool:raise Unavailable('invalid_core_seam_flag')
         self.core_seam_enabled = core_seam_enabled
+        if type(compact_gc_enabled) is not bool or compact_gc_enabled and not (enabled and core_seam_enabled):
+            raise Unavailable('invalid_compact_gc_flag')
+        self.compact_gc_enabled = compact_gc_enabled
+        self._retention_capture = None; self._compact_gc_cursor = ''
+        self._compact_gc_next = 0.; self._compact_gc_unknown = None
+        self._compact_gc_attempts = 0; self._compact_gc_retired = 0
+        self._compact_gc_last = {'status': 'not_observed' if compact_gc_enabled else 'disabled',
+            'reason': 'compact_gc_not_observed' if compact_gc_enabled else 'compact_gc_disabled',
+            'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0}
         if core_seam_enabled:
             from .native_owned_core_seams import store_policy
             self._store_policy = store_policy()
@@ -536,6 +546,25 @@ class CellStore:
         self._admission_closed = False
         self._accepted = 0; self._dropped = 0; self._durable = 0; self._charge = 0
         self._sweep_cell = 0; self._sweep_source = ''; self._sweep_generation = None
+        from .native_owned_core_seams import MAX_COMPACTS, MAX_PENDING, PENDING_BYTES
+        from .native_owned_retention import row_counts
+        self._retention_change = object(); self._retention_failure = None
+        self._retention_next_refresh = 0.
+        self._retention_snapshot = (None, None, {
+            'status': 'optional_unavailable', 'reason': 'retention_not_observed',
+            'observed_at_monotonic': None, 'occupancy_complete': False,
+            'roots_complete': False, 'producer_frontier_known': False,
+            'consistency': 'separate_database_observations', 'reclamation_enabled': False,
+            'cells': row_counts('cells', None, MAX_CELLS),
+            'sources': row_counts('sources', None, MAX_RECEIPTS),
+            'compacts': row_counts('compacts', None, MAX_COMPACTS),
+            'metadata_only_cells': None,
+            'pending_proof_limit': MAX_PENDING, 'pending_proof_bytes_limit': MAX_PENDING * PENDING_BYTES,
+            'pending_proof_bytes': None,
+            'storage': {'page_count': None, 'freelist_pages': None, 'reusable_bytes': None,
+                        'last_observed_allocated_bytes': None},
+            'roots': {'unreleased_outbox': None, 'producer_replay': None,
+                      'retained_moss_results': None, 'moss_results_covered_by_retained_cells': True}})
 
     def start(self):
         if self._thread is not None:return self
@@ -563,7 +592,160 @@ class CellStore:
             'accepted': self._accepted, 'dropped': self._dropped, 'durable': self._durable,
             'last_observed_allocated_bytes': self._charge, 'total_bytes_limit': TOTAL_BYTES,
             'working_reservation_bytes': WORKING_RESERVATION_BYTES,
-            'working_memory_measured': False, 'quota_qualification': 'pinned-runtime-only' if self.qualification else 'unqualified'}
+            'working_memory_measured': False, 'quota_qualification': 'pinned-runtime-only' if self.qualification else 'unqualified',
+            'retention': self._retention_health(), 'compact_gc': self._compact_gc_health()}
+
+    def _compact_gc_health(self):
+        from .native_owned_core_seams import COMPACT_GC_BATCH, COMPACT_GC_BODY_BYTES
+        last = self._compact_gc_last
+        return {'enabled': self.compact_gc_enabled, 'status': last['status'], 'reason': last['reason'],
+            'attempts': self._compact_gc_attempts, 'retired': self._compact_gc_retired,
+            'last_scanned': last['scanned'], 'last_retired': last['retired'],
+            'last_protected': last['protected'], 'last_body_bytes': last['body_bytes'],
+            'uncertain_ids': len(self._compact_gc_unknown or ()), 'max_batch': COMPACT_GC_BATCH,
+            'body_projection_limit': COMPACT_GC_BODY_BYTES, 'scope': 'completed_stream_sources_only',
+            'source_receipt_limit': MAX_RECEIPTS, 'cell_limit': MAX_CELLS}
+
+    def _schedule_compact_gc(self):
+        """One internal operation in the existing slot, never a second queue."""
+        if not self.compact_gc_enabled or time.monotonic() < self._compact_gc_next:return False
+        occupied = self._retention_snapshot[2]['compacts']['occupied']
+        if self._compact_gc_unknown is None and (occupied is None or occupied < 2):return False
+        if not self._lock.acquire(blocking=False):return False
+        try:
+            if self._slot is not None or self._closed or self._admission_closed or self._reconcile.is_set():return False
+            self._slot = Operation('compact_gc', (), self._epoch, self._wake)
+            self._wake.set(); return True
+        finally:self._lock.release()
+
+    def _collect_compacts(self, op, budget):
+        """Owner-only wrapper; maintenance failures never poison normal status."""
+        from .native_owned_core_seams import collect_compacts
+        self._compact_gc_attempts = min(self._compact_gc_attempts + 1, (1 << 31) - 1)
+        result = {'status': 'deferred', 'reason': 'compact_gc_unavailable',
+                  'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0}
+        try:
+            with budget.phase():
+                if not self.compact_gc_enabled:raise Unavailable('compact_gc_disabled')
+                if self._slot is not op or op.kind != 'compact_gc':raise Unavailable('compact_gc_slot_unavailable')
+                self._generation(op)
+                if self._admission_closed or not self._ready.is_set() or op.cancelled.is_set():
+                    raise Unavailable('compact_gc_admission_closed')
+                self._db.set_progress_handler(budget.progress, 100); self._scan(budget)
+                result = collect_compacts(self, op, budget, result=result)
+                self._scan(budget); budget.check(); self._generation(op)
+                if self._admission_closed or op.cancelled.is_set():raise Unavailable('compact_gc_admission_closed')
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, Unavailable) else ''
+            allowed = ('compact_gc_disabled', 'compact_gc_slot_unavailable', 'compact_gc_admission_closed',
+                'compact_gc_binding_unavailable', 'compact_gc_producer_active', 'compact_gc_pending_proof',
+                'compact_gc_producer_roots_pending', 'compact_gc_generation_changed',
+                'compact_gc_primary_changed', 'compact_gc_roots_changed', 'compact_gc_unknown_changed',
+                'cooperative_deadline', 'operation_work_capacity')
+            result.update(status='unknown' if self._compact_gc_unknown is not None else 'deferred',
+                          reason=reason if reason in allowed else 'compact_gc_unavailable', retired=0)
+        finally:
+            try:self._db.set_progress_handler(None, 0)
+            except Exception:result.update(status='unknown' if self._compact_gc_unknown is not None else 'deferred',
+                                           reason='compact_gc_unavailable', retired=0)
+            self._compact_gc_next = time.monotonic() + RETENTION_REFRESH_SECONDS
+        if result['status'] in ('retired', 'reconciled', 'no_eligible_compacts'):
+            if result['status'] == 'retired':
+                self._compact_gc_retired = min(self._compact_gc_retired + result['retired'], (1 << 31) - 1)
+            self._compact_gc_unknown = None
+        self._compact_gc_last = dict(result)
+        return result
+
+    def retention_changed(self):
+        """Invalidate sampled counts without doing work on a producer thread."""
+        self._retention_change = object(); self._wake.set()
+
+    def _retention_health(self):
+        generation, change, cached = self._retention_snapshot
+        result = {key: dict(value) if type(value) is dict else value for key, value in cached.items()}
+        observed = result['observed_at_monotonic']
+        age = None if observed is None else max(0., time.monotonic() - observed)
+        state = ('unobserved' if observed is None else
+                 'generation_changed' if generation is not self._epoch else
+                 'dirty' if change is not self._retention_change else
+                 'expired' if age >= RETENTION_REFRESH_SECONDS else 'last_observed')
+        if self._retention_failure is not None:state = 'unavailable'
+        result.update(snapshot_state=state, sample_age_seconds=age,
+                      counts_are_last_observed=True, last_observed_status=result['status'])
+        if state != 'last_observed':
+            result.update(status='optional_unavailable', occupancy_complete=False,
+                          reason=self._retention_failure or 'retention_snapshot_' + state)
+        result['roots'].update(pins=len(self._pins), in_flight_operations=int(self._slot is not None))
+        return result
+
+    def _refresh_retention(self, budget):
+        """Owner-only bounded aggregate sample. Never a live retirement permit.
+
+        Each database is observed separately. Direct source dependencies and
+        pending compact holders are lower bounds: the left proof side, retained
+        results, outboxes and producer tails/replay may add roots. All remaining
+        rows stay unknown/protected until a future complete root/frontier API.
+        """
+        from .native_owned_core_seams import MAX_COMPACTS
+        from .native_owned_retention import row_counts
+        generation, change = self._epoch, self._retention_change
+        try:
+            with budget.phase():
+                if self._slot is not None:raise Unavailable('retention_refresh_deferred')
+                self._db.set_progress_handler(budget.progress, 100)
+                cells = self._db.execute('SELECT COUNT(*),COALESCE(SUM(pcm IS NULL),0) FROM cells').fetchone()
+                budget.projection(64); budget.check()
+                if self._slot is not None:raise Unavailable('retention_refresh_deferred')
+                sources = self._db.execute('''SELECT COUNT(*),COALESCE(SUM(EXISTS(
+                    SELECT 1 FROM dependencies d WHERE d.cid=sources.cid)),0) FROM sources''').fetchone()
+                budget.projection(64); budget.check()
+                pages = self._db.execute('PRAGMA page_count').fetchone()[0]
+                free = self._db.execute('PRAGMA freelist_count').fetchone()[0]
+                budget.projection(64); budget.check()
+                if self._slot is not None:raise Unavailable('retention_refresh_deferred')
+                provider = getattr(self.authority, 'retention_counts', None)
+                primary = provider(budget) if provider is not None else None
+                result = {key: dict(value) if type(value) is dict else value
+                          for key, value in self._retention_snapshot[2].items()}
+                result.update(cells=row_counts('cells', cells[0], MAX_CELLS, cells[0], 0),
+                              sources=row_counts('sources', sources[0], MAX_RECEIPTS, sources[1], 0),
+                              compacts=row_counts('compacts', None, MAX_COMPACTS),
+                              metadata_only_cells=cells[1], pending_proof_bytes=None,
+                              occupancy_complete=primary is not None)
+                if primary is not None:
+                    result['compacts'] = row_counts('compacts', primary['occupied'], MAX_COMPACTS,
+                                                   primary['pending'], primary['pending'])
+                    result['pending_proof_bytes'] = primary.get('pending_bytes')
+                result['storage'] = {'page_count': pages, 'freelist_pages': free,
+                    'reusable_bytes': free * PAGE_SIZE, 'last_observed_allocated_bytes': self._charge}
+                result.update(status='observed', reason='retention_root_closure_unknown')
+                for kind in ('cells', 'sources', 'compacts'):
+                    counts = result[kind]
+                    if counts['occupied'] == counts['limit']:
+                        if counts['referenced'] == counts['occupied']:
+                            result.update(status='blocked_referenced_capacity', reason=kind + '_referenced_capacity')
+                            break
+                        result.update(status='optional_unavailable', reason=kind + '_unknown_protected_capacity')
+                budget.check()
+                if generation is not self._epoch:raise Unavailable('retention_generation_changed')
+                if change is not self._retention_change or self._slot is not None:
+                    raise Unavailable('retention_refresh_deferred')
+                result['observed_at_monotonic'] = time.monotonic()
+                self._retention_snapshot = (generation, change, result)
+                self._retention_failure = None
+            return True
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, Unavailable) else ''
+            allowed = ('retention_refresh_deferred', 'retention_generation_changed',
+                       'cooperative_deadline', 'operation_work_capacity',
+                       'retention_compact_capacity', 'retention_pending_capacity', 'retention_count_capacity')
+            self._retention_failure = reason if reason in allowed else 'retention_refresh_unavailable'
+            return False
+        finally:
+            try:self._db.set_progress_handler(None, 0)
+            except Exception:self._retention_failure = 'retention_refresh_unavailable'
+            # Completion-based cadence also bounds repeated failures/slow reads.
+            self._retention_next_refresh = time.monotonic() + RETENTION_REFRESH_SECONDS
 
     def receipt(self, cid):
         if not self._ready.is_set() or self._closed:return None
@@ -603,6 +785,7 @@ class CellStore:
                 self._dropped = min(self._dropped + 1, (1 << 31) - 1)
                 return {'status': 'busy', 'reason': 'one_total_handoff_slot'}
             op = Operation(kind, payload, self._epoch, self._wake); self._slot = op
+            if kind in ('receipt', 'publish', 'expire', 'delete'):self.retention_changed()
             self._accepted = min(self._accepted + 1, (1 << 31) - 1)
             self._wake.set(); return op
         finally:self._lock.release()
@@ -1242,7 +1425,17 @@ class CellStore:
                     else:
                         self._cleanup_pending = True; self._status = 'shutdown_pending'
                     continue
-                if op is None and (self._admission_closed or not self._reconcile.is_set()):continue
+                if op is None and self._admission_closed:continue
+                if op is None and not self._reconcile.is_set():
+                    if self._schedule_compact_gc():continue
+                    if time.monotonic() < self._retention_next_refresh:continue
+                    budget = Budget.for_owner()
+                    self._refresh_retention(budget)
+                    continue
+                if op is not None and op.kind == 'compact_gc':
+                    op.result = self._collect_compacts(op, Budget.for_owner(op))
+                    op.payload = None; finish(op)
+                    continue
                 if op is not None and op.kind == 'dispatch':
                     if op.epoch is not self._epoch or self._admission_closed:op.abandon('cell_revoked')
                     if not op._begin_dispatch():
@@ -1254,7 +1447,8 @@ class CellStore:
                     with budget.phase():
                         self._db.set_progress_handler(budget.progress, 100)
                         self._scan(budget)
-                        if op is None:self._sweep(budget)
+                        if op is None:
+                            self.retention_changed(); self._sweep(budget)
                         elif op.kind == 'receipt':op.result = self._receipt(op, budget)
                         elif op.kind == 'publish':
                             reason = self._publication_policy(op.payload)
