@@ -1,0 +1,57 @@
+{
+  "schema": "staged-visibility-source-snapshot-v1",
+  "baseline_commit": "1ee53f53d52cb26aca656aca37504b765fe0c822",
+  "date": "2026-10-16",
+  "scope": "Bounded whole-batch visibility prerequisite; model-free checks only",
+  "files": [
+    {
+      "path": "source/audio_backend/boundary_store.py",
+      "bytes": 16103,
+      "sha256": "73e1d01fd083c91ce2acd65170632db24a088c3cf364efef5bc08f316dbfd19a",
+      "baseline_sha256": "9d3e688f4b95611a80d86ff38dc8c3e1e35de30b27dff85ebd4cc831b63a4f99"
+    },
+    {
+      "path": "source/audio_backend/native_owned_cell_capture.py",
+      "bytes": 56203,
+      "sha256": "92b7d6daf48e5a8258352c9dcbbdb808239c8c399f89364e7146a3455e037d59",
+      "baseline_sha256": "0d830a05ac794ae5f3b5c5b20bc4910dd19dad81f3633ee18048c687da0a5b9f"
+    },
+    {
+      "path": "source/audio_backend/recording_overlap.py",
+      "bytes": 52163,
+      "sha256": "f050e70cda1ae6593a5c2400870619211e1ed14aab3b80488b8714818081a56a",
+      "baseline_sha256": "314e7146ed7c20a34423c5901d64fd339b8dcad8b8cb46cfcb2e45f6671bea3f"
+    },
+    {
+      "path": "source/audio_backend/storage.py",
+      "bytes": 57262,
+      "sha256": "e33aa92bebf4fbd795315b830da77463b4de4e259e89fbcff2dc3dbb9c36b591",
+      "baseline_sha256": "a25b13e68dd283e88390a105dc5f920615ba171012c48eed39eeff7a648ce4ef"
+    },
+    {
+      "path": "source/tests/test_recording_overlap.py",
+      "bytes": 52631,
+      "sha256": "9a8e019873c006943eaa7a7735b1026caace078f871dfe1a66e1b914154cd71c",
+      "baseline_sha256": "63ddb500fe8760b306113d291694fcf85532b36c6938d15662c958eebbe39521"
+    },
+    {
+      "path": "source/tests/test_staged_stream_visibility.py",
+      "bytes": 14488,
+      "sha256": "8180ac549ca6106b641d1af27ec5e18e389f3ad4e9064ed0f812b92d83dbff11",
+      "baseline_sha256": null
+    },
+    {
+      "path": "source/tests/test_stream_time_index.py",
+      "bytes": 4994,
+      "sha256": "51c04ac7803bd8f2759947886376fd7d3eb5e0933190f35a6d5adfdf3a42897c",
+      "baseline_sha256": "aa73dbf7dc768fee0f710673660abfb127e7cd74f4c624ba496ae0d06893eee5"
+    }
+  ],
+  "tests": {
+    "passed": 174,
+    "additional_subtests": 9,
+    "baseline_expected_failures": 4
+  },
+  "production_changes": 4,
+  "test_changes_or_additions": 3
+}
