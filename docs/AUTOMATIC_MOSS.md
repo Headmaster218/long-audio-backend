@@ -403,7 +403,8 @@ source, lease, cancellation and permit state with its existing separately
 bounded validation Budget. These read counters are not cumulative across gate
 passes. The unchanged original driver and job deadlines bound the whole wait;
 inputs, accepted identity, lease, permit and driver are reused. The initial
-`before_input` gate and all checks inside `start`/admission remain single-shot.
+`before_input` gate remains single-shot. Inner start/admission gates have only
+the separate no-dispatch exception described below.
 No native invocation, write, uncertain commit or accepted historical attempt is
 retried. Persistent contention can end before invocation with zero counts.
 
@@ -412,3 +413,33 @@ error categories, whitelisted public reasons and allowed numeric SQLite
 code/name pairs. Unknown values stay redacted. No messages, SQL, paths,
 arguments, audio or stdout are added. These prospective diagnostics do not
 recover the cause of earlier outcomes recorded as `other`.
+
+
+## dev29: immediate no-dispatch owner contention
+
+Automatic text jobs may defer the existing inner `before_spawn` and
+`before_admission` gates only when `validate_dispatch` submission returns an
+immediate `busy` with fixed reason `owner_lock_busy` or
+`one_total_handoff_slot`, before any Operation was accepted. The private witness
+is created at that exact branch, never from the public
+`cell_owner_unavailable` string. Accepted pending operations, completed failures,
+other source reads, manual jobs and speaker probes remain single-shot.
+
+Each cancellation-aware wait is at most 100 ms and holds no owner operation,
+SQLite transaction or permit condition. The full same gate is revalidated under
+its existing per-validation bounds. The original job and driver deadlines bound
+all waits. The accepted identity, source copy, lease, permit and driver are
+unchanged; a child already waiting for its stdin admission byte is never
+respawned. Child liveness and resource guards must pass before the byte, followed
+by fresh checks of controller, accepted-record and lease cancellation and both
+original deadlines, including changes during the final resource sample.
+
+Fixed subphase and source-read fields fit the existing 1,024-byte outcome cap.
+They contain no raw messages, SQL, paths, arguments or model output. An attached
+owner_read can describe the last observed no-dispatch busy while the outer
+failure describes a later cancellation, deadline or resource refusal. Possible
+invocation without a validated receipt still has unknown counts. This policy
+provides no replay authority for historical failures or uncertain dispatched
+reads. See [dev29 qualification](DEV29_OWNER_ADMISSION_DEFER_ZH.md), the
+[incomplete actual run](DEV28_MIXED_STREAM_RESULT.md) and its separate
+[copied-state persistence check](DEV28_COPIED_HISTORY_PERSISTENCE.md).

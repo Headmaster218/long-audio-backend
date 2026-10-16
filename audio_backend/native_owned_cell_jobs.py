@@ -19,6 +19,9 @@ from .native_owned_seam_cells import is_composite, coverage as seam_coverage
 from .moss_handy_profile import NAME, MODEL_SHA256, RUNTIME_SHA256
 
 
+_OWNER_READ_NOT_DISPATCHED = object()
+
+
 @dataclass(frozen=True, slots=True)
 class CellDispatchToken:
     origin: str
@@ -131,8 +134,19 @@ class CellJobsSource:
     def _read(self, kind, payload):
         self._current()
         result = self.owner.submit(kind, payload)
-        if isinstance(result, Operation):result = result.wait(OWNER_OP_SECONDS)
-        if result.get('status') != 'available':raise self._error(result)
+        operation = result if isinstance(result, Operation) else None
+        if operation is not None:result = operation.wait(OWNER_OP_SECONDS)
+        if result.get('status') != 'available':
+            error = self._error(result)
+            stage = 'submit' if operation is None else 'done' if operation.done.is_set() else 'wait'
+            error._cell_owner_read = (stage, result.get('status'), result.get('reason'), operation is not None)
+            # Only these immediate submit returns prove no operation was accepted.
+            # Public cell_owner_unavailable and accepted read failures do not.
+            if (kind == 'validate_dispatch' and operation is None and type(result) is dict
+                    and result.get('status') == 'busy'
+                    and result.get('reason') in ('owner_lock_busy', 'one_total_handoff_slot')):
+                error._owner_read_not_dispatched = _OWNER_READ_NOT_DISPATCHED
+            raise error
         self._current()
         return result
 

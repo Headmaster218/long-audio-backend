@@ -591,7 +591,7 @@ class CellJobsAPI(CellJobsFixture):
                 captured = SimpleNamespace(owner=owner, authority=SimpleNamespace(owner=owner))
                 fake_jobs = SimpleNamespace(permit=None, close_admission=lambda: events.append('jobs_admission'),
                     stop=lambda: (events.append('jobs_stop'), True)[1])
-                def make_jobs(store, cache, permit, *, cell_source, result_store):
+                def make_jobs(store, cache, permit, *, cell_source, result_store, speaker_links=None):
                     self.assertIs(result_store, app.state.moss_result_store)
                     fake_jobs.permit = permit; self.assertIsNotNone(cell_source); return fake_jobs
                 def stop(worker):events.append('worker_stop'); return original_stop(worker)
@@ -616,7 +616,7 @@ class CellJobsAPI(CellJobsFixture):
                 owner = SimpleNamespace(start=lambda: None, close_admission=lambda: None)
                 captured = SimpleNamespace(owner=owner, authority=SimpleNamespace(owner=owner))
                 fake_jobs = SimpleNamespace(permit=None, close_admission=lambda: None, stop=lambda: unresolved != 'jobs')
-                def make_jobs(store, cache, permit, *, cell_source, result_store):
+                def make_jobs(store, cache, permit, *, cell_source, result_store, speaker_links=None):
                     self.assertIs(result_store, app.state.moss_result_store)
                     fake_jobs.permit = permit; return fake_jobs
                 config = Settings(data_dir=directory, disk_reserve_bytes=0, native_owned_cells_enabled=True,

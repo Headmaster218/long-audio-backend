@@ -1,0 +1,11 @@
+# Dev28 copied-state history persistence supplement
+
+A separate models-disabled check on 2026-10-16 verified historical persistence after the incomplete mixed-stream run. The failed original run, its database and its summary were preserved. No inference was repeated.
+
+The check copied the closed jobs database into a fresh diagnostic data directory. Startup's normal path guards required 224 copied path-field relocations into that directory. No audio was copied; the relocated paths do not establish available or currently valid source audio. Archive result/proof payloads were not rewritten. Normal startup recovery changed one eligible copied receipt from durable to pending. All 167 copied primary rows and offsets otherwise remained unchanged, as did the archive/core/automatic payload digests.
+
+A fresh local server used the normal application startup with workers and model features disabled. Its 198 requests were GET-only. Eleven history-list pages covered all 52 retained identities; 50 stored detail/result pairs matched the saved pre-shutdown bytes exactly, and evidence payloads matched the parsed result objects. The two historical no-result outcomes were unchanged. Twenty-nine transcript pages across four sessions were successfully paginated; each transcript page was not separately compared against evidence projections. This checks stored history and API pagination, not annotation accuracy, current source authority or completion of missing primary input.
+
+The original check handle completed with exit 0. Elapsed time was 1.976 seconds; sampled tree RSS peaked at about 101.4 MB and fresh artifacts totaled about 16.61 MB. The owned server produced orderly shutdown markers and was positively waited after intentional SIGTERM, with return code minus fifteen and no known surviving children. No resource violation was reported.
+
+This separately passing persistence check does not change the original run's exit 1, work-cutoff failure, two unresolved overlap candidates or parsing/accuracy limitations. It establishes that the 50 retained structured results and their historical evidence remain readable after recovery in an explicitly copied, nonexecuting state. It adds no raw decoder-output retention; the documented structured-archive scope is unchanged.

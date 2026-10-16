@@ -140,6 +140,18 @@ class _ServiceGate:
     def __init__(self, owner, record):
         self.owner, self.record = owner, record
 
+    @property
+    def _automatic_text(self):
+        return self.record.get('automatic_key') is not None
+
+    @property
+    def _automatic_wait_remaining(self):
+        return self.record['deadline'] - self.owner.clock()
+
+    @property
+    def _automatic_cancelled(self):
+        return self.record['cancelled'].is_set() or self.record['lease'].cancelled.is_set()
+
     def check(self, phase):
         owner, record = self.owner, self.record
         if (owner.clock() >= record['deadline']

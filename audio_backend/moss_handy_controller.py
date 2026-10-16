@@ -1,6 +1,6 @@
 """Volatile one-job MOSS owner with private optional service gates.
 
-No backlog, replay, retry after a possible invocation, or automatic abandoned
+No backlog, replay, native re-invocation, or automatic abandoned
 claim removal. Cleanup reuses the reviewed PID/create-time/original-handle
 mechanism; its scope is observed owned descendants, not a kernel containment
 or exhaustive process-discovery guarantee.
@@ -102,6 +102,18 @@ def failure_observation(phase, error):
     if type(error) in (OSError, PermissionError, FileNotFoundError, ProcessLookupError, TimeoutError):
         number = error.errno
         if type(number) is int and 0 <= number <= 65535:value['errno'] = number
+    gate = getattr(error, '_moss_start_gate', None)
+    if gate in ('before_spawn', 'before_admission'):value['gate'] = gate
+    observed = getattr(error, '_cell_owner_read', None)
+    if type(observed) is tuple and len(observed) == 4:
+        stage, state, reason, dispatched = observed
+        if (stage in ('submit', 'wait', 'done') and type(dispatched) is bool
+                and state in ('busy', 'pending', 'unavailable', 'unknown')):
+            value['owner_read'] = {'stage':stage, 'state':state, 'dispatched':dispatched,
+                'reason':reason if type(reason) is str and reason in (
+                    'owner_lock_busy', 'one_total_handoff_slot', 'optional_sql_or_io_failure',
+                    'cooperative_deadline', 'operation_work_capacity', 'cell_revoked',
+                    'cell_binding_changed', 'source_changed_after_read', 'revoked_generation') else 'other'}
     return value
 
 
@@ -158,9 +170,64 @@ class OwnedDriver:
             artifact_cap=SCRATCH_BYTES, host_reserve=2 * 1024**3, disk_reserve=int(5.5 * 1024**3))
         self.guard = CandidateGuard(directory, caller=Identity.bind(os.getpid()), deadline=300, **self.limits)
 
+    def _check_start_gate(self, phase, cancelled):
+        from .native_owned_cell_jobs import _OWNER_READ_NOT_DISPATCHED
+        from .native_owned_support_cache import ReadError
+        from .native_execution_permit import AdmissionError
+        service = self._service_gate
+        if service is None:return
+        automatic = getattr(service, '_automatic_text', False) is True
+        last_read = None
+        try:
+            while True:
+                if automatic:
+                    if cancelled.is_set() or service._automatic_cancelled:
+                        raise Cancelled('Cancelled before invocation admission')
+                    if time.monotonic() >= self.guard.deadline or service._automatic_wait_remaining <= 0:
+                        raise AdmissionError('optional_prelaunch_deadline')
+                    check_loader_context();check_directory(self.directory, self.identity)
+                    self.guard.check()
+                    if phase == 'before_admission' and self.proc.poll() is not None:
+                        raise RuntimeError('Owned waiting child exited')
+                try:
+                    service.check(phase)
+                    break
+                except ReadError as error:
+                    if (not automatic or type(error) is not ReadError or
+                            getattr(error, '_owner_read_not_dispatched', None) is not _OWNER_READ_NOT_DISPATCHED):
+                        raise
+                    last_read = error._cell_owner_read
+                # No owner operation/transaction/permit lock is held here. Each
+                # full validation keeps its own unchanged read budget; all waits
+                # share the original driver and accepted-job deadlines.
+                remaining = min(self.guard.deadline - time.monotonic(), service._automatic_wait_remaining)
+                if remaining <= 0:raise AdmissionError('optional_prelaunch_deadline')
+                if cancelled.wait(min(.1, remaining)):
+                    raise Cancelled('Cancelled before invocation admission')
+            if automatic:
+                if cancelled.is_set() or service._automatic_cancelled:
+                    raise Cancelled('Cancelled before invocation admission')
+                if time.monotonic() >= self.guard.deadline or service._automatic_wait_remaining <= 0:
+                    raise AdmissionError('optional_prelaunch_deadline')
+                self.guard.check()
+                if phase == 'before_admission' and self.proc.poll() is not None:
+                    raise RuntimeError('Owned waiting child exited')
+                if cancelled.is_set() or service._automatic_cancelled:
+                    raise Cancelled('Cancelled before invocation admission')
+                if time.monotonic() >= self.guard.deadline or service._automatic_wait_remaining <= 0:
+                    raise AdmissionError('optional_prelaunch_deadline')
+        except Exception as error:
+            # Fixed diagnostic scalars cannot replace the original failure.
+            try:
+                error._moss_start_gate = phase
+                if last_read is not None and not hasattr(error, '_cell_owner_read'):
+                    error._cell_owner_read = last_read
+            except Exception:pass
+            raise
+
     def start(self, cancelled):
         from .fragment_model_guard import Identity
-        if self._service_gate is not None:self._service_gate.check('before_spawn')
+        self._check_start_gate('before_spawn', cancelled)
         check_loader_context()
         check_directory(self.directory, self.identity)
         self.guard.check()
@@ -178,7 +245,7 @@ class OwnedDriver:
             raise RuntimeError('Owned child visibility unconfirmed')
         if cancelled.is_set():
             raise Cancelled('Cancelled before invocation admission')
-        if self._service_gate is not None:self._service_gate.check('before_admission')
+        self._check_start_gate('before_admission', cancelled)
         self.proc.stdin.write(b'1')
         self.proc.stdin.close()
 
@@ -313,7 +380,8 @@ class MossController:
         from .native_owned_cell_capture import _CLOSED_AUTOMATIC_READ_BUSY
         from .native_execution_permit import AdmissionError
         # The single already-constructed driver owns this original deadline.
-        # Initial before_input and every check within start remain single-shot.
+        # Initial before_input stays single-shot; inner start gates separately
+        # defer only an automatic owner read that was never dispatched.
         # Each gate validation keeps its ordinary independent read Budget; only
         # this existing driver deadline and the job deadline span outer retries.
         deferred = False
