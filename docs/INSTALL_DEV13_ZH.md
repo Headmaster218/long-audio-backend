@@ -1,6 +1,6 @@
 # dev13：源码安装与可选 FrameMN
 
-适用版本：`0.2.0rc3.dev13`。这是开发源码检查点，未创建 release/tag。以下为目标环境操作参考，未作为全新单环境安装配方完成验收。本轮只完成基于源码的 Linux CPU 机制检查与一次真实模型 API 检查，**没有验证安装后的 dev13 包、wheel 或隔离 target**。
+适用版本：`0.2.0rc3.dev13`。这是开发源码检查点，未创建 release/tag。已完成基于精确发布源码的标准离线 wheel 构建、全新 `--target` 安装、默认关闭导入/应用构造，以及一次安装包的 30 秒真实模型/API 检查。安装复用了既有合资格环境的依赖；以下命令仍为目标环境操作参考，**尚未作为全新依赖齐备的单环境安装配方完成验收**。先前源码运行与后续安装包运行的独立结果见 [功能检查与边界](DEV13_FUNCTIONAL_CHECK_ZH.md)。
 
 ## 1. 从完整源码安装
 
@@ -22,7 +22,9 @@ cp moss-td-cpp-model-manifest.json "$SITE/moss-td-cpp-model-manifest.json"
   'import audio_backend, importlib.metadata as m; assert audio_backend.__version__ == m.version("long-audio-backend") == "0.2.0rc3.dev13"; print(audio_backend.__version__)'
 ```
 
-这里从本地源码安装，不联网补齐依赖。若依赖缺失，先按固定依赖方案准备环境，不移除检查或替换运行时来掩盖失败。根级 MOSS C++ manifest 的复制沿用既有安装要求。版本检查只核对安装身份，不证明模型、FrameMN 或可选 cell 能力已运行。
+这里从本地源码安装，不联网补齐依赖。若依赖缺失，先按固定依赖方案准备环境，不移除检查或替换运行时来掩盖失败。根级 MOSS C++ manifest 的复制沿用既有安装要求：它不在 wheel 内，安装检查也按此要求单独复制。版本检查只核对安装身份，不证明模型、FrameMN 或可选 cell 能力已运行。
+
+已完成的安装检查采用标准宿主 pip/setuptools/wheel 离线构建，再由合资格运行时的 pip 安装到全新 `--target`；没有解析或安装依赖。wheel 共 118 个成员，其中 114 个包文件包含上游 `LICENSE` 和 `ADAPTATION.json`，全部包文件与发布源码及安装结果逐字节一致。默认关闭检查在 Torch 不可用的环境完成 `Settings`、应用及普通 `AudioAnalyzer` 导入和 55-route 应用构造；worker 关闭，未启动服务、构造 analyzer、读取模型或运行推理。另一次显式启用的安装包真实检查使用事先准备的可选运行时与本地 checkpoint，不能据此推断这里的命令会自动安装它们。
 
 ## 2. 默认启动：不启用 FrameMN
 
