@@ -7,6 +7,7 @@ permit. The primary cohort remains concurrent (one Worker and one upload).
 from contextlib import contextmanager
 from dataclasses import dataclass
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -21,6 +22,8 @@ HOST_RESERVE = 2 * 1024**3
 DISK_RESERVE = int(5.5 * 1024**3)
 MAX_ROWS, MAX_IDENTITIES, SAMPLE_SECONDS = 4096, 128, .250
 _LOG = logging.getLogger(__name__)
+_SAMPLE_BUDGET = object()
+SAMPLING_RETRY_SECONDS = 1.
 _OBSERVATION_PHASES = frozenset(('caller_identity', 'process_enumeration',
     'remembered_identity', 'family_selection', 'selected_identity', 'selected_rss',
     'selected_recheck', 'host_memory', 'disk_free', 'bind_identity', 'sample',
@@ -36,6 +39,33 @@ class AdmissionError(RuntimeError):
     def __init__(self, reason):
         super().__init__(reason)
         self.reason = reason
+
+
+class _SampleSkipped(AdmissionError):
+    """No observation was made; never a new ownership failure."""
+    def __init__(self):super().__init__('process_sample_unavailable')
+
+
+def _sample_exhausted(kind, elapsed=None, rows=0):
+    # Last budget-clock observation, not an extra clock read at refusal.
+    elapsed_ms = None
+    try:
+        if type(elapsed) in (float, int) and math.isfinite(elapsed) and elapsed >= 0:
+            elapsed_ms = min(2**31 - 1, int(min(elapsed, 2**31) * 1000))
+    except (OverflowError, TypeError, ValueError):pass
+    error = AdmissionError('process_sample_budget')
+    error._sample_budget = (_SAMPLE_BUDGET, kind, elapsed_ms, min(MAX_ROWS, rows))
+    return error
+
+
+def _authenticated_exhaustion(error):
+    if type(error) is not AdmissionError or error.reason != 'process_sample_budget':return None
+    marker = getattr(error, '_sample_budget', None)
+    if (type(marker) is tuple and len(marker) == 4 and marker[0] is _SAMPLE_BUDGET
+            and type(marker[1]) is str and marker[1] in ('wall', 'rows')
+            and (marker[2] is None or type(marker[2]) is int and 0 <= marker[2] <= 2**31 - 1)
+            and type(marker[3]) is int and 0 <= marker[3] <= MAX_ROWS):return marker[1:]
+    return None
 
 
 def _observation_class(error):
@@ -81,14 +111,20 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
     Both passes share the time/row/identity caps. This is asynchronous observed
     accounting, not proof about unseen historical descendants or PID reuse.
     """
-    deadline = clock() + SAMPLE_SECONDS
+    started = last_clock = clock()
+    deadline = started + SAMPLE_SECONDS
+    enumerated = 0
+    def time_exhausted():
+        nonlocal last_clock
+        last_clock = clock()
+        return last_clock >= deadline
+    def exhausted(kind):return _sample_exhausted(kind, last_clock - started, enumerated)
     phase = 'caller_identity'
     try:
         caller = psutil.Process(os.getpid())
         caller_created = caller.create_time()
         remembered = dict(known)
         carried_parents, carried_created = {}, {}
-        enumerated = 0
         for attempt in range(2):
             rows, obtained = {}, {}
             selected = {caller.pid}
@@ -99,8 +135,8 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
                     raise AdmissionError('caller_identity_uncertain')
                 phase = 'process_enumeration'
                 for process in psutil.process_iter(['pid', 'ppid']):
-                    if enumerated >= MAX_ROWS or clock() >= deadline:
-                        raise AdmissionError('process_sample_budget')
+                    if enumerated >= MAX_ROWS:raise exhausted('rows')
+                    if time_exhausted():raise exhausted('wall')
                     enumerated += 1
                     info = process.info
                     row_pid, parent = info['pid'], info['ppid']
@@ -117,8 +153,8 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
                 if len(required) > MAX_IDENTITIES:
                     raise AdmissionError('process_identity_budget')
                 for old_pid in required - {caller.pid}:
-                    if clock() >= deadline:
-                        raise AdmissionError('process_sample_budget')
+                    if time_exhausted():
+                        raise exhausted('wall')
                     if old_pid in rows:
                         selected.add(old_pid)
                     else:
@@ -135,8 +171,9 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
                     added = {p for p, (parent, _) in rows.items() if parent in selected} - selected
                     if not added:break
                     selected.update(added)
-                    if len(selected | required) > MAX_IDENTITIES or clock() >= deadline:
+                    if len(selected | required) > MAX_IDENTITIES:
                         raise AdmissionError('process_identity_budget')
+                    if time_exhausted():raise exhausted('wall')
                 else:
                     raise AdmissionError('process_identity_budget')
                 if caller.pid not in rows:
@@ -144,8 +181,8 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
                 identities = {}
                 total = caller_rss = confirmed_exits = 0
                 for pid in selected:
-                    if clock() >= deadline:
-                        raise AdmissionError('process_sample_budget')
+                    if time_exhausted():
+                        raise exhausted('wall')
                     parent, process = rows[pid]
                     phase = 'selected_identity'
                     # Retry uses independent public objects, not iterator cache.
@@ -185,7 +222,7 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
                 available = psutil.virtual_memory().available
                 phase = 'disk_free'
                 free = shutil.disk_usage(settings.data_dir).free
-                if clock() >= deadline:raise AdmissionError('process_sample_budget')
+                if time_exhausted():raise exhausted('wall')
                 return ProcessSample(identities, total, caller_rss, available, free,
                                      confirmed_exits, bool(attempt))
             except psutil.NoSuchProcess as error:
@@ -259,6 +296,13 @@ class NativeExecutionPermit:
         self._completed_sample_retries = 0
         self._sample_exit_confirmation = None
         self._configuration_current = lambda: True
+        self._sample_clock = time.monotonic
+        self._sample_flight = None
+        self._sample_generation = object()
+        self._sampling_pending = False
+        self._sampling_retry_after = 0.
+        self._sampling_failure = None
+        self._sampling_exhaustions = self._sampling_recoveries = 0
 
     @contextmanager
     def claim_probe(self):
@@ -370,47 +414,131 @@ class NativeExecutionPermit:
             raise AdmissionError('primary_identity_budget')
         return known
 
-    def _take_sample(self):
+    @property
+    def sampling_recovery_pending(self):
         with self._condition:
-            known = tuple(self._known_identities_locked().items())
-        current = (service_sample(self.settings, known=known) if self._sampler is service_sample
-                   else self._sampler(self.settings))
-        if len(current.identities) > MAX_IDENTITIES:
-            raise AdmissionError('process_identity_budget')
-        if (type(current.confirmed_exits) is not int or not 0 <= current.confirmed_exits <= MAX_IDENTITIES
-                or type(current.resampled) is not bool):
-            raise AdmissionError('process_identity_uncertain')
-        with self._condition:
-            latest = self._known_identities_locked()
-            if len(set(latest) | set(current.identities)) > MAX_IDENTITIES:
-                raise AdmissionError('primary_identity_budget')
-            prior = dict(known)
-            if any(latest[pid] != prior[pid] for pid in set(latest) & set(prior)):
-                raise AdmissionError('primary_identity_uncertain')
-            if any(pid not in prior and pid not in current.identities for pid in latest):
-                raise AdmissionError('primary_identity_uncertain')
-            for pid, row in current.identities.items():
-                if pid in latest and latest[pid] != row[0]:
-                    raise AdmissionError('process_identity_uncertain')
-            self._observed = {pid:row[0] for pid,row in current.identities.items()}
-            if current.resampled:
-                self._completed_sample_retries = min(2**31 - 1, self._completed_sample_retries + 1)
-            if current.confirmed_exits:
-                if self._sample_exit_confirmation is None:
-                    self._sample_exit_confirmation = {'phase': 'selected_rss',
-                        'reason': 'independent_absence_confirmed',
-                        'confirmed_exits': current.confirmed_exits}
-                self._confirmed_sample_exits = min(2**31 - 1,
-                    self._confirmed_sample_exits + current.confirmed_exits)
-        return current
+            return (self._sampling_pending and not self._closed
+                    and self._unavailable == 'primary_sampling_unavailable')
+
+    def recover_primary_sampling(self):
+        # One due observation only. The caller holds no SQLite/permit lock.
+        try:self._take_sample(observe=True, recovery_only=True)
+        except Exception:return False
+        with self._condition:return not self._sampling_pending and not self._unavailable
+
+    def _take_sample(self, *, observe=False, recovery_only=False):
+        token = None
+        phase = 'sample'
+        try:
+            with self._condition:
+                pending = self._sampling_pending
+                if self._sample_flight is not None:raise _SampleSkipped()
+                if recovery_only and not self.sampling_recovery_pending:raise _SampleSkipped()
+                if pending:
+                    if (not observe or not self.sampling_recovery_pending
+                            or self._sample_clock() < self._sampling_retry_after):raise _SampleSkipped()
+                    # Reserved before sampling so concurrent callers cannot
+                    # bypass the floor. Every exit releases only this token.
+                    self._sampling_retry_after = self._sample_clock() + SAMPLING_RETRY_SECONDS
+                known = tuple(self._known_identities_locked().items())
+                generation = self._sample_generation
+                token = self._sample_flight = object()
+            current = (service_sample(self.settings, known=known) if self._sampler is service_sample
+                       else self._sampler(self.settings))
+            if len(current.identities) > MAX_IDENTITIES:
+                raise AdmissionError('process_identity_budget')
+            if (type(current.confirmed_exits) is not int or not 0 <= current.confirmed_exits <= MAX_IDENTITIES
+                    or type(current.resampled) is not bool):
+                raise AdmissionError('process_identity_uncertain')
+            with self._condition:
+                # A newer bind/retire/failure/shutdown invalidates this sample.
+                # Neither stale accounting nor a stale successful clear escapes.
+                if (self._sample_flight is not token or generation is not self._sample_generation
+                        or pending and self._closed):raise _SampleSkipped()
+                latest = self._known_identities_locked()
+                if len(set(latest) | set(current.identities)) > MAX_IDENTITIES:
+                    raise AdmissionError('primary_identity_budget')
+                prior = dict(known)
+                if any(latest[pid] != prior[pid] for pid in set(latest) & set(prior)):
+                    raise AdmissionError('primary_identity_uncertain')
+                if any(pid not in prior and pid not in current.identities for pid in latest):
+                    raise AdmissionError('primary_identity_uncertain')
+                for pid, row in current.identities.items():
+                    if pid in latest and latest[pid] != row[0]:
+                        raise AdmissionError('process_identity_uncertain')
+                phase = 'family_tracking'
+                staged = {}
+                for key, record in self._handles.items():
+                    children = dict(record['children'])
+                    family = {record['pid']}
+                    for _ in range(MAX_IDENTITIES):
+                        added = {pid for pid, row in current.identities.items() if row[1] in family} - family
+                        if not added:break
+                        family.update(added)
+                    for pid in family - {record['pid']}:
+                        identity = current.identities[pid][0]
+                        if pid in children and children[pid] != identity:
+                            raise AdmissionError('primary_identity_uncertain')
+                        children[pid] = identity
+                    staged[key] = children
+                if sum(1 + len(children) for children in staged.values()) > MAX_IDENTITIES:
+                    raise AdmissionError('primary_identity_budget')
+                # All validation has completed. Publish accounting and families
+                # together; retained identities never imply cleanup or reaping.
+                observed = {pid:row[0] for pid,row in current.identities.items()}
+                for key, children in staged.items():self._handles[key]['children'] = children
+                self._observed = observed
+                if current.resampled:
+                    self._completed_sample_retries = min(2**31 - 1, self._completed_sample_retries + 1)
+                if current.confirmed_exits:
+                    if self._sample_exit_confirmation is None:
+                        self._sample_exit_confirmation = {'phase': 'selected_rss',
+                            'reason': 'independent_absence_confirmed', 'confirmed_exits': current.confirmed_exits}
+                    self._confirmed_sample_exits = min(2**31 - 1,
+                        self._confirmed_sample_exits + current.confirmed_exits)
+                if pending:
+                    self._sampling_pending = False
+                    self._unavailable = None
+                    self._sampling_recoveries = min(2**31 - 1, self._sampling_recoveries + 1)
+                self._condition.notify_all()
+            return current
+        except _SampleSkipped:raise
+        except Exception as error:
+            budget = _authenticated_exhaustion(error) if self._sampler is service_sample else None
+            if observe or budget is not None:
+                self._record_primary_failure('observe_primary' if observe else 'other', phase, error,
+                                             sample_budget=budget)
+            raise
+        finally:
+            if token is not None:
+                with self._condition:
+                    if self._sample_flight is token:self._sample_flight = None
+                    self._condition.notify_all()
 
     def mark_unavailable(self, reason='primary_ownership_uncertain'):
         with self._condition:
+            self._sample_generation = object()
             self._unavailable = reason
 
-    def _record_primary_failure(self, operation, phase, error):
+    def _record_primary_failure(self, operation, phase, error, *, sample_budget=None):
         record = None
         with self._condition:
+            if sample_budget is not None:
+                # Only _take_sample authenticates the actual sampler boundary.
+                self._sample_generation = object()
+                self._sampling_exhaustions = min(2**31 - 1, self._sampling_exhaustions + 1)
+                if self._sampling_failure is None:
+                    detail = getattr(error, '_sample_observation', {})
+                    observed_phase = detail.get('phase') if type(detail) is dict else None
+                    self._sampling_failure = {'operation': operation,
+                        'phase': observed_phase if type(observed_phase) is str and observed_phase in _OBSERVATION_PHASES else 'other',
+                        'reason': 'process_sample_budget', 'budget': sample_budget[0],
+                        'last_elapsed_ms': sample_budget[1], 'rows_observed': sample_budget[2]}
+                if self._unavailable in (None, 'primary_sampling_unavailable'):
+                    self._sampling_pending = True
+                    self._sampling_retry_after = self._sample_clock() + SAMPLING_RETRY_SECONDS
+                    self._unavailable = 'primary_sampling_unavailable'
+                return
             self.mark_unavailable()
             if self._primary_observation_failure is not None:return
             try:
@@ -450,6 +578,7 @@ class NativeExecutionPermit:
                 if len(self._handles) >= MAX_IDENTITIES:
                     raise AdmissionError('primary_identity_budget')
                 created = psutil.Process(proc.pid).create_time()
+                self._sample_generation = object()
                 self._handles[id(proc)] = {'proc': proc, 'pid': proc.pid, 'created': created,
                     'resident': resident, 'children': {}, 'idle': False}
             self.observe_primary()
@@ -457,28 +586,8 @@ class NativeExecutionPermit:
             self._record_primary_failure('bind_primary', phase, error)
 
     def observe_primary(self):
-        phase = 'sample'
-        try:
-            sample = self._take_sample()
-            phase = 'family_tracking'
-            with self._condition:
-                for record in self._handles.values():
-                    family = {record['pid']}
-                    for _ in range(MAX_IDENTITIES):
-                        added = {pid for pid, row in sample.identities.items() if row[1] in family} - family
-                        if not added:
-                            break
-                        family.update(added)
-                    for pid in family - {record['pid']}:
-                        identity = sample.identities[pid][0]
-                        prior = record['children'].get(pid)
-                        if prior is not None and prior != identity:
-                            raise AdmissionError('primary_identity_uncertain')
-                        record['children'][pid] = identity
-                    if sum(1 + len(x['children']) for x in self._handles.values()) > MAX_IDENTITIES:
-                        raise AdmissionError('primary_identity_budget')
-        except Exception as error:
-            self._record_primary_failure('observe_primary', phase, error)
+        try:self._take_sample(observe=True)
+        except Exception:pass  # Failure is classified before releasing its token.
 
     def finish_primary(self, process, *, normal=False):
         """Positive original wait/reap or explicit resident-idle is required."""
@@ -509,6 +618,7 @@ class NativeExecutionPermit:
                     except psutil.NoSuchProcess:
                         pass
                 del self._handles[id(proc)]
+                self._sample_generation = object()
         except Exception as error:
             self._record_primary_failure('finish_primary', phase, error)
 
@@ -519,7 +629,8 @@ class NativeExecutionPermit:
             self.finish_primary(proc, normal=normal)
 
     def _resource_check(self, *, reserve):
-        sample = self._take_sample()
+        try:sample = self._take_sample()
+        except _SampleSkipped:raise AdmissionError('process_sample_unavailable') from None
         if sample.rss >= self.settings.process_memory_limit_bytes:
             raise AdmissionError('service_memory_budget')
         if sample.disk_free < max(DISK_RESERVE, self.settings.disk_reserve_bytes):
@@ -603,6 +714,7 @@ class NativeExecutionPermit:
     def close_admission(self):
         with self._condition:
             self._closed = True
+            self._sample_generation = object()
             if self._turn is None:self._handoff = None
             self._grant_primary_locked()
             if self._cancel is not None:
@@ -624,6 +736,11 @@ class NativeExecutionPermit:
                 'automatic_turn_pending': self._handoff is not None,
                 'optional_owner_kind': self._optional_kind,
                 'optional_admission_unavailable': self._unavailable,
+                'primary_sampling_pending': self._sampling_pending,
+                'primary_sampling_exhaustions': self._sampling_exhaustions,
+                'completed_primary_sampling_recoveries': self._sampling_recoveries,
+                'primary_sampling_failure': (dict(self._sampling_failure)
+                    if self._sampling_failure is not None else None),
                 # Observation only; never substitutes for original wait/cleanup.
                 'confirmed_sample_exits': self._confirmed_sample_exits,
                 'completed_current_sample_retries': self._completed_sample_retries,

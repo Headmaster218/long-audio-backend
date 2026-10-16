@@ -378,38 +378,69 @@ class MossController:
 
     def _check_before_spawn(self):
         from .native_owned_cell_capture import _CLOSED_AUTOMATIC_READ_BUSY
+        from .native_owned_cell_jobs import _OWNER_READ_NOT_DISPATCHED
+        from .native_owned_support_cache import ReadError
         from .native_execution_permit import AdmissionError
-        # The single already-constructed driver owns this original deadline.
-        # Initial before_input stays single-shot; inner start gates separately
-        # defer only an automatic owner read that was never dispatched.
-        # Each gate validation keeps its ordinary independent read Budget; only
-        # this existing driver deadline and the job deadline span outer retries.
-        deferred = False
-        while True:
-            if self._cancel.is_set():raise Cancelled('Cancelled before child creation')
-            try:
-                self._service_gate.check('before_spawn')
-                if deferred:
-                    if time.monotonic() >= self._driver.guard.deadline:
-                        raise AdmissionError('optional_prelaunch_deadline')
-                    self._driver.guard.check()
-                return
-            except sqlite3.OperationalError as error:
-                if (type(error) is not sqlite3.OperationalError or
-                        getattr(error, '_closed_automatic_read_busy', None) is not _CLOSED_AUTOMATIC_READ_BUSY):
-                    raise
-            deferred = True
-            guard = self._driver.guard
-            remaining = guard.deadline - time.monotonic()
-            if remaining <= 0:raise AdmissionError('optional_prelaunch_deadline')
-            guard.check()
-            if self._cancel.wait(min(.1, remaining)):
+        # Before input stays single-shot. This outer gate shares the already
+        # constructed driver and accepted job clocks; no child exists yet.
+        # Each complete validation retains its independent ordinary read Budget.
+        service = self._service_gate
+        automatic = getattr(service, '_automatic_text', False) is True
+        deferred, last_owner_read = False, None
+
+        def owner_veto():
+            if self._cancel.is_set() or service._automatic_cancelled:
                 raise Cancelled('Cancelled before child creation')
-            if time.monotonic() >= guard.deadline:
+            if (time.monotonic() >= self._driver.guard.deadline
+                    or service._automatic_wait_remaining <= 0):
                 raise AdmissionError('optional_prelaunch_deadline')
-            guard.check()
-            self._claim_matches()
-            if profile(self.profile.name) != self.profile:raise ValueError('Frozen profile changed')
+
+        try:
+            while True:
+                if self._cancel.is_set():raise Cancelled('Cancelled before child creation')
+                if last_owner_read is not None:owner_veto()
+                try:
+                    service.check('before_spawn')
+                    if deferred:
+                        if time.monotonic() >= self._driver.guard.deadline:
+                            raise AdmissionError('optional_prelaunch_deadline')
+                        self._driver.guard.check()
+                    if last_owner_read is not None:owner_veto()
+                    return
+                except sqlite3.OperationalError as error:
+                    if (type(error) is not sqlite3.OperationalError or
+                            getattr(error, '_closed_automatic_read_busy', None) is not _CLOSED_AUTOMATIC_READ_BUSY):
+                        raise
+                except ReadError as error:
+                    if (not automatic or type(error) is not ReadError or
+                            getattr(error, '_owner_read_not_dispatched', None) is not _OWNER_READ_NOT_DISPATCHED):
+                        raise
+                    last_owner_read = error._cell_owner_read
+                deferred = True
+                guard = self._driver.guard
+                remaining = guard.deadline - time.monotonic()
+                if last_owner_read is not None:
+                    owner_veto()
+                    remaining = min(remaining, service._automatic_wait_remaining)
+                if remaining <= 0:raise AdmissionError('optional_prelaunch_deadline')
+                guard.check()
+                if last_owner_read is not None:
+                    owner_veto()
+                    remaining = min(guard.deadline - time.monotonic(), service._automatic_wait_remaining)
+                if self._cancel.wait(min(.1, remaining)):
+                    raise Cancelled('Cancelled before child creation')
+                if time.monotonic() >= guard.deadline:
+                    raise AdmissionError('optional_prelaunch_deadline')
+                guard.check()
+                if last_owner_read is not None:owner_veto()
+                self._claim_matches()
+                if profile(self.profile.name) != self.profile:raise ValueError('Frozen profile changed')
+        except Exception as error:
+            # Preserve only the last no-operation observation, not a new cause.
+            if last_owner_read is not None and not hasattr(error, '_cell_owner_read'):
+                try:error._cell_owner_read = last_owner_read
+                except Exception:pass
+            raise
 
     def run(self, job_id):
         with self._lock:

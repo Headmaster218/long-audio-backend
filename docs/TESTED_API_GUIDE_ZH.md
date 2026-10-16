@@ -1,3 +1,11 @@
+# dev31 增量状态：有限资源采样恢复
+
+`moss_jobs.permit.optional_admission_unavailable == "primary_sampling_unavailable"` 表示暂时无法获得完整资源视图，当前不能据此准入新的可选模型任务。结合新字段 `primary_sampling_pending`、`primary_sampling_exhaustions`、`completed_primary_sampling_recoveries` 和 `primary_sampling_failure` 观察等待与恢复。只有完整核对成功才更新资源记账；首次采样失败记录在恢复后仍保留，不能单凭记录存在判断仍在等待。
+
+`primary_ownership_uncertain`、既有 `primary_observation_failure`、关闭或不确定清理仍应按阻塞处理，不能当作可恢复的采样超时。客户端应使用新鲜、健康的完整状态，保留主进度和原始失败；达到自身截止时间仍未恢复时，结果是未完成。恢复计数不证明模型已准入、进程正常退出或清理完成。
+
+自动文本任务的外层启动前检查仅对明确未派发的 owner 锁忙或单槽占用短暂等待。完整契约及分开的测试范围见 [dev31 说明](DEV31_SAMPLING_RECOVERY_ZH.md)。下方各历史章节保留原版本范围。
+
 # dev30 增量诊断：被拒绝的模型时间戳
 
 新结果可含 `rejected_timestamps`，记录最多八对数值、原始匹配序号、固定原因计数、总数、省略数及支持时长。它不包含原文或说话人标签，不代表合法时间轴，也不用于替换既有主结果。非有限数值为 `null` 加固定类别；字段容量不足时可整体省略，因此字段缺席不能证明没有无效时间戳。解析、接纳和未定时文本保留语义不变，旧结果继续原样可读。
