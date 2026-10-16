@@ -162,6 +162,8 @@ class Store:
             db.execute('BEGIN IMMEDIATE')
             event_candidate_store.init_schema(db)
             lifecycle.init_schema(db)
+            from .moss_result_store import init_schema as init_moss_results
+            init_moss_results(db)
             from .recording_overlap import init_schema as init_recording_schema
             init_recording_schema(db)
             speaker_support.init_schema(db)

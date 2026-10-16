@@ -50,6 +50,23 @@ class ManualThread:
         finally:self.alive = False
 
 
+def prepare_history(fixture):
+    """Additive schema plus genuine lifetime lock for fresh synthetic stores."""
+    from audio_backend.moss_result_store import MossResultStore, init_schema
+    from audio_backend.resources import InstanceLock
+    from test_moss_result_settings import DEFAULTS
+    for name, value in DEFAULTS.items():
+        setattr(fixture.store.settings, name, value)
+    init_schema(fixture.db)
+    fixture.db.commit()
+    fixture.history_lock = InstanceLock(fixture.root / 'instance.lock')
+    fixture.history_lock.acquire()
+    fixture.addCleanup(fixture.history_lock.release)
+    results = MossResultStore(fixture.store)
+    results.bind_recovery(fixture.history_lock)
+    return results
+
+
 class JobsFixture(CacheFixture):
     def setUp(self):
         with patch('test_native_owned_support_cache.tempfile.TemporaryDirectory',RetainedTemporary):
@@ -65,8 +82,10 @@ class JobsFixture(CacheFixture):
             driver = FakeDriver(directory, sha)
             self.drivers.append(driver)
             return driver
+        results = prepare_history(self)
         self.owner = jobs.MossJobs(self.store, self.cache, self.permit, clock=self.clock,
-                                   _driver_factory=factory, _thread_factory=ManualThread)
+                                   _driver_factory=factory, _thread_factory=ManualThread,
+                                   result_store=results)
     def tearDown(self):
         retain_outcome(self.root,self.owner)
         # No real optional thread/process exists in this fixture. Preserve all
@@ -181,6 +200,7 @@ class JobsTests(JobsFixture):
         self.owner._live['controller']._factory = failing
         record = self.finish()
         self.assertEqual(record['state'],'cleanup_blocked');self.assertIs(self.permit._optional,record)
+        self.assertIsNone(record['history_snapshot']); self.assertFalse(record['durable_result_available'])
         self.assertIsNotNone(self.cache._dispatch);self.assertTrue((self.owner.directory/'owner.json').exists())
         self.clock.now += 901
         self.owner.detail('session',record['job_id'])
@@ -409,3 +429,209 @@ class ErasureLifetimeTests(JobsFixture):
             self.assertTrue(self.owner.health()['cleanup_pending'])
             self.assertIs(record,self.owner._live);self.assertIs(record['controller'],controller)
         self.assertFalse(self.owner.invalidate_session('session'));self.assertIsNone(self.owner._live)
+
+
+class DurableHistoryJobsTests(JobsFixture):
+    def pending(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        with patch.object(self.owner.results, 'commit', side_effect=ReadError(503, 'result_storage_unavailable')) as commit:
+            record = self.finish()
+        self.assertEqual(commit.call_count, 1)
+        self.assertTrue(record['storage_pending'])
+        self.assertIsNotNone(record['history_snapshot'])
+        self.assertTrue(record['cleaned']); self.assertIsNone(self.permit._optional)
+        self.assertIsNone(self.cache._dispatch)
+        return chunk, body, record
+
+    def test_pending_never_publishes_and_survives_cancel_expiry_disable_and_failed_stop(self):
+        chunk, body, record = self.pending(); snapshot = record['history_snapshot']
+        summary = self.owner._summary(record)
+        self.assertFalse(summary['result_available']); self.assertFalse(summary['durable_result_available'])
+        with self.assertRaises(ReadError):self.owner.content('session', record['job_id'], 'result')
+        with self.assertRaises(ReadError):self.owner.results.result('session', record['job_id'])
+        self.owner.cancel('session', record['job_id'], self.owner.jobs_epoch)
+        self.assertIs(record['history_snapshot'], snapshot)
+        self.clock.now += 901; self.store.settings.moss_jobs_enabled = False
+        self.owner.detail('session', record['job_id'])
+        self.assertIs(record['history_snapshot'], snapshot)
+        with patch.object(self.owner.results, 'commit', side_effect=ReadError(503, 'result_storage_unavailable')) as commit:
+            self.assertFalse(self.owner.stop())
+        self.assertLessEqual(commit.call_count, 1); self.assertIs(record['history_snapshot'], snapshot)
+        with patch.object(self.owner, '_validate', side_effect=AssertionError('no source revalidation')), \
+             patch.object(self.cache, 'acquire_dispatch', side_effect=AssertionError('no source acquisition')), \
+             patch.object(record['controller'], 'run', side_effect=AssertionError('no inference')):
+            code, reply = self.owner.retry_storage('session', record['job_id'], self.owner.jobs_epoch)
+        self.assertEqual(code, 200); self.assertTrue(reply['durable_result_available'])
+        self.assertEqual(self.owner.results.result('session', record['job_id']), snapshot.result_json)
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_pending_blocks_slot_reuse_without_losing_computed_result(self):
+        chunk, body, record = self.pending(); snapshot = record['history_snapshot']
+        with self.assertRaises(ReadError):self.submit(chunk, body, 'next')
+        self.assertIs(self.owner._live, record)
+        self.assertIs(record['history_snapshot'], snapshot)
+        self.assertEqual(len(self.drivers), 1)
+
+    def test_cancel_applied_before_seal_prevents_historical_acceptance(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        seal = self.owner._seal_history_locked
+        def cancel_then_seal(record, *args, **kwargs):
+            self.owner.cancel('session', record['job_id'], self.owner.jobs_epoch)
+            return seal(record, *args, **kwargs)
+        with patch.object(self.owner, '_seal_history_locked', side_effect=cancel_then_seal):
+            record = self.finish()
+        self.assertIsNone(record['history_snapshot'])
+        with self.assertRaises(ReadError):self.owner.results.result('session', record['job_id'])
+
+    def test_seal_has_no_configuration_source_or_native_callback(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        seal = self.owner._seal_history_locked; called = []
+        def isolated(record, *args, **kwargs):
+            called.append(True)
+            with patch.object(self.permit, '_configuration_current', side_effect=AssertionError('configuration callback in seal')), \
+                 patch.object(self.owner, '_validate', side_effect=AssertionError('source callback in seal')), \
+                 patch.object(record['controller'], 'run', side_effect=AssertionError('native callback in seal')):
+                return seal(record, *args, **kwargs)
+        with patch.object(self.owner, '_seal_history_locked', side_effect=isolated):
+            record = self.finish()
+        self.assertEqual(called, [True]); self.assertTrue(record['durable_result_available'])
+
+    def test_waiting_cancel_applies_after_seal_and_does_not_erase_commit(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        commit = self.owner.results.commit; attempts = threading.Event(); done = threading.Event(); errors = []
+        from contextlib import contextmanager
+        gate = self.owner._gate
+        @contextmanager
+        def bounded_gate():
+            if threading.current_thread() is waiter:attempts.set()
+            with gate():yield
+        def cancel():
+            try:self.owner.cancel('session', self.owner._live['job_id'], self.owner.jobs_epoch)
+            except BaseException as exc:errors.append(exc)
+            finally:done.set()
+        waiter = threading.Thread(target=cancel)
+        def during_commit(snapshot):
+            self.assertIs(self.owner._live['history_snapshot'], snapshot)
+            self.assertTrue(self.owner._live['cleaned']); self.assertIsNone(self.permit._optional)
+            waiter.start(); self.assertTrue(attempts.wait(1.))
+            self.assertFalse(done.is_set())
+            return commit(snapshot)
+        # Exercise ordering through the real gate, not production wait-latency qualification.
+        with patch.object(jobs, 'LOCK_SECONDS', 1.), \
+             patch.object(self.owner, '_gate', side_effect=bounded_gate), \
+             patch.object(self.owner.results, 'commit', side_effect=during_commit):record = self.finish()
+        waiter.join(2.); self.assertFalse(waiter.is_alive()); self.assertEqual(errors, [])
+        self.assertTrue(record['cancelled'].is_set())
+        self.assertEqual(self.owner.results.result('session', record['job_id']), record['history_snapshot'].result_json)
+
+    def test_history_survives_slot_reuse_ttl_and_fresh_store_while_raw_is_volatile(self):
+        from audio_backend.moss_result_store import MossResultStore
+        chunk, body = self.ready(); self.submit(chunk, body); first = self.finish()
+        exact = self.owner.content('session', first['job_id'], 'result')
+        self.submit(chunk, body, 'second'); self.finish(); self.clock.now += 901
+        self.owner.detail('session', first['job_id'])
+        with self.assertRaises(ReadError):self.owner.content('session', first['job_id'], 'raw')
+        fresh = MossResultStore(self.store)
+        self.assertEqual(fresh.result('session', first['job_id']), exact)
+        detail = json.loads(fresh.detail('session', first['job_id']))
+        self.assertEqual(detail['raw_retention'], 'volatile')
+        self.assertEqual(detail['source_current'], 'not_checked')
+
+    def test_uncertain_admission_never_dispatches_or_allocates_second_identity(self):
+        chunk, body = self.ready(); reserve = self.owner.results.reserve
+        def uncertain(*args, **kwargs):
+            reserve(*args, **kwargs)
+            raise ReadError(503, 'result_storage_unavailable')
+        with patch.object(self.owner.results, 'reserve', side_effect=uncertain), self.assertRaises(ReadError):
+            self.submit(chunk, body)
+        self.assertFalse(self.drivers); self.assertIsNone(self.permit._optional)
+        before = list(self.db.execute('SELECT job_id,charge_bytes FROM moss_retained_results_v1'))
+        code, reply = self.submit(chunk, body)
+        self.assertTrue(reply['admission_unknown']); self.assertFalse(self.drivers)
+        self.assertEqual(reply['job_id'], before[0]['job_id'])
+        self.assertEqual([tuple(row) for row in self.db.execute('SELECT job_id,charge_bytes FROM moss_retained_results_v1')],
+                         [tuple(row) for row in before])
+        with self.assertRaises(ReadError):self.submit(chunk, {**body, 'expected_revision': 999})
+
+    def test_quota_and_headroom_refuse_before_source_acquisition(self):
+        chunk, body = self.ready()
+        for reason, status in (('result_retention_capacity', 429), ('result_storage_unavailable', 503)):
+            with patch.object(self.owner.results, 'preflight', side_effect=ReadError(status, reason)), \
+                 patch.object(self.cache, 'acquire_dispatch', side_effect=AssertionError('must refuse before source')):
+                with self.assertRaises(ReadError) as caught:self.submit(chunk, body)
+            self.assertEqual(caught.exception.reason, reason)
+        self.assertFalse(self.drivers); self.assertEqual(self.owner._records, [])
+
+    def test_failed_final_envelope_validation_cannot_seal_or_commit_candidate(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        with patch.object(self.owner.results, 'validate_snapshot', side_effect=ReadError(503, 'result_metadata_capacity')), \
+             patch.object(self.owner.results, 'commit', side_effect=AssertionError('rejected candidate cannot commit')) as commit:
+            record = self.finish()
+        self.assertIsNone(record['history_snapshot']); self.assertIsNone(record['result'])
+        self.assertFalse(record['durable_result_available']); commit.assert_not_called()
+        self.assertTrue(record['cleaned']); self.assertIsNone(self.permit._optional)
+
+    def test_lost_result_commit_ack_retains_snapshot_and_retry_is_storage_only(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        commit = self.owner.results.commit
+        def uncertain(snapshot):
+            commit(snapshot)
+            raise OSError('synthetic result acknowledgment loss')
+        with patch.object(self.owner.results, 'commit', side_effect=uncertain):record = self.finish()
+        frozen = record['history_snapshot']; self.assertTrue(record['storage_pending'])
+        before = [tuple(row) for row in self.db.execute('SELECT * FROM moss_result_usage_v1 ORDER BY scope')]
+        with patch.object(record['controller'], 'run', side_effect=AssertionError('no replay')):
+            code, reply = self.owner.retry_storage('session', record['job_id'], self.owner.jobs_epoch)
+        self.assertEqual(code, 200); self.assertTrue(reply['durable_result_available'])
+        self.assertEqual(self.owner.results.result('session', record['job_id']), frozen.result_json)
+        self.assertEqual(before, [tuple(row) for row in self.db.execute('SELECT * FROM moss_result_usage_v1 ORDER BY scope')])
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_repeated_explicit_io_failures_never_drop_pending_bytes_or_retry_internally(self):
+        import sqlite3
+        chunk, body, record = self.pending(); frozen = record['history_snapshot']
+        for error in (sqlite3.OperationalError('database or disk is full'), OSError('synthetic I/O error'), TimeoutError()):
+            with patch.object(self.owner.results, 'commit', side_effect=error) as commit:
+                code, reply = self.owner.retry_storage('session', record['job_id'], self.owner.jobs_epoch)
+            self.assertEqual(code, 503); self.assertFalse(reply['durable_result_available'])
+            self.assertEqual(commit.call_count, 1); self.assertIs(record['history_snapshot'], frozen)
+            self.assertTrue(record['cleaned']); self.assertIsNone(self.permit._optional)
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_registration_failure_after_reservation_keeps_one_key_and_no_inference(self):
+        chunk, body = self.ready()
+        register = self.owner._register_accepted_locked
+        def registered_then_failed(record):
+            register(record)
+            raise RuntimeError('synthetic registration failure')
+        with patch.object(self.owner, '_register_accepted_locked', side_effect=registered_then_failed):
+            with self.assertRaises(RuntimeError):self.submit(chunk, body)
+        self.assertFalse(self.owner._records); self.assertIsNone(self.owner._live)
+        self.assertIsNone(self.cache._dispatch); self.assertIsNone(self.permit._optional)
+        admitted = self.db.execute('SELECT job_id FROM moss_retained_results_v1').fetchone()[0]
+        code, reply = self.submit(chunk, body)
+        self.assertEqual(reply['job_id'], admitted); self.assertTrue(reply['admission_unknown'])
+        self.assertFalse(self.drivers)
+
+    def test_configuration_observation_failure_after_pin_release_keeps_cleanup_proof(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        enabled = self.owner._enabled
+        def fail_after_release():
+            if self.owner._live['lease'].released:raise RuntimeError('synthetic configuration failure')
+            return enabled()
+        with patch.object(self.owner, '_enabled', side_effect=fail_after_release):record = self.finish()
+        self.assertIsNone(record['history_snapshot']); self.assertIsNone(record['result'])
+        self.assertTrue(record['cleaned']); self.assertTrue(record['process_cleanup_verified'])
+        self.assertIsNone(self.permit._optional); self.assertIsNone(self.cache._dispatch)
+
+    def test_observed_support_expiry_before_seal_rejects_history_and_releases_permit(self):
+        chunk, body = self.ready(); self.submit(chunk, body)
+        finish = self.owner._finish_locked
+        def expire_during_finish(*args, **kwargs):
+            with patch.object(self.owner, '_source_expired', return_value=True):
+                return finish(*args, **kwargs)
+        with patch.object(self.owner, '_finish_locked', side_effect=expire_during_finish), \
+             patch.object(self.owner.results, 'commit', side_effect=AssertionError('expired candidate cannot commit')) as commit:
+            record = self.finish()
+        self.assertIsNone(record['history_snapshot']); self.assertIsNone(record['result'])
+        self.assertTrue(record['cleaned']); self.assertIsNone(self.permit._optional); commit.assert_not_called()

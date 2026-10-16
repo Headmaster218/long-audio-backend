@@ -1,4 +1,4 @@
-"""Explicit, volatile, one-slot MOSS service; no backlog or invocation retry."""
+"""One-slot MOSS execution with immutable historical snapshots; no inference retry."""
 from contextlib import contextmanager
 import hashlib
 import json
@@ -11,7 +11,8 @@ import time
 import uuid
 
 from .moss_handy_controller import MossController, OwnedDriver
-from .moss_handy_profile import NAME
+from .moss_handy_profile import NAME, MODEL_SHA256, RUNTIME_SHA256
+from .moss_result_store import MossResultStore, HistoryIdentity, HistorySnapshot, build_metadata
 from .native_execution_permit import AdmissionError
 from .native_owned_support_cache import LOCK_SECONDS, ReadError
 
@@ -172,9 +173,10 @@ class _ServiceGate:
 
 class MossJobs:
     def __init__(self, store, cache, permit, *, clock=time.monotonic,
-                 _driver_factory=OwnedDriver, _thread_factory=threading.Thread, cell_source=None):
+                 _driver_factory=OwnedDriver, _thread_factory=threading.Thread, cell_source=None, result_store=None):
         self.store, self.cache, self.permit, self.clock = store, cache, permit, clock
         self.jobs_epoch = uuid.uuid4().hex
+        self.results = result_store if result_store is not None else MossResultStore(store)
         self.directory = create_namespace(store.settings.data_dir)
         self._driver_factory, self._thread_factory = _driver_factory, _thread_factory
         self._lock = threading.RLock()
@@ -260,10 +262,13 @@ class MossJobs:
             record['cancelled'].set()
             record['result'] = record['raw'] = None
             record['expired'] = expired
-            if record['cleaned']:
+            if record['cleaned'] and not record['storage_pending']:
                 self._retire(record)
 
     def _retire(self, record):
+        if record['storage_pending']:raise ReadError(503, 'result_storage_pending')
+        record['history_snapshot'] = None
+        record['admission_metadata'] = None
         record['purge_pending'] = True
         if not record['cleaned']:
             raise ReadError(503, 'cleanup_pending')
@@ -325,7 +330,12 @@ class MossJobs:
                 if previous['state'] in ('expired', 'retired') or previous['expired']:
                     raise JobError(410, 'job_retired', self._summary(previous))
                 return 200, self._summary(previous)
+            recovered = self.results.lookup_key(sid, self.jobs_epoch, key, digest)
+            if recovered is not None:return 200, recovered
             if not self._enabled():raise ReadError(409, 'feature_disabled')
+            self.results.preflight(sid)
+            if self._live is not None and self._live['storage_pending']:
+                raise ReadError(503, 'result_storage_pending')
             if len(self._records) >= MAX_ACCEPTED:raise ReadError(429, 'epoch_capacity')
             if not self._drain_pending():raise ReadError(503, 'cell_acquisition_pending')
             if self._live is not None:
@@ -350,7 +360,10 @@ class MossJobs:
                 state='reserved', cleaned=False, process_cleanup_verified=False, cleanup_deadline=None,
                 expired=False, invalidated=False, purge_pending=False, invocation_possible=False,
                 cancelled=cancelled, lease=lease, token=lease.token, controller=None,
-                controller_id=None, thread=None, result=None, raw=None, raw_reason='not_terminal')
+                controller_id=None, thread=None, result=None, raw=None, raw_reason='not_terminal',
+                history_snapshot=None, storage_pending=False, durable_result_available=False,
+                admission_metadata=None, accepted_at=time.time())
+            record['history_identity'] = HistoryIdentity(record['job_id'], sid, self.jobs_epoch, key, digest)
             reserved = False
             try:
                 self.permit.reserve_optional(record, cancelled, lambda:self._cancel_record(record))
@@ -362,8 +375,15 @@ class MossJobs:
                 if len(encoded(candidate)) > MAX_LEDGER_BYTES:raise ReadError(429, 'epoch_capacity')
                 if admission_open is not None and not admission_open():raise ReadError(503, 'response_closed')
                 if cancelled.is_set():raise ReadError(409, 'optional_cancelled')
+                record['admission_metadata'] = self._history_metadata(record)
+                admitted = self.results.reserve(record['history_identity'], record['admission_metadata'])
+                if admitted.get('admission_unknown'):raise JobError(409, 'admission_unknown', admitted)
                 if origin == 'durable_cell':self.cell_source.accepted(lease)
+                self._register_accepted_locked(record)
             except BaseException as exc:
+                self._records[:] = [item for item in self._records if item is not record]
+                if self._keys.get((sid, key)) is record:self._keys.pop((sid, key))
+                if self._live is record:self._live = None
                 if origin == 'durable_cell':
                     if self.cell_source.abandon(lease):
                         if reserved:self.permit.release_optional(record, cleaned=True)
@@ -377,9 +397,6 @@ class MossJobs:
                 if isinstance(exc, AdmissionError):
                     raise ReadError(409 if exc.reason == 'primary_or_optional_busy' else 503, exc.reason) from None
                 raise
-            self._records.append(record)
-            self._keys[(sid, key)] = record
-            self._live = record
             try:
                 gate = _ServiceGate(self, record)
                 source_binding = (lease.token.source_binding if origin == 'durable_cell' else lease.token.target.binding)
@@ -399,6 +416,11 @@ class MossJobs:
                 if not record['cleaned'] and record['process_cleanup_verified']:
                     self._start_memory_cleanup(record)
             return 202, self._summary(record)
+
+    def _register_accepted_locked(self, record):
+        self._records.append(record)
+        self._keys[(record['session_id'], record['key'])] = record
+        self._live = record
 
     def _run(self, record):
         record['state'] = 'running'
@@ -460,6 +482,9 @@ class MossJobs:
             try:
                 self._finish_locked(record, preparation_failed)
             except BaseException:
+                if record['history_snapshot'] is not None:
+                    record['storage_pending'] = not record['durable_result_available']
+                    return
                 # A projection/source failure is never ownership release proof.
                 record['state'] = 'cleanup_blocked'
                 record['cleaned'] = False
@@ -467,7 +492,10 @@ class MossJobs:
                 self.permit.release_optional(record, cleaned=False)
 
     def _retained_charge(self, record):
-        material = sum(len(value) for value in (record['raw'], record['result']) if value is not None)
+        material = sum(len(value) for value in (record['raw'], record['result'], record['admission_metadata']) if value is not None)
+        snapshot = record['history_snapshot']
+        if snapshot is not None:
+            material += len(snapshot.metadata_json) + (0 if snapshot.result_json is record['result'] else len(snapshot.result_json))
         # Charge the original bounded controller projection, ledger and retained
         # tombstone bindings as well as the live proof/parsed-proof reservation.
         ledger = encoded([[r['session_id'], r['key'], r['digest'], r['job_id']] for r in self._records])
@@ -477,6 +505,7 @@ class MossJobs:
         return material + MAX_RESULT_BYTES + len(ledger) + bindings + proof
 
     def _finish_locked(self, record, preparation_failed=False):
+        if record['history_snapshot'] is not None:return
         controller, jid = record['controller'], record['controller_id']
         status = None
         try:
@@ -559,11 +588,92 @@ class MossJobs:
             except Exception:
                 record['raw'] = record['result'] = None
                 record['cancelled'].set()
+        candidate = None
+        if record['result'] is not None:
+            try:
+                metadata = self._history_metadata(record, status)
+                candidate = HistorySnapshot(record['history_identity'], metadata, record['result'],
+                                            hashlib.sha256(record['result']).hexdigest())
+                if self._retained_charge(record) + len(metadata) > MAX_RETAINED_BYTES:
+                    raise ReadError(503, 'result_metadata_capacity')
+                self.results.validate_snapshot(candidate)
+            except Exception:
+                candidate = None
+                record['result'] = None
+        # This observation may call configuration code. The seal itself does not.
+        try:record['configuration_observed'] = self._enabled()
+        except Exception:
+            record['configuration_observed'] = False
+            candidate = None
+            record['result'] = record['raw'] = None
+            record['cancelled'].set()
         record['cleaned'] = True
+        if candidate is not None:self._seal_history_locked(record, candidate)
         self.permit.release_optional(record, cleaned=True)
-        if record['invalidated'] or record['expired']:
+        if record['history_snapshot'] is not None:self._persist_locked(record)
+        else:
+            try:self.results.no_result(record['history_identity'])
+            except Exception:pass  # Keep the charged reservation for bounded recovery.
+        if (record['invalidated'] or record['expired']) and not record['storage_pending']:
             try:self._retire(record)
             except Exception:record['purge_pending'] = True
+
+    def _history_metadata(self, record, status=None):
+        identity = record['history_identity']
+        context = {name:record[name] for name in ('origin', 'chunk_id', 'support_id', 'capture_epoch', 'revision', 'profile', 'accepted_at')}
+        outcome, observed = {}, {}
+        if status is not None:
+            receipt = status.get('native_receipt') or {}
+            outcome = {name:receipt.get(name) for name in ('construct_attempts', 'session_attempts', 'run_attempts',
+                'truncated', 'aborted', 'model_closed', 'session_closed', 'raw_bytes', 'raw_sha256', 'raw_unavailable_reason')}
+            outcome.update(state=record['state'], process_cleanup_verified=True, copied_pin_release_acknowledged=True,
+                           eos=None, generated_token_count=None, complete_content=False)
+            observed = {'model_sha256':MODEL_SHA256, 'runtime_sha256':RUNTIME_SHA256,
+                        'profile_sha256':status['result']['profile_sha256']}
+            context['sealed_at'] = time.time()
+        return build_metadata(identity, context=context, support=record['lease'].support.to_dict(),
+            cell_binding=record['token'].projection() if record['origin'] == 'durable_cell' else None,
+            observed=observed, outcome=outcome)
+
+    def _seal_history_locked(self, record, candidate):
+        # S: completed validation observations, never a global source-current fence.
+        # No SQL, source-owner, native or configuration callback belongs here.
+        if (record['history_snapshot'] is not None or record['cancelled'].is_set()
+                or self._closed or not self.store.settings.moss_jobs_enabled
+                or not record['configuration_observed'] or self.clock() >= record['deadline']
+                or not record['cleaned'] or not record['lease'].released
+                or not record['process_cleanup_verified'] or record['invalidated'] or record['expired']):
+            record['result'] = None
+            return
+        record['history_snapshot'] = candidate
+        record['storage_pending'] = True
+
+    def _persist_locked(self, record):
+        snapshot = record['history_snapshot']
+        if snapshot is None or record['durable_result_available']:return
+        try:
+            self.results.commit(snapshot)
+        except Exception as exc:
+            if isinstance(exc, ReadError) and exc.reason == 'session_not_found':
+                record['history_snapshot'] = None
+                record['result'] = record['raw'] = None
+                record['storage_pending'] = False
+                record['invalidated'] = True
+            else:record['storage_pending'] = True
+            return
+        record['durable_result_available'] = True
+        record['storage_pending'] = False
+
+    def retry_storage(self, sid, jid, epoch):
+        self._epoch(epoch)
+        with self._gate():
+            record = self._find(sid, jid)
+            if self.results.is_deleted(sid):
+                record['history_snapshot'] = None
+                record['storage_pending'] = False
+                raise ReadError(404, 'session_not_found')
+            self._persist_locked(record)
+            return (503 if record['storage_pending'] else 200), self._summary(record)
 
     def _summary(self, record):
         # Fixed public vocabulary: no error strings, PIDs, paths, or proof bytes.
@@ -577,9 +687,15 @@ class MossJobs:
             'memory_cleanup_pending':record['purge_pending'] or bool(record['lease'] and not record['lease'].released),
             'invocation_possible':record['invocation_possible'],
             'publication_cancelled':record['cancelled'].is_set(),
-            'result_available':record['cleaned'] and record['result'] is not None and not record['cancelled'].is_set(),
+            'result_available':record['durable_result_available'] and record['cleaned'] and record['result'] is not None and not record['cancelled'].is_set(),
             'raw_available':record['cleaned'] and record['raw'] is not None and not record['cancelled'].is_set(),
             'raw_unavailable_reason':record['raw_reason'], 'source_current':'not_checked',
+            'durable_result_available':record['durable_result_available'],
+            'storage_pending':record['storage_pending'],
+            'reconciliation_remaining_work':self.results.recovery_remaining,
+            'result_reconciliation':self.results.reconciliation_status(),
+            'storage_reason':'result_storage_pending' if record['storage_pending'] else None,
+            'structured_retention':'durable_until_explicit_session_deletion', 'raw_retention':'volatile',
             'retention':{'kind':'volatile', 'ttl_seconds':TTL_SECONDS, 'expired':record['expired']},
             'eos':None, 'complete_content':False}
         if record['origin'] == 'durable_cell':
@@ -617,11 +733,13 @@ class MossJobs:
         with self._gate():
             self._expire()
             record = self._find(sid, jid)
+            if kind == 'result' and record['storage_pending']:raise ReadError(409, 'result_storage_pending')
             if record['expired'] or record['state'] in ('retired', 'expired'):
                 raise JobError(410, 'job_retired', self._summary(record))
             if not record['cleaned']:raise ReadError(409, 'job_not_terminal')
             if record['cancelled'].is_set():raise ReadError(409, 'publication_invalidated')
             self._validate(record)
+            if kind == 'result' and not record['durable_result_available']:raise ReadError(409, 'result_unavailable')
             body = record[kind]
             if body is None:raise ReadError(409, 'raw_unavailable' if kind == 'raw' else 'result_unavailable')
             return body
@@ -663,6 +781,9 @@ class MossJobs:
             record['raw'] = record['result'] = None
             try:
                 with self._gate():
+                    if self.results.is_deleted(sid):
+                        record['history_snapshot'] = None
+                        record['storage_pending'] = record['durable_result_available'] = False
                     if record is self._live and record['cleaned']:
                         self._retire(record)
             except Exception:
@@ -689,7 +810,10 @@ class MossJobs:
                 self._finish(record)
             if not record['cleaned']:return False
             try:
-                with self._gate():self._retire(record)
+                with self._gate():
+                    if record['storage_pending']:self._persist_locked(record)
+                    if record['storage_pending']:return False
+                    self._retire(record)
             except Exception:
                 return False
         self.stopped = True
@@ -704,6 +828,8 @@ class MossJobs:
         record = self._live
         return {'enabled':self._enabled(), 'jobs_epoch':self.jobs_epoch,
             'cleanup_pending':bool(self._pending_record) or bool(self.cell_source and self.cell_source.cleanup_pending) or bool(record and (not record['cleaned'] or record['purge_pending'] or (record['lease'] and not record['lease'].released))),
+            'storage_pending':bool(record and record['storage_pending']),
+            'result_reconciliation':self.results.reconciliation_status(),
             'accepted_jobs':len(self._records), 'epoch_capacity':MAX_ACCEPTED,
             'permit':self.permit.status()}
 

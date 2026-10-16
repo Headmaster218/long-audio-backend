@@ -81,6 +81,7 @@ def parse_query(raw, kind):
     fields = text.split('&') if text else []
     if len(fields) > 4:raise ReadError(409, 'invalid_query')
     allowed = {'after', 'limit', 'expected_jobs_epoch'} if kind in ('list', 'cells_list') else set()
+    if kind == 'history_list':allowed = {'after', 'limit'}
     result = {}
     for field in fields:
         if field.count('=') != 1:raise ReadError(409, 'invalid_query')
@@ -93,9 +94,9 @@ def parse_query(raw, kind):
             if DECIMAL.fullmatch(value) is None:raise ReadError(409, 'invalid_query')
             result[key] = int(value)
     if not 1 <= result.get('limit', 20) <= 20:raise ReadError(409, 'invalid_query')
-    if result.get('after', 0) and 'expected_jobs_epoch' not in result:
+    if kind != 'history_list' and result.get('after', 0) and 'expected_jobs_epoch' not in result:
         raise ReadError(409, 'jobs_epoch_required')
-    if kind == 'cells_list' and result.get('after', 0) > MAX_CELL_SEQUENCE:
+    if kind in ('cells_list', 'history_list') and result.get('after', 0) > MAX_CELL_SEQUENCE:
         raise ReadError(409, 'invalid_query')
     return result
 
@@ -132,7 +133,7 @@ async def receive_body(request):
     return bytes(result)
 
 
-def register_routes(app, get_manager, assign_lease):
+def register_routes(app, get_manager, assign_lease, *, result_store=None, get_response_budget=None):
     mutation = threading.Lock()
 
     def error(exc):
@@ -223,7 +224,7 @@ def register_routes(app, get_manager, assign_lease):
         lease = task = disconnect = None
         admission_closed = threading.Event()
         try:
-            owner = manager_for(sid, target if kind == 'cancel' else None)
+            owner = manager_for(sid, target if kind in ('cancel', 'retry_storage') else None)
             if kind == 'submit':_identifier(target)
             elif kind == 'cell_submit' and (type(target) is not str or HEX64.fullmatch(target) is None):
                 raise ReadError(409, 'invalid_identifier')
@@ -265,6 +266,7 @@ def register_routes(app, get_manager, assign_lease):
                     return owner.submit_cell(sid, target, body, key,
                         _admission_open=lambda: not admission_closed.is_set() and not lease.released
                             and (done is None or not done.is_set()))
+                if kind == 'retry_storage':return owner.retry_storage(sid, target, body['jobs_epoch'])
                 return owner.cancel(sid, target, body['jobs_epoch'])
             task = asyncio.create_task(run_in_threadpool(perform))
             # Ownership after acceptance belongs to the manager, not this request.
@@ -310,6 +312,45 @@ def register_routes(app, get_manager, assign_lease):
     @app.get('/sessions/{sid}/moss-jobs')
     def listing(request: Request, sid: str):
         return read(request, sid, 'list')
+
+    def history_read(request, sid, kind, jid=None):
+        lease = None
+        try:
+            _identifier(sid)
+            if jid is not None and (type(jid) is not str or HEX32.fullmatch(jid) is None):
+                raise ReadError(409, 'invalid_identifier')
+            query = parse_query(request.scope.get('query_string', b''), 'history_list' if kind == 'list' else 'detail')
+            if result_store is None or get_response_budget is None:raise ReadError(503, 'result_storage_unavailable')
+            lease = get_response_budget().reserve_jobs_response(kind)
+            if not assign_lease(request.scope, lease):raise ReadError(503, 'response_closed')
+            manager = get_manager()
+            epoch = manager.jobs_epoch if manager is not None else None
+            if kind == 'list':body = result_store.list(sid, jobs_epoch=epoch, **query)
+            elif kind == 'detail':body = result_store.detail(sid, jid, jobs_epoch=epoch)
+            else:body = result_store.result(sid, jid)
+            return Response(body, media_type='application/json', headers=PRIVATE)
+        except ReadError as exc:
+            if lease is not None:lease.release()
+            return error(exc)
+        except Exception:
+            if lease is not None:lease.release()
+            return error(ReadError(503, 'result_storage_unavailable'))
+
+    @app.get('/sessions/{sid}/moss-jobs/history')
+    def history_list(request: Request, sid: str):
+        return history_read(request, sid, 'list')
+
+    @app.get('/sessions/{sid}/moss-jobs/history/{job_id}')
+    def history_detail(request: Request, sid: str, job_id: str):
+        return history_read(request, sid, 'detail', job_id)
+
+    @app.get('/sessions/{sid}/moss-jobs/history/{job_id}/result')
+    def history_result(request: Request, sid: str, job_id: str):
+        return history_read(request, sid, 'result', job_id)
+
+    @app.post('/sessions/{sid}/moss-jobs/{job_id}/retry-storage')
+    async def retry_storage(request: Request, sid: str, job_id: str):
+        return await mutate(request, sid, 'retry_storage', job_id)
 
     @app.get('/sessions/{sid}/moss-jobs/{job_id}')
     def detail(request: Request, sid: str, job_id: str):

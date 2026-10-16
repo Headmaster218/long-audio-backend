@@ -24,7 +24,7 @@ A process-local token binds durable_cell origin, authenticated session, opaque c
 
 SourceSupport retains its absolute start/end and core bounds. source_frames is the witnessed core endpoint, not the final recording duration. The stored proof contains the originally observed native configuration/model/runtime lineage and original/clipped turn intervals. There is no invented historical full-configuration hash or reconstructed raw native response. The controller's existing three-field service_context is unchanged; legacy capture_epoch carries the cell adapter's process epoch for this origin.
 
-Idempotency includes origin, session, route target and all request fields. An exact repeat in one jobs epoch returns the same accepted job without another pin or invocation. Cross-origin/target/binding changes conflict. Retired accepted keys remain 410; the 65th distinct acceptance remains 429. Restart changes the volatile jobs epoch and does not replay or adopt results/keys. Durable cells are availability, not durable exactly-once inference.
+Idempotency includes origin, session, route target and all request fields. An exact repeat in one jobs epoch returns the same accepted job without another pin or invocation. Cross-origin/target/binding changes conflict. Retired accepted keys remain 410; the 65th distinct acceptance remains 429. Restart changes the volatile jobs epoch and does not replay or adopt execution keys. Committed structured results remain discoverable through stable history routes. Durable cells are availability, not durable exactly-once inference.
 
 ## Delivery and cleanup ownership
 
@@ -40,10 +40,44 @@ Lock direction is manager to adapter to short operation/owner locks. The owner n
 
 ## Preserved bounds and semantics
 
-The qualified schema, write transactions, write/read SQL strings, runtime tuple, pragmas, allocation rules and producer/controller/runner/permit sources are unchanged. Added owner operations are read-only: jobs_list, jobs_detail, dispatch, validate_dispatch. There are no new connections, threads, queues, tables, columns or persistent files.
+The qualified schema, write transactions, write/read SQL strings, runtime tuple, pragmas, allocation rules and producer/controller/runner/permit sources are unchanged. Added owner operations are read-only: jobs_list, jobs_detail, dispatch, validate_dispatch. The qualified cell database receives no new connections, threads, queues, tables, columns or persistent files. The separate primary-database MOSS result ledger uses bounded optional connections without changing cell authority.
 
-Existing limits remain: 64 MiB DB family; 64 MiB unmeasured working reservation; 1,024 cells/4,096 receipts; 640,000 PCM and 65,536 proof bytes per cell; two copied pins; 500 ms cooperative owner budget, 5 ms lock ceiling, 150,000 SQL VM steps, 256 KiB projected SQL, 40 MiB source reads and 64 KiB transfers. Slow OS calls are not hard-real-time bounded. MOSS retains at most 1 MiB; raw at most 128 KiB, result at most 256 KiB, binding at most 4 KiB; 900-second TTL is job lifetime, not invented durable-cell expiry. Existing candidate/wrapper/scratch/host/disk reservations remain unchanged.
+Existing limits remain: 64 MiB DB family; 64 MiB unmeasured working reservation; 1,024 cells/4,096 receipts; 640,000 PCM and 65,536 proof bytes per cell; two copied pins; 500 ms cooperative owner budget, 5 ms lock ceiling, 150,000 SQL VM steps, 256 KiB projected SQL, 40 MiB source reads and 64 KiB transfers. Slow OS calls are not hard-real-time bounded. MOSS retains at most 1 MiB; raw at most 128 KiB, result at most 256 KiB, binding at most 4 KiB; 900-second TTL is job lifetime, not invented durable-cell expiry. Existing candidate/wrapper/scratch/host reservations remain unchanged; result writes add the sampled finite headroom policy described below.
 
 Exact native.raw_text UTF-8 bytes are not trimmed, reconstructed or normalized. Empty, missing, oversize and invalid-Unicode cases remain distinct. Phrase timestamps remain support-relative and unverified; EOS/token count remain unknown and complete_content remains false. Speaker labels are local to this invocation/cell. There is no native/adjacent-cell identity mapping, seam stitching/deduplication, word alignment, lexical winner, primary transcript rewrite, source retirement or automatic replay.
 
 An already-authorized immutable response may finish after later deletion under its response lease. New reads fail current authorization. This is not forensic erasure.
+
+
+## Retained MOSS results from cells
+
+The shared [MOSS result-history contract](MOSS_HANDY_JOBS.md#durable-structured-history)
+also applies to cell jobs. A sealed snapshot includes the complete bounded
+SourceSupport, original cell binding/proof hash, observed model/runtime/profile
+identities, normalized outcome and positive cleanup facts. It does not save the
+full cell proof or recreate cell authority from a hash. Its exact structured
+JSON preserves local labels, diagnostic phrase text and unverified timestamps.
+The separate full native raw payload remains volatile.
+
+Sealing occurs only after the existing post-serialization and post-pin-release
+checks. It records completed validation observations, not source validity at
+commit. Cancellation before sealing rejects the snapshot; cancellation, expiry
+or owner revocation afterward invalidates live access but does not erase it.
+Only a successful SQLite commit permits structured result availability. A failed
+save retains one immutable pending snapshot without retaining the native permit,
+blocks optional slot reuse, and allows one explicit storage-only retry per
+request. Explicit session deletion atomically erases or vetoes retained output.
+
+Stable history list/detail/result routes work without an active cell or MOSS
+execution owner and share the original two-response/1.5 MiB response pool.
+Retention has finite global/session row and charged-byte quotas, independent of
+the 64 accepted live keys per epoch. There is no output TTL/LRU eviction. Cell
+proof/PCM reclamation authority and the primary transcript path are unchanged.
+
+Optional result writes preserve the sampled 5.5 GiB free-space floor plus the
+configured larger reserve, an 8 MiB write allowance, 2 MiB scratch, current WAL
+logical size and the enabled cell owner's 64 MiB envelope. This is conservative
+admission policy, not a hard shared-WAL or physical disk cap. It imposes no
+checkpoint or write restriction on primary transcript storage. See the linked
+contract for quotas, bounded abandoned-reservation reconciliation, retry and
+ordinary SQLite recovery limits.

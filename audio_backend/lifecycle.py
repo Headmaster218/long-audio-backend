@@ -81,6 +81,8 @@ def delete_session(store, sid, delete_file=None):
             # Keep only a scrubbed ID tombstone for idempotent cleanup retry.
             # The change-feed erasure trigger removes historical text snapshots.
             db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))
+            from .moss_result_store import erase_session as erase_moss_results
+            erase_moss_results(db, sid)
             from .fragment_http import erase
             erase(db,sid)
             for table in ('segments', 'events', 'speaker_turns'):

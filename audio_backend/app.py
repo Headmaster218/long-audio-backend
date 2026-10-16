@@ -172,6 +172,13 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     for folder in ('uploads','tmp'):
         (settings.data_dir/folder).mkdir(parents=True,exist_ok=True)
     store=Store(settings.data_dir/'jobs.sqlite3',settings)
+    from .moss_result_store import MossResultStore
+    from .native_owned_support_cache import ReadResponseBudget, lookup as lookup_support_cache
+    results=MossResultStore(store)
+    response_budget=ReadResponseBudget()
+    def history_budget():
+        registered=lookup_support_cache(store)
+        return registered.response_budget if registered is not None else response_budget
     from .fragment_http import FragmentHTTP, is_experimental, no_identity_mutation
     fragments=FragmentHTTP(store,settings,fragment_provider_factory,defer_factory_initialization=True)
     change_feed.initialize(store)
@@ -190,11 +197,16 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         lock.acquire()
         try:
             ownership_fence(settings.data_dir)
+            try:
+                results.bind_recovery(lock)
+                results.reconcile()
+            except Exception:
+                app.state.moss_result_recovery_status='unavailable'
             fragments.initialize_factory_once()
             if settings.native_owned_support_enabled:
                 try:
                     from .native_owned_support_cache import register
-                    worker.native_owned_support_cache=register(store)
+                    worker.native_owned_support_cache=register(store, response_budget=response_budget)
                 except Exception:
                     # Optional capture has no authority to reject primary startup.
                     worker.native_owned_support_cache=None
@@ -234,7 +246,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                         # Durable cell unavailability does not disable rolling
                         # jobs or acquire any new native execution authority.
                         app.state.native_owned_cell_jobs_status='adapter_unavailable'
-                jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source)
+                jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source,result_store=results)
                 app.state.moss_jobs=jobs
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
@@ -307,6 +319,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             if stopped and jobs_stopped and cells_stopped and fragments.cleanup_error is None and initializer_safe:
                 if jobs is not None and getattr(settings,'_native_execution_permit',None) is jobs.permit:
                     del settings._native_execution_permit
+                results.revoke_recovery()
                 lock.release()
             else:
                 # Keep the live instance lock referenced while ownership is
@@ -843,7 +856,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
         return {**result,'note':('Source cleanup is pending; retry this DELETE or restart after resolving file access.' if result['cleanup_pending'] else 'Application deletion is not forensic secure erasure; protect disk and backups.')}
     # Added last so this lifetime gate encloses the auth/streaming middleware.
     from .moss_handy_http import register_routes
-    register_routes(app, lambda:jobs, _assign_native_read_lease)
+    app.state.moss_result_store=results
+    app.state.moss_response_budget=response_budget
+    register_routes(app, lambda:jobs, _assign_native_read_lease, result_store=results, get_response_budget=history_budget)
     app.add_middleware(_NativeSupportReadLifetime)
     return app
 

@@ -219,3 +219,25 @@ def test_cleanup_pages_do_not_retry_failed_files_in_one_pass(tmp_path):
     assert result['cleanup_pending'] == 64
     assert store.delete_session(sid)['cleanup_pending'] == 0
     assert not list((tmp_path / 'uploads').iterdir())
+
+
+from test_moss_result_store import archive_fixture
+
+
+def test_moss_history_and_counters_erase_atomically_with_primary_session(archive_fixture):
+    from test_moss_result_store import snapshot, reserve, rows, usage, TABLE, USAGE
+    store, archive, sid = archive_fixture
+    value = snapshot(sid); reserve(archive, value); archive.commit(value)
+    before = usage(store)
+    with store.db() as db:
+        db.execute(f"CREATE TRIGGER fail_history_delete BEFORE DELETE ON {TABLE} BEGIN SELECT RAISE(ABORT,'synthetic history delete failure'); END")
+    with pytest.raises(Exception, match='synthetic history delete failure'):store.delete_session(sid)
+    assert store.session(sid)['id'] == sid
+    assert archive.result(sid, value.identity.job_id) == value.result_json
+    assert usage(store) == before
+    with store.db() as db:db.execute('DROP TRIGGER fail_history_delete')
+    store.delete_session(sid)
+    assert rows(store, f'SELECT job_id FROM {TABLE}') == []
+    assert rows(store, f'SELECT scope,row_count,charge_bytes FROM {USAGE}') == [('', 0, 0)]
+    store.delete_session(sid)
+    assert rows(store, f'SELECT scope,row_count,charge_bytes FROM {USAGE}') == [('', 0, 0)]

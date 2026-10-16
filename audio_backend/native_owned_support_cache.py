@@ -358,8 +358,46 @@ class DispatchLease:
             self.owner._lock.release()
 
 
+class ReadResponseBudget:
+    """One aggregate lease pool shared by source, live-job and history responses."""
+    def __init__(self):
+        self._lease_lock = threading.Lock()
+        self._lease_count = self._lease_bytes = 0
+        self._leases = []
+        self._lease_cleanup_pending = threading.Event()
+
+    def _drain_leases_locked(self):
+        for lease in tuple(self._leases):
+            if lease._release_requested.is_set() and not lease.released:
+                lease.released = True
+                self._lease_count -= 1
+                self._lease_bytes -= lease.reserved
+                self._leases.remove(lease)
+        self._lease_cleanup_pending.clear()
+
+    def _lease(self, kind, budget):
+        if not self._lease_lock.acquire(timeout=budget.remaining_lock()):
+            raise ReadError(503, 'read_capacity')
+        try:
+            budget.check()
+            self._drain_leases_locked()
+            amount = READ_RESERVATIONS[kind]
+            if self._lease_count >= MAX_READ_LEASES or self._lease_bytes + amount > MAX_READ_BYTES:
+                raise ReadError(503, 'read_capacity')
+            self._lease_count += 1
+            self._lease_bytes += amount
+            lease = Lease(self, amount)
+            self._leases.append(lease)
+            return lease
+        finally:
+            self._lease_lock.release()
+
+    def reserve_jobs_response(self, kind):
+        return self._lease('jobs_' + kind, ReadBudget())
+
+
 class NativeOwnedSupportCache:
-    def __init__(self, store, *, clock=time.monotonic):
+    def __init__(self, store, *, clock=time.monotonic, response_budget=None):
         self.store = store
         self.path = str(Path(store.path).resolve())
         st = os.stat(self.path)
@@ -367,7 +405,8 @@ class NativeOwnedSupportCache:
         self.clock = clock
         self.epoch = uuid.uuid4().hex
         self._lock = threading.Lock()
-        self._lease_lock = threading.Lock()
+        self.response_budget = response_budget if response_budget is not None else ReadResponseBudget()
+        self._lease_lock = self.response_budget._lease_lock
         self._blocked = threading.Event()
         self._cleanup_pending = threading.Event()
         self._entries = {}
@@ -377,9 +416,8 @@ class NativeOwnedSupportCache:
         self._invalidation_serial = 0
         self._retained = 0
         self._marker_bytes = 0
-        self._lease_count = self._lease_bytes = 0
-        self._leases = []
-        self._lease_cleanup_pending = threading.Event()
+        self._leases = self.response_budget._leases
+        self._lease_cleanup_pending = self.response_budget._lease_cleanup_pending
         self._dispatch = None
         self._dispatch_owner = uuid.uuid4().hex
         self._dispatch_cleanup_pending = threading.Event()
@@ -768,30 +806,16 @@ class NativeOwnedSupportCache:
             self.fail(token)
 
     def _drain_leases_locked(self):
-        for lease in tuple(self._leases):
-            if lease._release_requested.is_set() and not lease.released:
-                lease.released = True
-                self._lease_count -= 1
-                self._lease_bytes -= lease.reserved
-                self._leases.remove(lease)
-        self._lease_cleanup_pending.clear()
+        return self.response_budget._drain_leases_locked()
 
     def _lease(self, kind, budget):
-        if not self._lease_lock.acquire(timeout=budget.remaining_lock()):
-            raise ReadError(503, 'read_capacity')
-        try:
-            budget.check()
-            self._drain_leases_locked()
-            amount = READ_RESERVATIONS[kind]
-            if self._lease_count >= MAX_READ_LEASES or self._lease_bytes + amount > MAX_READ_BYTES:
-                raise ReadError(503, 'read_capacity')
-            self._lease_count += 1
-            self._lease_bytes += amount
-            lease = Lease(self, amount)
-            self._leases.append(lease)
-            return lease
-        finally:
-            self._lease_lock.release()
+        return self.response_budget._lease(kind, budget)
+
+    @property
+    def _lease_count(self):return self.response_budget._lease_count
+
+    @property
+    def _lease_bytes(self):return self.response_budget._lease_bytes
 
     def _envelope(self, entry):
         result = {'schema': 'native-owned-support-v1', 'session_id': entry.sid,
@@ -1064,7 +1088,7 @@ def _db_key(store):
     return st.st_dev, st.st_ino
 
 
-def register(store):
+def register(store, *, response_budget=None):
     """Call only after the existing application InstanceLock has been acquired."""
     if not getattr(store.settings, 'native_owned_support_enabled', False):
         return None
@@ -1099,7 +1123,7 @@ def register(store):
                 old._lease_lock.release()
         if len(_registry) >= MAX_REGISTRY_OWNERS:
             raise ReadError(503, 'registry_capacity')
-        cache = NativeOwnedSupportCache(store)
+        cache = NativeOwnedSupportCache(store, response_budget=response_budget)
         _registry[key] = cache
         return cache
     finally:

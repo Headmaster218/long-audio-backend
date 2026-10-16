@@ -1,4 +1,4 @@
-# Explicit volatile Handy MOSS jobs (rc3.dev5)
+# Explicit Handy MOSS jobs and retained structured results
 
 This source integration is OFF by default. It lets an operator explicitly run
 one experimental diagnostic against an already-current selected native-owned
@@ -44,7 +44,8 @@ primary intent, uncertain ownership, resources, a busy slot or stale evidence
 can reject it without queueing or invoking a model. An accepted job belongs to
 the manager even if its submitting HTTP request disconnects.
 
-A cleaned terminal record can be retired by the next fully validated submit.
+A cleaned terminal record with no unsaved historical snapshot can be retired by
+the next fully validated submit.
 Live or uncertain ownership cannot be evicted. Each accepted job expires at
 900 monotonic seconds from acceptance. Reads and long runs do not extend that
 deadline. Expiry hides result/raw and invalidates publication, but cannot remove
@@ -58,7 +59,8 @@ or expired accepted key gives 410 and is never replayed. At most 64 accepted
 keys, including the live record, exist per epoch in a bounded tombstone ledger.
 The 65th distinct admission gives 429 `epoch_capacity`; keys are never silently
 evicted. Rejections consume no accepted-key slot. A restart creates a new epoch
-and loses volatile artifacts; it does not adopt or resume an old job.
+and loses volatile live artifacts; committed structured history survives. It
+does not adopt or resume an old job.
 
 ## API
 
@@ -83,7 +85,8 @@ paths, process IDs, native transcript excerpts or arbitrary exception text.
 - `GET /sessions/{sid}/moss-jobs/{job_id}/raw`: at most 128 KiB of exact retained
   `native.raw_text` UTF-8 bytes, after cleanup and current-source authorization.
 - `POST /sessions/{sid}/moss-jobs/{job_id}/cancel`: JSON containing only the
-  required `jobs_epoch`. Cancellation invalidates publication immediately. If
+  required `jobs_epoch`. Cancellation applies under the manager lock and
+  invalidates live publication. If
   cleanup is blocked, it may request one serialized cleanup-only retry; it never
   retries inference and reports pending until positive cleanup is established.
 
@@ -97,7 +100,7 @@ noncanonical decimals are rejected before source/controller use.
 Status meanings: 200 read/repeat; 202 accepted or cancellation pending; 404
 unknown/deleted session or job; 409 disabled, unsupported, busy, mismatch,
 not-terminal or raw unavailable; 410 known expired/retired job/key; 429 epoch or
-mutation capacity; 503 unavailable evidence, resource sampling, cleanup or
+mutation or retained-result capacity; 503 unavailable storage, evidence, resource sampling, cleanup or
 response capacity. There is no discard, queue-control, install or general
 execution endpoint.
 
@@ -199,7 +202,9 @@ authoritative bounded no-follow ownership check before any configured fragment
 factory initializer, tmp cleanup, recovery or Worker startup. A preliminary
 preconstruction check is diagnostic only. Unresolved ownership refuses startup
 without destroying evidence. Never-enabled ordinary legacy startup creates no
-optional namespace/thread/model and adds no provider call or SQL.
+optional namespace/thread/model and adds no provider call. The additive result
+ledger and one bounded abandoned-reservation recovery attempt also support
+history when execution is disabled.
 
 On a platform without descriptor-relative no-follow primitives, including the
 mocked Windows branch, OFF startup may pass only a bounded, noncreating absence
@@ -226,7 +231,8 @@ unresolved optional ownership keeps the InstanceLock referenced and reports
 
 ## Memory and qualification boundary
 
-The existing two-response/1.5 MiB pool is shared across support and jobs routes.
+The existing two-response/1.5 MiB pool is shared across support, live jobs and
+historical-result routes, including when execution is disabled.
 Jobs result/raw/detail/list reserve 768/256/128/256 KiB respectively before
 copying or retaining response material; mutations reserve a reply lease before
 acceptance. Outer ASGI completion, disconnect or send failure releases exactly
@@ -246,3 +252,107 @@ External source/index/seal verification, test results and publication must each
 be separately reported against exact frozen bytes. No acoustic, live native
 MOSS service concurrency, long optional recording, full-suite, Windows/Vulkan
 or production-deployment qualification follows from model-free fixtures.
+
+
+## Durable structured history
+
+Every accepted job reserves one row and 294,912 charged bytes in the primary
+SQLite result ledger before its 202 acknowledgment or native handoff. A lost
+acknowledgment is discoverable by the same current-epoch idempotency key and
+reports admission uncertainty; it never dispatches another model invocation.
+The separate 64-key live epoch limit remains unchanged.
+
+After the existing final validation and positive process/copied-pin cleanup,
+the manager seals one immutable historical snapshot. This local decision records
+completed validation observations. It does not assert that independent source
+owners were simultaneously current at seal time or SQLite commit time. An API
+cancellation applied before sealing prevents the snapshot; one applied afterward
+revokes live publication while preserving the historical bytes. Source expiry,
+revocation, configuration changes and shutdown follow the same distinction.
+
+SQLite commit, rather than sealing, makes structured output available. A failed,
+busy, late or uncertain save reports `storage_pending=true`,
+`durable_result_available=false` and `result_available=false`. One bounded
+snapshot remains in the existing slot and blocks optional slot reuse, while the
+positively cleaned native permit is released. `POST
+/sessions/{sid}/moss-jobs/{job_id}/retry-storage`, with only the current
+`jobs_epoch` in its JSON body, attempts one byte-identical storage-only save.
+It does not validate a source, acquire native ownership or retry inference.
+Shutdown attempts one bounded save and remains blocked if it cannot finish.
+An unsaved snapshot cannot be guaranteed to survive process death.
+
+History uses these authenticated, private/no-store/nosniff routes:
+
+- `GET /sessions/{sid}/moss-jobs/history`: `after` is an exclusive stable
+  `archive_seq` cursor, initially 0; `limit` is 1–20. No live epoch is required.
+  Pages contain at most 20 rows and 32 KiB, and never select result BLOBs.
+- `GET /sessions/{sid}/moss-jobs/history/{job_id}`: complete bounded metadata,
+  at most 16 KiB, with original source binding and diagnostic qualifications.
+- `GET /sessions/{sid}/moss-jobs/history/{job_id}/result`: exact committed
+  structured JSON, at most 256 KiB. Pending/uncommitted output is unavailable.
+
+History works with MOSS execution disabled. It is labeled
+`authority=historical_snapshot`, `source_current=not_checked`,
+`source_valid_at_commit=not_asserted`,
+`retention=durable_until_explicit_session_deletion` and `expires_at=null`.
+Live result/raw routes retain their fresh-source authorization. The full separate
+exact raw text remains volatile; hashes are not recoverable raw. Structured
+`diagnostic_phrases[].raw_text` and `alternative.text` remain saved in full.
+EOS and token count remain unknown, content incomplete, model timestamps
+unverified, and speaker labels local.
+
+There is no time-based expiry, LRU eviction or automatic replacement of committed
+results. Explicit session deletion erases ledger rows and usage counters in the
+same transaction as the session tombstone. It vetoes later save/retry attempts.
+An already-authorized immutable response may still finish after deletion;
+application deletion is not forensic secure erasure.
+
+## Retention quotas and write headroom
+
+Operator settings are read once for each service start; there is no unlimited
+mode or quota mutation API:
+
+- `moss_result_max_rows`: default 65,536; hard ceiling 1,048,576
+- `moss_result_max_rows_per_session`: default 16,384; hard ceiling 262,144
+- `moss_result_max_bytes`: default 2 GiB; hard ceiling 64 GiB
+- `moss_result_max_bytes_per_session`: default 1 GiB; hard ceiling 16 GiB
+
+CLI options use the same names with hyphens, for example
+`--moss-result-max-bytes-per-session`. Session ceilings cannot exceed global
+ceilings, and byte ceilings must accommodate one 288 KiB pending envelope.
+They allocate no space upfront. A committed row is charged its exact result and
+metadata bytes plus a fixed 16 KiB accounting allowance. Terminal no-result rows
+retain metadata and that allowance. This allowance is a quota convention, not
+measured SQLite/index overhead. Lowered quotas leave history readable and block
+new distinct jobs; capacity failures report `result_retention_capacity` and
+require explicit session deletion or an operator quota increase.
+Schema and locally detectable counter contradictions fail admission closed.
+Plausible positive undercounts require a separately requested audit; ordinary
+admission does not scan or aggregate the full result ledger.
+
+After the actual instance lock and ownership fence succeed, recovery freezes an
+indexed historical sequence boundary before new MOSS admission. One startup
+batch and at most one batch per distinct admission can mark up to 32 abandoned
+accepted reservations interrupted and release only their unused byte charge.
+Metadata and row counts remain unchanged; current-instance rows and committed
+outputs are excluded. This never replays inference or reclaims source files.
+A separately committed recovery batch survives a subsequent quota refusal.
+Recovery status and remaining work can be unknown after a failed acknowledgment.
+
+Optional writes use zero SQLite busy wait, one attempt, a shared 250 ms
+cooperative admission budget and at most 50,000 SQL VM steps. Each write samples
+the fixed DB/WAL/SHM family and free space immediately before its transaction.
+Required headroom is the greater of the configured disk reserve and 5.5 GiB,
+plus 8 MiB for the write (2 MiB DB/index, 4 MiB WAL, 2 MiB auxiliary), 2 MiB
+scratch, the current WAL logical size for possible second-copy materialization,
+and 64 MiB when the qualified cell owner is enabled. A post-commit pressure
+sample retains the output and blocks further optional writes.
+
+These are finite conservative policy allowances, not proven physical allocation
+bounds. The primary database is shared: concurrent writers may consume free
+space after sampling, and SQLite/checkpoint/OS work can exceed the allowances.
+There is no hard shared-WAL cap, forced checkpoint, VACUUM, primary-write limit,
+physical disk guarantee, hard syscall deadline or new power-loss guarantee.
+History reads and explicit session deletion do not require optional-write
+headroom. Durability means ordinary committed SQLite recovery under the tested
+runtime and filesystem.

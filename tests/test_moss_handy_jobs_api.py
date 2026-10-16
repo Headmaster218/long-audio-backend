@@ -203,6 +203,60 @@ class JobsAPI(unittest.TestCase):
             self.assertFalse((Path(directory)/jobs.NAMESPACE).exists())
 
 
+    def test_history_and_source_reads_use_the_exact_same_pool(self):
+        cid, body = self.support(); self.submit(cid, body); jid = self.finish()
+        pool = self.app.state.moss_response_budget
+        self.assertIs(pool, self.owner.cache.response_budget)
+        from audio_backend.storage import Store
+        from audio_backend.native_owned_support_cache import lookup
+        alias = Store(self.app.state.store.path, self.settings)
+        registered = lookup(alias)
+        self.assertIs(registered, self.owner.cache)
+        self.assertIs(registered.response_budget, pool)
+        source = self.owner.cache.read_audio(self.sid, cid)
+        history = pool.reserve_jobs_response('result')
+        try:
+            response = self.client.get(f'/sessions/{self.sid}/moss-jobs/history/{jid}/result')
+            self.assertEqual(response.status_code, 503); self.private(response)
+            self.assertEqual(pool._lease_count, 2)
+        finally:source.lease.release(); history.release()
+        self.assertEqual(pool._lease_count, 0)
+
+    def test_retry_storage_parser_epoch_one_attempt_and_no_native_replay(self):
+        cid, body = self.support(); self.submit(cid, body)
+        with patch.object(self.owner.results, 'commit', side_effect=ReadError(503, 'result_storage_unavailable')):
+            jid = self.finish()
+        path = f'/sessions/{self.sid}/moss-jobs/{jid}/retry-storage'
+        with patch.object(self.owner, 'retry_storage', side_effect=AssertionError('must not reach retry')):
+            for invalid in ({}, {'jobs_epoch': False}, {'jobs_epoch': self.owner.jobs_epoch, 'extra': 1}):
+                response = self.client.post(path, json=invalid)
+                self.assertEqual(response.status_code, 409); self.private(response)
+        wrong = self.client.post(path, json={'jobs_epoch': 'f' * 32})
+        self.assertEqual(wrong.status_code, 409); self.private(wrong)
+        with patch.object(self.owner.results, 'commit', side_effect=ReadError(503, 'result_storage_unavailable')) as commit:
+            response = self.client.post(path, json={'jobs_epoch': self.owner.jobs_epoch})
+        self.assertEqual(response.status_code, 503); self.assertEqual(commit.call_count, 1); self.private(response)
+        self.settings.moss_jobs_enabled = False
+        with patch.object(self.owner, '_validate', side_effect=AssertionError('no source lookup')):
+            response = self.client.post(path, json={'jobs_epoch': self.owner.jobs_epoch})
+        self.assertEqual(response.status_code, 200, response.text); self.private(response)
+        self.assertTrue(response.json()['durable_result_available'])
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+        self.assertEqual(self.owner.cache._lease_count, 0)
+
+    def test_delete_after_pending_save_prevents_retry_resurrection(self):
+        cid, body = self.support(); self.submit(cid, body)
+        with patch.object(self.owner.results, 'commit', side_effect=ReadError(503, 'result_storage_unavailable')):
+            jid = self.finish()
+        response = self.client.delete('/sessions/' + self.sid)
+        self.assertEqual(response.status_code, 200, response.text)
+        retry = self.client.post(f'/sessions/{self.sid}/moss-jobs/{jid}/retry-storage',
+                                 json={'jobs_epoch': self.owner.jobs_epoch})
+        self.assertEqual(retry.status_code, 404); self.private(retry)
+        self.assertEqual(self.client.get(f'/sessions/{self.sid}/moss-jobs/history/{jid}/result').status_code, 404)
+        self.assertIsNone(self.owner._records[0]['history_snapshot'])
+
+
 class StartupFenceTests(unittest.TestCase):
     def settings(self,root):return Settings(data_dir=root,start_worker=False,disk_reserve_bytes=0)
     def factory(self):

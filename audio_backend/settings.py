@@ -99,6 +99,10 @@ class Settings:
     native_owned_seam_cells_enabled: bool = False
     native_owned_core_seams_enabled: bool = False
     native_owned_compact_gc_enabled: bool = False
+    moss_result_max_rows: int = 65536
+    moss_result_max_rows_per_session: int = 16384
+    moss_result_max_bytes: int = 2 * 1024**3
+    moss_result_max_bytes_per_session: int = 1024**3
     moss_jobs_enabled: bool = False
     moss_jobs_model_path: str | None = None
     speaker_support_max_records: int = 4096
@@ -114,6 +118,15 @@ class Settings:
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
         validate_framemn_options(self.framemn_enabled, self.framemn_checkpoint_path, self.framemn_profile)
+        for name, floor, ceiling in (
+                ('moss_result_max_rows', 1, 1048576), ('moss_result_max_rows_per_session', 1, 262144),
+                ('moss_result_max_bytes', 294912, 64 * 1024**3),
+                ('moss_result_max_bytes_per_session', 294912, 16 * 1024**3)):
+            if type(getattr(self, name)) is not int or not floor <= getattr(self, name) <= ceiling:
+                raise ValueError(f'{name} must be an integer between {floor} and {ceiling}')
+        if (self.moss_result_max_rows_per_session > self.moss_result_max_rows
+                or self.moss_result_max_bytes_per_session > self.moss_result_max_bytes):
+            raise ValueError('MOSS session retention limits must not exceed global limits')
         if type(self.moss_jobs_enabled) is not bool:
             raise ValueError('moss_jobs_enabled must be boolean')
         if self.moss_jobs_model_path is not None and not self.moss_jobs_enabled:

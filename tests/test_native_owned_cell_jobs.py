@@ -27,7 +27,7 @@ from test_native_owned_cells import synthetic_cell
 from test_native_owned_seam_cells import synthetic_composite
 from test_native_execution_permit import sample
 from test_moss_handy_controller import FakeDriver, clean
-from test_moss_handy_jobs import ManualThread, retain_outcome
+from test_moss_handy_jobs import ManualThread, retain_outcome, prepare_history
 
 
 class CellJobsFixture(CacheFixture):
@@ -53,8 +53,10 @@ class CellJobsFixture(CacheFixture):
         self.drivers = []
         def factory(directory, sha):
             driver = FakeDriver(directory, sha); self.drivers.append(driver); return driver
+        results = prepare_history(self)
         self.owner = jobs.MossJobs(self.store, self.cache, self.permit, clock=self.clock,
-            _driver_factory=factory, _thread_factory=ManualThread, cell_source=self.source)
+            _driver_factory=factory, _thread_factory=ManualThread, cell_source=self.source,
+            result_store=results)
 
     def tearDown(self):
         retain_outcome(self.root, self.owner)

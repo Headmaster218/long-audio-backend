@@ -42,7 +42,8 @@ class CellJobsAPI(CellJobsFixture):
     def setUp(self):
         super().setUp()
         self.app = FastAPI()
-        http.register_routes(self.app, lambda: self.owner, _assign_native_read_lease)
+        http.register_routes(self.app, lambda: self.owner, _assign_native_read_lease,
+            result_store=self.owner.results, get_response_budget=lambda: self.cache.response_budget)
         self.app.add_middleware(_NativeSupportReadLifetime)
         self.client = TestClient(self.app)
         self.client.__enter__()
@@ -590,7 +591,8 @@ class CellJobsAPI(CellJobsFixture):
                 captured = SimpleNamespace(owner=owner, authority=SimpleNamespace(owner=owner))
                 fake_jobs = SimpleNamespace(permit=None, close_admission=lambda: events.append('jobs_admission'),
                     stop=lambda: (events.append('jobs_stop'), True)[1])
-                def make_jobs(store, cache, permit, *, cell_source):
+                def make_jobs(store, cache, permit, *, cell_source, result_store):
+                    self.assertIs(result_store, app.state.moss_result_store)
                     fake_jobs.permit = permit; self.assertIsNotNone(cell_source); return fake_jobs
                 def stop(worker):events.append('worker_stop'); return original_stop(worker)
                 config = Settings(data_dir=directory, disk_reserve_bytes=0, native_owned_cells_enabled=True,
@@ -614,7 +616,9 @@ class CellJobsAPI(CellJobsFixture):
                 owner = SimpleNamespace(start=lambda: None, close_admission=lambda: None)
                 captured = SimpleNamespace(owner=owner, authority=SimpleNamespace(owner=owner))
                 fake_jobs = SimpleNamespace(permit=None, close_admission=lambda: None, stop=lambda: unresolved != 'jobs')
-                def make_jobs(store, cache, permit, *, cell_source):fake_jobs.permit = permit; return fake_jobs
+                def make_jobs(store, cache, permit, *, cell_source, result_store):
+                    self.assertIs(result_store, app.state.moss_result_store)
+                    fake_jobs.permit = permit; return fake_jobs
                 config = Settings(data_dir=directory, disk_reserve_bytes=0, native_owned_cells_enabled=True,
                     native_owned_support_enabled=True, moss_jobs_enabled=True, diarization_backend='nemotron',
                     native_diarization_model='synthetic', native_diarization_library='synthetic',
@@ -643,7 +647,8 @@ class CellJobsAPI(CellJobsFixture):
         self.permit = NativeExecutionPermit(self.store.settings, sampler=lambda _: sample())
         factory = self.owner._driver_factory
         self.owner = jobs.MossJobs(self.store, self.cache, self.permit, cell_source=self.source,
-            clock=self.clock, _driver_factory=factory, _thread_factory=ManualThread)
+            clock=self.clock, _driver_factory=factory, _thread_factory=ManualThread,
+            result_store=self.owner.results)
         self.assertNotEqual(old_epoch, self.owner.jobs_epoch)
         self.assertEqual(self.client.get(self.cell_path(cell)).content, cell.proof)
         self.assertFalse(self.owner._records); self.assertEqual(len(self.drivers), 1)
@@ -771,7 +776,8 @@ class CellJobsAPI(CellJobsFixture):
         self.permit = NativeExecutionPermit(self.store.settings, sampler=lambda _: sample())
         factory = self.owner._driver_factory
         self.owner = jobs.MossJobs(self.store, self.cache, self.permit, cell_source=self.source,
-            clock=self.clock, _driver_factory=factory, _thread_factory=ManualThread)
+            clock=self.clock, _driver_factory=factory, _thread_factory=ManualThread,
+            result_store=self.owner.results)
         self.assertNotEqual(self.owner.jobs_epoch, body['jobs_epoch']); self.assertFalse(self.owner._records)
         self.assertEqual(self.client.get(self.cell_path(cell)).content, cell.proof)
         self.assertEqual(self.client.get(self.cell_path()).json()['cells'][0]['coverage'], json.loads(cell.proof)['coverage'])
@@ -783,3 +789,50 @@ class CellJobsAPI(CellJobsFixture):
         with patch.object(self.store.settings, 'native_owned_cells_enabled', False):
             self.assertEqual(self.client.get(self.cell_path(cell)).status_code, 409)
         self.assertFalse(self.cell_owner._pins)
+
+
+    def test_cell_pending_history_saves_after_pcm_expiry_without_source_calls(self):
+        cell, body = self.ready_cell(index=25); self.post_cell(cell, body)
+        with patch.object(self.owner.results, 'commit', side_effect=ReadError(503, 'result_storage_unavailable')):
+            record = self.finish()
+        frozen = record['history_snapshot']; self.assertIsNotNone(frozen)
+        self.assertEqual(self.operation('expire', cell.cell_id)['status'], 'expired')
+        self.assertTrue(self.cell_owner.close())
+        with patch.object(self.source, 'revalidate_dispatch', side_effect=AssertionError('no source callback')), \
+             patch.object(self.source, 'publication_current', side_effect=AssertionError('no source callback')), \
+             patch.object(record['controller'], 'run', side_effect=AssertionError('no native call')):
+            response = self.client.post(self.job_path(record, '/retry-storage'), json={'jobs_epoch': self.owner.jobs_epoch})
+        self.assertEqual(response.status_code, 200, response.text); self.private(response)
+        archived = self.client.get('/sessions/session/moss-jobs/history/' + record['job_id'] + '/result')
+        self.assertEqual(archived.status_code, 200, archived.text); self.private(archived)
+        self.assertEqual(archived.content, frozen.result_json)
+        self.assertEqual(archived.json()['cell_binding']['cell_id'], cell.cell_id)
+        self.assertEqual(sum(driver.starts for driver in self.drivers), 1)
+
+    def test_cell_revocation_during_commit_changes_live_authority_only(self):
+        cell, body = self.ready_cell(); self.post_cell(cell, body)
+        commit = self.owner.results.commit
+        def revoked(snapshot):
+            self.cell_owner.revoked()
+            return commit(snapshot)
+        with patch.object(self.owner.results, 'commit', side_effect=revoked):record = self.finish()
+        response = self.client.get('/sessions/session/moss-jobs/history/' + record['job_id'] + '/result')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.get(self.job_path(record, '/result')).status_code, 409)
+        detail = self.client.get('/sessions/session/moss-jobs/history/' + record['job_id']).json()
+        self.assertEqual(detail['source_current'], 'not_checked')
+        self.assertEqual(detail['source_valid_at_commit'], 'not_asserted')
+
+
+    def test_independent_revoke_between_final_observation_and_seal_is_historical(self):
+        cell, body = self.ready_cell(); self.post_cell(cell, body)
+        seal = self.owner._seal_history_locked
+        def revoke_before_seal(record, candidate):
+            self.cell_owner.revoked()
+            return seal(record, candidate)
+        with patch.object(self.owner, '_seal_history_locked', side_effect=revoke_before_seal):record = self.finish()
+        self.assertTrue(record['durable_result_available'])
+        detail = self.client.get('/sessions/session/moss-jobs/history/' + record['job_id'])
+        self.assertEqual(detail.status_code, 200, detail.text)
+        self.assertEqual(detail.json()['source_valid_at_commit'], 'not_asserted')
+        self.assertEqual(self.client.get(self.job_path(record, '/result')).status_code, 409)

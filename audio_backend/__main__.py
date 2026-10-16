@@ -57,7 +57,11 @@ def main(argv=None):
     parser.add_argument('--native-owned-compact-gc',action='store_true',help='Candidate default-OFF orphan compact reclamation for completed stream sources; keeps all source receipts/cells/results; requires --native-owned-cells and --native-owned-core-seams')
     parser.add_argument('--native-owned-seam-cells',action='store_true',help='UNQUALIFIED default-OFF two-commit seam alternatives; requires --native-owned-cells; explicit overlapping diagnostics only')
     parser.add_argument('--native-owned-support',action='store_true',help='Experimental volatile native overlap support for isolated PCM uploads up to20s; read-only, lost on restart')
-    parser.add_argument('--moss-jobs',action='store_true',help='Explicit volatile single MOSS job service; requires native-owned support, CPU and no overlap/fragment provider')
+    for option, default in (('rows', 65536), ('rows-per-session', 16384),
+                            ('bytes', 2 * 1024**3), ('bytes-per-session', 1024**3)):
+        parser.add_argument('--moss-result-max-' + option, type=int, default=default,
+                            help='Finite retained MOSS result admission limit; never evicts saved outputs')
+    parser.add_argument('--moss-jobs',action='store_true',help='Explicit single MOSS job service with durable structured history; requires native-owned support, CPU and no overlap/fragment provider')
     parser.add_argument('--moss-jobs-model',type=Path,help='Explicit local fixed-profile MOSS model; does not enable jobs implicitly')
     parser.add_argument('--speaker-threshold', type=float, default=.75)
     parser.add_argument('--new-speaker-threshold', type=float, default=.45)
@@ -221,6 +225,10 @@ def main(argv=None):
                         native_owned_seam_cells_enabled=args.native_owned_seam_cells,
                         native_owned_core_seams_enabled=args.native_owned_core_seams,
                         native_owned_compact_gc_enabled=args.native_owned_compact_gc,
+                        moss_result_max_rows=args.moss_result_max_rows,
+                        moss_result_max_rows_per_session=args.moss_result_max_rows_per_session,
+                        moss_result_max_bytes=args.moss_result_max_bytes,
+                        moss_result_max_bytes_per_session=args.moss_result_max_bytes_per_session,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         verified_identity_policy_file=args.verified_identity_policy,
