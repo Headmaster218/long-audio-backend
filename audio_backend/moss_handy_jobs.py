@@ -10,9 +10,9 @@ import threading
 import time
 import uuid
 
-from .moss_handy_controller import MossController, OwnedDriver
+from .moss_handy_controller import MossController, OwnedDriver, failure_observation, terminal_outcome
 from .moss_handy_profile import NAME, MODEL_SHA256, RUNTIME_SHA256
-from .moss_result_store import MossResultStore, HistoryIdentity, HistorySnapshot, build_metadata
+from .moss_result_store import MossResultStore, HistoryIdentity, HistorySnapshot, build_metadata, validate_metadata
 from .native_execution_permit import AdmissionError
 from .native_owned_support_cache import LOCK_SECONDS, ReadError
 
@@ -301,6 +301,7 @@ class MossJobs:
             raise ReadError(503, 'speaker_probe_cleanup_pending')
         if record['storage_pending']:raise ReadError(503, 'result_storage_pending')
         record['history_snapshot'] = None
+        record['terminal_metadata'] = None
         record['admission_metadata'] = None
         record['purge_pending'] = True
         if not record['cleaned']:
@@ -379,6 +380,20 @@ class MossJobs:
             return (record['cleaned'] and not record['storage_pending']
                 and not self._probe_unresolved(record)
                 and not record.get('speaker_probe',{}).get('commit_pending')
+                and (thread is None or not thread.is_alive()))
+
+    def automatic_maintenance_hint(self):
+        """One exact cleaned pending probe, metadata only; never model readiness."""
+        with self._gate():
+            record = self._live
+            if self._pending_record is not None or record is None:return False
+            probe = record.get('speaker_probe')
+            thread, lease = record.get('thread'), record.get('lease')
+            return bool(probe and probe.get('commit_pending') and not probe.get('commit_retrying')
+                and probe.get('batch') is not None and probe.get('attempt_key') is not None
+                and record['cleaned'] and record['process_cleanup_verified']
+                and record['durable_result_available'] and not record['storage_pending']
+                and lease is not None and lease.released and not self._probe_unresolved(record)
                 and (thread is None or not thread.is_alive()))
 
     def automatic_idle(self):
@@ -462,7 +477,8 @@ class MossJobs:
                 expired=False, invalidated=False, purge_pending=False, invocation_possible=False,
                 cancelled=cancelled, lease=lease, token=lease.token, controller=None,
                 controller_id=None, thread=None, result=None, raw=None, raw_reason='not_terminal',
-                history_snapshot=None, storage_pending=False, durable_result_available=False,
+                history_snapshot=None, terminal_metadata=None, terminal_pending=False,
+                storage_pending=False, durable_result_available=False,
                 admission_metadata=None, accepted_at=time.time(),automatic_key=key if automatic is not None else None)
             record['history_identity'] = HistoryIdentity(record['job_id'], sid, self.jobs_epoch, key, digest)
             reserved = False
@@ -513,7 +529,8 @@ class MossJobs:
                 thread = self._thread_factory(target=self._run, args=(record,), name='moss-job', daemon=True)
                 record['thread'] = thread
                 thread.start()
-            except BaseException:
+            except BaseException as exc:
+                record['preparation_failure'] = failure_observation('prepared', exc)
                 self._cancel_record(record)
                 self._finish(record, preparation_failed=True)
                 if not record['cleaned'] and record['process_cleanup_verified']:
@@ -558,7 +575,7 @@ class MossJobs:
         return {'state':'probe_unavailable', 'cancelled':threading.Event(), 'operation':None,
             'batch':None, 'crops':(), 'charge_bytes':0, 'reservation':None,
             'commit_pending':False, 'commit_retrying':False, 'terminal_state':None,
-            'resolve_only':False, 'attempt_key':None}
+            'resolve_only':False, 'attempt_key':None, 'storage_failure':None}
 
     def _stage_speaker_probe(self, record):
         """Capture at most four owned copies while the full CellLease is charged."""
@@ -611,6 +628,7 @@ class MossJobs:
         probe = record.get('speaker_probe')
         if probe is None:return
         reserved = False
+        phase = 'prepare'
         batch = probe['batch']
         try:
             snapshot = record.get('history_snapshot')
@@ -627,6 +645,7 @@ class MossJobs:
             probe['commit_pending'] = True
             probe['resolve_only'] = True  # A lost reserve acknowledgement never authorizes inference.
             probe['terminal_state'] = 'probe_unavailable'
+            phase = 'reserve'
             admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
                 POLICY_SHA256, probe['space'], max_nodes=len(probe['crops']), cancelled=probe['cancelled'], batch=batch)
             probe['reservation'] = admission
@@ -634,6 +653,7 @@ class MossJobs:
                 probe['commit_pending'] = False
                 probe['state'] = admission.get('state', 'probe_unavailable')
                 return
+            phase = 'probe'
             if probe['crops']:
                 # Fresh ownership/event after the old MOSS permit was released.
                 # Primary preemption only sets the probe event, never record.cancelled.
@@ -675,8 +695,10 @@ class MossJobs:
             probe['commit_pending'] = True
             probe['resolve_only'] = False
             probe['terminal_state'] = probe['state']
+            phase = 'publish'
             self._publish_probe_batch(probe)
         except BaseException as exc:
+            if probe['commit_pending']:self._probe_storage_failure(probe, phase, exc)
             probe['state'] = 'capacity_exhausted' if getattr(exc,'reason',None) == 'capacity_exhausted' else 'probe_unavailable'
         finally:
             operation = probe['operation']
@@ -684,11 +706,30 @@ class MossJobs:
             if reserved:self.permit.release_optional(probe, cleaned=clean)
             if clean and not probe['commit_pending']:self._drop_probe_staging(probe)
 
+    @staticmethod
+    def _probe_storage_failure(probe, phase, error):
+        # Immutable first fixed-field observation; no callback or raw exception.
+        if probe.get('storage_failure') is not None:return
+        observed = failure_observation('other', error)
+        reason = error.reason if isinstance(error, ReadError) else None
+        allowed = ('result_storage_unavailable', 'speaker_probe_storage_pending',
+            'probe_unavailable', 'capacity_exhausted', 'session_not_found',
+            'automatic_source_unplaced', 'automatic_binding_invalid',
+            'automatic_history_binding_invalid', 'transcript_result_invalid',
+            'transcript_result_hash_invalid', 'speaker_link_commit_conflict',
+            'speaker_link_usage_invalid', 'invalid_speaker_link_reservation')
+        probe['storage_failure'] = {
+            'phase':phase if phase in ('prepare','reserve','probe','publish','retry_storage','cleanup_publish') else 'other',
+            'error_type':'ReadError' if isinstance(error, ReadError) else observed['type'],
+            'reason':reason if type(reason) is str and reason in allowed else 'other' if reason is not None else None,
+            'errno':observed.get('errno')}
+
     def _publish_probe_batch(self, probe):
         if probe['resolve_only']:
             return self._resolve_probe_attempt(probe)
         try:self.speaker_links.commit(probe['reservation'], probe['batch'], state=probe['terminal_state'])
         except ReadError as exc:
+            self._probe_storage_failure(probe, 'publish', exc)
             if exc.reason == 'session_not_found':
                 probe['commit_pending'] = False
                 probe['state'] = 'probe_interrupted'
@@ -737,7 +778,8 @@ class MossJobs:
             probe['commit_retrying'] = True
         try:
             self._publish_probe_batch(probe)  # Idempotent metadata only, never inference.
-        except BaseException:
+        except BaseException as exc:
+            self._probe_storage_failure(probe, 'retry_storage', exc)
             probe['state'] = 'probe_unavailable'
         finally:
             probe['commit_retrying'] = False
@@ -759,7 +801,9 @@ class MossJobs:
                 probe['commit_pending'] = True
                 probe['resolve_only'] = False
                 try:self._publish_probe_batch(probe)
-                except BaseException:probe['state'] = 'probe_unavailable'
+                except BaseException as exc:
+                    self._probe_storage_failure(probe, 'cleanup_publish', exc)
+                    probe['state'] = 'probe_unavailable'
             if not probe['commit_pending']:self._drop_probe_staging(probe)
         return clean
 
@@ -813,6 +857,10 @@ class MossJobs:
             try:
                 self._finish_locked(record, preparation_failed)
             except BaseException:
+                if record.get('terminal_metadata') is not None:
+                    record['storage_pending'] = True
+                    self.permit.release_optional(record, cleaned=False)
+                    return
                 if record['history_snapshot'] is not None:
                     record['storage_pending'] = not record['durable_result_available']
                     return
@@ -823,7 +871,7 @@ class MossJobs:
                 self.permit.release_optional(record, cleaned=False)
 
     def _retained_charge(self, record):
-        material = sum(len(value) for value in (record['raw'], record['result'], record['admission_metadata']) if value is not None)
+        material = sum(len(value) for value in (record['raw'], record['result'], record['admission_metadata'], record.get('terminal_metadata')) if value is not None)
         snapshot = record['history_snapshot']
         if snapshot is not None:
             material += len(snapshot.metadata_json) + (0 if snapshot.result_json is record['result'] else len(snapshot.result_json))
@@ -835,8 +883,13 @@ class MossJobs:
                  if record['origin'] == 'durable_cell' else 65536)
         return material + MAX_RESULT_BYTES + len(ledger) + bindings + proof
 
+    @staticmethod
+    def _terminal_rejection(record, phase, category):
+        # Callers supply fixed literals; retain the first manager-side veto only.
+        record.setdefault('manager_rejection', {'phase':phase, 'category':category})
+
     def _finish_locked(self, record, preparation_failed=False):
-        if record['history_snapshot'] is not None:return
+        if record['history_snapshot'] is not None or record.get('terminal_metadata') is not None:return
         controller, jid = record['controller'], record['controller_id']
         status = None
         try:
@@ -861,10 +914,12 @@ class MossJobs:
             self.permit.release_optional(record, cleaned=False)
             return
         valid = not record['cancelled'].is_set() and self._enabled() and self.clock() < record['deadline']
+        if not valid:self._terminal_rejection(record, 'eligibility', 'eligibility_refused')
         if valid:
             try:
                 self._validate(record)
             except Exception:
+                self._terminal_rejection(record, 'source_validation', 'source_validation_refused')
                 valid = False
                 record['invalidated'] = True
                 record['cancelled'].set()
@@ -889,7 +944,9 @@ class MossJobs:
                 result = encoded(projection)
                 if len(result) <= MAX_RESULT_BYTES:
                     record['result'] = result
+                else:self._terminal_rejection(record, 'projection', 'result_capacity')
             if self._retained_charge(record) > MAX_RETAINED_BYTES:
+                self._terminal_rejection(record, 'projection', 'retained_capacity')
                 record['raw'] = record['result'] = None
                 record['state'] = 'failed'
         record['expired'] = (self.clock() >= record['deadline']
@@ -901,6 +958,7 @@ class MossJobs:
             if record['cancelled'].is_set() or not self._enabled() or self.clock() >= record['deadline']:
                 raise ReadError(409, 'publication_invalidated')
         except Exception:
+            self._terminal_rejection(record, 'publication_before_release', 'publication_refused')
             record['raw'] = record['result'] = None
             record['cancelled'].set()
         released = record['lease'].release()
@@ -917,6 +975,7 @@ class MossJobs:
                 if record['cancelled'].is_set() or self.clock() >= record['deadline']:
                     raise ReadError(409, 'publication_invalidated')
             except Exception:
+                self._terminal_rejection(record, 'publication_after_release', 'publication_refused')
                 record['raw'] = record['result'] = None
                 record['cancelled'].set()
         candidate = None
@@ -929,30 +988,48 @@ class MossJobs:
                     raise ReadError(503, 'result_metadata_capacity')
                 self.results.validate_snapshot(candidate)
             except Exception:
+                self._terminal_rejection(record, 'snapshot_validation', 'snapshot_refused')
                 candidate = None
                 record['result'] = None
         # This observation may call configuration code. The seal itself does not.
         try:record['configuration_observed'] = self._enabled()
         except Exception:
+            self._terminal_rejection(record, 'configuration', 'configuration_unavailable')
             record['configuration_observed'] = False
             candidate = None
             record['result'] = record['raw'] = None
             record['cancelled'].set()
         record['cleaned'] = True
         if candidate is not None:self._seal_history_locked(record, candidate)
-        if record.get('automatic_key') is not None:
-            record['terminal_pending']=record['history_snapshot'] is None
-            record['storage_pending']=True
+        if record['history_snapshot'] is None:
+            # Cleanup/pin acknowledgement is settled before this immutable seal.
+            # Native/failure evidence was already copied by the controller.
+            if status is None:
+                if controller is not None:raise ReadError(503, 'result_metadata_unavailable')
+                status = {'invocation_possible':False, 'failure':record.get('preparation_failure'),
+                    'cleanup':{'cleanup_verified':True, 'original_handle_waited_and_reaped':True,
+                               'remaining_live_owned':[]}}
+            outcome = terminal_outcome(status)
+            if record.get('manager_rejection') is not None:
+                outcome['manager_rejection'] = dict(record['manager_rejection'])
+            outcome['state'] = record['state'] if record['state'] in CLEAN_TERMINAL else 'failed'
+            outcome['copied_pin_release_acknowledged'] = record['lease'].released
+            if len(encoded(outcome)) > 1024:raise ReadError(503, 'result_metadata_capacity')
+            metadata = validate_metadata(record['admission_metadata'])
+            metadata = encoded({**metadata, 'outcome':outcome})
+            validate_metadata(metadata)
+            if self._retained_charge(record) + len(metadata) > MAX_RETAINED_BYTES:
+                raise ReadError(503, 'result_metadata_capacity')
+            record['terminal_metadata'] = metadata
+            record['terminal_interrupted'] = record['cancelled'].is_set() or record['invalidated']
+            record['terminal_pending'] = record['storage_pending'] = True
             self._persist_locked(record)
-        elif record['history_snapshot'] is not None:
-            self.permit.release_optional(record, cleaned=True)
+        elif record.get('automatic_key') is not None:
+            record['storage_pending'] = True
             self._persist_locked(record)
         else:
             self.permit.release_optional(record, cleaned=True)
-            try:self.results.no_result(record['history_identity'],**(
-                {'automatic_key':record['automatic_key'],'interrupted':record['cancelled'].is_set() or record['invalidated']}
-                if record.get('automatic_key') is not None else {}))
-            except Exception:pass  # Keep the charged reservation for bounded recovery.
+            self._persist_locked(record)
         if (record['invalidated'] or record['expired']) and not record['storage_pending']:
             try:self._retire(record)
             except Exception:record['purge_pending'] = True
@@ -985,6 +1062,7 @@ class MossJobs:
                 or not record['configuration_observed'] or self.clock() >= record['deadline']
                 or not record['cleaned'] or not record['lease'].released
                 or not record['process_cleanup_verified'] or record['invalidated'] or record['expired']):
+            self._terminal_rejection(record, 'seal', 'seal_refused')
             record['result'] = None
             return
         record['history_snapshot'] = candidate
@@ -994,10 +1072,10 @@ class MossJobs:
         snapshot = record['history_snapshot']
         key=record.get('automatic_key')
         if snapshot is None:
-            if key is None or not record.get('terminal_pending'):return
+            if not record.get('terminal_pending'):return
             try:
-                self.results.no_result(record['history_identity'],automatic_key=key,
-                    interrupted=record['cancelled'].is_set() or record['invalidated'])
+                self.results.no_result(record['history_identity'], automatic_key=key,
+                    interrupted=record['terminal_interrupted'], metadata_json=record['terminal_metadata'])
             except Exception as exc:
                 if not (isinstance(exc,ReadError) and exc.reason in
                         ('session_not_found','automatic_publication_veto','automatic_intent_missing')):
@@ -1046,7 +1124,7 @@ class MossJobs:
 
     def _release_deleted_text_owner(self,record):
         lease=record.get('lease')
-        if (record.get('automatic_key') is not None and record['cleaned']
+        if (record['cleaned']
                 and record['process_cleanup_verified'] and lease is not None and lease.released
                 and not self._probe_unresolved(record)):
             self.permit.release_optional(record,cleaned=True)
@@ -1059,6 +1137,8 @@ class MossJobs:
                 record['history_snapshot'] = None
                 record['storage_pending'] = False
                 self._release_deleted_text_owner(record)
+                record['terminal_metadata'] = None
+                record['terminal_pending'] = False
                 raise ReadError(404, 'session_not_found')
             self._persist_locked(record)
         self._retry_probe_storage(record)  # Existing storage-only route never starts a model.
@@ -1093,7 +1173,8 @@ class MossJobs:
             value['recording_speaker_links'] = {'state':probe['state'],
                 'cleanup_pending':bool(probe.get('operation') and not probe['operation'].cleaned),
                 'staging_charge_bytes':probe.get('charge_bytes',0),
-                'storage_pending':probe.get('commit_pending',False)}
+                'storage_pending':probe.get('commit_pending',False),
+                'storage_failure':dict(probe['storage_failure']) if probe.get('storage_failure') else None}
         if record['origin'] == 'durable_cell':
             value['cell_binding'] = record['token'].projection() if record['token'] is not None else record['cell_binding']
         return value
@@ -1185,6 +1266,8 @@ class MossJobs:
                         record['history_snapshot'] = None
                         record['storage_pending'] = record['durable_result_available'] = False
                         self._release_deleted_text_owner(record)
+                        record['terminal_metadata'] = None
+                        record['terminal_pending'] = False
                         probe = record.get('speaker_probe')
                         if probe is not None and not self._probe_unresolved(record):
                             probe['commit_pending'] = False
@@ -1242,6 +1325,8 @@ class MossJobs:
             'speaker_probe_staging_bytes':self._probe_staging_bytes,
             'speaker_probe_state':record.get('speaker_probe',{}).get('state') if record else None,
             'speaker_probe_storage_pending':bool(record and record.get('speaker_probe',{}).get('commit_pending')),
+            'speaker_probe_storage_failure':(dict(record['speaker_probe']['storage_failure'])
+                if record and record.get('speaker_probe',{}).get('storage_failure') else None),
             'speaker_probe_cleanup_pending':bool(record and record.get('speaker_probe')
                 and record['speaker_probe'].get('operation') and not record['speaker_probe']['operation'].cleaned),
             'storage_pending':bool(record and record['storage_pending']),

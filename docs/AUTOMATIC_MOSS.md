@@ -1,4 +1,4 @@
-# Automatic timestamped-recording MOSS dispatch (dev26)
+# Automatic timestamped-recording MOSS dispatch (dev27)
 
 This release adds a finite, default-off automatic dispatch
 path. It retains eligible overlap intents during primary processing and gives
@@ -152,13 +152,51 @@ execution and 60-second cleanup limits and bounded first terminal publication.
 Setup, validation and publication retain their separate existing bounds; 360
 seconds is not a total primary-wait SLA. Explicit cancellation, shutdown,
 revocation, disablement, resource/deadline failure and ownership uncertainty
-still stop or fence work. Manual optional policy is unchanged. A post-text
+still stop or fence work. Manual admission and preemption policy is unchanged. A post-text
 speaker probe is a separate, preemptible owner and yields to primary requests.
 
 There is no new model thread, database table, retry ledger or persistent scheduler.
 The RAM grant/snapshot state starts empty on restart; durable accepted/unknown
 work remains governed by the existing no-replay rule. Manual 64-key acceptance
 ledger semantics and all quotas remain unchanged.
+
+## Durable no-result outcomes and probe storage maintenance (dev27)
+
+New terminal no-result outcomes use the existing result row and the existing
+1,024-byte `metadata.outcome` cap. Only fixed or whitelisted phase, error,
+receipt/count and cleanup scalars are retained; messages, paths, process
+arguments, transcript, audio and stdout are excluded. The existing job ID and
+original jobs epoch identify one non-replayable attempt. A validated native
+receipt supplies exact counts. `invocation_possible=false` proves zero attempts
+at that boundary; `true` without a validated receipt leaves counts unknown/null.
+It does not prove a native call started. Old rows and startup interruptions do
+not acquire inferred receipts or counts.
+
+Evidence is retained before cancellation or result projection can discard it.
+Terminal metadata is sealed only after the existing cleanup and pin-release
+observations settle. For both manual and automatic no-result jobs, the exact
+frozen metadata, terminal state, charge and automatic transition are committed
+in one existing transaction. Unacknowledged storage retains the owner and
+storage-pending state; exact storage-only retry/readback reuses the frozen
+metadata. Manual admission and preemption stay unchanged, but manual no-result
+storage failure is now pending and fail-closed rather than best-effort retirement.
+Existing authoritative deletion/source vetoes remain; no inference is replayed.
+
+A separate metadata-only maintenance hint lets an exact staged speaker probe
+request the existing automatic turn after its thread finishes, process cleanup
+is positively verified and its lease is released. This works with no candidate
+keys or at EOS, independently of model readiness. The existing one-second
+throttle, ownership exclusions and database budgets remain. Each retry uses
+the same attempt and payload; model admission stays blocked until acknowledgement.
+A failed maintenance turn releases only its scheduling gate, allowing primary
+progress while probe storage remains pending. Live or uncertain cleanup cannot
+use this path. The first fixed storage failure category is copied into status;
+it cannot reveal the cause of an older unrecorded failure.
+
+This maintenance path does not resolve an uncertain text-result commit. Persistent
+storage failure can still prevent final drain. See
+[DEV27_OPTIONAL_OUTCOMES_MAINTENANCE_ZH.md](DEV27_OPTIONAL_OUTCOMES_MAINTENANCE_ZH.md)
+for the failed actual-run scope and separate model-free qualification.
 
 ## Read-contention pre-window barrier (dev25)
 

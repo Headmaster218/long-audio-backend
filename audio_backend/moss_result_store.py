@@ -458,17 +458,38 @@ class MossResultStore:
                 same=_linked(db,automatic_key,snapshot.identity)['state']=='committed'
             return same
 
-    def no_result(self, identity, *, automatic_key=None, interrupted=False):
+    def no_result(self, identity, *, automatic_key=None, interrupted=False, metadata_json=None):
+        # Only the prospective sealed-outcome path tightens closed-row matching.
+        # Legacy reservations/reconciliation never acquire invented count evidence.
+        metadata = validate_metadata(metadata_json) if metadata_json is not None else None
+        if metadata is not None and (type(metadata.get('outcome')) is not dict
+                or not metadata['outcome'] or len(encoded(metadata['outcome'])) > 1024):
+            raise ReadError(503, 'result_metadata_capacity')
+        terminal = 'interrupted' if interrupted else 'no_result'
         with self._database(write=True) as db:
             self._session(db, identity.session_id); row = self._row(db, identity)
+            if metadata is not None:
+                if row['state'] == 'no_result':
+                    if row['metadata_json'] != metadata_json:raise ReadError(409, 'result_snapshot_conflict')
+                    if automatic_key is not None:
+                        from .moss_automatic import _linked
+                        if _linked(db,automatic_key,identity)['state'] != terminal:
+                            raise ReadError(409, 'automatic_result_binding')
+                    return {'job_id':identity.job_id}
+                if row['state'] != 'accepted':raise ReadError(409, 'result_reservation_closed')
+                original = validate_metadata(row['metadata_json'])
+                if original.get('outcome') != {} or {**original, 'outcome':metadata['outcome']} != metadata:
+                    raise ReadError(409, 'result_snapshot_conflict')
             if row['state'] == 'accepted':
                 if automatic_key is not None:
                     from .moss_automatic import complete
-                    complete(db,automatic_key,identity,state='interrupted' if interrupted else 'no_result',
+                    complete(db,automatic_key,identity,state=terminal,
                         reason='execution_interrupted_no_replay' if interrupted else 'execution_no_result')
-                charge = len(row['metadata_json']) + ACCOUNTING_BYTES
+                frozen = row['metadata_json'] if metadata is None else metadata_json
+                charge = len(frozen) + ACCOUNTING_BYTES
                 self._charge(db, identity.session_id, charge - row['charge_bytes'])
-                db.execute(f"UPDATE {TABLE} SET state='no_result',charge_bytes=? WHERE job_id=? AND state='accepted'", (charge, identity.job_id))
+                db.execute(f"UPDATE {TABLE} SET state='no_result',metadata_json=?,charge_bytes=? WHERE job_id=? AND state='accepted'",
+                    (frozen, charge, identity.job_id))
             return {'job_id':identity.job_id}
 
     def _projection(self, row, epoch=None, *, admission_unknown=False):

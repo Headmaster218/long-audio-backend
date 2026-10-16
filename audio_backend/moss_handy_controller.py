@@ -35,6 +35,78 @@ class Cancelled(RuntimeError):
     pass
 
 
+_ERROR_TYPES = frozenset(('Cancelled', 'Busy', 'AdmissionError', 'RuntimeError',
+    'ValueError', 'TypeError', 'KeyError', 'OSError', 'PermissionError',
+    'FileNotFoundError', 'ProcessLookupError', 'TimeoutError', 'TimeoutExpired',
+    'MemoryError', 'UnicodeError', 'UnicodeDecodeError', 'JSONDecodeError',
+    'AssertionError', 'NoSuchProcess', 'AccessDenied', 'ZombieProcess'))
+_FAILURE_PHASES = frozenset(('prepared', 'before_input', 'input', 'driver',
+    'before_spawn', 'start', 'wait', 'validate_return', 'native_return', 'projection'))
+_ADMISSION_REASONS = frozenset(('optional_cancelled', 'primary_or_optional_busy',
+    'primary_ownership_uncertain', 'service_memory_budget', 'service_disk_reserve',
+    'service_host_reserve', 'process_sample_budget', 'process_identity_uncertain',
+    'process_identity_budget', 'remembered_identity_unobserved', 'caller_identity_uncertain',
+    'process_sample_unavailable', 'resident_identity_uncertain', 'unclassified_service_child',
+    'service_envelope_budget', 'service_host_envelope', 'jobs_configuration_unavailable',
+    'optional_ownership_changed', 'publication_fence_busy'))
+
+
+def _error_type(value):
+    return value if type(value) is str and value in _ERROR_TYPES else 'other'
+
+
+def failure_observation(phase, error):
+    """Fixed scalars only; never exception messages or arbitrary attributes."""
+    from .native_execution_permit import AdmissionError
+    value = {'phase':phase if phase in _FAILURE_PHASES else 'other',
+             'type':_error_type(type(error).__name__)}
+    if type(error) is AdmissionError:
+        reason = error.reason
+        value['reason'] = reason if type(reason) is str and reason in _ADMISSION_REASONS else 'other'
+    if type(error) in (OSError, PermissionError, FileNotFoundError, ProcessLookupError, TimeoutError):
+        number = error.errno
+        if type(number) is int and 0 <= number <= 65535:value['errno'] = number
+    return value
+
+
+def terminal_outcome(status):
+    """Sanitized evidence, sealed by the manager only after positive cleanup.
+
+    Possible invocation is not an independent native-start acknowledgement.
+    Counts without a validated return stay unknown, including nonzero child exit.
+    """
+    possible = status['invocation_possible']
+    receipt = status.get('native_receipt') if status.get('receipt_validated') is True else None
+    validated = type(receipt) is dict
+    outcome = {'schema':'moss-no-result-v1', 'invocation_possible':possible,
+        'receipt_validated':validated,
+        'count_basis':'validated_receipt' if validated else 'unknown' if possible else 'not_invoked'}
+    for name in ('construct_attempts', 'session_attempts', 'run_attempts'):
+        outcome[name] = receipt[name] if validated else None if possible else 0
+    failure = status.get('failure')
+    if failure is not None:outcome['failure'] = dict(failure)
+    if validated:
+        for name in ('truncated', 'aborted', 'model_closed', 'session_closed'):
+            outcome[name] = receipt[name]
+        outcome['raw_unavailable_reason'] = receipt['raw_unavailable_reason']
+        outcome['native_error_type'] = None if receipt['error_type'] is None else _error_type(receipt['error_type'])
+        outcome['close_errors'] = [{'object':item.get('object') if item.get('object') in ('model','session') else 'other',
+            'type':_error_type(item.get('type'))} if type(item) is dict else {'object':'other','type':'other'}
+            for item in receipt['close_errors']]
+    cleanup = status.get('cleanup') or {}
+    for name in ('cleanup_verified', 'original_handle_waited_and_reaped'):
+        outcome[name] = cleanup.get(name) is True
+    code = cleanup.get('wait_returncode')
+    outcome['wait_returncode'] = code if type(code) is int and -(2**31) <= code < 2**31 else None
+    remaining = cleanup.get('remaining_live_owned')
+    outcome['remaining_owned_count'] = len(remaining) if type(remaining) is list and len(remaining) <= 128 else None
+    error = cleanup.get('cleanup_failure')
+    outcome['cleanup_failure_type'] = _error_type(error.get('type')) if type(error) is dict else 'other' if error else None
+    outcome['cleanup_scope'] = 'observed_owned_only'
+    if len(encoded(outcome)) > 1024:raise ValueError('Terminal outcome capacity')
+    return outcome
+
+
 class OwnedDriver:
     """Original Popen owner; shared cleanup mechanics do not share Qwen jobs."""
     def __init__(self, directory, request_sha):
@@ -173,7 +245,7 @@ class MossController:
             self._cancel.clear()
             self._job = {'job_id': job_id, 'support': support, 'pcm': pcm16le, 'state': 'prepared',
                 'invocation_possible': False, 'publication_valid': True, 'cleanup': None,
-                'raw': None, 'result': None, 'error_type': None}
+                'raw': None, 'result': None, 'error_type': None, 'receipt_validated': False, 'failure': None}
             return job_id
 
     def _claim_matches(self):
@@ -207,6 +279,7 @@ class MossController:
             if job['state'] != 'prepared':
                 raise Busy('A started or terminal job is never replayed')
             job['state'] = 'running'
+        phase = 'before_input'
         try:
             if self._service_gate is not None:self._service_gate.check('before_input')
             if self._cancel.is_set():
@@ -214,6 +287,7 @@ class MossController:
             self._claim_matches()
             if profile(self.profile.name) != self.profile:
                 raise ValueError('Frozen profile changed')
+            phase = 'input'
             request = canonical({'job_id': job_id, 'support': job['support'].to_dict(),
                 'profile_name': self.profile.name, 'profile_sha256': self.profile.sha256,
                 'model_path': self.model_path})
@@ -225,30 +299,40 @@ class MossController:
             write_owned(self.directory, 'request.json', request, identity=self._directory_identity)
             job['pcm'] = None
             if self._service_gate is not None:self._service_gate.inputs_written()
+            phase = 'driver'
             self._driver = self._factory(self.directory, hashlib.sha256(request).hexdigest())
+            phase = 'before_spawn'
             if self._service_gate is not None:
                 self._driver._service_gate = self._service_gate
                 self._service_gate.check('before_spawn')
             # Conservative: start can send admission and then fail. No retry.
             job['invocation_possible'] = True
+            phase = 'start'
             self._driver.start(self._cancel)
+            phase = 'wait'
             receipt, raw = self._driver.wait(self._cancel)
+            phase = 'validate_return'
             self._validate_return(receipt, raw)
             with self._lock:
                 # Raw retention precedes projection, even if later parsing fails.
                 job['raw'] = raw
+                # Freeze validated evidence before cancellation or projection can discard output.
+                job['native_receipt'] = json.loads(encoded(receipt))
+                job['receipt_validated'] = True
+                phase = 'native_return'
                 if self._cancel.is_set() or not job['publication_valid']:
                     raise Cancelled('Late result invalidated by cancellation')
-                job['native_receipt'] = receipt
                 if receipt['error_type'] or receipt['close_errors']:
                     raise RuntimeError('Native call or close failed; exact raw remains diagnostic')
                 if raw is not None:
+                    phase = 'projection'
                     job['result'] = project(raw, support=job['support'], profile_name=self.profile.name,
                         outcome='failed' if receipt['aborted'] or receipt['error_type'] or receipt['close_errors'] else 'returned',
                         truncated=receipt['truncated'], aborted=receipt['aborted'])
         except Exception as exc:
             with self._lock:
                 job['error_type'] = type(exc).__name__
+                job['failure'] = failure_observation(phase, exc)
                 job['publication_valid'] = False
                 job['result'] = None
         finally:
@@ -331,6 +415,7 @@ class MossController:
             job['result'] = None
             self._cancel.set()
             if job['state'] == 'prepared':
+                job['failure'] = failure_observation('prepared', Cancelled())
                 try:
                     confirmed = self._cleanup(False)
                 except Exception as exc:
@@ -354,7 +439,7 @@ class MossController:
             job = self._require(job_id)
             status = {key: job.get(key) for key in (
                 'job_id', 'state', 'invocation_possible', 'publication_valid', 'cleanup', 'error_type',
-                'native_receipt', 'result')}
+                'native_receipt', 'receipt_validated', 'failure', 'result')}
             if job['state'] != 'returned_diagnostic' or not job['publication_valid']:
                 status['result'] = None
             data = encoded(status)

@@ -404,6 +404,9 @@ class Automatic:
             permit=self.jobs.permit
             state=permit.status()
             if state['admission_closed'] or state['optional_admission_unavailable'] or permit._optional is not None:return False
+            # Storage acknowledgement is a separate turn even with no queued
+            # model candidate. It never grants model readiness before the ack.
+            if self.jobs.automatic_maintenance_hint():return True
             if not self.jobs.automatic_ready_hint():return False
             if self.flight is not None:return self.flight[1].slot_released.is_set()
             if self.capture.owner._slot is not None:return False
