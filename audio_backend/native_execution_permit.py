@@ -163,6 +163,17 @@ class NativeExecutionPermit:
                 self._probe = False
                 self._condition.notify_all()
 
+    @contextmanager
+    def automatic_publication_guard(self,record):
+        # Lock order: manager -> source generation guard -> this condition ->
+        # primary/result DB. No native/owner callback or join under these locks.
+        if not self._condition.acquire(timeout=.005):raise AdmissionError('publication_fence_busy')
+        try:
+            if self._closed or record['cancelled'].is_set() or self._primary:
+                raise AdmissionError('optional_cancelled')
+            yield
+        finally:self._condition.release()
+
     def primary_intent(self, kind):
         if kind not in ('worker', 'probe'):
             raise ValueError('Unknown primary participant')

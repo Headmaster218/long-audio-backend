@@ -164,6 +164,8 @@ class Store:
             lifecycle.init_schema(db)
             from .moss_result_store import init_schema as init_moss_results
             init_moss_results(db)
+            from .moss_automatic import init_schema as init_automatic
+            init_automatic(db)
             from .recording_overlap import init_schema as init_recording_schema
             init_recording_schema(db)
             speaker_support.init_schema(db)
@@ -329,16 +331,41 @@ class Store:
         return cid, True
 
     def claim(self):
+        from .moss_automatic import enabled,recording,capacity
+        automatic=enabled(self.settings)
         with self.db() as db:
+            if automatic:db.execute('PRAGMA busy_timeout=0')
             db.execute('BEGIN IMMEDIATE')
-            row = db.execute(f"""SELECT c.* FROM chunks c JOIN sessions s ON s.id=c.session_id WHERE c.status='queued' AND s.processing_mode='legacy' AND {PUBLISHED_CHUNK_SQL} AND NOT EXISTS (
-                SELECT 1 FROM stream_chunks sc JOIN stream_chunks prior
-                ON prior.session_id=sc.session_id AND prior.stream_id=sc.stream_id AND prior.position=sc.position-1
-                JOIN chunks pc ON pc.id=prior.chunk_id WHERE sc.chunk_id=c.id AND pc.status!='completed')
-                ORDER BY c.created,c.id LIMIT 1""").fetchone()
-            if not row: return None
-            db.execute("UPDATE chunks SET status='running',error=NULL WHERE id=?",(row['id'],))
-            return dict(row)
+            after=getattr(self,'_automatic_claim_after',None) if automatic else None
+            page=" AND (c.created>? OR (c.created=? AND c.id>?))" if after is not None else ''
+            args=(after[0],after[0],after[1]) if after is not None else ()
+            rows=db.execute(f"""SELECT c.id,c.session_id,c.created FROM chunks c JOIN sessions s ON s.id=c.session_id
+                WHERE c.status='queued' AND s.processing_mode='legacy' AND {PUBLISHED_CHUNK_SQL}
+                AND NOT EXISTS (SELECT 1 FROM stream_chunks sc JOIN stream_chunks prior
+                  ON prior.session_id=sc.session_id AND prior.stream_id=sc.stream_id AND prior.position=sc.position-1
+                  JOIN chunks pc ON pc.id=prior.chunk_id WHERE sc.chunk_id=c.id AND pc.status!='completed')
+                {page} ORDER BY c.created,c.id LIMIT {16 if automatic else 1}""",args).fetchall()
+            if not rows:
+                if automatic:self._automatic_claim_after=None
+                return None
+            for row in rows:
+                if automatic:self._automatic_claim_after=(row['created'],row['id'])
+                if automatic and recording(db,row['id']):
+                    try:
+                        capacity(db,row['session_id'])
+                        from .native_owned_core_seams import MAX_COMPACTS
+                        if db.execute('SELECT COUNT(*) FROM native_core_commits').fetchone()[0]>=MAX_COMPACTS:
+                            from .native_owned_support_cache import ReadError
+                            raise ReadError(429,'automatic_compact_capacity')
+                    except Exception as exc:
+                        owner=getattr(self,'moss_automatic',None)
+                        if owner is not None:owner.last_reason=getattr(exc,'reason','automatic_capacity_unavailable')
+                        continue
+                chosen=db.execute('SELECT * FROM chunks WHERE id=?',(row['id'],)).fetchone()
+                db.execute("UPDATE chunks SET status='running',error=NULL WHERE id=?",(row['id'],))
+                if automatic:self._automatic_claim_after=None
+                return dict(chosen)
+            return None
 
     def set_state(self, cid, action):
         from .fragment_http import is_experimental
@@ -354,7 +381,11 @@ class Store:
             if targets[action]=='queued':
                 if row['status']!='paused':self._check_queue_limit(db,release_chunk_id=cid)
             db.execute('UPDATE chunks SET status=?,error=NULL WHERE id=?',(targets[action],cid))
-            if action=='cancel':lifecycle.cancel_descendants(db,cid)
+            if action=='cancel':
+                lifecycle.cancel_descendants(db,cid)
+                from .moss_automatic import cancel_session
+                sid=db.execute('SELECT session_id FROM chunks WHERE id=?',(cid,)).fetchone()[0]
+                cancel_session(db,sid)
 
     def fail(self, cid, message):
         with self.db() as db:
@@ -478,6 +509,8 @@ class Store:
             current=db.execute('SELECT * FROM chunks WHERE id=?',(chunk['id'],)).fetchone()
             if not current or current['status'] not in ('running','paused'): return False
             if abs(current['next_offset']-offset)>1e-5: return False
+            from .moss_automatic import enabled,recording
+            automatic=enabled(self.settings) and recording(db,chunk['id'])
             diagnostic_rows=(result.get('overlap_candidates') or {}).get('diagnostics',[])
             if diagnostic_rows:
                 from .overlap_diagnostics import encoded, MAX_WINDOW_BYTES
@@ -578,10 +611,14 @@ class Store:
             provenance=update_provenance(current['provenance'],metadata,offset)
             if getattr(self.settings, 'native_owned_core_seams_enabled', False):
                 from .native_owned_core_seams import transaction as commit_core_seam
-                optional_reason = commit_core_seam(db, chunk, offset, end, result)
+                optional_reason = (commit_core_seam(db, chunk, offset, end, result, strict=True, automatic=True)
+                    if automatic else commit_core_seam(db, chunk, offset, end, result))
                 result['_native_core_seam_status'] = optional_reason
                 if optional_reason is not None:
                     metadata['native_core_seam'] = {'status': optional_reason}
+            if automatic:
+                from .moss_automatic import enqueue
+                enqueue(db,result.get('_native_automatic_cells'),result.get('_native_core_seam'))
             db.execute('UPDATE chunks SET next_offset=?,status=?,metadata=?,provenance=? WHERE id=?',(end,status,json.dumps(metadata),json.dumps(provenance),chunk['id']))
             if status=='completed':wake_stream_successor(db,chunk['id'])
             return True

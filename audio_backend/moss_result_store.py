@@ -259,9 +259,9 @@ class MossResultStore:
         self._recovery_current()
         with self._database(write=True, budget=budget) as db:
             self._recovery_current()
-            rows = db.execute(f"SELECT archive_seq,session_id,charge_bytes,length(metadata_json),result_json IS NULL,result_sha256 IS NULL,committed_at IS NULL FROM {TABLE} INDEXED BY moss_result_accepted_seq WHERE state='accepted' AND archive_seq<=? ORDER BY archive_seq LIMIT 32", (self.recovery_boundary,)).fetchall()
+            rows = db.execute(f"SELECT archive_seq,session_id,charge_bytes,length(metadata_json),result_json IS NULL,result_sha256 IS NULL,committed_at IS NULL,job_id FROM {TABLE} INDEXED BY moss_result_accepted_seq WHERE state='accepted' AND archive_seq<=? ORDER BY archive_seq LIMIT 32", (self.recovery_boundary,)).fetchall()
             for row in rows:
-                seq, sid, charged, metadata_bytes, no_result, no_digest, no_commit = row
+                seq, sid, charged, metadata_bytes, no_result, no_digest, no_commit, job_id = row
                 if (charged != RESERVATION_BYTES or type(metadata_bytes) is not int
                         or not 1 <= metadata_bytes <= MAX_METADATA_BYTES or (no_result,no_digest,no_commit) != (1,1,1)):
                     raise ReadError(503, 'result_recovery_unavailable')
@@ -269,6 +269,8 @@ class MossResultStore:
                 self._charge(db, sid, charge - charged)
                 changed = db.execute(f"UPDATE {TABLE} SET state='interrupted',charge_bytes=? WHERE archive_seq=? AND state='accepted' AND charge_bytes=? AND result_json IS NULL AND result_sha256 IS NULL AND committed_at IS NULL", (charge,seq,charged)).rowcount
                 if changed != 1:raise ReadError(503, 'result_recovery_unavailable')
+                from .moss_automatic import reconcile_job
+                reconcile_job(db,job_id)
             self._recovery_current()
         with self._database(budget=budget) as db:
             self._recovery_current()
@@ -319,7 +321,7 @@ class MossResultStore:
             if row['canonical_request_sha256'] != digest:raise ReadError(409, 'idempotency_conflict')
             return self._projection(row, epoch, admission_unknown=True)
 
-    def reserve(self, identity, metadata_json):
+    def reserve(self, identity, metadata_json, *, automatic_key=None):
         identity.values(); validate_metadata(metadata_json)
         budget = [self.clock() + WRITE_SECONDS, 0]
         self.reconcile(budget=budget)
@@ -330,6 +332,9 @@ class MossResultStore:
                 if existing['canonical_request_sha256'] != identity.canonical_request_sha256:raise ReadError(409, 'idempotency_conflict')
                 return self._projection(existing, identity.original_jobs_epoch, admission_unknown=True)
             self._capacity(db, identity.session_id)
+            if automatic_key is not None:
+                from .moss_automatic import admit
+                admit(db,automatic_key,identity)
             sequence = db.execute('SELECT seq FROM sqlite_sequence WHERE name=?', (TABLE,)).fetchone()
             if sequence is not None and (type(sequence[0]) is not int or not 0 <= sequence[0] < MAX_SEQUENCE):
                 raise ReadError(429, 'result_retention_capacity')
@@ -351,16 +356,22 @@ class MossResultStore:
         for scope in ('', sid):
             db.execute(f'UPDATE {USAGE} SET charge_bytes=charge_bytes+? WHERE scope=?', (delta, scope))
 
-    def commit(self, snapshot):
+    def commit(self, snapshot, *, automatic_key=None):
         if type(snapshot) is not HistorySnapshot:raise ReadError(503, 'result_snapshot_invalid')
         identity = snapshot.identity
         with self._database(write=True) as db:
             self._session(db, identity.session_id); row = self._row(db, identity)
             if row['state'] == 'committed':
+                if automatic_key is not None:
+                    from .moss_automatic import _linked
+                    if _linked(db,automatic_key,identity)['state']!='committed':raise ReadError(409,'automatic_result_binding')
                 if (row['metadata_json'], row['result_json'], row['result_sha256']) != (snapshot.metadata_json, snapshot.result_json, snapshot.result_sha256):
                     raise ReadError(409, 'result_snapshot_conflict')
                 return self._projection(row, identity.original_jobs_epoch)
             if row['state'] != 'accepted':raise ReadError(409, 'result_reservation_closed')
+            if automatic_key is not None:
+                from .moss_automatic import complete
+                complete(db,automatic_key,identity)
             charge = len(snapshot.metadata_json) + len(snapshot.result_json) + ACCOUNTING_BYTES
             self._charge(db, identity.session_id, charge - row['charge_bytes'])
             db.execute(f"UPDATE {TABLE} SET state='committed',metadata_json=?,result_json=?,result_sha256=?,committed_at=?,charge_bytes=? WHERE job_id=? AND state='accepted'",
@@ -368,10 +379,25 @@ class MossResultStore:
             answer = self._projection(self._row(db, identity), identity.original_jobs_epoch)
         return answer
 
-    def no_result(self, identity):
+    def match_committed(self,snapshot,*,automatic_key=None):
+        with self._database() as db:
+            self._session(db,snapshot.identity.session_id)
+            row=self._row(db,snapshot.identity)
+            same=(row['state']=='committed' and row['metadata_json']==snapshot.metadata_json
+                and row['result_json']==snapshot.result_json and row['result_sha256']==snapshot.result_sha256)
+            if same and automatic_key is not None:
+                from .moss_automatic import _linked
+                same=_linked(db,automatic_key,snapshot.identity)['state']=='committed'
+            return same
+
+    def no_result(self, identity, *, automatic_key=None, interrupted=False):
         with self._database(write=True) as db:
             self._session(db, identity.session_id); row = self._row(db, identity)
             if row['state'] == 'accepted':
+                if automatic_key is not None:
+                    from .moss_automatic import complete
+                    complete(db,automatic_key,identity,state='interrupted' if interrupted else 'no_result',
+                        reason='execution_interrupted_no_replay' if interrupted else 'execution_no_result')
                 charge = len(row['metadata_json']) + ACCOUNTING_BYTES
                 self._charge(db, identity.session_id, charge - row['charge_bytes'])
                 db.execute(f"UPDATE {TABLE} SET state='no_result',charge_bytes=? WHERE job_id=? AND state='accepted'", (charge, identity.job_id))

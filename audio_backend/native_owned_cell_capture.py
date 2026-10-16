@@ -292,7 +292,7 @@ class PrimaryAuthority:
         No write/commit is retried. Every failed connection is closed before
         backoff. Projection/step/read counters and elapsed time accumulate.
         """
-        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping', 'core_commit', 'core_previous', 'core_pending', 'retention'):
+        if phase not in ('session', 'source_row', 'cell_commit', 'seam_commit', 'seam_adjacent', 'mapping', 'core_commit', 'core_previous', 'core_pending', 'retention', 'automatic_intent'):
             raise Unavailable('primary_read_phase')
         attempt = 0
         try:
@@ -664,8 +664,10 @@ class Capture:
                 start = min(start, integer(self.analyzer_start))
         return start
 
-    def prepare_core_seam(self, *args):
-        if self.core_seams is not None:return self.core_seams.prepare(*args)
+    def prepare_core_seam(self, *args, required=False):
+        if self.core_seams is not None:
+            return self.core_seams.prepare(*args,required=True) if required else self.core_seams.prepare(*args)
+        if required:raise Unavailable('automatic_core_seams_required')
 
     def drain_core_seams(self, status=None):
         if self.core_seams is not None:
@@ -769,8 +771,10 @@ class Capture:
         except Exception as exc:
             self.witness.fail('material_observation_unavailable'); self._failure(exc)
 
-    def prepare(self, chunk, native, offset, end, result):
-        if self.analyzer is None or native is None:return ()
+    def prepare(self, chunk, native, offset, end, result, *, required=False):
+        if self.analyzer is None or native is None:
+            if required:raise Unavailable('automatic_capture_unavailable')
+            return ()
         try:
             with self.budget.phase():
                 start_local = exact_frame(offset); end_local = exact_frame(end)
@@ -796,7 +800,9 @@ class Capture:
                         self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_prepare_unavailable')
                 return cells
         except Exception as exc:
-            self._failure(exc); return ()
+            self._failure(exc)
+            if required:raise
+            return ()
         finally:self.analyzer = None
 
     def committed(self, cells):

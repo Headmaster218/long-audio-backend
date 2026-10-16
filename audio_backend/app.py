@@ -47,7 +47,7 @@ class _NativeSupportReadLifetime:
     """Hold bounded response buffers until the outer ASGI send has finished."""
     def __init__(self,app):self.app=app
     async def __call__(self,scope,receive,send):
-        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/native-owned-cells','/moss-jobs'))
+        private=scope.get('type')=='http' and any(part in scope.get('path','') for part in ('/native-owned-supports','/native-owned-cells','/moss-jobs','/moss-automatic'))
         if not private:return await self.app(scope,receive,send)
         done=threading.Event()
         scope['_native_support_read_done']=done
@@ -175,6 +175,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     from .moss_result_store import MossResultStore
     from .native_owned_support_cache import ReadResponseBudget, lookup as lookup_support_cache
     results=MossResultStore(store)
+    from .moss_automatic import Automatic
+    automatic=Automatic(store,results)
+    store.moss_automatic=automatic
     response_budget=ReadResponseBudget()
     def history_budget():
         registered=lookup_support_cache(store)
@@ -183,6 +186,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     fragments=FragmentHTTP(store,settings,fragment_provider_factory,defer_factory_initialization=True)
     change_feed.initialize(store)
     worker=Worker(store,settings,analyzer_factory)
+    worker.moss_automatic=automatic
     lock=InstanceLock(settings.data_dir/'instance.lock')
     upload_lock=threading.Lock()
     from .recording_overlap import RecordingOverlap, RecordingStorageCapacityError
@@ -248,6 +252,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                         app.state.native_owned_cell_jobs_status='adapter_unavailable'
                 jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source,result_store=results)
                 app.state.moss_jobs=jobs
+                automatic.capture=registered_cells; automatic.jobs=jobs; jobs.automatic=automatic
+                if settings.moss_automatic_enabled and (registered_cells is None or cell_source is None):
+                    raise RuntimeError('Automatic MOSS requires qualified durable cells')
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
             from .recording_overlap import verify_paths as verify_recording_paths
@@ -334,6 +341,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     app.state.instance_lock=lock
     app.state.recordings=recordings
     app.state.moss_jobs=None
+    app.state.moss_automatic=automatic
     app.state.native_owned_cells_status='disabled_absent'
 
     @app.middleware('http')
@@ -369,6 +377,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
             readiness=overlap_readiness(settings.inference_config())
         return {'status':'blocked' if fragments.cleanup_error or (jobs is not None and jobs.health()['cleanup_pending']) else 'ok',
                 **({'moss_jobs':jobs.health()} if jobs is not None else {}),
+                **({'moss_automatic':automatic.health()} if settings.moss_automatic_enabled else {}),
                 **({'native_owned_cells':worker.native_owned_cells.health()} if worker.native_owned_cells is not None
                    else ({'native_owned_cells':{'enabled':True,'status':app.state.native_owned_cells_status,'ready':False}}
                          if settings.native_owned_cells_enabled or app.state.native_owned_cells_status!='disabled_absent' else {})),
@@ -858,7 +867,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     from .moss_handy_http import register_routes
     app.state.moss_result_store=results
     app.state.moss_response_budget=response_budget
-    register_routes(app, lambda:jobs, _assign_native_read_lease, result_store=results, get_response_budget=history_budget)
+    register_routes(app, lambda:jobs, _assign_native_read_lease, result_store=results, get_response_budget=history_budget, automatic=automatic)
     app.add_middleware(_NativeSupportReadLifetime)
     return app
 

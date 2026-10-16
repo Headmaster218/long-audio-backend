@@ -111,6 +111,7 @@ class Worker:
         self.native_owned_support_cache=None
         self.native_owned_cells=None
         self.recordings=None
+        self.moss_automatic=None
         self._native_capture=None;self._native_capture_token=None
         self._native_capture_observation=None
         self.support_fingerprints=speaker_support.SourceFingerprints()
@@ -162,6 +163,7 @@ class Worker:
                         self.current_chunk=chunk['id']
                         intent=permit.primary_intent('worker')
             if chunk is None:
+                if self.moss_automatic is not None:self.moss_automatic.step()
                 self.wake.wait(1); self.wake.clear(); continue
             self.current_chunk=chunk['id']
             normal=False
@@ -358,6 +360,17 @@ class Worker:
                       for u in saved.get('boundary_tail',[])]
         while offset<chunk['duration']-1e-5:
             if self.interrupted(chunk['id']): raise InterruptedError()
+            automatic=False
+            if self.moss_automatic is not None:
+                from .moss_automatic import enabled,recording
+                with self.store.db() as db:automatic=enabled(self.settings) and recording(db,chunk['id'])
+                if automatic and not self.moss_automatic.before_window(chunk):
+                    # Yield before native preparation. The unchanged offset is
+                    # durable; process/permit cleanup runs on the ordinary exit.
+                    with self.store.db() as db:
+                        db.execute("UPDATE chunks SET status='queued',error=? WHERE id=? AND status='running'",
+                            (self.moss_automatic.last_reason,chunk['id']))
+                    return
             check_resources(self.settings, 4*1024**2)
             info=stream_info(self.store,chunk)
             origin=chunk['timeline_start']
@@ -441,11 +454,22 @@ class Worker:
                 result['_speaker_support']=prepared
                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
                 previous=result['metadata'].get('boundary_tail',[])
-                selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
-                self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
+                if automatic:
+                    if self.native_owned_cells is None:raise RuntimeError('automatic_capture_unavailable')
+                    selected_cells=self.native_owned_cells.prepare(chunk,native,offset,end,result,required=True)
+                    result['_native_automatic_cells']=selected_cells
+                else:selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
+                if automatic:
+                    self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
+                        lambda:self.interrupted(chunk['id']),required=True)
+                    # Disk headroom includes the same primary DB/WAL and existing
+                    # write/scratch allowance immediately before enqueue.
+                    self.moss_automatic.results._headroom()
+                else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
                 if self.interrupted(chunk['id']): raise InterruptedError()
                 if not self.store.commit_window(chunk,offset,end,result): return
                 self._publish_native_support(native,offset,end)
-                self._cell_call('committed',selected_cells)
-                self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
+                if not automatic:
+                    self._cell_call('committed',selected_cells)
+                    self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
             offset=end

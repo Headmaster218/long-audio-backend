@@ -133,7 +133,7 @@ async def receive_body(request):
     return bytes(result)
 
 
-def register_routes(app, get_manager, assign_lease, *, result_store=None, get_response_budget=None):
+def register_routes(app, get_manager, assign_lease, *, result_store=None, get_response_budget=None, automatic=None):
     mutation = threading.Lock()
 
     def error(exc):
@@ -335,6 +335,30 @@ def register_routes(app, get_manager, assign_lease, *, result_store=None, get_re
         except Exception:
             if lease is not None:lease.release()
             return error(ReadError(503, 'result_storage_unavailable'))
+
+    def automatic_read(request,sid,key=None):
+        lease=None
+        try:
+            _identifier(sid)
+            if key is not None and (type(key) is not str or HEX64.fullmatch(key) is None):raise ReadError(409,'invalid_identifier')
+            query=parse_query(request.scope.get('query_string',b''),'history_list' if key is None else 'detail')
+            if automatic is None or get_response_budget is None:raise ReadError(503,'automatic_unavailable')
+            lease=get_response_budget().reserve_jobs_response('list' if key is None else 'detail')
+            if not assign_lease(request.scope,lease):raise ReadError(503,'response_closed')
+            body=automatic.list(sid,**query) if key is None else automatic.detail(sid,key)
+            return Response(body,media_type='application/json',headers=PRIVATE)
+        except ReadError as exc:
+            if lease is not None:lease.release()
+            return error(exc)
+        except Exception:
+            if lease is not None:lease.release()
+            return error(ReadError(503,'automatic_unavailable'))
+
+    @app.get('/sessions/{sid}/moss-automatic')
+    def automatic_list(request:Request,sid:str):return automatic_read(request,sid)
+
+    @app.get('/sessions/{sid}/moss-automatic/{candidate_key}')
+    def automatic_detail(request:Request,sid:str,candidate_key:str):return automatic_read(request,sid,candidate_key)
 
     @app.get('/sessions/{sid}/moss-jobs/history')
     def history_list(request: Request, sid: str):

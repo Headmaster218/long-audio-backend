@@ -83,6 +83,8 @@ def delete_session(store, sid, delete_file=None):
             db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))
             from .moss_result_store import erase_session as erase_moss_results
             erase_moss_results(db, sid)
+            from .moss_automatic import erase_session as erase_automatic
+            erase_automatic(db,sid)
             from .fragment_http import erase
             erase(db,sid)
             for table in ('segments', 'events', 'speaker_turns'):
@@ -130,6 +132,9 @@ def cancel_descendants(db, cid):
     jobs an explicit terminal outcome instead of leaving them queued forever.
     Completed prefixes and all original audio/results remain available.
     """
+    from .moss_automatic import cancel_session
+    session=db.execute('SELECT session_id FROM chunks WHERE id=?',(cid,)).fetchone()
+    if session is not None:cancel_session(db,session[0])
     own = db.execute('SELECT * FROM stream_chunks WHERE chunk_id=?', (cid,)).fetchone()
     if not own:
         return 0

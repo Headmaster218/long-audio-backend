@@ -64,6 +64,7 @@ def main(argv=None):
                             help='Finite retained MOSS result admission limit; never evicts saved outputs')
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit single MOSS job service with durable structured history; requires native-owned support, CPU and no overlap/fragment provider')
     parser.add_argument('--moss-jobs-model',type=Path,help='Explicit local fixed-profile MOSS model; does not enable jobs implicitly')
+    parser.add_argument('--moss-automatic',action='store_true',help='Candidate default-OFF automatic timestamped recording MOSS dispatch; requires MOSS jobs, native-owned support/cells/core-seams and the ordinary Worker; excludes legacy seam-cells')
     parser.add_argument('--speaker-threshold', type=float, default=.75)
     parser.add_argument('--new-speaker-threshold', type=float, default=.45)
     parser.add_argument('--speaker-margin', type=float, default=.10)
@@ -87,6 +88,11 @@ def main(argv=None):
         parser.error('--native-owned-seam-cells requires --native-owned-cells')
     if args.moss_jobs_model and not args.moss_jobs:
         parser.error('MOSS jobs model requires --moss-jobs')
+    if args.moss_automatic and not (args.moss_jobs and args.native_owned_support
+            and args.native_owned_cells and args.native_owned_core_seams):
+        parser.error('--moss-automatic requires --moss-jobs, --native-owned-support, --native-owned-cells and --native-owned-core-seams')
+    if args.moss_automatic and args.native_owned_seam_cells:
+        parser.error('--moss-automatic excludes --native-owned-seam-cells')
     if args.moss_jobs and (not args.moss_jobs_model or not args.native_owned_support
             or args.diarization_backend != 'nemotron' or args.device != 'cpu' or args.overlap_backend != 'none'
             or any((args.fragment_cpu_manifest, args.fragment_cpu_sha256, args.fragment_cpu_check,
@@ -235,6 +241,7 @@ def main(argv=None):
                         moss_result_max_bytes_per_session=args.moss_result_max_bytes_per_session,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
+                        moss_automatic_enabled=args.moss_automatic,
                         verified_identity_policy_file=args.verified_identity_policy,
                         event_threshold=args.event_threshold,
                         framemn_enabled=args.framemn,

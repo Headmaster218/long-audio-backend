@@ -545,6 +545,8 @@ class CellStore:
             from .native_owned_core_seams import store_policy
             self._store_policy = store_policy()
         self.instance_lock = instance_lock  # Retained while owner cleanup is unresolved.
+        self._publication_guard = threading.RLock()
+        self._publication_revoke_pending = False
         self._lock = threading.Lock(); self._wake = threading.Event(); self._stop = threading.Event()
         self._reconcile = threading.Event(); self._ready = threading.Event()
         self._slot = None; self._epoch = object(); self._pins = {}; self._receipts = {}
@@ -594,9 +596,10 @@ class CellStore:
     def health(self):
         # Fixed-size in-memory projection; no path, SQL, filesystem or lease.
         return {'enabled': self.enabled, 'status': self._status,
-            'ready': self._ready.is_set() and not self._closed and not self._admission_closed,
+            'ready': self._ready.is_set() and not self._closed and not self._admission_closed and not self._publication_revoke_pending,
+            'publication_revocation_pending':self._publication_revoke_pending,
             'handoffs_active_or_pending': int(self._slot is not None),
-            'pins': len(self._pins), 'cleanup_pending': self._cleanup_pending,
+            'pins': len(self._pins), 'cleanup_pending': self._cleanup_pending or self._publication_revoke_pending,
             'owner_alive': bool(self._thread and self._thread.is_alive()),
             'accepted': self._accepted, 'dropped': self._dropped, 'durable': self._durable,
             'last_observed_allocated_bytes': self._charge, 'total_bytes_limit': TOTAL_BYTES,
@@ -829,17 +832,24 @@ class CellStore:
             self._retention_next_refresh = time.monotonic() + RETENTION_REFRESH_SECONDS
 
     def receipt(self, cid):
-        if not self._ready.is_set() or self._closed:return None
+        if not self._ready.is_set() or self._closed or self._publication_revoke_pending:return None
         # A late optional DELETE commit cannot leave ambiguous cache authority.
         if any(item[0] == cid for item in (self._receipt_gc_unknown or ())):return None
         # Receipt objects are immutable and only installed after durable commit.
         return self._receipts.get(cid)
 
     def submit(self, kind, payload):
-        if not self._ready.is_set() or self._closed or self._admission_closed or not self.enabled:
+        if not self._ready.is_set() or self._closed or self._admission_closed or self._publication_revoke_pending or not self.enabled:
             return {'status': 'optional_unavailable', 'reason': self._status}
         if kind == 'receipt':
             if type(payload) is not Receipt:raise Unavailable('receipt_required')
+        elif kind == 'publish_auto':
+            if type(payload) is not tuple or len(payload)!=2 or type(payload[1]) is not Cell:
+                raise Unavailable('automatic_publication_binding')
+            digest(payload[0]); cell=payload[1]
+            if len(cell.proof)+len(cell.pcm)>HANDOFF_BYTES:raise Unavailable('publication_material_capacity')
+            reason=self._publication_policy((cell,))
+            if reason:return {'status':'optional_unavailable','reason':reason}
         elif kind == 'publish':
             if type(payload) is not tuple or not 1 <= len(payload) <= BATCH_CELLS or any(type(c) is not Cell for c in payload):
                 raise Unavailable('publication_batch_capacity')
@@ -868,7 +878,7 @@ class CellStore:
                 self._dropped = min(self._dropped + 1, (1 << 31) - 1)
                 return {'status': 'busy', 'reason': 'one_total_handoff_slot'}
             op = Operation(kind, payload, self._epoch, self._wake); self._slot = op
-            if kind in ('receipt', 'publish', 'expire', 'delete'):self.retention_changed()
+            if kind in ('receipt', 'publish', 'publish_auto', 'expire', 'delete'):self.retention_changed()
             self._accepted = min(self._accepted + 1, (1 << 31) - 1)
             self._wake.set(); return op
         finally:self._lock.release()
@@ -889,24 +899,31 @@ class CellStore:
                 if not self.seam_enabled:return 'seam_composites_disabled'
         return None
 
+    def _advance_publication_revoke(self):
+        if not self._publication_revoke_pending:return True
+        if not self._publication_guard.acquire(timeout=LOCK_SECONDS):return False
+        try:
+            if self._publication_revoke_pending:
+                self._epoch=object(); self._publication_revoke_pending=False
+                self._receipt_gc_prefixes.clear(); self._cleanup_pending=True; self._reconcile.set()
+            return True
+        finally:self._publication_guard.release()
+
     def revoked(self):
-        # A single generation/event, not an unbounded per-session cleanup queue.
-        self._epoch = object(); self._cleanup_pending = True; self._reconcile.set()
-        self._receipt_gc_prefixes.clear()
+        # A contended result transaction linearized first. Request closure now,
+        # but never claim a completed generation transition on a lock timeout.
+        self._publication_revoke_pending=True;self._cleanup_pending=True
         for pin in tuple(self._pins.values()):pin.cancelled.set()
-        op = self._slot
-        if op is not None and op.kind == 'dispatch':op.abandon('cell_revoked')
+        self._advance_publication_revoke()
+        op=self._slot
+        if op is not None and op.kind=='dispatch':op.abandon('cell_revoked')
         self._wake.set()
-        return True
+        return True  # Existing notification contract: cleanup remains pending.
 
     def close_admission(self):
-        # Keep receipts, the owner and the instance lock alive for cleanup.
-        self._admission_closed = True; self._epoch = object()
-        for pin in tuple(self._pins.values()):pin.cancelled.set()
-        op = self._slot
-        if op is not None and op.kind == 'dispatch':op.abandon('dispatch_admission_closed')
-        self._wake.set()
-        return True
+        self._admission_closed=True
+        self.revoked()
+        return not self._publication_revoke_pending
 
     def close(self, timeout=.5):
         if type(timeout) not in (int, float) or not 0 <= timeout <= .5:
@@ -917,10 +934,11 @@ class CellStore:
         if self._thread and self._thread.is_alive():
             self._thread.join(max(0., deadline - time.monotonic()))
         unresolved = (bool(self._thread and self._thread.is_alive()) or self._db is not None
-                      or self._slot is not None or bool(self._pins))
+                      or self._slot is not None or bool(self._pins) or self._publication_revoke_pending)
         if unresolved:
             self._cleanup_pending = True; self._status = 'shutdown_pending'
             return False
+        self._cleanup_pending = False; self._status = 'closed'
         self.instance_lock = None
         return True
 
@@ -1147,7 +1165,7 @@ class CellStore:
             raise
 
     def _generation(self, op):
-        if self._closed or op.epoch is not self._epoch:raise Unavailable('publication_generation_revoked')
+        if self._closed or self._publication_revoke_pending or op.epoch is not self._epoch:raise Unavailable('publication_generation_revoked')
 
     def _receipt(self, op, budget):
         receipt = op.payload; self._generation(op)
@@ -1189,23 +1207,32 @@ class CellStore:
         self._receipts[receipt.chunk_id] = receipt
         return {'status': 'receipt_retained', 'receipt_id': receipt.receipt_id}
 
+    def _cell_current(self,op,cell,budget):
+        doc=json.loads(cell.proof)
+        if op.kind=='publish_auto':
+            from .moss_automatic import authority_valid
+            return authority_valid(self.authority,op.payload[0],doc,budget)
+        return self.authority.cell_valid(doc,budget,publishing=True)
+
     def _publish(self, op, budget):
+        cells=(op.payload[1],) if op.kind=='publish_auto' else op.payload
         # Validate the whole batch before the first retention decision.
-        for cell in op.payload:
+        for cell in cells:
             cell.__post_init__(); self._generation(op)
-            if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
+            if not self._cell_current(op,cell,budget):
                 raise Unavailable('primary_commit_or_source_unavailable')
         results = []
-        for cell in op.payload:
+        for cell in cells:
             self._generation(op)
-            old = self._db.execute('SELECT cell_id,length(proof) AS n FROM cells WHERE ownership=?', (cell.ownership,)).fetchone()
+            old = self._db.execute('SELECT cell_id,length(proof) AS n,length(pcm) AS pn,state FROM cells WHERE ownership=?', (cell.ownership,)).fetchone()
             if old:
                 if old['cell_id'] != cell.cell_id or not 1 <= old['n'] <= PROOF_BYTES:
                     raise Unavailable('conflicting_committed_ownership')
                 proof = self._db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell.cell_id,)).fetchone()[0]
                 budget.projection(len(proof))
                 if proof != cell.proof:raise Unavailable('conflicting_committed_proof')
-                results.append({'cell_id': cell.cell_id, 'status': 'existing'})
+                status='not_retained_pcm' if op.kind=='publish_auto' and (old['pn'] is None or old['state']!='retained') else 'existing'
+                results.append({'cell_id': cell.cell_id, 'status': status})
                 continue
             if self._db.execute('SELECT COUNT(*) FROM cells').fetchone()[0] >= MAX_CELLS:
                 results.append({'cell_id': cell.cell_id, 'status': 'not_retained_metadata_capacity'})
@@ -1217,12 +1244,15 @@ class CellStore:
             free_pages = self._db.execute('PRAGMA freelist_count').fetchone()[0]
             room = (MAX_PAGE_COUNT - page_count + free_pages) * PAGE_SIZE
             with_pcm = room >= len(cell.pcm) + len(cell.proof) * 2 + 65536
-            status = self._insert_cell(op, cell, budget, with_pcm)
+            # Automatic authority lives in the primary intent. Do not turn a
+            # transient PCM-capacity miss into a permanent metadata-only cell.
+            status = ('not_retained_pcm' if op.kind=='publish_auto' and not with_pcm
+                      else self._insert_cell(op, cell, budget, with_pcm))
             results.append({'cell_id': cell.cell_id, 'status': status})
         self._generation(op)
-        for cell in op.payload:
+        for cell in cells:
             doc = json.loads(cell.proof)
-            if not self.authority.cell_valid(doc, budget, publishing=True):
+            if not self._cell_current(op,cell,budget):
                 superseded = getattr(self.authority, 'v1_publication_superseded', None)
                 try:advanced = self.core_seam_enabled and superseded is not None and superseded(doc, budget)
                 except Exception:
@@ -1233,7 +1263,8 @@ class CellStore:
                     # metadata supersession must not revoke independent v3 work.
                     raise Unavailable('primary_commit_advanced_after_publication')
                 self.revoked(); raise Unavailable('source_changed_after_publication_commit')
-        self._durable = min(self._durable + sum(r['status'] in ('retained', 'not_retained_pcm', 'existing') for r in results), (1 << 31) - 1)
+        durable_states=('retained','existing') if op.kind=='publish_auto' else ('retained','not_retained_pcm','existing')
+        self._durable = min(self._durable + sum(r['status'] in durable_states for r in results), (1 << 31) - 1)
         return {'status': 'durable', 'cells': results}
 
     def _insert_cell(self, op, cell, budget, with_pcm):
@@ -1247,12 +1278,13 @@ class CellStore:
                         (cell.cell_id, pos, p.chunk_id, p.source_sha256, p.receipt_sha256,
                          p.source_start, p.source_end, p.logical_start, p.logical_end))
                 self._generation(op)
-                if not self.authority.cell_valid(json.loads(cell.proof), budget, publishing=True):
+                if not self._cell_current(op,cell,budget):
                     raise Unavailable('source_changed_before_publication_commit')
             return state
         except sqlite3.Error as exc:
             if getattr(exc, 'sqlite_errorcode', None) == sqlite3.SQLITE_FULL:
                 budget.check()
+                if op.kind=='publish_auto':return 'not_retained_pcm'
                 if with_pcm:return self._insert_cell(op, cell, budget, False)
                 return 'not_retained_metadata_capacity'
             raise
@@ -1463,11 +1495,11 @@ class CellStore:
                 self._sweep_source = item['cid']
                 if self._slot is not None:return
             return
-        if self._sweep_generation is self._epoch:
+        if self._sweep_generation is self._epoch and not self._publication_revoke_pending:
             self._reconcile.clear(); self._cleanup_pending = False
             # A deletion may land between the first token check and clearing.
             # Recheck after clearing; a later notifier sets both flags itself.
-            if self._sweep_generation is not self._epoch:
+            if self._sweep_generation is not self._epoch or self._publication_revoke_pending:
                 self._cleanup_pending = True; self._reconcile.set()
 
     def _run(self):
@@ -1497,6 +1529,7 @@ class CellStore:
             self._open(); self._status = 'ready' if self.enabled else 'cleanup_only'; self._ready.set()
             while True:
                 self._wake.wait(.05); self._wake.clear()
+                self._advance_publication_revoke()
                 self._drain_released_pins()
                 op = self._slot
                 if op is not None and op.payload is None:
@@ -1511,7 +1544,7 @@ class CellStore:
                     else:
                         self._cleanup_pending = True; self._status = 'shutdown_pending'
                     continue
-                if op is None and self._admission_closed:continue
+                if op is None and (self._admission_closed or self._publication_revoke_pending):continue
                 if op is None and not self._reconcile.is_set():
                     if self._schedule_compact_gc():continue
                     if self._schedule_receipt_gc():continue
@@ -1541,8 +1574,9 @@ class CellStore:
                         if op is None:
                             self.retention_changed(); self._sweep(budget)
                         elif op.kind == 'receipt':op.result = self._receipt(op, budget)
-                        elif op.kind == 'publish':
-                            reason = self._publication_policy(op.payload)
+                        elif op.kind in ('publish','publish_auto'):
+                            cells=(op.payload[1],) if op.kind=='publish_auto' else op.payload
+                            reason = self._publication_policy(cells)
                             if reason:raise Unavailable(reason)
                             op.result = self._publish(op, budget)
                         elif op.kind in ('read', 'detail', 'jobs_detail', 'dispatch', 'validate_dispatch'):
@@ -1561,7 +1595,7 @@ class CellStore:
                         # _read installs the pin on its operation immediately
                         # after registration, before any later scan can fail.
                         # Keep that reference until exact release is acknowledged.
-                        op.result = {'status': 'unknown' if op.kind in ('publish', 'receipt') else 'unavailable', 'reason': reason}
+                        op.result = {'status': 'unknown' if op.kind in ('publish', 'publish_auto', 'receipt') else 'unavailable', 'reason': reason}
                         self._dropped = min(self._dropped + 1, (1 << 31) - 1)
                     else:self._cleanup_pending = True
                 finally:
@@ -1581,7 +1615,7 @@ class CellStore:
             # Even an exceptional owner exit cannot discard an unclaimed pin,
             # a contended release or the last live cleanup owner. No SQL/native
             # work or application callbacks occur in this drainage loop.
-            self._admission_closed = True; self._epoch = object()
+            self.close_admission()
             for pin in tuple(self._pins.values()):pin.cancelled.set()
             op = self._slot
             if op is not None:
@@ -1590,11 +1624,12 @@ class CellStore:
                     if op._pin is None:op._pin = op.result.get('pin')
                     op.result = {'status': 'unknown', 'reason': 'owner_shutdown'}
                 op.payload = None
-            while self._slot is not None or self._pins:
+            while self._slot is not None or self._pins or self._publication_revoke_pending:
+                self._advance_publication_revoke()
                 self._cleanup_pending = True; self._status = 'shutdown_pending'
                 self._drain_released_pins()
                 if self._slot is not None:finish(self._slot)
-                if self._slot is not None or self._pins:
+                if self._slot is not None or self._pins or self._publication_revoke_pending:
                     self._wake.wait(.05); self._wake.clear()
             if self._db is not None:
                 try:

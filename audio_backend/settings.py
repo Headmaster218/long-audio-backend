@@ -106,6 +106,7 @@ class Settings:
     moss_result_max_bytes_per_session: int = 1024**3
     moss_jobs_enabled: bool = False
     moss_jobs_model_path: str | None = None
+    moss_automatic_enabled: bool = False
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
     speaker_support_total_pcm_bytes: int = 64 * 1024**2
@@ -130,6 +131,14 @@ class Settings:
             raise ValueError('MOSS session retention limits must not exceed global limits')
         if type(self.moss_jobs_enabled) is not bool:
             raise ValueError('moss_jobs_enabled must be boolean')
+        if type(self.moss_automatic_enabled) is not bool:
+            raise ValueError('moss_automatic_enabled must be boolean')
+        if self.moss_automatic_enabled:
+            if not (self.moss_jobs_enabled and self.native_owned_support_enabled
+                    and self.native_owned_cells_enabled and self.native_owned_core_seams_enabled):
+                raise ValueError('moss_automatic_enabled requires MOSS jobs, native-owned support, cells and core seams')
+            if self.native_owned_seam_cells_enabled:
+                raise ValueError('moss_automatic_enabled excludes legacy native-owned seam cells')
         if self.moss_jobs_model_path is not None and not self.moss_jobs_enabled:
             raise ValueError('MOSS jobs model requires explicit enablement')
         if self.moss_jobs_enabled:

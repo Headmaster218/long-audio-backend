@@ -270,6 +270,8 @@ class CellJobsSource:
         return True
 
     def close_admission(self):
+        # Closing admission immediately prevents new leases; the owner reports
+        # a contended generation transition as pending, never waits unbounded.
         self._closed = True
         pending = self._pending
         if isinstance(pending, Operation):pending.abandon('admission_closed')

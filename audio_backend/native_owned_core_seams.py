@@ -335,6 +335,8 @@ def _gc_guard(owner, op, db, budget):
 
 
 def _gc_outbox_root(db, cid, budget):
+    from .moss_automatic import root
+    if root(db,cid=cid):return True
     row = db.execute('''SELECT 1 FROM recording_work rw
         JOIN recording_batches rb ON rb.id=rw.batch_id
         LEFT JOIN recording_pages rp ON rp.id=rw.page_id
@@ -505,14 +507,16 @@ def collect_compacts(owner, op, budget, result=None):
     return result
 
 
-def transaction(db, chunk, offset, end, result):
+def transaction(db, chunk, offset, end, result, *, strict=False, automatic=False):
     """Called inside the successful primary transaction, before its UPDATE.
 
     Optional capacity/errors roll back only this savepoint; primary text survives.
     Conflicting slot evidence never replaces the first immutable commitment.
     """
     packet = result.get('_native_core_seam')
-    if packet is None:return None
+    if packet is None:
+        if strict:raise Unavailable('automatic_core_commit_required')
+        return None
     db.execute('SAVEPOINT native_core_optional')
     try:
         commit = packet['commit']; p = validate_commit(commit); raw = canonical(commit, COMPACT_BYTES)
@@ -543,7 +547,11 @@ def transaction(db, chunk, offset, end, result):
                 observed = db.execute('SELECT body FROM native_core_commits WHERE slot=? AND length(body)<=?',
                                       (slot(left), COMPACT_BYTES)).fetchone()
                 if observed is None or observed[0] != canonical(left, COMPACT_BYTES):raise Unavailable('core_left_commit_missing')
-                if db.execute("SELECT COUNT(*) FROM native_core_commits WHERE pending IS NOT NULL").fetchone()[0] >= MAX_PENDING:
+                if automatic:
+                    # Exact seam proof belongs to the automatic intent table;
+                    # do not duplicate it in the four-row manual seam outbox.
+                    proof=None; state='none'; reason='automatic_intent'
+                elif db.execute("SELECT COUNT(*) FROM native_core_commits WHERE pending IS NOT NULL").fetchone()[0] >= MAX_PENDING:
                     reason = 'core_pending_row_capacity'; proof = None; state = 'gap'
                 else:state = 'pending'; reason = 'core_pending'
         db.execute('INSERT INTO native_core_commits VALUES(?,?,?,?,?,?,?,?,?)',
@@ -552,6 +560,7 @@ def transaction(db, chunk, offset, end, result):
         return reason
     except (Unavailable, ValueError, TypeError, KeyError) as exc:
         db.execute('ROLLBACK TO native_core_optional')
+        if strict:raise
         return str(exc) if isinstance(exc, Unavailable) else 'core_optional_transaction_unavailable'
     finally:db.execute('RELEASE native_core_optional')
 
@@ -593,11 +602,15 @@ class CoreSeams:
         self.next_attempt = 0.; self.revocation_done = False
         self.last_reason = 'not_observed'
 
-    def prepare(self, chunk, native, offset, end, result, coordinator, stop):
+    def prepare(self, chunk, native, offset, end, result, coordinator, stop, *, required=False):
         c = self.capture
-        if native is None or c.scope is None or not c.owner.health()['ready']:return
+        if native is None or c.scope is None or not c.owner.health()['ready']:
+            if required:raise Unavailable('automatic_core_prepare_unavailable')
+            return
         if c.owner._epoch is not self.generation:
-            self.last_reason = 'core_owner_revoked'; return
+            self.last_reason = 'core_owner_revoked'
+            if required:raise Unavailable('core_owner_revoked')
+            return
         from .native_owned_cell_store import Budget
         budget = Budget()
         try:
@@ -627,7 +640,11 @@ class CoreSeams:
                     if len(rows) > 1:raise Unavailable('core_left_ambiguous')
                     return read_commit(db, rows[0][0], budget) if rows else None
                 left = c.authority._read(budget, 'core_previous', previous)
-                if left is None:return
+                if left is None:
+                    if required:
+                        if a!=0:raise Unavailable('automatic_previous_compact_missing')
+                        packet['reason']='core_first_commit'; self.last_reason='core_first_commit'
+                    return
                 schema = RESET_SCHEMA if left['scope']['index'] != scope['index'] else SCHEMA
                 shape = geometry([left, commit], schema); lo, hi = shape['start_frame'], shape['end_frame']
                 if schema == SCHEMA and not observed['epoch_index'] * 300 * RATE <= lo < hi <= (observed['epoch_index'] + 1) * 300 * RATE:
@@ -677,6 +694,10 @@ class CoreSeams:
             reason = str(exc) if isinstance(exc, Unavailable) else 'core_prepare_unavailable'
             if '_native_core_seam' in result:result['_native_core_seam']['reason'] = reason
             self.last_reason = reason
+            if required and reason not in ('no_same_response_native_overlap','core_reset_short_side'):
+                raise
+            # Only a positively checked nonoverlap or the policy's explicitly
+            # unsupported short reset side is benign in automatic mode.
 
     def _status(self, slot_id, state, reason, expected_hash=None):
         from .native_owned_cell_store import Budget
@@ -853,7 +874,8 @@ def collect_receipts(owner, op, budget, result=None):
                 source_start=source['capture_start_frame']
                 pending_alias=cid in aliases or any(max(source_start,a)<min(source_start+receipt.frames,b) for a,b in intervals)
                 eligible=(source['position']<prefix['position'] and end<=protected_start
-                    and cid not in roots and cid not in compact_roots and not pending_alias)
+                    and cid not in roots and cid not in compact_roots and not pending_alias
+                    and not _gc_outbox_root(db,cid,budget))
                 if owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1',(cid,)).fetchone():eligible=False
                 # Supported insertion always records normalized dependencies.
                 # Anchor fallback also keeps malformed/metadata-only cells. It
