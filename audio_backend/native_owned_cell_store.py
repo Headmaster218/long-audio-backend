@@ -1308,8 +1308,8 @@ class CellStore:
         policy = doc['policy']
         anchor = seam_anchor(doc) if is_composite(doc) else doc['commit']
         accepted = (POLICY_SHA256, SEAM_POLICY_SHA256) if self._store_policy == STORE_POLICY_SHA256 else (POLICY_SHA256,)
-        from .native_owned_core_seams import store_policy, POLICY_SHA256 as CORE_POLICY, RESET_POLICY_SHA256
-        if self._store_policy == store_policy():accepted = (POLICY_SHA256, SEAM_POLICY_SHA256, CORE_POLICY, RESET_POLICY_SHA256)
+        from .native_owned_core_seams import store_policy, POLICY_SHA256 as CORE_POLICY, RESET_POLICY_SHA256, RESTART_POLICY_SHA256
+        if self._store_policy == store_policy():accepted = (POLICY_SHA256, SEAM_POLICY_SHA256, CORE_POLICY, RESET_POLICY_SHA256, RESTART_POLICY_SHA256)
         if (canonical(doc) != proof or policy not in accepted
                 or type(doc.get('dependencies')) is not list or not 1 <= len(doc['dependencies']) <= MAX_PARTS
                 or anchor['chunk_id'] != row['cid']

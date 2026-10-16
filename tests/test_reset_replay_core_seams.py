@@ -443,7 +443,11 @@ def test_restarted_capture_cannot_join_prior_run(reset_factory, monkeypatch):
     assert harness.capture.core_seams.run != old_run
     harness.worker.process(harness.store.chunk(cid))
     harness.settle()
-    assert reset_rows(harness)[0]['reason'] == 'core_seam_capture_domain_changed'
+    cells = harness.cells()
+    restarted = [doc for _, doc in cells if doc['schema'] == core.RESTART_SCHEMA]
+    assert len(restarted) == 1
+    with pytest.raises(Unavailable, match='core_seam_capture_domain_changed'):
+        core.geometry(restarted[0]['commits'], schema=core.RESET_SCHEMA)
     assert not reset_cells(harness)
     primary_is_unchanged(harness, 344.5)
 

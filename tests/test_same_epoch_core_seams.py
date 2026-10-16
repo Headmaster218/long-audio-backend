@@ -223,8 +223,12 @@ def test_capture_restart_same_epoch_identity_rejected(factory,monkeypatch):
     assert h.capture.core_seams.run!=old_run
     h.worker.process(h.store.chunk(cid));h.settle()
     assert len(h.rows())==2
-    assert h.rows()[1]['reason']=='core_seam_capture_domain_changed'
-    assert not h.cells()
+    cells=h.cells();assert len(cells)==1
+    doc=cells[0][1];assert doc['schema']==core.RESTART_SCHEMA
+    with pytest.raises(Unavailable,match='core_seam_capture_domain_changed'):
+        core.geometry(doc['commits'],core.SCHEMA)
+    assert doc['commits'][0]['scope']['run']==old_run
+    assert doc['commits'][1]['scope']['run']==h.capture.core_seams.run
 
 
 @pytest.mark.parametrize('phase',['before','after'])

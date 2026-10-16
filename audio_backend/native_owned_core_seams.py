@@ -3,7 +3,7 @@
 One genuine current response, no native push/ASR, no historical witness journal.
 Only exact canonical proof is durable; immutable source PCM is rechecked at drain.
 A fresh Capture run fences reset counters/epoch IDs after process restart.
-The reset-replay policy is separate; historical v3 semantics remain same-epoch.
+Reset and restart replay use separate policies; historical contracts stay strict.
 """
 from __future__ import annotations
 from dataclasses import asdict
@@ -21,6 +21,7 @@ from .native_owned_cells import (Cell, SourceSpan, SourceSupport, Turn, Unavaila
 
 SCHEMA = 'native-owned-core-seam-v3'
 RESET_SCHEMA = 'native-owned-reset-replay-core-seam-v1'
+RESTART_SCHEMA = 'native-owned-restart-replay-core-seam-v1'
 COMPACT_BYTES = 2048
 MAX_COMPACTS = 2056
 PENDING_BYTES = 128 * 1024
@@ -38,19 +39,26 @@ RESET_POLICY = {**POLICY, 'schema': RESET_SCHEMA, 'reset_straddling': True,
     'support': 'exact-ten-seconds-per-adjacent-commit',
     'witness': 'one-current-new-epoch-response-with-observed-replay-pcm'}
 RESET_POLICY_SHA256 = sha(RESET_POLICY)
+RESTART_POLICY = {**POLICY, 'schema': RESTART_SCHEMA, 'reset_straddling': True,
+    'domain': 'distinct-capture-runs-same-or-consecutive-epoch',
+    'support': 'up-to-ten-seconds-per-same-epoch-side-exact-ten-across-epochs',
+    'witness': 'one-new-current-exact-support-response-with-observed-replay-pcm',
+    'labels': 'current-capture-run-and-epoch-local-only'}
+RESTART_POLICY_SHA256 = sha(RESTART_POLICY)
 # Fresh isolated policy identity; existing optional stores are never adopted.
 def store_policy():
     from .native_owned_seam_cells import POLICY_SHA256 as V2_POLICY
-    return sha({'schema': 'native-owned-cell-store-policy-reset-replay-v1',
-                'accepted_cell_policies': sorted([V1_POLICY, V2_POLICY, POLICY_SHA256, RESET_POLICY_SHA256])})
+    return sha({'schema': 'native-owned-cell-store-policy-restart-replay-v1',
+                'accepted_cell_policies': sorted([V1_POLICY, V2_POLICY, POLICY_SHA256, RESET_POLICY_SHA256, RESTART_POLICY_SHA256])})
 
 
-def is_core(doc):return type(doc) is dict and doc.get('schema') in (SCHEMA, RESET_SCHEMA)
+def is_core(doc):return type(doc) is dict and doc.get('schema') in (SCHEMA, RESET_SCHEMA, RESTART_SCHEMA)
 
 
 def policy(schema):
     if schema == SCHEMA:return POLICY_SHA256
     if schema == RESET_SCHEMA:return RESET_POLICY_SHA256
+    if schema == RESTART_SCHEMA:return RESTART_POLICY_SHA256
     raise Unavailable('core_seam_policy')
 
 
@@ -104,7 +112,22 @@ def geometry(commits, schema=SCHEMA):
     """v3 remains strict by default; reset proofs must name the new contract."""
     left, right = [validate_commit(c) for c in commits]
     left_scope, right_scope = commits[0]['scope'], commits[1]['scope']
-    if schema == RESET_SCHEMA:
+    if schema == RESTART_SCHEMA:
+        if any(left_scope[k] != right_scope[k] for k in ('session_id', 'kind', 'key', 'origin')):
+            raise Unavailable('core_seam_capture_domain_changed')
+        if left_scope['run'] == right_scope['run']:
+            raise Unavailable('core_restart_run_required')
+        delta = right_scope['index'] - left_scope['index']
+        if (delta not in (0, 1)
+                or (left_scope['epoch'] == right_scope['epoch']) != (delta == 0)):
+            raise Unavailable('core_restart_epoch_transition')
+        if delta == 1:
+            boundary = right_scope['index'] * 300 * RATE
+            if left.logical_end != boundary or right.logical_start != boundary:
+                raise Unavailable('core_restart_boundary')
+            if left.logical_end - left.logical_start < SIDE_FRAMES or right.logical_end - right.logical_start < SIDE_FRAMES:
+                raise Unavailable('core_reset_short_side')
+    elif schema == RESET_SCHEMA:
         if any(left_scope[k] != right_scope[k] for k in ('session_id', 'kind', 'key', 'origin', 'run')):
             raise Unavailable('core_seam_capture_domain_changed')
         if (right_scope['index'] != left_scope['index'] + 1
@@ -164,18 +187,20 @@ def coverage(doc):
         'coverage_envelope_frames': [commits[0]['part']['logical_start'], commits[1]['part']['logical_end']],
         'primary_commit_refs': [anchor(c) for c in commits],
         'adds_primary_audio': False, 'automatic_dispatch': False}
-    if doc['schema'] == RESET_SCHEMA:
-        result.update(kind='reset_replay_core_seam_alternative',
+    if doc['schema'] in (RESET_SCHEMA, RESTART_SCHEMA):
+        result.update(kind=('restart_replay_core_seam_alternative' if doc['schema'] == RESTART_SCHEMA
+                            else 'reset_replay_core_seam_alternative'),
             scope_sha256=sha({'primary_scopes': [c['scope'] for c in commits], 'query_scope': commits[1]['scope']}),
             primary_scope_sha256=[sha(c['scope']) for c in commits],
             query_scope_sha256=sha(commits[1]['scope']))
     return result
 
 
-def validate_query(query, right, shape, evidence):
+def validate_query(query, right, shape, evidence, schema=SCHEMA):
     """Reuse strict v2 current-response frontier checks without relaxing v2."""
     from .native_owned_seam_cells import validate_witness
-    exact(query, 'query_start_frame query_end_frame query_pcm16le_sha256 support_pcm16le_sha256 native turns')
+    names = 'query_start_frame query_end_frame query_pcm16le_sha256 support_pcm16le_sha256 native turns'
+    exact(query, names + (' capture_run' if schema == RESTART_SCHEMA else ''))
     a, b = shape['start_frame'], shape['end_frame']
     qa, qb = query['query_start_frame'], query['query_end_frame']
     integer(qa); integer(qb)
@@ -183,6 +208,21 @@ def validate_query(query, right, shape, evidence):
         raise Unavailable('core_seam_query_coverage')
     digest(query['query_pcm16le_sha256']); digest(query['support_pcm16le_sha256'])
     p = right['part']; scope = right['scope']
+    turns = query['turns']
+    if schema == RESTART_SCHEMA:
+        if query['capture_run'] != scope['run']:raise Unavailable('core_restart_query_run')
+        if (qa, qb) != (a, b):raise Unavailable('core_restart_exact_query_required')
+        if query['query_pcm16le_sha256'] != query['support_pcm16le_sha256']:
+            raise Unavailable('core_restart_query_pcm_mismatch')
+        if type(turns) is not list or len(turns) > MAX_TURNS:raise Unavailable('native_turn_capacity')
+        prefix = scope['run'] + ':'
+        normalized = []
+        for turn in turns:
+            exact(turn, 'label original')
+            if type(turn['label']) is not str or not turn['label'].startswith(prefix):
+                raise Unavailable('core_restart_query_label_run')
+            normalized.append({**turn, 'label': turn['label'][len(prefix):]})
+        turns = normalized
     legacy_scope = {'session_id': scope['session_id'], 'stream_id': scope['key'],
         'origin_seconds_hex': scope['origin'], 'epoch_id': scope['epoch'],
         'epoch_index': scope['index'], 'reset_generation': scope['reset']}
@@ -196,7 +236,7 @@ def validate_query(query, right, shape, evidence):
         'analyzer_start_frame': qa, 'analyzer_end_frame': qb,
         'analyzer_pcm16le_sha256': query['query_pcm16le_sha256'],
         'piece_pcm16le_sha256': query['support_pcm16le_sha256'],
-        'native': query['native'], 'turns': query['turns']}
+        'native': query['native'], 'turns': turns}
     validate_witness(legacy_witness, legacy_commit, legacy_scope, 0, a, b)
     if (sha(evidence['native']) != right['native_sha256'] or sha(evidence['core_cut']) != right['cut_sha256']
             or sha(query['native']['provenance']) != right['runtime_sha256']):
@@ -215,7 +255,7 @@ def validate_document(proof):
     if doc['geometry'] != shape:raise Unavailable('core_seam_nondeterministic_geometry')
     parts = mapping(commits, shape)
     if doc['dependencies'] != [asdict(p) for p in parts]:raise Unavailable('core_seam_mapping')
-    validate_query(doc['query'], commits[1], shape, doc['right_evidence'])
+    validate_query(doc['query'], commits[1], shape, doc['right_evidence'], doc['schema'])
     from .native_owned_seam_cells import selected_pair
     if doc['selection'] != selected_pair([doc['query']], shape['start_frame'], shape['end_frame']):
         raise Unavailable('core_seam_selection')
@@ -645,12 +685,14 @@ class CoreSeams:
                         if a!=0:raise Unavailable('automatic_previous_compact_missing')
                         packet['reason']='core_first_commit'; self.last_reason='core_first_commit'
                     return
-                schema = RESET_SCHEMA if left['scope']['index'] != scope['index'] else SCHEMA
+                schema = (RESTART_SCHEMA if left['scope']['run'] != scope['run'] else
+                          RESET_SCHEMA if left['scope']['index'] != scope['index'] else SCHEMA)
                 shape = geometry([left, commit], schema); lo, hi = shape['start_frame'], shape['end_frame']
                 if schema == SCHEMA and not observed['epoch_index'] * 300 * RATE <= lo < hi <= (observed['epoch_index'] + 1) * 300 * RATE:
                     raise Unavailable('core_seam_reset_unsupported')
-                if schema == RESET_SCHEMA and observed['replay_start'] > lo:
-                    raise Unavailable('core_reset_replay_missing')
+                if schema in (RESET_SCHEMA, RESTART_SCHEMA) and observed['replay_start'] > lo:
+                    raise Unavailable('core_restart_replay_missing' if schema == RESTART_SCHEMA
+                                      else 'core_reset_replay_missing')
                 # Full future half was pushed/processed by normal scheduling already.
                 if hi > observed['replay_start'] + observed['state']['processed']['frame']:
                     raise Unavailable('core_seam_future_unprocessed')
@@ -660,7 +702,7 @@ class CoreSeams:
             qa = max(c.origin_frame + round(native['extract_start'] * RATE), observed['replay_start'])
             qb = c.origin_frame + exact_frame(native['extract_end'])
             turns, proof = ordinary_turns, observed
-            if not qa <= lo < hi <= qb:
+            if schema == RESTART_SCHEMA or not qa <= lo < hi <= qb:
                 # One bounded TURNS request, sequenced AFTER v1/v2 preparation.
                 # Never push/finish/ASR, and never request fictional future audio.
                 if stop():raise Unavailable('core_seam_cancelled')
@@ -685,6 +727,9 @@ class CoreSeams:
                     'query_pcm16le_sha256': hashlib.sha256(query_pcm).hexdigest(),
                     'support_pcm16le_sha256': hashlib.sha256(pcm).hexdigest(), 'native': proof,
                     'turns': [{'label': t.label, 'original': [t.start, t.end]} for t in turns]}
+                if schema == RESTART_SCHEMA:
+                    query['capture_run'] = self.run
+                    query['turns'] = [{**t, 'label': self.run + ':' + t['label']} for t in query['turns']]
                 cell = make_cell([left, commit], query, evidence, pcm, schema)
                 packet['proof'] = cell.proof; packet['reason'] = 'core_pending'; self.work_pending = True
                 self.last_reason = 'core_prepared'

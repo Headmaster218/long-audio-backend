@@ -192,32 +192,84 @@ class MossResultStore:
     def _database(self, *, write=False, budget=None):
         budget = budget if budget is not None else [self.clock() + WRITE_SECONDS, 0]
         deadline, db = budget[0], None
+        phase, first_budget = 'headroom_before', None
+        def refused(error):
+            # Fixed, bounded fields only. Never inspect a message, SQL, or path;
+            # even a broken logging sink must not replace the original outcome.
+            try:
+                import logging
+                name = type(error).__name__
+                if name not in ('ReadError', 'OSError', 'FileNotFoundError', 'PermissionError',
+                                'Error', 'DatabaseError', 'DataError', 'IntegrityError',
+                                'InterfaceError', 'InternalError', 'NotSupportedError',
+                                'OperationalError', 'ProgrammingError'):
+                    name = 'other'
+                code, sql_name = getattr(error, 'sqlite_errorcode', None), getattr(error, 'sqlite_errorname', None)
+                code = code if type(code) is int and 0 <= code < 2**31 else None
+                sql_name = sql_name if type(sql_name) is str and re.fullmatch(r'SQLITE_[A-Z0-9_]{1,48}', sql_name) else None
+                errno = getattr(error, 'errno', None)
+                errno = errno if type(errno) is int and 0 <= errno < 2**31 else None
+                fields = {'operation': 'write' if write else 'read', 'phase': phase,
+                          'exception_class': name, 'sqlite_code': code, 'sqlite_name': sql_name,
+                          'errno': errno, 'vm_steps': budget[1], 'budget_category': first_budget}
+                logging.getLogger(__name__).warning('moss_result_database_refusal %s',
+                    json.dumps(fields, sort_keys=True, allow_nan=False),
+                    extra={'result_storage_failure': fields})
+            except BaseException:
+                pass
         def check():
-            if self.clock() >= deadline or budget[1] >= MAX_VM_STEPS:raise ReadError(503, 'result_storage_unavailable')
+            nonlocal first_budget
+            # Preserve the original clock-first check and progress short circuit.
+            if self.clock() >= deadline:
+                if first_budget is None:first_budget = 'deadline'
+                raise ReadError(503, 'result_storage_unavailable')
+            if budget[1] >= MAX_VM_STEPS:
+                if first_budget is None:first_budget = 'vm_steps'
+                raise ReadError(503, 'result_storage_unavailable')
         def progress():
+            nonlocal first_budget
             budget[1] += 100
-            return int(budget[1] >= MAX_VM_STEPS or self.clock() >= deadline)
+            if budget[1] >= MAX_VM_STEPS:
+                if first_budget is None:first_budget = 'vm_steps'
+                return 1
+            if self.clock() >= deadline:
+                if first_budget is None:first_budget = 'deadline'
+                return 1
+            return 0
         try:
             if write:self._headroom()
-            check()
+            phase = 'pre_open_check'; check()
+            phase = 'stat'
             st = self.path.stat()
             if (st.st_dev, st.st_ino) != self.database_identity:raise OSError('Database replaced')
+            phase = 'connect'
             db = sqlite3.connect('file:' + quote(str(self.path), safe='/') + ('?mode=rw' if write else '?mode=ro'), uri=True, timeout=0)
+            phase = 'configure'
             db.row_factory = sqlite3.Row
             db.set_progress_handler(progress, 100)
             db.execute('PRAGMA busy_timeout=0')
-            if write:self._headroom()
-            else:db.execute('PRAGMA query_only=ON')
-            check(); db.execute('BEGIN IMMEDIATE' if write else 'BEGIN')
-            yield db
-            check()
             if write:
-                db.commit()
+                phase = 'headroom_connected'; self._headroom()
+            else:db.execute('PRAGMA query_only=ON')
+            phase = 'begin_check'; check()
+            phase = 'begin'; db.execute('BEGIN IMMEDIATE' if write else 'BEGIN')
+            phase = 'body'
+            yield db
+            phase = 'post_body_check'; check()
+            if write:
+                phase = 'commit'; db.commit()
+                phase = 'post_commit_check'
                 check()  # Late/uncertain completion is reconciled on the next attempt.
+                phase = 'post_commit_headroom'
                 try:self._headroom()
-                except (OSError, ReadError):self.write_blocked = True
-        except (OSError, sqlite3.Error):
+                except (OSError, ReadError) as error:
+                    refused(error); self.write_blocked = True
+        except (OSError, sqlite3.Error) as error:
+            refused(error)
             raise ReadError(503, 'result_storage_unavailable') from None
+        except ReadError as error:
+            if error.reason == 'result_storage_unavailable':refused(error)
+            raise
         finally:
             if db is not None:db.close()
 

@@ -81,10 +81,17 @@ def _native_responses(doc, support, session_id):
     answer = []
     for response, lo, hi in responses:
         native = response['native']
-        scope = sha({'schema': 'recording-native-coordinate-scope-v1',
+        domain = {'schema': 'recording-native-coordinate-scope-v1',
             'session_id': session_id, 'epoch_id': native['epoch_id'],
             'epoch_index': native['epoch_index'],
-            'native_runtime_sha256': support.native_runtime_sha256})
+            'native_runtime_sha256': support.native_runtime_sha256}
+        from .native_owned_core_seams import RESTART_SCHEMA
+        if doc.get('schema') == RESTART_SCHEMA:
+            # Native epoch IDs can repeat after physical restart. This proof
+            # explicitly owns its query labels in the freshly observed run.
+            domain.update(schema='recording-native-restart-query-scope-v1',
+                          capture_run=response['capture_run'])
+        scope = sha(domain)
         answer.append((scope, response['turns'], lo, hi))
     return answer
 

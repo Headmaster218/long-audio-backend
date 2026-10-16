@@ -7,8 +7,10 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict
+from fractions import Fraction
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -27,6 +29,39 @@ from .native_owned_cell_store import (CellStore, Receipt, Budget, qualified_runt
 
 _REGISTRY = {}
 _REGISTRY_LOCK = threading.Lock()
+
+
+def _sample_gap_cut(turns, start, target, a, b, window):
+    """The safe_cut gap policy on validated samples, never on external floats.
+
+    A rational configuration guard preserves window/4 exactly. Only the internally
+    selected gap point is put on the sample lattice: an odd midpoint chooses
+    the earlier sample (at most half a sample); a fractional lower guard is
+    rounded inward. No observed native/source endpoint is rounded here.
+    """
+    for value in (start, target, a, b):integer(value)
+    if (type(window) not in (int, Fraction) or not RATE <= window <= 60 * RATE
+            or not a <= start < target <= b):
+        raise Unavailable('native_cut_geometry')
+    lower4 = max((start + RATE // 2) * 4, target * 4 - min(3 * RATE * 4, window))
+    if target >= b or target * 4 <= lower4:return target
+    intervals = []
+    for turn in sorted(turns, key=lambda t: t.start):
+        lo, hi = max(a, turn.start), min(b, turn.end)
+        if hi <= lo:continue
+        if intervals and lo <= intervals[-1][1]:intervals[-1][1] = max(hi, intervals[-1][1])
+        else:intervals.append([lo, hi])
+    if not intervals:return target
+    candidates = [];cursor = a
+    for lo, hi in intervals + [[b, b]]:
+        if lo - cursor >= RATE // 5:
+            minimum4 = max(lower4, (cursor + RATE // 20) * 4)
+            minimum = -(-minimum4 // 4)
+            maximum = min(target, lo - RATE // 20)
+            if maximum >= minimum:
+                candidates.append(min(maximum, max(minimum, (cursor + lo) // 2)))
+        cursor = max(cursor, hi)
+    return max(candidates) if candidates else target
 
 
 def signature(st):
@@ -770,6 +805,50 @@ class Capture:
                 else:raise Unavailable('unknown_material_observer')
         except Exception as exc:
             self.witness.fail('material_observation_unavailable'); self._failure(exc)
+
+    def native_core_cut(self, chunk, native, offset, nominal_end, result, window_seconds, legacy_end):
+        """Select an internal core boundary only after exact native witnessing.
+
+        Worker uses this before ownership, capture, compact evidence and the
+        primary transaction, so all consumers receive the same frame/RATE.
+        Global exact_frame, raw turns, sources and old proof policies stay strict.
+        """
+        try:
+            with self.budget.phase():
+                if self.scope is None or self.analyzer is None:
+                    raise Unavailable('native_cut_witness_unavailable')
+                if (exact_frame(chunk['timeline_start'], origin=self.scope_start) != self.origin_frame
+                        or native['end'] != nominal_end
+                        or result.get('metadata', {}).get('diarization_turns', []) != native['turns']):
+                    raise Unavailable('native_cut_transform_mismatch')
+                turns, _ = self.witness.prepared(native, self.scope_start, self.origin_frame)
+                local = native['extract_start']
+                a = self.origin_frame + exact_frame(abs(local)) * (-1 if local < 0 else 1)
+                b = self.origin_frame + exact_frame(native['extract_end'])
+                start = self.origin_frame + exact_frame(offset)
+                target = self.origin_frame + exact_frame(nominal_end)
+                if self.analyzer_start != a or len(self.analyzer) != (b - a) * 2:
+                    raise Unavailable('native_cut_analyzer_geometry')
+                if (type(window_seconds) not in (int, float) or not math.isfinite(window_seconds)
+                        or not 1 <= window_seconds <= 60):raise Unavailable('native_cut_window_config')
+                # Settings permits non-grid window durations. This is a guard,
+                # not an observed endpoint: retain its exact rational value.
+                window = Fraction(window_seconds) * RATE
+                frame = _sample_gap_cut(turns, start, target, a, b, window)
+                local_frame = integer(frame - self.origin_frame)
+                selected = local_frame / RATE
+                if exact_frame(selected) != local_frame:raise Unavailable('native_cut_precision_loss')
+                return selected
+        except Exception:
+            # Bounded numeric-only diagnostic. The lost legacy value is never
+            # used as evidence or accepted through an epsilon tolerance.
+            try:
+                if type(legacy_end) in (int, float) and math.isfinite(legacy_end):
+                    raw = float(legacy_end); nearest = round(raw * RATE)
+                    _diagnostic('native_owned_cut_refusal value=%r hex=%s frame_residual=%r permitted_error_frames=0',
+                                raw, raw.hex(), raw * RATE - nearest)
+            except Exception:pass  # Diagnostics must preserve the original refusal.
+            raise
 
     def prepare(self, chunk, native, offset, end, result, *, required=False):
         if self.analyzer is None or native is None:

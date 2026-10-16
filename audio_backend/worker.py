@@ -10,6 +10,7 @@ from .resources import run_bounded, check_resources, AnalyzerProcess
 from .boundaries import lexical_core, safe_cut
 from .boundary_store import stream_info, context_parts, wait_for_input
 from .native_worker import NativeCoordinator
+from .storage import _ClaimDeferred
 from .overlap_ownership import own_candidates,validate_candidates
 from . import speaker_support, event_candidate_store
 
@@ -154,14 +155,20 @@ class Worker:
                     # Optional observation never takes authority over primary work.
                     pass
             intent=None
-            if permit is None:
-                chunk=self.store.claim()
-            else:
-                with permit.claim_probe():
+            try:
+                if permit is None:
                     chunk=self.store.claim()
-                    if chunk is not None:
-                        self.current_chunk=chunk['id']
-                        intent=permit.primary_intent('worker')
+                else:
+                    with permit.claim_probe():
+                        chunk=self.store.claim()
+                        if chunk is not None:
+                            self.current_chunk=chunk['id']
+                            intent=permit.primary_intent('worker')
+            except _ClaimDeferred:
+                # An unknown queue is not an idle queue. Release the probe,
+                # wait interruptibly, then recheck primary work before MOSS.
+                self.stop_event.wait(.1)
+                continue
             if chunk is None:
                 if self.moss_automatic is not None:self.moss_automatic.step()
                 self.wake.wait(1); self.wake.clear(); continue
@@ -445,6 +452,14 @@ class Worker:
                                    max(offset-extract_start+.5,end-extract_start-min(3.,self.settings.window_seconds*.25)),
                                    extract_end-extract_start)
                     end=extract_start+local
+                    if native and self.native_owned_cells is not None:
+                        args=(chunk,native,offset,nominal_end,result,self.settings.window_seconds,end)
+                        if automatic:end=self.native_owned_cells.native_core_cut(*args)
+                        else:
+                            # The legacy optional hook still cannot suppress a
+                            # primary result when its witness is unavailable.
+                            selected=self._cell_call('native_core_cut',*args)
+                            if selected is not None:end=selected
                 try:
                     prepared=(speaker_support.prepare_window(result,wav,lineage,expected_generation,
                         core_start=offset-extract_start,analyzer_start=extract_start,settings=self.settings) if capture_support else {})

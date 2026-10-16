@@ -312,6 +312,7 @@ class ObservationTests(unittest.TestCase):
             diarization_backend='nemotron', speaker_support_enabled=False, overlap_backend='none',
             inference_config=lambda: {})
         worker.native_owned_cells = cap
+        worker.moss_automatic = None
         worker._native_capture = SimpleNamespace(observe_pcm=lambda *args: legacy.append(args))
         worker._native_capture_token = object()
         worker._native_capture_observation = None

@@ -196,6 +196,9 @@ def plans(cells,packet):
     if packet['proof'] is not None:
         doc,support,parts=validate_document(packet['proof'])
         if not is_core(doc) or doc['commits'][1]!=commit:raise Unavailable('automatic_seam_binding')
+        # Restart replay remains in the existing core_seam family. Its distinct
+        # selection policy is already bound into ownership; no SQL migration,
+        # relabeling of historical rows, or retry of accepted work is needed.
         raw.append(('reset_seam' if doc['schema']==RESET_SCHEMA else 'core_seam',packet['proof'],support,parts,tuple(doc['commits'])))
     if len(raw)>CORE_INTENTS:raise Unavailable('automatic_core_candidate_capacity')
     result=[]

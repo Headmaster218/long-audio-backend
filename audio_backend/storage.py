@@ -99,6 +99,10 @@ def update_provenance(previous, metadata, offset):
     return provenance
 
 
+class _ClaimDeferred(Exception):
+    """Automatic claim did not acquire its transaction; no queue state was read."""
+
+
 class Store:
     def __init__(self, path: Path, settings):
         self.path, self.settings = path, settings
@@ -343,7 +347,14 @@ class Store:
         automatic=enabled(self.settings)
         with self.db() as db:
             if automatic:db.execute('PRAGMA busy_timeout=0')
-            db.execute('BEGIN IMMEDIATE')
+            try:
+                db.execute('BEGIN IMMEDIATE')
+            except sqlite3.OperationalError as exc:
+                code=getattr(exc,'sqlite_errorcode',None)
+                if (automatic and not db.in_transaction and type(code) is int
+                        and (code & 0xff) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED)):
+                    raise _ClaimDeferred() from None
+                raise
             after=getattr(self,'_automatic_claim_after',None) if automatic else None
             page=" AND (c.created>? OR (c.created=? AND c.id>?))" if after is not None else ''
             args=(after[0],after[0],after[1]) if after is not None else ()

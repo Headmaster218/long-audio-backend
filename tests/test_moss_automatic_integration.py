@@ -420,6 +420,7 @@ def automatic_app_factory(tmp_path, monkeypatch):
     from audio_backend.worker import Worker
     from test_native_owned_cell_store import simulated_profile
     from test_native_owned_support_api import FakeAnalyzer, FakeNative, fake_extract
+    import test_native_owned_support_api as fake_api
     from test_moss_handy_controller import FakeDriver
     from test_moss_handy_jobs import ManualThread
     from test_native_execution_permit import sample
@@ -438,7 +439,14 @@ def automatic_app_factory(tmp_path, monkeypatch):
         if automatic:
             options.update(diarization_backend='nemotron', native_diarization_model='synthetic',
                 native_diarization_library='synthetic')
-        app = create_app(Settings(**options), analyzer_factory=FakeAnalyzer)
+        class CurrentTurnsFakeAnalyzer(FakeAnalyzer):
+            def analyze(self, path, **kwargs):
+                result = super().analyze(path, **kwargs)
+                # Match the production native analyzer's unchanged turn metadata.
+                from copy import deepcopy
+                result['metadata']['diarization_turns'] = deepcopy(kwargs.get('diarization', {}).get('turns', []))
+                return result
+        app = create_app(Settings(**options), analyzer_factory=CurrentTurnsFakeAnalyzer)
         with TestClient(app) as client:
             worker = app.state.worker; manager = app.state.moss_jobs
             capture = worker.native_owned_cells
@@ -446,8 +454,19 @@ def automatic_app_factory(tmp_path, monkeypatch):
             drivers, natives = [], []
             def driver_factory(directory, digest):
                 driver = FakeDriver(directory, digest); drivers.append(driver); return driver
+            class QueryBoundFakeNative(FakeNative):
+                def request(self, action, stop, **kwargs):
+                    if action != 'turns':return super().request(action, stop, **kwargs)
+                    self.calls.append(action)
+                    turns = []
+                    for turn in fake_api.synthetic_turns(self.frames, self.epoch):
+                        a, b = max(kwargs['start'], turn['start']), min(kwargs['end'], turn['end'])
+                        if a < b:turns.append({**turn, 'start': a, 'end': b})
+                    result = {'turns': turns}
+                    self.response_observer(result)
+                    return result
             def native_factory(settings):
-                native = FakeNative(settings)
+                native = QueryBoundFakeNative(settings)
                 native.response_observer = worker._native_response
                 natives.append(native)
                 return native
@@ -723,7 +742,7 @@ def test_queued_exact_proofs_restart_without_backfill_and_models_off_history_is_
         assert not disabled.drivers and not disabled.natives
 
 
-def test_new_primary_run_refuses_cross_run_boundary_at_unchanged_offset(automatic_app_factory):
+def test_new_primary_run_uses_separate_restart_policy_at_unchanged_offset(automatic_app_factory):
     with automatic_app_factory() as h:
         cid = ingest_recording(h); sid = h.sid
         commit = h.store.commit_window
@@ -743,22 +762,24 @@ def test_new_primary_run_refuses_cross_run_boundary_at_unchanged_offset(automati
         assert resumed.capture.core_seams.run != old_run
         assert resumed.store.chunk(cid)['status'] == 'queued'
         assert resumed.store.chunk(cid)['next_offset'] == 1.
-        primary = primary_output(resumed)
-        with pytest.raises(Unavailable, match='core_seam_capture_domain_changed') as error:
-            process_primary(resumed)
-        assert resumed.capture.core_seams.last_reason == 'core_seam_capture_domain_changed'
-        # Persist the exact failure using the ordinary Worker.loop error sink.
-        resumed.store.fail(cid, f'{type(error.value).__name__}: {error.value}')
-        refused = resumed.store.chunk(cid)
-        assert refused['status'] == 'failed' and refused['next_offset'] == 1.
-        assert refused['error'] == 'Unavailable: core_seam_capture_domain_changed'
-        after = primary_output(resumed)
-        assert {k: v for k, v in after.items() if k != 'chunks'} == {k: v for k, v in primary.items() if k != 'chunks'}
+        assert process_primary(resumed) == cid
+        assert resumed.store.chunk(cid)['status'] == 'completed'
         with read_database(resumed.store) as db:
-            assert [tuple(r) for r in db.execute('SELECT * FROM native_core_commits ORDER BY rowid')] == cores
-        assert durable_snapshot(resumed.store) == ledger
-        assert not resumed.automatic.status(sid)['discovery_complete']
-        assert not resumed.drivers and len(resumed.natives) == 1
+            current = [tuple(r) for r in db.execute('SELECT * FROM native_core_commits ORDER BY rowid')]
+        assert len(current) == 3 and current[0] == cores[0]
+        page = json.loads(resumed.automatic.list(sid))['candidates']
+        assert len(page) == 5 and not resumed.drivers
+        proofs = [json.loads(resumed.automatic.read_candidate(r['candidate_key'], proof=True)['proof']) for r in page]
+        restart = [d for d in proofs if d.get('schema') == core.RESTART_SCHEMA]
+        assert len(restart) == 1
+        assert restart[0]['commits'][0]['scope']['run'] == old_run
+        assert restart[0]['query']['capture_run'] == resumed.capture.core_seams.run
+        with pytest.raises(Unavailable, match='core_seam_capture_domain_changed'):
+            core.geometry(restart[0]['commits'], core.SCHEMA)
+        assert resumed.automatic.status(sid)['discovery_complete']
+        drain_automatic(resumed)
+        assert sum(d.starts for d in resumed.drivers) == 5
+        assert {r['state'] for r in result_rows(resumed.store)} == {'committed'}
 
 
 @pytest.mark.parametrize('failure', [Unavailable('core_seam_source_pcm_mismatch'), OSError('synthetic core read failure')])
