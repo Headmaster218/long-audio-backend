@@ -19,10 +19,11 @@ PRIMARY_FIELDS = ('id', 'chunk_id', 'start', 'end', 'text', 'raw_text',
                   'asr_backend', 'timestamp_kind', 'confidence',
                   'speaker_local_id', 'speaker_window_start')
 HASH = re.compile(r'[a-f0-9]{64}\Z')
-POLICY = {'schema': 'current-unified-transcript-v2', 'rate': RATE,
+POLICY = {'schema': 'current-unified-transcript-v3', 'rate': RATE,
     'block_frames': BLOCK_FRAMES, 'selection': 'exact-adjacent-path-whole-primary-v1',
     'rank': ['maximum-support-frames', 'fewer-jobs', 'seam-ordinary-start-archive-hash'],
     'moss_scope': 'durable-automatic-timestamped-recording-only',
+    'moss_timestamps': 'legacy-strict-or-validated-support-end-intersection-10ms-v1',
     'discovery': 'indexed-both-source-aliases-all-states',
     'revision': 'transactional-session-counter-and-primary-change-v1',
     'extent': 'session-timeline-and-last-disjoint-chunk',

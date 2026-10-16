@@ -37,7 +37,7 @@ def prior_fields(raw, monkeypatch, **kwargs):
 
 @pytest.mark.parametrize('start,end,reason', [
     ('2', '1', 'end_not_after_start'), ('1', '1', 'end_not_after_start'),
-    ('0', '20.000000000000004', 'end_after_support'),
+    ('0', '20.010000000000004', 'end_after_support'),
     ('30', '25', 'end_not_after_start'), ('30', '31', 'end_after_support'),
     ('9'*400, '0', 'nonfinite'), ('0', '9'*400, 'nonfinite')])
 def test_exact_rejection_reason_priority_and_untimed_parity(start, end, reason, monkeypatch):
@@ -119,12 +119,12 @@ def test_total_at_phrase_capacity_is_exact_and_result_is_bounded():
 
 @pytest.mark.parametrize('origin', [0, 160000, 2**53 - 1 - 320000])
 def test_support_relative_coordinates_never_gain_origin_or_clamping(origin, monkeypatch):
-    raw = '[0][S1]accepted[20][0][S1]rejected[20.000000000000004]'
+    raw = '[0][S1]accepted[20][0][S1]rejected[20.010000000000004]'
     source = support(origin)
     result = project(raw, support=source)
     assert result['diagnostic_phrases'][0]['end'] == 20
     pair = result['rejected_timestamps']['pairs'][0]
-    assert pair['start'] == 0 and pair['end'] == 20.000000000000004
+    assert pair['start'] == 0 and pair['end'] == 20.010000000000004
     assert result['rejected_timestamps']['support_duration_seconds'] == 20
     assert adapter.encoded(without_diagnostic(result)) == adapter.encoded(
         prior_fields(raw, monkeypatch, support=source))

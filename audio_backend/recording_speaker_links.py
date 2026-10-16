@@ -16,6 +16,7 @@ import struct
 
 from .embedding_space import validate_space
 from .native_lexical_alternatives import SourceSupport
+from .moss_handy_adapter import TIMESTAMP_POLICY, validate_timestamp_policy, validate_adjustment
 from .native_owned_cells import (Unavailable, RATE, CELL_PCM_BYTES, MAX_TURNS,
     canonical, digest, integer, text, sha, validate_document, float32_digest,
     intersect_mapping)
@@ -144,6 +145,10 @@ def _phrases(projection, support):
             or projection.get('aborted') is not False
             or projection.get('speaker_identity_valid') is not False):
         raise Unavailable('speaker_link_projection_unusable')
+    try:
+        validate_timestamp_policy(projection)
+    except ValueError as exc:
+        raise Unavailable('speaker_link_projection_unusable') from exc
     alternative = projection.get('alternative')
     if (type(alternative) is not dict or alternative.get('provider') != 'moss'
             or alternative.get('outcome') != 'returned'
@@ -180,11 +185,16 @@ def _phrases(projection, support):
         tags[tag] = slot
         if len(tags) > 8 or len(set(tags.values())) != len(tags):
             raise Unavailable('speaker_link_phrase_slot')
+        try:
+            adjusted = validate_adjustment(projection, phrase, support)
+        except (ValueError, TypeError) as exc:
+            raise Unavailable('speaker_link_phrase_geometry') from exc
         result.append({'phrase_index': index, 'moss_tag': tag,
-            'inward': (support.start_frame + math.ceil(a * RATE),
-                       support.start_frame + math.floor(b * RATE)),
-            'outward': (support.start_frame + math.floor(a * RATE),
-                        support.start_frame + math.ceil(b * RATE))})
+            'probe_source_eligible': adjusted is None,
+            'inward': (support.start_frame + (math.ceil(a * RATE) if adjusted is None else adjusted[0]),
+                       support.start_frame + (math.floor(b * RATE) if adjusted is None else adjusted[2])),
+            'outward': (support.start_frame + (math.floor(a * RATE) if adjusted is None else adjusted[1]),
+                        support.start_frame + (math.ceil(b * RATE) if adjusted is None else adjusted[2]))})
     return result
 
 
@@ -234,8 +244,16 @@ def capture_candidates(support, pcm, proof, projection, job_id, result_sha256, s
         'space_id': space_id, 'session_id': session_id,
         'native_scope_id': responses[0][0], 'proof': doc, 'nodes': [], 'outcomes': [],
         'witnesses': _witnesses(responses, proof_sha256)}
+    if 'timestamp_policy' in projection:
+        # Input-policy attribution is included in the batch/projection hashes;
+        # existing scoring policy and historical batches are not rewritten.
+        batch['timestamp_policy'] = projection['timestamp_policy']
     crops = []
     for phrase in phrases:
+        if not phrase['probe_source_eligible']:
+            batch['outcomes'].append({'phrase_index': phrase['phrase_index'],
+                'status': 'timestamp_adjusted_unverified'})
+            continue
         eligible = {}
         for scope, turns, lo, hi in responses:
             for turn in turns:
@@ -246,7 +264,7 @@ def capture_candidates(support, pcm, proof, projection, job_id, result_sha256, s
                 blockers = [other['original'] for _, observations, _, _ in responses
                     for other in observations if other['label'] != turn['label']]
                 blockers += [other['outward'] for other in phrases
-                    if other['moss_tag'] != phrase['moss_tag']]
+                    if other['moss_tag'] != phrase['moss_tag'] or not other['probe_source_eligible']]
                 for left, right in _subtract((a, b), blockers):
                     left += EROSION_FRAMES; right -= EROSION_FRAMES
                     if right - left >= CROP_FRAMES:
@@ -309,6 +327,8 @@ def validate_batch(batch, *, require_vectors=True):
     if type(batch) is not dict or batch.get('schema') != SCHEMA or batch.get('policy_sha256') != POLICY_SHA256:
         raise Unavailable('speaker_link_batch_policy')
     _bounded(batch, MAX_VECTOR_BATCH_BYTES)
+    if 'timestamp_policy' in batch and batch['timestamp_policy'] != TIMESTAMP_POLICY:
+        raise Unavailable('speaker_link_batch_policy')
     for key in ('result_sha256', 'proof_sha256', 'projection_sha256', 'space_id', 'support_id',
                 'batch_sha256', 'native_scope_id'):
         digest(batch.get(key))
@@ -364,6 +384,9 @@ def validate_batch(batch, *, require_vectors=True):
         if outcome.get('status') == 'candidate':
             matching = [n for n in nodes if n['phrase_index'] == index]
             if len(matching) != 1 or matching[0]['node_id'] != outcome.get('node_id'):
+                raise Unavailable('speaker_link_outcome_binding')
+        elif outcome.get('status') == 'timestamp_adjusted_unverified':
+            if batch.get('timestamp_policy') != TIMESTAMP_POLICY or index in indexes:
                 raise Unavailable('speaker_link_outcome_binding')
         elif outcome.get('status') not in ('insufficient_clean_support', 'ambiguous_native_label', 'crop_capacity'):
             raise Unavailable('speaker_link_outcome_status')

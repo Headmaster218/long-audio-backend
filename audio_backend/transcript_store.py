@@ -10,6 +10,7 @@ from urllib.parse import quote
 from . import transcript_contract as c
 from .moss_automatic import TABLE as AUTO, POLICY as AUTO_POLICY
 from .moss_result_store import TABLE as HISTORY
+from .moss_handy_adapter import validate_timestamp_policy, validate_adjustment
 from .native_owned_cells import POLICY_SHA256 as CELL_POLICY
 from .native_owned_core_seams import POLICY_SHA256 as SEAM_POLICY, RESET_POLICY_SHA256
 from .native_lexical_alternatives import SourceSupport
@@ -290,6 +291,7 @@ class TranscriptStore:
                 raise ValueError()
             phrases = result['diagnostic_phrases']
             if type(phrases) is not list or len(phrases) > 256: raise ValueError()
+            validate_timestamp_policy(result)
             projected, labels = [], set()
             for index, phrase in enumerate(phrases):
                 a, b, label, text = (phrase[key] for key in ('start', 'end', 'speaker_local_id', 'raw_text'))
@@ -299,6 +301,7 @@ class TranscriptStore:
                         or type(text) is not str or not text.strip()
                         or phrase['timing_scope'] != 'support-relative-model-unverified'
                         or phrase['speaker_identity_valid'] is not False): raise ValueError()
+                adjustment = validate_adjustment(result, phrase, support)
                 labels.add(label)
                 if len(labels) > 8: raise ValueError()
                 projected.append({'source_ref': f"m.{row['job_id']}.{row['result_sha256']}.{index}",
@@ -308,6 +311,11 @@ class TranscriptStore:
                     'speaker_scope': [row['job_id'], row['result_sha256'], label],
                     'word_times': None, 'timestamp_quality': 'model_generated_unverified',
                     'complete_content': False, 'eos': None})
+                if adjustment is not None:
+                    # The intersection ends at the exact already-placed support
+                    # frame, not a second rounded addition of model seconds.
+                    projected[-1]['session_end'] = end / c.RATE
+                    projected[-1]['timestamp_adjustment'] = dict(phrase['timestamp_adjustment'])
             errors = result['schema_errors']
             if type(errors) is not list: raise ValueError()
         except (KeyError, TypeError, ValueError, OverflowError):

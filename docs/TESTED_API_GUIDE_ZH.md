@@ -1,3 +1,9 @@
+# dev33 增量状态：有证据的有限末端调整
+
+新结果使用 `timestamp_policy=support-end-intersection-10ms-v1`，并提供精确整数 `timestamp_adjusted_phrase_count`。只有原始数值满足 `0 ≤ start < support_end < end ≤ support_end + 0.010` 且整数帧交集非空时，才可保留 `timestamp_adjustment` 并将展示终点取为支持末端。记录包含原始时间字符串和数值、完整支持末端身份、固定原因及未经验证的时间质量；不能把字段缺失理解为允许调整。
+
+当前 transcript 采用新策略摘要，旧 ordinary/audit 游标失效，应从无游标请求重新开始。原存档字节和真旧结果的严格解释不变；新字段被部分去除、未知策略或不完整绑定均拒绝。调整短语不作为 speaker probe 来源，但其占用区间仍参与重叠排除。详见 [dev33 说明](DEV33_ENDPOINT_POLICY_ZH.md)。下方历史章节保留对应版本范围。
+
 # dev32 增量状态：清理后的存储等待
 
 自动文本的 `storage_pending=true` 可以表示清理已完成，但冻结的结果或失败 outcome 尚未获得精确持久确认。Worker 在申请下一次可选执行之前提供存储维护机会；该路径不启动模型、不重新复制输入、不申请新租约。仍需观察同一自动文本 owner、清理与 probe 状态、采样/身份故障及新鲜完整 health，不能仅凭 `storage_pending` 把任意阻塞当作健康等待。持续未确认直到客户端截止时间仍属于未完成。
