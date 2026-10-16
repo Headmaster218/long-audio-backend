@@ -275,7 +275,7 @@ class SamplerDiagnosticTests(unittest.TestCase):
              patch.object(mod.psutil, 'process_iter', return_value=[caller, child]):
             permit.observe_primary()
         item = permit.status()['primary_observation_failure']
-        self.assertEqual(item['phase'], 'selected_recheck')
+        self.assertEqual(item['phase'], 'selected_identity')
         self.assertEqual(item['reason'], 'process_identity_uncertain')
         self.assertEqual(permit._unavailable, 'primary_ownership_uncertain')
 

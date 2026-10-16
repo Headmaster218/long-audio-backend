@@ -70,6 +70,7 @@ class ProcessSample:
     caller_rss: int
     available: int
     disk_free: int
+    confirmed_exits: int = 0
 
 
 def service_sample(settings, *, clock=time.monotonic, known=()):
@@ -120,15 +121,42 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
         if caller.pid not in rows:
             raise AdmissionError('caller_identity_uncertain')
         identities = {}
-        total = caller_rss = 0
+        total = caller_rss = confirmed_exits = 0
         for pid in selected:
             if clock() >= deadline:
                 raise AdmissionError('process_sample_budget')
             parent, process = rows[pid]
             phase = 'selected_identity'
             created = process.create_time()
+            # Establish identity and the enumerated parent before an RSS exit
+            # can be treated as absence. Original handles are never reaped here.
+            if (process.ppid() != parent or
+                    pid in remembered and remembered[pid] != created):
+                raise AdmissionError('process_identity_uncertain')
+            if pid == caller.pid and created != caller_created:
+                raise AdmissionError('caller_identity_uncertain')
             phase = 'selected_rss'
-            rss = process.memory_info().rss
+            try:
+                rss = process.memory_info().rss
+            except psutil.NoSuchProcess as error:
+                if type(error) is not psutil.NoSuchProcess or pid == caller.pid:
+                    raise
+                ancestor, seen = parent, {pid}
+                while ancestor != caller.pid:
+                    if ancestor not in selected or ancestor in seen:
+                        raise error
+                    seen.add(ancestor)
+                    ancestor = rows[ancestor][0]
+                # One independent lookup, no retry or is_running() shortcut:
+                # any returned PID (including reuse) remains uncertain.
+                try:
+                    psutil.Process(pid)
+                except psutil.NoSuchProcess as confirmation:
+                    if type(confirmation) is not psutil.NoSuchProcess:
+                        raise
+                    confirmed_exits += 1
+                    continue
+                raise
             phase = 'selected_recheck'
             if process.create_time() != created or process.ppid() != parent or type(rss) is not int or rss < 0:
                 raise AdmissionError('process_identity_uncertain')
@@ -146,7 +174,7 @@ def service_sample(settings, *, clock=time.monotonic, known=()):
         free = shutil.disk_usage(settings.data_dir).free
         if clock() >= deadline:
             raise AdmissionError('process_sample_budget')
-        return ProcessSample(identities, total, caller_rss, available, free)
+        return ProcessSample(identities, total, caller_rss, available, free, confirmed_exits)
     except AdmissionError as error:
         _sample_observation(error, phase)
         raise
@@ -205,6 +233,8 @@ class NativeExecutionPermit:
         self._closed = False
         self._unavailable = None
         self._primary_observation_failure = None
+        self._confirmed_sample_exits = 0
+        self._sample_exit_confirmation = None
         self._configuration_current = lambda: True
 
     @contextmanager
@@ -313,11 +343,20 @@ class NativeExecutionPermit:
                    else self._sampler(self.settings))
         if len(current.identities) > MAX_IDENTITIES:
             raise AdmissionError('process_identity_budget')
+        if type(current.confirmed_exits) is not int or not 0 <= current.confirmed_exits <= MAX_IDENTITIES:
+            raise AdmissionError('process_identity_uncertain')
         with self._condition:
             for pid, row in current.identities.items():
                 if pid in self._observed and self._observed[pid] != row[0]:
                     raise AdmissionError('process_identity_uncertain')
             self._observed = {pid:row[0] for pid,row in current.identities.items()}
+            if current.confirmed_exits:
+                if self._sample_exit_confirmation is None:
+                    self._sample_exit_confirmation = {'phase': 'selected_rss',
+                        'reason': 'independent_absence_confirmed',
+                        'confirmed_exits': current.confirmed_exits}
+                self._confirmed_sample_exits = min(2**31 - 1,
+                    self._confirmed_sample_exits + current.confirmed_exits)
         return current
 
     def mark_unavailable(self, reason='primary_ownership_uncertain'):
@@ -540,6 +579,10 @@ class NativeExecutionPermit:
                 'automatic_turn_pending': self._handoff is not None,
                 'optional_owner_kind': self._optional_kind,
                 'optional_admission_unavailable': self._unavailable,
+                # Observation only; never substitutes for original wait/cleanup.
+                'confirmed_sample_exits': self._confirmed_sample_exits,
+                'sample_exit_confirmation': (dict(self._sample_exit_confirmation)
+                    if self._sample_exit_confirmation is not None else None),
                 'primary_observation_failure': (dict(self._primary_observation_failure)
                     if self._primary_observation_failure is not None else None),
                 'admission_closed': self._closed}

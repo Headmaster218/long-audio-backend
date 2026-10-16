@@ -1,4 +1,4 @@
-# Automatic timestamped-recording MOSS dispatch (dev25)
+# Automatic timestamped-recording MOSS dispatch (dev26)
 
 This release adds a finite, default-off automatic dispatch
 path. It retains eligible overlap intents during primary processing and gives
@@ -311,3 +311,18 @@ model observations above do not qualify the new scheduling policy or its real
 reload cost. The first-failure ownership diagnostic records only fixed phase,
 reason and exception categories plus already-observed scalar facts. It does not
 clear the sticky fail-closed latch or infer a historical failure cause.
+
+## Dev26 process-sample exit boundary
+
+Only exact `NoSuchProcess` at the selected RSS read can be treated as absence,
+after non-caller identity, parent and census ancestry validation and one fresh
+independent lookup that also reports exact absence. Any returned PID, zombie,
+access denial or uncertain observation remains refused. Other selected
+surviving descendants are still counted. Original handles, positive wait and
+descendant cleanup obligations remain unchanged; no ownership latch is cleared.
+
+The additive `confirmed_sample_exits` counter and copied first
+`sample_exit_confirmation` status record describe successful observations only,
+with no cleanup meaning or logging callback. See
+[DEV26_PROCESS_EXIT_SAMPLING_ZH.md](DEV26_PROCESS_EXIT_SAMPLING_ZH.md) for the
+preserved failed actual run and separately qualified model-free tests.
