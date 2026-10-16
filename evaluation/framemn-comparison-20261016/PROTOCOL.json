@@ -1,0 +1,238 @@
+{
+ "schema":"framemn10-comparative-pilot-protocol-public-v1",
+ "date":"2026-10-16",
+ "purpose":"Fixed exploratory FrameMN10 comparison on the four previously exposed DCASE mixtures; no new blind test or acceptance benchmark.",
+ "selection_and_scoring_fixed_before_framemn_predictions":true,
+ "historical_split_names_only":true,
+ "model":{
+  "name":"FrameMN10 strong, checkpoint 1",
+  "source_repository":"https://github.com/fschmid56/PretrainedSED",
+  "source_commit":"1aa47e482f7e89904cba2338999345025d8b4e36",
+  "source_at_commit":"https://github.com/fschmid56/PretrainedSED/tree/1aa47e482f7e89904cba2338999345025d8b4e36",
+  "checkpoint_name":"frame_mn10_strong_1.pt",
+  "checkpoint_url":"https://github.com/fschmid56/PretrainedSED/releases/download/v0.0.1/frame_mn10_strong_1.pt",
+  "checkpoint_bytes":15537114,
+  "checkpoint_sha256":"4a0fe320d5369987b772394c51881fb20a602967e6842f72f3e5c8181065ece7",
+  "hash_scope":"Local first-seen byte identity, not an upstream publisher-signed digest or proof of training-set independence.",
+  "provider":"cpu",
+  "dtype":"float32",
+  "batch_size":1,
+  "eval_and_inference_mode":true,
+  "sigmoid_applications":1,
+  "strong_output_shape_per_call":[
+   447,
+   250
+  ],
+  "output_frame_seconds":0.04,
+  "input_context_seconds":10,
+  "causal":false,
+  "timing_caveat":"40 ms is output spacing, not 40 ms latency or demonstrated physical onset/offset accuracy. Ten-second context and whole-file smoothing are noncausal.",
+  "code_license":"MIT",
+  "code_license_url":"https://github.com/fschmid56/PretrainedSED/blob/1aa47e482f7e89904cba2338999345025d8b4e36/LICENSE",
+  "checkpoint_license":"No separate explicit checkpoint-weight license statement was verified. Internal research use only; no bundled weights or redistribution authorization."
+ },
+ "runtime":{
+  "python_minor":"3.12",
+  "packages":{
+   "filelock":"4.2.0",
+   "fsspec":"2026.9.0",
+   "Jinja2":"3.1.6",
+   "MarkupSafe":"3.0.4",
+   "mpmath":"1.3.0",
+   "networkx":"3.7",
+   "numpy":"1.26.4",
+   "pillow":"12.3.0",
+   "pip":"25.0.1",
+   "setuptools":"84.0.0",
+   "sympy":"1.14.0",
+   "torch":"2.14.1+cpu",
+   "torchaudio":"2.11.0+cpu",
+   "torchvision":"0.29.1+cpu",
+   "typing_extensions":"4.16.0"
+  },
+  "dependency_note":"Observed evaluation environment pins, not a claim of compatibility with other versions or platforms."
+ },
+ "dataset":{
+  "name":"DCASE 2016 Task 2 synthetic office-sound mixtures",
+  "official_task_url":"https://dcase.community/challenge2016/task-sound-event-detection-in-synthetic-audio",
+  "train_development_provider":"https://archive.org/details/dcase2016_task2_train_dev",
+  "evaluation_provider":"https://archive.org/details/dcase2016_task2_test_public",
+  "attribution":"DCASE 2016 Task 2; test-package credits Grégoire Lafay, IRCCYN, Ecole Centrale de Nantes, France.",
+  "archives":[
+   {
+    "name":"dcase2016_task2_train_dev.zip",
+    "bytes":125450464,
+    "sha256":"789563e5631974cfa4d219cc7978f0059587e13b7fb84d4eb95ae1a8da7fece1"
+   },
+   {
+    "name":"dcase2016_task2_test_public.zip",
+    "bytes":328618451,
+    "sha256":"615d930026cf89de695057f9a9e48d77c07325059daf742c3dcc2ab780d0af8f"
+   }
+  ],
+  "filename_ebr":"All four filenames have literal EBR token 0; inconsistent upstream dB-range prose is not reinterpreted.",
+  "license_discrepancy":"The official-linked evaluation provider declares CC BY 4.0; the DCASE datalist says CC BY 3.0. The test-package README supplies task attribution but no resolving license statement.",
+  "provider_metadata_url":"https://archive.org/metadata/dcase2016_task2_test_public",
+  "datalist_url":"https://dcase-repo.github.io/dcase_datalist/datasets/sounds/dcase2016_task2_eval.html",
+  "use":"Internal research evaluation only. Dataset license ambiguity remains unresolved; no audio is redistributed or relicensed."
+ },
+ "fixtures":[
+  {
+   "id":"dev_1_ebr_0_nec_2_poly_0",
+   "historical_split":"calibration",
+   "duration_seconds":120,
+   "audio_sha256":"637bf56e5145ac388325803ab08e15fa2e1485f9afa22c6a572ad74c432faa22",
+   "annotation_sha256":"3e6ceeec1fce1855a3ea7cf4a09b37b351207cafb9ae8ef498a1a145982e078b",
+   "resampled_float32_sha256":"7f912c73a303e482f30182aa8b3c956c6ab7996e35f914b5bb2c9acf2867746b",
+   "physical_door_reference_count":4
+  },
+  {
+   "id":"dev_1_ebr_0_nec_4_poly_1",
+   "historical_split":"calibration",
+   "duration_seconds":120,
+   "audio_sha256":"9b793a9746174fae42241bd3a6443e429b4e3cfef192c677518f31073a730214",
+   "annotation_sha256":"4c84faf6bbe7e69f77b21d3d20611558d9c5e4211383771973dec08030ecf1a2",
+   "resampled_float32_sha256":"97e4b1eb30838d66e642c37727cb3adbe7f6410b06b6baf3cf58022f3e5b10d8",
+   "physical_door_reference_count":8
+  },
+  {
+   "id":"test_1_ebr_0_nec_2_poly_0",
+   "historical_split":"heldout",
+   "duration_seconds":120,
+   "audio_sha256":"50e13b5c893d240ddc05b088fea732106ac7264a49cfa66f444e8d6d94c3883c",
+   "annotation_sha256":"81e43ae77dea82370ff635f963e4a7d081a2c94b62e7ca45024d40f8dd5a794e",
+   "resampled_float32_sha256":"b4f674642a388913d33a69b795bdd9b6adcf250bc28da3ef5f614d52d7c51d78",
+   "physical_door_reference_count":4
+  },
+  {
+   "id":"test_1_ebr_0_nec_4_poly_1",
+   "historical_split":"heldout",
+   "duration_seconds":120,
+   "audio_sha256":"5453d74881c26e86b3e6ef25774948e4b93730a6011e18dd8a92abf2b25dedbe",
+   "annotation_sha256":"4280650b131a8f6aa0227298cf8cab24b9017fb35217fe4e7acfb308686c6d6e",
+   "resampled_float32_sha256":"ebb26da503f61aac9301ebc670fca987c0bee23c1e10b4520e701ccfbc2a94db",
+   "physical_door_reference_count":8
+  }
+ ],
+ "exposure":{
+  "all_four_previously_exposed":true,
+  "historical_names":"calibration and heldout identify the prior comparison partitions. All four recordings had already been analyzed with Zipformer before this FrameMN pilot.",
+  "not_a_new_blind_test":true,
+  "independence":"Official evaluation source-pool separation is described by DCASE; independence between selected mixtures and absence of pretrained-model exposure are not established. The development mixtures share sources.",
+  "no_replacement_or_threshold_search":true
+ },
+ "preprocessing":{
+  "input":"Full 120-second mono 44100 Hz 16-bit PCM files, unchanged timeline.",
+  "resampling_output":"Mono 16000 Hz little-endian float32, 1,920,000 samples per file.",
+  "resampling_filter":"aresample=resampler=swr:filter_size=32:phase_shift=10:linear_interp=1:exact_rational=1:cutoff=0.97:dither_method=none",
+  "resampling_caveat":"The prior fixed FFmpeg PCM conversion is reused. The upstream demo uses librosa; resampler parity with librosa is not claimed.",
+  "official_frontend":{
+   "source_url":"https://github.com/fschmid56/PretrainedSED/blob/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_mn/Frame_MN_wrapper.py",
+   "implementation_url":"https://github.com/fschmid56/PretrainedSED/blob/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_passt/preprocess.py",
+   "preemphasis":[
+    -0.97,
+    1.0
+   ],
+   "hann_window_samples":400,
+   "hann_periodic":false,
+   "fft_samples":512,
+   "hop_samples":160,
+   "centered_power_stft":true,
+   "kaldi_mel_bands":128,
+   "eval_fmin_hz":0,
+   "eval_fmax_hz":7000,
+   "minimum_before_log":1e-07,
+   "normalization":"(log(mel_power) + 4.5) / 5.0",
+   "unchanged_official_float32_cpu_frontend":true
+  }
+ },
+ "decision":{
+  "threshold":0.2,
+  "comparison":"strictly greater than",
+  "uncalibrated_global_threshold":true,
+  "rationale":"Predeclared middle value of the official demo, not optimized on these results.",
+  "upstream_inference_source":"https://github.com/fschmid56/PretrainedSED/blob/1aa47e482f7e89904cba2338999345025d8b4e36/inference.py",
+  "views":{
+   "primary_median9":{
+    "median_frames":9,
+    "median_window_seconds":0.36,
+    "boundary_mode":"reflect",
+    "scope":"Each class independently over the concatenated 3000-frame full-file trace; threshold after smoothing. Do not smooth per 10-second chunk or after a class maximum."
+   },
+   "diagnostic_raw":{
+    "median_frames":1,
+    "scope":"Same scores and threshold, without smoothing; diagnostic only, not a selected better configuration."
+   }
+  },
+  "broad_door_label_indices":{
+   "Door":134,
+   "Knock":228,
+   "Slam":333,
+   "Sliding door":335,
+   "Cupboard open or close":120
+  },
+  "broad_door_aggregation":"Union of independently decoded Door, Knock, Slam, Sliding door, and Cupboard open or close supports.",
+  "physical_reference":"Annotated knock plus doorslam only; narrower than the broad product category.",
+  "separate_class_mapping":{
+   "Knock":"DCASE knock",
+   "Slam":"DCASE doorslam; cross-taxonomy mapping, not a dedicated Door slam class",
+   "Door":"DCASE knock plus doorslam, descriptive Door-only view"
+  }
+ },
+ "metrics":{
+  "segment":"Half-open 1s bins; any positive overlap; pooled TP/FP/FN/TN and P/R/F1.",
+  "covered_reference":"One count per annotated knock or doorslam with strictly positive overlap against union predicted broad-door support.",
+  "false_positive_support_seconds":"Measure(predicted door union minus annotated door union).",
+  "negative_truth":"Complete knock/doorslam annotations define physical-door-negative time only. Such time may contain other sounds or valid broad product-category sounds.",
+  "precision":"TP / (TP + FP); null if denominator is zero.",
+  "recall":"TP / (TP + FN); null if denominator is zero.",
+  "f1":"2*TP / (2*TP + FP + FN); null if denominator is zero.",
+  "pooling":"Sum confusion counts across files, then calculate rates; do not average per-file rates.",
+  "covered_reference_caveat":"Any positive overlap counts a reference once; this is not a one-to-one event match, IoU threshold, event-count accuracy, or precise onset/offset measure."
+ },
+ "execution":{
+  "model_loads":1,
+  "calls_per_file":12,
+  "files":4,
+  "total_calls":48,
+  "distinct_audio_seconds":480,
+  "chunk_seconds":10,
+  "chunk_hop_seconds":10,
+  "samples_per_chunk":160000,
+  "frames_per_file":3000,
+  "padding_needed":false,
+  "policy":"Run all four fixed files regardless of intermediate quality; no outcome-dependent gate, retuning, fallback or baseline reexecution.",
+  "score_shape":[
+   447,
+   250
+  ],
+  "score_float32_payload_bytes_per_call":447000,
+  "score_serialized_bytes_per_call":447128
+ },
+ "declared_resource_limits":{
+  "new_disk_bytes":2147483648,
+  "score_and_report_output_bytes":67108864,
+  "sampled_execution_plus_monitor_rss_bytes":2147483648,
+  "address_space_bytes":4294967296,
+  "combined_ram_bytes":6442450944,
+  "reserved_other_memory_bytes":805306368,
+  "outer_seconds":600,
+  "work_seconds":540,
+  "cleanup_seconds":60,
+  "scope":"Declared run limits; address-space and RAM limits are not measurements of continuous peak usage."
+ },
+ "comparison":"Prior Zipformer baseline uses 5-second windows/2.5-second hop; prior experimental arm uses 2-second windows/1-second hop. Both use threshold 0.25 and clip-level support semantics; FrameMN has a different model, label space, threshold, postprocessing and temporal support. This is not a controlled threshold-only or window-only ablation.",
+ "limitations":[
+  "Four synthetic office mixtures, one filename EBR token, previously exposed data.",
+  "Coverage is lenient any-overlap reference coverage, not matched event accuracy.",
+  "No precise onset/offset, causal streaming, natural-quiet, music, driving, subway, six-target or device-generalization conclusion.",
+  "No API persistence test, Windows execution or Vulkan execution in this pilot.",
+  "No quality or production-default acceptance. Zero observed false positives does not establish generalizable precision.",
+  "No audio, transcript, model weights, full class traces or score matrices included."
+ ],
+ "public_package":{
+  "maximum_files":4,
+  "maximum_total_bytes":49152,
+  "test_scope":"Standard-library-only arithmetic, pooling, fixed protocol and reported-limit checks. No inference, model/frontend parity, audio decoding, raw-score validation or new empirical evaluation."
+ }
+}
