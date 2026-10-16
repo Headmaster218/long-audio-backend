@@ -53,6 +53,8 @@ def test_delete_failure_does_not_leave_live_chunks_without_sources(tmp_path):
     with store.db() as db:
         assert db.execute('SELECT COUNT(*) FROM chunks WHERE session_id=?', (sid,)).fetchone()[0] == 0
         tombstone = dict(db.execute('SELECT * FROM sessions WHERE id=?', (sid,)).fetchone())
+        revision = tombstone.pop('transcript_revision')
+        assert type(revision) is int and 0 <= revision < 1 << 63
         assert tombstone == {'id': sid, 'name': '', 'identity_group': '', 'created': 0., 'timeline_end': 0., 'deleted': 1, 'processing_mode': 'legacy'}
         assert db.execute('SELECT COUNT(*) FROM result_changes WHERE session_id=?', (sid,)).fetchone()[0] == 0
         assert db.execute('SELECT attempts FROM session_file_cleanup').fetchone()[0] == 1

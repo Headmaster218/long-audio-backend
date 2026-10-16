@@ -183,6 +183,10 @@ class Store:
                     if column not in columns:
                         kind='INTEGER' if column=='identity_profile_revision' else 'REAL' if column=='speaker_window_start' or (table=='events' and column=='onset_precision_seconds') else 'TEXT'
                         db.execute(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
+            # Canonical segment columns and all source-mapping schemas now
+            # exist. Install revision counters/triggers in this same transaction.
+            from .transcript_revision import init_schema as init_transcript_revision
+            init_transcript_revision(db)
             verified_identity.install_lifecycle(db)
             from .fragment_http import init_schema
             init_schema(db)
@@ -236,7 +240,9 @@ class Store:
         with self.db() as db:
             row = db.execute('SELECT * FROM sessions WHERE id=? AND deleted=0',(sid,)).fetchone()
             if not row: raise KeyError('Session not found')
-            return dict(row)
+            result = dict(row)
+            result.pop('transcript_revision', None)
+            return result
 
     def chunk(self, cid):
         with self.db() as db:

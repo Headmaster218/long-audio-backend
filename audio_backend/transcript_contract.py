@@ -10,6 +10,8 @@ from .native_owned_support_cache import ReadError
 RATE, BLOCK_FRAMES = 16000, 960000
 MAX_FRAME = (1 << 53) - 1
 MAX_BINDINGS, MAX_BINDING_BYTES = 1024, 4 * 1024**2
+AUDIT_BINDINGS = 64
+MAX_SEQUENCE = (1 << 63) - 1
 MAX_PRIMARY, MAX_PRIMARY_BYTES = 128, 256 * 1024
 MAX_RESULTS, MAX_RESULT_BYTES, MAX_RESULTS_BYTES = 16, 256 * 1024, 2 * 1024**2
 MAX_RESPONSE_BYTES, MAX_METADATA_BYTES = 256 * 1024, 16384
@@ -17,10 +19,14 @@ PRIMARY_FIELDS = ('id', 'chunk_id', 'start', 'end', 'text', 'raw_text',
                   'asr_backend', 'timestamp_kind', 'confidence',
                   'speaker_local_id', 'speaker_window_start')
 HASH = re.compile(r'[a-f0-9]{64}\Z')
-POLICY = {'schema': 'current-unified-transcript-v1', 'rate': RATE,
+POLICY = {'schema': 'current-unified-transcript-v2', 'rate': RATE,
     'block_frames': BLOCK_FRAMES, 'selection': 'exact-adjacent-path-whole-primary-v1',
     'rank': ['maximum-support-frames', 'fewer-jobs', 'seam-ordinary-start-archive-hash'],
     'moss_scope': 'durable-automatic-timestamped-recording-only',
+    'discovery': 'indexed-both-source-aliases-all-states',
+    'revision': 'transactional-session-counter-and-primary-change-v1',
+    'extent': 'session-timeline-and-last-disjoint-chunk',
+    'placement_audit': 'separate-last-examined-keyset-v1',
     'block_crossing': 'unresolved-alternative', 'word_times': None,
     'primary_frames': 'outward-envelope-snap-within-1e-6-frame',
     'primary_context_seconds': 5,
@@ -127,6 +133,29 @@ def parse_cursor(token, sid):
                 or type(value['block']) is not int or not 0 <= value['block'] <= MAX_FRAME // BLOCK_FRAMES
                 or type(value['revision']) is not str or HASH.fullmatch(value['revision']) is None
                 or cursor(sid, value['block'], value['revision']) != token):
+            raise ValueError()
+        return value
+    except (ValueError, UnicodeError, ReadError):
+        fail('invalid_transcript_cursor', 409)
+
+
+def audit_cursor(sid, after, revision):
+    return base64.urlsafe_b64encode(encoded({'policy': POLICY_HASH, 'session': sid,
+        'view': 'binding-placement-audit-v1', 'after': after, 'revision': revision})).decode('ascii').rstrip('=')
+
+
+def parse_audit_cursor(token, sid):
+    if type(token) is not str or not 1 <= len(token) <= 512 or re.fullmatch(r'[A-Za-z0-9_-]+', token) is None:
+        fail('invalid_transcript_cursor', 409)
+    try:
+        raw = base64.b64decode(token + '=' * (-len(token) % 4), altchars=b'-_', validate=True)
+        value = parse_json(raw, 384)
+        if (type(value) is not dict or set(value) != {'policy', 'session', 'view', 'after', 'revision'}
+                or value['policy'] != POLICY_HASH or value['session'] != sid
+                or value['view'] != 'binding-placement-audit-v1'
+                or type(value['after']) is not int or not 0 <= value['after'] <= MAX_SEQUENCE
+                or type(value['revision']) is not str or HASH.fullmatch(value['revision']) is None
+                or audit_cursor(sid, value['after'], value['revision']) != token):
             raise ValueError()
         return value
     except (ValueError, UnicodeError, ReadError):

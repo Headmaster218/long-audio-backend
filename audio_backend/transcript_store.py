@@ -1,4 +1,4 @@
-"""One bounded read-only primary-database snapshot; no index, replay or model."""
+"""Bounded indexed transcript reads in one query-only SQLite snapshot."""
 from contextlib import contextmanager
 import hashlib
 import math
@@ -53,7 +53,7 @@ class TranscriptStore:
             db.execute('PRAGMA busy_timeout=0')
             db.execute('BEGIN')
             # First read is the visibility/tombstone linearization point.
-            session = db.execute('SELECT deleted,timeline_end FROM sessions WHERE id=?', (sid,)).fetchone()
+            session = db.execute('SELECT deleted,timeline_end,transcript_revision FROM sessions WHERE id=?', (sid,)).fetchone()
             if session is None or session['deleted']:
                 c.fail('session_not_found', 404)
             check()
@@ -66,7 +66,7 @@ class TranscriptStore:
             if db is not None: db.close()
 
     @staticmethod
-    def _primary(db, sid, block):
+    def _chunks(db, sid, block):
         start, end = block * c.BLOCK_FRAMES / c.RATE, (block + 1) * c.BLOCK_FRAMES / c.RATE
         lookback, lookahead = max(0., start - CONTEXT_SECONDS), end + CONTEXT_SECONDS
         # Chunk timeline intervals are disjoint. Seek the predecessor rather
@@ -77,7 +77,6 @@ class TranscriptStore:
             WHERE session_id=? AND timeline_start>? AND timeline_start<?
             ORDER BY timeline_start LIMIT ?''', (sid, lookback, lookahead, MAX_CHUNKS + 1)))
         if len(chunks) > MAX_CHUNKS: c.fail('unresolved_capacity')
-        lengths, total = [], 0
         previous_end = None
         for chunk in chunks:
             a, duration = chunk['timeline_start'], chunk['duration']
@@ -86,6 +85,30 @@ class TranscriptStore:
                 c.fail('transcript_chunk_geometry_unresolved')
             previous_end = a + duration
             c.primary_frame(previous_end, end=True)
+        # A predecessor before a gap contributes no support or ASR context.
+        return [chunk for chunk in chunks if chunk['timeline_start'] + chunk['duration'] > lookback]
+
+    @staticmethod
+    def _extent(db, sid, session):
+        # Each valid support ends inside its last source chunk. Published chunk
+        # intervals are disjoint, so the last indexed chunk bounds every placed
+        # support, even if session.timeline_end is lagging. No duration cap or
+        # session-wide binding traversal is needed.
+        extent = c.primary_frame(session['timeline_end'], end=True)
+        tail = db.execute('''SELECT timeline_start,duration FROM chunks INDEXED BY chunk_timeline
+            WHERE session_id=? ORDER BY timeline_start DESC LIMIT 1''', (sid,)).fetchone()
+        if tail is not None:
+            c.primary_frame(tail['timeline_start'])
+            c.primary_frame(tail['duration'], end=True)
+            if tail['duration'] <= 0: c.fail('transcript_chunk_geometry_unresolved')
+            extent = max(extent, c.primary_frame(tail['timeline_start'] + tail['duration'], end=True))
+        return extent
+
+    @staticmethod
+    def _primary(db, sid, block, chunks):
+        start, end = block * c.BLOCK_FRAMES / c.RATE, (block + 1) * c.BLOCK_FRAMES / c.RATE
+        lengths, total = [], 0
+        for chunk in chunks:
             rows = db.execute(f'''SELECT s.id,{_PRIMARY_LENGTH} AS bytes FROM segments s INDEXED BY segments_chunk
                 WHERE s.chunk_id=? AND s.start<? AND s.end>? ORDER BY s.start,s.id LIMIT ?''',
                 (chunk['id'], end, start, c.MAX_PRIMARY + 1 - len(lengths))).fetchall()
@@ -108,21 +131,17 @@ class TranscriptStore:
             values.append(evidence)
         return sorted(values, key=lambda item: (item['start_frame'], item['canonical_asr']['id']))
 
+    _DESCRIPTOR_SQL = f'''SELECT a.seq,a.candidate_key,a.kind,a.state,a.reason,a.job_id,
+        a.jobs_epoch,a.request_sha256,a.proof_sha256,a.cell_id,a.cid1,a.cid2,
+        length(a.binding) AS binding_bytes,
+        h.session_id AS history_sid,h.original_jobs_epoch AS history_epoch,
+        h.canonical_request_sha256 AS history_request,h.idempotency_key AS history_key,h.archive_seq,h.schema_version,
+        h.state AS history_state,h.result_sha256,length(h.result_json) AS result_bytes,
+        length(h.metadata_json) AS metadata_bytes
+        FROM {AUTO} a {{index}} LEFT JOIN {HISTORY} h ON h.job_id=a.job_id {{where}}'''
+
     @staticmethod
-    def _descriptors(db, sid):
-        # No payload is selected before every row count and binding length has
-        # passed. The unique job index supplies bounded archive point lookups.
-        rows = db.execute(f'''SELECT a.seq,a.candidate_key,a.kind,a.state,a.reason,a.job_id,
-            a.jobs_epoch,a.request_sha256,a.proof_sha256,a.cell_id,a.cid1,a.cid2,
-            length(a.binding) AS binding_bytes,
-            h.session_id AS history_sid,h.original_jobs_epoch AS history_epoch,
-            h.canonical_request_sha256 AS history_request,h.idempotency_key AS history_key,h.archive_seq,h.schema_version,
-            h.state AS history_state,h.result_sha256,length(h.result_json) AS result_bytes,
-            length(h.metadata_json) AS metadata_bytes
-            FROM {AUTO} a INDEXED BY auto_session_seq
-            LEFT JOIN {HISTORY} h ON h.job_id=a.job_id WHERE a.sid=? ORDER BY a.seq LIMIT ?''',
-            (sid, c.MAX_BINDINGS + 1)).fetchall()
-        if len(rows) > c.MAX_BINDINGS: c.fail('unresolved_capacity')
+    def _check_descriptor_lengths(rows):
         total = 0
         for row in rows:
             size = row['binding_bytes']
@@ -130,6 +149,34 @@ class TranscriptStore:
             total += size
         if total > c.MAX_BINDING_BYTES: c.fail('unresolved_capacity')
         return [dict(row) for row in rows]
+
+    @classmethod
+    def _descriptors(cls, db, sid, chunks):
+        # Seek both aliases in every state. Deduplicate before binding loads,
+        # exact placement, intersection, and the 16-result admission check.
+        # No session-wide intent query or result/binding payload scan is used.
+        sequences = set()
+        for chunk in chunks:
+            for alias in (1, 2):
+                rows = db.execute(f'''SELECT seq FROM {AUTO} INDEXED BY auto_cid{alias}
+                    WHERE cid{alias}=? AND sid=? LIMIT ?''',
+                    (chunk['id'], sid, c.MAX_BINDINGS + 1)).fetchall()
+                sequences.update(row['seq'] for row in rows)
+                if len(sequences) > c.MAX_BINDINGS: c.fail('unresolved_capacity')
+        query = cls._DESCRIPTOR_SQL.format(index='', where='WHERE a.seq=? AND a.sid=?')
+        rows = [db.execute(query, (seq, sid)).fetchone() for seq in sorted(sequences)]
+        return cls._check_descriptor_lengths(rows)
+
+    @staticmethod
+    def _revision(db, sid, session):
+        counter = session['transcript_revision']
+        if type(counter) is not int or counter < 0:
+            c.fail('transcript_revision_unavailable')
+        change = db.execute('''SELECT cursor FROM result_changes INDEXED BY result_changes_session
+            WHERE session_id=? ORDER BY cursor DESC LIMIT 1''', (sid,)).fetchone()
+        return c.digest({'policy': c.POLICY_HASH, 'session': sid,
+            'primary_change_max': change[0] if change else 0,
+            'transcript_revision': counter, 'timeline_end': session['timeline_end']})
 
     @staticmethod
     def _binding(db, sid, row):
@@ -160,6 +207,9 @@ class TranscriptStore:
                 or cores[0][0] > support[0] or cores[-1][1] < support[1]
                 or len(cores) == 2 and cores[0][1] != cores[1][0]):
             c.fail('automatic_binding_invalid')
+        indexed_aliases = [row['cid1']] + ([row['cid2']] if row['cid2'] is not None else [])
+        if [alias.get('chunk_id') if type(alias) is dict else None for alias in aliases] != indexed_aliases:
+            c.fail('automatic_binding_invalid')
         offsets, seen, at, cancelled = [], set(), support[0], False
         for part, alias in zip(parts, aliases):
             if (type(part) is not dict or set(part) != {'source_sha256', 'source_frames', 'source_start',
@@ -177,11 +227,11 @@ class TranscriptStore:
             if cid in seen or cid not in (row['cid1'], row['cid2']): c.fail('automatic_binding_invalid')
             seen.add(cid)
             source = db.execute('''SELECT c.session_id,c.digest,c.timeline_start,c.duration,c.status,
-                w.frames,w.receipt_id,w.capture_start_frame,b.capture_origin_frame
+                w.frames,w.receipt_id,w.capture_start_frame,b.capture_origin_frame,b.session_id AS batch_sid
                 FROM chunks c LEFT JOIN recording_work w ON w.chunk_id=c.id
                 LEFT JOIN recording_batches b ON b.id=w.batch_id WHERE c.id=?''', (cid,)).fetchone()
             if (source is None or source['session_id'] != sid or source['frames'] is None
-                    or source['capture_origin_frame'] is None
+                    or source['capture_origin_frame'] is None or source['batch_sid'] != sid
                     or source['digest'] != part['source_sha256'] or source['frames'] != part['source_frames']
                     or source['receipt_id'] != alias['receipt_sha256']
                     or c.frame(source['duration']) != part['source_frames']
@@ -275,19 +325,20 @@ class TranscriptStore:
             if block != 0 and block != token['block']: c.fail('invalid_transcript_cursor', 409)
             block = token['block']
         with self.snapshot(sid) as (db, session, check):
-            rows = self._descriptors(db, sid)
-            descriptors, intersecting, notices = [], [], []
+            revision = self._revision(db, sid, session)
+            if token is not None and token['revision'] != revision:
+                c.fail('transcript_revision_changed', 409)
+            chunks = self._chunks(db, sid, block)
+            rows = self._descriptors(db, sid, chunks)
+            intersecting, notices = [], []
             start, end = block * c.BLOCK_FRAMES, (block + 1) * c.BLOCK_FRAMES
-            extent = c.primary_frame(session['timeline_end'], end=True)
+            extent = self._extent(db, sid, session)
             for row in rows:
                 check()
-                descriptor = {key: row[key] for key in ('candidate_key', 'state', 'reason', 'job_id',
-                    'jobs_epoch', 'request_sha256', 'archive_seq', 'history_state', 'result_sha256', 'schema_version')}
                 try:
                     binding, a, b, cancelled = self._binding(db, sid, row)
-                    descriptor.update(start_frame=a, end_frame=b, source_cancelled=cancelled)
-                    extent = max(extent, b)
                     if a < end and start < b:
+                        extent = max(extent, b)
                         if row['history_state'] == 'committed':
                             intersecting.append((row, binding, a, b, cancelled))
                         else:
@@ -297,24 +348,14 @@ class TranscriptStore:
                                 'complete_content': False, 'eos': None})
                 except ReadError as exc:
                     if exc.reason == 'unresolved_capacity': raise
-                    descriptor['mapping_status'] = exc.reason
-                    if block == 0:
-                        notices.append({'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
-                            'status': 'unsupported_unplaced', 'reason': exc.reason, 'home_block': 0})
-                descriptor['binding_sha256'] = row.get('binding_sha256')
-                descriptors.append(descriptor)
-            change = db.execute('''SELECT cursor FROM result_changes INDEXED BY result_changes_session
-                WHERE session_id=? ORDER BY cursor DESC LIMIT 1''', (sid,)).fetchone()
-            revision = c.digest({'policy': c.POLICY_HASH, 'session': sid,
-                'primary_change_max': change[0] if change else 0, 'timeline_end': session['timeline_end'],
-                'automatic': sorted(descriptors, key=lambda row: row['candidate_key'])})
-            if token is not None and token['revision'] != revision:
-                c.fail('transcript_revision_changed', 409)
+                    notices.append({'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
+                        'status': 'unsupported_unplaced', 'reason': exc.reason,
+                        'scope': 'page_local_source_alias'})
             if len(intersecting) > c.MAX_RESULTS: c.fail('unresolved_capacity')
             sizes = [row['result_bytes'] for row, *_ in intersecting]
             if any(type(n) is not int or not 1 <= n <= c.MAX_RESULT_BYTES for n in sizes) or sum(sizes) > c.MAX_RESULTS_BYTES:
                 c.fail('unresolved_capacity')
-            primary = self._primary(db, sid, block)
+            primary = self._primary(db, sid, block, chunks)
             candidates = [self._result(db, sid, *item)[0] for item in intersecting]
             check()
             value = project(block, primary, candidates, notices)
@@ -322,8 +363,48 @@ class TranscriptStore:
                 reading_status='provisional_display_preference', complete_content=False, eos=None,
                 history_scope='automatic_timestamped_recording_only',
                 unsupported_history='unbound_manual_and_legacy_history_is_not_placed',
+                unplaced_history_check='not_performed_by_time_page',
+                binding_audit_path=f'/sessions/{sid}/transcript/binding-audit',
                 next_cursor=c.cursor(sid, block + 1, revision) if end < extent else None)
             return c.response(value)
+
+    def binding_audit(self, sid, *, cursor=None):
+        """Keyset-paged placement audit, independent of temporal discovery.
+
+        Only unplaced bindings are emitted. The cursor always advances past the
+        last EXAMINED row, including an empty output page. A time page cannot
+        establish that missing/moved source history does not exist.
+        """
+        token = c.parse_audit_cursor(cursor, sid) if cursor is not None else None
+        after = token['after'] if token is not None else 0
+        with self.snapshot(sid) as (db, session, check):
+            revision = self._revision(db, sid, session)
+            if token is not None and token['revision'] != revision:
+                c.fail('transcript_revision_changed', 409)
+            query = self._DESCRIPTOR_SQL.format(index='INDEXED BY auto_session_seq',
+                where='WHERE a.sid=? AND a.seq>? ORDER BY a.seq LIMIT ?')
+            rows = db.execute(query, (sid, after, c.AUDIT_BINDINGS + 1)).fetchall()
+            more = len(rows) > c.AUDIT_BINDINGS
+            rows = self._check_descriptor_lengths(rows[:c.AUDIT_BINDINGS])
+            unplaced = []
+            for row in rows:
+                check()
+                try:
+                    self._binding(db, sid, row)
+                except ReadError as exc:
+                    if exc.reason == 'unresolved_capacity': raise
+                    unplaced.append({'seq': row['seq'], 'candidate_key': row['candidate_key'],
+                        'job_id': row['job_id'], 'automatic_state': row['state'],
+                        'history_state': row['history_state'], 'status': 'unsupported_unplaced',
+                        'reason': exc.reason})
+            last = rows[-1]['seq'] if rows else after
+            check()
+            return c.response({'session_id': sid, 'revision': revision, 'policy_sha256': c.POLICY_HASH,
+                'audit_scope': 'automatic_binding_placement_only',
+                'result_schema_checked': False, 'source_current': 'not_checked',
+                'unplaced_bindings': unplaced, 'examined': len(rows),
+                'last_examined_seq': last, 'has_more': more,
+                'next_cursor': c.audit_cursor(sid, last, revision) if more else None})
 
     def evidence(self, sid, ref):
         kind, ident, sha, index = c.parse_reference(ref)

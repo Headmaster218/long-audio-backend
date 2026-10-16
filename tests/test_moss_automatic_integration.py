@@ -26,8 +26,8 @@ from audio_backend.native_owned_cell_store import Budget
 from audio_backend.native_owned_support_cache import ReadError
 from test_moss_result_store import archive_fixture, observed_connections, snapshot
 from test_native_owned_cell_jobs import CellJobsFixture
-from test_native_owned_compact_gc import fresh_gc
-from test_native_owned_receipt_gc import fresh_receipts
+from test_native_owned_compact_gc import fresh_gc, rows_hash
+from test_native_owned_receipt_gc import fresh_receipts, PRIMARY_TABLES
 from test_same_epoch_core_seams import factory as core_factory
 
 
@@ -338,11 +338,26 @@ def test_both_pending_intent_roots_protect_real_receipt_gc(fresh_receipts, state
     assert all(f.source_rows()[cid] == before[cid] for cid in ids[:2])
     assert f.preservation() == preserved
     with f.store.db() as db:
+        session_before = [dict(row) for row in db.execute('SELECT * FROM sessions ORDER BY id')]
+        other_tables = tuple(name for name in PRIMARY_TABLES if name != 'sessions')
+        primary_before = rows_hash(db, other_tables)
         row = db.execute(f'SELECT {auto.COLUMNS} FROM {auto.TABLE} WHERE candidate_key=?', (intent['candidate_key'],)).fetchone()
         auto._terminal(db, row, 'no_result', 'synthetic_terminal')
+        session_after = [dict(row) for row in db.execute('SELECT * FROM sessions ORDER BY id')]
+        assert len(session_after) == len(session_before)
+        for old, new in zip(session_before, session_after):
+            old_revision, new_revision = old.pop('transcript_revision'), new.pop('transcript_revision')
+            assert type(old_revision) is int and 0 <= old_revision < 1 << 63
+            assert type(new_revision) is int and new_revision == old_revision + int(old['id'] == f.sid)
+            assert new == old  # Every existing semantic session field remains exact.
+        assert rows_hash(db, other_tables) == primary_before
+    # The explicit automatic state/reason transition invalidates transcript
+    # cursors. GC itself must preserve even that new counter byte-for-byte.
+    after_terminal = f.preservation()
+    assert after_terminal[1:] == preserved[1:]
     f.reset_scan(); f.cycle(6)
     assert set(before) - set(f.source_rows()) == set(ids[:26])
-    assert f.preservation() == preserved
+    assert f.preservation() == after_terminal
 
 
 @pytest.mark.parametrize('failure', ['native_missing', 'owner_not_ready', 'scope_missing', 'generation_revoked'])

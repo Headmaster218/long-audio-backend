@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from audio_backend import transcript_contract as c, transcript_store as ts, transcript_http as http
-from audio_backend import moss_automatic as auto, moss_result_store as history
+from audio_backend import moss_automatic as auto, moss_result_store as history, transcript_revision
 from audio_backend.app import _NativeSupportReadLifetime, _assign_native_read_lease, create_app
 from audio_backend.native_lexical_alternatives import SourceSupport
 from audio_backend.native_owned_support_cache import ReadError, ReadResponseBudget
@@ -44,11 +44,13 @@ class Fixture:
                 CREATE TABLE recording_batches(id TEXT PRIMARY KEY,session_id TEXT,capture_origin_frame INTEGER);
                 CREATE TABLE recording_work(chunk_id TEXT PRIMARY KEY,batch_id TEXT,frames INTEGER,
                     receipt_id TEXT,capture_start_frame INTEGER);
+                CREATE INDEX fixture_recording_work_batch ON recording_work(batch_id);
             ''')
             auto.init_schema(db)
             history.init_schema(db)
-            db.execute('INSERT INTO sessions VALUES(?,0,120.0)', (SID,))
-            db.execute('INSERT INTO sessions VALUES(?,0,120.0)', ('other',))
+            transcript_revision.init_schema(db)
+            db.execute('INSERT INTO sessions(id,deleted,timeline_end) VALUES(?,0,120.0)', (SID,))
+            db.execute('INSERT INTO sessions(id,deleted,timeline_end) VALUES(?,0,120.0)', ('other',))
             db.execute('INSERT INTO recording_batches VALUES(?,?,?)', ('batch', SID, 32000))
             db.execute('INSERT INTO result_changes(session_id) VALUES(?)', (SID,))
         self.chunk('chunk', 0, 21)
@@ -147,6 +149,8 @@ class Fixture:
 
     def page(self, **kwargs): return json.loads(self.reader.page(SID, **kwargs))
 
+    def audit(self, **kwargs): return json.loads(self.reader.binding_audit(SID, **kwargs))
+
 
 @pytest.fixture
 def data(tmp_path): return Fixture(tmp_path / 'synthetic.sqlite3')
@@ -168,9 +172,13 @@ def test_models_disabled_real_app_registration_and_auth(tmp_path, monkeypatch):
     monkeypatch.setattr(Worker, 'start', lambda *_: pytest.fail('worker must not start'))
     app = create_app(Settings(data_dir=tmp_path, start_worker=False, api_key='synthetic-token'))
     with TestClient(app) as client:
-        assert client.get('/sessions/missing/transcript').status_code == 401
+        for suffix in ('/transcript', '/transcript/binding-audit'):
+            assert client.get('/sessions/missing' + suffix).status_code == 401
         headers = {'Authorization':'Bearer synthetic-token'}
-        sid = client.post('/sessions', json={}, headers=headers).json()['id']
+        session = client.post('/sessions', json={}, headers=headers).json()
+        assert 'transcript_revision' not in session
+        sid = session['id']
+        assert 'transcript_revision' not in client.get(f'/sessions/{sid}', headers=headers).json()
         result = client.get(f'/sessions/{sid}/transcript', headers=headers)
         assert result.status_code == 200
         assert result.json()['reading'] == []
@@ -268,7 +276,8 @@ def test_invalid_source_binding_is_explicit_unplaced(data,mutation):
         else: db.execute(f'UPDATE {auto.TABLE} SET binding=? WHERE candidate_key=?',(b'{}',job['key']))
     value = data.page()
     assert value['selected_runs'] == []
-    assert value['notices'][0]['status'] == 'unsupported_unplaced'
+    assert data.audit()['unplaced_bindings'][0]['status'] == 'unsupported_unplaced'
+    assert value['unplaced_history_check'] == 'not_performed_by_time_page'
 
 
 def test_actual_support_not_core_envelope_controls_selection(data):
@@ -366,7 +375,7 @@ def test_tombstone_hides_page_and_both_kinds_of_evidence(data,api):
     primary = data.page()['baseline_reading'][0]['source_ref']
     with data.db() as db: db.execute('UPDATE sessions SET deleted=1 WHERE id=?',(SID,))
     client, _, _ = api
-    for suffix in ('', '/evidence/'+primary, f"/evidence/m.{job['jid']}.{job['sha']}.0"):
+    for suffix in ('', '/binding-audit', '/evidence/'+primary, f"/evidence/m.{job['jid']}.{job['sha']}.0"):
         assert client.get(f'/sessions/{SID}/transcript'+suffix).status_code == 404
 
 

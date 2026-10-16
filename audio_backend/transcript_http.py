@@ -11,7 +11,7 @@ from .transcript_contract import MAX_FRAME, BLOCK_FRAMES
 from .transcript_store import TranscriptStore
 
 
-def parse_query(raw, *, detail=False):
+def parse_query(raw, *, detail=False, audit=False):
     if type(raw) is not bytes or len(raw) > 1024: raise ReadError(409, 'invalid_query')
     try: text = raw.decode('ascii')
     except UnicodeError: raise ReadError(409, 'invalid_query') from None
@@ -22,6 +22,7 @@ def parse_query(raw, *, detail=False):
         if field.count('=') != 1: raise ReadError(409, 'invalid_query')
         name, value = field.split('=')
         if name not in ('block', 'cursor') or name in result: raise ReadError(409, 'invalid_query')
+        if audit and name != 'cursor': raise ReadError(409, 'invalid_query')
         if name == 'block':
             if re.fullmatch(r'(?:0|[1-9][0-9]{0,10})', value) is None:
                 raise ReadError(409, 'invalid_query')
@@ -39,16 +40,21 @@ def register_routes(app, store, assign_lease, get_response_budget):
     # continue to cover buffers after the synchronous reader leaves this gate.
     staging = threading.Lock()
 
-    def read(request, sid, source_ref=None):
+    def read(request, sid, source_ref=None, *, audit=False):
         lease, admitted = None, False
         try:
             _identifier(sid)
-            query = parse_query(request.scope.get('query_string', b''), detail=source_ref is not None)
+            query = parse_query(request.scope.get('query_string', b''), detail=source_ref is not None, audit=audit)
             if not staging.acquire(blocking=False): raise ReadError(503, 'read_capacity')
             admitted = True
             lease = get_response_budget().reserve_jobs_response('result')
             if not assign_lease(request.scope, lease): raise ReadError(503, 'response_closed')
-            body = reader.page(sid, **query) if source_ref is None else reader.evidence(sid, source_ref)
+            if audit:
+                body = reader.binding_audit(sid, **query)
+            elif source_ref is None:
+                body = reader.page(sid, **query)
+            else:
+                body = reader.evidence(sid, source_ref)
             done = request.scope.get('_native_support_read_done')
             if done is not None and done.is_set(): raise ReadError(503, 'response_closed')
             return Response(body, media_type='application/json', headers=PRIVATE)
@@ -64,6 +70,10 @@ def register_routes(app, store, assign_lease, get_response_budget):
     @app.get('/sessions/{sid}/transcript')
     def transcript(request: Request, sid: str):
         return read(request, sid)
+
+    @app.get('/sessions/{sid}/transcript/binding-audit')
+    def binding_audit(request: Request, sid: str):
+        return read(request, sid, audit=True)
 
     @app.get('/sessions/{sid}/transcript/evidence/{source_ref}')
     def evidence(request: Request, sid: str, source_ref: str):

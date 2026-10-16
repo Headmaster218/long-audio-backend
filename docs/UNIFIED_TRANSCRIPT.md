@@ -1,15 +1,21 @@
-# Current unified transcript, version 1
+# Current unified transcript, version 2 (indexed reads)
 
-Two read-only GET endpoints expose a bounded current display projection:
+Three read-only GET endpoints expose a bounded current display projection:
 
 - `/sessions/{sid}/transcript?block=0`
 - `/sessions/{sid}/transcript/evidence/{source_ref}`
+- `/sessions/{sid}/transcript/binding-audit`
 
 The existing bearer-token access policy, session deletion/tombstone checks,
 private/no-store headers, and shared response lease pool apply. Reads work with
 models, MOSS execution and the worker disabled. They do not start inference,
 read audio files, download assets, create tables, backfill data, or replay the
-change log. No transcript index or materialized transcript is persisted.
+change log. No materialized transcript, geometry backfill, or new table is
+persisted. Startup adds one integer session revision and versioned transactional
+invalidation triggers after the source schemas exist. Fresh synthetic fixtures
+qualify the indexed reads and invalidation contract; no historical database
+adoption is qualified. See [dev21 qualification](DEV21_INDEXED_TRANSCRIPT_QUALIFICATION.md)
+for exact test scope, retained earlier failures and capacity limits.
 
 ## Reading contract
 
@@ -48,6 +54,14 @@ beyond the bound or an invalid timeline is explicitly unresolved, not clipped.
 Historical/configuration-invalid data outside these publication invariants is
 unsupported by this current projection.
 
+Time-page candidate discovery uses that same bounded chunk set and separately
+seeks `auto_cid1` and `auto_cid2`, in every automatic state. Candidate sequences
+are deduplicated before descriptor lengths, exact binding validation and
+half-open support intersection. Both indexes are necessary: a seam's first
+alias can precede the chunk seek while its second alias still intersects the
+page. A predecessor ending before the context window is discarded, so a distant
+seek across a gap does not inspect that predecessor's unrelated bindings.
+
 Only durable automatic timestamped-recording bindings place MOSS history.
 Each binding must match its immutable candidate hash, known selection policy,
 session, source aliases, receipt IDs, source hashes, source lengths, and actual
@@ -59,8 +73,12 @@ The source parts must exactly cover the support. Core envelopes are checked but
 never substituted for actual support. Cancelled sources remain historical
 alternatives and are ineligible for the unified reading. Unbound manual or
 legacy history is explicitly outside placement scope; no coordinate guess is
-made. Invalid/unmapped automatic bindings appear as `unsupported_unplaced`
-notices with home block zero. These are not current source attestations.
+made. A time page can report `unsupported_unplaced` only for aliases found by
+its local seek. It explicitly returns
+`unplaced_history_check: not_performed_by_time_page` and `binding_audit_path`.
+No page, including block zero, certifies the absence of missing/moved-source
+history. The separate audit below enumerates such automatic bindings. None of
+these checks is a current source/audio attestation.
 
 ### Fixed selection policy
 
@@ -99,14 +117,74 @@ Use `next_cursor` as the next request's `cursor` parameter. An explicit initial
 computed revision. It is an opaque consistency token, not an authorization token.
 No transaction is retained between requests.
 
-Each page uses one read-only SQLite snapshot. Revision includes the maximum
-session change cursor, timeline extent, and sorted automatic descriptors with
-the actual binding hash, state/reason, job identity, archive state/schema and
-result hash, plus validated mapping/cancellation status. It excludes mutable
-queue age and update wall clocks. An older accepted archive row committing later
-therefore changes the revision even if the maximum archive sequence is unchanged.
+Each time page and audit page uses one read-only SQLite snapshot. Revision
+includes the maximum session primary-change cursor, `sessions.transcript_revision`,
+timeline extent and policy hash. The indexed primary-change high-water read is
+unchanged; no change-feed trigger definition is modified. No payload hashes,
+timestamps or maximum archive sequence are scanned to derive the revision.
+The counter is incremented inside the originating write transaction:
+
+- Automatic intent insertion/deletion and relevant binding/state/job updates:
+  old and new intent session owners
+- Retained-history insertion/deletion and relevant state/schema/identity/result
+  updates: old and new history session owners, plus retained automatic owners
+  found through the existing unique job index
+- Canonical primary segment insertion/deletion/updates: old and new chunk session
+  owners, covering cross-session moves even though the existing public feed
+  resolves the new owner on updates; mutable person assignments are excluded
+- Chunk insertion/deletion and identity/session/digest/geometry/status updates:
+  old and new chunk session owners, plus retained automatic owners through both
+  alias indexes, including committed results after cancellation or source moves
+- Recording-work insertion/deletion and source/receipt/coordinate updates:
+  old and new chunk owners and retained automatic owners through both alias indexes
+- Recording-batch insertion/deletion and identity/session/origin updates:
+  old and new batch owners, work-chunk owners and retained automatic owners, using
+  the existing batch-position and both alias indexes; deletions inspect owners
+  before foreign-key cascades
+
+Unchanged values and unrelated automatic wall clocks, proofs and accounting
+writes do not increment the counter. Retained result payload/metadata changes do.
+An earlier reserved archive row committing later invalidates continuation even
+if the maximum archive sequence is unchanged. Reverting a source mapping also
+invalidates earlier cursors. Counter overflow rolls back the complete write
+transaction, rather than wrapping, becoming a floating-point value or publishing
+without invalidation. Counter and exact versioned triggers install together in
+the existing initialization transaction after automatic/history/recording schema
+initialization and the additive canonical segment-column migration. Partial or
+incompatible revision schema fails closed.
+
 An incompatible cursor returns HTTP 409 `transcript_revision_changed`; a new
 first-page request obtains the new view. Identical retries are deterministic.
+No read transaction is retained between requests.
+
+A reverse `chunk_timeline` seek with `LIMIT 1` bounds pagination extent by the
+maximum of the session timeline and final published chunk end. Exact placement
+proves a support ends no later than its last source alias's chunk end; disjoint
+published chunk intervals make the final chunk end the maximum. This keeps a
+late valid support reachable even if `timeline_end` lags, without traversing
+bindings. The final chunk uses the same finite/nonnegative outward primary
+frame envelope as primary geometry, preserving non-grid legacy upload durations;
+automatic support placement still requires exact 16 kHz coordinates. Unsupported
+historical overlapping chunk timelines are not silently repaired.
+
+### Binding-placement audit
+
+`GET /sessions/{sid}/transcript/binding-audit` examines at most 64 automatic
+bindings in `auto_session_seq` order, regardless of state, using `sid` and
+`seq > after` keyset predicates. It emits only `unplaced_bindings`; it does not
+load retained result payloads or claim full result-schema validation. Each output
+row includes its candidate/job identity, states and explicit placement failure.
+The audit scope excludes unbound manual and legacy result history.
+
+Follow `next_cursor` until `has_more` is false. The cursor binds the same session,
+policy and snapshot revision as time pages but has a distinct audit view. Its
+position is the last EXAMINED sequence, never the last emitted failure or number
+of returned rows. Therefore an empty `unplaced_bindings` page can still require
+continuation; gaps in sequence numbers do not skip rows or repeat a page.
+`examined` and `last_examined_seq` make progress explicit. A changed revision
+requires restarting the audit. Only traversal to the end of one unchanged
+revision checks every automatic binding for placement; a single empty audit
+page says nothing about unexamined history.
 
 ## Exact evidence
 
@@ -130,11 +208,13 @@ for selection; page projection performs those extra checks. Wrong hash/state is
 
 ## Fixed resource bounds and failures
 
-- At most 1,024 automatic binding descriptors across the entire session and
-  4 MiB cumulative binding bytes, each binding at most 4 KiB. Every page checks
-  this session-wide limit; pagination cannot bypass it. Larger or arbitrarily
-  long automatic sessions may require the existing primary and result-history
-  endpoints instead.
+- At most 1,024 distinct page-local automatic binding descriptors and 4 MiB
+  cumulative binding bytes, each binding at most 4 KiB. This is a bounded local
+  candidate-work limit, not a session-wide scan on every time page.
+- Audit pages examine at most 64 bindings plus one metadata-only lookahead row;
+  all existing SQL/time/response bounds also apply to this separate endpoint.
+- Automatic admission remains separately limited to 1,024 rows per session and
+  4,096 globally. This change does not raise or solve those admission limits.
 - At most 128 nearby chunks and 128 intersecting whole primary units, with
   256 KiB cumulative primary text-field projection
 - At most 16 intersecting committed MOSS payloads, 256 KiB each and 2 MiB
@@ -147,11 +227,15 @@ for selection; page projection performs those extra checks. Wrong hash/state is
 - One query-only read transaction, zero busy wait, 250,000 SQLite VM steps and
   a 0.75-second cooperative read deadline
 
-SQL uses `chunk_timeline`, `segments_chunk`, `auto_session_seq`, the archive's
-unique job index and `result_changes_session`. Payload lengths are checked before
-materialization. Binding blobs are processed one at a time; no audio/proof blobs
-are selected. No full change-history traversal or unbounded overlap closure is
-performed. A storage limit returns an explicit 503 `unresolved_capacity` (or a
+Time-page SQL uses `chunk_timeline`, `segments_chunk`, both `auto_cid1` and
+`auto_cid2`, intent sequence point lookups, the archive's unique job index and
+`result_changes_session`. Only the separate keyset audit uses `auto_session_seq`.
+Payload lengths are checked before materialization. Binding blobs are processed
+one at a time; no audio/proof blobs are selected. There is no full-session binding
+payload scan per time page, full change-history traversal or unbounded overlap
+closure. A long legacy single-chunk primary lookup can still scan many earlier
+segment rows: the unchanged VM/deadline budget must explicitly refuse excessive
+work; no invented maximum upload duration or silent truncation is introduced. A storage limit returns an explicit 503 `unresolved_capacity` (or a
 bounded storage/read-capacity error), never a selected reading from a truncated
 candidate set. The 60-second block width is fixed: this API has no smaller-window
 retry. A dense block can fail even when adjacent blocks are readable. Clients may
