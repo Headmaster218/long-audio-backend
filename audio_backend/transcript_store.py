@@ -357,6 +357,8 @@ class TranscriptStore:
                 if not automatic.qualify_bounded_document(db,doc,read_budget,None,record=record):raise Unavailable('automatic_source_unplaced')
                 roots=doc['dependency_roots'];commitments=[*originals,*doc['commits']]
                 expected=doc['inventories'];origin=float.fromhex(expected['origin'])
+                # Rebuild the stored authority scope, never upgrade old proofs
+                # or prune discovery before finding new intersecting parents.
                 saved=bounded_primary_snapshot(db,sid,origin,expected['scan_frames'],read_budget)
                 actual=lexical_snapshot(sid,saved['rows'],saved['sources'],origin,
                     scan_frames=expected['scan_frames'],schema=expected['schema'])

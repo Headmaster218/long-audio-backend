@@ -427,7 +427,8 @@ def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(
         bound = c_target(h); doc = json.loads(bound['proof'])
         assert bound['candidate_key'] == owner_key and bound['target_body'] == original_target
         assert bound['plan_phase'] == 'bound' and doc['schema'] == core.BOUNDED_SCHEMA
-        assert doc['inventories']['schema'] == core.COMPACT_INVENTORY_SCHEMA
+        assert doc['inventories']['schema'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
+        assert doc['inventories']['scope_policy'] == core.SUPPORT_LOCAL_SCOPE_POLICY
         assert 'atoms' not in doc['inventories']
         assert all(set(parent) == {'row'} for parent in doc['inventories']['parents'])
         assert len(bound['proof']) + len(bound['target_body']) <= 65536
@@ -627,23 +628,24 @@ def test_waiter_maintenance_refusal_does_not_prevent_primary_claim(bounded_app_f
 
 def test_compact_inventory_old_validator_refuses_before_owner_admission(bounded_app_factory, monkeypatch):
     from audio_backend import native_owned_cells as cells
-    from test_bounded_core_support import source52_inventory_oracle
+    from test_bounded_core_support import source60_inventory_oracle
     with bounded_app_factory() as h:
         chunks, _ = advance_to_waiter(h)
         assert process_primary(h) == chunks[-1]['id']
         row = c_target(h); doc, support, parts = cells.validate_document(row['proof'])
-        assert doc['inventories']['schema'] == core.COMPACT_INVENTORY_SCHEMA
-        oracle = source52_inventory_oracle(); anchor = core.anchor(doc['commits'][-1])
+        assert doc['inventories']['schema'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
+        assert doc['inventories']['scope_policy'] == core.SUPPORT_LOCAL_SCOPE_POLICY
+        oracle = source60_inventory_oracle(); anchor = core.anchor(doc['commits'][-1])
         submitted = []; submit = h.owner.submit
         def observed_submit(kind, payload, *args, **kwargs):
             if kind == 'publish_auto':submitted.append(kind)
             return submit(kind, payload, *args, **kwargs)
         monkeypatch.setattr(h.owner, 'submit', observed_submit)
-        # The pinned source52 validator refuses this exact candidate before a
+        # The pinned source60 validator refuses this exact candidate before a
         # Cell can reach the owner. This does not simulate an entire old binary.
         with monkeypatch.context() as old:
             old.setattr(core, 'validate_bounded_document', oracle['validate_bounded_document'])
-            with pytest.raises(Unavailable, match='^core_seam_shape$'):
+            with pytest.raises(Unavailable, match='^bounded_inventory_policy$'):
                 cell = cells.Cell(support, parts, row['proof'], fixture_pcm(*C_SUPPORT), h.sid,
                     anchor['chunk_id'], anchor['start'], anchor['end'], anchor['sha256'])
                 h.owner.submit('publish_auto', (row['candidate_key'], cell))
@@ -662,10 +664,18 @@ def test_compact_inventory_each_fresh_boundary_rejects_current_row_or_source_mut
         chunks, _ = advance_to_waiter(h)
         assert process_primary(h) == chunks[-1]['id']
         row = c_target(h); doc, support, parts = cells.validate_document(row['proof'])
-        assert doc['inventories']['schema'] == core.COMPACT_INVENTORY_SCHEMA
+        assert doc['inventories']['schema'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
+        assert doc['inventories']['scope_policy'] == core.SUPPORT_LOCAL_SCOPE_POLICY
         anchor = core.anchor(doc['commits'][-1])
         cell = cells.Cell(support, parts, row['proof'], fixture_pcm(*C_SUPPORT), h.sid,
             anchor['chunk_id'], anchor['start'], anchor['end'], anchor['sha256'])
+        # A new outside-support parent is discovered by the same fresh query
+        # but cannot revoke the selected whole-parent closure.
+        with h.store.db() as db:
+            cid=doc['commits'][0]['part']['chunk_id']
+            db.execute("INSERT INTO segments(chunk_id,start,end,text,speaker_status) VALUES(?,0.,.5,'outside support','unknown')",(cid,))
+        with Budget().phase() as budget:
+            assert automatic.authority_valid(h.capture.authority,row['candidate_key'],doc,budget)
         original = h.owner._cell_current; calls = []
         def mutate(op, proposed, budget):
             calls.append(True)
@@ -686,7 +696,7 @@ def test_compact_inventory_each_fresh_boundary_rejects_current_row_or_source_mut
         assert isinstance(operation, Operation) and operation.slot_released.wait(3.)
         assert operation.result['status'] == 'unknown'
         assert operation.result['reason'] == {1: 'primary_commit_or_source_unavailable',
-            2: 'source_changed_before_publication_commit',
+            2: 'bounded_inventory_source_changed',
             3: 'source_changed_after_publication_commit'}[boundary]
         assert len(calls) == boundary
         db = sqlite3.connect(h.owner.path.as_uri() + '?mode=ro', uri=True)
@@ -696,3 +706,273 @@ def test_compact_inventory_each_fresh_boundary_rejects_current_row_or_source_mut
         assert all(record['publish_returned_durable'] == 0 for _, record in h.publications)
         assert c_target(h)['state'] == 'queued' and c_target(h)['job_id'] is None
         assert not h.drivers and h.jobs._live is None and not h.owner._pins
+
+
+@pytest.fixture
+def support_local_ledger_factory(tmp_path):
+    """Tiny real schemas and exact commits, without an owner thread or files."""
+    from audio_backend import storage, transcript_revision
+    from audio_backend import native_owned_cells as cells
+    from test_bounded_core_support import SID
+    used = []
+    def create(schema=None):
+        directory = tmp_path / ('local-ledger-' + str(len(used)))
+        directory.mkdir()
+        store = storage.Store(directory / 'primary.sqlite3', Settings(data_dir=directory, start_worker=False))
+        with store.db() as db:
+            core.init_schema(db)
+            db.execute('INSERT INTO sessions(id,name,identity_group,created,timeline_end) VALUES(?,?,?,1.,1.)',
+                (SID, 'synthetic support-local', SID))
+            db.execute('BEGIN IMMEDIATE') if not db.in_transaction else None
+            automatic.init_bounded_schema(db, enable=True); transcript_revision.init_bounded_schema(db)
+            value = _support_local_seed(db, schema)
+        value.store = store; used.append(value)
+        return value
+    return create
+
+
+def _support_local_parent(case):
+    from test_bounded_core_support import SID, primary_row
+    row = primary_row(1, 16, 40, cid='source-1', text='甲乙')
+    parts = []
+    for index, cid in enumerate(('source-1', 'source-2')):
+        source = case['sources'][cid]
+        parts.append({**source, 'seek_seconds': 0., 'requested_seconds': source['duration'],
+                      'analyzer_frames': [index * 16, (index + 1) * 16]})
+    units = []
+    for index, (a, b, text) in enumerate(((0, 8, '甲'), (12, 24, '乙'))):
+        units.append({'start': a/RATE, 'end': b/RATE, 'ownership_anchor': a/RATE,
+            'text': text, 'raw_text': text, 'anchor_kind': 'ctc_emission',
+            'display_span': [index, index+1], 'raw_span': [index, index+1], 'granular_eligible': True})
+    raw = {'schema': lexical.SCHEMA, 'primary_sha256': lexical.primary_sha(SID, row),
+        'source_provenance': lexical.SOURCE_NOTE, 'source_parts': parts,
+        'timestamp_semantics': lexical.TIME_NOTE,
+        'coordinates': {'axis': 'chunk_relative_seconds', 'core_start': 0.,
+            'core_end': 24/RATE, 'analyzer_start': 0.}, 'units': units}
+    row['lexical_evidence'] = lexical.encoded(raw).decode('ascii')
+    assert lexical.current_inventory(None, SID, row, source_lookup=case['sources'].get) is not None
+    return row
+
+
+def _insert_local_parent(db, row):
+    names = list(row)
+    db.execute('INSERT INTO segments(' + ','.join(names) + ',speaker_status) VALUES(' +
+        ','.join('?' for _ in names) + ",'unknown')", tuple(row[name] for name in names))
+
+
+def _support_local_seed(db, schema):
+    from types import SimpleNamespace
+    from audio_backend import native_owned_cells as cells
+    from test_bounded_core_support import SID, synthetic_case, final_cell, seam_origin
+    batch = 'local-synthetic-batch'; store_key = '5' * 64
+    case = synthetic_case([0, 16, 32, 48, 64], [[18, 22]], origin_index=1, separate_sources=True)
+    case['target'] = core.original_target(seam_origin(case, 0))
+    parent = _support_local_parent(case)
+    cell = final_cell(case, [parent]); doc = json.loads(cell.proof)
+    assert doc['geometry'] == {'start_frame': 16, 'end_frame': 24}
+    snapshot = core.lexical_snapshot(SID, [parent], case['sources'], 0., scan_frames=[0,64],
+        schema=schema or core.COMPACT_INVENTORY_SCHEMA)
+    if schema is not None:
+        cell = core.make_bounded_cell(doc['commits'],doc['query'],doc['right_evidence'],cell.pcm,case['target'],snapshot)
+        doc = json.loads(cell.proof)
+    db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,
+        capture_origin_frame,native_core_ordinal,retention_store_key) VALUES(?,?,?,1.,0,4,?)''',
+        (batch, SID, 'synthetic-capture', store_key))
+    for index, commit in enumerate(case['commits']):
+        part = commit['part']; source = case['sources'][part['chunk_id']]
+        db.execute('''INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,
+            timeline_start,status,next_offset,created,metadata) VALUES(?,?,?,?,?,?,?,'completed',?,1.,?)''',
+            (source['id'], SID, source['id'], source['digest'], '/synthetic-not-opened/' + source['id'],
+             source['duration'], source['timeline_start'], source['duration'], '{"synthetic":true}'))
+        db.execute('''INSERT INTO recording_work(chunk_id,batch_id,position,frames,bytes,
+            capture_start_frame,native_receipt_status,receipt_id,receipt_state)
+            VALUES(?,?,?,?,?,?,'synthetic',?,'durable')''',
+            (source['id'], batch, index, part['source_frames'], part['source_frames'] * 2,
+             part['logical_start'], part['receipt_sha256']))
+        db.execute('''INSERT INTO native_core_commits(slot,sid,cid,scope_key,logical_end,body,
+            pending,state,reason,recording_batch_id,commit_ordinal,retention_store_key)
+            VALUES(?,?,?,?,?,?,NULL,'none','synthetic',?,?,?)''',
+            (core.slot(commit), SID, source['id'], core.scope_key(commit['scope']),
+             part['logical_end'], cells.canonical(commit, core.COMPACT_BYTES), batch, index + 1, store_key))
+    _insert_local_parent(db, parent)
+    origin = case['target']['origins'][0]
+    proof, binding = origin['proof'].encode('ascii'), origin['binding'].encode('ascii')
+    original_doc, support, _ = cells.validate_document(proof)
+    proposal = {'key': hashlib.sha256(binding).hexdigest(), 'sid': SID, 'kind': 'core_seam',
+        'binding': binding, 'proof': proof, 'proof_sha256': hashlib.sha256(proof).hexdigest(),
+        'cell_id': cells.sha({'policy': original_doc['policy'], 'support': support.to_dict()}),
+        'slot1': core.slot(case['commits'][0]), 'slot2': core.slot(case['commits'][1]),
+        'cid1': 'source-0', 'cid2': 'source-1', 'target': case['target']}
+    context = {'batch_id': batch, 'ordinal': 2, 'retention_store_key': store_key}; now = time.time()
+    with Budget().phase() as budget:
+        waiting, status = automatic._register_target(db, proposal, context,
+            cells.sha(case['commits'][0]['scope']), now, budget)
+        assert status == 'registered'
+        context = {**context, 'ordinal': 4}
+        final = {'target': case['target'], 'commits': doc['commits'], 'query': doc['query'],
+            'evidence': doc['right_evidence'], 'support': doc['geometry'], 'pcm': cell.pcm}
+        ident = automatic._bind_target(db, waiting, final, context, snapshot, budget, now,
+                                      support_local=schema is None)
+        row = automatic._read_v2(db, key=proposal['key'], budget=budget)
+        assert ident == row['cell_id']
+        if schema is not None:assert row['proof'] == cell.proof
+        doc = json.loads(row['proof'])
+        assert automatic.qualify_bounded_document(db, doc, budget, store_key)
+    assert len(doc['commits']) == 4 and doc['geometry'] == {'start_frame':16,'end_frame':24}
+    if schema is None:
+        assert doc['inventories']['scan_frames'] == [16,24]
+        assert {s['id'] for s in doc['inventories']['sources']} == {'source-1','source-2'}
+    assert {root['cid'] for root in doc['dependency_roots']} == set(case['sources'])
+    return SimpleNamespace(case=case,doc=doc,row=row,key=proposal['key'],parent=parent,
+        context=context,original=proposal,store_key=store_key)
+
+
+def _local_inventory_current(f):
+    from audio_backend.native_owned_cell_capture import PrimaryAuthority
+    with Budget().phase() as budget:
+        return PrimaryAuthority(f.store).bounded_inventory_current(f.doc['inventories'],budget)
+
+
+def _local_binding(f):
+    from audio_backend.transcript_store import TranscriptStore
+    from test_bounded_core_support import SID
+    with f.store.db() as db:
+        return TranscriptStore._binding_v2(db,SID,dict(f.row))
+
+
+@pytest.mark.parametrize('schema',[core.INVENTORY_SCHEMA,core.COMPACT_INVENTORY_SCHEMA],ids=['v1','v2'])
+def test_support_local_historical_freshness_stays_whole_band(support_local_ledger_factory,schema):
+    from test_bounded_core_support import primary_row
+    f=support_local_ledger_factory(schema); before=f.row['proof']
+    assert _local_inventory_current(f) and _local_binding(f)[1:3]==(16,24)
+    with f.store.db() as db:_insert_local_parent(db,primary_row(2,48,56,cid='source-3'))
+    assert not _local_inventory_current(f)
+    with pytest.raises(ReadError,match='^bounded_inventory_changed$'):_local_binding(f)
+    with f.store.db() as db:
+        assert db.execute(f'SELECT proof FROM {automatic.TABLE} WHERE seq=?',(f.row['seq'],)).fetchone()[0]==before
+
+
+@pytest.mark.parametrize('mutation',['outside','endpoint','insert','remove','text','outside_units'])
+def test_support_local_whole_parent_membership_freshness(support_local_ledger_factory,mutation):
+    from test_bounded_core_support import SID,primary_row
+    f=support_local_ledger_factory()
+    assert _local_inventory_current(f) and _local_binding(f)[1:3]==(16,24)
+    with f.store.db() as db:
+        if mutation=='outside':_insert_local_parent(db,primary_row(2,48,56,cid='source-3'))
+        elif mutation=='endpoint':
+            _insert_local_parent(db,primary_row(2,8,16,cid='source-0'))
+            _insert_local_parent(db,primary_row(3,24,28,cid='source-1'))
+        elif mutation=='insert':_insert_local_parent(db,primary_row(2,18,20,cid='source-1'))
+        elif mutation=='remove':db.execute('DELETE FROM segments WHERE id=1')
+        elif mutation=='text':db.execute("UPDATE segments SET text='changed whole parent' WHERE id=1")
+        else:
+            row=deepcopy(f.parent); raw=json.loads(row['lexical_evidence'])
+            row['text']=row['raw_text']='甲丙'
+            raw['units'][1]['text']=raw['units'][1]['raw_text']='丙'
+            raw['primary_sha256']=lexical.primary_sha(SID,row)
+            row['lexical_evidence']=lexical.encoded(raw).decode('ascii')
+            assert lexical.current_inventory(None,SID,row,source_lookup=f.case['sources'].get) is not None
+            assert raw['units'][1]['start']+f.case['sources']['source-1']['timeline_start']>=24/RATE
+            db.execute('UPDATE segments SET text=?,raw_text=? WHERE id=1',(row['text'],row['raw_text']))
+            db.execute('UPDATE segments SET lexical_evidence=? WHERE id=1',(row['lexical_evidence'],))
+    if mutation in ('outside','endpoint'):
+        assert _local_inventory_current(f) and _local_binding(f)[1:3]==(16,24)
+    else:
+        assert not _local_inventory_current(f)
+        with pytest.raises(ReadError,match='^bounded_inventory_changed$'):_local_binding(f)
+
+
+@pytest.mark.parametrize('mutation',['context_append','own_source','outside_lexical_source'])
+def test_support_local_source_closure_freshness(support_local_ledger_factory,mutation):
+    from test_bounded_core_support import SID
+    f=support_local_ledger_factory()
+    assert _local_inventory_current(f) and _local_binding(f)[1:3]==(16,24)
+    with f.store.db() as db:
+        if mutation=='context_append':
+            db.execute('''INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,
+                timeline_start,status,next_offset,created) VALUES('context-new',?,'context-new',?,
+                '/synthetic-not-opened',?,?,'completed',?,1.)''',(SID,'d'*64,16/RATE,64/RATE,16/RATE))
+        else:
+            cid='source-1' if mutation=='own_source' else 'source-2'
+            if mutation=='outside_lexical_source':assert f.case['sources'][cid]['timeline_start']>=24/RATE
+            db.execute('UPDATE chunks SET digest=? WHERE id=?',('e'*64,cid))
+    if mutation=='context_append':
+        assert _local_inventory_current(f) and _local_binding(f)[1:3]==(16,24)
+    else:
+        with pytest.raises(Unavailable,match='^bounded_inventory_source_changed$'):_local_inventory_current(f)
+        with pytest.raises(ReadError,match='^bounded_inventory_source_changed$'):_local_binding(f)
+
+
+@pytest.mark.parametrize('mutation',['original_cancel','original_digest','original_receipt','final_cancel'])
+def test_support_local_noncontributing_native_roots_remain_authoritative(support_local_ledger_factory,mutation):
+    f=support_local_ledger_factory();before=f.row['proof'];cid='source-0'
+    _,originals=core.validate_target(f.doc['target'])
+    assert any(c['part']['chunk_id']==cid for c in originals)
+    assert all(p['chunk_id']!=cid for p in f.doc['dependencies'])
+    assert all(s['id']!=cid for s in f.doc['inventories']['sources'])
+    assert any(r['cid']==cid and r['kind']&1 for r in f.doc['dependency_roots'])
+    assert _local_binding(f)[1:3]==(16,24)
+    with f.store.db() as db:
+        if mutation=='original_cancel':db.execute("UPDATE chunks SET status='cancelled' WHERE id=?",(cid,))
+        elif mutation=='original_digest':db.execute('UPDATE chunks SET digest=? WHERE id=?',('e'*64,cid))
+        elif mutation=='original_receipt':db.execute('UPDATE recording_work SET receipt_id=? WHERE chunk_id=?',('e'*64,cid))
+        else:db.execute("UPDATE native_core_commits SET state='cancelled' WHERE slot=?",(core.slot(f.case['commits'][-1]),))
+    # No selected lexical dependency changed: the independent native-root fence
+    # must still refuse, even when that original root has zero selected PCM.
+    assert _local_inventory_current(f)
+    reason='bounded_compact_changed' if mutation=='final_cancel' else 'automatic_source_unplaced'
+    with pytest.raises(ReadError,match='^'+reason+'$'):_local_binding(f)
+    with f.store.db() as db:
+        assert automatic.retention_root(db,cid=cid)
+        assert db.execute(f'SELECT proof FROM {automatic.TABLE} WHERE seq=?',(f.row['seq'],)).fetchone()[0]==before
+
+
+@pytest.mark.parametrize('kind',['actual','unsafe'])
+def test_support_local_capacity_notice_is_fixed_and_preserves_rollback(support_local_ledger_factory,monkeypatch,kind):
+    from audio_backend import native_owned_cells as cells
+    from test_bounded_core_support import primary_row
+    f=support_local_ledger_factory(); before=f.row['proof']
+    encoded=json.dumps({'payload':'private synthetic text'*100},sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')
+    annotations=[{}] if kind=='actual' else [{}, {'capacity_phase':'private synthetic text'},
+        {'encoded_bytes':True}, {'encoded_bytes':-1}, {'encoded_bytes':float('nan')},
+        {'encoded_bytes':cells.MAX_FRAME+1}, {'maximum_bytes':-1}, {'maximum_bytes':len(encoded)}]
+    for index,annotation in enumerate(annotations):
+        with f.store.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            _insert_local_parent(db,primary_row(2+index,48,56,cid='source-3',text='primary survives'))
+            def refuse(*args,**kwargs):
+                db.execute("UPDATE segments SET text='optional rolled back' WHERE id=?",(2+index,))
+                try:cells.canonical({'payload':'private synthetic text'*100},64)
+                except Unavailable as exc:
+                    for name,value in annotation.items():setattr(exc,name,value)
+                    raise
+            handoff={'waiters':[f.row],'batch':f.context,'reserved':True,'budget':Budget(),
+                'origins':[f.original],'plans':[]}
+            # The unannotated compact-verification site is deliberately unknown;
+            # it must never guess an inner serialization object.
+            site='_register_target' if kind=='actual' else '_exact_compacts'
+            with monkeypatch.context() as patch:
+                patch.setattr(automatic,site,refuse)
+                notice=automatic.enqueue_bounded(db,[],{'commit':f.case['commits'][-1]},handoff,
+                    {'session_id':f.row['sid']},[],None)
+            assert notice['reason']=='serialization_capacity' and notice['owned_targets_preserved'] is True
+            assert notice['status']=='waiting'
+            assert db.execute('SELECT text FROM segments WHERE id=?',(2+index,)).fetchone()[0]=='primary survives'
+            assert db.execute(f'SELECT proof FROM {automatic.TABLE} WHERE seq=?',(f.row['seq'],)).fetchone()[0]==before
+            assert db.in_transaction
+        if not annotation:
+            phase='target_registration' if kind=='actual' else 'unknown'
+            assert notice['capacity']=={'phase':phase,'encoded_bytes':len(encoded),'limit_bytes':64}
+        else:assert 'capacity' not in notice
+        raw=json.dumps(notice,sort_keys=True,separators=(',',':')).encode('ascii')
+        assert len(raw)<512 and b'private synthetic text' not in raw and b'payload' not in raw
+    if kind=='actual':
+        # Source binding and the dependency list have their own fixed narrow
+        # catches; this checks exact exception propagation, not a new writer.
+        def fail_binding(*args,**kwargs):return cells.canonical({'payload':'private synthetic text'*100},64)
+        with monkeypatch.context() as patch:
+            patch.setattr(automatic,'source_binding',fail_binding)
+            with pytest.raises(Unavailable,match='^serialization_capacity$') as caught:
+                automatic.source_binding_v2('core_seam',f.doc,None,None,f.context)
+        assert caught.value.capacity_phase=='source_binding'
+        assert caught.value.encoded_bytes==len(encoded) and caught.value.maximum_bytes==64

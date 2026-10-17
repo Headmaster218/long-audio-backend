@@ -566,6 +566,8 @@ class PrimaryAuthority:
         from .native_owned_core_seams import lexical_snapshot, validate_inventory
         validate_inventory(snapshot)
         origin = float.fromhex(snapshot['origin'])
+        # Discover the whole stored band afresh before schema-specific source
+        # filtering. V1/v2 retain broad equality; v3 binds the selected band.
         def read(db):
             found = bounded_primary_snapshot(db, snapshot['session_id'], origin,
                                              snapshot['scan_frames'], budget)

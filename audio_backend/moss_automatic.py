@@ -13,7 +13,7 @@ import sqlite3
 import time
 
 from .native_owned_cells import (Cell, Unavailable, canonical, sha, validate_document,
-    SourceSpan, PROOF_BYTES, BATCH_CELLS, exact_frame)
+    SourceSpan, PROOF_BYTES, BATCH_CELLS, MAX_FRAME, exact_frame)
 from .native_owned_support_cache import ReadError
 
 _WINDOW_READ_DEFERRED = object()
@@ -442,7 +442,11 @@ def _original_dependencies(target):
 
 def _write_dependencies(db,seq,roots):
     if len(roots)>132 or len({r['cid'] for r in roots})>128:raise Unavailable('bounded_dependency_capacity')
-    canonical(roots,BINDING_BYTES)
+    try:canonical(roots,BINDING_BYTES)
+    except Unavailable as exc:
+        if str(exc)=='serialization_capacity' and getattr(exc,'capacity_phase',None) is None:
+            exc.capacity_phase='dependency_roots'
+        raise
     db.execute(f'DELETE FROM {DEPENDENCIES} WHERE intent_seq=?',(seq,))
     for order,root_item in enumerate(roots):
         db.execute(f'INSERT INTO {DEPENDENCIES} VALUES(?,?,?,?,?)',
@@ -459,13 +463,17 @@ def _check_dependencies(db,seq,expected,budget=None):
 
 
 def source_binding_v2(kind,doc,support,parts,context):
-    binding=json.loads(source_binding(kind,doc,support,parts,doc['commits']))
-    binding.update(schema='automatic-recording-overlap-v2',target_key=doc['target']['key'],
-        target_sha256=doc['target_sha256'],dependency_roots=doc['dependency_roots'],
-        plan_ordinal=context['ordinal'],plan_batch_id=context['batch_id'],
-        retention_store_key=context['retention_store_key'])
-    return canonical(binding,BINDING_BYTES)
-
+    try:
+        binding=json.loads(source_binding(kind,doc,support,parts,doc['commits']))
+        binding.update(schema='automatic-recording-overlap-v2',target_key=doc['target']['key'],
+            target_sha256=doc['target_sha256'],dependency_roots=doc['dependency_roots'],
+            plan_ordinal=context['ordinal'],plan_batch_id=context['batch_id'],
+            retention_store_key=context['retention_store_key'])
+        return canonical(binding,BINDING_BYTES)
+    except Unavailable as exc:
+        if str(exc)=='serialization_capacity' and getattr(exc,'capacity_phase',None) is None:
+            exc.capacity_phase='source_binding'
+        raise
 
 def validate_v2_row(db,row,proof,budget=None):
     """Strict version dispatch. Legacy candidate hashing is never relaxed."""
@@ -658,8 +666,8 @@ def _waiting_reason(row,context,scope,now,clock_owner=None):
     return None
 
 
-def _bind_target(db,row,proposal,context,actual_snapshot,budget,now):
-    from .native_owned_core_seams import make_bounded_cell,validate_target
+def _bind_target(db,row,proposal,context,actual_snapshot,budget,now,*,support_local=False):
+    from .native_owned_core_seams import make_bounded_cell,validate_target,localize_inventory
     if row['plan_phase']!='waiting' or row['state']!='queued' or row['job_id'] is not None:
         raise Unavailable('bounded_target_already_closed')
     target=json.loads(row['target_body'])
@@ -667,6 +675,9 @@ def _bind_target(db,row,proposal,context,actual_snapshot,budget,now):
     _,originals=validate_target(target)
     _exact_compacts(db,originals,context,budget)
     _exact_compacts(db,proposal['commits'],context,budget)
+    if support_local:
+        actual_snapshot=localize_inventory(target,proposal['commits'],actual_snapshot,
+            proposal['query']['query_start_frame'],proposal['query']['query_end_frame'],proposal['support'])
     cell=make_bounded_cell(proposal['commits'],proposal['query'],proposal['evidence'],
         proposal['pcm'],target,actual_snapshot)
     # This freshly constructed frozen Cell has already validated these exact
@@ -725,7 +736,11 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
             _exact_compacts(db,[packet['commit']],context,budget)
             for original in origins:
                 _,roots=validate_target(original['target']);_exact_compacts(db,roots,context,budget)
-                row,status=_register_target(db,original,context,scope,now,budget)
+                try:row,status=_register_target(db,original,context,scope,now,budget)
+                except Unavailable as exc:
+                    if str(exc)=='serialization_capacity' and getattr(exc,'capacity_phase',None) is None:
+                        exc.capacity_phase='target_registration'
+                    raise
                 if handoff.get('clock_owner') is not None:
                     handoff['clock_owner'].bounded_expired(row['target_key'],row['wait_deadline'])
                 registered.append((row['candidate_key'],status))
@@ -757,7 +772,7 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                     # The arriving eligible core gets its attempt before the
                     # logical horizon or true-EOF closure below.
                     if proposal['commits'][-1]!=packet['commit']:raise Unavailable('bounded_publication_anchor_changed')
-                    bound.append(_bind_target(db,row,proposal,context,actual,budget,now))
+                    bound.append(_bind_target(db,row,proposal,context,actual,budget,now,support_local=True))
                     continue
                 if reason is None:
                     components=target['identity']['components']
@@ -781,6 +796,16 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
         if not db.in_transaction:raise
         db.execute('ROLLBACK TO bounded_optional');db.execute('RELEASE bounded_optional')
         notice['reason']=(getattr(exc,'reason',None) or str(exc))[:80]
+        if str(exc)=='serialization_capacity':
+            phase=getattr(exc,'capacity_phase','unknown')
+            size=getattr(exc,'encoded_bytes',None);limit=getattr(exc,'maximum_bytes',None)
+            if (type(phase) is str and phase in ('target_registration','retained_inventory',
+                    'dependency_roots','core_preimage','full_proof','source_binding','unknown')
+                    and type(size) is int and type(limit) is int
+                    and 0<=limit<size<=MAX_FRAME):
+                # Fixed enums and bounded integers only. Never serialize here:
+                # reporting cannot replace the original refusal/rollback.
+                notice['capacity']={'phase':phase,'encoded_bytes':size,'limit_bytes':limit}
         return notice
     finally:db.set_progress_handler(budget.progress if getattr(budget,'primary_sql',False) else None,100)
 

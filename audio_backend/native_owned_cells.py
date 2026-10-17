@@ -65,7 +65,10 @@ def canonical(value, maximum=PROOF_BYTES):
     data = json.dumps(value, sort_keys=True, separators=(',', ':'),
                       ensure_ascii=True, allow_nan=False).encode('ascii')
     if len(data) > maximum:
-        raise Unavailable('serialization_capacity')
+        error = Unavailable('serialization_capacity')
+        error.encoded_bytes = len(data)
+        error.maximum_bytes = maximum
+        raise error
     return data
 
 

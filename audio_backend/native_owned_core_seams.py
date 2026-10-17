@@ -27,6 +27,8 @@ BOUNDED_SCHEMA = 'native-owned-bounded-core-support-v1'
 TARGET_SCHEMA = 'native-owned-original-target-v2'
 INVENTORY_SCHEMA = 'native-owned-bounded-inventory-v1'
 COMPACT_INVENTORY_SCHEMA = 'native-owned-bounded-inventory-v2'
+SUPPORT_LOCAL_INVENTORY_SCHEMA = 'native-owned-bounded-inventory-v3'
+SUPPORT_LOCAL_SCOPE_POLICY = 'selected-support-whole-parent-v1'
 MAX_BOUND_COMMITS = 4
 MAX_ORIGINS = 8
 MAX_PLAN_PARENTS = 128
@@ -522,18 +524,23 @@ def lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_fr
                      schema=INVENTORY_SCHEMA):
     from .native_owned_support_cache import ReadError
     try:
-        if schema not in (INVENTORY_SCHEMA, COMPACT_INVENTORY_SCHEMA):
+        if schema not in (INVENTORY_SCHEMA, COMPACT_INVENTORY_SCHEMA, SUPPORT_LOCAL_INVENTORY_SCHEMA):
             raise Unavailable('bounded_inventory_policy')
         view = _lexical_snapshot(sid, rows, sources, scope_origin,
-            complete=complete, scan_frames=scan_frames)
+            complete=complete, scan_frames=scan_frames,
+            allow_empty_sources=schema == SUPPORT_LOCAL_INVENTORY_SCHEMA)
         return _encode_inventory(view, schema)
     except ReadError as exc:
         # Shared projection validators use their HTTP/read-domain exception.
         # Numeric planning keeps this an optional unresolved placement result.
         raise Unavailable(exc.reason) from exc
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'retained_inventory'
+        raise
 
 
-def _lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None):
+def _lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None,
+                      allow_empty_sources=False):
     """Pure adapter over the *existing* inventory and ordinal-group validators.
 
     The caller supplies a complete bounded indexed scan and source snapshots.
@@ -548,7 +555,7 @@ def _lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_f
     if complete is not True:raise Unavailable('incomplete_primary')
     if type(rows) not in (list, tuple) or len(rows) > MAX_PLAN_PARENTS:
         raise Unavailable('primary_capacity')
-    if type(sources) is not dict or not 1 <= len(sources) <= MAX_PARTS:
+    if type(sources) is not dict or not (0 if allow_empty_sources else 1) <= len(sources) <= MAX_PARTS:
         raise Unavailable('source_part_capacity')
     origin = exact_frame(scope_origin)
     if type(scan_frames) not in (list, tuple) or len(scan_frames) != 2:
@@ -615,7 +622,8 @@ def _encode_inventory(view, schema):
     if schema == INVENTORY_SCHEMA:
         canonical(view)
         return view
-    if schema != COMPACT_INVENTORY_SCHEMA:raise Unavailable('bounded_inventory_policy')
+    if schema not in (COMPACT_INVENTORY_SCHEMA, SUPPORT_LOCAL_INVENTORY_SCHEMA):
+        raise Unavailable('bounded_inventory_policy')
     from .lexical_evidence import encoded
     parents = []
     for parent in view['parents']:
@@ -628,9 +636,71 @@ def _encode_inventory(view, schema):
         parents.append({'row': row})
     result = {key: view[key] for key in
         ('session_id', 'origin', 'scan_frames', 'complete', 'sources', 'unit_count')}
-    result.update(schema=COMPACT_INVENTORY_SCHEMA, parents=parents)
+    result.update(schema=schema, parents=parents)
+    if schema == SUPPORT_LOCAL_INVENTORY_SCHEMA:
+        required = _local_source_ids(view)
+        result['sources'] = [source for source in view['sources'] if source['id'] in required]
+        result['scope_policy'] = SUPPORT_LOCAL_SCOPE_POLICY
     canonical(result)
     return result
+
+
+def _local_source_ids(view):
+    """Keep whole parents' own sources and independently valid lexical inputs.
+
+    Embedded descriptors establish lexical validity, never current authority.
+    Every independently valid input must also match the already validated
+    complete supplied source snapshot before context-only sources are pruned.
+    """
+    from .lexical_evidence import current_inventory, SOURCE_FIELDS
+    available = {source['id']: source for source in view['sources']}
+    required = set()
+    for parent in view['parents']:
+        row = parent['row']; required.add(row['chunk_id'])
+        raw = row['lexical_evidence']
+        if raw is None:continue
+        try:
+            value = json.loads(raw)
+            parts = value.get('source_parts') if type(value) is dict else None
+            embedded = {part['id']: part for part in parts} if type(parts) is list else {}
+        except (ValueError, KeyError, TypeError, UnicodeError, RecursionError, OverflowError):
+            continue
+        independent = current_inventory(None, view['session_id'], row,
+            source_lookup=lambda cid: embedded.get(cid))
+        if independent is None:continue
+        for part in independent['inventory']['source_parts']:
+            actual = available.get(part['id'])
+            if actual is None or any(actual[key] != part[key] for key in SOURCE_FIELDS):
+                raise Unavailable('bounded_inventory_source_changed')
+            required.add(part['id'])
+    return required
+
+
+def localize_inventory(target, commits, snapshot, query_start, query_end, support):
+    """Freeze a full-band result, retain whole parents, and require exact replay."""
+    from .transcript_contract import primary_evidence
+    if type(snapshot) is not dict or snapshot.get('schema') not in (
+            INVENTORY_SCHEMA, COMPACT_INVENTORY_SCHEMA):
+        raise Unavailable('bounded_inventory_policy')
+    exact(support, 'start_frame end_frame')
+    integer(support['start_frame']); integer(support['end_frame'])
+    selected = select_support(target, commits, snapshot, query_start, query_end)
+    if selected != support:raise Unavailable('bounded_local_selection_changed')
+    view = inventory_view(snapshot)
+    start, end = selected['start_frame'], selected['end_frame']
+    origin = exact_frame(float.fromhex(view['origin']))
+    rows = []
+    for parent in view['parents']:
+        evidence = primary_evidence(view['session_id'], parent['row'])
+        if evidence['start_frame'] < origin + end and origin + start < evidence['end_frame']:
+            rows.append(parent['row'])
+    local = lexical_snapshot(view['session_id'], rows,
+        {source['id']: source for source in view['sources']}, float.fromhex(view['origin']),
+        complete=True, scan_frames=[start, end], schema=SUPPORT_LOCAL_INVENTORY_SCHEMA)
+    replay = select_support(target, commits, local, query_start, query_end)
+    if replay != selected or local['scan_frames'] != [start, end]:
+        raise Unavailable('bounded_local_selection_changed')
+    return local
 
 
 def _legacy_inventory_view(snapshot):
@@ -664,13 +734,21 @@ def inventory_view(snapshot):
     """
     if type(snapshot) is not dict:raise Unavailable('core_seam_shape')
     if snapshot.get('schema') == INVENTORY_SCHEMA:return _legacy_inventory_view(snapshot)
-    if snapshot.get('schema') != COMPACT_INVENTORY_SCHEMA:
+    schema = snapshot.get('schema')
+    if schema not in (COMPACT_INVENTORY_SCHEMA, SUPPORT_LOCAL_INVENTORY_SCHEMA):
         raise Unavailable('bounded_inventory_policy')
-    canonical(snapshot)  # Screen the complete compact input before expansion.
-    exact(snapshot, 'schema session_id origin scan_frames complete parents sources unit_count')
+    local_scope = schema == SUPPORT_LOCAL_INVENTORY_SCHEMA
+    try:canonical(snapshot)  # Screen the complete wire input before expansion.
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'retained_inventory'
+        raise
+    exact(snapshot, 'schema session_id origin scan_frames complete parents sources unit_count' +
+        (' scope_policy' if local_scope else ''))
+    if local_scope and snapshot['scope_policy'] != SUPPORT_LOCAL_SCOPE_POLICY:
+        raise Unavailable('bounded_inventory_scope_policy')
     if type(snapshot['parents']) is not list or len(snapshot['parents']) > MAX_PLAN_PARENTS:
         raise Unavailable('primary_capacity')
-    if type(snapshot['sources']) is not list or not 1 <= len(snapshot['sources']) <= MAX_PARTS:
+    if type(snapshot['sources']) is not list or not (0 if local_scope else 1) <= len(snapshot['sources']) <= MAX_PARTS:
         raise Unavailable('source_part_capacity')
     integer(snapshot['unit_count'], maximum=MAX_PLAN_UNITS)
     sources = {}
@@ -704,11 +782,12 @@ def inventory_view(snapshot):
     from .native_owned_support_cache import ReadError
     try:
         view = _lexical_snapshot(snapshot['session_id'], rows, sources, origin,
-            complete=snapshot['complete'], scan_frames=snapshot['scan_frames'])
+            complete=snapshot['complete'], scan_frames=snapshot['scan_frames'],
+            allow_empty_sources=local_scope)
     except ReadError as exc:raise Unavailable(exc.reason) from exc
     if any(view['parents'][index]['inventory_sha256'] is None for index in tagged):
         raise Unavailable('bounded_inventory_encoding')
-    if canonical(_encode_inventory(view, COMPACT_INVENTORY_SCHEMA)) != canonical(snapshot):
+    if canonical(_encode_inventory(view, schema)) != canonical(snapshot):
         raise Unavailable('bounded_inventory_mismatch')
     return view
 
@@ -772,6 +851,7 @@ def same_numeric_snapshot(planned, actual, row_ids=None):
 def select_support(target, commits, snapshot, query_start, query_end):
     """One deterministic fixed point, never a search over acoustic attempts."""
     from .transcript_projection import _legal
+    local_scope = type(snapshot) is dict and snapshot.get('schema') == SUPPORT_LOCAL_INVENTORY_SCHEMA
     identity, originals = validate_target(target); snapshot = inventory_view(snapshot)
     ca, cb = bounded_chain(commits); integer(query_start); integer(query_end)
     all_roots = {slot(c): c for c in originals}
@@ -784,10 +864,19 @@ def select_support(target, commits, snapshot, query_start, query_end):
     if (identity['scope'] != {k: commits[0]['scope'][k] for k in identity['scope']}
             or snapshot['session_id'] != identity['scope']['session_id']
             or snapshot['origin'] != identity['scope']['origin']
-            or not snapshot['scan_frames'][0] <= ca < cb <= snapshot['scan_frames'][1]):
+            or (not local_scope and not snapshot['scan_frames'][0] <= ca < cb <= snapshot['scan_frames'][1])):
         raise Unavailable('bounded_plan_scope')
     if not 0 < query_end - query_start <= CORE_FRAMES:raise Unavailable('core_seam_query_coverage')
     atoms = snapshot['atoms']; components = identity['components']
+    if local_scope:
+        sa, sb = snapshot['scan_frames']
+        if (not ca <= sa < sb <= cb or not query_start <= sa < sb <= query_end
+                or not all(sa <= lo < hi <= sb for lo, hi in components)):
+            raise Unavailable('bounded_plan_scope')
+    def selected(a, b):
+        if local_scope and [a, b] != snapshot['scan_frames']:
+            raise Unavailable('bounded_local_selection_changed')
+        return {'start_frame': a, 'end_frame': b}
     # Exact source placement must remain equal, even for an alias-origin O.
     for (a, b), expected in zip(components, identity['mapping']):
         if [asdict(p) for p in bounded_mapping(commits, a, b)] != expected:
@@ -800,7 +889,7 @@ def select_support(target, commits, snapshot, query_start, query_end):
             and _legal(a, b, atoms))
     original = json.loads(target['origins'][0]['proof'])['support']
     a, b = original['start_frame'], original['end_frame']
-    if legal(a, b):return {'start_frame': a, 'end_frame': b}
+    if legal(a, b):return selected(a, b)
     a, b = components[0][0], components[-1][1]; included = set()
     ordered = sorted(enumerate(atoms), key=lambda pair: (pair[1]['start_frame'], pair[1]['end_frame'], pair[0]))
     changed = True
@@ -817,7 +906,7 @@ def select_support(target, commits, snapshot, query_start, query_end):
     if not ca <= a < b <= cb:raise Unavailable('authority_unavailable')
     if not query_start <= a < b <= query_end:raise Unavailable('witness_unavailable')
     if not legal(a, b):raise Unavailable('no_legal_fixed_point')
-    return {'start_frame': a, 'end_frame': b}
+    return selected(a, b)
 
 
 def dependency_roots(target, commits, inventories):
@@ -838,7 +927,10 @@ def dependency_roots(target, commits, inventories):
     if len({cid for cid, _ in roots}) > MAX_PARTS:raise Unavailable('source_part_capacity')
     result = [{'kind': roots[key], 'cid': key[0], 'slot': key[1]}
               for key in sorted(roots, key=lambda key: (key[0], key[1] or ''))]
-    canonical(result, 4096)
+    try:canonical(result, 4096)
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'dependency_roots'
+        raise
     return result
 
 
@@ -886,9 +978,17 @@ def validate_bounded_document(proof, doc=None):
     if doc['selection'] != selected_pair([doc['query']], shape['start_frame'], shape['end_frame']):
         raise Unavailable('core_seam_selection')
     support = SourceSupport.from_dict(doc['support']); contents = [p.content() for p in parts]
-    expected_core = sha({'commits': commits, 'geometry': shape, 'query': doc['query'],
-        'target_sha256': doc['target_sha256'], 'inventories_sha256': sha(doc['inventories']),
-        'dependency_roots': doc['dependency_roots']})
+    try:inventory_hash = sha(doc['inventories'])
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'retained_inventory'
+        raise
+    try:
+        expected_core = sha({'commits': commits, 'geometry': shape, 'query': doc['query'],
+            'target_sha256': doc['target_sha256'], 'inventories_sha256': inventory_hash,
+            'dependency_roots': doc['dependency_roots']})
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'core_preimage'
+        raise
     if (support.source_generation != sha({'schema': 'immutable-source-cell-generation-v1', 'sources': contents})
             or support.plan_sha256 != sha({'schema': 'bounded-cell-mapping-v1', 'parts': contents})
             or support.native_runtime_sha256 != commits[-1]['runtime_sha256']
@@ -899,7 +999,11 @@ def validate_bounded_document(proof, doc=None):
         raise Unavailable('core_seam_support')
     if doc['publication_anchor'] != anchor(commits[-1]) or doc['coverage'] != coverage(doc):
         raise Unavailable('core_seam_publication')
-    if canonical(doc) != proof:raise Unavailable('noncanonical_proof')
+    try:encoded_proof = canonical(doc)
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'full_proof'
+        raise
+    if encoded_proof != proof:raise Unavailable('noncanonical_proof')
     return doc, support, parts
 
 
@@ -909,10 +1013,19 @@ def make_bounded_cell(commits, query, evidence, pcm, target, snapshot):
     ca, cb = bounded_chain(commits); parts = bounded_mapping(commits, shape['start_frame'], shape['end_frame'])
     contents = [p.content() for p in parts]; target_hash = sha(target)
     roots = dependency_roots(target, commits, snapshot)
+    try:inventory_hash = sha(snapshot)
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'retained_inventory'
+        raise
+    try:
+        core_hash = sha({'commits': commits, 'geometry': shape, 'query': query, 'target_sha256': target_hash,
+            'inventories_sha256': inventory_hash, 'dependency_roots': roots})
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'core_preimage'
+        raise
     support = SourceSupport(sha({'schema': 'immutable-source-cell-generation-v1', 'sources': contents}),
         sha({'schema': 'bounded-cell-mapping-v1', 'parts': contents}), commits[-1]['runtime_sha256'],
-        sha({'commits': commits, 'geometry': shape, 'query': query, 'target_sha256': target_hash,
-             'inventories_sha256': sha(snapshot), 'dependency_roots': roots}),
+        core_hash,
         cb, ca, cb, shape['start_frame'], shape['end_frame'], hashlib.sha256(pcm).hexdigest(), float32_digest(pcm))
     doc = {'schema': BOUNDED_SCHEMA, 'policy': BOUNDED_POLICY_SHA256, 'commits': list(commits),
         'geometry': shape, 'support': support.to_dict(), 'dependencies': [asdict(p) for p in parts],
@@ -921,7 +1034,11 @@ def make_bounded_cell(commits, query, evidence, pcm, target, snapshot):
         'publication_anchor': anchor(commits[-1]), 'selected': True, 'target': target,
         'target_sha256': target_hash, 'inventories': snapshot, 'dependency_roots': roots}
     doc['coverage'] = coverage(doc); p = doc['publication_anchor']
-    return Cell(support, parts, canonical(doc), pcm, commits[-1]['scope']['session_id'],
+    try:proof = canonical(doc)
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'full_proof'
+        raise
+    return Cell(support, parts, proof, pcm, commits[-1]['scope']['session_id'],
                 p['chunk_id'], p['start'], p['end'], p['sha256'])
 
 
