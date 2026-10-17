@@ -214,7 +214,10 @@ class TranscriptStore:
                 or cores[0][0] > support[0] or cores[-1][1] < support[1]
                 or len(cores) == 2 and cores[0][1] != cores[1][0]):
             c.fail('automatic_binding_invalid')
-        indexed_aliases = [row['cid1']] + ([row['cid2']] if row['cid2'] is not None else [])
+        # Commit roots may repeat for two distinct cores in the same upload.
+        # Only their expected source-root list is unique; actual aliases stay strict.
+        indexed_aliases = list(dict.fromkeys(
+            [row['cid1']] + ([row['cid2']] if row['cid2'] is not None else [])))
         if [alias.get('chunk_id') if type(alias) is dict else None for alias in aliases] != indexed_aliases:
             c.fail('automatic_binding_invalid')
         offsets, seen, at, cancelled = [], set(), support[0], False
