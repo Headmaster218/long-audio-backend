@@ -294,13 +294,12 @@ class RecordingSpeakerLinkStore:
         descriptor=db.execute(query,(jid,sid)).fetchone()
         if (descriptor is None or descriptor['state']!='committed' or descriptor['history_state']!='committed'
                 or descriptor['result_sha256']!=digest): _fail('probe_unavailable')
-        row=dict(descriptor)
-        TranscriptStore._check_descriptor_lengths([row])
+        row=TranscriptStore._check_descriptor_lengths([descriptor], db=db)[0]
         binding,start,end,cancelled=TranscriptStore._binding(db,sid,row)
         candidate,_,_=TranscriptStore._result(db,sid,row,binding,start,end,cancelled)
         if cancelled or not candidate['eligible']: _fail('probe_unavailable')
         found = None
-        for cid in (row['cid1'], row['cid2']):
+        for cid in row.get('source_roots', (row['cid1'], row['cid2'])):
             if cid is None:
                 continue
             source = db.execute('''SELECT w.batch_id,c.status,b.session_id FROM recording_work w

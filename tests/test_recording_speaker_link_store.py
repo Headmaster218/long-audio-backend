@@ -744,3 +744,240 @@ def test_resolve_preserves_committed_vectors_and_rejects_wrong_token(environment
     assert answer['resolved'] and answer['already_committed']
     assert rows(store,f'SELECT batch_json FROM {ledger.BATCHES}')==[(history.encoded(embedded),)]
     assert counters(store)==before
+
+
+# These fixtures construct genuine current bounded authority. Nothing below
+# stubs descriptor qualification, binding validation, or source membership.
+from test_bounded_support_intents import support_local_ledger_factory
+from audio_backend import native_owned_core_seams as core
+from audio_backend.transcript_store import TranscriptStore
+
+
+def _insert_committed_history(db, sid, jid, result, metadata):
+    raw, meta = history.encoded(result), history.encoded(metadata)
+    digest = hashlib.sha256(raw).hexdigest()
+    charge = len(raw) + len(meta) + history.ACCOUNTING_BYTES
+    db.execute(f'''INSERT INTO {history.TABLE}(job_id,session_id,original_jobs_epoch,
+        idempotency_key,canonical_request_sha256,state,schema_version,metadata_json,
+        result_json,result_sha256,committed_at,charge_bytes)
+        VALUES(?,?,?, ?,?,'committed',1,?,?,?,1.,?)''',
+        (jid,sid,'e'*32,jid,'f'*64,meta,raw,digest,charge))
+    for scope in ('',sid):
+        db.execute(f'''INSERT INTO {history.USAGE}(scope,row_count,charge_bytes) VALUES(?,1,?)
+            ON CONFLICT(scope) DO UPDATE SET row_count=row_count+1,charge_bytes=charge_bytes+excluded.charge_bytes''',
+            (scope,charge))
+    return digest
+
+
+def _committed_bounded(f):
+    from audio_backend.native_owned_cells import validate_document
+    f.sid, f.rid, f.jid = f.row['sid'], f.context['batch_id'], 'd'*32
+    f.store.settings.recording_speaker_links_enabled = True
+    proof = f.row['proof']; _, support, _ = validate_document(proof)
+    cell = {'origin':'durable_cell','proof_sha256':f.row['proof_sha256'],
+        'cell_id':f.row['cell_id'],'sequence':1,'revision':1,'support':support.to_dict()}
+    f.result = projection(support, '[0] [S01] Synthetic short phrase. [0.0005]')
+    f.result['cell_binding'] = cell
+    metadata = {'cell_binding':cell,'source_support':support.to_dict(),
+        'identity':{'job_id':f.jid,'session_id':f.sid,'original_jobs_epoch':'e'*32,
+            'canonical_request_sha256':'f'*64,'idempotency_key':f.jid},
+        'context':{'origin':'durable_cell','automatic_candidate_key':f.key,'support_id':support.support_id}}
+    with f.store.db() as db:
+        f.digest = _insert_committed_history(db,f.sid,f.jid,f.result,metadata)
+        # Publish/admit/complete only synthetic text, without starting a job.
+        db.execute(f"UPDATE {moss_automatic.TABLE} SET state='published' WHERE seq=?",(f.row['seq'],))
+        identity = SimpleNamespace(session_id=f.sid,job_id=f.jid,original_jobs_epoch='e'*32,
+            canonical_request_sha256='f'*64)
+        moss_automatic.admit(db,f.key,identity)
+        moss_automatic.complete(db,f.key,identity)
+        f.row = moss_automatic._read_v2(db,key=f.key)
+    f.batch, f.crops = links.capture_candidates(support,f.cell.pcm,proof,f.result,
+        f.jid,f.digest,links.expected_space())
+    f.links = ledger.RecordingSpeakerLinkStore(f.store)
+    f.reader = TranscriptStore(f.store)
+    return f
+
+
+@pytest.fixture
+def bounded_job(support_local_ledger_factory):
+    return _committed_bounded(support_local_ledger_factory(reference=True))
+
+
+def _bound_descriptor(f, db):
+    query = TranscriptStore._DESCRIPTOR_SQL.format(index='INDEXED BY auto_job',where='WHERE a.job_id=? AND a.sid=?')
+    row = TranscriptStore._check_descriptor_lengths([db.execute(query,(f.jid,f.sid)).fetchone()],db=db)[0]
+    assert row['target_key'] == f.row['target_key']
+    binding,start,end,cancelled = TranscriptStore._binding(db,f.sid,row)
+    candidate,_,_ = TranscriptStore._result(db,f.sid,row,binding,start,end,cancelled)
+    assert row['source_roots'] == ['source-0','source-1','source-2','source-3']
+    return row,candidate
+
+
+def _finish_bounded(f):
+    token = f.links.reserve(f.sid,f.rid,f.jid,f.digest,links.POLICY_SHA256,
+        links.expected_space(),max_nodes=0,batch=f.batch)
+    assert token['should_probe']
+    f.links.commit(token,f.batch,'insufficient_clean_support')
+    return token
+
+
+def test_bounded_descriptor_qualifies_all_roots_and_keeps_no_safe_crop_abstention(bounded_job):
+    f = bounded_job
+    assert f.crops == () and f.batch['nodes'] == []
+    assert f.batch['outcomes'] == [{'phrase_index':0,'status':'insufficient_clean_support'}]
+    with f.store.db() as db:
+        row,candidate = _bound_descriptor(f,db)
+        assert candidate['eligible']
+        assert row['cid1'] == 'source-0' and row['cid2'] == 'source-1'
+        assert ledger.RecordingSpeakerLinkStore._bound_job(db,f.sid,f.jid,f.digest) == (f.rid,f.row['proof_sha256'])
+    assert f.links.recording_for_job(f.sid,f.jid,f.digest) == f.rid
+    token = _finish_bounded(f)
+    assert f.links.snapshot(token['scope_id'])['batches'] == [f.batch]
+    assert f.links.recompute_scope(token['scope_id'],links.reconcile_batches)['saved']
+    with f.store.db() as db:
+        row,candidate = _bound_descriptor(f,db)
+        scopes = f.reader._speaker_annotations(db,f.sid,[candidate],[(row,)])
+        assert [item['recording_id'] for item in scopes] == [f.rid]
+        assert candidate['phrases'][0]['recording_speaker_link']['status'] == 'insufficient_clean_support'
+    saved = f.links.read_saved(f.sid,f.rid)
+    assert saved['annotations'] == []
+    assert saved['state'] == saved['jobs'][0]['default_status'] == 'insufficient_clean_support'
+
+
+@pytest.mark.parametrize('cid',['source-2','source-3'])
+def test_bounded_third_fourth_recording_mismatch_rejects_store_and_display(bounded_job,cid):
+    f = bounded_job
+    token = _finish_bounded(f)
+    assert f.links.recompute_scope(token['scope_id'],links.reconcile_batches)['saved']
+    with f.store.db() as db:
+        row,candidate = _bound_descriptor(f,db)
+        assert candidate['eligible']
+        db.execute('''INSERT INTO sessions(id,name,identity_group,created,timeline_end)
+            VALUES('foreign-session','synthetic foreign','foreign-session',1.,1.)''')
+        db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,capture_origin_frame)
+            VALUES('other-recording','foreign-session','synthetic-other',1.,0)''')
+        db.execute("UPDATE recording_work SET batch_id='other-recording' WHERE chunk_id=?",(cid,))
+        # Production permits only one recording per session. A cross-session
+        # move must fail fresh binding. Separately exercise display's defensive
+        # membership check with the descriptor authenticated before mutation.
+        assert f.reader._speaker_annotations(db,f.sid,[candidate],[(row,)]) == []
+        assert candidate['phrases'][0]['recording_speaker_link']['status'] == 'probe_unavailable'
+    with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
+    with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
+    assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
+
+
+@pytest.mark.parametrize('cid',['source-2','source-3'])
+@pytest.mark.parametrize('status',['failed','cancelled','staging'])
+def test_bounded_extra_source_status_revocation_cannot_publish(bounded_job,cid,status):
+    f = bounded_job
+    token = _finish_bounded(f)
+    snap = f.links.snapshot(token['scope_id'])
+    decision = links.reconcile_batches(snap['evidence_batches'])
+    with f.store.db() as db:db.execute('UPDATE chunks SET status=? WHERE id=?',(status,cid))
+    with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
+    with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
+    assert f.links.save_decision(token['scope_id'],snap['revision'],decision,
+        session_revision=snap['session_revision']) is False
+    with f.store.db() as db:
+        current = db.execute('SELECT transcript_revision FROM sessions WHERE id=?',(f.sid,)).fetchone()[0]
+    assert current != snap['session_revision']
+    with pytest.raises(ReadError):
+        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current)
+    assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
+
+
+@pytest.mark.parametrize('change',[
+    "UPDATE native_core_commits SET state='cancelled' WHERE cid='source-3'",
+    "UPDATE recording_batches SET retention_store_key='"+'6'*64+"'",
+    "UPDATE segments SET raw_text='changed'",
+    "UPDATE chunks SET digest='"+'7'*64+"' WHERE id='source-2'",
+    "DELETE FROM moss_automatic_dependencies_v2 WHERE cid='source-3'",
+    "DELETE FROM recording_work WHERE chunk_id='source-3'",
+])
+def test_bounded_stale_authority_cannot_reseal_after_snapshot(bounded_job,change):
+    f = bounded_job
+    token = _finish_bounded(f)
+    snap = f.links.snapshot(token['scope_id'])
+    decision = links.reconcile_batches(snap['evidence_batches'])
+    with f.store.db() as db:db.execute(change)
+    with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
+    with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
+    assert f.links.save_decision(token['scope_id'],snap['revision'],decision,
+        session_revision=snap['session_revision']) is False
+    with f.store.db() as db:
+        current = db.execute('SELECT transcript_revision FROM sessions WHERE id=?',(f.sid,)).fetchone()[0]
+    assert current != snap['session_revision']
+    with pytest.raises(ReadError):
+        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current)
+    assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
+
+
+def test_bounded_display_requires_every_authenticated_root_membership(bounded_job):
+    f = bounded_job
+    with f.store.db() as db:
+        row,candidate = _bound_descriptor(f,db)
+        db.execute("DELETE FROM recording_work WHERE chunk_id='source-3'")
+        assert f.reader._speaker_annotations(db,f.sid,[candidate],[(row,)]) == []
+        row['source_roots'] = []
+        assert f.reader._speaker_annotations(db,f.sid,[candidate],[(row,)]) == []
+
+
+def test_legacy_descriptor_remains_equivalent_in_real_upgraded_schema(environment,support_local_ledger_factory):
+    original,value,_ = environment
+    batch = prepared(original)
+    old_token,embedded = finish(value,batch)
+    assert value.recompute_scope(old_token['scope_id'],links.reconcile_batches)['saved']
+    with connection(original.path) as db:
+        source = dict(db.execute('SELECT * FROM chunks').fetchone())
+        work = dict(db.execute('SELECT * FROM recording_work').fetchone())
+        old = dict(db.execute(f'SELECT * FROM {moss_automatic.TABLE}').fetchone())
+        saved = dict(db.execute(f'SELECT * FROM {history.TABLE}').fetchone())
+    f = support_local_ledger_factory(reference=True)
+    f.store.settings.recording_speaker_links_enabled = True
+    with f.store.db() as db:
+        db.execute('INSERT INTO sessions(id,name,identity_group,created,timeline_end) VALUES(?,?,?,1.,10.)',(SID,'legacy',SID))
+        db.execute('INSERT INTO recording_batches(id,session_id,capture_id,created,capture_origin_frame) VALUES(?,?,?,1.,0)',(RID,SID,'legacy'))
+        db.execute('''INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,timeline_start,status,next_offset,created)
+            VALUES(?,?,?,?, '/synthetic-not-opened',?,?,'completed',?,1.)''',
+            (source['id'],SID,source['id'],source['digest'],source['duration'],source['timeline_start'],source['duration']))
+        db.execute('''INSERT INTO recording_work(chunk_id,batch_id,position,frames,bytes,capture_start_frame,receipt_id,native_receipt_status,receipt_state)
+            VALUES(?,?,0,?,?,?,?,'synthetic','durable')''',(source['id'],RID,work['frames'],work['frames']*2,work['capture_start_frame'],work['receipt_id']))
+        assert _insert_committed_history(db,SID,batch['job_id'],json.loads(saved['result_json']),json.loads(saved['metadata_json'])) == batch['result_sha256']
+        retained = {key:old[key] for key in ('candidate_key','sid','kind','binding','proof_sha256','cell_id','cid1','cid2','state','reason','job_id','jobs_epoch','request_sha256')}
+        retained.update(slot1='a'*64,created=1.,updated=1.,charge_bytes=moss_automatic.ACCOUNTING_BYTES+len(old['binding']))
+        db.execute(f"INSERT INTO {moss_automatic.TABLE}("+','.join(retained)+') VALUES('+','.join('?' for _ in retained)+')',tuple(retained.values()))
+        moss_automatic._charge(db,SID,(1,retained['charge_bytes'],0,0))
+    upgraded = ledger.RecordingSpeakerLinkStore(f.store)
+    assert upgraded.recording_for_job(SID,batch['job_id'],batch['result_sha256']) == RID
+    new_token,new_embedded = finish(upgraded,batch)
+    assert new_embedded == embedded
+    assert upgraded.snapshot(new_token['scope_id'])['batches'] == [embedded]
+    assert upgraded.recompute_scope(new_token['scope_id'],links.reconcile_batches)['saved']
+    assert upgraded.read_saved(SID,RID)['annotations'] == value.read_saved(SID,RID)['annotations']
+
+
+@pytest.mark.parametrize('schema',[core.INVENTORY_SCHEMA,core.COMPACT_INVENTORY_SCHEMA,None],ids=['inventory-v1','inventory-v2','inventory-v3'])
+def test_bounded_descriptor_preserves_all_inventory_versions(support_local_ledger_factory,schema):
+    f = _committed_bounded(support_local_ledger_factory(schema,reference=True))
+    with f.store.db() as db:
+        row,candidate = _bound_descriptor(f,db)
+        assert candidate['eligible']
+        assert ledger.RecordingSpeakerLinkStore._bound_job(db,f.sid,f.jid,f.digest) == (f.rid,f.row['proof_sha256'])
+    assert f.links.recording_for_job(f.sid,f.jid,f.digest) == f.rid
+
+
+@pytest.mark.parametrize('change',[
+    "UPDATE moss_automatic_intents_v1 SET target_key=NULL",
+    "UPDATE moss_automatic_intents_v1 SET target_key='"+'f'*64+"'",
+    "UPDATE moss_automatic_intents_v1 SET plan_phase=NULL",
+    "UPDATE moss_automatic_intents_v1 SET proof=x'7b7d'",
+])
+def test_bounded_mixed_or_tampered_descriptor_never_falls_back(bounded_job,change):
+    f = bounded_job
+    assert f.links.recording_for_job(f.sid,f.jid,f.digest) == f.rid
+    before = counters(f.store)
+    with f.store.db() as db:db.execute(change)
+    with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
+    with pytest.raises(ReadError):_finish_bounded(f)
+    assert counters(f.store) == before

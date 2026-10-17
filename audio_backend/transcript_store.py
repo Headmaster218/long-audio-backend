@@ -479,10 +479,13 @@ class TranscriptStore:
         scopes, by_job = {}, {}
         for row, *_ in intersecting:
             recording_ids = []
-            for cid in (row['cid1'], row['cid2']):
+            for cid in row.get('source_roots', (row['cid1'], row['cid2'])):
                 if cid is None:continue
                 record = db.execute('SELECT batch_id FROM recording_work WHERE chunk_id=?', (cid,)).fetchone()
-                if record is not None:recording_ids.append(record[0])
+                if record is None:
+                    recording_ids = []
+                    break
+                recording_ids.append(record[0])
             if not recording_ids or len(set(recording_ids)) != 1:continue
             rid = recording_ids[0]
             if rid not in scopes:

@@ -804,7 +804,8 @@ class MossJobs:
                 return  # Explicit session erasure also erases this pending copy.
             if exc.reason in ('probe_unavailable','automatic_source_unplaced','automatic_binding_invalid',
                     'automatic_history_binding_invalid','transcript_result_invalid',
-                    'transcript_result_hash_invalid','speaker_link_commit_conflict'):
+                    'transcript_result_hash_invalid','speaker_link_commit_conflict',
+                    'bounded_inventory_changed','bounded_inventory_source_changed','bounded_compact_changed'):
                 # Revoked current authority cannot be published or retried forever.
                 # The immutable reservation still permits a historical unavailable outcome.
                 return self._resolve_probe_attempt(probe)

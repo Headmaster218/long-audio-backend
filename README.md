@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev45：bounded MOSS 的录音内说话人证据准入
+
+默认关闭的录音内临时说话人链接现在消费数据库限定后的 bounded descriptor，并在同一已认证快照中检查全部 source_roots；旧 v1 仍使用原 cid 别名。转写显示使用相同完整根集合，缺失或跨录音成员不能显示链接。三个确定的 bounded 来源撤销原因进入既有同 owner 的终态解决路径；存储或确认不确定仍保留待处理状态，不重新运行探测。
+
+113 个当前源模型无关用例通过，覆盖真实合成 bounded schema、inventory v1/v2/v3、旧 v1 升级兼容、第三/第四根、撤销/陈旧/混合或篡改描述符、CAS、无安全 crop 的弃权及终态确认丢失。首轮 57 通过后因测试误假定一个会话可有两个录音而失败；生产 schema 的唯一约束保留，fixture 改为真实跨会话移动，原失败证据保留。跨会话来源通常已被更早的 authority 检查拒绝，完整根成员检查是纵深防御。
+
+这只恢复 bounded MOSS-to-MOSS 证据准入，不改变探测阈值、额度、schema、默认开关或全局人员身份。没有新 embedding/model 运行，也未证明 bounded 正 crop 推理、native-primary 身份衔接、声学质量或历史 AMI 恢复。原保守 crop 规则仍可返回零节点。离线 128 文件 source/wheel/install 检查只验证包字节，外部模型与运行时仍须另外核对。详见[录音内临时链接的范围与限制](docs/RECORDING_SPEAKER_LINKS.md)。下列历史章节保留当时的证据与限制。
+
 ## 0.2.0rc3.dev44：局部支持选择不得重开范围
 
 默认关闭的实验路径仅在 select_support.legal 增加 inventory-v3 / selected-support-whole-parent-v1 的范围包含检查：移除支持外父行后，局部验证不能重新选择更宽的原始支持；selected() 仍要求结果与声明的 scan_frames 精确相等。完整规划和历史 v1/v2 的全带选择不变，全部相交完整父行、词汇来源、原始零 PCM 根、新鲜性及四根/20 秒/query/SQL 等上限均保留。此前已接受的 v3 proof 字节与摘要不变；本版新获准的 proof 被紧邻 dev43 reader 明确拒绝，不声称双向兼容。

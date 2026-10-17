@@ -1,5 +1,45 @@
 # Provisional recording-local speaker links
 
+## dev45: bounded MOSS-to-MOSS evidence admission
+
+Version 0.2.0rc3.dev45 restores the existing optional recording-local evidence path
+for authenticated bounded automatic MOSS results. The store consumes the copied,
+DB-qualified descriptor returned by TranscriptStore before strict v2 dispatch.
+After current proof/source validation, recording membership uses every authenticated
+source_root, with the original cid1/cid2 fallback for legacy v1. The transcript's
+saved-annotation lookup uses the same complete roots and refuses any missing root.
+This does not change the one-recording-per-session schema. A foreign-session move
+already fails earlier source-placement authority; all-root membership is additional
+defense, not support for multiple recordings within one session.
+
+The existing same-owner publication resolution also recognizes exactly
+bounded_inventory_changed, bounded_inventory_source_changed and bounded_compact_changed.
+Confirmed revocation can record a historical unavailable outcome using the consumed
+reservation. Prepared proof, attempt identity and token remain exact; vectors are
+stripped from unresolved prepared evidence. A lost terminal acknowledgement keeps
+staging pending until the existing durable acknowledgement path succeeds. Ordinary
+storage uncertainty remains pending and never becomes a new inference attempt.
+
+The accepted model-free slice has 113 passing cases: current bounded schemas and
+inventory v1/v2/v3; legacy v1 in the real upgraded schema; third/fourth roots;
+revoked, stale, mixed and tampered authority; stale-decision CAS; strict empty-crop
+abstention; and publication revocation with lost-ack/no-replay controls. The first
+attempt retained 57 passes and one fixture failure at the schema's unique session
+constraint; its corrected, fresh retry passed all 113. No failed evidence was
+removed or represented as a production success.
+
+This is bounded MOSS-to-MOSS evidence-path enablement only. Native-primary identity
+reconciliation, persistent person identity, acoustic quality, positive bounded crop
+inference and real model execution remain unqualified. The fresh bounded fixture
+has insufficient clean support and records zero nodes; existing conservative crop
+selection may continue to abstain. No threshold, cap, quota, schema, capture,
+worker admission or global-ID rule changes. Stored pooled native vectors are not
+reused. The feature remains default-off and uses its existing explicit options.
+Offline source/wheel/installed parity checks package bytes only; external manifests,
+model/runtime closure and upstream provenance still require separate verification.
+Historical version-specific limitations elsewhere remain historical qualifications.
+
+
 This optional annotation path has no persistent person identity. MOSS speaker
 names are job-local tags; native labels belong to their witnessed epoch/runtime
 coordinate scope. The caller must verify all source aliases against the current

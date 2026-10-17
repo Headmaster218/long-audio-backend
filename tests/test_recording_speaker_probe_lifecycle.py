@@ -334,3 +334,38 @@ def test_existing_idle_path_continues_bounded_model_free_reconciliation(automati
     assert f.owner.automatic_idle() and len(calls)==1
     f.owner._probe_reconcile_after=0
     assert f.owner.automatic_idle() and len(calls)==2 and len(drivers)==1
+
+
+@pytest.mark.parametrize('reason',[
+    'bounded_inventory_changed','bounded_inventory_source_changed','bounded_compact_changed'])
+@pytest.mark.parametrize('resolution_lost_ack',[False,True])
+def test_bounded_publication_revocation_resolves_without_native_replay(
+        automatic_cell_jobs,monkeypatch,reason,resolution_lost_ack):
+    f=automatic_cell_jobs
+    sidecar,events,drivers,primary=setup_probe(f,monkeypatch)
+    attempts=[]; resolutions=sidecar.resolve_attempt
+    def revoked(admission,batch,state):
+        attempts.append(contract.encoded(batch))
+        raise ReadError(409,reason)
+    def resolve(*args,**kwargs):
+        assert f.owner._probe_staging_bytes > 0
+        if resolution_lost_ack and not sidecar.resolutions:
+            resolutions(*args,**kwargs)
+            raise ReadError(503,'result_storage_unavailable')
+        return resolutions(*args,**kwargs)
+    sidecar.commit=revoked;sidecar.resolve_attempt=resolve
+    record=f.finish();probe=record['speaker_probe']
+    assert record['durable_result_available'] and result_rows(f.store)[0]['state']=='committed'
+    assert len(drivers)==1 and len(sidecar.reservations)==1 and not sidecar.commits
+    assert not sidecar.recomputes and len(sidecar.resolutions)==1
+    assert f.permit._optional is None  # The existing probe child was positively cleaned.
+    if resolution_lost_ack:
+        assert probe['commit_pending'] and f.owner._probe_staging_bytes > 0
+        assert f.owner.automatic_idle()
+        assert len(sidecar.resolutions)==2 and len(attempts)==2
+        assert attempts[0]==attempts[1]
+    else:
+        assert len(attempts)==1
+    assert not probe['commit_pending'] and probe['state']=='probe_unavailable'
+    assert f.owner._probe_staging_bytes==0 and len(drivers)==1
+    assert all('vector' not in node for call in sidecar.resolutions for node in call[2]['nodes'])
