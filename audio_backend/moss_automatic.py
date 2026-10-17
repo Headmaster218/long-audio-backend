@@ -732,10 +732,14 @@ def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,exp
     return (row,validated) if with_validation else row
 
 
-def _register_target(db,proposal,context,scope,now,budget):
+def _register_target(db,proposal,context,scope,now,budget,*,rollback_rows=None):
     from .native_owned_core_seams import validate_target,append_target_origin
     target=proposal['target']; _,roots=validate_target(target)
     existing=_read_v2(db,target_key=target['key'],budget=budget)
+    if rollback_rows is not None:
+        # Keep the first transaction-local pre-alias row, including absence.
+        # No additional body read and no reuse across authority callbacks.
+        rollback_rows.setdefault(target['key'],existing)
     if existing is not None:
         if existing['plan_phase']!='waiting':return existing,'already_owned'
         saved=json.loads(existing['target_body'])
@@ -859,6 +863,62 @@ def _bind_target(db,row,proposal,context,actual_snapshot,budget,now,*,support_lo
     return cell.cell_id
 
 
+
+def _close_eof_localization(db,saved,proposal,packet,handoff,scope,now,budget):
+    """Close only a restored owner after a failed final localization attempt."""
+    from .native_owned_core_seams import _bounded_query
+    if handoff.get('true_eof') is not True:return 'not_final'
+    if saved is None:return 'new_target_rolled_back'
+    context=handoff['batch'];commit=packet['commit']
+    if (saved['state']!='queued' or saved['plan_phase']!='waiting' or saved['job_id'] is not None
+            or saved['target_key']!=proposal['target']['key']
+            or saved['sid']!=commit['scope']['session_id']):return 'row_changed'
+    if _waiting_reason(saved,context,scope,now,handoff.get('clock_owner')) is not None:
+        return 'prior_terminal_condition'
+    outcome='frontier_unavailable'
+    db.set_progress_handler(budget.progress,100)
+    db.execute('SAVEPOINT bounded_eof')
+    try:
+        with budget.finalization_phase():
+            # This is the same failed proposal, not a new query or selection.
+            # Authenticate its native evidence against the committed compact.
+            _bounded_query(proposal['query'],commit,proposal['support'],proposal['evidence'])
+            native=proposal['query']['native'];state=native['state']
+            end=commit['part']['logical_end']
+            if (proposal['commits'][-1]==commit and native['true_eof'] is True
+                    and state['finished'] is True
+                    and native['replay_start']+state['input']['frame']==end
+                    and state['input']['frame']==state['processed']['frame']==state['stable']['frame']
+                    and type(handoff.get('logical_end')) is int and handoff['logical_end']==end):
+                # A healthy restored waiting row has this exact bounded charge.
+                # Both strict anchor/dependency validations are still performed.
+                # Do not charge a read we cannot issue, or refund actual work.
+                dependencies=_original_dependencies(json.loads(saved['target_body']))
+                allowance=len(saved['binding'])+1056+2*(320+sum(160+len(d['cid']) for d in dependencies))
+                if budget.sql_bytes+allowance>252*1024:
+                    outcome='headroom_unavailable'
+                else:
+                    outcome='row_changed'
+                    restored=_read_v2(db,key=saved['candidate_key'],budget=budget,
+                        expected=(saved['proof'],saved['target_body']))
+                    if restored==saved:
+                        _terminal(db,restored,'no_result','bounded_local_selection_changed',budget=budget)
+                        outcome='closed'
+            budget.check()
+        db.execute('RELEASE bounded_eof')
+        return outcome
+    except (Unavailable,ReadError):
+        db.set_progress_handler(None,0)
+        if not db.in_transaction:raise
+        db.execute('ROLLBACK TO bounded_eof');db.execute('RELEASE bounded_eof')
+        if not db.in_transaction:raise
+        with budget.notice_phase():budget.check()
+        # An unexpected post-read byte overrun is consumed work, not the
+        # prospective no-headroom case above. It cannot become a soft defer.
+        if budget.sql_bytes>252*1024:raise
+        return 'closure_unavailable'
+
+
 def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
     """Optional primary-atomic registration/finalization. SQL errors are hard.
 
@@ -880,7 +940,7 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
     origins=handoff.get('origins',[]); proposals=handoff.get('plans',[])
     if len(origins)>CORE_INTENTS or sum(p.get('reason') is None for p in proposals)>4:
         notice['reason']='bounded_target_capacity';return notice
-    registered=[]; bound=[]; refused=[]
+    registered=[]; bound=[]; refused=[]; rollback_rows={}; failed_binding=None
     db.execute('SAVEPOINT bounded_optional')
     try:
         # Cooperative checks happen before statements. A VM interrupt or any
@@ -894,7 +954,7 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
             _exact_compacts(db,[packet['commit']],context,budget)
             for original in origins:
                 _,roots=validate_target(original['target']);_exact_compacts(db,roots,context,budget)
-                try:row,status=_register_target(db,original,context,scope,now,budget)
+                try:row,status=_register_target(db,original,context,scope,now,budget,rollback_rows=rollback_rows)
                 except Unavailable as exc:
                     if str(exc)=='serialization_capacity' and getattr(exc,'capacity_phase',None) is None:
                         exc.capacity_phase='target_registration'
@@ -930,7 +990,10 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                     # The arriving eligible core gets its attempt before the
                     # logical horizon or true-EOF closure below.
                     if proposal['commits'][-1]!=packet['commit']:raise Unavailable('bounded_publication_anchor_changed')
+                    rollback_rows.setdefault(key,row)
+                    failed_binding=(rollback_rows[key],proposal)
                     bound.append(_bind_target(db,row,proposal,context,actual,budget,now,support_local=True))
+                    failed_binding=None
                     continue
                 if reason is None:
                     components=target['identity']['components']
@@ -958,6 +1021,14 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
         # Never soften consumed global exhaustion or uncertain SQL rollback.
         with budget.notice_phase():budget.check()
         notice['reason']=(getattr(exc,'reason',None) or str(exc))[:80]
+        if str(exc)=='bounded_local_selection_changed':
+            phase=getattr(exc,'local_selection_phase',None)
+            if type(phase) is str and phase in ('full_band_reselect','local_replay','local_scope_geometry'):
+                notice['local_selection_phase']=phase
+            if failed_binding is not None:
+                outcome=_close_eof_localization(db,*failed_binding,packet,handoff,scope,now,budget)
+                notice['eof_finalization']=outcome
+                if outcome=='closed':notice['status']='no_result'
         if str(exc)=='serialization_capacity':
             phase=getattr(exc,'capacity_phase','unknown')
             size=getattr(exc,'encoded_bytes',None);limit=getattr(exc,'maximum_bytes',None)

@@ -1,3 +1,25 @@
+# dev43：局部化拒绝后的经认证 EOF 终态
+
+版本：0.2.0rc3.dev43。实验路径继续默认关闭，启用条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。本次修正只让满足严格认证条件的真正 EOF 在局部化选择一致性拒绝后结束等待，并保留原始 bounded_local_selection_changed 原因；不修复选择，不建立 spoken-seam 恢复资格。
+
+## 回滚、认证与剩余额度
+
+最终合法绑定仍先尝试；仅 bounded_local_selection_changed 这一原始拒绝进入新分支。只使用同一事务中、别名更新前保存的完整等待行。可选 savepoint 的 ROLLBACK TO 与 RELEASE 必须正向确认成功，恢复后的完整行必须与保存行精确相等；随后核对经认证的 _bounded_query、native finished、真正 EOF 与精确已提交 frontier，保护原所有权、原到期值及已关闭状态。仅在全部检查与预算前置检查通过时，才写入 no_result 未解决终态，并释放独立 closure savepoint；它仍与主流程提交处于同一外层事务。原原因不解释为“没有重叠”，也不伪造成功绑定或模型结果。
+
+缺少恢复行、认证不足或剩余额度不足时保留等待，不据此猜测 EOF。已消耗 SQL 超限、全局时间/steps 耗尽、SQLite 错误、回滚或释放失败及不确定状态仍为硬错误。finalization 的协作拒绝在 closure 回滚和释放确认成功、且 notice/global 预算仍可用时可以保留等待；例如测试中的 0.99 秒已过 0.98 秒 finalization 限制，但尚未耗尽 1.0 秒 notice/global 预算。预留和已经发生的工作不退款、不重置。新增 local_selection_phase 仅有三个固定分类，不保存任意内容，也不能重建历史未保存的精确比较。原选择器、proof/target/inventory wire、policy、所有四根/20 秒及大小/数量/SQL/VM/PCM/来源/取消上限、三次 authority 检查、GC 和身份限制均不变。
+
+## 当前验证与历史资格
+
+25 个不同模型无关用例通过：22 个新增，另有三个未改动复核，分别覆盖正常生产、主流程守恒压力和默认超时回滚。相关正确性测试显式设置累计 bounded-primary 1.0 秒、planning 0.4 秒、finalization 0.98 秒、notice 1.0 秒；产品默认仍为 0.75 秒，owner 的 2.0 秒另计且未改。这不是默认配置整套测试，也没有新的模型运行。
+
+[AMI21 dev42 原结果](reports/AMI21_DEV42_SPOKEN_SEAM_RESULT.md)保留原始退出码 1。全部主流程与禁用模型重启检查通过，但目标等待 300.059970 秒后到达 deadline，没有替换。baseline cpWER 110.71% 与 greedy DI 50.00% 只描述 baseline，不能作为候选质量。历史失败的精确选择比较未保存；本次有限测试不构成该历史选择的回放或 spoken-seam 恢复证明。dev42 自然 63 秒成功仍属其自身历史资格，不外推为本版或 AMI21 成功。
+
+离线 128 文件 source/wheel/install 一致仅验证包字节，wheel 仍依赖外部运行时、manifest 与本地模型；上游转换/量化来源未独立验证。所有历史失败及其未解决限制继续保留。
+
+---
+
+以下历史章节保持原字节；其中版本、测量和资格均指当时记录。
+
 # dev42：在可选 payload 读取前检查预计 SQL 额度
 
 版本：0.2.0rc3.dev42。实验路径继续默认关闭；启用和外部运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。本次仅修正未执行读取的额度预留及可选回滚后的硬预算确认，不改变 proof/target/inventory wire、等待上界、支持选择、来源身份或模型。

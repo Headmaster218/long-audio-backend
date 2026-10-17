@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev43：经认证 EOF 的未解决终态
+
+默认关闭的实验路径在局部化选择一致性检查拒绝、且可选写入已确认回滚后，可将经认证的真正 EOF 记为未解决终态，保留原始 bounded_local_selection_changed 原因。它要求同一事务内别名更新前保存的完整行与回滚恢复行精确相等，并核对 _bounded_query、native finished、真正 EOF、精确已提交 frontier 及原所有权/到期约束。预算余量、认证或恢复行不足时保持等待；已消耗 SQL 超限、全局时间/steps 耗尽、SQLite 或回滚/释放不确定仍为硬失败；finalization 的协作拒绝在 closure 回滚确认且 notice/global 预算仍可用时可继续等待。诊断仅增加 local_selection_phase 的三个固定分类；选择器、全部额度、policy 与 wire 不变。
+
+25 个不同模型无关用例通过：22 个新增及未改动的正常生产、主流程守恒压力、默认超时回滚三个复核。相关正确性测试显式使用累计 bounded-primary 1.0 秒、planning 0.4 秒、finalization 0.98 秒、notice 1.0 秒；产品默认 0.75 秒及独立 owner 2.0 秒未改。本版没有新模型运行，也未修复选择或证明 spoken-seam 恢复。
+
+[AMI21 dev42 原结果](docs/reports/AMI21_DEV42_SPOKEN_SEAM_RESULT.md)仍为退出 1：全部主流程与重启检查通过，但等待 300.059970 秒后到达 deadline，没有替换；baseline cpWER 110.71%、greedy DI 50.00% 不是候选质量。历史失败的精确选择比较未保存，不能倒推；dev42 自然 63 秒成功仍只属其历史资格。详见[边界与限制](docs/COMPACT_BOUNDED_INVENTORY.md)。离线 128 文件一致仅验证包字节。下列历史内容保持原字节。
+
 ## 0.2.0rc3.dev42：可选读取的前置额度检查
 
 默认关闭的实验路径对四处尚未执行的 SQL payload 读取增加前置额度检查：预计超出原阶段/总 SQL 上限时，不为未执行读取增加计数；已经接受的预留及已发生工作仍计费。可选工作只有在 savepoint 回滚、释放及剩余预算均确认后才能返回等待通知并保留主流程。已消耗预算超限、SQLite 中断或回滚不确定仍为硬失败，所有额度保持原值。

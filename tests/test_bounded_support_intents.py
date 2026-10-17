@@ -3186,3 +3186,424 @@ def test_optional_reservation_uncertainty_stays_hard(support_local_ledger_factor
             assert budget._refusal_diagnosed is True
             if failure == 'consumed_sql':assert budget.sql_bytes == 256*1024 + 1
             else:assert budget.elapsed > budget.seconds
+
+
+# Guarded EOF localization contracts. These fresh synthetic cases never run a
+# model or replay recorded source values. The pre-existing tests above stay put.
+def _guarded_eof_handoff(f, budget):
+    from test_bounded_core_support import ordinary_origin
+    alias = core.original_target(ordinary_origin(f.case, 1))
+    target = core.append_target_origin(f.case['target'], alias['origins'][0])
+    core._bounded_query(f.final['query'], f.case['commits'][-1],
+                        f.final['support'], f.final['evidence'])
+    native = f.final['query']['native']; end = f.case['commits'][-1]['part']['logical_end']
+    assert native['true_eof'] is True and native['state']['finished'] is True
+    assert [native['state'][name]['frame'] for name in ('input', 'processed', 'stable')] == [end]*3
+    return {'waiters': [f.row], 'batch': f.context, 'reserved': True, 'budget': budget,
+        'origins': [f.original, {'target': alias}], 'plans': [{**f.final, 'target': target}],
+        'snapshot': f.snapshot, 'draft_ids': [], 'true_eof': True,
+        'logical_end': f.case['commits'][-1]['part']['logical_end']}
+
+
+@pytest.mark.parametrize('phase', ['full_band_reselect', 'local_replay', 'local_scope_geometry'])
+def test_guarded_eof_local_selection_raise_sites(monkeypatch, phase):
+    from test_bounded_core_support import synthetic_case, seam_origin, primary_row
+    from audio_backend.transcript_projection import _legal
+    case = synthetic_case([0, 16, 32, 48, 64], [[18, 22]], origin_index=1,
+                          separate_sources=True)
+    target = core.original_target(seam_origin(case, 0))
+    parents = [primary_row(1, 16, 24, cid='source-1')]
+    if phase != 'local_replay':parents.append(primary_row(2, 28, 40, cid='source-1'))
+    snapshot = core.lexical_snapshot(case['commits'][0]['scope']['session_id'], parents,
+        case['sources'], 0., scan_frames=[0, 64], schema=core.COMPACT_INVENTORY_SCHEMA)
+    selected = core.select_support(target, case['commits'], snapshot, 0, 64)
+    assert selected == ({'start_frame': 16, 'end_frame': 24} if len(parents) == 2 else {
+        'start_frame': 0, 'end_frame': 32})
+    # Half-open semantics allow an omitted parent to touch the selected end;
+    # touching alone is neither an intersection nor a required boundary anchor.
+    assert _legal(16, 24, [{'start_frame': 16, 'end_frame': 24},
+                           {'start_frame': 24, 'end_frame': 40}])
+    if phase == 'full_band_reselect':selected = {**selected, 'end_frame': 25}
+    if phase == 'local_replay':
+        choose = core.select_support; calls = []
+        def changed_replay(*args, **kwargs):
+            shape = choose(*args, **kwargs); calls.append(args[2]['schema'])
+            return {**shape, 'end_frame': shape['end_frame']-1} if len(calls) == 2 else shape
+        monkeypatch.setattr(core, 'select_support', changed_replay)
+    with pytest.raises(Unavailable, match='^bounded_local_selection_changed$') as caught:
+        core.localize_inventory(target, case['commits'], snapshot, 0, 64, selected)
+    assert caught.value.args == ('bounded_local_selection_changed',)
+    assert vars(caught.value) == {'local_selection_phase': phase}
+    if phase == 'local_replay':
+        assert calls == [core.COMPACT_INVENTORY_SCHEMA, core.SUPPORT_LOCAL_INVENTORY_SCHEMA]
+
+
+def test_guarded_eof_local_selection_notice_screen(support_local_ledger_factory, monkeypatch):
+    f = support_local_ledger_factory(waiting=True); before = _reference_snapshot(f)
+    safe = ('full_band_reselect', 'local_replay', 'local_scope_geometry')
+    # Fixed finite screen, including missing, non-string and payload-like input.
+    for annotation in (*safe, None, True, {'payload': 'private synthetic text'},
+                       'private synthetic text', '/private/synthetic.wav'):
+        error = Unavailable('bounded_local_selection_changed')
+        if annotation is not None:error.local_selection_phase = annotation
+        error.payload = 'private synthetic text'
+        def refuse(*args, **kwargs):raise error
+        budget = Budget.for_bounded(1.0); handoff = _guarded_eof_handoff(f, budget)
+        handoff['true_eof'] = False
+        with monkeypatch.context() as patch:
+            patch.setattr(automatic, '_bind_target', refuse)
+            with f.store.db(budget=budget) as db:
+                db.execute('BEGIN IMMEDIATE')
+                notice = automatic.enqueue_bounded(db, [], {'commit': f.case['commits'][-1]},
+                    handoff, {'session_id': f.row['sid']}, [], None)
+                assert db.in_transaction
+        expected = {'schema': 'bounded-core-support-notice-v1', 'status': 'waiting',
+            'reason': 'bounded_local_selection_changed', 'owned_targets_preserved': True,
+            'eof_finalization': 'not_final'}
+        if type(annotation) is str and annotation in safe:expected['local_selection_phase'] = annotation
+        assert notice == expected and _reference_snapshot(f) == before
+        raw = json.dumps(notice, sort_keys=True).encode('ascii')
+        assert len(raw) < 512 and b'private' not in raw and b'payload' not in raw
+
+
+@pytest.mark.parametrize('frontier', ['absent_eof', 'nonfinal_native_finished', 'nonboolean_eof'])
+def test_guarded_eof_nonfinal_frontier_preserves_waiter(support_local_ledger_factory, monkeypatch, frontier):
+    f = support_local_ledger_factory(waiting=True); before = _reference_snapshot(f)
+    budget = Budget.for_bounded(1.0); handoff = _guarded_eof_handoff(f, budget)
+    assert handoff['plans'][0]['query']['native']['state']['finished'] is True
+    if frontier == 'absent_eof':del handoff['true_eof']
+    elif frontier == 'nonfinal_native_finished':handoff['logical_end'] -= 1
+    else:handoff['true_eof'] = 1
+    localize = core.localize_inventory; calls = []
+    def parity(target, commits, snapshot, qa, qb, support):
+        calls.append(True)
+        return localize(target, commits, snapshot, qa, qb, {**support, 'end_frame': support['end_frame']+1})
+    monkeypatch.setattr(core, 'localize_inventory', parity)
+    with f.store.db(budget=budget) as db:
+        db.execute('BEGIN IMMEDIATE')
+        notice = automatic.enqueue_bounded(db, [], {'commit': f.case['commits'][-1]}, handoff,
+            {'session_id': f.row['sid']}, [], None)
+    assert calls == [True] and notice['status'] == 'waiting'
+    assert notice['reason'] == 'bounded_local_selection_changed'
+    assert notice['eof_finalization'] == ('frontier_unavailable'
+        if frontier == 'nonfinal_native_finished' else 'not_final')
+    assert notice['local_selection_phase'] == 'full_band_reselect'
+    assert _reference_snapshot(f) == before and budget.sql_outcome == 'committed'
+
+
+def test_guarded_eof_authentic_final_primary_closure(bounded_app_factory, monkeypatch):
+    with bounded_app_factory(support_seconds=1.0) as h:
+        chunks, waiting = advance_to_waiter(h)
+        before = intent_rows(h); localize = core.localize_inventory
+        publications_before = list(h.publications); drivers_before = list(h.drivers)
+        with h.store.db() as db:
+            history_before = [tuple(row) for row in db.execute(f'SELECT * FROM {history.TABLE} ORDER BY rowid')]
+        register = automatic._register_target; enqueue = automatic.enqueue_bounded
+        close_eof = automatic._close_eof_localization
+        observed = {'registrations': [], 'faults': 0, 'comparisons': 0}
+        def alias_registration(*args, **kwargs):
+            row, status = register(*args, **kwargs)
+            observed['registrations'].append(status)
+            return row, status
+        def parity(target, commits, snapshot, qa, qb, support):
+            if target['key'] != waiting['target_key']:
+                return localize(target, commits, snapshot, qa, qb, support)
+            observed['faults'] += 1
+            changed_rows = [dict(row) for row in observed['db'].execute(
+                f'SELECT * FROM {automatic.TABLE} WHERE sid=? ORDER BY seq', (h.sid,))]
+            assert changed_rows != before
+            return localize(target, commits, snapshot, qa, qb,
+                            {**support, 'end_frame': support['end_frame']+1})
+        read_v2 = automatic._read_v2
+        def exact_restore(*args, **kwargs):
+            if kwargs.get('expected') is not None:
+                assert kwargs['expected'] == (waiting['proof'], waiting['target_body'])
+                assert kwargs['key'] == waiting['candidate_key']
+                assert not kwargs.get('reference_aware', False)
+                observed['comparisons'] += 1
+            return read_v2(*args, **kwargs)
+        def measured_closure(db, saved, proposal, packet, handoff, scope, now, budget):
+            assert [dict(row) for row in db.execute(f'SELECT * FROM {automatic.TABLE} WHERE sid=? ORDER BY seq',
+                                                   (h.sid,))] == before
+            assert _reference_accounting(db, h.sid) == observed['usage_before']
+            initial_bytes = budget.sql_bytes
+            outcome = close_eof(db, saved, proposal, packet, handoff, scope, now, budget)
+            roots = automatic._original_dependencies(json.loads(saved['target_body']))
+            allowance = len(saved['binding'])+1056+2*(320+sum(160+len(root['cid']) for root in roots))
+            assert outcome == 'closed' and budget.sql_bytes-initial_bytes == allowance
+            observed['closure_bytes'] = allowance
+            return outcome
+        def final_enqueue(db, cells, packet, handoff, chunk, lexical_rows, lexical_status):
+            assert handoff['true_eof'] is True and chunk['id'] == chunks[-1]['id']
+            assert handoff['logical_end'] == packet['commit']['part']['logical_end'] == 42*RATE
+            primary = {table: [tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                for table in ('segments', 'speaker_turns', 'events', 'native_core_commits', 'recording_batches')}
+            dependencies = [tuple(row) for row in db.execute(f'SELECT * FROM {automatic.DEPENDENCIES} ORDER BY rowid')]
+            usage = _reference_accounting(db, h.sid)
+            observed.update(usage_before=usage, db=db)
+            notice = enqueue(db, cells, packet, handoff, chunk, lexical_rows, lexical_status)
+            assert db.in_transaction and notice['status'] == 'no_result'
+            assert notice['reason'] == 'bounded_local_selection_changed'
+            assert notice['local_selection_phase'] == 'full_band_reselect'
+            assert notice['eof_finalization'] == 'closed'
+            assert all([tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')] == rows
+                       for table, rows in primary.items())
+            assert [tuple(row) for row in db.execute(f'SELECT * FROM {automatic.DEPENDENCIES} ORDER BY rowid')] == dependencies
+            assert [tuple(b-a for a, b in zip(left, right)) for left, right in
+                    zip(usage, _reference_accounting(db, h.sid))] == [(0, 0, -1, 0)]*2
+            observed.update(notice=notice, budget=handoff['budget'])
+            return notice
+        monkeypatch.setattr(automatic, '_register_target', alias_registration)
+        monkeypatch.setattr(core, 'localize_inventory', parity)
+        monkeypatch.setattr(automatic, '_read_v2', exact_restore)
+        monkeypatch.setattr(automatic, '_close_eof_localization', measured_closure)
+        monkeypatch.setattr(automatic, 'enqueue_bounded', final_enqueue)
+        assert process_primary(h) == chunks[-1]['id']
+        assert any(status in ('registered', 'alias_registered') for status in observed['registrations'])
+        assert observed['faults'] == observed['comparisons'] == 1
+        after = intent_rows(h); closed = c_target(h)
+        assert len(after) == len(before)
+        assert closed['state'] == 'no_result' and closed['plan_phase'] == 'closed'
+        assert closed['reason'] == 'bounded_local_selection_changed' and closed['job_id'] is None
+        changed = {'state', 'plan_phase', 'reason', 'updated', 'plan_revision'}
+        assert all(closed[name] == waiting[name] for name in waiting if name not in changed)
+        assert closed['plan_revision'] == waiting['plan_revision']+1
+        assert [row for row in after if row['candidate_key'] != waiting['candidate_key']] == [
+            row for row in before if row['candidate_key'] != waiting['candidate_key']]
+        assert h.planning[-1]['true_eof'] is True
+        assert observed['budget'].seconds == 1.0 and observed['budget'].sql_outcome == 'committed'
+        last = h.store.chunk(chunks[-1]['id'])
+        assert last['status'] == 'completed' and last['next_offset'] == last['duration']
+        assert last['metadata']['bounded_core_support'] == observed['notice']
+        with h.store.db() as db:
+            parents = [dict(row) for row in db.execute('''SELECT s.* FROM segments s JOIN chunks c
+                ON c.id=s.chunk_id WHERE c.session_id=? ORDER BY s.start,s.id''', (h.sid,))]
+            assert [(row['start'], row['end']) for row in parents] == [(18.8, 21.7), (22.5, 31.6), (40., 40.4)]
+            assert all(lexical.current_inventory(db, h.sid, row) is not None for row in parents)
+            assert ' '.join(row['text'] for row in parents).split() == ['prefix', 'alpha', 'beta', 'gamma', 'suffix']
+            assert [tuple(row) for row in db.execute(f'SELECT * FROM {history.TABLE} ORDER BY rowid')] == history_before
+        assert h.publications == publications_before and h.drivers == drivers_before and h.jobs._live is None
+        assert h.jobs.permit._optional is None and not h.owner._pins
+
+
+@pytest.mark.parametrize('guard', ['projection_headroom', 'time_headroom',
+    'expected_proof_mismatch', 'expected_target_mismatch', 'owner_metadata_changed'])
+def test_guarded_eof_restored_owner_guards(support_local_ledger_factory, monkeypatch, guard):
+    f = support_local_ledger_factory(waiting=True); before = _reference_snapshot(f)
+    # Freeze the clock only in this finite ledger test; budgets and counters are
+    # unchanged. Synthetic consumed time deterministically lies in notice slack.
+    monkeypatch.setattr(time, 'monotonic', lambda: 100.)
+    budget = Budget.for_bounded(1.0); handoff = _guarded_eof_handoff(f, budget)
+    localize = core.localize_inventory; read_v2 = automatic._read_v2; compared = []
+    def parity(target, commits, snapshot, qa, qb, support):
+        if guard == 'projection_headroom':budget.sql_bytes = 252*1024
+        elif guard == 'time_headroom':budget.elapsed = .99
+        return localize(target, commits, snapshot, qa, qb,
+                        {**support, 'end_frame': support['end_frame']+1})
+    def mismatched_restore(*args, **kwargs):
+        if kwargs.get('expected') is None:return read_v2(*args, **kwargs)
+        assert kwargs['expected'] == (f.row['proof'], f.row['target_body'])
+        assert kwargs['key'] == f.key; compared.append(True)
+        if guard in ('expected_proof_mismatch', 'expected_target_mismatch'):
+            proof, target = kwargs['expected']
+            if guard == 'expected_proof_mismatch':proof = b'!' + proof[1:]
+            else:target = b'!' + target[1:]
+            return read_v2(*args, **{**kwargs, 'expected': (proof, target)})
+        restored = read_v2(*args, **kwargs)
+        return {**restored, 'plan_revision': restored['plan_revision']+1}
+    monkeypatch.setattr(core, 'localize_inventory', parity)
+    monkeypatch.setattr(automatic, '_read_v2', mismatched_restore)
+    with f.store.db(budget=budget) as db:
+        db.execute('BEGIN IMMEDIATE')
+        db.execute("UPDATE sessions SET name='primary survives' WHERE id=?", (f.row['sid'],))
+        notice = automatic.enqueue_bounded(db, [], {'commit': f.case['commits'][-1]}, handoff,
+            {'session_id': f.row['sid']}, [], None)
+        assert db.in_transaction and _reference_row(f, db) == f.row
+    assert notice['status'] == 'waiting' and notice['reason'] == 'bounded_local_selection_changed'
+    expected = {'projection_headroom': 'headroom_unavailable', 'time_headroom': 'closure_unavailable'}
+    assert notice['eof_finalization'] == expected.get(guard, 'row_changed')
+    assert compared == ([] if guard in expected else [True])
+    assert _reference_snapshot(f) == before and budget.sql_outcome == 'committed'
+    assert budget.seconds == 1.0 and budget.read_bytes == 0
+    if guard == 'projection_headroom':assert budget.sql_bytes == 252*1024
+    if guard == 'time_headroom':assert budget.elapsed == .99
+    with f.store.db() as db:
+        assert db.execute('SELECT name FROM sessions WHERE id=?', (f.row['sid'],)).fetchone()[0] == 'primary survives'
+        _reference_accounting(db, f.row['sid'])
+    if guard == 'owner_metadata_changed':
+        for damaged in ('query', 'evidence'):
+            fresh_budget = Budget.for_bounded(1.0)
+            invalid = _guarded_eof_handoff(f, fresh_budget)
+            invalid['plans'] = deepcopy(invalid['plans'])
+            if damaged == 'query':invalid['plans'][0]['query']['capture_run'] = '0'*32
+            else:invalid['plans'][0]['evidence']['native']['input_until'] += 1.
+            compared.clear()
+            with f.store.db(budget=fresh_budget) as db:
+                db.execute('BEGIN IMMEDIATE')
+                refused = automatic.enqueue_bounded(db, [], {'commit': f.case['commits'][-1]},
+                    invalid, {'session_id': f.row['sid']}, [], None)
+            assert refused['status'] == 'waiting' and refused['eof_finalization'] == 'closure_unavailable'
+            assert not compared and _reference_snapshot(f) == before
+        # The same genuine alias also exercises successful closure of the
+        # restored original owner, rather than the larger rolled-back alias row.
+        fresh_budget = Budget.for_bounded(1.0); valid = _guarded_eof_handoff(f, fresh_budget)
+        close_eof = automatic._close_eof_localization; projected = []
+        def measured_close(db, saved, proposal, packet, current, scope, now, current_budget):
+            assert saved == f.row and _reference_row(f, db) == f.row
+            start = current_budget.sql_bytes
+            outcome = close_eof(db, saved, proposal, packet, current, scope, now, current_budget)
+            projected.append(current_budget.sql_bytes-start)
+            return outcome
+        with monkeypatch.context() as patch:
+            patch.setattr(automatic, '_read_v2', read_v2)
+            patch.setattr(automatic, '_close_eof_localization', measured_close)
+            with f.store.db(budget=fresh_budget) as db:
+                db.execute('BEGIN IMMEDIATE'); usage = _reference_accounting(db, f.row['sid'])
+                closed = automatic.enqueue_bounded(db, [], {'commit': f.case['commits'][-1]},
+                    valid, {'session_id': f.row['sid']}, [], None)
+                row = automatic._read_v2(db, key=f.key)
+                assert row['state'] == 'no_result' and row['plan_phase'] == 'closed'
+                stable = set(f.row)-{'state', 'plan_phase', 'reason', 'updated', 'plan_revision'}
+                assert all(row[name] == f.row[name] for name in stable)
+                assert row['plan_revision'] == f.row['plan_revision']+1
+                assert [tuple(b-a for a, b in zip(left, right)) for left, right in
+                        zip(usage, _reference_accounting(db, f.row['sid']))] == [(0, 0, -1, 0)]*2
+        roots = automatic._original_dependencies(json.loads(f.row['target_body']))
+        assert projected == [len(f.row['binding'])+1056+2*(320+sum(160+len(root['cid']) for root in roots))]
+        assert closed['status'] == 'no_result' and closed['eof_finalization'] == 'closed'
+        after = _reference_snapshot(f)
+        assert all(after[table] == before[table] for table in before if table not in (automatic.TABLE, automatic.USAGE))
+
+
+@pytest.mark.parametrize('failure', ['optional_rollback', 'optional_release', 'eof_sql_interrupt',
+    'eof_rollback', 'eof_release', 'consumed_sql', 'expired_time'])
+def test_guarded_eof_uncertainty_stays_hard(support_local_ledger_factory, monkeypatch, failure):
+    f = support_local_ledger_factory(waiting=True); before = _reference_snapshot(f)
+    monkeypatch.setattr(time, 'monotonic', lambda: 100.)
+    budget = Budget.for_bounded(1.0); handoff = _guarded_eof_handoff(f, budget)
+    localize = core.localize_inventory; terminal = automatic._terminal
+    evidence = {'alias_changed': False, 'terminal_changed': False, 'cleanup': [], 'interrupted': False}
+    class FaultDB:
+        def __init__(self, db):self.db = db
+        @property
+        def in_transaction(self):return self.db.in_transaction
+        def set_progress_handler(self, callback, count):return self.db.set_progress_handler(callback, count)
+        def execute(self, sql, parameters=()):
+            if sql.startswith(('ROLLBACK TO bounded_', 'RELEASE bounded_')):
+                evidence['cleanup'].append(sql)
+            broken = {'optional_rollback': 'ROLLBACK TO bounded_optional',
+                'optional_release': 'RELEASE bounded_optional',
+                'eof_rollback': 'ROLLBACK TO bounded_eof', 'eof_release': 'RELEASE bounded_eof'}
+            if sql == broken.get(failure):raise sqlite3.OperationalError('synthetic ' + failure)
+            if failure == 'eof_sql_interrupt' and sql.startswith(f'UPDATE {automatic.TABLE} SET state='):
+                evidence['interrupted'] = True
+                self.db.set_progress_handler(lambda: 1, 1)
+                self.db.execute('WITH RECURSIVE work(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM work WHERE n<1000) SELECT sum(n) FROM work').fetchone()
+                pytest.fail('SQLite EOF interruption did not propagate')
+            return self.db.execute(sql, parameters)
+    def parity(target, commits, snapshot, qa, qb, support):
+        assert target != f.case['target'] and len(target['origins']) == 2
+        evidence['alias_changed'] = True
+        if failure == 'expired_time':budget.elapsed = 1.01
+        return localize(target, commits, snapshot, qa, qb,
+                        {**support, 'end_frame': support['end_frame']+1})
+    def terminal_then_refuse(db, row, state, reason, **kwargs):
+        result = terminal(db, row, state, reason, **kwargs)
+        evidence['terminal_changed'] = True
+        assert _reference_row(f, db)['state'] == 'no_result'
+        if failure == 'consumed_sql':
+            # Already consumed closure work remains hard even below the global
+            # 256 KiB cap. No reset or refund may disguise this finalization overrun.
+            budget.sql_bytes = 252*1024+1
+            budget.check()
+        if failure == 'eof_rollback':raise Unavailable('bounded_planning_capacity')
+        return result
+    monkeypatch.setattr(core, 'localize_inventory', parity)
+    monkeypatch.setattr(automatic, '_terminal', terminal_then_refuse)
+    kind = Unavailable if failure in ('consumed_sql', 'expired_time') else sqlite3.OperationalError
+    with pytest.raises(kind) as caught:
+        with f.store.db(budget=budget) as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute("UPDATE sessions SET name='primary must roll back' WHERE id=?", (f.row['sid'],))
+            automatic.enqueue_bounded(FaultDB(db), [], {'commit': f.case['commits'][-1]},
+                handoff, {'session_id': f.row['sid']}, [], None)
+            pytest.fail('uncertain EOF finalization returned a notice')
+    assert evidence['alias_changed'] and budget.sql_outcome == 'rolled_back'
+    assert _reference_snapshot(f) == before
+    with f.store.db() as db:
+        assert db.execute('SELECT name FROM sessions WHERE id=?', (f.row['sid'],)).fetchone()[0] == 'synthetic support-local'
+        _reference_accounting(db, f.row['sid'])
+    if failure == 'eof_sql_interrupt':
+        assert evidence['interrupted'] and caught.value.sqlite_errorcode == sqlite3.SQLITE_INTERRUPT
+    elif failure in ('consumed_sql', 'expired_time'):
+        assert str(caught.value) == 'bounded_planning_capacity' and budget._refusal_diagnosed
+        expected_cleanup = ['ROLLBACK TO bounded_optional', 'RELEASE bounded_optional']
+        if failure == 'consumed_sql':
+            expected_cleanup += ['ROLLBACK TO bounded_eof', 'RELEASE bounded_eof']
+            assert budget.sql_bytes == 252*1024+1 < 256*1024
+        assert evidence['cleanup'] == expected_cleanup
+    else:assert str(caught.value) == 'synthetic ' + failure
+    if failure in ('eof_rollback', 'eof_release'):assert evidence['terminal_changed']
+    if failure == 'optional_rollback':assert evidence['cleanup'] == ['ROLLBACK TO bounded_optional']
+
+
+def test_guarded_eof_successful_final_bind_precedes_closure(support_local_ledger_factory, monkeypatch):
+    f = support_local_ledger_factory(waiting=True); budget = Budget.for_bounded(1.0)
+    handoff = _guarded_eof_handoff(f, budget)
+    def no_repair(*args, **kwargs):pytest.fail('successful final bind entered EOF repair')
+    monkeypatch.setattr(automatic, '_close_eof_localization', no_repair)
+    with f.store.db(budget=budget) as db:
+        db.execute('BEGIN IMMEDIATE')
+        notice = automatic.enqueue_bounded(db, [], {'commit': f.case['commits'][-1]}, handoff,
+            {'session_id': f.row['sid']}, [], None)
+        row = automatic._read_v2(db, key=f.key)
+        assert row['plan_phase'] == 'bound' and row['state'] == 'queued'
+        assert row['candidate_key'] == f.key and row['job_id'] is None
+        assert resolved_target(row) == handoff['plans'][0]['target']
+        assert len(resolved_target(row)['origins']) == 2
+        _reference_accounting(db, f.row['sid'])
+    assert notice['status'] == 'bound' and notice['bound'] == 1
+    assert 'eof_finalization' not in notice and budget.sql_outcome == 'committed'
+
+
+def test_guarded_eof_new_only_target_stays_absent(support_local_ledger_factory, monkeypatch):
+    from test_bounded_core_support import synthetic_case, primary_row, final_cell
+    f = support_local_ledger_factory(waiting=True); before = _reference_snapshot(f)
+    case = synthetic_case([0, 16, 32, 48, 64], [[50, 54]], origin_index=3, separate_sources=True)
+    assert case['commits'] == f.case['commits']
+    parent = primary_row(2, 48, 56, cid='source-3', text='primary survives')
+    cell = final_cell(case, [f.parent, parent]); doc = json.loads(cell.proof)
+    original = case['target']['origins'][0]
+    proof = original['proof'].encode('ascii'); binding = original['binding'].encode('ascii')
+    first_doc, support, _ = automatic.validate_document(proof)
+    proposal = {**f.original, 'key': hashlib.sha256(binding).hexdigest(), 'kind': 'ordinary',
+        'binding': binding, 'proof': proof, 'proof_sha256': hashlib.sha256(proof).hexdigest(),
+        'cell_id': automatic.sha({'policy': first_doc['policy'], 'support': support.to_dict()}),
+        'slot1': core.slot(case['commits'][-1]), 'slot2': None, 'cid1': 'source-3', 'cid2': None,
+        'target': case['target']}
+    final = {'target': case['target'], 'commits': doc['commits'], 'query': doc['query'],
+        'evidence': doc['right_evidence'], 'support': doc['geometry'], 'pcm': cell.pcm}
+    core._bounded_query(final['query'], case['commits'][-1], final['support'], final['evidence'])
+    budget = Budget.for_bounded(1.0); handoff = _guarded_eof_handoff(f, budget)
+    handoff.update(origins=[proposal], plans=[final], snapshot=core.lexical_snapshot(f.row['sid'],
+        [f.parent, parent], case['sources'], 0., scan_frames=[0, 64], schema=core.COMPACT_INVENTORY_SCHEMA))
+    localize = core.localize_inventory; attempts = []
+    def parity(target, commits, snapshot, qa, qb, support):
+        attempts.append(target['key'])
+        return localize(target, commits, snapshot, qa, qb,
+                        {**support, 'end_frame': support['end_frame']+1})
+    monkeypatch.setattr(core, 'localize_inventory', parity)
+    with f.store.db(budget=budget) as db:
+        db.execute('BEGIN IMMEDIATE'); _insert_local_parent(db, parent)
+        notice = automatic.enqueue_bounded(db, [], {'commit': case['commits'][-1]}, handoff,
+            {'session_id': f.row['sid']}, [], None)
+        assert db.execute(f'SELECT 1 FROM {automatic.TABLE} WHERE candidate_key=?', (proposal['key'],)).fetchone() is None
+        assert _reference_row(f, db) == f.row
+        assert db.execute('SELECT text FROM segments WHERE id=2').fetchone()[0] == 'primary survives'
+        _reference_accounting(db, f.row['sid'])
+    assert attempts == [case['target']['key']]
+    assert notice['reason'] == 'bounded_local_selection_changed'
+    assert notice['eof_finalization'] == 'new_target_rolled_back' and notice['status'] == 'waiting'
+    after = _reference_snapshot(f)
+    assert all(after[table] == before[table] for table in before if table != 'segments')
+    assert len(after['segments']) == len(before['segments'])+1 and budget.sql_outcome == 'committed'

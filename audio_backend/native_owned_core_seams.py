@@ -685,7 +685,9 @@ def localize_inventory(target, commits, snapshot, query_start, query_end, suppor
     exact(support, 'start_frame end_frame')
     integer(support['start_frame']); integer(support['end_frame'])
     selected = select_support(target, commits, snapshot, query_start, query_end)
-    if selected != support:raise Unavailable('bounded_local_selection_changed')
+    if selected != support:
+        exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='full_band_reselect'
+        raise exc
     view = inventory_view(snapshot)
     start, end = selected['start_frame'], selected['end_frame']
     origin = exact_frame(float.fromhex(view['origin']))
@@ -699,7 +701,8 @@ def localize_inventory(target, commits, snapshot, query_start, query_end, suppor
         complete=True, scan_frames=[start, end], schema=SUPPORT_LOCAL_INVENTORY_SCHEMA)
     replay = select_support(target, commits, local, query_start, query_end)
     if replay != selected or local['scan_frames'] != [start, end]:
-        raise Unavailable('bounded_local_selection_changed')
+        exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='local_replay'
+        raise exc
     return local
 
 
@@ -875,7 +878,8 @@ def select_support(target, commits, snapshot, query_start, query_end):
             raise Unavailable('bounded_plan_scope')
     def selected(a, b):
         if local_scope and [a, b] != snapshot['scan_frames']:
-            raise Unavailable('bounded_local_selection_changed')
+            exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='local_scope_geometry'
+            raise exc
         return {'start_frame': a, 'end_frame': b}
     # Exact source placement must remain equal, even for an alias-origin O.
     for (a, b), expected in zip(components, identity['mapping']):
