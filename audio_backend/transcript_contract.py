@@ -43,6 +43,18 @@ def encoded(value):
 
 
 POLICY_HASH = hashlib.sha256(encoded(POLICY)).hexdigest()
+# A separate immutable identity: legacy POLICY and its cursor bytes stay intact.
+LEXICAL_POLICY = {**POLICY,
+    'selection': 'whole-lexical-span-estimated-boundaries-v1',
+    'grouping': 'ordinal-whole-units-decoration-left-leading-first-equal-anchor-merge-v1',
+    'timing': 'stored-native-anchors-estimated-ends-original-arithmetic-outward-envelope-v1',
+    'admission': {'units': 512, 'groups': 128, 'atoms': 128, 'staging_bytes': 65536,
+                  'shared_primary_bytes': MAX_PRIMARY_BYTES, 'shared_chunks': 128},
+    'span_homes': 'maximal-global-consecutive-spans-envelope-start-v1',
+    'optional_lexical': 'whole-overlay-primary-only-on-admission-or-serialization-capacity-v1',
+    'acoustic_coverage': 'unproven'}
+LEXICAL_POLICY_HASH = hashlib.sha256(encoded(LEXICAL_POLICY)).hexdigest()
+
 
 
 def fail(reason, status=503):
@@ -121,22 +133,23 @@ def primary_evidence(sid, row):
         'person_identity': 'not_projected', 'canonical_asr': data}
 
 
-def cursor(sid, block, revision):
-    return base64.urlsafe_b64encode(encoded({'policy': POLICY_HASH, 'session': sid,
+def cursor(sid, block, revision, *, policy_hash=POLICY_HASH):
+    return base64.urlsafe_b64encode(encoded({'policy': policy_hash, 'session': sid,
         'block': block, 'revision': revision})).decode('ascii').rstrip('=')
 
 
-def parse_cursor(token, sid):
+def parse_cursor(token, sid, *, policy_hash=POLICY_HASH):
     if type(token) is not str or not 1 <= len(token) <= 512 or re.fullmatch(r'[A-Za-z0-9_-]+', token) is None:
         fail('invalid_transcript_cursor', 409)
     try:
         raw = base64.b64decode(token + '=' * (-len(token) % 4), altchars=b'-_', validate=True)
         value = parse_json(raw, 384)
         if (type(value) is not dict or set(value) != {'policy', 'session', 'block', 'revision'}
-                or value['policy'] != POLICY_HASH or value['session'] != sid
+                or policy_hash not in (POLICY_HASH, LEXICAL_POLICY_HASH)
+                or value['policy'] != policy_hash or value['session'] != sid
                 or type(value['block']) is not int or not 0 <= value['block'] <= MAX_FRAME // BLOCK_FRAMES
                 or type(value['revision']) is not str or HASH.fullmatch(value['revision']) is None
-                or cursor(sid, value['block'], value['revision']) != token):
+                or cursor(sid, value['block'], value['revision'], policy_hash=policy_hash) != token):
             raise ValueError()
         return value
     except (ValueError, UnicodeError, ReadError):
@@ -173,6 +186,12 @@ def parse_reference(ref):
         ident = int(match[1])
         if ident >= 1 << 63: fail('invalid_source_ref', 409)
         return 'primary', ident, match[2], None
+    match = re.fullmatch(r'l\.([1-9][0-9]{0,18})\.([a-f0-9]{64})\.([a-f0-9]{64})\.(0|[1-9][0-9]{0,2})-(0|[1-9][0-9]{0,2})', ref)
+    if match:
+        ident, first, end = int(match[1]), int(match[4]), int(match[5])
+        if ident >= 1 << 63 or match[3] != LEXICAL_POLICY_HASH or not 0 <= first < end <= 512:
+            fail('invalid_source_ref', 409)
+        return 'lexical', ident, match[2], (first, end)
     match = re.fullmatch(r'm\.([a-f0-9]{32})\.([a-f0-9]{64})\.(all|0|[1-9][0-9]{0,2})', ref)
     if match:
         index = match[3] if match[3] == 'all' else int(match[3])
@@ -187,23 +206,44 @@ def response(value):
     return raw
 
 
+def lexical_reference(segment_id, inventory_sha256, first, end):
+    ref = f'l.{segment_id}.{inventory_sha256}.{LEXICAL_POLICY_HASH}.{first}-{end}'
+    parse_reference(ref)
+    return ref
+
+
+def lexical_fallback(value, reason):
+    """Discard the entire optional overlay, never retry whole-primary MOSS."""
+    observed_notices = len(value.get('notices', []))
+    value.update(reading=value['baseline_reading'], selected_runs=[], alternatives=[],
+        reading_status='primary_only_optional_lexical_unresolved',
+        notices=[{'status':'lexical_overlay_incomplete','reason':reason,
+                  'observed_notice_count':observed_notices,'evidence_complete':False}])
+    value['lexical_projection'] = {'complete': False, 'selection_performed': False,
+        'alternatives_complete': False, 'reason': reason, 'acoustic_coverage': 'unproven'}
+    return value
+
+
 def transcript_response(value):
     """Optional view fields never displace a legal durable-text response."""
     if len(encoded(value)) <= MAX_RESPONSE_BYTES:return response(value)
-    if 'recording_speaker_links' not in value:return response(value)
-    stack = [value]
-    while stack:
-        item = stack.pop()
-        if isinstance(item, dict):
-            item.pop('recording_speaker_link', None)
-            stack.extend(item.values())
-        elif isinstance(item, list):stack.extend(item)
-    value.pop('recording_speaker_links')
-    # Preserve closure uncertainty when dropping optional link annotations;
-    # the final response check still enforces the actual serialized byte cap.
-    value['reading_status'] = ('primary_only_optional_closure_unresolved'
-        if value.get('optional_closure', {}).get('complete') is False
-        else 'provisional_links_omitted_cap')
+    if 'recording_speaker_links' in value:
+        stack = [value]
+        while stack:
+            item = stack.pop()
+            if isinstance(item, dict):
+                item.pop('recording_speaker_link', None)
+                stack.extend(item.values())
+            elif isinstance(item, list):stack.extend(item)
+        value.pop('recording_speaker_links')
+        # Preserve either kind of unresolved optional overlay when stripping.
+        value['reading_status'] = ('primary_only_optional_closure_unresolved'
+            if value.get('optional_closure', {}).get('complete') is False else
+            'primary_only_optional_lexical_unresolved'
+            if value.get('lexical_projection', {}).get('complete') is False else
+            'provisional_links_omitted_cap')
+    if len(encoded(value)) > MAX_RESPONSE_BYTES and 'lexical_projection' in value:
+        lexical_fallback(value, 'response_bytes')
     return response(value)
 
 

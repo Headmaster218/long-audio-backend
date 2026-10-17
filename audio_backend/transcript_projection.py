@@ -7,9 +7,11 @@ repetitions and simultaneous/equal-text labels remain intact.
 """
 from bisect import bisect_right
 from copy import deepcopy
+import unicodedata
 
 from .transcript_contract import (
     BLOCK_FRAMES, MAX_BINDINGS, MAX_PRIMARY, MAX_RESULTS, POLICY_HASH, RATE, fail,
+    LEXICAL_POLICY_HASH, lexical_reference, lexical_fallback, primary_frame,
 )
 
 
@@ -33,11 +35,25 @@ def _path_key(path, candidates):
 def _legal(start, end, primary):
     # The envelope of an exact-adjacent path is its union. Only its outer
     # boundaries matter; an internal job join may bisect a whole primary unit.
-    return all(
-        not _intersects(start, end, item)
-        or (start <= item['start_frame'] and item['end_frame'] <= end)
-        for item in primary
-    )
+    if not all(not _intersects(start, end, item)
+               or (start <= item['start_frame'] and item['end_frame'] <= end)
+               for item in primary):
+        return False
+    # Granular atoms keep their original parent envelope. A support in an
+    # estimated internal gap is not lexical evidence and cannot be inserted.
+    parents = {}
+    for item in primary:
+        if item.get('source') == 'primary_lexical':
+            parents.setdefault(item['segment_id'], []).append(item)
+    for groups in parents.values():
+        parent = groups[0]
+        if start < parent['parent_end_frame'] and parent['parent_start_frame'] < end:
+            touched = [group for group in groups if _intersects(start, end, group)]
+            if not touched: return False
+            touched.sort(key=lambda group: group['unit_range'][0])
+            if any(a['unit_range'][1] != b['unit_range'][0] for a, b in zip(touched, touched[1:])):
+                return False
+    return True
 
 
 def _legal_runs(candidates, primary):
@@ -99,6 +115,105 @@ def _choose_runs(candidates, primary):
     return merged
 
 
+def _classification(value):
+    value = value.strip()  # Classification only; emitted substrings are exact.
+    if not value or all(unicodedata.category(char).startswith('P') for char in value):
+        return 'decoration'
+    if any('A' <= char <= 'Z' or 'a' <= char <= 'z' or '0' <= char <= '9' for char in value):
+        return 'lexical'
+    if len(value) == 1 and (0x3400 <= ord(value) <= 0x4dbf or
+            0x4e00 <= ord(value) <= 0x9fff or 0x20000 <= ord(value) <= 0x3134f):
+        return 'lexical'
+    return None
+
+
+def lexical_groups(parent, current):
+    """Pure ordinal grouping of an already current, validated inventory.
+
+    None leaves the complete parent opaque. No sorting, retokenization,
+    normalization, inferred anchor, or timing clamp repairs unsuitable inputs.
+    """
+    inventory = current['inventory']; units = inventory['units']
+    if not units or any(not unit['granular_eligible'] for unit in units): return None
+    tracks = {( 'source_track_id' in unit, unit.get('source_track_id')) for unit in units}
+    if len(tracks) != 1: return None
+    if any(a['ownership_anchor'] > b['ownership_anchor'] for a,b in zip(units,units[1:])):
+        return None
+    lexical = []
+    for index, unit in enumerate(units):
+        raw, display = _classification(unit['raw_text']), _classification(unit['text'])
+        if raw is None or raw != display: return None
+        if raw == 'lexical':
+            if unit['end'] <= unit['start']: return None
+            lexical.append(index)
+    if not lexical: return None
+    for text_key, span_key in (('text','display_span'),('raw_text','raw_span')):
+        expected = parent[text_key]
+        cursor = 0; pieces = []
+        for unit in units:
+            a,b = unit[span_key]
+            if a != cursor or not 0 <= a <= b <= len(expected): return None
+            pieces.append(expected[a:b]); cursor = b
+        if cursor != len(expected) or ''.join(pieces).encode('utf-8') != expected.encode('utf-8'):
+            return None
+    ranges = []
+    for position, index in enumerate(lexical):
+        first = 0 if position == 0 else index
+        end = lexical[position+1] if position+1 < len(lexical) else len(units)
+        anchor = units[index]['ownership_anchor']
+        if ranges and ranges[-1][2] == anchor:
+            ranges[-1] = (ranges[-1][0], end, anchor)
+        else: ranges.append((first,end,anchor))
+    original = parent['canonical_asr']; coordinates = inventory['coordinates']
+    own = next(part for part in inventory['source_parts'] if part['id'] == original['chunk_id'])
+    def absolute(value):
+        return own['timeline_start'] + original['speaker_window_start'] + (value - coordinates['core_start'])
+    groups = []
+    for first,end,anchor in ranges:
+        chosen = units[first:end]
+        a = primary_frame(min(absolute(unit['start']) for unit in chosen))
+        b = primary_frame(max(absolute(unit['end']) for unit in chosen),end=True)
+        if b <= a: return None
+        display_span = [chosen[0]['display_span'][0],chosen[-1]['display_span'][1]]
+        raw_span = [chosen[0]['raw_span'][0],chosen[-1]['raw_span'][1]]
+        groups.append({'source_ref':lexical_reference(original['id'],current['inventory_sha256'],first,end),
+            'source':'primary_lexical', 'parent_source_ref':parent['source_ref'],
+            'segment_id':original['id'], 'inventory_sha256':current['inventory_sha256'],
+            'policy_sha256':LEXICAL_POLICY_HASH, 'unit_range':[first,end],
+            'display_span':display_span, 'raw_span':raw_span,
+            'text':parent['text'][slice(*display_span)], 'raw_text':parent['raw_text'][slice(*raw_span)],
+            'start_frame':a, 'end_frame':b, 'home_block':a//BLOCK_FRAMES,
+            'parent_start_frame':parent['start_frame'], 'parent_end_frame':parent['end_frame'],
+            'timestamp_kind':parent['timestamp_kind'], 'speaker_scope':deepcopy(parent['speaker_scope']),
+            'word_times':None, 'complete_content':False, 'acoustic_coverage':'unproven',
+            'person_identity':'not_projected', 'timestamp_semantics':inventory['timestamp_semantics']})
+    return groups
+
+
+def _span(groups):
+    """Merge consecutive whole groups without copying the full parent/inventory."""
+    first, last = groups[0], groups[-1]
+    value = deepcopy(first)
+    value['unit_range'] = [first['unit_range'][0],last['unit_range'][1]]
+    for text_key, span_key in (('text','display_span'),('raw_text','raw_span')):
+        value[text_key] = ''.join(group[text_key] for group in groups)
+        value[span_key] = [first[span_key][0],last[span_key][1]]
+    value['start_frame'] = min(group['start_frame'] for group in groups)
+    value['end_frame'] = max(group['end_frame'] for group in groups)
+    value['home_block'] = value['start_frame']//BLOCK_FRAMES
+    value['source_ref'] = lexical_reference(value['segment_id'],value['inventory_sha256'],*value['unit_range'])
+    return value
+
+
+def _consecutive_spans(groups):
+    runs = []
+    for group in sorted(groups,key=lambda item:item['unit_range'][0]):
+        if runs and runs[-1][-1]['unit_range'][1] == group['unit_range'][0]:
+            runs[-1].append(group)
+        else:runs.append([group])
+    return [_span(run) for run in runs]
+
+
 def _evidence(item, block, candidate_key=None):
     if item['home_block'] == block:
         result = deepcopy(item)
@@ -142,13 +257,16 @@ def _validate_intervals(items):
             fail('transcript_projection_invalid_interval')
 
 
-def project(block: int, primary: list[dict], candidates: list[dict], notices=()) -> dict:
+def project(block: int, primary: list[dict], candidates: list[dict], notices=(),
+            *, lexical=None, policy_hash=POLICY_HASH) -> dict:
     """Return one fixed 60-second block without reading or mutating a source.
 
     Inputs are complete bounded components from one validated snapshot. The
     unchanged DAG chooses global runs before any page filtering. Text remains
     whole at its existing source home, with references on other visible pages.
     """
+    if policy_hash not in (POLICY_HASH, LEXICAL_POLICY_HASH):
+        fail('invalid_transcript_projection', status=409)
     if type(block) is not int or block < 0:
         fail('transcript_projection_invalid_block', status=400)
     if len(primary) > MAX_PRIMARY:
@@ -164,28 +282,40 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
                         key=lambda item: (item['start_frame'], item['end_frame'], _candidate_order(item)))
     eligible = [candidate for candidate in candidates
                 if candidate.get('eligible', True) and candidate['phrases']]
-    runs = _choose_runs(eligible, primary)
+    granular = policy_hash == LEXICAL_POLICY_HASH
+    lexical = (lexical or {}) if granular else {}
+    atoms = ([atom for parent in primary for atom in
+             (lexical.get(parent['canonical_asr']['id']) or [parent])] if granular else primary)
+    runs = _choose_runs(eligible, atoms)
     selected_keys = {eligible[index]['candidate_key']
                      for _, _, path in runs for index in path}
     selected_runs = []
     alternatives = []
     reading_groups = []
     replaced_refs = set()
+    replaced_atoms = set()
     bindings = 0
 
     for run_start, run_end, path in runs:
         chosen = [eligible[index] for index in path]
+        removed = [item for item in atoms if _intersects(run_start, run_end, item)]
+        replaced_atoms.update(item['source_ref'] for item in removed)
         replaced = [item for item in primary if _intersects(run_start, run_end, item)]
+        spans = [span for parent in replaced for span in _consecutive_spans([
+            item for item in removed if item.get('parent_source_ref') == parent['source_ref']])]
+        if granular:
+            bindings += len(spans) + len(replaced)
         keys = [candidate['candidate_key'] for candidate in chosen]
         refs = [item['source_ref'] for item in replaced]
         replaced_refs.update(refs)
         if not (run_start < end and start < run_end): continue
         selected_runs.append({'start_frame': run_start, 'end_frame': run_end,
                               'candidate_keys': keys, 'primary_source_refs': refs,
-                              'supports': _supports(chosen)})
+                              'supports': _supports(chosen),
+                              **({'replaced_span_refs':[item['source_ref'] for item in spans]} if granular else {})})
         reading_groups.append((run_start, run_end, 1, keys[0], _candidate_reading(chosen, block)))
         if replaced:
-            bindings += len(replaced)
+            if not granular:bindings += len(replaced)
             alternatives.append({
                 'alternative_id': f'replaced:{run_start}:{run_end}',
                 'reason': 'replaced_primary', 'status': 'alternative',
@@ -194,18 +324,30 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
                 'supports': _supports(chosen),
                 'candidate_reading': _candidate_reading(chosen, block),
                 'primary_reading': [_evidence(item, block) for item in replaced],
+                **({'replaced_spans':[_evidence(item,block) for item in spans]} if granular else {}),
             })
 
     for item in primary:
-        if _intersects(start, end, item) and item['source_ref'] not in replaced_refs:
-            reading_groups.append((item['start_frame'], item['end_frame'], 0,
-                                   item['source_ref'], [_evidence(item, block)]))
+        groups = lexical.get(item['canonical_asr']['id']) if granular else None
+        kept = (_consecutive_spans([group for group in groups if group['source_ref'] not in replaced_atoms])
+                if groups else [item] if item['source_ref'] not in replaced_refs else [])
+        for retained in kept:
+            if _intersects(start,end,retained):
+                # Numeric unit ordinals, not reference strings, break span ties.
+                order = ((retained['segment_id'],retained['unit_range'][0]) if groups else
+                         (item['canonical_asr']['id'],0)) if granular else item['source_ref']
+                reading_groups.append((retained['start_frame'],retained['end_frame'],0,
+                                       order,[_evidence(retained,block)]))
 
     for candidate in candidates:
-        if not _intersects(start, end, candidate) or candidate['candidate_key'] in selected_keys:
-            continue
+        if candidate['candidate_key'] in selected_keys:continue
+        visible = _intersects(start,end,candidate)
+        if not granular and not visible:continue
         candidate_start, candidate_end = candidate['start_frame'], candidate['end_frame']
         overlaps = [item for item in primary if _intersects(candidate_start, candidate_end, item)]
+        if granular:
+            bindings += len(overlaps)
+            if not visible:continue
         selected_overlap = [eligible[index]['candidate_key']
                             for run_start, run_end, path in runs
                             if candidate_start < run_end and run_start < candidate_end
@@ -220,7 +362,7 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
             reason, status = 'unselected_overlap', 'alternative'
         else:
             reason, status = 'partial_primary_unresolved', 'unresolved'
-        bindings += len(overlaps)
+        if not granular:bindings += len(overlaps)
         alternatives.append({
             'alternative_id': f"candidate:{candidate['candidate_key']}",
             'reason': reason, 'status': status,
@@ -233,15 +375,20 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
             'primary_reading': [_evidence(item, block) for item in overlaps],
         })
 
-    if bindings > MAX_BINDINGS:
+    if bindings > MAX_BINDINGS and not granular:
         fail('transcript_projection_binding_capacity')
     reading_groups.sort(key=lambda group: group[:4])
     alternatives.sort(key=lambda group: (group['start_frame'], group['end_frame'], group['alternative_id']))
-    return {
+    value = {
         'block': block, 'start_frame': start, 'end_frame': end,
-        'sample_rate': RATE, 'policy_hash': POLICY_HASH,
+        'sample_rate': RATE, 'policy_hash': policy_hash,
         'baseline_reading': [_evidence(item, block) for item in primary if _intersects(start, end, item)],
         'reading': [item for group in reading_groups for item in group[4]],
         'selected_runs': selected_runs, 'alternatives': alternatives,
         'notices': deepcopy(list(notices)),
     }
+    if granular:
+        value['lexical_projection'] = {'complete':True,'selection_performed':True,
+            'alternatives_complete':True,'acoustic_coverage':'unproven'}
+        if bindings > MAX_BINDINGS:lexical_fallback(value,'bindings')
+    return value

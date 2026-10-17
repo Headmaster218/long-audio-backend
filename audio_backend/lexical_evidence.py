@@ -1,7 +1,7 @@
 """Prospective, private retention of complete post-adapter CTC contributions.
 
 This is stored provenance, not fresh PCM attestation or certified word timing.
-No reader/selection policy uses this optional inventory. Database errors propagate.
+The opt-in lexical projection revalidates this inventory. Database errors propagate.
 """
 import hashlib
 import json
@@ -167,10 +167,11 @@ def _sources(value, sid):
     return value
 
 
-def _sources_current(db, parts):
+def _sources_current(db, parts, *, source_lookup=None):
     for part in parts:
-        row = db.execute('SELECT id,session_id,digest,timeline_start,duration FROM chunks WHERE id=?',
-            (part['id'],)).fetchone()
+        row = (source_lookup(part['id']) if source_lookup is not None else
+            db.execute('SELECT id,session_id,digest,timeline_start,duration FROM chunks WHERE id=?',
+                (part['id'],)).fetchone())
         if row is None or any(row[k] != part[k] for k in SOURCE_FIELDS): return False
     return True
 
@@ -286,8 +287,8 @@ def persist(db, current, supplied_chunk, rows, prepared):
     return 'retained'
 
 
-def current_inventory(db,sid,row):
-    """Private dormant currentness validation. No public evidence GET is added."""
+def current_inventory(db,sid,row, *, source_lookup=None):
+    """Validate exact stored content and sources; lookup failures propagate."""
     raw = row['lexical_evidence']
     if raw is None: return None
     try:
@@ -304,7 +305,7 @@ def current_inventory(db,sid,row):
         if own is None:reject('source_unavailable')
         _geometry(draft,row,own,parts,absolute=True)
     except (Rejected,ValueError,KeyError,TypeError,UnicodeError,RecursionError,OverflowError): return None
-    if not _sources_current(db,parts): return None
+    if not _sources_current(db,parts,source_lookup=source_lookup): return None
     sha = hashlib.sha256(raw.encode('ascii')).hexdigest()
     return {'source_ref':f"l.{row['id']}.{sha}", 'inventory_sha256':sha, 'inventory':value}
 

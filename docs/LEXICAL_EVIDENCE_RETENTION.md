@@ -3,8 +3,10 @@
 `Settings.lexical_evidence_enabled` is a strict boolean, default `False`. This
 persistence-only slice retains complete existing post-adapter SenseVoice CTC
 contributions in nullable `segments.lexical_evidence`. Historical rows stay NULL.
-It does not enable granular reading, change transcript selection/ranking,
-component closure, cursors, or expose lexical evidence through an HTTP route.
+Retention alone does not enable granular reading or change default transcript
+selection. The separate explicit `projection=lexical-estimated-v1` time-page view
+can use current inventories; see [Lexical transcript projection](LEXICAL_TRANSCRIPT_PROJECTION.md).
+Default whole-primary policy/cursors and component closure stay unchanged.
 The private `l.<segment-id>.<inventory-sha256>` identity is versioned separately;
 existing `p.*` identities and all `PRIMARY_FIELDS` remain unchanged.
 
@@ -30,8 +32,8 @@ unit before the current core, so negative core-relative overhang is preserved.
 These are not frame-exact emission timestamps or certified word ends.
 
 Unsupported Unicode/grouping remains retained when structurally valid but has
-`granular_eligible: false`. That field is only a conservative description for
-future work; no current selection path reads it. ASCII whole-unit groups and
+`granular_eligible: false`. The opt-in lexical view revalidates that field and applies stricter grouping
+and boundary rules; it is not selection authority by itself. ASCII whole-unit groups and
 single supported CJK/punctuation codepoints are the narrow eligible cases;
 combining sequences, controls, emoji/ZWJ, non-ASCII multi-character groups and
 internal whitespace are ineligible. No segmentation or normalization is inferred.
@@ -46,7 +48,7 @@ Requested source ranges and measured analyzer ranges remain distinct. No file
 hashing, fresh PCM attestation, model rerun, audio reconstruction or historical
 scan is added. Ordered unique contributor geometry is checked, including the
 first requested position versus session origin + analyzer origin. Current rows
-are compared again in the commit transaction and by the dormant validator.
+are compared again in the commit transaction and by the current-inventory validator.
 
 ## Atomic compatibility and bounds
 
@@ -65,8 +67,8 @@ Caps are 512 units and 64 KiB canonical ASCII JSON per segment, 4096 units and
 `sessions.lexical_evidence_bytes` is a monotonic admitted-byte total: inventory
 revocation/deletion does not refund it. No eviction, backfill or reconstruction
 is attempted. Canonical parsing is length-first and rejects duplicate keys,
-unsupported schema shapes and nonfinite numbers. Optional raw text/spans never
-enter public diagnostics.
+unsupported schema shapes and nonfinite numbers. Optional raw text/spans do not enter legacy result diagnostics. The authenticated
+lexical range evidence route returns bounded exact contributions on explicit request.
 
 Migration is additive and rejects incomplete or incompatible shapes. Existing
 exact transcript revision v1 trigger SQL is untouched. A separate inventory

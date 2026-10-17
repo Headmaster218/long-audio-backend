@@ -16,10 +16,12 @@ from .native_owned_cells import POLICY_SHA256 as CELL_POLICY
 from .native_owned_core_seams import POLICY_SHA256 as SEAM_POLICY, RESET_POLICY_SHA256
 from .native_lexical_alternatives import SourceSupport
 from .native_owned_support_cache import ReadError, _identifier
-from .transcript_projection import project
+from .transcript_projection import project, lexical_groups
+from . import lexical_evidence as lexical
 
 READ_SECONDS, MAX_VM_STEPS = .75, 250000
 MAX_CHUNKS = 128
+MAX_ADMITTED_LEXICAL_UNITS, MAX_LEXICAL_GROUPS, MAX_PROJECTED_ATOMS = 512, 128, 128
 CONTEXT_SECONDS = 5
 _PRIMARY_SQL = ','.join('s.' + field for field in c.PRIMARY_FIELDS)
 _PRIMARY_LENGTH = '+'.join("COALESCE(length(CAST(s." + field + " AS BLOB)),0)"
@@ -202,7 +204,7 @@ class TranscriptStore:
         rows = [db.execute(query, (seq, sid)).fetchone() for seq in sorted(sequences)]
         return cls._check_descriptor_lengths(rows, optional=optional)
 
-    def _revision(self, db, sid, session):
+    def _revision(self, db, sid, session, *, policy_hash=c.POLICY_HASH):
         counter = session['transcript_revision']
         if type(counter) is not int or counter < 0:
             c.fail('transcript_revision_unavailable')
@@ -212,7 +214,7 @@ class TranscriptStore:
         if self.speaker_links_enabled:
             from .recording_speaker_link_store import read_session_revision
             links_revision = read_session_revision(db, sid)
-        value = {'policy': c.POLICY_HASH, 'session': sid,
+        value = {'policy': policy_hash, 'session': sid,
             'primary_change_max': change[0] if change else 0,
             'transcript_revision': counter, 'timeline_end': session['timeline_end']}
         if self.speaker_links_enabled:value['speaker_links_revision'] = links_revision
@@ -488,17 +490,79 @@ class TranscriptStore:
                     frontier.append(('primary', unit['start_frame'], unit['end_frame']))
                 check()
         return ([item for item, _ in primary.values()], list(candidates.values()),
-                list(loaded.values()), [notices[key] for key in sorted(notices)])
+                list(loaded.values()), [notices[key] for key in sorted(notices)], charged_chunks)
 
-    def page(self, sid, *, block=0, cursor=None):
+    @staticmethod
+    def _lexical_source_lookup(db, check, charged_chunks):
+        """Dedicated SOURCE_FIELDS cache sharing closure's exact charged IDs."""
+        cache = {}
+        def lookup(cid):
+            if cid not in cache:
+                check()
+                if cid not in charged_chunks:
+                    if len(charged_chunks) + 1 > MAX_CHUNKS: _capacity('lexical_chunks', True)
+                    charged_chunks.add(cid)  # Charge before the indexed SELECT.
+                cache[cid] = db.execute('SELECT id,session_id,digest,timeline_start,duration FROM chunks WHERE id=?',
+                    (cid,)).fetchone()
+                check()
+            return cache[cid]
+        return lookup
+
+    def _lexical_inputs(self, db, sid, check, primary, candidates, known_primary, charged_chunks):
+        """Length-first single-body staging after complete whole-primary closure."""
+        eligible = [candidate for candidate in candidates if candidate.get('eligible', True) and candidate['phrases']]
+        parents = sorted((parent for parent in primary if any(
+            parent['start_frame'] < point < parent['end_frame']
+            for candidate in eligible for point in (candidate['start_frame'],candidate['end_frame']))),
+            key=lambda parent:parent['canonical_asr']['id'])
+        total_bytes = sum(size for _,size in known_primary.values())
+        total_units = total_groups = 0; atoms = len(primary); inputs = {}
+        if atoms > MAX_PROJECTED_ATOMS:_capacity('projected_atoms',True)
+        lookup = self._lexical_source_lookup(db,check,charged_chunks)
+        for parent in parents:
+            check()
+            ident = parent['canonical_asr']['id']
+            header = db.execute('SELECT length(CAST(lexical_evidence AS BLOB)) AS bytes FROM segments WHERE id=?',
+                                (ident,)).fetchone()
+            if header is None:c.fail('transcript_dependency_missing')
+            size = header['bytes']
+            if size is None:continue  # Historical NULL is opaque; never reconstruct.
+            if type(size) is not int or size < 0:c.fail('transcript_evidence_invalid')
+            if size > lexical.MAX_SEGMENT_BYTES:_capacity('lexical_staging_bytes',True)
+            total_bytes += size
+            if total_bytes > c.MAX_PRIMARY_BYTES:_capacity('primary_lexical_bytes',True)
+            # Every body, including malformed/stale ones, has now been charged.
+            saved = db.execute('SELECT lexical_evidence FROM segments WHERE id=?',(ident,)).fetchone()
+            if saved is None:c.fail('transcript_dependency_missing')
+            row = dict(parent['canonical_asr'],lexical_evidence=saved['lexical_evidence'])
+            current = lexical.current_inventory(db,sid,row,source_lookup=lookup)
+            check()
+            if current is not None:
+                total_units += len(current['inventory']['units'])
+                if total_units > MAX_ADMITTED_LEXICAL_UNITS:_capacity('lexical_units',True)
+                groups = lexical_groups(parent,current)
+                if groups is not None:
+                    total_groups += len(groups); atoms += len(groups)-1
+                    if total_groups > MAX_LEXICAL_GROUPS:_capacity('lexical_groups',True)
+                    if atoms > MAX_PROJECTED_ATOMS:_capacity('projected_atoms',True)
+                    inputs[ident] = groups
+            # Retain only the bounded projection representation between bodies.
+            del current, row, saved
+        return inputs
+
+    def page(self, sid, *, block=0, cursor=None, projection='whole-primary-v1'):
+        if projection not in ('whole-primary-v1','lexical-estimated-v1'):
+            c.fail('invalid_transcript_projection',409)
+        granular = projection == 'lexical-estimated-v1'
+        policy_hash = c.LEXICAL_POLICY_HASH if granular else c.POLICY_HASH
         if type(block) is not int or not 0 <= block <= c.MAX_FRAME // c.BLOCK_FRAMES:
             c.fail('invalid_transcript_block', 409)
-        token = c.parse_cursor(cursor, sid) if cursor is not None else None
+        token = c.parse_cursor(cursor, sid, policy_hash=policy_hash) if cursor is not None else None
         if token is not None:
             if block != 0 and block != token['block']: c.fail('invalid_transcript_cursor', 409)
             block = token['block']
         with self.snapshot(sid) as (db, session, check):
-            revision = self._revision(db, sid, session)
+            revision = self._revision(db, sid, session,policy_hash=policy_hash)
             if token is not None and token['revision'] != revision:
                 c.fail('transcript_revision_changed', 409)
             start, end = block * c.BLOCK_FRAMES, (block + 1) * c.BLOCK_FRAMES
@@ -509,7 +573,7 @@ class TranscriptStore:
             closure = {'scope': 'page_seeded_components', 'complete': True,
                 'status': 'complete', 'selection_performed': True, 'alternatives_complete': True}
             try:
-                primary, candidates, intersecting, notices = self._closure(
+                primary, candidates, intersecting, notices, charged_chunks = self._closure(
                     db, sid, block, check, chunks, known_primary, baseline)
             except _ClosureCapacity as exc:
                 # Baseline was complete before optional work. No partial MOSS
@@ -521,10 +585,22 @@ class TranscriptStore:
                 notices = [{'status': 'optional_closure_incomplete', 'reason': 'capacity_unresolved',
                     'limit': exc.limit, 'scope': 'page_seeded_components', 'evidence_complete': False}]
 
+            lexical_inputs, lexical_reason = {}, None
+            if granular:
+                if not closure['complete']:lexical_reason = 'optional_closure_incomplete'
+                else:
+                    try:
+                        lexical_inputs = self._lexical_inputs(db,sid,check,primary,candidates,
+                                                              known_primary,charged_chunks)
+                    except _ClosureCapacity as exc:
+                        check()
+                        lexical_reason = exc.limit
+                        candidates, intersecting = [], []
             link_scopes = self._speaker_annotations(db, sid, candidates, intersecting)
             check()
-            value = project(block, primary, candidates, notices)
-            value.update(session_id=sid, revision=revision, policy_sha256=c.POLICY_HASH,
+            value = project(block, primary, candidates, notices,lexical=lexical_inputs,policy_hash=policy_hash)
+            if lexical_reason is not None:c.lexical_fallback(value,lexical_reason)
+            value.update(session_id=sid, revision=revision, policy_sha256=policy_hash,
                 optional_closure=closure,
                 recording_speaker_links={'enabled':self.speaker_links_enabled, 'scopes':link_scopes,
                     'authority':'anonymous_provisional_recording_only', 'automatic_gallery_enrollment':False},
@@ -533,7 +609,11 @@ class TranscriptStore:
                 unsupported_history='unbound_manual_and_legacy_history_is_not_placed',
                 unplaced_history_check='not_performed_by_time_page',
                 binding_audit_path=f'/sessions/{sid}/transcript/binding-audit',
-                next_cursor=c.cursor(sid, block + 1, revision) if end < extent else None)
+                next_cursor=c.cursor(sid, block + 1, revision,policy_hash=policy_hash) if end < extent else None)
+            if granular:
+                value.update(acoustic_coverage='unproven',word_times=None)
+                if not value['lexical_projection']['complete']:
+                    value['reading_status'] = 'primary_only_optional_lexical_unresolved'
             if not closure['complete']:value['reading_status'] = 'primary_only_optional_closure_unresolved'
             if not self.speaker_links_enabled:value.pop('recording_speaker_links')
             raw = c.transcript_response(value)
@@ -578,9 +658,49 @@ class TranscriptStore:
                 'last_examined_seq': last, 'has_more': more,
                 'next_cursor': c.audit_cursor(sid, last, revision) if more else None})
 
+    def _lexical_evidence(self, db, sid, ident, sha, bounds, ref, check):
+        header = db.execute(f'''SELECT {_PRIMARY_LENGTH} AS primary_bytes,
+            length(CAST(s.lexical_evidence AS BLOB)) AS lexical_bytes FROM segments s
+            JOIN chunks ch ON ch.id=s.chunk_id WHERE s.id=? AND ch.session_id=?''',
+            (ident,sid)).fetchone()
+        if header is None or header['lexical_bytes'] is None:c.fail('source_not_found',404)
+        size = header['lexical_bytes']
+        if size > lexical.MAX_SEGMENT_BYTES:c.fail('lexical_evidence_changed',409)
+        if header['primary_bytes'] + size > c.MAX_PRIMARY_BYTES:c.fail('unresolved_capacity')
+        check()
+        row = db.execute(f'SELECT {_PRIMARY_SQL},s.lexical_evidence FROM segments s WHERE s.id=?',(ident,)).fetchone()
+        if row is None:c.fail('transcript_dependency_missing')
+        lookup = self._lexical_source_lookup(db,check,set())
+        current = lexical.current_inventory(db,sid,row,source_lookup=lookup)
+        if current is None or current['inventory_sha256'] != sha:c.fail('lexical_evidence_changed',409)
+        first,end = bounds; inventory = current['inventory']
+        if end > len(inventory['units']):c.fail('invalid_source_ref',409)
+        units = inventory['units'][first:end]
+        display_span = [units[0]['display_span'][0],units[-1]['display_span'][1]]
+        raw_span = [units[0]['raw_span'][0],units[-1]['raw_span'][1]]
+        parent = c.primary_evidence(sid,row)
+        own = next(part for part in inventory['source_parts'] if part['id'] == row['chunk_id'])
+        session_times = [{key:own['timeline_start'] + row['speaker_window_start'] +
+            (unit[key] - inventory['coordinates']['core_start'])
+            for key in ('start','end','ownership_anchor')} for unit in units]
+        check()
+        return c.response({'source_ref':ref,'source':'primary_lexical','segment_id':ident,
+            'parent_source_ref':parent['source_ref'],'inventory_sha256':sha,
+            'policy_sha256':c.LEXICAL_POLICY_HASH,'unit_range':[first,end],
+            'range_semantics':'stored_complete_unit_range','selection_eligibility':'not_asserted',
+            'selection_status':'not_asserted','display_span':display_span,'raw_span':raw_span,
+            'text':row['text'][slice(*display_span)],'raw_text':row['raw_text'][slice(*raw_span)],
+            'units':units,'session_unit_times':session_times,
+            'coordinates':inventory['coordinates'],'source_parts':inventory['source_parts'],
+            'source_provenance':inventory['source_provenance'],'timestamp_semantics':inventory['timestamp_semantics'],
+            'word_times':None,'complete_content':False,'acoustic_coverage':'unproven',
+            'person_identity':'not_projected','source_current':'stored_rows_revalidated'})
+
     def evidence(self, sid, ref):
         kind, ident, sha, index = c.parse_reference(ref)
         with self.snapshot(sid) as (db, session, check):
+            if kind == 'lexical':
+                return self._lexical_evidence(db,sid,ident,sha,index,ref,check)
             if kind == 'primary':
                 row = db.execute(f'''SELECT {_PRIMARY_LENGTH} AS bytes FROM segments s
                     JOIN chunks ch ON ch.id=s.chunk_id WHERE s.id=? AND ch.session_id=?''', (ident, sid)).fetchone()

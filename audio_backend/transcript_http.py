@@ -17,17 +17,20 @@ def parse_query(raw, *, detail=False, audit=False):
     except UnicodeError: raise ReadError(409, 'invalid_query') from None
     result = {}
     fields = text.split('&') if text else []
-    if detail and fields or len(fields) > 2: raise ReadError(409, 'invalid_query')
+    if detail and fields or len(fields) > (1 if audit else 3): raise ReadError(409, 'invalid_query')
     for field in fields:
         if field.count('=') != 1: raise ReadError(409, 'invalid_query')
         name, value = field.split('=')
-        if name not in ('block', 'cursor') or name in result: raise ReadError(409, 'invalid_query')
+        if name not in ('block', 'cursor', 'projection') or name in result: raise ReadError(409, 'invalid_query')
         if audit and name != 'cursor': raise ReadError(409, 'invalid_query')
         if name == 'block':
             if re.fullmatch(r'(?:0|[1-9][0-9]{0,10})', value) is None:
                 raise ReadError(409, 'invalid_query')
             value = int(value)
             if value > MAX_FRAME // BLOCK_FRAMES: raise ReadError(409, 'invalid_query')
+        elif name == 'projection':
+            if value not in ('whole-primary-v1', 'lexical-estimated-v1'):
+                raise ReadError(409, 'invalid_query')
         elif re.fullmatch(r'[A-Za-z0-9_-]{1,512}', value) is None:
             raise ReadError(409, 'invalid_query')
         result[name] = value
