@@ -1,0 +1,12 @@
+{
+  "status": "UNQUALIFIED INCOMPLETE WIP: source backup only",
+  "baseline_commit": "2be2be425e51091d890fab03564661524752afa9",
+  "baseline_tree": "ba824ca95bdf6c68203eb1a504850b4383eee2c0",
+  "qualification": "No new tests executed. Integration hooks are absent from this first helper checkpoint. Prior scratch terminal artifacts were lost in environment replacement and are not reproduced.",
+  "pending": [
+    "seven integration hooks",
+    "fresh model-free producer/SQL/restart/fault/old-binary qualification",
+    "metadata-only fixed-shape size measurements"
+  ],
+  "runtime": "Replacement Python 3.12.14/pytest 8.4.2; no historical runtime parity claim."
+}
