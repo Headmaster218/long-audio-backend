@@ -1,3 +1,29 @@
+# dev44：将局部选择限制在已声明支持内
+
+版本：0.2.0rc3.dev44。实验路径继续默认关闭；启用和外部运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。生产修改仅为 select_support.legal 中一个范围包含条件，适用于 inventory-v3 / selected-support-whole-parent-v1。
+
+## 范围、证据与兼容性
+
+完整规划仍按原全带选择器确定支持。局部清单保留全部与支持相交的完整父行及其有效词汇来源；移除支持外父行后，较宽原始支持可能不再被那些父行切断，但它不能因此重新成为局部合法候选。新的 legal 条件要求候选包含于声明的 scan_frames；selected() 的精确相等检查保持原样，较小或较大的不同几何仍不能通过。完整父行与词汇 atom 不裁剪，固定点不能扩张已声明范围。
+
+历史 inventory-v1/v2 的全带选择不变。所有原始根（包括零 PCM 根）、最终根、来源与三次发布新鲜性检查继续保留；四根、20 秒、query、proof/target/inventory 大小、数量、SQL/VM/时间/PCM、取消、GC 与身份限制均未放宽，wire 和 policy 未改。此前已接受的 v3 proof 保持原字节、摘要和身份；当前 reader 继续读取它们。新增获准的完整 proof 在固定的紧邻 dev43 reader 中到达原几何一致性检查并以 bounded_local_selection_changed 拒绝，不声称双向兼容或旧二进制可继续处理新证明。
+
+## 当前源的有限验证
+
+33 个不同当前源模型无关用例通过，覆盖普通及 seam 完整 proof 的构建与独立验证、固定旧 reader 的拒绝、既有 proof 精确字节与摘要、历史 v1/v2、完整父行/词汇来源/原始零 PCM 根的新鲜性、未改动的正常生产路径、经认证 EOF 和主流程守恒。普通与 seam 反例使用原始 16 kHz 采样帧坐标；它们是确定性源码反例，不能解释为相同时长的秒级语料或历史失败回放。
+
+相关集成 fixture 显式设置累计 bounded-primary 1.0 秒、planning 0.4 秒、finalization 0.98 秒、notice 1.0 秒；产品默认 0.75 秒和独立 owner 2.0 秒未改。这不是默认配置整套通过，也没有新的实际模型运行或质量资格。
+
+## 历史失败与待验范围
+
+[AMI21 dev42 原结果](reports/AMI21_DEV42_SPOKEN_SEAM_RESULT.md)保持原始退出码 1，失败时未保存的精确 query/proposal 仍未知；本次修正不能补出该历史比较或证明 spoken-seam 恢复。dev43 在严格回滚、认证与预算条件下写入经认证 EOF 未解决终态的行为继续保留，其他拒绝和硬失败也未放宽。所有历史报告、测量及限制保持原样，不合并为当前版本的新资格。
+
+离线 128 文件 source/wheel/install 一致性检查只验证包字节。wheel 仍依赖外部运行时、manifest 与本地模型，上游转换/量化来源未独立验证。
+
+---
+
+以下 dev43 及更早章节保持原字节；其中版本、测量和资格均指当时记录。
+
 # dev43：局部化拒绝后的经认证 EOF 终态
 
 版本：0.2.0rc3.dev43。实验路径继续默认关闭，启用条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。本次修正只让满足严格认证条件的真正 EOF 在局部化选择一致性拒绝后结束等待，并保留原始 bounded_local_selection_changed 原因；不修复选择，不建立 spoken-seam 恢复资格。

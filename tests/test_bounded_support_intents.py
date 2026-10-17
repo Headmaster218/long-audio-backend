@@ -3230,8 +3230,17 @@ def test_guarded_eof_local_selection_raise_sites(monkeypatch, phase):
             shape = choose(*args, **kwargs); calls.append(args[2]['schema'])
             return {**shape, 'end_frame': shape['end_frame']-1} if len(calls) == 2 else shape
         monkeypatch.setattr(core, 'select_support', changed_replay)
+    if phase == 'local_scope_geometry':
+        # Keep a genuine exact-replay mismatch after wider origins become
+        # ineligible: the fixed point [16,24) is inside but unequal to [12,24).
+        inconsistent = core.lexical_snapshot(case['commits'][0]['scope']['session_id'], parents[:1],
+            case['sources'], 0., scan_frames=[12, 24], schema=core.SUPPORT_LOCAL_INVENTORY_SCHEMA)
+        assert inconsistent['scan_frames'] == [12, 24]
     with pytest.raises(Unavailable, match='^bounded_local_selection_changed$') as caught:
-        core.localize_inventory(target, case['commits'], snapshot, 0, 64, selected)
+        if phase == 'local_scope_geometry':
+            core.select_support(target, case['commits'], inconsistent, 0, 64)
+        else:
+            core.localize_inventory(target, case['commits'], snapshot, 0, 64, selected)
     assert caught.value.args == ('bounded_local_selection_changed',)
     assert vars(caught.value) == {'local_selection_phase': phase}
     if phase == 'local_replay':

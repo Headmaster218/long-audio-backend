@@ -768,6 +768,319 @@ def local_snapshot_for(case, rows):
         case['query']['query_start_frame'], case['query']['query_end_frame'], shape)
 
 
+# Frozen immediate dev43/source90 selector and full-proof reader. These source
+# bytes are copied from the published predecessor, never imported from another
+# product tree. The predecessor already recognizes support-local inventory v3.
+_SOURCE90_CORE_SHA256 = 'a771e3da9004bf5e7102fab7d771ac760288f7d1c37ae537e44ad94f3ed9fbdd'
+_SOURCE90_CORE_AST_SHA256 = '5f8a80d140fc31a8c976b9c544a51f7b10a75ae85025bf8d8426d476b4f11fd5'
+_SOURCE90_LOCAL_READER_AST_SHA256 = {'select_support': '00532f33f2284eac52f512e034e2f78417266278fe8688fbea67b3c0ea655b0c', 'validate_bounded_document': '71fa116dd7bfe81035435bfafe42614fcab3833669b1b4d38c6376a063fce3db'}
+_SOURCE90_LOCAL_READER_SHA256 = 'b2712dee82164ff8ea760ae5ccabf1f1749a9d07ac587d218fbd384b7f7d59af'
+_SOURCE90_LOCAL_READER = r'''def select_support(target, commits, snapshot, query_start, query_end):
+    """One deterministic fixed point, never a search over acoustic attempts."""
+    from .transcript_projection import _legal
+    local_scope = type(snapshot) is dict and snapshot.get('schema') == SUPPORT_LOCAL_INVENTORY_SCHEMA
+    identity, originals = validate_target(target); snapshot = inventory_view(snapshot)
+    ca, cb = bounded_chain(commits); integer(query_start); integer(query_end)
+    all_roots = {slot(c): c for c in originals}
+    for c in commits:
+        if slot(c) in all_roots and all_roots[slot(c)] != c:
+            raise Unavailable('core_slot_evidence_conflict')
+        all_roots[slot(c)] = c
+    if len(all_roots) > MAX_BOUND_COMMITS:raise Unavailable('commitment_capacity')
+    bounded_chain(sorted(all_roots.values(), key=lambda c: c['part']['logical_start']))
+    if (identity['scope'] != {k: commits[0]['scope'][k] for k in identity['scope']}
+            or snapshot['session_id'] != identity['scope']['session_id']
+            or snapshot['origin'] != identity['scope']['origin']
+            or (not local_scope and not snapshot['scan_frames'][0] <= ca < cb <= snapshot['scan_frames'][1])):
+        raise Unavailable('bounded_plan_scope')
+    if not 0 < query_end - query_start <= CORE_FRAMES:raise Unavailable('core_seam_query_coverage')
+    atoms = snapshot['atoms']; components = identity['components']
+    if local_scope:
+        sa, sb = snapshot['scan_frames']
+        if (not ca <= sa < sb <= cb or not query_start <= sa < sb <= query_end
+                or not all(sa <= lo < hi <= sb for lo, hi in components)):
+            raise Unavailable('bounded_plan_scope')
+    def selected(a, b):
+        if local_scope and [a, b] != snapshot['scan_frames']:
+            exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='local_scope_geometry'
+            raise exc
+        return {'start_frame': a, 'end_frame': b}
+    # Exact source placement must remain equal, even for an alias-origin O.
+    for (a, b), expected in zip(components, identity['mapping']):
+        if [asdict(p) for p in bounded_mapping(commits, a, b)] != expected:
+            raise Unavailable('bounded_target_mapping_changed')
+    def legal(a, b):
+        return (0 < b - a <= SUPPORT_FRAMES and ca <= a < b <= cb
+            and query_start <= a < b <= query_end
+            and all(a <= lo < hi <= b for lo, hi in components)
+            and any(a < atom['end_frame'] and atom['start_frame'] < b for atom in atoms)
+            and _legal(a, b, atoms))
+    original = json.loads(target['origins'][0]['proof'])['support']
+    a, b = original['start_frame'], original['end_frame']
+    if legal(a, b):return selected(a, b)
+    a, b = components[0][0], components[-1][1]; included = set()
+    ordered = sorted(enumerate(atoms), key=lambda pair: (pair[1]['start_frame'], pair[1]['end_frame'], pair[0]))
+    changed = True
+    while changed:
+        changed = False
+        for index, atom in ordered:
+            if index not in included and a < atom['end_frame'] and atom['start_frame'] < b:
+                included.add(index)
+                lo, hi = min(a, atom['start_frame']), max(b, atom['end_frame'])
+                if (lo, hi) != (a, b):changed = True
+                a, b = lo, hi
+        if b - a > SUPPORT_FRAMES:raise Unavailable('support_duration')
+    if not included:raise Unavailable('unresolved_lexical_gap')
+    if not ca <= a < b <= cb:raise Unavailable('authority_unavailable')
+    if not query_start <= a < b <= query_end:raise Unavailable('witness_unavailable')
+    if not legal(a, b):raise Unavailable('no_legal_fixed_point')
+    return selected(a, b)
+
+def validate_bounded_document(proof, doc=None):
+    if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:raise Unavailable('proof_capacity')
+    if doc is None:doc = json.loads(proof)
+    exact(doc, 'schema policy commits geometry support dependencies query right_evidence selection publication_anchor selected coverage target inventories dependency_roots target_sha256')
+    if doc['schema'] != BOUNDED_SCHEMA or doc['policy'] != BOUNDED_POLICY_SHA256 or doc['selected'] is not True:
+        raise Unavailable('core_seam_policy')
+    identity, originals = validate_target(doc['target']); commits = doc['commits']
+    ca, cb = bounded_chain(commits); validate_inventory(doc['inventories'])
+    shape = exact(doc['geometry'], 'start_frame end_frame')
+    _bounded_query(doc['query'], commits[-1], shape, doc['right_evidence'])
+    if doc['target_sha256'] != sha(doc['target']):raise Unavailable('bounded_target_hash')
+    expected_shape = select_support(doc['target'], commits, doc['inventories'],
+        doc['query']['query_start_frame'], doc['query']['query_end_frame'])
+    if shape != expected_shape:raise Unavailable('bounded_nondeterministic_support')
+    current_overlap = overlap_components(doc['query']['turns'], shape['start_frame'], shape['end_frame'])
+    if any(not any(a <= lo < hi <= b for a, b in current_overlap) for lo, hi in identity['components']):
+        raise Unavailable('bounded_current_target_disagreement')
+    # Current query scope is identical to every accepted origin's acoustic scope.
+    if any(c['scope'] != commits[-1]['scope'] for c in originals):
+        raise Unavailable('unresolved_scope_transition')
+    parts = bounded_mapping(commits, shape['start_frame'], shape['end_frame'])
+    if doc['dependencies'] != [asdict(p) for p in parts]:raise Unavailable('core_seam_mapping')
+    if doc['dependency_roots'] != dependency_roots(doc['target'], commits, doc['inventories']):
+        raise Unavailable('bounded_dependency_mismatch')
+    from .native_owned_seam_cells import selected_pair
+    if doc['selection'] != selected_pair([doc['query']], shape['start_frame'], shape['end_frame']):
+        raise Unavailable('core_seam_selection')
+    support = SourceSupport.from_dict(doc['support']); contents = [p.content() for p in parts]
+    try:inventory_hash = sha(doc['inventories'])
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'retained_inventory'
+        raise
+    try:
+        expected_core = sha({'commits': commits, 'geometry': shape, 'query': doc['query'],
+            'target_sha256': doc['target_sha256'], 'inventories_sha256': inventory_hash,
+            'dependency_roots': doc['dependency_roots']})
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'core_preimage'
+        raise
+    if (support.source_generation != sha({'schema': 'immutable-source-cell-generation-v1', 'sources': contents})
+            or support.plan_sha256 != sha({'schema': 'bounded-cell-mapping-v1', 'parts': contents})
+            or support.native_runtime_sha256 != commits[-1]['runtime_sha256']
+            or support.core_sha256 != expected_core
+            or (support.source_frames, support.core_start_frame, support.core_end_frame,
+                support.start_frame, support.end_frame) != (cb, ca, cb, shape['start_frame'], shape['end_frame'])
+            or support.pcm16le_sha256 != doc['query']['support_pcm16le_sha256']):
+        raise Unavailable('core_seam_support')
+    if doc['publication_anchor'] != anchor(commits[-1]) or doc['coverage'] != coverage(doc):
+        raise Unavailable('core_seam_publication')
+    try:encoded_proof = canonical(doc)
+    except Unavailable as exc:
+        if str(exc) == 'serialization_capacity' and getattr(exc, 'capacity_phase', None) is None:exc.capacity_phase = 'full_proof'
+        raise
+    if encoded_proof != proof:raise Unavailable('noncanonical_proof')
+    return doc, support, parts
+'''
+
+
+def source90_local_scope_oracle():
+    """Keep the old selector inside its own complete, source-pinned reader.
+
+    Every unchanged core function is rebound to this namespace, including the
+    producer and its full-document dispatch. The real Cell constructor remains
+    enabled, and old proofs are also checked explicitly by the frozen reader.
+    No production validator or inventory/authority check is replaced.
+    """
+    import ast
+    import inspect
+    from types import FunctionType
+    assert hashlib.sha256(_SOURCE90_LOCAL_READER.encode()).hexdigest() == _SOURCE90_LOCAL_READER_SHA256
+    frozen = {node.name: node for node in ast.parse(_SOURCE90_LOCAL_READER).body}
+    assert set(frozen) == set(_SOURCE90_LOCAL_READER_AST_SHA256)
+    for name, expected in _SOURCE90_LOCAL_READER_AST_SHA256.items():
+        assert hashlib.sha256(ast.dump(frozen[name], include_attributes=False).encode()).hexdigest() == expected
+    tree = ast.parse(inspect.getsource(core))
+    names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
+    # Replacing only the two embedded functions must reconstruct the exact old
+    # module AST. This pins the full unchanged helper and constant closure.
+    tree.body = [frozen.get(node.name, node) if isinstance(node, ast.FunctionDef) else node
+                 for node in tree.body]
+    assert hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest() == _SOURCE90_CORE_AST_SHA256
+    namespace = dict(vars(core))
+    for name in names:
+        function = getattr(core, name)
+        rebound = FunctionType(function.__code__, namespace, name, function.__defaults__, function.__closure__)
+        rebound.__kwdefaults__ = function.__kwdefaults__
+        namespace[name] = rebound
+    exec(compile(_SOURCE90_LOCAL_READER, '<frozen-source90-local-reader>', 'exec'), namespace)
+    assert namespace['Cell'] is cells.Cell
+    assert namespace['validate_document'].__globals__ is namespace
+    assert namespace['validate_bounded_document'].__globals__['select_support'] is namespace['select_support']
+    assert namespace['make_bounded_cell'].__globals__['select_support'] is namespace['select_support']
+    assert namespace['SUPPORT_LOCAL_INVENTORY_SCHEMA'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
+    return namespace
+
+
+@pytest.mark.parametrize('kind', ['ordinary', 'seam'])
+def test_support_local_bound_scope_counterexamples(kind):
+    """Raw 16 kHz frames: full-band selection survives whole-parent pruning."""
+    oracle = source90_local_scope_oracle()
+    if kind == 'ordinary':
+        case = synthetic_case([0, 40], [(12, 18)], origin_support=(0, 25))
+        rows = [primary_row(1, 10, 20), primary_row(2, 24, 30)]
+        expected = {'start_frame': 10, 'end_frame': 20}
+        origin_frames = [0, 25]
+    else:
+        case = synthetic_case([0, 16, 32, 48, 64], [(18, 22)], origin_index=1,
+                              separate_sources=True)
+        case['target'] = core.original_target(seam_origin(case, 0))
+        rows = [primary_row(1, 16, 24, cid='source-1'), primary_row(2, 28, 40, cid='source-1')]
+        expected = {'start_frame': 16, 'end_frame': 24}
+        origin_frames = [0, 32]
+    target_before = deepcopy(case['target'])
+    origin = json.loads(case['target']['origins'][0]['proof'])['support']
+    assert [origin['start_frame'], origin['end_frame']] == origin_frames
+    complete = compact_snapshot_for(case, rows)
+    complete_before = cells.canonical(complete)
+    end = case['commits'][-1]['part']['logical_end']
+    assert complete['complete'] is True and complete['scan_frames'] == [0, end]
+    assert core.inventory_view(complete)['parents'][0]['row'] == rows[0]
+    assert core.inventory_view(complete)['parents'][1]['row'] == rows[1]
+    assert not projection._legal(*origin_frames, core.inventory_view(complete)['atoms'])
+    assert oracle['select_support'](case['target'], case['commits'], complete, 0, end) == expected
+    assert core.select_support(case['target'], case['commits'], complete, 0, end) == expected
+
+    local = core.localize_inventory(case['target'], case['commits'], complete, 0, end, expected)
+    assert local['schema'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
+    assert local['scope_policy'] == core.SUPPORT_LOCAL_SCOPE_POLICY
+    assert local['complete'] is True
+    assert local['scan_frames'] == [expected['start_frame'], expected['end_frame']]
+    assert [parent['row'] for parent in core.inventory_view(local)['parents']] == rows[:1]
+    assert [source['id'] for source in local['sources']] == [rows[0]['chunk_id']]
+    assert core.select_support(case['target'], case['commits'], local, 0, end) == expected
+    assert cells.canonical(complete) == complete_before and case['target'] == target_before
+    assert core.select_support(case['target'], case['commits'], complete, 0, end) == expected
+
+    # The old v3 reader accepts this local inventory. Its old origin preference
+    # then reopens the wider support because the omitted parent no longer cuts
+    # that support. The unchanged exact-equality guard refuses that reopening.
+    assert oracle['validate_inventory'](local) == local
+    assert projection._legal(*origin_frames, core.inventory_view(local)['atoms'])
+    with pytest.raises(cells.Unavailable, match='^bounded_local_selection_changed$') as selected:
+        oracle['select_support'](case['target'], case['commits'], local, 0, end)
+    assert vars(selected.value) == {'local_selection_phase': 'local_scope_geometry'}
+
+    query, pcm = query_for_snapshot(case, local)
+    cell = core.make_bounded_cell(case['commits'], query, case['evidences'][-1], pcm, case['target'], local)
+    doc, support, parts = cells.validate_document(cell.proof)
+    assert core.validate_bounded_document(cell.proof) == (doc, support, parts)
+    assert doc['geometry'] == expected and doc['inventories'] == local
+    assert doc['target'] == target_before and doc['commits'] == case['commits']
+    assert [support.start_frame, support.end_frame] == local['scan_frames']
+    assert cell.pcm == b'\0\0' * (expected['end_frame'] - expected['start_frame'])
+    assert parts == core.bounded_mapping(case['commits'], expected['start_frame'], expected['end_frame'])
+    assert doc['dependency_roots'] == core.dependency_roots(case['target'], case['commits'], local)
+    assert {root['slot'] for root in doc['dependency_roots'] if root['slot']} == {
+        core.slot(commit) for commit in case['commits']}
+    if kind == 'seam':
+        assert all(part.chunk_id == 'source-1' for part in parts)
+        assert any(root['cid'] == 'source-0' and root['kind'] & 1 for root in doc['dependency_roots'])
+        assert any(root['cid'] == 'source-3' and root['kind'] & 2 for root in doc['dependency_roots'])
+    # This is the complete independently validated proof, not a selector-only
+    # stand-in, and the frozen full reader reaches the original geometry guard.
+    with pytest.raises(cells.Unavailable, match='^bounded_local_selection_changed$') as old_reader:
+        oracle['validate_document'](cell.proof)
+    assert vars(old_reader.value) == {'local_selection_phase': 'local_scope_geometry'}
+
+
+def test_support_local_preexisting_v3_proof_bytes_unchanged():
+    """Accepted original-support/fixed-point proofs keep exact v3 identities."""
+    oracle = source90_local_scope_oracle()
+    fixtures = []
+    ordinary = synthetic_case([0, 40], [(9, 12)], origin_support=(8, 16))
+    fixtures.append(('ordinary_original', ordinary, [primary_row(1, 8, 16)]))
+    ordinary_fixed = synthetic_case([0, 40], [(12, 18)], origin_support=(0, 25))
+    fixtures.append(('ordinary_fixed_point', ordinary_fixed, [primary_row(1, 10, 30)]))
+    for name, frames in (('seam_original', (16, 24)), ('seam_fixed_point', (16, 40))):
+        seam = synthetic_case([0, 16, 32, 48, 64], [(18, 22)], origin_index=1,
+                              separate_sources=True)
+        seam['target'] = core.original_target(seam_origin(seam, 0))
+        fixtures.append((name, seam, [primary_row(1, *frames, cid='source-1')]))
+    whole_parent = synthetic_case([0, 64000], [(9000, 12000)], origin_support=(8000, 16000))
+    retained = lexical_row(whole_parent, 1, [{'text': '甲', 'start': .5, 'end': 1.},
+        {'text': '乙', 'start': 2., 'end': 3.}])
+    fixtures.append(('whole_parent_outside_atom', whole_parent, [retained, primary_row(2, 52000, 56000)]))
+    for name, case, rows in fixtures:
+        end = case['commits'][-1]['part']['logical_end']
+        old_complete = oracle['lexical_snapshot'](SID, rows, case['sources'], case['origin'],
+            scan_frames=[0, end], schema=core.COMPACT_INVENTORY_SCHEMA)
+        complete = compact_snapshot_for(case, rows)
+        assert cells.canonical(complete) == cells.canonical(old_complete), name
+        old_shape = oracle['select_support'](case['target'], case['commits'], old_complete, 0, end)
+        shape = core.select_support(case['target'], case['commits'], complete, 0, end)
+        assert shape == old_shape, name
+        old_local = oracle['localize_inventory'](case['target'], case['commits'], old_complete, 0, end, old_shape)
+        local = core.localize_inventory(case['target'], case['commits'], complete, 0, end, shape)
+        assert local['schema'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
+        assert cells.canonical(local) == cells.canonical(old_local), name
+        old_query, old_pcm = query_for_snapshot(case, old_local, selector=oracle['select_support'])
+        query, pcm = query_for_snapshot(case, local)
+        assert query == old_query and pcm == old_pcm, name
+        old = oracle['make_bounded_cell'](case['commits'], old_query, case['evidences'][-1],
+            old_pcm, case['target'], old_local)
+        old_decoded = oracle['validate_document'](old.proof)
+        current = core.make_bounded_cell(case['commits'], query, case['evidences'][-1], pcm, case['target'], local)
+        assert cells.validate_document(current.proof) == old_decoded, name
+        assert oracle['validate_document'](current.proof) == old_decoded, name
+        assert current.proof == old.proof, name
+        assert hashlib.sha256(current.proof).digest() == hashlib.sha256(old.proof).digest(), name
+        assert current.support == old.support and current.parts == old.parts, name
+        assert current.support.core_sha256 == old.support.core_sha256, name
+        assert cells.sha(current.support.to_dict()) == cells.sha(old.support.to_dict()), name
+        assert current.cell_id == old.cell_id, name
+        if name == 'whole_parent_outside_atom':
+            view = core.inventory_view(local)
+            assert len(view['parents']) == 1 and view['parents'][0]['row'] == retained
+            assert view['unit_count'] == 2 and len(view['atoms']) == 2
+            assert view['atoms'][1]['end_frame'] == 48000 > local['scan_frames'][1]
+
+
+def test_support_local_fixed_point_cannot_expand_bound_scope():
+    case = synthetic_case([0, 40], [(12, 18)], origin_support=(0, 25))
+    rows = [primary_row(1, 10, 20), primary_row(2, 24, 30)]
+    complete = compact_snapshot_for(case, rows)
+    assert core.select_support(case['target'], case['commits'], complete, 0, 40) == {
+        'start_frame': 10, 'end_frame': 20}
+    # An inconsistent certificate still retains the whole intersecting parent;
+    # neither its lexical atom nor the deterministic fixed point may be clipped
+    # or used to expand the declared local scan from [12,18) to [10,20).
+    local = core.lexical_snapshot(SID, rows[:1], case['sources'], case['origin'],
+        scan_frames=[12, 18], schema=core.SUPPORT_LOCAL_INVENTORY_SCHEMA)
+    assert core.validate_inventory(local) == local
+    atom = core.inventory_view(local)['atoms'][0]
+    assert [atom['start_frame'], atom['end_frame']] == [10, 20]
+    before = cells.canonical(local)
+    with pytest.raises(cells.Unavailable, match='^no_legal_fixed_point$'):
+        core.select_support(case['target'], case['commits'], local, 0, 40)
+    query = deepcopy(case['query'])
+    pcm = b'\0\0' * 6
+    query['support_pcm16le_sha256'] = hashlib.sha256(pcm).hexdigest()
+    with pytest.raises(cells.Unavailable, match='^no_legal_fixed_point$'):
+        core.make_bounded_cell(case['commits'], query, case['evidences'][-1], pcm, case['target'], local)
+    assert cells.canonical(local) == before and local['scan_frames'] == [12, 18]
+
+
 @pytest.mark.parametrize('kind', ['version', 'scope', 'geometry', 'target'])
 def test_support_local_strict_version_scope_geometry_and_target(kind):
     case = synthetic_case([0, 40], [(9, 12)], origin_support=(8, 16))
@@ -812,8 +1125,10 @@ def test_support_local_exact_selector_replay_and_empty_closure(kind):
         complete = compact_snapshot_for(case, rows)
         frozen = core.select_support(case['target'], case['commits'], complete, 0, 40)
         assert frozen == {'start_frame': 10, 'end_frame': 20}
-        with pytest.raises(cells.Unavailable, match='^bounded_local_selection_changed$'):
-            core.localize_inventory(case['target'], case['commits'], complete, 0, 40, frozen)
+        local = core.localize_inventory(case['target'], case['commits'], complete, 0, 40, frozen)
+        assert local['scan_frames'] == [10, 20]
+        assert [parent['row'] for parent in core.inventory_view(local)['parents']] == rows[:1]
+        assert core.select_support(case['target'], case['commits'], local, 0, 40) == frozen
         assert core.select_support(case['target'], case['commits'], complete, 0, 40) == frozen
         return
     if kind == 'empty':

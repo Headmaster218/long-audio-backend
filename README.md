@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev44：局部支持选择不得重开范围
+
+默认关闭的实验路径仅在 select_support.legal 增加 inventory-v3 / selected-support-whole-parent-v1 的范围包含检查：移除支持外父行后，局部验证不能重新选择更宽的原始支持；selected() 仍要求结果与声明的 scan_frames 精确相等。完整规划和历史 v1/v2 的全带选择不变，全部相交完整父行、词汇来源、原始零 PCM 根、新鲜性及四根/20 秒/query/SQL 等上限均保留。此前已接受的 v3 proof 字节与摘要不变；本版新获准的 proof 被紧邻 dev43 reader 明确拒绝，不声称双向兼容。
+
+33 个不同当前源模型无关用例通过，覆盖普通及 seam 完整证明、固定旧 reader、既有精确字节、历史 v1/v2、完整父行/来源/根新鲜性、未改动的正常生产路径、经认证 EOF 与主流程守恒。集成 fixture 显式使用累计 bounded-primary 1.0 秒、planning 0.4 秒、finalization 0.98 秒、notice 1.0 秒；产品默认 0.75 秒和独立 owner 2.0 秒未改。
+
+本版只有确定性源码反例，没有新模型资格。[AMI21 dev42 原结果](docs/reports/AMI21_DEV42_SPOKEN_SEAM_RESULT.md)仍为退出 1；失败时未保存的精确 query/proposal 仍未知，不能据此声称历史恢复。dev43 的经认证 EOF 未解决终态行为保留。离线 128 文件 source/wheel/install 一致性检查只验证包字节。详见[边界、兼容性与限制](docs/COMPACT_BOUNDED_INVENTORY.md)。下列历史内容保持原字节。
+
 ## 0.2.0rc3.dev43：经认证 EOF 的未解决终态
 
 默认关闭的实验路径在局部化选择一致性检查拒绝、且可选写入已确认回滚后，可将经认证的真正 EOF 记为未解决终态，保留原始 bounded_local_selection_changed 原因。它要求同一事务内别名更新前保存的完整行与回滚恢复行精确相等，并核对 _bounded_query、native finished、真正 EOF、精确已提交 frontier 及原所有权/到期约束。预算余量、认证或恢复行不足时保持等待；已消耗 SQL 超限、全局时间/steps 耗尽、SQLite 或回滚/释放不确定仍为硬失败；finalization 的协作拒绝在 closure 回滚确认且 notice/global 预算仍可用时可继续等待。诊断仅增加 local_selection_phase 的三个固定分类；选择器、全部额度、policy 与 wire 不变。

@@ -887,6 +887,7 @@ def select_support(target, commits, snapshot, query_start, query_end):
             raise Unavailable('bounded_target_mapping_changed')
     def legal(a, b):
         return (0 < b - a <= SUPPORT_FRAMES and ca <= a < b <= cb
+            and (not local_scope or snapshot['scan_frames'][0] <= a < b <= snapshot['scan_frames'][1])
             and query_start <= a < b <= query_end
             and all(a <= lo < hi <= b for lo, hi in components)
             and any(a < atom['end_frame'] and atom['start_frame'] < b for atom in atoms)
