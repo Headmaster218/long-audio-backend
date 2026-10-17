@@ -976,3 +976,302 @@ def test_support_local_capacity_notice_is_fixed_and_preserves_rollback(support_l
                 automatic.source_binding_v2('core_seam',f.doc,None,None,f.context)
         assert caught.value.capacity_phase=='source_binding'
         assert caught.value.encoded_bytes==len(encoded) and caught.value.maximum_bytes==64
+
+
+@pytest.mark.parametrize('guard',[
+    'row_certificate','expected_certificate','stored_certificate','alias_certificate',
+    'new_certificate','new_charge','bound_certificate','bound_charge'])
+def test_certificate_capacity_guard_operands(support_local_ledger_factory,monkeypatch,guard):
+    """Reach each existing predicate, without reducing any production limit."""
+    from test_bounded_core_support import synthetic_case,ordinary_origin
+    assert (automatic.PROOF_BYTES,automatic.BINDING_BYTES,automatic.ACCOUNTING_BYTES,
+            automatic.MAX_CHARGE)==(65536,4096,16384,86016)
+
+    class LengthDB:
+        def __init__(self,sizes):self.sizes=sizes;self.calls=[]
+        def execute(self,sql,parameters):
+            assert sql.startswith('SELECT length(binding),length(proof),length(target_body) FROM ')
+            self.calls.append((sql,parameters));assert len(self.calls)==1
+            return self
+        def fetchone(self):return self.sizes
+
+    binding=None; builds=[]; database=None
+    with monkeypatch.context() as patch:
+        if guard in ('bound_certificate','bound_charge'):
+            f=support_local_ledger_factory(); proof=f.row['proof']; target=f.row['target_body']
+            assert len(proof)+len(target)<=automatic.PROOF_BYTES
+            row={**f.row,'plan_phase':'waiting','state':'queued','job_id':None}
+            proposal={'target':f.case['target'],'commits':f.doc['commits'],
+                'query':f.doc['query'],'evidence':f.doc['right_evidence'],
+                'support':f.doc['geometry'],'pcm':b'\0\0'*(f.doc['geometry']['end_frame']-
+                                                          f.doc['geometry']['start_frame'])}
+            make_cell=core.make_bounded_cell
+            def measured_cell(*args,**kwargs):
+                cell=make_cell(*args,**kwargs)
+                assert cell.proof==proof
+                builds.append(len(cell.proof));return cell
+            patch.setattr(core,'make_bounded_cell',measured_cell)
+            if guard=='bound_certificate':
+                # Synthetic row boundary only: JSON whitespace leaves the target
+                # unchanged. Real compact checks and frozen Cell validation run.
+                target+=b' '*(automatic.PROOF_BYTES+1-len(proof)-len(target))
+                assert json.loads(target)==proposal['target']
+                row['target_body']=target
+            else:
+                # Defense-only seam. With a valid <=4096-byte binding, the
+                # preceding certificate cap makes this charge guard unreachable.
+                assert automatic.ACCOUNTING_BYTES+automatic.PROOF_BYTES+automatic.BINDING_BYTES==automatic.MAX_CHARGE
+                binding=b'b'*(automatic.MAX_CHARGE-automatic.ACCOUNTING_BYTES-len(proof)-len(target)+1)
+                assert len(binding)>automatic.BINDING_BYTES
+                def oversized_binding(kind,doc,support,parts,context):
+                    assert kind==row['kind'] and doc==f.doc and context==f.context
+                    return binding
+                patch.setattr(automatic,'source_binding_v2',oversized_binding)
+            def invoke():
+                with f.store.db() as db:
+                    return automatic._bind_target(db,row,proposal,f.context,
+                        f.doc['inventories'],None,time.time())
+        else:
+            case=synthetic_case([0,64],[[18,22]],origin_support=(0,32))
+            target=automatic.canonical(case['target'])
+            proof=b'p'*(automatic.PROOF_BYTES+1-len(target))
+            if guard=='row_certificate':
+                row={name:0 for name in automatic.V2_COLUMNS}
+                row.update(target_key=case['target']['key'],target_body=target)
+                def invoke():return automatic.validate_v2_row(None,row,proof)
+            elif guard=='expected_certificate':
+                def invoke():return automatic._read_v2(None,key='a'*64,expected=(proof,target))
+            elif guard=='stored_certificate':
+                proof=b'p'*automatic.PROOF_BYTES;target=b't';binding=b'b'*23
+                database=LengthDB((len(binding),len(proof),len(target)))
+                def invoke():return automatic._read_v2(database,key='a'*64)
+            elif guard=='alias_certificate':
+                alias=core.original_target(ordinary_origin(case,support=(1,33)))
+                merged=core.append_target_origin(case['target'],alias['origins'][0])
+                original_target=target;target=automatic.canonical(merged)
+                proof=b'p'*(automatic.PROOF_BYTES-len(original_target))
+                assert len(proof)+len(original_target)==automatic.PROOF_BYTES
+                assert len(target)>len(original_target)
+                # Supply only the earlier lookup result at its byte boundary;
+                # genuine target/alias validation and serialization still run.
+                existing={'plan_phase':'waiting','target_body':original_target,'proof':proof}
+                lookups=[]
+                def lookup(db,*,target_key,budget):
+                    assert target_key==alias['key'];lookups.append(target_key)
+                    return existing
+                patch.setattr(automatic,'_read_v2',lookup)
+                def invoke():return automatic._register_target(None,{'target':alias},{},'a'*64,1.,None)
+            else:
+                database=LengthDB(None)
+                if guard=='new_charge':
+                    proof=case['target']['origins'][0]['proof'].encode('ascii')
+                    assert len(proof)+len(target)<=automatic.PROOF_BYTES
+                    # Deliberately invalid binding supplied at registration's
+                    # input seam, never claimed to be reachable from valid input.
+                    assert automatic.ACCOUNTING_BYTES+automatic.PROOF_BYTES+automatic.BINDING_BYTES==automatic.MAX_CHARGE
+                    binding=b'b'*(automatic.MAX_CHARGE-automatic.ACCOUNTING_BYTES-len(proof)-len(target)+1)
+                    assert len(binding)>automatic.BINDING_BYTES
+                proposal={'target':case['target'],'proof':proof,'binding':binding or b'b'}
+                def invoke():return automatic._register_target(database,proposal,{},'a'*64,1.,None)
+        expected={'guard':guard,'check':'certificate','proof_bytes':len(proof),
+            'target_bytes':len(target),'total_bytes':len(proof)+len(target),
+            'minimum_bytes':2,'limit_bytes':65536}
+        if guard=='stored_certificate':expected['binding_bytes']=len(binding)
+        if guard in ('new_charge','bound_charge'):
+            expected.update(check='charge',binding_bytes=len(binding),accounting_bytes=16384,
+                total_bytes=16384+len(proof)+len(target)+len(binding),minimum_bytes=0,limit_bytes=86016)
+        assert expected['total_bytes']>expected['limit_bytes']
+        with pytest.raises(Unavailable,match='^bounded_certificate_capacity$') as caught:invoke()
+        assert type(caught.value) is Unavailable and caught.value.args==('bounded_certificate_capacity',)
+        assert caught.value.certificate_capacity==expected
+        if database is not None:assert len(database.calls)==1
+        if guard=='alias_certificate':assert lookups==[alias['key']]
+        if guard in ('bound_certificate','bound_charge'):
+            assert builds==[len(proof)]
+            with f.store.db() as db:
+                assert dict(db.execute(f'SELECT * FROM {automatic.TABLE} WHERE seq=?',
+                    (f.row['seq'],)).fetchone())==f.row
+
+
+@pytest.mark.parametrize('site',['row','expected','stored'])
+def test_certificate_capacity_malformed_inputs(site):
+    """Fixed malformed/lower-bound inputs retain only genuinely known counts."""
+    guard={'row':'row_certificate','expected':'expected_certificate','stored':'stored_certificate'}[site]
+    shape={'guard':guard,'check':'shape'}
+    certificate={'guard':guard,'check':'certificate','minimum_bytes':2,'limit_bytes':65536}
+    if site=='row':
+        cases=[
+            ((None,b't'),{**shape,'target_bytes':1}),
+            (('private synthetic text',b't'),{**shape,'target_bytes':1}),
+            ((bytearray(b'p'),b't'),{**shape,'target_bytes':1}),
+            ((memoryview(b'p'),b't'),{**shape,'target_bytes':1}),
+            ((b'p','/private/synthetic.wav'),{**shape,'proof_bytes':1}),
+            ((b'p',False),{**shape,'proof_bytes':1}),
+            ((False,True),shape),
+            ((b'',b''),{**certificate,'proof_bytes':0,'target_bytes':0,'total_bytes':0}),
+            ((b'',b't'),{**certificate,'proof_bytes':0,'target_bytes':1,'total_bytes':1})]
+        def invoke(value):
+            proof,target=value;row={name:0 for name in automatic.V2_COLUMNS}
+            row.update(target_key='a'*64,target_body=target)
+            return automatic.validate_v2_row(None,row,proof)
+    elif site=='expected':
+        cases=[
+            ([b'p',b't'],shape),((b'p',),shape),((b'p',b't',b'x'),shape),
+            ('/private/synthetic.wav',shape),
+            ((None,b't'),{**shape,'target_bytes':1}),
+            ((bytearray(b'p'),b't'),{**shape,'target_bytes':1}),
+            ((b'p',memoryview(b't')),{**shape,'proof_bytes':1}),
+            ((b'p',False),{**shape,'proof_bytes':1}),((False,True),shape),
+            ((b'',b''),{**certificate,'proof_bytes':0,'target_bytes':0,'total_bytes':0}),
+            ((b'p',b''),{**certificate,'proof_bytes':1,'target_bytes':0,'total_bytes':1})]
+        def invoke(value):return automatic._read_v2(None,key='a'*64,expected=value)
+    else:
+        class LengthDB:
+            def __init__(self,sizes):self.sizes=sizes;self.calls=0
+            def execute(self,sql,parameters):
+                assert sql.startswith('SELECT length(binding),length(proof),length(target_body) FROM ')
+                self.calls+=1;assert self.calls==1;return self
+            def fetchone(self):return self.sizes
+        # None is a missing SQL length, not a missing column or a coerced zero.
+        cases=[
+            ((None,1,1),{**shape,'proof_bytes':1,'target_bytes':1}),
+            ((1,None,1),{**shape,'binding_bytes':1,'target_bytes':1}),
+            ((1,1,None),{**shape,'binding_bytes':1,'proof_bytes':1}),
+            ((True,1,1),{**shape,'proof_bytes':1,'target_bytes':1}),
+            ((1,True,0),{**shape,'binding_bytes':1,'target_bytes':0}),
+            ((1,0,False),{**shape,'binding_bytes':1,'proof_bytes':0}),
+            ((-1,1,1),{**shape,'proof_bytes':1,'target_bytes':1}),
+            ((1,-1,0),{**shape,'binding_bytes':1,'target_bytes':0}),
+            ((1,0,-1),{**shape,'binding_bytes':1,'proof_bytes':0}),
+            ((1,'private synthetic text',1),{**shape,'binding_bytes':1,'target_bytes':1}),
+            ((1,1.,1),{**shape,'binding_bytes':1,'target_bytes':1}),
+            ((1,float('nan'),1),{**shape,'binding_bytes':1,'target_bytes':1}),
+            ((1,1,float('inf')),{**shape,'binding_bytes':1,'proof_bytes':1}),
+            ((1,automatic.MAX_FRAME+1,0),{**shape,'binding_bytes':1,'target_bytes':0}),
+            ((0,1,1),{'guard':guard,'check':'binding','binding_bytes':0,
+                'proof_bytes':1,'target_bytes':1,'total_bytes':0,'minimum_bytes':1,'limit_bytes':4096}),
+            ((4097,1,1),{'guard':guard,'check':'binding','binding_bytes':4097,
+                'proof_bytes':1,'target_bytes':1,'total_bytes':4097,'minimum_bytes':1,'limit_bytes':4096}),
+            ((1,0,0),{**certificate,'binding_bytes':1,'proof_bytes':0,'target_bytes':0,'total_bytes':0}),
+            ((1,0,1),{**certificate,'binding_bytes':1,'proof_bytes':0,'target_bytes':1,'total_bytes':1})]
+        def invoke(value):return automatic._read_v2(LengthDB(value),key='a'*64)
+        assert automatic._read_v2(LengthDB(None),key='a'*64) is None
+    for value,expected in cases:
+        with pytest.raises(Unavailable,match='^bounded_certificate_capacity$') as caught:invoke(value)
+        assert type(caught.value) is Unavailable and caught.value.args==('bounded_certificate_capacity',)
+        actual=caught.value.certificate_capacity
+        assert actual==expected
+        assert all(type(number) is int and 0<=number<=automatic.MAX_FRAME
+            for name,number in actual.items() if name not in ('guard','check'))
+        if actual['check']=='shape':
+            assert not {'total_bytes','accounting_bytes','minimum_bytes','limit_bytes'} & actual.keys()
+        elif actual['check']=='certificate':
+            assert actual['total_bytes']==actual['proof_bytes']+actual['target_bytes']<2
+        else:
+            assert actual['check']=='binding' and actual['total_bytes']==actual['binding_bytes']
+            assert actual['total_bytes']<actual['minimum_bytes'] or actual['total_bytes']>actual['limit_bytes']
+        assert automatic._certificate_notice(caught.value)==expected
+
+
+@pytest.mark.parametrize('kind',['safe','unsafe','unannotated'])
+def test_certificate_capacity_notice_preserves_rollback(support_local_ledger_factory,monkeypatch,kind):
+    """Real optional savepoint rollback is independent of diagnostic screening."""
+    from test_bounded_core_support import primary_row
+    f=support_local_ledger_factory()
+    base={'guard':'bound_certificate','check':'certificate','proof_bytes':65536,
+        'target_bytes':1,'total_bytes':65537,'minimum_bytes':2,'limit_bytes':65536}
+    if kind=='safe':
+        annotations=[{**base,'guard':guard} for guard in ('row_certificate','expected_certificate',
+            'alias_certificate','new_certificate','bound_certificate')]
+        annotations.extend([
+            {**base,'guard':'stored_certificate','binding_bytes':1},
+            {'guard':'stored_certificate','check':'binding','proof_bytes':1,'target_bytes':1,
+                'binding_bytes':0,'total_bytes':0,'minimum_bytes':1,'limit_bytes':4096},
+            {'guard':'stored_certificate','check':'binding','proof_bytes':1,'target_bytes':1,
+                'binding_bytes':4097,'total_bytes':4097,'minimum_bytes':1,'limit_bytes':4096},
+            {'guard':'expected_certificate','check':'certificate','proof_bytes':0,'target_bytes':1,
+                'total_bytes':1,'minimum_bytes':2,'limit_bytes':65536},
+            {'guard':'row_certificate','check':'shape','target_bytes':1},
+            {'guard':'stored_certificate','check':'shape','proof_bytes':1,'binding_bytes':1}])
+        annotations.extend({'guard':guard,'check':'charge','proof_bytes':65535,'target_bytes':1,
+            'binding_bytes':4097,'accounting_bytes':16384,'total_bytes':86017,
+            'minimum_bytes':0,'limit_bytes':86016} for guard in ('new_charge','bound_charge'))
+        # Include the longest guard and maximal safe integer widths in complete
+        # notices, plus all charge fields together. No raw operand is serialized.
+        annotations.extend([
+            {'guard':'expected_certificate','check':'certificate','proof_bytes':automatic.MAX_FRAME,
+                'target_bytes':0,'total_bytes':automatic.MAX_FRAME,'minimum_bytes':2,'limit_bytes':65536},
+            {'guard':'stored_certificate','check':'binding','proof_bytes':automatic.MAX_FRAME,
+                'target_bytes':automatic.MAX_FRAME,'binding_bytes':automatic.MAX_FRAME,
+                'total_bytes':automatic.MAX_FRAME,'minimum_bytes':1,'limit_bytes':4096},
+            {'guard':'bound_charge','check':'charge','proof_bytes':automatic.MAX_FRAME-16386,
+                'target_bytes':1,'binding_bytes':1,'accounting_bytes':16384,
+                'total_bytes':automatic.MAX_FRAME,'minimum_bytes':0,'limit_bytes':86016}])
+    elif kind=='unsafe':
+        changes=[{'payload':'private synthetic text'}, {'path':'/private/synthetic.wav'},
+            {'sql':'SELECT secret FROM synthetic'}, {'guard':'private synthetic text'},
+            {'guard':True}, {'check':'/private/synthetic.wav'}, {'check':False},
+            {'proof_bytes':True}, {'target_bytes':-1}, {'total_bytes':automatic.MAX_FRAME+1},
+            {'limit_bytes':float('nan')}, {'proof_bytes':float('inf')}, {'target_bytes':1.},
+            {'minimum_bytes':False}, {'total_bytes':65538}, {'minimum_bytes':0},
+            {'limit_bytes':65535}, {'accounting_bytes':16384}, {'binding_bytes':1},
+            {'check':'charge'}, {'check':'binding'}, {'guard':'new_charge'},
+            {'guard':'stored_certificate'}, {'proof_bytes':1,'total_bytes':2}]
+        annotations=[None,'private synthetic text',['/private/synthetic.wav'],{}]
+        annotations.extend({**base,**change} for change in changes)
+        annotations.extend({key:value for key,value in base.items() if key!=missing}
+            for missing in ('guard','check','proof_bytes','target_bytes','total_bytes'))
+        annotations.append({'guard':'new_charge','check':'charge','proof_bytes':65535,
+            'target_bytes':1,'binding_bytes':4097,'accounting_bytes':16383,
+            'total_bytes':86016,'minimum_bytes':0,'limit_bytes':86016})
+    else:annotations=[None]
+    for index,annotation in enumerate(annotations):
+        error=Unavailable('bounded_certificate_capacity')
+        if kind!='unannotated':error.certificate_capacity=annotation
+        after_fault=[];faults=[]
+        with f.store.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            ident=2+index
+            _insert_local_parent(db,primary_row(ident,48,56,cid='source-3',text='primary survives'))
+            primary_before=dict(db.execute('SELECT * FROM segments WHERE id=?',(ident,)).fetchone())
+            owner_before=dict(db.execute(f'SELECT * FROM {automatic.TABLE} WHERE seq=?',
+                (f.row['seq'],)).fetchone())
+            def no_serialization(*args,**kwargs):raise AssertionError('diagnostic serialized a payload')
+            with monkeypatch.context() as patch:
+                def refuse(*args,**kwargs):
+                    db.execute("UPDATE segments SET text='private synthetic text',raw_text='/private/synthetic.wav' WHERE id=?",(ident,))
+                    db.execute(f'UPDATE {automatic.TABLE} SET proof=?,binding=?,target_body=? WHERE seq=?',
+                        (b'private synthetic text',b'/private/synthetic.wav',b'SELECT secret FROM synthetic',f.row['seq']))
+                    faults.append(error)
+                    # Only rollback/release may follow this already-known fault.
+                    # The notice path may not serialize another copy of payloads.
+                    db.set_trace_callback(after_fault.append)
+                    patch.setattr(automatic,'canonical',no_serialization)
+                    patch.setattr(automatic.json,'dumps',no_serialization)
+                    raise error
+                patch.setattr(automatic,'_exact_compacts',refuse)
+                handoff={'waiters':[f.row],'batch':f.context,'reserved':True,'budget':Budget(),
+                    'origins':[f.original],'plans':[]}
+                try:
+                    notice=automatic.enqueue_bounded(db,[],{'commit':f.case['commits'][-1]},handoff,
+                        {'session_id':f.row['sid']},[],None)
+                finally:db.set_trace_callback(None)
+            assert faults==[error] and error.args==('bounded_certificate_capacity',)
+            assert after_fault==['ROLLBACK TO bounded_optional','RELEASE bounded_optional']
+            expected={'schema':'bounded-core-support-notice-v1','status':'waiting',
+                'reason':'bounded_certificate_capacity','owned_targets_preserved':True}
+            if kind=='safe':
+                expected['capacity']=annotation
+                if annotation['check']!='shape':
+                    assert (annotation['total_bytes']<annotation['minimum_bytes'] or
+                            annotation['total_bytes']>annotation['limit_bytes'])
+            assert notice==expected
+            if kind=='safe':assert notice['capacity'] is not annotation
+            assert db.in_transaction
+            assert dict(db.execute('SELECT * FROM segments WHERE id=?',(ident,)).fetchone())==primary_before
+            assert dict(db.execute(f'SELECT * FROM {automatic.TABLE} WHERE seq=?',
+                (f.row['seq'],)).fetchone())==owner_before
+        raw=json.dumps(notice,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')
+        assert len(raw)<512
+        assert all(token not in raw for token in (b'private synthetic text',b'/private/synthetic.wav',
+            b'SELECT secret FROM synthetic',b'payload',b'traceback',f.key.encode('ascii')))

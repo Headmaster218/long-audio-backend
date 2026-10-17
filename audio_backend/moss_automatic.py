@@ -475,6 +475,65 @@ def source_binding_v2(kind,doc,support,parts,context):
             exc.capacity_phase='source_binding'
         raise
 
+
+def _certificate_detail(guard, proof_bytes=None, target_bytes=None, binding_bytes=None):
+    """Fixed numeric annotation only; never inspect or serialize a payload."""
+    fields = {'proof_bytes': proof_bytes, 'target_bytes': target_bytes}
+    if guard in ('stored_certificate', 'new_charge', 'bound_charge'):
+        fields['binding_bytes'] = binding_bytes
+    result = {'guard': guard, 'check': 'shape'}
+    result.update((key, value) for key, value in fields.items()
+                  if type(value) is int and 0 <= value <= MAX_FRAME)
+    if len(result) != len(fields) + 2:
+        return result
+    if guard == 'stored_certificate' and not 1 <= binding_bytes <= BINDING_BYTES:
+        result.update(check='binding', total_bytes=binding_bytes,
+                      minimum_bytes=1, limit_bytes=BINDING_BYTES)
+    elif guard in ('new_charge', 'bound_charge'):
+        total = ACCOUNTING_BYTES + proof_bytes + target_bytes + binding_bytes
+        if total <= MAX_FRAME:
+            result.update(check='charge', accounting_bytes=ACCOUNTING_BYTES,
+                          total_bytes=total, minimum_bytes=0, limit_bytes=MAX_CHARGE)
+    else:
+        total = proof_bytes + target_bytes
+        if total <= MAX_FRAME:
+            result.update(check='certificate', total_bytes=total,
+                          minimum_bytes=2, limit_bytes=PROOF_BYTES)
+    return result
+
+
+def _certificate_capacity(guard, proof_bytes=None, target_bytes=None, binding_bytes=None):
+    error = Unavailable('bounded_certificate_capacity')
+    error.certificate_capacity = _certificate_detail(guard, proof_bytes, target_bytes, binding_bytes)
+    return error
+
+
+def _certificate_notice(error):
+    """Reject malformed annotations without affecting the original refusal."""
+    value = getattr(error, 'certificate_capacity', None)
+    if type(value) is not dict:
+        return None
+    guards = ('row_certificate', 'expected_certificate', 'stored_certificate',
+              'alias_certificate', 'new_certificate', 'new_charge',
+              'bound_certificate', 'bound_charge')
+    keys = {'guard', 'check', 'proof_bytes', 'target_bytes', 'binding_bytes',
+            'accounting_bytes', 'total_bytes', 'minimum_bytes', 'limit_bytes'}
+    if (not {'guard', 'check'} <= value.keys() or not value.keys() <= keys
+            or type(value['guard']) is not str or value['guard'] not in guards
+            or type(value['check']) is not str
+            or value['check'] not in ('shape', 'certificate', 'binding', 'charge')
+            or any(type(number) is not int or not 0 <= number <= MAX_FRAME
+                   for name, number in value.items() if name not in ('guard', 'check'))):
+        return None
+    expected = _certificate_detail(value['guard'], value.get('proof_bytes'),
+                                   value.get('target_bytes'), value.get('binding_bytes'))
+    if value != expected:
+        return None
+    if value['check'] != 'shape' and value['minimum_bytes'] <= value['total_bytes'] <= value['limit_bytes']:
+        return None
+    return dict(value)
+
+
 def validate_v2_row(db,row,proof,budget=None):
     """Strict version dispatch. Legacy candidate hashing is never relaxed."""
     from .native_owned_core_seams import validate_target,slot,BOUNDED_SCHEMA
@@ -486,7 +545,7 @@ def validate_v2_row(db,row,proof,budget=None):
     if any(row[name] is None for name in V2_COLUMNS):raise Unavailable('automatic_mixed_version')
     raw=row['target_body']
     if type(raw) is not bytes or type(proof) is not bytes or not 2<=len(raw)+len(proof)<=PROOF_BYTES:
-        raise Unavailable('bounded_certificate_capacity')
+        raise _certificate_capacity('row_certificate', len(proof) if type(proof) is bytes else None, len(raw) if type(raw) is bytes else None)
     target=json.loads(raw); identity,originals=validate_target(target)
     if canonical(target)!=raw or target['key']!=row['target_key'] or identity['scope']['session_id']!=row['sid']:
         raise Unavailable('bounded_target_binding')
@@ -552,12 +611,12 @@ def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,exp
         if (type(expected) is not tuple or len(expected)!=2
                 or any(type(raw) is not bytes for raw in expected)
                 or not 2<=sum(map(len,expected))<=PROOF_BYTES):
-            raise Unavailable('bounded_certificate_capacity')
+            raise _certificate_capacity('expected_certificate', len(expected[0]) if type(expected) is tuple and len(expected)==2 and type(expected[0]) is bytes else None, len(expected[1]) if type(expected) is tuple and len(expected)==2 and type(expected[1]) is bytes else None)
     field,value=('candidate_key',key) if key is not None else ('target_key',target_key)
     sizes=db.execute(f'SELECT length(binding),length(proof),length(target_body) FROM {TABLE} WHERE {field}=?',(value,)).fetchone()
     if sizes is None:return None
     if (any(type(n) is not int for n in sizes) or not 1<=sizes[0]<=BINDING_BYTES
-            or not 2<=sizes[1]+sizes[2]<=PROOF_BYTES):raise Unavailable('bounded_certificate_capacity')
+            or not 2<=sizes[1]+sizes[2]<=PROOF_BYTES):raise _certificate_capacity('stored_certificate', sizes[1], sizes[2], sizes[0])
     if expected is None:
         if budget is not None:budget.projection(sum(sizes)+1024)
         row=dict(db.execute(f'SELECT {COLUMNS},proof,'+','.join(V2_COLUMNS)+f' FROM {TABLE} WHERE {field}=?',(value,)).fetchone())
@@ -586,7 +645,7 @@ def _register_target(db,proposal,context,scope,now,budget):
         saved=json.loads(existing['target_body'])
         for origin in target['origins']:saved=append_target_origin(saved,origin)
         raw=canonical(saved)
-        if len(raw)+len(existing['proof'])>PROOF_BYTES:raise Unavailable('bounded_certificate_capacity')
+        if len(raw)+len(existing['proof'])>PROOF_BYTES:raise _certificate_capacity('alias_certificate', len(existing['proof']) if type(existing['proof']) is bytes else None, len(raw))
         _,roots=validate_target(saved)
         last=min(existing['wait_last_ordinal'],existing['wait_start_ordinal']+min(3,4-len(roots)))
         delta=len(raw)-len(existing['target_body'])
@@ -599,9 +658,9 @@ def _register_target(db,proposal,context,scope,now,budget):
             _write_dependencies(db,existing['seq'],_original_dependencies(saved))
         return _read_v2(db,key=existing['candidate_key'],budget=budget),'alias_registered' if delta else 'already_owned'
     raw=canonical(target); proof=proposal['proof']; binding=proposal['binding']
-    if len(raw)+len(proof)>PROOF_BYTES:raise Unavailable('bounded_certificate_capacity')
+    if len(raw)+len(proof)>PROOF_BYTES:raise _certificate_capacity('new_certificate', len(proof) if type(proof) is bytes else None, len(raw))
     charge=ACCOUNTING_BYTES+len(raw)+len(proof)+len(binding)
-    if charge>MAX_CHARGE:raise Unavailable('bounded_certificate_capacity')
+    if charge>MAX_CHARGE:raise _certificate_capacity('new_charge', len(proof) if type(proof) is bytes else None, len(raw), len(binding) if type(binding) is bytes else None)
     capacity(db,proposal['sid'],rows=1,pending=1,proofs=len(raw)+len(proof),charge=charge)
     ordinal=context['ordinal']; last=ordinal+min(3,4-len(roots))
     cur=db.execute(f'''INSERT INTO {TABLE}(candidate_key,sid,kind,binding,proof,proof_sha256,cell_id,
@@ -686,9 +745,9 @@ def _bind_target(db,row,proposal,context,actual_snapshot,budget,now,*,support_lo
     doc=json.loads(cell.proof);support,parts=cell.support,cell.parts
     if doc['geometry']!=proposal['support']:raise Unavailable('bounded_frozen_support_changed')
     binding=source_binding_v2(row['kind'],doc,support,parts,context)
-    if len(cell.proof)+len(row['target_body'])>PROOF_BYTES:raise Unavailable('bounded_certificate_capacity')
+    if len(cell.proof)+len(row['target_body'])>PROOF_BYTES:raise _certificate_capacity('bound_certificate', len(cell.proof) if type(cell.proof) is bytes else None, len(row['target_body']) if type(row['target_body']) is bytes else None)
     new_charge=ACCOUNTING_BYTES+len(binding)+len(cell.proof)+len(row['target_body'])
-    if new_charge>MAX_CHARGE:raise Unavailable('bounded_certificate_capacity')
+    if new_charge>MAX_CHARGE:raise _certificate_capacity('bound_charge', len(cell.proof) if type(cell.proof) is bytes else None, len(row['target_body']) if type(row['target_body']) is bytes else None, len(binding) if type(binding) is bytes else None)
     delta_proofs=len(cell.proof)-len(row['proof']); delta_charge=new_charge-row['charge_bytes']
     capacity(db,row['sid'],rows=0,pending=0,proofs=max(0,delta_proofs),charge=max(0,delta_charge))
     _charge(db,row['sid'],(0,delta_charge,0,delta_proofs))
@@ -806,6 +865,9 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                 # Fixed enums and bounded integers only. Never serialize here:
                 # reporting cannot replace the original refusal/rollback.
                 notice['capacity']={'phase':phase,'encoded_bytes':size,'limit_bytes':limit}
+        elif str(exc)=='bounded_certificate_capacity':
+            detail=_certificate_notice(exc)
+            if detail is not None:notice['capacity']=detail
         return notice
     finally:db.set_progress_handler(budget.progress if getattr(budget,'primary_sql',False) else None,100)
 
