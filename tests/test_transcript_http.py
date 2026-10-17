@@ -379,10 +379,14 @@ def test_tombstone_hides_page_and_both_kinds_of_evidence(data,api):
         assert client.get(f'/sessions/{SID}/transcript'+suffix).status_code == 404
 
 
-def test_seventeen_intersecting_results_fail_closed_without_truncated_choice(data):
+def test_seventeen_results_preserve_complete_primary_without_truncated_choice(data):
     assert c.MAX_RESULTS == 16
     for i in range(17): data.job(i+1,i/2,i/2+1)
-    with pytest.raises(ReadError,match='unresolved_capacity'): data.page()
+    page = data.page()
+    assert page['reading'] == page['baseline_reading'] and len(page['reading']) == 3
+    assert page['selected_runs'] == page['alternatives'] == []
+    assert page['optional_closure']['limit'] == 'result_bodies'
+    assert page['optional_closure']['complete'] is False
 
 
 def test_sixteen_result_cap_keeps_two_mib_aggregate_length_first(data, monkeypatch):
@@ -392,12 +396,14 @@ def test_sixteen_result_cap_keeps_two_mib_aggregate_length_first(data, monkeypat
     with data.db() as db:
         db.execute(f'UPDATE {history.TABLE} SET result_json=?,charge_bytes=length(metadata_json)+?+16384',
                    (payload, len(payload)))
-    monkeypatch.setattr(data.reader, '_result', lambda *_: pytest.fail('payload must not be loaded'))
-    with pytest.raises(ReadError, match='unresolved_capacity'):
-        data.page()
+    monkeypatch.setattr(data.reader, '_result', lambda *_, **__: pytest.fail('payload must not be loaded'))
+    page = data.page()
+    assert page['optional_closure']['limit'] == 'results_bytes'
+    assert page['reading'] == page['baseline_reading']
+    assert page['selected_runs'] == page['alternatives'] == []
 
 
-def test_dense_ten_point_five_second_geometry_has_stable_multi_block_continuation(data, api):
+def test_dense_23_job_126_second_chain_keeps_primary_only_on_all_pages(data, api):
     with data.db() as db:
         db.execute('DELETE FROM segments')
         db.execute('DELETE FROM recording_work')
@@ -414,38 +420,19 @@ def test_dense_ten_point_five_second_geometry_has_stable_multi_block_continuatio
         data.job(index + 20, join - 10, join + 10, kind='core_seam',
                  source_chunks=(f'chunk-{index}', f'chunk-{index + 1}'))
     client, budget, _ = api
-    pages, query = [], ''
-    while True:
-        response = client.get(f'/sessions/{SID}/transcript' + query)
+    # Whole-component closure reaches all 23 jobs. A smaller display page
+    # cannot bypass the unchanged 16-result body budget.
+    for block in (0, 1, 2, 2, 1, 0):
+        response = client.get(f'/sessions/{SID}/transcript?block={block}')
         assert response.status_code == 200, response.text
-        assert len(response.content) <= c.MAX_RESPONSE_BYTES
-        assert client.get(f'/sessions/{SID}/transcript' + query).content == response.content
         page = response.json()
-        assert page['block'] == len(pages) and not page['notices']
-        pages.append(page)
-        if page['next_cursor'] is None: break
-        assert len(pages) < 3
-        query = '?cursor=' + page['next_cursor']
-    assert len(pages) == 3 and len({page['revision'] for page in pages}) == 1
-    for page in pages[:2]:
-        keys = {key for group in page['alternatives'] for key in group['candidate_keys']}
-        keys.update(key for run in page['selected_runs'] for key in run['candidate_keys'])
-        assert 8 < len(keys) <= 16
-    baseline = [item for page in pages for item in page['baseline_reading'] if not item['reference_only']]
-    assert [item['text'] for item in baseline] == [f'whole-{index}' for index in range(12)]
-    reading = [item for page in pages for item in page['reading'] if not item['reference_only']]
-    assert len({item['source_ref'] for item in reading}) == len(reading)
-    before = {group['candidate_keys'][0]:group for group in pages[0]['alternatives']
-              if group.get('boundary_unresolved')}
-    carried = [group for group in pages[1]['alternatives']
-               if group.get('boundary_unresolved') and group['candidate_keys'][0] in before]
-    assert carried
-    for group in carried:
-        assert all(item['reference_only'] for item in group['candidate_reading'])
-        assert [item['source_ref'] for item in group['candidate_reading']] == [
-            item['source_ref'] for item in before[group['candidate_keys'][0]]['candidate_reading']]
+        assert page['optional_closure']['status'] == 'capacity_unresolved'
+        assert page['optional_closure']['limit'] == 'result_bodies'
+        assert page['optional_closure']['alternatives_complete'] is False
+        assert page['selected_runs'] == page['alternatives'] == []
+        assert page['reading'] == page['baseline_reading']
+        assert len(page['reading']) == (6, 7, 1)[block]
     assert budget._lease_count == budget._lease_bytes == 0
-    assert c.MAX_BINDINGS == 1024 and c.MAX_RESULTS_BYTES == 2 * 1024**2
 
 
 def test_primary_row_and_text_capacity_fail_before_blob_materialization(data,monkeypatch):
@@ -460,7 +447,10 @@ def test_binding_row_quota_length_first(data,monkeypatch):
     data.job(1,0,1)
     data.job(2,1,2)
     monkeypatch.setattr(c,'MAX_BINDINGS',1)
-    with pytest.raises(ReadError,match='unresolved_capacity'): data.page()
+    page = data.page()
+    assert page['optional_closure']['limit'] == 'bindings'
+    assert page['reading'] == page['baseline_reading']
+    assert page['selected_runs'] == page['alternatives'] == []
 
 
 def test_result_hash_and_response_oversize_are_explicit(data,monkeypatch):

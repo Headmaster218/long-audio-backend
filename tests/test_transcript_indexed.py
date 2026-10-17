@@ -74,11 +74,11 @@ def test_second_alias_only_seam_nonzero_origin_is_discovered(data):
         chunks = data.reader._chunks(db, SID, 1)
         assert [row['id'] for row in chunks] == ['right']
     value = data.page(block=1)
-    group = value['alternatives'][0]
+    group = value['selected_runs'][0]
     assert group['candidate_keys'] == [job['key']]
-    assert group['reason'] == 'boundary_unresolved'
     assert group['start_frame'] == 50*c.RATE and group['end_frame'] == 70*c.RATE
-    assert all(item['reference_only'] for item in group['candidate_reading'])
+    assert all(item['reference_only'] for item in value['reading'])
+    assert data.page()['selected_runs'][0] == group
 
 
 def test_alias_dedup_precedes_binding_and_result_capacity(data, monkeypatch):
@@ -87,9 +87,9 @@ def test_alias_dedup_precedes_binding_and_result_capacity(data, monkeypatch):
     job = data.job(1, 50, 60, kind='core_seam', source_chunks=('left', 'right'))
     monkeypatch.setattr(c, 'MAX_BINDINGS', 1)
     binding, calls = data.reader._binding, []
-    def measured(db, sid, row):
+    def measured(db, sid, row, source_cache=None):
         calls.append(row['candidate_key'])
-        return binding(db, sid, row)
+        return binding(db, sid, row, source_cache)
     monkeypatch.setattr(data.reader, '_binding', measured)
     value = data.page()
     assert calls == [job['key']]
@@ -290,6 +290,9 @@ def test_revision_schema_repeat_is_exact_and_preserves_existing_feed_trigger(dat
 
 def test_single_long_legacy_chunk_scan_remains_vm_bounded(data):
     with data.db() as db:
+        # This bulk scan checks the unchanged VM budget, not WAL concurrency.
+        # Avoid a duplicate DB/WAL checkpoint footprint in the 16 MiB fixture cap.
+        db.execute('PRAGMA journal_mode=DELETE')
         db.execute('DELETE FROM segments')
         db.execute("UPDATE chunks SET duration=100000 WHERE id='chunk'")
         db.executemany('''INSERT INTO segments(id,chunk_id,start,end,text,raw_text,asr_backend,

@@ -24,12 +24,14 @@ POLICY = {'schema': 'current-unified-transcript-v3', 'rate': RATE,
     'rank': ['maximum-support-frames', 'fewer-jobs', 'seam-ordinary-start-archive-hash'],
     'moss_scope': 'durable-automatic-timestamped-recording-only',
     'moss_timestamps': 'legacy-strict-or-validated-support-end-intersection-10ms-v1',
-    'discovery': 'indexed-both-source-aliases-all-states',
+    'discovery': 'indexed-both-aliases-exact-component-frontier-v1',
+    'decision_scope': 'closed-eligible-candidate-whole-primary-components-v1',
+    'optional_closure': 'complete-baseline-only-on-explicit-closure-capacity-v1',
     'source_roots': 'ordered-unique-commit-roots-v1',
     'revision': 'transactional-session-counter-and-primary-change-v1',
     'extent': 'session-timeline-and-last-disjoint-chunk',
     'placement_audit': 'separate-last-examined-keyset-v1',
-    'block_crossing': 'unresolved-alternative', 'word_times': None,
+    'block_crossing': 'canonical-whole-source-runs-home-page-references-v1', 'word_times': None,
     'primary_frames': 'outward-envelope-snap-within-1e-6-frame',
     'primary_context_seconds': 5,
     'identity': 'anonymous-source-local', 'completeness': 'not-asserted'}
@@ -197,9 +199,11 @@ def transcript_response(value):
             stack.extend(item.values())
         elif isinstance(item, list):stack.extend(item)
     value.pop('recording_speaker_links')
-    # Shorter than the existing provisional_display_preference marker, so even
-    # an exactly full legal text page retains explicit optional-capacity status.
-    value['reading_status'] = 'provisional_links_omitted_cap'
+    # Preserve closure uncertainty when dropping optional link annotations;
+    # the final response check still enforces the actual serialized byte cap.
+    value['reading_status'] = ('primary_only_optional_closure_unresolved'
+        if value.get('optional_closure', {}).get('complete') is False
+        else 'provisional_links_omitted_cap')
     return response(value)
 
 

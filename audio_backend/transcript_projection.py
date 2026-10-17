@@ -145,10 +145,9 @@ def _validate_intervals(items):
 def project(block: int, primary: list[dict], candidates: list[dict], notices=()) -> dict:
     """Return one fixed 60-second block without reading or mutating a source.
 
-    Inputs have already passed the archive/primary validators. Capacity and
-    positive integer support intervals are checked again before building a DAG.
-    Cross-block support remains a complete unresolved alternative at its home
-    block, and reference-only evidence everywhere else; it is never selected.
+    Inputs are complete bounded components from one validated snapshot. The
+    unchanged DAG chooses global runs before any page filtering. Text remains
+    whole at its existing source home, with references on other visible pages.
     """
     if type(block) is not int or block < 0:
         fail('transcript_projection_invalid_block', status=400)
@@ -159,13 +158,12 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
     _validate_intervals(primary)
     _validate_intervals(candidates)
     start, end = block * BLOCK_FRAMES, (block + 1) * BLOCK_FRAMES
-    primary = sorted((item for item in primary if _intersects(start, end, item)),
+    primary = sorted(primary,
                      key=lambda item: (item['start_frame'], item['end_frame'], item['source_ref']))
-    candidates = sorted((item for item in candidates if _intersects(start, end, item)),
+    candidates = sorted(candidates,
                         key=lambda item: (item['start_frame'], item['end_frame'], _candidate_order(item)))
     eligible = [candidate for candidate in candidates
-                if start <= candidate['start_frame'] and candidate['end_frame'] <= end
-                and candidate.get('eligible', True) and candidate['phrases']]
+                if candidate.get('eligible', True) and candidate['phrases']]
     runs = _choose_runs(eligible, primary)
     selected_keys = {eligible[index]['candidate_key']
                      for _, _, path in runs for index in path}
@@ -181,6 +179,7 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
         keys = [candidate['candidate_key'] for candidate in chosen]
         refs = [item['source_ref'] for item in replaced]
         replaced_refs.update(refs)
+        if not (run_start < end and start < run_end): continue
         selected_runs.append({'start_frame': run_start, 'end_frame': run_end,
                               'candidate_keys': keys, 'primary_source_refs': refs,
                               'supports': _supports(chosen)})
@@ -198,12 +197,12 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
             })
 
     for item in primary:
-        if item['source_ref'] not in replaced_refs:
+        if _intersects(start, end, item) and item['source_ref'] not in replaced_refs:
             reading_groups.append((item['start_frame'], item['end_frame'], 0,
                                    item['source_ref'], [_evidence(item, block)]))
 
     for candidate in candidates:
-        if candidate['candidate_key'] in selected_keys:
+        if not _intersects(start, end, candidate) or candidate['candidate_key'] in selected_keys:
             continue
         candidate_start, candidate_end = candidate['start_frame'], candidate['end_frame']
         overlaps = [item for item in primary if _intersects(candidate_start, candidate_end, item)]
@@ -212,13 +211,11 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
                             if candidate_start < run_end and run_start < candidate_end
                             for index in path
                             if _intersects(candidate_start, candidate_end, eligible[index])]
-        boundary = candidate_start < start or candidate_end > end
+        boundary = False  # Complete closure, so crossing a display page is resolved.
         if not candidate.get('eligible', True) or not candidate['phrases']:
             reason = candidate.get('ineligible_reason') or (
                 'empty_candidate_reading' if not candidate['phrases'] else 'ineligible_candidate')
             status = 'unresolved'
-        elif boundary:
-            reason, status = 'boundary_unresolved', 'unresolved'
         elif selected_overlap:
             reason, status = 'unselected_overlap', 'alternative'
         else:
@@ -243,7 +240,7 @@ def project(block: int, primary: list[dict], candidates: list[dict], notices=())
     return {
         'block': block, 'start_frame': start, 'end_frame': end,
         'sample_rate': RATE, 'policy_hash': POLICY_HASH,
-        'baseline_reading': [_evidence(item, block) for item in primary],
+        'baseline_reading': [_evidence(item, block) for item in primary if _intersects(start, end, item)],
         'reading': [item for group in reading_groups for item in group[4]],
         'selected_runs': selected_runs, 'alternatives': alternatives,
         'notices': deepcopy(list(notices)),

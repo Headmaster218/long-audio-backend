@@ -190,7 +190,7 @@ def test_block_crossing_candidate_is_unsliced_at_home_and_ref_only_elsewhere():
     assert following['baseline_reading'][0]['reference_only'] is True
     for result in (home, following):
         group = result['alternatives'][0]
-        assert group['reason'] == 'boundary_unresolved'
+        assert group['reason'] == 'partial_primary_unresolved'
         assert group['supports'][0]['start_frame'] == edge - 100
         assert group['supports'][0]['end_frame'] == edge + 100
         assert len(group['candidate_reading']) == 2
@@ -210,15 +210,15 @@ def test_exact_block_edges_have_one_owner_and_no_endpoint_overlap():
     jobs = [candidate('left', edge - 100, edge), candidate('right', edge, edge + 100)]
     left = projection.project(0, original, jobs)
     right = projection.project(1, original, jobs)
-    assert selected(left) == ['left']
-    assert selected(right) == ['right']
+    assert selected(left) == selected(right) == ['left', 'right']
+    assert left['selected_runs'] == right['selected_runs']
     assert texts(left['reading']) == ['left']
     assert texts(right['reading']) == ['right']
-    assert all(item['home_block'] == 0 for item in left['reading'])
-    assert all(item['home_block'] == 1 for item in right['reading'])
+    assert all(item['home_block'] == 0 for item in left['reading'] if not item['reference_only'])
+    assert all(item['home_block'] == 1 for item in right['reading'] if not item['reference_only'])
 
 
-def test_boundary_unresolved_does_not_expand_overlap_component():
+def test_cross_page_partial_candidate_cannot_replace_whole_primary():
     original = [primary('ordinary-unit', 0, 300)]
     jobs = [candidate('ordinary', 0, 300),
             candidate('boundary-seam', 250, BLOCK_FRAMES + 50, kind='core_seam')]
@@ -226,7 +226,7 @@ def test_boundary_unresolved_does_not_expand_overlap_component():
     assert selected(result) == ['ordinary']
     assert texts(result['reading']) == ['ordinary']
     boundary = alternatives_for(result, 'boundary-seam')[0]
-    assert boundary['reason'] == 'boundary_unresolved'
+    assert boundary['reason'] == 'unselected_overlap'
     assert boundary['selected_candidate_keys'] == ['ordinary']
     assert texts(boundary['candidate_reading']) == ['boundary-seam']
     assert texts(boundary['primary_reading']) == ['ordinary-unit']
@@ -355,7 +355,7 @@ def test_ineligible_boundary_keeps_result_detail_link_and_both_limitations():
     result = projection.project(0, [], [job])
     group = result['alternatives'][0]
     assert group['reason'] == 'no_timed_phrases'
-    assert group['boundary_unresolved'] is True
+    assert group['boundary_unresolved'] is False
     assert group['supports'][0]['result_ref'] == job['result_ref']
     assert group['supports'][0]['authority'] == 'historical_snapshot'
     assert group['supports'][0]['source_current'] == 'not_checked'

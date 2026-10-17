@@ -1,4 +1,4 @@
-# Current unified transcript, version 2 (indexed reads)
+# Current unified transcript, version 3 (closed-component indexed reads)
 
 Three read-only GET endpoints expose a bounded current display projection:
 
@@ -13,9 +13,10 @@ read audio files, download assets, create tables, backfill data, or replay the
 change log. No materialized transcript, geometry backfill, or new table is
 persisted. Startup adds one integer session revision and versioned transactional
 invalidation triggers after the source schemas exist. Fresh synthetic fixtures
-qualify the indexed reads and invalidation contract; no historical database
-adoption is qualified. See [dev21 qualification](DEV21_INDEXED_TRANSCRIPT_QUALIFICATION.md)
-for exact test scope, retained earlier failures and capacity limits.
+qualify the indexed reads, component closure and invalidation contract; no original
+historical database adoption is qualified. The dev34 qualification below uses
+retained numeric geometry in fresh synthetic SQLite. Earlier
+[dev21 qualification](DEV21_INDEXED_TRANSCRIPT_QUALIFICATION.md) remains historical.
 
 ## Reading contract
 
@@ -23,8 +24,10 @@ for exact test scope, retained earlier failures and capacity limits.
 preference combining eligible MOSS support runs with unaffected whole primary
 ASR units. `baseline_reading` separately preserves the current primary units.
 `selected_runs` identifies exact supports and replaced primary references.
-`alternatives` retains the complete linked primary units and all retained MOSS
-timed phrases, including simultaneous speakers and equal text. Nothing compares
+`alternatives` retains complete linked primary units and retained MOSS timed
+phrases, including simultaneous speakers and equal text, when optional closure
+is complete. An explicit capacity-unresolved fallback has no optional selection
+or alternatives and preserves the complete initial-page primary baseline. Nothing compares
 text for selection, merges anonymous speakers, removes intrinsic model repeats,
 splits a word, proportionally crops a string, or asserts improved accuracy.
 
@@ -54,13 +57,28 @@ beyond the bound or an invalid timeline is explicitly unresolved, not clipped.
 Historical/configuration-invalid data outside these publication invariants is
 unsupported by this current projection.
 
-Time-page candidate discovery uses that same bounded chunk set and separately
-seeks `auto_cid1` and `auto_cid2`, in every automatic state. Candidate sequences
+Initial time-page candidate discovery uses that same bounded chunk set and
+separately seeks `auto_cid1` and `auto_cid2`, in every automatic state. Candidate sequences
 are deduplicated before descriptor lengths, exact binding validation and
 half-open support intersection. Both indexes are necessary: a seam's first
 alias can precede the chunk seek while its second alias still intersects the
 page. A predecessor ending before the context window is discarded, so a distant
 seek across a gap does not inspect that predecessor's unrelated bindings.
+
+Discovery then closes the page's exact graph components. Every initial-page
+whole primary unit seeds a search across its full interval, even if the page has
+no initial candidate. Eligible candidates connect on positive support overlap
+or exact adjacency; candidate-to-primary edges require positive intersection.
+Primary-to-primary overlap and shared page/envelope membership never connect
+components. Only fully validated eligible candidates expand the frontier.
+Ineligible result bodies and conclusively unplaced descriptors consume admission
+budgets but never bridge components. Conservative primary SQL predicates are
+filtered with the exact outward integer-frame envelopes described above.
+
+All bands use one snapshot and cumulative counters. Chunks, descriptors, binding
+payloads, result bodies and primary identities are deduplicated before admission;
+repeated indexed seeks still spend the same SQL/VM/time budget. Complete closure
+is required before selection. A loaded prefix is never a successful MOSS choice.
 
 Only durable automatic timestamped-recording bindings place MOSS history.
 Each binding must match its immutable candidate hash, known selection policy,
@@ -69,12 +87,18 @@ support parts. Each alias derives the same session transform:
 
 `chunk.timeline_start * 16000 + part.source_start - part.logical_start`.
 
+The indexed source-root expectation is ordered-unique across commit roots, so
+two independent core commits in one upload can use one merged source alias.
+This does not merge or rewrite either commit/slot identity. Actual aliases,
+receipts and support geometry remain strictly validated; duplicate actual
+aliases are not repaired.
+
 The source parts must exactly cover the support. Core envelopes are checked but
 never substituted for actual support. Cancelled sources remain historical
 alternatives and are ineligible for the unified reading. Unbound manual or
 legacy history is explicitly outside placement scope; no coordinate guess is
 made. A time page can report `unsupported_unplaced` only for aliases found by
-its local seek. It explicitly returns
+its bounded page-seeded frontier. It explicitly returns
 `unplaced_history_check: not_performed_by_time_page` and `binding_audit_path`.
 No page, including block zero, certifies the absence of missing/moved-source
 history. The separate audit below enumerates such automatic bindings. None of
@@ -91,8 +115,9 @@ these checks is a current source/audio attestation.
 3. Weighted interval scheduling chooses nonoverlapping legal runs with maximum
    total support frames, then fewer jobs, then seam before ordinary, start frame,
    archive sequence, result hash, and candidate key. Adjacent winning runs join.
-4. Any support crossing a fixed block boundary remains an explicit unresolved
-   alternative. No global overlap-component expansion changes the block size.
+4. Selection uses complete components before page rendering. Neighboring pages
+   retain the same full run bounds, candidate keys and whole-primary references.
+   The fixed page bounds describe the display view, not clipped support or text.
 
 EOS-unknown alone does not make a valid provisional candidate ineligible.
 Malformed retained schema, inconsistent embedded bindings, or corrupted result
@@ -106,7 +131,10 @@ native raw output remains available.
 All evidence has one home block. A primary unit's home is its start-frame block;
 all phrases of a MOSS result share its support-start home block, preserving the
 result's lanes together. Other intersecting blocks carry `reference_only: true`
-references without repeating text. The evidence endpoint resolves those refs.
+references without repeating text. A visible global run retains references to
+all of its chosen phrases and replaced primary units, including outside-page
+homes. Replaced primary units are consistently suppressed from `reading` on
+every intersecting page. The evidence endpoint resolves those refs.
 Full text may occur in both reading and explicitly labeled alternatives within
 its home block; alternatives are never a second chosen source coverage.
 
@@ -153,7 +181,8 @@ the existing initialization transaction after automatic/history/recording schema
 initialization and the additive canonical segment-column migration. Partial or
 incompatible revision schema fails closed.
 
-An incompatible cursor returns HTTP 409 `transcript_revision_changed`; a new
+A cursor with an old policy returns HTTP 409 `invalid_transcript_cursor`; a
+changed snapshot revision returns 409 `transcript_revision_changed`. A new
 first-page request obtains the new view. Identical retries are deterministic.
 No read transaction is retained between requests.
 
@@ -208,17 +237,18 @@ for selection; page projection performs those extra checks. Wrong hash/state is
 
 ## Fixed resource bounds and failures
 
-- At most 1,024 distinct page-local automatic binding descriptors and 4 MiB
-  cumulative binding bytes, each binding at most 4 KiB. This is a bounded local
-  candidate-work limit, not a session-wide scan on every time page.
+- At most 1,024 distinct automatic descriptors across the whole page-seeded
+  closure and 4 MiB cumulative binding bytes, each binding at most 4 KiB. This
+  remains indexed frontier work, not a session-wide scan on every time page.
 - Audit pages examine at most 64 bindings plus one metadata-only lookahead row;
   all existing SQL/time/response bounds also apply to this separate endpoint.
 - Automatic admission remains separately limited to 1,024 rows per session and
   4,096 globally. This change does not raise or solve those admission limits.
-- At most 128 nearby chunks and 128 intersecting whole primary units, with
-  256 KiB cumulative primary text-field projection
-- At most 16 intersecting committed MOSS payloads, 256 KiB each and 2 MiB
-  aggregate; metadata at most 16 KiB per result
+- At most 128 distinct discovered/source-alias chunks and 128 admitted whole
+  primary units, with 256 KiB cumulative primary text-field projection
+- At most 16 committed MOSS payloads across the complete page-seeded closure,
+  including ineligible bodies, 256 KiB each and 2 MiB aggregate; metadata at most
+  16 KiB per result. Limits do not reset per component, query or frontier band.
 - At most 1,024 candidate-to-primary alternative links; all links are retained
   or the page explicitly refuses the projection
 - Response at most 256 KiB, including all inline alternatives
@@ -235,15 +265,71 @@ one at a time; no audio/proof blobs are selected. There is no full-session bindi
 payload scan per time page, full change-history traversal or unbounded overlap
 closure. A long legacy single-chunk primary lookup can still scan many earlier
 segment rows: the unchanged VM/deadline budget must explicitly refuse excessive
-work; no invented maximum upload duration or silent truncation is introduced. A storage limit returns an explicit 503 `unresolved_capacity` (or a
-bounded storage/read-capacity error), never a selected reading from a truncated
-candidate set. The 60-second block width is fixed: this API has no smaller-window
-retry. A dense block can fail even when adjacent blocks are readable. Clients may
-inspect exact evidence, but must not treat the failed page as an empty or complete
-transcript. The endpoint DAG has at most 32 endpoints; the selection policy and
-all aggregate byte, linkage, response, SQL and time caps remain fixed.
+work; no invented maximum upload duration or silent truncation is introduced.
+The endpoint DAG has at most 32 endpoints. Selection ranking and all aggregate
+byte, linkage, response, SQL and time caps remain fixed.
+
+The initial-page primary baseline is fully validated before optional reads.
+Only an explicit optional count/byte admission failure can return HTTP 200 with
+`reading == baseline_reading`, empty `selected_runs` and `alternatives`, and
+`reading_status: primary_only_optional_closure_unresolved`. Its `optional_closure`
+reports `complete: false`, `status: capacity_unresolved`,
+`scope: page_seeded_components`, `selection_performed: false`, and
+`alternatives_complete: false`. One `optional_closure_incomplete` notice repeats
+the capacity reason and `evidence_complete: false`. The fixed `limit` values are
+`chunks`, `bindings`, `binding_bytes`, `primary_units`, `primary_bytes`,
+`result_bodies`, `result_bytes`, `results_bytes`, and `result_or_metadata_bytes`.
+No optional prefix or apparently separate successful component survives an
+incomplete closure. With complete closure, the completeness/selection fields
+are true and the status is `complete`.
+
+Missing required history/payload rows, malformed length metadata, read/integrity
+uncertainty, SQL/VM/time exhaustion, incomplete primary baseline and final actual
+serialized-response exhaustion remain explicit read failures (normally 503).
+Fallback never resets a budget or bypasses final serialization/deadline checks.
+Clients must inspect closure status; primary-only fallback does not establish
+that optional alternatives were fully examined. A failed page is not empty text.
+
+The 60-second block width is fixed; there is no smaller-window retry parameter.
+A connected 23-job, 126-second synthetic chain exceeds the 16-result body cap on
+every intersecting page, in both reading orders. Each page retains its complete
+primary baseline and explicit incomplete optional status. Requesting a smaller
+page would not resolve component-wide density. Exact evidence and existing
+primary/history APIs remain available subject to their own bounds.
 
 Strict malformed query/reference/cursor requests return 409. Missing/deleted
 sessions return 404, access failures use the existing 401 policy, and response
 pool exhaustion returns 503. The app's lifetime wrapper releases leases on
 disconnect, send failure and cancellation, including late synchronous handoffs.
+
+
+## dev34 qualification (model-free)
+
+All 214 cases passed once: 35 component cases, 49 source-root cases, 43 pure
+projection cases, 49 HTTP cases and 38 indexed-reader cases. Coverage includes
+both page orders, disjoint components, invalid bridges, long whole-primary
+tails, outward-frame endpoint rounding, shared count/byte/VM/deadline limits,
+17-body and 23-job capacity fallbacks, missing/revoked dependencies, cursor
+changes, exact result/proof binding and final response serialization. The
+100,000-row legacy scan retains its original VM-refusal assertion; only that
+fresh bulk fixture uses DELETE journaling to stay within the fixture cap. Normal
+integration fixtures use WAL. This scan does not qualify WAL concurrency.
+
+The sanitized retained-geometry fixture has 52 candidates, 43 eligible jobs,
+321 whole primary units, 174 chunks and 30 pages in four scopes. Real production
+binding/result validators and indexed fresh SQLite reads reproduce the accepted
+numeric outcome: 7 selected jobs, 83 seconds of support, 52 replaced whole
+primary units and 6 selected pages. All 30 pages were read in both orders (60
+reads). Maximum observed page costs were 8 result bodies, 5,500 VM steps,
+112,648 serialized response bytes and 16.24 ms. Identities, hashes, receipts and
+text are synthetic; text placeholders retain encoded lexical lengths and can
+increase raw UTF-8 storage. These measured synthetic costs do not certify the
+original stored text/proof combinations or current source authority.
+
+The full 11-batch sequence completed in 18.64 seconds, with peak sampled RSS
+100,167,680 bytes and peak fresh fixtures 9,777,152 bytes, within one 120-second
+bound, CPU 3, nice 19, 256 MiB RSS, 1 GiB address space and 16 MiB fresh fixtures.
+All children were waited and fixtures cleaned. No model/audio execution,
+original database read, archived rewrite or recognition-quality evaluation was
+performed. The existing operational report remains a historical result and is
+not changed to a successful model qualification by this checkpoint.

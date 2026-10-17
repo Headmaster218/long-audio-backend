@@ -1,5 +1,6 @@
 """Bounded indexed transcript reads in one query-only SQLite snapshot."""
 from contextlib import contextmanager
+from collections import deque
 import hashlib
 import math
 from pathlib import Path
@@ -23,6 +24,17 @@ CONTEXT_SECONDS = 5
 _PRIMARY_SQL = ','.join('s.' + field for field in c.PRIMARY_FIELDS)
 _PRIMARY_LENGTH = '+'.join("COALESCE(length(CAST(s." + field + " AS BLOB)),0)"
     for field in ('text', 'raw_text', 'asr_backend', 'timestamp_kind', 'speaker_local_id'))
+
+
+class _ClosureCapacity(Exception):
+    def __init__(self, limit):
+        self.limit = limit
+
+
+def _capacity(limit, optional=False):
+    # Only explicit admission checks may create the fallback signal.
+    if optional: raise _ClosureCapacity(limit)
+    c.fail('unresolved_capacity')
 
 
 class TranscriptStore:
@@ -67,9 +79,13 @@ class TranscriptStore:
         finally:
             if db is not None: db.close()
 
+    @classmethod
+    def _chunks(cls, db, sid, block):
+        return cls._chunk_band(db, sid, block * c.BLOCK_FRAMES, (block + 1) * c.BLOCK_FRAMES)
+
     @staticmethod
-    def _chunks(db, sid, block):
-        start, end = block * c.BLOCK_FRAMES / c.RATE, (block + 1) * c.BLOCK_FRAMES / c.RATE
+    def _chunk_band(db, sid, start_frame, end_frame, *, optional=False):
+        start, end = start_frame / c.RATE, end_frame / c.RATE
         lookback, lookahead = max(0., start - CONTEXT_SECONDS), end + CONTEXT_SECONDS
         # Chunk timeline intervals are disjoint. Seek the predecessor rather
         # than assuming uploaded chunks have the recording producer's length.
@@ -78,7 +94,7 @@ class TranscriptStore:
         chunks += list(db.execute('''SELECT id,timeline_start,duration FROM chunks INDEXED BY chunk_timeline
             WHERE session_id=? AND timeline_start>? AND timeline_start<?
             ORDER BY timeline_start LIMIT ?''', (sid, lookback, lookahead, MAX_CHUNKS + 1)))
-        if len(chunks) > MAX_CHUNKS: c.fail('unresolved_capacity')
+        if len(chunks) > MAX_CHUNKS: _capacity('chunks', optional)
         previous_end = None
         for chunk in chunks:
             a, duration = chunk['timeline_start'], chunk['duration']
@@ -106,23 +122,35 @@ class TranscriptStore:
             extent = max(extent, c.primary_frame(tail['timeline_start'] + tail['duration'], end=True))
         return extent
 
+    @classmethod
+    def _primary(cls, db, sid, block, chunks):
+        known = {}
+        return cls._primary_band(db, sid, block * c.BLOCK_FRAMES,
+                                 (block + 1) * c.BLOCK_FRAMES, chunks, known)
+
     @staticmethod
-    def _primary(db, sid, block, chunks):
-        start, end = block * c.BLOCK_FRAMES / c.RATE, (block + 1) * c.BLOCK_FRAMES / c.RATE
-        lengths, total = [], 0
+    def _primary_band(db, sid, start_frame, end_frame, chunks, known, *, optional=False):
+        # Conservative SQL superset of outward integer-frame envelopes.
+        # Exact geometry below decides edges; guard rows still consume budgets.
+        start = math.nextafter((start_frame - 1) / c.RATE, -math.inf)
+        end = math.nextafter((end_frame + 1) / c.RATE, math.inf)
+        lengths, total, values = [], sum(size for _, size in known.values()), []
         for chunk in chunks:
             rows = db.execute(f'''SELECT s.id,{_PRIMARY_LENGTH} AS bytes FROM segments s INDEXED BY segments_chunk
                 WHERE s.chunk_id=? AND s.start<? AND s.end>? ORDER BY s.start,s.id LIMIT ?''',
-                (chunk['id'], end, start, c.MAX_PRIMARY + 1 - len(lengths))).fetchall()
+                (chunk['id'], end, start, c.MAX_PRIMARY + 1)).fetchall()
             for row in rows:
+                if row['id'] in known:
+                    values.append(known[row['id']][0])
+                    continue
                 total += row['bytes']
                 lengths.append((row['id'], chunk, row['bytes']))
-            if len(lengths) > c.MAX_PRIMARY or total > c.MAX_PRIMARY_BYTES:
-                c.fail('unresolved_capacity')
-        values = []
+            if len(known) + len(lengths) > c.MAX_PRIMARY: _capacity('primary_units', optional)
+            if total > c.MAX_PRIMARY_BYTES: _capacity('primary_bytes', optional)
         for ident, chunk, size in lengths:
             row = db.execute(f'SELECT {_PRIMARY_SQL} FROM segments s WHERE s.id=? AND s.chunk_id=?',
                              (ident, chunk['id'])).fetchone()
+            if row is None: c.fail('transcript_dependency_missing')
             evidence = c.primary_evidence(sid, row)
             # This narrow view does not invent placement for malformed primary
             # geometry; no unit is sliced to fit its chunk or a display block.
@@ -130,8 +158,11 @@ class TranscriptStore:
             b = c.primary_frame(chunk['timeline_start'] + chunk['duration'], end=True)
             if evidence['start_frame'] < max(0,a - CONTEXT_SECONDS*c.RATE) or evidence['end_frame'] > b + CONTEXT_SECONDS*c.RATE:
                 c.fail('transcript_primary_geometry_unresolved')
+            known[ident] = (evidence, size)
             values.append(evidence)
-        return sorted(values, key=lambda item: (item['start_frame'], item['canonical_asr']['id']))
+        return sorted((item for item in values
+                       if item['start_frame'] < end_frame and start_frame < item['end_frame']),
+                      key=lambda item: (item['start_frame'], item['canonical_asr']['id']))
 
     _DESCRIPTOR_SQL = f'''SELECT a.seq,a.candidate_key,a.kind,a.state,a.reason,a.job_id,
         a.jobs_epoch,a.request_sha256,a.proof_sha256,a.cell_id,a.cid1,a.cid2,
@@ -143,17 +174,19 @@ class TranscriptStore:
         FROM {AUTO} a {{index}} LEFT JOIN {HISTORY} h ON h.job_id=a.job_id {{where}}'''
 
     @staticmethod
-    def _check_descriptor_lengths(rows):
+    def _check_descriptor_lengths(rows, *, optional=False):
         total = 0
         for row in rows:
+            if row is None: c.fail('transcript_dependency_missing')
             size = row['binding_bytes']
-            if type(size) is not int or not 1 <= size <= 4096: c.fail('unresolved_capacity')
+            if type(size) is not int or size < 1: c.fail('unresolved_capacity')
+            if size > 4096: _capacity('binding_bytes', optional)
             total += size
-        if total > c.MAX_BINDING_BYTES: c.fail('unresolved_capacity')
+        if total > c.MAX_BINDING_BYTES: _capacity('binding_bytes', optional)
         return [dict(row) for row in rows]
 
     @classmethod
-    def _descriptors(cls, db, sid, chunks):
+    def _descriptors(cls, db, sid, chunks, *, optional=False):
         # Seek both aliases in every state. Deduplicate before binding loads,
         # exact placement, intersection, and the 16-result admission check.
         # No session-wide intent query or result/binding payload scan is used.
@@ -164,10 +197,10 @@ class TranscriptStore:
                     WHERE cid{alias}=? AND sid=? LIMIT ?''',
                     (chunk['id'], sid, c.MAX_BINDINGS + 1)).fetchall()
                 sequences.update(row['seq'] for row in rows)
-                if len(sequences) > c.MAX_BINDINGS: c.fail('unresolved_capacity')
+                if len(sequences) > c.MAX_BINDINGS: _capacity('bindings', optional)
         query = cls._DESCRIPTOR_SQL.format(index='', where='WHERE a.seq=? AND a.sid=?')
         rows = [db.execute(query, (seq, sid)).fetchone() for seq in sorted(sequences)]
-        return cls._check_descriptor_lengths(rows)
+        return cls._check_descriptor_lengths(rows, optional=optional)
 
     def _revision(self, db, sid, session):
         counter = session['transcript_revision']
@@ -186,8 +219,10 @@ class TranscriptStore:
         return c.digest(value)
 
     @staticmethod
-    def _binding(db, sid, row):
-        raw = db.execute(f'SELECT binding FROM {AUTO} WHERE seq=? AND sid=?', (row['seq'], sid)).fetchone()[0]
+    def _binding(db, sid, row, source_cache=None):
+        saved = db.execute(f'SELECT binding FROM {AUTO} WHERE seq=? AND sid=?', (row['seq'], sid)).fetchone()
+        if saved is None: c.fail('transcript_dependency_missing')
+        raw = saved[0]
         row['binding_sha256'] = hashlib.sha256(raw).hexdigest() if type(raw) is bytes else None
         binding = c.parse_json(raw, 4096)
         if (type(raw) is not bytes or hashlib.sha256(raw).hexdigest() != row['candidate_key']
@@ -236,10 +271,14 @@ class TranscriptStore:
             cid = _identifier(alias['chunk_id'])
             if cid in seen or cid not in (row['cid1'], row['cid2']): c.fail('automatic_binding_invalid')
             seen.add(cid)
-            source = db.execute('''SELECT c.session_id,c.digest,c.timeline_start,c.duration,c.status,
-                w.frames,w.receipt_id,w.capture_start_frame,b.capture_origin_frame,b.session_id AS batch_sid
-                FROM chunks c LEFT JOIN recording_work w ON w.chunk_id=c.id
-                LEFT JOIN recording_batches b ON b.id=w.batch_id WHERE c.id=?''', (cid,)).fetchone()
+            if source_cache is not None and cid in source_cache:
+                source = source_cache[cid]
+            else:
+                source = db.execute('''SELECT c.session_id,c.digest,c.timeline_start,c.duration,c.status,
+                    w.frames,w.receipt_id,w.capture_start_frame,b.capture_origin_frame,b.session_id AS batch_sid
+                    FROM chunks c LEFT JOIN recording_work w ON w.chunk_id=c.id
+                    LEFT JOIN recording_batches b ON b.id=w.batch_id WHERE c.id=?''', (cid,)).fetchone()
+                if source_cache is not None: source_cache[cid] = source
             if (source is None or source['session_id'] != sid or source['frames'] is None
                     or source['capture_origin_frame'] is None or source['batch_sid'] != sid
                     or source['digest'] != part['source_sha256'] or source['frames'] != part['source_frames']
@@ -256,15 +295,17 @@ class TranscriptStore:
         return binding, start, end, cancelled
 
     @staticmethod
-    def _result(db, sid, row, binding, start, end, cancelled):
+    def _result(db, sid, row, binding, start, end, cancelled, *, optional=False):
         if (row['history_sid'] != sid or row['history_epoch'] != row['jobs_epoch']
                 or row['history_request'] != row['request_sha256'] or row['schema_version'] != 1):
             c.fail('automatic_history_binding_invalid')
-        if (type(row['result_bytes']) is not int or not 1 <= row['result_bytes'] <= c.MAX_RESULT_BYTES
-                or type(row['metadata_bytes']) is not int or not 1 <= row['metadata_bytes'] <= c.MAX_METADATA_BYTES):
+        if any(type(row[key]) is not int or row[key] < 1 for key in ('result_bytes', 'metadata_bytes')):
             c.fail('unresolved_capacity')
+        if row['result_bytes'] > c.MAX_RESULT_BYTES or row['metadata_bytes'] > c.MAX_METADATA_BYTES:
+            _capacity('result_or_metadata_bytes', optional)
         saved = db.execute(f'SELECT result_json,metadata_json FROM {HISTORY} WHERE job_id=? AND session_id=?',
                            (row['job_id'], sid)).fetchone()
+        if saved is None: c.fail('transcript_dependency_missing')
         raw, meta_raw = saved['result_json'], saved['metadata_json']
         if type(raw) is not bytes or hashlib.sha256(raw).hexdigest() != row['result_sha256']:
             c.fail('transcript_result_hash_invalid')
@@ -365,6 +406,90 @@ class TranscriptStore:
             ('scope_id','state','revision','decision_revision','policy_sha256','space_id')}}
             for rid,saved in sorted(scopes.items())]
 
+    def _closure(self, db, sid, block, check, initial_chunks, primary, baseline):
+        """Close exact candidate/whole-primary edges, sharing one read budget.
+
+        Coarse indexed bands only discover descriptors. They are never graph
+        edges. Ineligible candidates and notices cannot extend the frontier.
+        """
+        start, end = block * c.BLOCK_FRAMES, (block + 1) * c.BLOCK_FRAMES
+        frontier = deque([('page', start, end)] + [
+            ('primary', item['start_frame'], item['end_frame']) for item in baseline])
+        bands = set()
+        chunks = {chunk['id']: chunk for chunk in initial_chunks}
+        charged_chunks, queried_chunks, rows, placed = set(chunks), set(), {}, {}
+        sources, candidates, loaded = {}, {}, {}
+        notices, binding_bytes, result_bytes = {}, 0, 0
+        while frontier:
+            kind, a, b = frontier.popleft()
+            if (kind, a, b) in bands: continue
+            bands.add((kind, a, b))
+            check()
+            found = initial_chunks if kind == 'page' else self._chunk_band(db, sid, a, b, optional=True)
+            fresh = [chunk for chunk in found if chunk['id'] not in queried_chunks]
+            for chunk in fresh:
+                chunks[chunk['id']] = chunk
+                charged_chunks.add(chunk['id'])
+                queried_chunks.add(chunk['id'])
+            if len(charged_chunks) > MAX_CHUNKS: _capacity('chunks', True)
+            for row in self._descriptors(db, sid, fresh, optional=True):
+                seq = row['seq']
+                if seq in rows: continue
+                rows[seq] = row
+                binding_bytes += row['binding_bytes']
+                charged_chunks.update(cid for cid in (row['cid1'], row['cid2']) if cid is not None)
+                if len(rows) > c.MAX_BINDINGS: _capacity('bindings', True)
+                if binding_bytes > c.MAX_BINDING_BYTES: _capacity('binding_bytes', True)
+                if len(charged_chunks) > MAX_CHUNKS: _capacity('chunks', True)
+                check()
+                try:
+                    binding, x, y, cancelled = self._binding(db, sid, row, sources)
+                    placed[seq] = (row, binding, x, y, cancelled)
+                except ReadError as exc:
+                    if exc.reason in ('unresolved_capacity', 'transcript_dependency_missing'): raise
+                    notices[seq] = {'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
+                        'status': 'unsupported_unplaced', 'reason': exc.reason,
+                        'scope': 'indexed_component_frontier_source_alias'}
+            # Exact-touch is a candidate edge only. Primary edges stay strict.
+            matched = [(seq, item) for seq, item in placed.items() if seq not in loaded
+                and (item[2] <= b and a <= item[3] if kind == 'candidate'
+                     else item[2] < b and a < item[3])]
+            if any(item[0]['state'] == 'committed' and item[0]['history_state'] is None
+                   for _, item in matched):
+                c.fail('transcript_dependency_missing')
+            pending = [item for _, item in matched if item[0]['history_state'] == 'committed']
+            sizes = [item[0]['result_bytes'] for item in pending]
+            if any(type(item[0][key]) is not int or item[0][key] < 1
+                   for item in pending for key in ('result_bytes', 'metadata_bytes')):
+                c.fail('unresolved_capacity')
+            if len(loaded) + len(pending) > c.MAX_RESULTS: _capacity('result_bodies', True)
+            if any(size > c.MAX_RESULT_BYTES for size in sizes):
+                _capacity('result_bytes', True)
+            if result_bytes + sum(sizes) > c.MAX_RESULTS_BYTES: _capacity('results_bytes', True)
+            result_bytes += sum(sizes)
+            for seq, item in matched:
+                row, binding, x, y, cancelled = item
+                if row['history_state'] != 'committed':
+                    if x < end and start < y:
+                        notices[seq] = {'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
+                            'status': row['history_state'] or row['state'], 'reason': row['reason'],
+                            'start_frame': x, 'end_frame': y, 'home_block': x // c.BLOCK_FRAMES,
+                            'complete_content': False, 'eos': None}
+                    continue
+                loaded[seq] = item
+                candidate = self._result(db, sid, *item, optional=True)[0]
+                candidates[seq] = candidate
+                if candidate['eligible']:
+                    frontier.append(('candidate', x, y))
+                check()
+            if kind == 'candidate':
+                for unit in self._primary_band(db, sid, a, b, found, primary, optional=True):
+                    # Includes the full tails of every page-primary seed.
+                    frontier.append(('primary', unit['start_frame'], unit['end_frame']))
+                check()
+        return ([item for item, _ in primary.values()], list(candidates.values()),
+                list(loaded.values()), [notices[key] for key in sorted(notices)])
+
     def page(self, sid, *, block=0, cursor=None):
         if type(block) is not int or not 0 <= block <= c.MAX_FRAME // c.BLOCK_FRAMES:
             c.fail('invalid_transcript_block', 409)
@@ -376,39 +501,31 @@ class TranscriptStore:
             revision = self._revision(db, sid, session)
             if token is not None and token['revision'] != revision:
                 c.fail('transcript_revision_changed', 409)
-            chunks = self._chunks(db, sid, block)
-            rows = self._descriptors(db, sid, chunks)
-            intersecting, notices = [], []
             start, end = block * c.BLOCK_FRAMES, (block + 1) * c.BLOCK_FRAMES
             extent = self._extent(db, sid, session)
-            for row in rows:
+            chunks, known_primary = self._chunks(db, sid, block), {}
+            baseline = self._primary_band(db, sid, start, end, chunks, known_primary)
+            check()
+            closure = {'scope': 'page_seeded_components', 'complete': True,
+                'status': 'complete', 'selection_performed': True, 'alternatives_complete': True}
+            try:
+                primary, candidates, intersecting, notices = self._closure(
+                    db, sid, block, check, chunks, known_primary, baseline)
+            except _ClosureCapacity as exc:
+                # Baseline was complete before optional work. No partial MOSS
+                # selection or alternatives survive an incomplete closure.
                 check()
-                try:
-                    binding, a, b, cancelled = self._binding(db, sid, row)
-                    if a < end and start < b:
-                        extent = max(extent, b)
-                        if row['history_state'] == 'committed':
-                            intersecting.append((row, binding, a, b, cancelled))
-                        else:
-                            notices.append({'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
-                                'status': row['history_state'] or row['state'], 'reason': row['reason'],
-                                'start_frame': a, 'end_frame': b, 'home_block': a // c.BLOCK_FRAMES,
-                                'complete_content': False, 'eos': None})
-                except ReadError as exc:
-                    if exc.reason == 'unresolved_capacity': raise
-                    notices.append({'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
-                        'status': 'unsupported_unplaced', 'reason': exc.reason,
-                        'scope': 'page_local_source_alias'})
-            if len(intersecting) > c.MAX_RESULTS: c.fail('unresolved_capacity')
-            sizes = [row['result_bytes'] for row, *_ in intersecting]
-            if any(type(n) is not int or not 1 <= n <= c.MAX_RESULT_BYTES for n in sizes) or sum(sizes) > c.MAX_RESULTS_BYTES:
-                c.fail('unresolved_capacity')
-            primary = self._primary(db, sid, block, chunks)
-            candidates = [self._result(db, sid, *item)[0] for item in intersecting]
+                primary, candidates, intersecting = baseline, [], []
+                closure.update(complete=False, status='capacity_unresolved', limit=exc.limit,
+                    selection_performed=False, alternatives_complete=False)
+                notices = [{'status': 'optional_closure_incomplete', 'reason': 'capacity_unresolved',
+                    'limit': exc.limit, 'scope': 'page_seeded_components', 'evidence_complete': False}]
+
             link_scopes = self._speaker_annotations(db, sid, candidates, intersecting)
             check()
             value = project(block, primary, candidates, notices)
             value.update(session_id=sid, revision=revision, policy_sha256=c.POLICY_HASH,
+                optional_closure=closure,
                 recording_speaker_links={'enabled':self.speaker_links_enabled, 'scopes':link_scopes,
                     'authority':'anonymous_provisional_recording_only', 'automatic_gallery_enrollment':False},
                 reading_status='provisional_display_preference', complete_content=False, eos=None,
@@ -417,8 +534,11 @@ class TranscriptStore:
                 unplaced_history_check='not_performed_by_time_page',
                 binding_audit_path=f'/sessions/{sid}/transcript/binding-audit',
                 next_cursor=c.cursor(sid, block + 1, revision) if end < extent else None)
+            if not closure['complete']:value['reading_status'] = 'primary_only_optional_closure_unresolved'
             if not self.speaker_links_enabled:value.pop('recording_speaker_links')
-            return c.transcript_response(value)
+            raw = c.transcript_response(value)
+            check()
+            return raw
 
     def binding_audit(self, sid, *, cursor=None):
         """Keyset-paged placement audit, independent of temporal discovery.
