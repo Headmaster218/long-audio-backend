@@ -1,0 +1,3150 @@
+{
+  "version": "0.2.0rc3.dev46",
+  "date_utc": "2026-10-17",
+  "qualified_scope": "Model-free prospective immutable native-primary numerical provenance capture/storage/current-authority/erasure; no speaker reconciliation or acoustic quality decision.",
+  "baseline_commit": "2be2be425e51091d890fab03564661524752afa9",
+  "sole_parent_commit": "9566ec1b5881c22c9ca2638576807a9e09e49671",
+  "sole_parent_tree": "62f496cc6bd4066ed48872cc4e43ed497df060f0",
+  "production_scope": "Exactly the eight approved provenance modules, plus __init__ release-version metadata. No embedding/probe/scorer/scheduler/GC behavior changes.",
+  "new_tables": [
+    "recording_primary_packets_v1",
+    "recording_primary_usage_v1"
+  ],
+  "logical_quotas_bytes": {
+    "recording": 134217728,
+    "global": 536870912,
+    "packet_body_maximum": 65536
+  },
+  "unchanged_limits": "Existing 6 GiB RAM+VRAM target, recording probe/link 4 MiB, 32 nodes, four crops and thresholds unchanged. Model-free RSS is not actual-model resource qualification.",
+  "source_cases": {
+    "real_worker_capture_sql_restart": 1,
+    "contracts": 40,
+    "single_packet_shapes": 2,
+    "pure_geometry": 2,
+    "128_transaction_calibration": 2,
+    "long_metadata_shapes": 2,
+    "affected_regressions": 28,
+    "scoped_total": 77,
+    "full_repository_suite": false
+  },
+  "installed_recheck": {
+    "passed": 41,
+    "skipped": 0,
+    "old_dev45_case_passed": true,
+    "module_count": 61,
+    "all_module_origins_from_installed_target": true,
+    "baseline_variable_explicitly_set_to_pinned_dev45": true,
+    "terminal_sha256": "95045f00a543c22ab89aa726a004a6be89f1e4b11dfabafd027d4c7e71799ea4",
+    "parity_sha256": "f784cc593dca27fc4cee09064ef8732c743ce9f56a55b33ef81ab31079a2baa3",
+    "origins_sha256": "666d7927c183832d2014a9ac0d0aba899155a9e9e1ebb4d13e41d7e05fec210e",
+    "junit_sha256": "fbd9cf86195a58a0149dec6a0113da2a2a5188a7161e539f3a54739f487c73ad",
+    "qualification_sha256": "6509f9fd26bb0496799ca5e11bc2a3c4dd6477937e4811bb9c2342d745282265",
+    "independent_receipt_sha256": "8382b73532e6e2e70fbed29db4dd14b0aac0e4627190b9717606fe3acaf16053"
+  },
+  "wheel": {
+    "filename": "long_audio_backend-0.2.0rc3.dev46-py3-none-any.whl",
+    "bytes": 735057,
+    "sha256": "ea816b4a74f322bec86a87d8f626b2845bd2e7ef27d059b5949dc6698a8b61db",
+    "package_file_count": 129,
+    "exact_source_wheel_installed_parity": true,
+    "offline_build_and_local_target_install": true
+  },
+  "runtime": "Python 3.12.14 / pytest 8.4.2; exact restored dependency origins and RECORDs pinned in raw evidence. No model-runtime modules loaded.",
+  "stages": [
+    {
+      "stage": "focused1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 3.6673028780001005,
+      "peak_combined_rss_bytes": 88293376,
+      "peak_fixture_bytes": 1294336,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "85035b92e7747e1edf97199274268c5841d3ea4b7ede55bf6800ac1205b7e6f3",
+      "terminal_sha256": "f0236bb1eebd84b50073b7692b0515f9bade7d6a9d65543920477d2716ade899",
+      "log_sha256": "6fdaf3bbeeb6418a2e8ea619872a3d71cebe443094c021989154db3ad8482e0f",
+      "independent_receipt_sha256": "b264fa498036413b5d33a67812848caffbe1dd8ccbc242322e975542a4f2812a"
+    },
+    {
+      "stage": "contracts1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 5.62234420499999,
+      "peak_combined_rss_bytes": 63389696,
+      "peak_fixture_bytes": 2060288,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "499ba172dbb3e0c85abd4796d2729dda0ad96d39837cff7b3d5a7c2077248a0c",
+      "terminal_sha256": "5b2576b787bfa46fa7a75c03481e6d7c7035cf01d1dde1ebae0f37e1fe290873",
+      "log_sha256": "5b8b7b0c2079f16f03a2052e2a0078fb4ddbad66d959abd836e0b32430e6d1a9",
+      "independent_receipt_sha256": "caa00822cea1976569d1356e2a730df4fe52b11c6d425965ed4e3421ea582f9b"
+    },
+    {
+      "stage": "calibration1",
+      "status": "failed",
+      "returncode": 1,
+      "seconds": 1.0386614739998095,
+      "peak_combined_rss_bytes": 61333504,
+      "peak_fixture_bytes": 876544,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "55eea598612bd231fc85d614a4f467f487a14abb912afa593a8164f5089fa8ae",
+      "terminal_sha256": "074cf5925769051fb5b54a063b38b9a254582fc57f76314b827e3ea5f863d827",
+      "log_sha256": "742abd7b91806739e6ad52ebe832204af1e67729767d9b9b737f01445609da35",
+      "failure": "Fixture INSERT omitted required speaker_status; no complete calibration result."
+    },
+    {
+      "stage": "calibration2",
+      "status": "failed",
+      "returncode": 1,
+      "seconds": 1.0651236090000111,
+      "peak_combined_rss_bytes": 61743104,
+      "peak_fixture_bytes": 2641920,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "1dea635f8a9675dba399b98afc218ed997a2e0e791f97eb337f72b3b78c6d6d8",
+      "terminal_sha256": "ab767e3d7a74a6400b73832aaa0e9170efa078c3ddae8d84a0fa9ccd790cf9b0",
+      "log_sha256": "f146a13aefc9c3ad4c1b01b747cb674a10f81b8b381787e726671090667639e8",
+      "failure": "Fixture crossed a 300-second epoch with scope.index=0; no complete calibration result. Production validation retained."
+    },
+    {
+      "stage": "geometry1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 0.969589410000026,
+      "peak_combined_rss_bytes": 59854848,
+      "peak_fixture_bytes": 20480,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "3fcb251f06f5a1bdb0a81c2736baca8a19e60619533633246c27bbace7597663",
+      "terminal_sha256": "916b3d1407a7d24b4a977f59d5574fe58ef50d9934d21188baee529849384ec2",
+      "log_sha256": "bab70b6bbd9479a9d94ec8ea0388e7542f0a09cdf670c0f5874e907f024ca6d0"
+    },
+    {
+      "stage": "calibration3",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 2.318099686000096,
+      "peak_combined_rss_bytes": 62726144,
+      "peak_fixture_bytes": 14221312,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "3fcb251f06f5a1bdb0a81c2736baca8a19e60619533633246c27bbace7597663",
+      "terminal_sha256": "66139143e8cbef7fa504c30ce0e13220e0c23925947873c01d943cb694e0c756",
+      "log_sha256": "2dec04a4870e9479abf2ee766c1df048c1e26442c65b0ae4d9b0b75ed5d7be66",
+      "independent_receipt_sha256": "82a1025bf691324a9260836ce4c4c4cd3a27ab919171e8c5be69c5e00081a1c1"
+    },
+    {
+      "stage": "sizing-sparse1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 26.659582697000133,
+      "peak_combined_rss_bytes": 64528384,
+      "peak_fixture_bytes": 101126144,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "a5da5124b50a4227e085645f165ba7e889bd32333eb29ec6575bdf98fea90b97",
+      "terminal_sha256": "613858ae5dd34693762dc68b5772be4ea98e2fca97c71ff970ecdee638bd2e10",
+      "log_sha256": "3013fb4bb1a9261a6804d5f0d0748722c51847fc6eb2f9aac6130fe61f1509ad",
+      "independent_receipt_sha256": "e7ff0d71997f73ba6d3841cde9a7bc1d0013ec10198002c30a039cfc2b559552"
+    },
+    {
+      "stage": "sizing-dense1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 132.93268347499998,
+      "peak_combined_rss_bytes": 64253952,
+      "peak_fixture_bytes": 216875008,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "a5da5124b50a4227e085645f165ba7e889bd32333eb29ec6575bdf98fea90b97",
+      "terminal_sha256": "b727a487a81f974049b4be91f18a392b40bf098ef6a88bf2f3a765c925e9836c",
+      "log_sha256": "dc29573334fc9dc279cf9aa3f86c2994fe2d5082ad5c27068b8e2211623d04de",
+      "independent_receipt_sha256": "b42b96a9a4b0ca383e8d0f174c20d7dbd2403d6332c0f48960886491e04c6a44"
+    },
+    {
+      "stage": "affected1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 7.8460533570000734,
+      "peak_combined_rss_bytes": 135061504,
+      "peak_fixture_bytes": 1830912,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "61215d3e6184e0086421b0aedad6ae75532720c915f6cd5c0c50a074a771646f",
+      "terminal_sha256": "d9677899dface0350a6a87b8779dfe526fa2eaf18ab24e210240dc5642a6c1f8",
+      "log_sha256": "f66bd1dc1e917759b3b5bea08dbb99e2f9a1de68f8d9af22b826db9650459ae3",
+      "independent_receipt_sha256": "dc9c97efd1e45b2572d058dff54f5555bcce29519df31f6c21bdfc7cdd6d408a"
+    },
+    {
+      "stage": "package1",
+      "status": "passed",
+      "returncode": 0,
+      "seconds": 11.591009313000086,
+      "peak_combined_rss_bytes": 121581568,
+      "peak_fixture_bytes": 18477056,
+      "violation": null,
+      "positive_wait": true,
+      "remaining_owned_processes": [],
+      "pre_post_pins_verified": true,
+      "source_sha256": "a45aea78e9bc226529e82d11a7ba48a787f4f3d90fd6f3ac62c6ed690c44dae6",
+      "terminal_sha256": "95045f00a543c22ab89aa726a004a6be89f1e4b11dfabafd027d4c7e71799ea4",
+      "log_sha256": "3300fa91247639df8abbbe8df490dcac546eccdc597c4290157dea6388498d2c",
+      "independent_receipt_sha256": "8382b73532e6e2e70fbed29db4dd14b0aac0e4627190b9717606fe3acaf16053"
+    }
+  ],
+  "sizing_method": "Frozen sparse/dense numerical shapes; real encoder/persist transactions; independent synthetic 10.5-second source/upload per opportunity in one recording, conservatively adding source-row/index footprint. Fixture-owned core removed after persistence. Counts 4115/16458 are 12h/48h-shaped opportunities, not continuous capture or native epoch scheduling.",
+  "sizing": {
+    "sparse": {
+      "geometry": {
+        "unit_count": 24,
+        "labels": 1,
+        "raw_turns": 2,
+        "seconds": 10.5,
+        "anchor_rule": "round((i+0.5)*10.5/count,3)",
+        "duplicate_turns": 2
+      },
+      "geometry_sha256": "77c5027c03b23414790a0db02f7c17b2f6acea6c717a2afbde826e5634266de6",
+      "report_sha256": "52e1785fd6383492a34b332ce22d92c6349cccda106d8af2bb68f8c1f9f2abd4",
+      "statuses": {
+        "retained": 16458
+      },
+      "measurements": [
+        {
+          "windows": 4115,
+          "elapsed_seconds": 6.384539643000153,
+          "usage": {
+            "packets": 4115,
+            "charge": 11273883
+          },
+          "recording_usage": {
+            "packets": 4115,
+            "charge": 11273883
+          },
+          "actual_retained": {
+            "packets": 4115,
+            "charge": 11273883,
+            "body_bytes": 9455053
+          },
+          "primary_rows": 4115,
+          "completed_chunks": 4115,
+          "statuses": {
+            "retained": 4115
+          },
+          "refused_windows_exact_primary_and_status_verified": 0,
+          "stored_status_counts": {
+            "retained": 4115
+          },
+          "family": {
+            "db": {
+              "bytes": 24793088,
+              "allocated_bytes": 24793088
+            },
+            "-wal": {
+              "bytes": 4260112,
+              "allocated_bytes": 4263936
+            },
+            "-shm": {
+              "bytes": 32768,
+              "allocated_bytes": 32768
+            }
+          },
+          "page_size": 4096,
+          "page_count": 6055,
+          "freelist_count": 0
+        },
+        {
+          "windows": 16458,
+          "elapsed_seconds": 25.50889919300016,
+          "usage": {
+            "packets": 16458,
+            "charge": 45100162
+          },
+          "recording_usage": {
+            "packets": 16458,
+            "charge": 45100162
+          },
+          "actual_retained": {
+            "packets": 16458,
+            "charge": 45100162,
+            "body_bytes": 37825726
+          },
+          "primary_rows": 16458,
+          "completed_chunks": 16458,
+          "statuses": {
+            "retained": 16458
+          },
+          "refused_windows_exact_primary_and_status_verified": 0,
+          "stored_status_counts": {
+            "retained": 16458
+          },
+          "family": {
+            "db": {
+              "bytes": 96731136,
+              "allocated_bytes": 96735232
+            },
+            "-wal": {
+              "bytes": 4293072,
+              "allocated_bytes": 4296704
+            },
+            "-shm": {
+              "bytes": 65536,
+              "allocated_bytes": 65536
+            }
+          },
+          "page_size": 4096,
+          "page_count": 23622,
+          "freelist_count": 0
+        }
+      ],
+      "final_physical": {
+        "family": {
+          "db": {
+            "bytes": 96755712,
+            "allocated_bytes": 96759808
+          },
+          "-wal": {
+            "bytes": 0,
+            "allocated_bytes": 0
+          },
+          "-shm": {
+            "bytes": 65536,
+            "allocated_bytes": 65536
+          }
+        },
+        "page_size": 4096,
+        "page_count": 23622,
+        "freelist_count": 0,
+        "table_index_allocation": {
+          "available": true,
+          "entries": [
+            {
+              "name": "active_reviews_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "active_reviews_support",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_cell",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_cid1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_cid2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_job",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_session_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_slot1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_slot2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_state_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_deadline",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_dependency_cid",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_dependency_root",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_dependency_slot",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_target",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_wait_range",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "chunk_path",
+              "pages": 785,
+              "bytes": 3215360,
+              "payload_bytes": 2633312,
+              "unused_bytes": 506796
+            },
+            {
+              "name": "chunk_queue",
+              "pages": 74,
+              "bytes": 303104,
+              "payload_bytes": 213847,
+              "unused_bytes": 38996
+            },
+            {
+              "name": "chunk_timeline",
+              "pages": 215,
+              "bytes": 880640,
+              "payload_bytes": 714264,
+              "unused_bytes": 114423
+            },
+            {
+              "name": "chunks",
+              "pages": 2358,
+              "bytes": 9658368,
+              "payload_bytes": 8482862,
+              "unused_bytes": 1039114
+            },
+            {
+              "name": "cleanup_path",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "cleanup_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "corrections",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "decision_sources_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "event_candidates",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "event_candidates_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "events",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_evidence",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_queue",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_sessions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_source_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_active_reviews",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decision_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decision_state",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decisions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decisions_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_feed_suppression",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_group_policy",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 91,
+              "unused_bytes": 3993
+            },
+            {
+              "name": "identity_relation_events",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_review_event_order",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_review_events",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_automatic_dependencies_v2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_automatic_intents_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_automatic_usage_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 6,
+              "unused_bytes": 4078
+            },
+            {
+              "name": "moss_result_accepted_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_result_session_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_result_usage_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 4,
+              "unused_bytes": 4080
+            },
+            {
+              "name": "moss_retained_results_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_adjacent",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_commits",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_pending",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_v2_cid",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_v2_ordinal",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "observation_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "observation_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_candidate_migrations",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 56,
+              "unused_bytes": 4024
+            },
+            {
+              "name": "overlap_diagnostics_support",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_regions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_regions_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_support_diagnostics",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_track_regions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_track_regions_lookup",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_tracks",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_tracks_region",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_batches",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 77,
+              "unused_bytes": 4007
+            },
+            {
+              "name": "recording_link_inflight_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_link_inflight_token",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "recording_link_session_scope",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 4,
+              "unused_bytes": 4081
+            },
+            {
+              "name": "recording_one_pending_page",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_page_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_page_work",
+              "pages": 51,
+              "bytes": 208896,
+              "payload_bytes": 131414,
+              "unused_bytes": 27497
+            },
+            {
+              "name": "recording_pages",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_primary_packets_v1",
+              "pages": 16496,
+              "bytes": 67567616,
+              "payload_bytes": 41446486,
+              "unused_bytes": 25758711
+            },
+            {
+              "name": "recording_primary_recording_v1",
+              "pages": 244,
+              "bytes": 999424,
+              "payload_bytes": 822644,
+              "unused_bytes": 124482
+            },
+            {
+              "name": "recording_primary_session_v1",
+              "pages": 198,
+              "bytes": 811008,
+              "payload_bytes": 658064,
+              "unused_bytes": 101198
+            },
+            {
+              "name": "recording_primary_usage_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 29,
+              "unused_bytes": 4051
+            },
+            {
+              "name": "recording_probe_session_scope",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_ranges",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_source_path",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_speaker_link_scopes_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 43,
+              "unused_bytes": 4041
+            },
+            {
+              "name": "recording_speaker_probe_batches_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_work",
+              "pages": 346,
+              "bytes": 1417216,
+              "payload_bytes": 1307421,
+              "unused_bytes": 22027
+            },
+            {
+              "name": "relation_events_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "review_events_generation",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "review_events_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "review_events_previous",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "segments",
+              "pages": 1102,
+              "bytes": 4513792,
+              "payload_bytes": 4213248,
+              "unused_bytes": 184243
+            },
+            {
+              "name": "segments_chunk",
+              "pages": 226,
+              "bytes": 925696,
+              "payload_bytes": 756940,
+              "unused_bytes": 116674
+            },
+            {
+              "name": "session_file_cleanup",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sessions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 86,
+              "unused_bytes": 3998
+            },
+            {
+              "name": "speaker_examples",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_examples_person",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_identity_generations",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_observations",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_support",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_support_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_support_vectors",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_turns",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_turns_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speakers",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speakers_identity_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_chunks_1",
+              "pages": 184,
+              "bytes": 753664,
+              "payload_bytes": 608855,
+              "unused_bytes": 93228
+            },
+            {
+              "name": "sqlite_autoindex_chunks_2",
+              "pages": 337,
+              "bytes": 1380352,
+              "payload_bytes": 1151979,
+              "unused_bytes": 174956
+            },
+            {
+              "name": "sqlite_autoindex_event_candidates_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_fragment_http_evidence_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_fragment_http_sessions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_fragment_http_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_active_reviews_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_active_reviews_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decision_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decision_state_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decisions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decisions_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_feed_suppression_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_group_policy_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 10,
+              "unused_bytes": 4075
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_4",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_review_event_order_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_review_events_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_review_events_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_automatic_dependencies_v2_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_automatic_intents_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_automatic_usage_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "sqlite_autoindex_moss_result_usage_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "sqlite_autoindex_moss_retained_results_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_retained_results_v1_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_native_core_commits_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_candidate_migrations_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 59,
+              "unused_bytes": 4023
+            },
+            {
+              "name": "sqlite_autoindex_overlap_regions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_regions_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_support_diagnostics_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_track_regions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_tracks_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_tracks_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_batches_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 12,
+              "unused_bytes": 4073
+            },
+            {
+              "name": "sqlite_autoindex_recording_batches_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 35,
+              "unused_bytes": 4050
+            },
+            {
+              "name": "sqlite_autoindex_recording_batches_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 43,
+              "unused_bytes": 4042
+            },
+            {
+              "name": "sqlite_autoindex_recording_pages_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_pages_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_primary_packets_v1_1",
+              "pages": 330,
+              "bytes": 1351680,
+              "payload_bytes": 1151932,
+              "unused_bytes": 146418
+            },
+            {
+              "name": "sqlite_autoindex_recording_primary_packets_v1_2",
+              "pages": 210,
+              "bytes": 860160,
+              "payload_bytes": 691108,
+              "unused_bytes": 117162
+            },
+            {
+              "name": "sqlite_autoindex_recording_primary_usage_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 16,
+              "unused_bytes": 4066
+            },
+            {
+              "name": "sqlite_autoindex_recording_ranges_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_sources_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_sources_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_link_scopes_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_link_scopes_v1_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 4,
+              "unused_bytes": 4081
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_probe_batches_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_probe_batches_v1_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_work_1",
+              "pages": 184,
+              "bytes": 753664,
+              "payload_bytes": 608855,
+              "unused_bytes": 93228
+            },
+            {
+              "name": "sqlite_autoindex_recording_work_2",
+              "pages": 92,
+              "bytes": 376832,
+              "payload_bytes": 279545,
+              "unused_bytes": 46810
+            },
+            {
+              "name": "sqlite_autoindex_session_file_cleanup_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_sessions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 35,
+              "unused_bytes": 4050
+            },
+            {
+              "name": "sqlite_autoindex_speaker_examples_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_examples_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_identity_generations_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_observations_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_observations_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_vectors_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_vectors_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speakers_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_stream_chunks_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_stream_chunks_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_stream_time_index_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_schema",
+              "pages": 26,
+              "bytes": 106496,
+              "payload_bytes": 88329,
+              "unused_bytes": 16418
+            },
+            {
+              "name": "sqlite_sequence",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 87,
+              "unused_bytes": 3985
+            },
+            {
+              "name": "stream_chunks",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "stream_order",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "stream_time_end",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "stream_time_index",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_source_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_vectors_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            }
+          ]
+        }
+      },
+      "pinned_reader_peak": {
+        "family": {
+          "db": {
+            "bytes": 24801280,
+            "allocated_bytes": 24801280
+          },
+          "-wal": {
+            "bytes": 33400872,
+            "allocated_bytes": 33406976
+          },
+          "-shm": {
+            "bytes": 65536,
+            "allocated_bytes": 65536
+          }
+        },
+        "page_size": 4096,
+        "page_count": 6419,
+        "freelist_count": 0
+      },
+      "pinned_reader_write_windows": 256,
+      "bounded_reads": [
+        {
+          "after": 0,
+          "matching_session": true,
+          "packets": 8,
+          "body_bytes": 18340,
+          "sql_statements": 9,
+          "sqlite_vm_steps": 285,
+          "seconds": 0.002068676999897434
+        },
+        {
+          "after": 16450,
+          "matching_session": true,
+          "packets": 8,
+          "body_bytes": 18392,
+          "sql_statements": 9,
+          "sqlite_vm_steps": 279,
+          "seconds": 0.0016941609997047635
+        },
+        {
+          "after": 0,
+          "matching_session": false,
+          "packets": 0,
+          "body_bytes": 0,
+          "sql_statements": 1,
+          "sqlite_vm_steps": 16,
+          "seconds": 3.463199982434162e-05
+        }
+      ],
+      "query_plan": [
+        "SEARCH recording_primary_packets_v1 USING COVERING INDEX recording_primary_recording_v1 (sid=? AND rid=? AND sequence>?)"
+      ],
+      "max_window_vm_steps": 2700,
+      "max_projected_sql_bytes": 8622,
+      "refused_windows_exact_rows_and_status_verified": 0
+    },
+    "dense": {
+      "geometry": {
+        "unit_count": 512,
+        "labels": 4,
+        "raw_turns": 8,
+        "seconds": 10.5,
+        "anchor_rule": "round((i+0.5)*10.5/count,3)",
+        "duplicate_turns": 2
+      },
+      "geometry_sha256": "9aabdd9d8dd3f54edbc2e7fcd531778d2af47e579056baaa5a6fdf260ba503c8",
+      "report_sha256": "3a72f03adf8fca7a047b91470ceb610c3281b81c464e3363c74077bed42daf05",
+      "statuses": {
+        "retained": 5801,
+        "recording_quota": 10657
+      },
+      "measurements": [
+        {
+          "windows": 4115,
+          "elapsed_seconds": 32.77961484199977,
+          "usage": {
+            "packets": 4115,
+            "charge": 95201654
+          },
+          "recording_usage": {
+            "packets": 4115,
+            "charge": 95201654
+          },
+          "actual_retained": {
+            "packets": 4115,
+            "charge": 95201654,
+            "body_bytes": 93382824
+          },
+          "primary_rows": 28805,
+          "completed_chunks": 4115,
+          "statuses": {
+            "retained": 4115
+          },
+          "refused_windows_exact_primary_and_status_verified": 0,
+          "stored_status_counts": {
+            "retained": 4115
+          },
+          "family": {
+            "db": {
+              "bytes": 119279616,
+              "allocated_bytes": 119283712
+            },
+            "-wal": {
+              "bytes": 4301312,
+              "allocated_bytes": 4304896
+            },
+            "-shm": {
+              "bytes": 32768,
+              "allocated_bytes": 32768
+            }
+          },
+          "page_size": 4096,
+          "page_count": 29267,
+          "freelist_count": 0
+        },
+        {
+          "windows": 16458,
+          "elapsed_seconds": 131.34025222299988,
+          "usage": {
+            "packets": 5801,
+            "charge": 134212322
+          },
+          "recording_usage": {
+            "packets": 5801,
+            "charge": 134212322
+          },
+          "actual_retained": {
+            "packets": 5801,
+            "charge": 134212322,
+            "body_bytes": 131648280
+          },
+          "primary_rows": 115206,
+          "completed_chunks": 16458,
+          "statuses": {
+            "retained": 5801,
+            "recording_quota": 10657
+          },
+          "refused_windows_exact_primary_and_status_verified": 10657,
+          "stored_status_counts": {
+            "retained": 5801,
+            "recording_quota": 10657
+          },
+          "family": {
+            "db": {
+              "bytes": 212447232,
+              "allocated_bytes": 212451328
+            },
+            "-wal": {
+              "bytes": 4293072,
+              "allocated_bytes": 4296704
+            },
+            "-shm": {
+              "bytes": 98304,
+              "allocated_bytes": 98304
+            }
+          },
+          "page_size": 4096,
+          "page_count": 51876,
+          "freelist_count": 0
+        }
+      ],
+      "final_physical": {
+        "family": {
+          "db": {
+            "bytes": 212484096,
+            "allocated_bytes": 212488192
+          },
+          "-wal": {
+            "bytes": 0,
+            "allocated_bytes": 0
+          },
+          "-shm": {
+            "bytes": 98304,
+            "allocated_bytes": 98304
+          }
+        },
+        "page_size": 4096,
+        "page_count": 51876,
+        "freelist_count": 0,
+        "table_index_allocation": {
+          "available": true,
+          "entries": [
+            {
+              "name": "active_reviews_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "active_reviews_support",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_cell",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_cid1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_cid2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_job",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_session_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_slot1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_slot2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_state_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_deadline",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_dependency_cid",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_dependency_root",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_dependency_slot",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_target",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "auto_v2_wait_range",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "chunk_path",
+              "pages": 752,
+              "bytes": 3080192,
+              "payload_bytes": 2616853,
+              "unused_bytes": 388483
+            },
+            {
+              "name": "chunk_queue",
+              "pages": 74,
+              "bytes": 303104,
+              "payload_bytes": 213847,
+              "unused_bytes": 38996
+            },
+            {
+              "name": "chunk_timeline",
+              "pages": 215,
+              "bytes": 880640,
+              "payload_bytes": 714264,
+              "unused_bytes": 114423
+            },
+            {
+              "name": "chunks",
+              "pages": 2358,
+              "bytes": 9658368,
+              "payload_bytes": 8541002,
+              "unused_bytes": 980974
+            },
+            {
+              "name": "cleanup_path",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "cleanup_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "corrections",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "decision_sources_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "event_candidates",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "event_candidates_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "events",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_evidence",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_queue",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_sessions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_source_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "fragment_http_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_active_reviews",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decision_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decision_state",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decisions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_decisions_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_feed_suppression",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_group_policy",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 91,
+              "unused_bytes": 3993
+            },
+            {
+              "name": "identity_relation_events",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_review_event_order",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "identity_review_events",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_automatic_dependencies_v2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_automatic_intents_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_automatic_usage_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 6,
+              "unused_bytes": 4078
+            },
+            {
+              "name": "moss_result_accepted_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_result_session_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "moss_result_usage_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 4,
+              "unused_bytes": 4080
+            },
+            {
+              "name": "moss_retained_results_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_adjacent",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_commits",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_pending",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_v2_cid",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "native_core_v2_ordinal",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "observation_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "observation_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_candidate_migrations",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 56,
+              "unused_bytes": 4024
+            },
+            {
+              "name": "overlap_diagnostics_support",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_regions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_regions_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_support_diagnostics",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_track_regions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_track_regions_lookup",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_tracks",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "overlap_tracks_region",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_batches",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 77,
+              "unused_bytes": 4007
+            },
+            {
+              "name": "recording_link_inflight_seq",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_link_inflight_token",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "recording_link_session_scope",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 4,
+              "unused_bytes": 4081
+            },
+            {
+              "name": "recording_one_pending_page",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_page_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_page_work",
+              "pages": 51,
+              "bytes": 208896,
+              "payload_bytes": 131414,
+              "unused_bytes": 27497
+            },
+            {
+              "name": "recording_pages",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_primary_packets_v1",
+              "pages": 34820,
+              "bytes": 142622720,
+              "payload_bytes": 132930301,
+              "unused_bytes": 9419866
+            },
+            {
+              "name": "recording_primary_recording_v1",
+              "pages": 87,
+              "bytes": 356352,
+              "payload_bytes": 289794,
+              "unused_bytes": 48115
+            },
+            {
+              "name": "recording_primary_session_v1",
+              "pages": 69,
+              "bytes": 282624,
+              "payload_bytes": 231784,
+              "unused_bytes": 32613
+            },
+            {
+              "name": "recording_primary_usage_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 29,
+              "unused_bytes": 4051
+            },
+            {
+              "name": "recording_probe_session_scope",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_ranges",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_source_path",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_speaker_link_scopes_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 43,
+              "unused_bytes": 4041
+            },
+            {
+              "name": "recording_speaker_probe_batches_v1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "recording_work",
+              "pages": 346,
+              "bytes": 1417216,
+              "payload_bytes": 1307421,
+              "unused_bytes": 22027
+            },
+            {
+              "name": "relation_events_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "review_events_generation",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "review_events_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "review_events_previous",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "segments",
+              "pages": 10314,
+              "bytes": 42246144,
+              "payload_bytes": 38873796,
+              "unused_bytes": 2408695
+            },
+            {
+              "name": "segments_chunk",
+              "pages": 1613,
+              "bytes": 6606848,
+              "payload_bytes": 5381787,
+              "unused_bytes": 860091
+            },
+            {
+              "name": "session_file_cleanup",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sessions",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 86,
+              "unused_bytes": 3998
+            },
+            {
+              "name": "speaker_examples",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_examples_person",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_identity_generations",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_observations",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_support",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_support_sources",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_support_vectors",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_turns",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speaker_turns_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speakers",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "speakers_identity_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_chunks_1",
+              "pages": 184,
+              "bytes": 753664,
+              "payload_bytes": 608855,
+              "unused_bytes": 93228
+            },
+            {
+              "name": "sqlite_autoindex_chunks_2",
+              "pages": 337,
+              "bytes": 1380352,
+              "payload_bytes": 1151979,
+              "unused_bytes": 174956
+            },
+            {
+              "name": "sqlite_autoindex_event_candidates_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_fragment_http_evidence_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_fragment_http_sessions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_fragment_http_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_active_reviews_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_active_reviews_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decision_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decision_state_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decisions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_decisions_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_feed_suppression_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_group_policy_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 10,
+              "unused_bytes": 4075
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_relation_events_4",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_review_event_order_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_review_events_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_identity_review_events_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_automatic_dependencies_v2_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_automatic_intents_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_automatic_usage_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "sqlite_autoindex_moss_result_usage_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "sqlite_autoindex_moss_retained_results_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_moss_retained_results_v1_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_native_core_commits_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_candidate_migrations_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 59,
+              "unused_bytes": 4023
+            },
+            {
+              "name": "sqlite_autoindex_overlap_regions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_regions_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_support_diagnostics_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_track_regions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_tracks_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_overlap_tracks_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_batches_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 12,
+              "unused_bytes": 4073
+            },
+            {
+              "name": "sqlite_autoindex_recording_batches_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 35,
+              "unused_bytes": 4050
+            },
+            {
+              "name": "sqlite_autoindex_recording_batches_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 43,
+              "unused_bytes": 4042
+            },
+            {
+              "name": "sqlite_autoindex_recording_pages_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_pages_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_primary_packets_v1_1",
+              "pages": 116,
+              "bytes": 475136,
+              "payload_bytes": 405942,
+              "unused_bytes": 50403
+            },
+            {
+              "name": "sqlite_autoindex_recording_primary_packets_v1_2",
+              "pages": 74,
+              "bytes": 303104,
+              "payload_bytes": 243514,
+              "unused_bytes": 41303
+            },
+            {
+              "name": "sqlite_autoindex_recording_primary_usage_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 16,
+              "unused_bytes": 4066
+            },
+            {
+              "name": "sqlite_autoindex_recording_ranges_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_sources_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_sources_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_link_scopes_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 3,
+              "unused_bytes": 4082
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_link_scopes_v1_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 4,
+              "unused_bytes": 4081
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_probe_batches_v1_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_speaker_probe_batches_v1_3",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_recording_work_1",
+              "pages": 184,
+              "bytes": 753664,
+              "payload_bytes": 608855,
+              "unused_bytes": 93228
+            },
+            {
+              "name": "sqlite_autoindex_recording_work_2",
+              "pages": 92,
+              "bytes": 376832,
+              "payload_bytes": 279545,
+              "unused_bytes": 46810
+            },
+            {
+              "name": "sqlite_autoindex_session_file_cleanup_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_sessions_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 35,
+              "unused_bytes": 4050
+            },
+            {
+              "name": "sqlite_autoindex_speaker_examples_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_examples_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_identity_generations_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_observations_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_observations_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_sources_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_vectors_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speaker_support_vectors_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_speakers_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_stream_chunks_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_stream_chunks_2",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_autoindex_stream_time_index_1",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "sqlite_schema",
+              "pages": 26,
+              "bytes": 106496,
+              "payload_bytes": 88329,
+              "unused_bytes": 16418
+            },
+            {
+              "name": "sqlite_sequence",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 88,
+              "unused_bytes": 3984
+            },
+            {
+              "name": "stream_chunks",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "stream_order",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "stream_time_end",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "stream_time_index",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_session",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_source_chunk",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            },
+            {
+              "name": "support_vectors_group",
+              "pages": 1,
+              "bytes": 4096,
+              "payload_bytes": 0,
+              "unused_bytes": 4088
+            }
+          ]
+        }
+      },
+      "pinned_reader_peak": {
+        "family": {
+          "db": {
+            "bytes": 119877632,
+            "allocated_bytes": 119881728
+          },
+          "-wal": {
+            "bytes": 40779792,
+            "allocated_bytes": 40787968
+          },
+          "-shm": {
+            "bytes": 98304,
+            "allocated_bytes": 98304
+          }
+        },
+        "page_size": 4096,
+        "page_count": 31072,
+        "freelist_count": 0
+      },
+      "pinned_reader_write_windows": 256,
+      "bounded_reads": [
+        {
+          "after": 0,
+          "matching_session": true,
+          "packets": 2,
+          "body_bytes": 45327,
+          "sql_statements": 3,
+          "sqlite_vm_steps": 183,
+          "seconds": 0.009137556000041513
+        },
+        {
+          "after": 5793,
+          "matching_session": true,
+          "packets": 2,
+          "body_bytes": 45392,
+          "sql_statements": 3,
+          "sqlite_vm_steps": 177,
+          "seconds": 0.005970524999611371
+        },
+        {
+          "after": 0,
+          "matching_session": false,
+          "packets": 0,
+          "body_bytes": 0,
+          "sql_statements": 1,
+          "sqlite_vm_steps": 16,
+          "seconds": 7.172000005084556e-05
+        }
+      ],
+      "query_plan": [
+        "SEARCH recording_primary_packets_v1 USING COVERING INDEX recording_primary_recording_v1 (sid=? AND rid=? AND sequence>?)"
+      ],
+      "max_window_vm_steps": 4000,
+      "max_projected_sql_bytes": 11764,
+      "refused_windows_exact_rows_and_status_verified": 10657
+    }
+  },
+  "key_limitations": [
+    "Dense shape retained 5801 opportunities (about 16.9 nominal hours) then explicitly refused 10657 at unchanged 128 MiB quota. No universal 48-hour guarantee.",
+    "Historical absence abstains; current source/core loss makes evidence currently unavailable without erasing historical audit.",
+    "No actual embeddings, model execution, native-primary speaker reconciliation or ASR accuracy result.",
+    "Arbitrarily retained readers and near-64-KiB packets can require much more physical storage. Logical quotas are not physical DB/WAL reservation.",
+    "Two current fixture failures are preserved. Lost pre-recovery raw artifacts and old passing summaries are not counted or reconstructed."
+  ],
+  "warnings": [
+    "Existing Starlette/httpx deprecation.",
+    "Pip cache was disabled because the default cache directory was not writable; offline local-wheel install succeeded."
+  ],
+  "inherited_wip_note": "reports/PRIMARY_PROVENANCE_UNQUALIFIED_WIP.json is preserved historical WIP3 checkpoint metadata, not the status of this final qualification.",
+  "local_evidence_archive": {
+    "filename": "primary-provenance-dev46-evidence.zip",
+    "bytes": 2944082,
+    "sha256": "962170cf9a1f7bc2e0dd42d3e7429605db078e27d38852bf5da3ff1da1d99552",
+    "scope": "130 genuine current-stage control/report/receipt files; no DB/audio/models. Local recovery material only; separate from durable Git source/report publication and vulnerable to workspace reset."
+  }
+}

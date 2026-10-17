@@ -273,11 +273,17 @@ def test_immutable_explicit_erasure_and_accounting(tmp_path):
 
 
 def test_old_dev45_whole_package_restart_and_erasure(tmp_path):
+    import os
+    baseline=os.environ.get('LONG_AUDIO_DEV45_BASELINE')
+    if baseline is None:pytest.skip('Set LONG_AUDIO_DEV45_BASELINE to the exact dev45 source package')
+    assert baseline and Path(baseline).is_absolute(),'Supplied dev45 baseline must be an absolute source path'
+    installed=Path(baseline)/'audio_backend'
+    assert (installed/'__init__.py').is_file(),'Supplied dev45 baseline is missing'
     store,chunk=setup(tmp_path);assert store.commit_window(chunk,0,2,result_for(chunk));before=counts(store);saved=get_packet(store,chunk['id'])
-    installed=Path(__file__).resolve().parents[3]/'recovered-dev45-20261017/source/audio_backend'
     name='primary_provenance_legacy_dev45'
     spec=importlib.util.spec_from_file_location(name,installed/'__init__.py',submodule_search_locations=[str(installed)])
     module=importlib.util.module_from_spec(spec);sys.modules[name]=module;spec.loader.exec_module(module)
+    assert module.__version__=='0.2.0rc3.dev45'
     old_storage=importlib.import_module(name+'.storage');old_settings=importlib.import_module(name+'.settings');old_lifecycle=importlib.import_module(name+'.lifecycle')
     for loaded in (old_storage,old_settings,old_lifecycle):assert Path(loaded.__file__).resolve().parent==installed.resolve()
     old=old_storage.Store(store.path,old_settings.Settings(data_dir=tmp_path,start_worker=False,disk_reserve_bytes=0))

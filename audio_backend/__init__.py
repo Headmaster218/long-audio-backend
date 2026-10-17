@@ -1,2 +1,2 @@
 """Local, resumable audio analysis API. See README for deployment limits."""
-__version__ = '0.2.0rc3.dev45'
+__version__ = '0.2.0rc3.dev46'
