@@ -193,6 +193,8 @@ class Store:
             # exist. Install revision counters/triggers in this same transaction.
             from .transcript_revision import init_schema as init_transcript_revision
             init_transcript_revision(db)
+            from .lexical_evidence import init_schema as init_lexical_evidence
+            init_lexical_evidence(db)
             verified_identity.install_lifecycle(db)
             from .fragment_http import init_schema
             init_schema(db)
@@ -248,6 +250,7 @@ class Store:
             if not row: raise KeyError('Session not found')
             result = dict(row)
             result.pop('transcript_revision', None)
+            result.pop('lexical_evidence_bytes', None)
             return result
 
     def chunk(self, cid):
@@ -551,6 +554,11 @@ class Store:
                 check_resources(self.settings,additional_disk=4*size+65536)
             local={};local_turn_ids={}
             metadata=dict(result.get('metadata',{}))
+            lexical_prepared=None;lexical_rows=[]
+            if getattr(self.settings,'lexical_evidence_enabled',False):
+                from . import lexical_evidence
+                lexical_prepared,reason=lexical_evidence.prepare(result,chunk,offset,end)
+                metadata['lexical_evidence']={'schema':lexical_evidence.SCHEMA,'status':reason or 'pending'}
             metadata['speaker_identity_policy']={'profile_strategy':self.settings.speaker_profile_strategy,
                 'match_threshold':self.settings.speaker_match_threshold,'new_threshold':self.settings.speaker_new_threshold,
                 'margin':self.settings.speaker_match_margin,'min_enrollment_seconds':self.settings.speaker_min_clean_seconds,'min_query_seconds':self.settings.speaker_min_query_seconds,
@@ -625,7 +633,12 @@ class Store:
                         local[key]=resolve_identity(local_id,segment.get('speaker_embedding'))
                     speaker,score,status,observation=local[key]
                 support_id,support_status=support_for(local_id,observation)
-                db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start,speaker_support_id,speaker_support_status,identity_decision_id,identity_profile_revision,identity_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset,support_id,support_status,*decision_refs.get(local_id,(None,None)),'current' if local_id in decision_refs else None))
+                segment_cursor=db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start,speaker_support_id,speaker_support_status,identity_decision_id,identity_profile_revision,identity_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset,support_id,support_status,*decision_refs.get(local_id,(None,None)),'current' if local_id in decision_refs else None))
+                if lexical_prepared is not None:
+                    from .transcript_contract import PRIMARY_FIELDS
+                    lexical_rows.append(db.execute('SELECT '+','.join(PRIMARY_FIELDS)+' FROM segments WHERE id=?',(segment_cursor.lastrowid,)).fetchone())
+            if lexical_prepared is not None:
+                metadata['lexical_evidence']['status']=lexical_evidence.persist(db,current,chunk,lexical_rows,lexical_prepared)
             for event in result['events']:
                 for key in ('time_precision','source_label','method'):
                     value=event.get(key)
@@ -664,6 +677,7 @@ class Store:
             for s in segs:
                 verified_identity.project_result(s,policy,canonical)
                 s.pop('candidate_observation_id',None)
+                s.pop('lexical_evidence',None)
                 s.pop('speaker_support_id',None);s.pop('speaker_support_status',None)
                 if not verified_identity.is_verified(db,sid):
                     for field in ('identity_decision_id','identity_profile_revision','identity_state'):s.pop(field,None)

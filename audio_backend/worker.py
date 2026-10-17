@@ -65,10 +65,12 @@ def validate_result(result,duration):
     return result
 
 
-def own_core(result,start,end,previous=None,base=0.):
+def own_core(result,start,end,previous=None,base=0.,*,retain_lexical=False):
     """Own lexical units when available, with legacy adapter fallback disclosed."""
-    owned=lexical_core(result,start,end,previous,base)
+    owned=(lexical_core(result,start,end,previous,base,retain_lexical=True)
+           if retain_lexical else lexical_core(result,start,end,previous,base))
     if owned is None:
+        if retain_lexical:result['_lexical_rejection']='unsupported_adapter'
         owned=[]
         for segment in result['segments']:
             midpoint=(segment['start']+segment['end'])/2
@@ -334,9 +336,14 @@ class Worker:
                     finally:
                         if permit is not None:permit.finish_primary(process)
 
-    def extract_pcm(self,chunk,start,end,wav,tmp,stop,*,capture_support=False):
+    def extract_pcm(self,chunk,start,end,wav,tmp,stop,*,capture_support=False,capture_lexical=False):
         parts=context_parts(self.store,chunk,start,end)
         lineage={'status':'complete','parts':[],'analyzer_frame_count':0}
+        lexical_sources=None
+        if capture_lexical:
+            from .lexical_evidence import snapshot_parts
+            with self.store.db() as db:
+                lexical_sources=snapshot_parts(db,parts,chunk['session_id'])
         if capture_support:
             try:
                 if len(parts)>speaker_support.MAX_PARTS:
@@ -385,6 +392,8 @@ class Worker:
                 if verify_source_end and frames!=requested_frames:
                     raise RuntimeError(f'Source duration does not match decoded PCM: expected {requested_frames} frames, got {frames}; source timeline was not changed')
                 first=lineage['analyzer_frame_count'];lineage['analyzer_frame_count']+=frames
+                if lexical_sources is not None:
+                    lexical_sources[index]['analyzer_frames']=[first,first+frames]
                 if capture_support and lineage['status']=='complete':
                     try:
                         if self.support_fingerprints.signature(part['path'])!=signature:
@@ -394,7 +403,8 @@ class Worker:
                             'analyzer_frames':[first,first+frames]})
                     except (OSError,ValueError,RuntimeError):
                         lineage['status']='source_changed_during_decode'
-        return lineage if capture_support else None
+        if capture_lexical:lineage['_lexical_sources']=lexical_sources
+        return lineage if capture_support or capture_lexical else None
 
     def _process_windows(self,chunk,process):
         offset=chunk['next_offset']
@@ -458,7 +468,8 @@ class Worker:
                 with self.store.db() as db:verified_query=is_verified(db,chunk['session_id'])
                 capture_support=self.settings.speaker_support_enabled and (self.settings.speaker_support_max_records>0 or verified_query)
                 expected_generation=speaker_support.capture_generation(self.store,chunk) if capture_support else None
-                lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support)
+                retain_lexical=getattr(self.settings,'lexical_evidence_enabled',False)
+                lineage=self.extract_pcm(chunk,extract_start+origin,extract_end+origin,wav,tmp,lambda:self.interrupted(chunk['id']),capture_support=capture_support,**({'capture_lexical':True} if retain_lexical else {}))
                 self._observe_native_pcm('analyzer',wav,extract_start+origin,extract_end+origin,
                     analyzer_local=(origin,extract_start,extract_end) if native is not None else None)
                 options=({'candidate_core_start':offset-extract_start,'candidate_core_end':end-extract_start,
@@ -509,7 +520,8 @@ class Worker:
                         core_start=offset-extract_start,analyzer_start=extract_start,settings=self.settings) if capture_support else {})
                 except (ValueError,TypeError,OSError,RuntimeError,ImportError):
                     prepared={}
-                result=own_core(result,offset-extract_start,end-extract_start,previous,extract_start)
+                result=own_core(result,offset-extract_start,end-extract_start,previous,extract_start,**({'retain_lexical':True} if retain_lexical else {}))
+                if retain_lexical:result['_lexical_sources']=lineage.get('_lexical_sources') if lineage else None
                 result['_speaker_support']=prepared
                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
                 previous=result['metadata'].get('boundary_tail',[])

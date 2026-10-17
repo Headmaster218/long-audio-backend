@@ -98,12 +98,15 @@ def overlap_matches(previous,current,max_shift=1.25):
     return list(reversed(result))
 
 
-def lexical_core(result,start,end,previous=None,base=0.):
+def lexical_core(result,start,end,previous=None,base=0.,*,retain_lexical=False):
     """Own whole lexical units; keep native timing instead of clipping words.
 
     `base` maps analyzer time onto the current upload timeline. The bounded tail
     is restart-safe when retained in normal chunk metadata by commit_window.
     """
+    if retain_lexical:
+        result.pop('_lexical_rejection',None)
+        for segment in result['segments']:segment.pop('_lexical_evidence',None)
     # Mixed legacy/new adapters must never silently lose un-tokenized text.
     if any(not s.get('_units') for s in result['segments']):return None
     flattened=[]
@@ -146,6 +149,10 @@ def lexical_core(result,start,end,previous=None,base=0.):
         # Carry committed status through another small core/restart-safe tail.
         u['emitted']=keep or already_committed
         if keep:owned.append(u)
+    capture=None
+    if retain_lexical:
+        from .lexical_evidence import Capture
+        capture=Capture(lo,hi,base)
     assembled=[]
     for u in owned:
         original=u['_segment']
@@ -161,6 +168,7 @@ def lexical_core(result,start,end,previous=None,base=0.):
             s.update(start=u['start']-lo,end=u['end']-lo,text=u['text'],
                      raw_text=u.get('raw_text',u['text']),_source=original)
             assembled.append(s)
+        if capture is not None:capture.add(s,u)
     for s in assembled:
         s.pop('_source');s['text']=s['text'].strip();s['raw_text']=s['raw_text'].strip()
     tail=[]
@@ -172,4 +180,6 @@ def lexical_core(result,start,end,previous=None,base=0.):
     meta['boundary_alignment_matches']=len(matches)
     meta['boundary_alignment_used']=bool(seams)
     meta['boundary_policy']='whole lexical units; time-constrained overlap sequence alignment; native timing retained'
-    return [s for s in assembled if s['text']]
+    assembled=[s for s in assembled if s['text']]
+    if capture is not None:result['_lexical_rejection']=capture.finish(assembled)
+    return assembled

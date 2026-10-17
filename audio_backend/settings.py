@@ -117,8 +117,11 @@ class Settings:
     ffmpeg: str = 'ffmpeg'
     ffprobe: str = 'ffprobe'
     start_worker: bool = True
+    lexical_evidence_enabled: bool = False
 
     def __post_init__(self):
+        if type(self.lexical_evidence_enabled) is not bool:
+            raise ValueError('lexical_evidence_enabled must be boolean')
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
         validate_framemn_options(self.framemn_enabled, self.framemn_checkpoint_path, self.framemn_profile)
