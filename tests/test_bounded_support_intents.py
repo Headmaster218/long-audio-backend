@@ -65,18 +65,47 @@ def intent_rows(h):
             f'SELECT * FROM {automatic.TABLE} WHERE sid=? ORDER BY seq', (h.sid,))]
 
 
+def resolved_target(row):
+    target, _ = automatic._resolve_target_body(row['target_body'], row['proof'], row['plan_phase'])
+    return target
+
+
 def c_target(h):
     found = [row for row in intent_rows(h) if row['target_body'] is not None
-        and json.loads(row['target_body'])['identity']['components'] == C_COMPONENTS]
+        and resolved_target(row)['identity']['components'] == C_COMPONENTS]
     assert len(found) == 1, [(row['reason'], row['plan_phase']) for row in intent_rows(h)]
     return found[0]
+
+
+def _switch_owner_reference_wire(h, key, wire):
+    """Test-only atomic equivalent-wire switch against the real owner ledger."""
+    with h.store.db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        before = automatic._read_v2(db, key=key)
+        doc, _, _ = automatic.validate_document(before['proof'])
+        assert wire in (automatic.canonical(doc['target']),
+            automatic._bound_target_reference(before['proof'], doc['target']))
+        assert len(before['proof']) + len(wire) <= 65536
+        usage_before = _reference_accounting(db, before['sid'])
+        delta = len(wire) - len(before['target_body'])
+        assert db.execute(f'UPDATE {automatic.TABLE} SET target_body=?,planning_bytes=?,charge_bytes=charge_bytes+? '
+            'WHERE candidate_key=? AND target_body=? AND proof=?',
+            (wire, len(wire), delta, key, before['target_body'], before['proof'])).rowcount == 1
+        automatic._charge(db, before['sid'], (0, delta, 0, delta))
+        after = automatic._read_v2(db, key=key)
+        assert after['target_body'] == wire and resolved_target(after) == doc['target']
+        assert all(after[name] == before[name] for name in ('proof','proof_sha256','candidate_key',
+            'target_key','cell_id','binding','state','plan_phase','plan_revision','job_id'))
+        usage_after = _reference_accounting(db, before['sid'])
+        assert [tuple(b-a for a,b in zip(left,right)) for left,right in zip(usage_before,usage_after)] == [(0,delta,0,delta)]*2
+        return after
 
 
 @pytest.fixture
 def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
     """Extend the existing real lifespan fixture, changing only fake producers."""
     original_post_init = Settings.__post_init__
-    state = {'windows': {}, 'last_group_end': 31.6}
+    state = {'windows': {}, 'last_group_end': 31.6, 'support_seconds': None}
 
     def post_init(settings):
         if settings.moss_automatic_enabled:
@@ -84,6 +113,8 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
             settings.lexical_evidence_enabled = True
             settings.window_seconds = 10.5
             settings.context_seconds = 5.
+            if state['support_seconds'] is not None:
+                settings.native_owned_bounded_core_support_seconds = state['support_seconds']
         original_post_init(settings)
 
     def extract(worker, chunk, start, end, wav, tmp, stop, *, capture_support=False,
@@ -143,11 +174,13 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
     monkeypatch.setattr(FakeAnalyzer, 'analyze', analyze)
 
     @contextmanager
-    def open_app(*, sid=None, enabled=True, last_group_end=31.6):
+    def open_app(*, sid=None, enabled=True, last_group_end=31.6, support_seconds=None):
         state['last_group_end'] = last_group_end
+        state['support_seconds'] = support_seconds
         with automatic_app_factory(sid=sid, automatic=enabled) as h:
             h.planning = []; h.committed_targets = []; h.timings = []; h.publications = []
             if enabled:
+                assert h.store.settings.native_owned_bounded_core_support_seconds == (.75 if support_seconds is None else support_seconds)
                 assert h.owner.bounded_core_enabled
                 assert h.owner.retention_store_key is not None
                 assert h.owner.directory.name == 'native-owned-cells-bounded-v1'
@@ -196,12 +229,17 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                 def measured_read(*args, **kwargs):
                     current = publication[0]
                     if current is not None and kwargs.get('budget') is current['budget']:
-                        expected = kwargs.get('expected')
-                        assert type(expected) is tuple and len(expected) == 2
-                        assert sum(map(len, expected)) <= 65536
                         current['certificate_reads'] += 1
-                        current['comparison_parameter_count'] += len(expected)
-                        current['comparison_input_bytes'] += sum(map(len, expected))
+                        original_db = args[0]
+                        class ComparisonDB:
+                            def execute(self, sql, parameters=()):
+                                if 'proof=? AS proof_same' in sql:
+                                    operands = [p for p in parameters if type(p) is bytes]
+                                    assert sum(map(len, operands)) <= 65536
+                                    current['comparison_parameter_count'] += len(operands)
+                                    current['comparison_input_bytes'] += sum(map(len, operands))
+                                return original_db.execute(sql, parameters)
+                        args = (ComparisonDB(), *args[1:])
                     return read_v2(*args, **kwargs)
                 def measured_current(op, cell, budget):
                     current = publication[0]; before = budget.sql_bytes
@@ -287,7 +325,7 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                         ended = time.monotonic(); timing[0] = None
                         record = {key: value for key, value in current.items()
                                   if key not in ('budget', 'begin', 'binding_depth')}
-                        record.update(commit_window_seconds=ended-began,
+                        record.update(configured_bounded_seconds=budget.seconds, commit_window_seconds=ended-began,
                             begin_to_closed_seconds=0. if current['begin'] is None else ended-current['begin'],
                             total_budget_seconds=budget.elapsed,
                             committed=int(getattr(budget, 'sql_outcome', None)=='committed'),
@@ -417,15 +455,22 @@ def assert_conservation(h, page):
                 assert ''.join(item[field] for item in ordered).encode('utf-8') == parent[field].encode('utf-8')
 
 
-def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(bounded_app_factory, capsys):
-    with bounded_app_factory() as h:
+def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(bounded_app_factory, capsys, monkeypatch):
+    with bounded_app_factory(support_seconds=1.0) as h:
+        # Supported nondefault correctness qualification; run75 retains the
+        # observed .75-second default finalization refusal unchanged.
+        assert h.store.settings.native_owned_bounded_core_support_seconds == 1.0
         chunks, waiting = advance_to_waiter(h)
         original_target = waiting['target_body']; owner_key = waiting['candidate_key']
         assert process_primary(h) == chunks[-1]['id']
         assert h.timings[-1]['binding_calls'] > 0
         assert h.timings[-1]['bounded_validation_calls'] == h.timings[-1]['binding_calls']
         bound = c_target(h); doc = json.loads(bound['proof'])
-        assert bound['candidate_key'] == owner_key and bound['target_body'] == original_target
+        assert bound['candidate_key'] == owner_key
+        assert automatic.canonical(resolved_target(bound)) == original_target
+        assert resolved_target(bound)['origins'] == json.loads(original_target)['origins']
+        assert bound['target_body'] == automatic._bound_target_reference(bound['proof'], doc['target'])
+        assert json.loads(bound['target_body'])['proof_sha256'] == bound['proof_sha256']
         assert bound['plan_phase'] == 'bound' and doc['schema'] == core.BOUNDED_SCHEMA
         assert doc['inventories']['schema'] == core.SUPPORT_LOCAL_INVENTORY_SCHEMA
         assert doc['inventories']['scope_policy'] == core.SUPPORT_LOCAL_SCOPE_POLICY
@@ -446,14 +491,35 @@ def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(
         with Budget().phase() as budget:
             assert automatic.authority_valid(h.capture.authority, owner_key, doc, budget)
         primary = primary_output(h)
-        drain_automatic(h)
+        reference_wire = bound['target_body']; full_wire = automatic.canonical(doc['target'])
+        assert len(bound['proof']) + len(full_wire) <= 65536
+        expected_wires = (reference_wire, full_wire, reference_wire)
+        current = h.owner._cell_current; switched = []; owner_epoch = h.owner._epoch
+        def equivalent_wire_current(op, cell, budget):
+            if cell.cell_id != bound['cell_id']:return current(op, cell, budget)
+            assert op.kind == 'publish_auto' and op.payload[0] == owner_key
+            assert h.owner._epoch is owner_epoch and len(switched) < 3
+            wire = expected_wires[len(switched)]
+            _switch_owner_reference_wire(h, owner_key, wire)
+            # This is the real owner callback, including current epoch, exact
+            # receipts/files, all roots and the shared owner deadline/budget.
+            accepted = current(op, cell, budget)
+            assert h.owner._epoch is owner_epoch
+            switched.append((wire, accepted))
+            return accepted
+        with monkeypatch.context() as patch:
+            patch.setattr(h.owner, '_cell_current', equivalent_wire_current)
+            drain_automatic(h)
+        assert [wire for wire, _ in switched] == list(expected_wires)
+        assert all(accepted is True for _, accepted in switched)
         completed = c_target(h)
         assert completed['state'] == 'committed' and completed['job_id'] is not None
+        assert completed['target_body'] == reference_wire and h.owner._epoch is owner_epoch
         counts = [record for cell_id, record in h.publications if cell_id == completed['cell_id']]
         assert len(counts) == 1 and counts[0]['publish_returned_durable'] == 1
         assert counts[0]['fresh_boundaries'] == counts[0]['certificate_reads'] == 3
         assert counts[0]['comparison_parameter_count'] == 6
-        assert counts[0]['comparison_input_bytes'] == 3*(len(bound['proof'])+len(bound['target_body']))
+        assert counts[0]['comparison_input_bytes'] == 3*len(bound['proof'])+2*len(reference_wire)+len(full_wire)
         assert counts[0]['total_projected_bytes'] <= 262144
         with h.store.db() as db:
             jobs = db.execute(f'''SELECT r.job_id FROM {history.TABLE} r
@@ -660,7 +726,10 @@ def test_compact_inventory_each_fresh_boundary_rejects_current_row_or_source_mut
         bounded_app_factory, monkeypatch, boundary):
     from audio_backend import native_owned_cells as cells
     from audio_backend.native_owned_cell_store import Operation
-    with bounded_app_factory() as h:
+    with bounded_app_factory(support_seconds=1.0) as h:
+        # Supported nondefault correctness qualification; run75 retains the
+        # observed .75-second default finalization refusal unchanged.
+        assert h.store.settings.native_owned_bounded_core_support_seconds == 1.0
         chunks, _ = advance_to_waiter(h)
         assert process_primary(h) == chunks[-1]['id']
         row = c_target(h); doc, support, parts = cells.validate_document(row['proof'])
@@ -710,12 +779,12 @@ def test_compact_inventory_each_fresh_boundary_rejects_current_row_or_source_mut
 
 @pytest.fixture
 def support_local_ledger_factory(tmp_path):
-    """Tiny real schemas and exact commits, without an owner thread or files."""
+    """Tiny real schemas; default explicitly retains historical full-bound rows."""
     from audio_backend import storage, transcript_revision
     from audio_backend import native_owned_cells as cells
     from test_bounded_core_support import SID
     used = []
-    def create(schema=None):
+    def create(schema=None, *, reference=False, waiting=False, fixed=False):
         directory = tmp_path / ('local-ledger-' + str(len(used)))
         directory.mkdir()
         store = storage.Store(directory / 'primary.sqlite3', Settings(data_dir=directory, start_worker=False))
@@ -725,7 +794,7 @@ def support_local_ledger_factory(tmp_path):
                 (SID, 'synthetic support-local', SID))
             db.execute('BEGIN IMMEDIATE') if not db.in_transaction else None
             automatic.init_bounded_schema(db, enable=True); transcript_revision.init_bounded_schema(db)
-            value = _support_local_seed(db, schema)
+            value = _support_local_seed(db, schema, reference=reference, waiting=waiting, fixed=fixed)
         value.store = store; used.append(value)
         return value
     return create
@@ -760,24 +829,62 @@ def _insert_local_parent(db, row):
         ','.join('?' for _ in names) + ",'unknown')", tuple(row[name] for name in names))
 
 
-def _support_local_seed(db, schema):
+def _insert_reference_commit(db, commit, ordinal, batch, store_key):
+    from audio_backend import native_owned_cells as cells
+    part = commit['part']
+    db.execute("""INSERT INTO native_core_commits(slot,sid,cid,scope_key,logical_end,body,
+        pending,state,reason,recording_batch_id,commit_ordinal,retention_store_key)
+        VALUES(?,?,?,?,?,?,NULL,'none','synthetic',?,?,?)""",
+        (core.slot(commit), part['session_id'], part['chunk_id'], core.scope_key(commit['scope']),
+         part['logical_end'], cells.canonical(commit, core.COMPACT_BYTES), batch, ordinal, store_key))
+
+
+def _support_local_seed(db, schema, *, reference=False, waiting=False, fixed=False):
     from types import SimpleNamespace
     from audio_backend import native_owned_cells as cells
     from test_bounded_core_support import SID, synthetic_case, final_cell, seam_origin
     batch = 'local-synthetic-batch'; store_key = '5' * 64
-    case = synthetic_case([0, 16, 32, 48, 64], [[18, 22]], origin_index=1, separate_sources=True)
-    case['target'] = core.original_target(seam_origin(case, 0))
-    parent = _support_local_parent(case)
-    cell = final_cell(case, [parent]); doc = json.loads(cell.proof)
-    assert doc['geometry'] == {'start_frame': 16, 'end_frame': 24}
-    snapshot = core.lexical_snapshot(SID, [parent], case['sources'], 0., scan_frames=[0,64],
-        schema=schema or core.COMPACT_INVENTORY_SCHEMA)
-    if schema is not None:
-        cell = core.make_bounded_cell(doc['commits'],doc['query'],doc['right_evidence'],cell.pcm,case['target'],snapshot)
+    if fixed:
+        # Exact, pinned fixed73 construction. No tuning, search or padding.
+        from test_bounded_core_support import (ordinary_origin, primary_row,
+            compact_snapshot_for, query_for_snapshot)
+        case = synthetic_case([0, 8000, 16000, 24000, 32000], [(2000, 4000)],
+            origin_support=(0, 8000), separate_sources=True)
+        first = case['target']
+        second = ordinary_origin(case, 0, (1000, 7000))
+        third = seam_origin(case, 0)
+        if fixed == 'ordinary_first':
+            case['target'] = core.append_target_origin(core.append_target_origin(first, second), third)
+        else:
+            # Separately approved lifecycle variant: the same three originals,
+            # with the seam first so its genuine anchor2 permits horizon4.
+            case['target'] = core.append_target_origin(
+                core.append_target_origin(core.original_target(third), first['origins'][0]), second)
+        assert case['target']['key'] == first['key'] and len(case['target']['origins']) == 3
+        parent = primary_row(1, 0, 32000, cid='source-0', text='synthetic')
+        snapshot = compact_snapshot_for(case, [parent])
+        shape = core.select_support(case['target'], case['commits'], snapshot, 0, 32000)
+        assert shape == {'start_frame': 0, 'end_frame': 32000}
+        local = core.localize_inventory(case['target'], case['commits'], snapshot, 0, 32000, shape)
+        query, pcm = query_for_snapshot(case, local)
+        cell = core.make_bounded_cell(case['commits'], query, case['evidences'][-1],
+            pcm, case['target'], local)
         doc = json.loads(cell.proof)
+    else:
+        case = synthetic_case([0, 16, 32, 48, 64], [[18, 22]], origin_index=1, separate_sources=True)
+        case['target'] = core.original_target(seam_origin(case, 0))
+        parent = _support_local_parent(case)
+        cell = final_cell(case, [parent]); doc = json.loads(cell.proof)
+        assert doc['geometry'] == {'start_frame': 16, 'end_frame': 24}
+        snapshot = core.lexical_snapshot(SID, [parent], case['sources'], 0., scan_frames=[0,64],
+            schema=schema or core.COMPACT_INVENTORY_SCHEMA)
+        if schema is not None:
+            cell = core.make_bounded_cell(doc['commits'],doc['query'],doc['right_evidence'],cell.pcm,case['target'],snapshot)
+            doc = json.loads(cell.proof)
+    registration_ordinal = (1 if fixed == 'ordinary_first' else 2) if fixed else 4
     db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,
-        capture_origin_frame,native_core_ordinal,retention_store_key) VALUES(?,?,?,1.,0,4,?)''',
-        (batch, SID, 'synthetic-capture', store_key))
+        capture_origin_frame,native_core_ordinal,retention_store_key) VALUES(?,?,?,1.,0,?,?)''',
+        (batch, SID, 'synthetic-capture', registration_ordinal, store_key))
     for index, commit in enumerate(case['commits']):
         part = commit['part']; source = case['sources'][part['chunk_id']]
         db.execute('''INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,
@@ -789,42 +896,87 @@ def _support_local_seed(db, schema):
             VALUES(?,?,?,?,?,?,'synthetic',?,'durable')''',
             (source['id'], batch, index, part['source_frames'], part['source_frames'] * 2,
              part['logical_start'], part['receipt_sha256']))
-        db.execute('''INSERT INTO native_core_commits(slot,sid,cid,scope_key,logical_end,body,
-            pending,state,reason,recording_batch_id,commit_ordinal,retention_store_key)
-            VALUES(?,?,?,?,?,?,NULL,'none','synthetic',?,?,?)''',
-            (core.slot(commit), SID, source['id'], core.scope_key(commit['scope']),
-             part['logical_end'], cells.canonical(commit, core.COMPACT_BYTES), batch, index + 1, store_key))
-    _insert_local_parent(db, parent)
+        if index < registration_ordinal:
+            _insert_reference_commit(db, commit, index + 1, batch, store_key)
+    if not fixed:_insert_local_parent(db, parent)
     origin = case['target']['origins'][0]
     proof, binding = origin['proof'].encode('ascii'), origin['binding'].encode('ascii')
     original_doc, support, _ = cells.validate_document(proof)
-    proposal = {'key': hashlib.sha256(binding).hexdigest(), 'sid': SID, 'kind': 'core_seam',
+    proposal = {'key': hashlib.sha256(binding).hexdigest(), 'sid': SID, 'kind': json.loads(binding)['kind'],
         'binding': binding, 'proof': proof, 'proof_sha256': hashlib.sha256(proof).hexdigest(),
         'cell_id': cells.sha({'policy': original_doc['policy'], 'support': support.to_dict()}),
-        'slot1': core.slot(case['commits'][0]), 'slot2': core.slot(case['commits'][1]),
-        'cid1': 'source-0', 'cid2': 'source-1', 'target': case['target']}
-    context = {'batch_id': batch, 'ordinal': 2, 'retention_store_key': store_key}; now = time.time()
+        'slot1': core.slot(origin['commits'][0]),
+        'slot2': core.slot(origin['commits'][1]) if len(origin['commits']) == 2 else None,
+        'cid1': origin['commits'][0]['part']['chunk_id'],
+        'cid2': origin['commits'][1]['part']['chunk_id'] if len(origin['commits']) == 2 else None,
+        'target': case['target']}
+    context = {'batch_id': batch, 'ordinal': len(origin['commits']), 'retention_store_key': store_key}; now = time.time()
     with Budget().phase() as budget:
-        waiting, status = automatic._register_target(db, proposal, context,
+        registration = {**proposal, 'target': core.original_target(origin)} if fixed == 'ordinary_first' else proposal
+        initial, status = automatic._register_target(db, registration, context,
             cells.sha(case['commits'][0]['scope']), now, budget)
         assert status == 'registered'
+        first_registration = initial
+        available = registration_ordinal
+        if fixed == 'ordinary_first':
+            assert initial['wait_start_ordinal'] == 1 and initial['wait_last_ordinal'] == 4
+            initial, status = automatic._register_target(db, {'target': core.original_target(second)},
+                context, cells.sha(case['commits'][0]['scope']), now, budget)
+            assert status == 'alias_registered' and initial['wait_last_ordinal'] == 4
+            _insert_reference_commit(db, case['commits'][1], 2, batch, store_key)
+            db.execute('UPDATE recording_batches SET native_core_ordinal=2 WHERE id=?', (batch,))
+            context = {**context, 'ordinal': 2}; available = 2
+            initial, status = automatic._register_target(db, {'target': core.original_target(third)},
+                context, cells.sha(case['commits'][0]['scope']), now, budget)
+            assert status == 'alias_registered' and initial['wait_last_ordinal'] == 3
+            assert initial['wait_start_ordinal'] == first_registration['wait_start_ordinal'] == 1
+            assert initial['candidate_key'] == first_registration['candidate_key']
+            assert initial['target_body'] == cells.canonical(case['target'])
+            assert json.loads(initial['target_body'])['origins'][0] == origin
+        if fixed:
+            # Each registration above sees precisely its already committed
+            # ordinals. The final arriving commits and whole parent appear only
+            # at this final4 snapshot; no future compact authorizes an earlier step.
+            for index in range(available,4):
+                _insert_reference_commit(db,case['commits'][index],index+1,batch,store_key)
+            db.execute('UPDATE recording_batches SET native_core_ordinal=4 WHERE id=?',(batch,))
+            _insert_local_parent(db,parent)
         context = {**context, 'ordinal': 4}
         final = {'target': case['target'], 'commits': doc['commits'], 'query': doc['query'],
             'evidence': doc['right_evidence'], 'support': doc['geometry'], 'pcm': cell.pcm}
-        ident = automatic._bind_target(db, waiting, final, context, snapshot, budget, now,
+        if waiting:
+            return SimpleNamespace(case=case, doc=doc, row=initial, key=proposal['key'],
+                parent=parent, context=context, original=proposal, store_key=store_key,
+                final=final, snapshot=snapshot, cell=cell, initial=initial,
+                first_registration=first_registration)
+        ident = automatic._bind_target(db, initial, final, context, snapshot, budget, now,
                                       support_local=schema is None)
         row = automatic._read_v2(db, key=proposal['key'], budget=budget)
         assert ident == row['cell_id']
         if schema is not None:assert row['proof'] == cell.proof
         doc = json.loads(row['proof'])
+        if not reference:
+            # Historical full-row compatibility fixture, explicitly reconstructed
+            # in test setup. Production never rewrites an already-bound row.
+            full = automatic.canonical(doc['target'])
+            delta = len(full) - len(row['target_body'])
+            assert len(row['proof']) + len(full) <= automatic.PROOF_BYTES
+            db.execute(f'UPDATE {automatic.TABLE} SET target_body=?,planning_bytes=?,charge_bytes=charge_bytes+? WHERE seq=?',
+                (full, len(full), delta, row['seq']))
+            automatic._charge(db, SID, (0, delta, 0, delta))
+            row = automatic._read_v2(db, key=proposal['key'], budget=budget)
+            assert row['target_body'] == full
         assert automatic.qualify_bounded_document(db, doc, budget, store_key)
-    assert len(doc['commits']) == 4 and doc['geometry'] == {'start_frame':16,'end_frame':24}
-    if schema is None:
-        assert doc['inventories']['scan_frames'] == [16,24]
-        assert {s['id'] for s in doc['inventories']['sources']} == {'source-1','source-2'}
+    assert len(doc['commits']) == 4
+    if not fixed:
+        assert doc['geometry'] == {'start_frame':16,'end_frame':24}
+        if schema is None:
+            assert doc['inventories']['scan_frames'] == [16,24]
+            assert {s['id'] for s in doc['inventories']['sources']} == {'source-1','source-2'}
     assert {root['cid'] for root in doc['dependency_roots']} == set(case['sources'])
     return SimpleNamespace(case=case,doc=doc,row=row,key=proposal['key'],parent=parent,
-        context=context,original=proposal,store_key=store_key)
+        context=context,original=proposal,store_key=store_key,final=final,
+        snapshot=snapshot,cell=cell,initial=initial,first_registration=first_registration)
 
 
 def _local_inventory_current(f):
@@ -998,7 +1150,8 @@ def test_certificate_capacity_guard_operands(support_local_ledger_factory,monkey
     binding=None; builds=[]; database=None
     with monkeypatch.context() as patch:
         if guard in ('bound_certificate','bound_charge'):
-            f=support_local_ledger_factory(); proof=f.row['proof']; target=f.row['target_body']
+            f=support_local_ledger_factory(); proof=f.row['proof']
+            target=automatic._bound_target_reference(proof,f.doc['target'])
             assert len(proof)+len(target)<=automatic.PROOF_BYTES
             row={**f.row,'plan_phase':'waiting','state':'queued','job_id':None}
             proposal={'target':f.case['target'],'commits':f.doc['commits'],
@@ -1012,11 +1165,13 @@ def test_certificate_capacity_guard_operands(support_local_ledger_factory,monkey
                 builds.append(len(cell.proof));return cell
             patch.setattr(core,'make_bounded_cell',measured_cell)
             if guard=='bound_certificate':
-                # Synthetic row boundary only: JSON whitespace leaves the target
-                # unchanged. Real compact checks and frozen Cell validation run.
+                # Defense-only corrupted encoder seam; not authentic capacity
+                # benefit. Real compact checks and frozen Cell validation run.
                 target+=b' '*(automatic.PROOF_BYTES+1-len(proof)-len(target))
-                assert json.loads(target)==proposal['target']
-                row['target_body']=target
+                def oversized_reference(actual_proof,actual_target):
+                    assert actual_proof==proof and actual_target==proposal['target']
+                    return target
+                patch.setattr(automatic,'_bound_target_reference',oversized_reference)
             else:
                 # Defense-only seam. With a valid <=4096-byte binding, the
                 # preceding certificate cap makes this charge guard unreachable.
@@ -1275,3 +1430,820 @@ def test_certificate_capacity_notice_preserves_rollback(support_local_ledger_fac
         assert len(raw)<512
         assert all(token not in raw for token in (b'private synthetic text',b'/private/synthetic.wav',
             b'SELECT secret FROM synthetic',b'payload',b'traceback',f.key.encode('ascii')))
+
+
+# Bound-target reference contracts. These metadata fixtures use fresh real
+# schemas and synthetic certificates only; they never open a historical DB.
+def _reference_snapshot(f):
+    with f.store.db() as db:
+        return {table: [tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+            for table in (automatic.TABLE, automatic.DEPENDENCIES, automatic.USAGE,
+                'segments', 'chunks', 'recording_batches', 'recording_work', 'native_core_commits')}
+
+
+def _reference_accounting(db, sid):
+    rows = [dict(row) for row in db.execute(f'SELECT * FROM {automatic.TABLE}')]
+    for scope, actual in zip(('', sid), automatic.usage(db, sid)):
+        chosen = rows if not scope else [row for row in rows if row['sid'] == scope]
+        assert tuple(actual) == (len(chosen), sum(row['charge_bytes'] for row in chosen),
+            sum(row['state'] in automatic.ACTIVE for row in chosen),
+            sum(len(row['proof']) + len(row['target_body']) for row in chosen))
+        for row in chosen:
+            assert row['planning_bytes'] == len(row['target_body'])
+            assert row['charge_bytes'] == (automatic.ACCOUNTING_BYTES + len(row['binding']) +
+                len(row['proof']) + len(row['target_body']))
+    return automatic.usage(db, sid)
+
+
+def _reference_row(f, db=None):
+    if db is not None:
+        return dict(db.execute(f'SELECT * FROM {automatic.TABLE} WHERE candidate_key=?', (f.key,)).fetchone())
+    with f.store.db() as db:return _reference_row(f, db)
+
+
+def _set_reference_wire(f, wire, *, proof=None, stale=None):
+    """Explicit corruption/equivalence fixture; never a production converter."""
+    with f.store.db() as db:
+        row = _reference_row(f, db); proof = row['proof'] if proof is None else proof
+        certificate_delta = len(proof) + len(wire) - len(row['proof']) - len(row['target_body'])
+        charge = row['charge_bytes'] if stale == 'charge_bytes' else row['charge_bytes'] + certificate_delta
+        planning = row['planning_bytes'] if stale == 'planning_bytes' else len(wire)
+        db.execute(f'UPDATE {automatic.TABLE} SET proof=?,proof_sha256=?,target_body=?,planning_bytes=?,charge_bytes=? WHERE seq=?',
+            (proof, hashlib.sha256(proof).hexdigest(), wire, planning, charge, row['seq']))
+        automatic._charge(db, row['sid'], (0, charge - row['charge_bytes'], 0, certificate_delta))
+    return _reference_row(f)
+
+
+def _reference_expected(f):
+    return f.row['proof'], automatic.canonical(f.doc['target'])
+
+
+def _reference_identity(f):
+    from types import SimpleNamespace
+    return SimpleNamespace(session_id=f.row['sid'], job_id='1'*32,
+        original_jobs_epoch='2'*32, canonical_request_sha256='3'*64)
+
+
+class _ReferenceComparisonDB:
+    """Record actual bound inputs without retaining any payload in reports."""
+    def __init__(self, db):self.db=db; self.calls=[]; self.comparisons=[]
+    def execute(self, sql, parameters=()):
+        self.calls.append((sql, parameters))
+        if 'proof=? AS proof_same' in sql:
+            operands = [value for value in parameters if type(value) is bytes]
+            self.comparisons.append((len(operands), sum(map(len, operands))))
+        return self.db.execute(sql, parameters)
+
+
+def test_bound_target_reference_fixed_authentic_bind(support_local_ledger_factory, capsys):
+    from audio_backend import native_owned_cells as cells
+    original = support_local_ledger_factory(waiting=True, fixed='ordinary_first')
+    original_doc, _, original_parts = cells.validate_document(original.cell.proof)
+    original_full = cells.canonical(original_doc['target'])
+    assert (len(original.cell.proof), len(original_full)) == (39449, 26894)
+    assert len(original_parts) == 4 and original.row['wait_start_ordinal'] == 1
+    assert original.first_registration['wait_last_ordinal'] == 4
+    assert original.row['wait_last_ordinal'] == 3
+    assert original.row['candidate_key'] == original.first_registration['candidate_key']
+    assert original.row['target_body'] == original_full
+    assert automatic._waiting_reason(original.row, original.context,
+        original.row['plan_scope_key'], original.row['created']) == 'unresolved_commit_horizon'
+    original_before = _reference_snapshot(original)
+    # Premerged ordinary-first at arrival2 is also not a lawful registration:
+    # its first anchor remains1. Roll back every tentative write after the exact
+    # unchanged metadata refusal, with no old database or production replay.
+    with original.store.db() as db:
+        db.execute('SAVEPOINT premerged_negative')
+        try:
+            db.execute(f'DELETE FROM {automatic.TABLE}')
+            db.execute(f'UPDATE {automatic.USAGE} SET rows=0,charge=0,pending=0,proofs=0')
+            db.execute('DELETE FROM native_core_commits WHERE commit_ordinal>2')
+            db.execute('UPDATE recording_batches SET native_core_ordinal=2 WHERE id=?',
+                (original.context['batch_id'],))
+            with pytest.raises(Unavailable,match='^bounded_wait_metadata$'):
+                automatic._register_target(db,original.original,{**original.context,'ordinal':2},
+                    original.row['plan_scope_key'],original.row['created'],Budget())
+        finally:
+            db.execute('ROLLBACK TO premerged_negative');db.execute('RELEASE premerged_negative')
+    assert _reference_snapshot(original) == original_before
+    # Do not call _bind_target beyond the ordinary-first caller horizon.
+    f = support_local_ledger_factory(reference=True, fixed=True)
+    row = f.row; doc, support, parts = cells.validate_document(row['proof'])
+    assert f.initial['wait_start_ordinal'] == 2 and f.initial['wait_last_ordinal'] == 4
+    assert automatic._waiting_reason(f.initial, f.context, f.initial['plan_scope_key'],
+        f.initial['created']) is None
+    assert doc['target']['origins'] == [original_doc['target']['origins'][2],
+        original_doc['target']['origins'][0], original_doc['target']['origins'][1]]
+    assert doc['commits'] == original_doc['commits']
+    assert doc['inventories'] == original_doc['inventories']
+    assert row['candidate_key'] != original.row['candidate_key']
+    assert row['kind'] == 'core_seam' and original.row['kind'] == 'ordinary'
+    assert row['slot2'] is not None and original.row['slot2'] is None
+    assert row['proof_sha256'] != hashlib.sha256(original.cell.proof).hexdigest()
+    assert doc['target']['key'] == original_doc['target']['key']
+    for selected in (original,f):
+        for origin in selected.case['target']['origins']:
+            _,origin_support,_=cells.validate_document(origin['proof'].encode('ascii'))
+            assert not (origin_support.start_frame<=0 and origin_support.end_frame>=32000)
+        assert core.select_support(selected.case['target'],selected.case['commits'],
+            selected.snapshot,0,32000)=={'start_frame':0,'end_frame':32000}
+    assert _reference_snapshot(original) == original_before
+    # Exercise the production caller's terminal horizon branch. It must never
+    # enter _bind_target for this original ownership order at ordinal4.
+    with original.store.db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        handoff={'waiters':[original.row],'batch':original.context,'reserved':True,
+            'budget':Budget(),'origins':[],'plans':[original.final],
+            'snapshot':original.snapshot,'draft_ids':[]}
+        notice=automatic.enqueue_bounded(db,[],{'commit':original.case['commits'][-1]},
+            handoff,{'session_id':original.row['sid']},[],None)
+        assert notice['bound']==0 and notice['reason']=='unresolved_commit_horizon'
+        closed=automatic._read_v2(db,key=original.key)
+        assert closed['state']=='no_result' and closed['plan_phase']=='closed'
+        assert closed['proof']==original.row['proof'] and closed['target_body']==original_full
+        assert closed['cell_id']==original.row['cell_id'] and closed['job_id'] is None
+        _reference_accounting(db,closed['sid'])
+    full = cells.canonical(doc['target']); reference = row['target_body']
+    assert doc['target'] == f.case['target'] and len(doc['target']['origins']) == 3
+    assert (support.start_frame, support.end_frame) == (0, 32000)
+    assert len(doc['commits']) == len(parts) == len({part.chunk_id for part in parts}) == 4
+    assert all(part.logical_end > part.logical_start for part in parts)
+    assert f.cell.pcm == b'\0\0' * 32000
+    assert row['proof'] == f.cell.proof
+    assert len(row['proof']) <= 65536 < len(row['proof']) + len(full)
+    assert reference == automatic._bound_target_reference(row['proof'], doc['target'])
+    assert json.loads(reference) == {'schema': 'bounded-target-proof-reference-v1',
+        'target_key': doc['target']['key'], 'target_sha256': hashlib.sha256(full).hexdigest(),
+        'proof_sha256': hashlib.sha256(row['proof']).hexdigest()}
+    assert reference == json.dumps(json.loads(reference),sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')
+    assert len(reference) <= 512 and len(row['proof']) + len(reference) <= 65536
+    assert resolved_target(row) == doc['target']
+    assert row['planning_bytes'] == len(reference) and row['plan_revision'] == f.initial['plan_revision'] + 1
+    with f.store.db() as db:
+        _reference_accounting(db, row['sid'])
+        observed = _ReferenceComparisonDB(db)
+        assert automatic.qualify_bounded_document(observed, doc, Budget(), f.store_key, automatic_key=f.key)
+        assert observed.comparisons == [(2, len(row['proof']) + len(reference))]
+    with capsys.disabled():
+        print('bound_target_reference_fixed ' + json.dumps({'synthetic_only': True,
+            'historical_reproduction': False, 'ownership_order': 'seam-first-lifecycle-variant',
+            'ordinary_first_lifecycle': 'unresolved_commit_horizon', 'origins': 3, 'positive_parts': 4,
+            'distinct_uploads': 4, 'proof_bytes': len(row['proof']), 'full_target_bytes': len(full),
+            'reference_bytes': len(reference), 'stored_certificate_bytes': len(row['proof']) + len(reference),
+            'actual_charge_bytes': row['charge_bytes']}, sort_keys=True), flush=True)
+
+
+def test_bound_target_reference_legacy_full_compatibility(support_local_ledger_factory):
+    from audio_backend import native_owned_cells as cells
+    # One finite compatibility case covers the four dispatch states, keeping
+    # exact historical full wire/proof/binding/digests through close and reopen.
+    for waiting in (True, False):
+        f = support_local_ledger_factory(waiting=waiting, fixed='ordinary_first' if waiting else False)
+        saved = {name: f.row[name] for name in ('target_body', 'proof', 'binding',
+            'candidate_key', 'target_key', 'proof_sha256', 'cell_id')}
+        assert json.loads(saved['target_body'])['schema'] == core.TARGET_SCHEMA
+        for closed in (False, True):
+            with f.store.db() as db:
+                if closed:
+                    automatic._terminal(db, _reference_row(f, db), 'no_result', 'synthetic_terminal')
+                row, validated = automatic._read_v2(db, key=f.key, with_validation=True)
+                assert {name: row[name] for name in saved} == saved
+                assert validated[0] == f.case['target']
+                assert validated[1:] == cells.validate_document(saved['proof'])
+                assert row['plan_phase'] == ('closed' if closed else 'waiting' if waiting else 'bound')
+                _reference_accounting(db, row['sid'])
+            # Every iteration reopens the real database; no format rewrite is
+            # triggered by reading either historical state.
+            assert {name: _reference_row(f)[name] for name in saved} == saved
+
+
+@pytest.mark.parametrize('mutation', ['unknown_schema', 'noncanonical', 'extra_key',
+    'missing_key', 'wrong_type', 'invalid_digest', 'wrong_target_key',
+    'wrong_target_hash', 'wrong_proof_hash', 'substituted_proof'])
+def test_bound_target_reference_tamper_refusal(support_local_ledger_factory, mutation):
+    f = support_local_ledger_factory(reference=True)
+    value = json.loads(f.row['target_body']); proof = f.row['proof']
+    if mutation == 'unknown_schema':value['schema'] = 'bounded-target-proof-reference-v2'
+    elif mutation == 'extra_key':value['target'] = f.doc['target']
+    elif mutation == 'missing_key':del value['proof_sha256']
+    elif mutation == 'wrong_type':value['target_key'] = True
+    elif mutation == 'invalid_digest':value['proof_sha256'] = 'A' * 64
+    elif mutation == 'wrong_target_key':value['target_key'] = 'e' * 64
+    elif mutation == 'wrong_target_hash':value['target_sha256'] = 'e' * 64
+    elif mutation == 'wrong_proof_hash':value['proof_sha256'] = 'e' * 64
+    elif mutation == 'substituted_proof':
+        # A different fully valid historical inventory certificate for the same
+        # target cannot satisfy this exact proof reference, even with row digest updated.
+        other = support_local_ledger_factory(core.COMPACT_INVENTORY_SCHEMA, reference=True)
+        proof = other.row['proof']; assert proof != f.row['proof']
+    wire = automatic.canonical(value)
+    if mutation == 'noncanonical':wire += b' '
+    _set_reference_wire(f, wire, proof=proof)
+    with f.store.db() as db:db.execute(f"UPDATE {automatic.TABLE} SET state='published' WHERE candidate_key=?", (f.key,))
+    before = _reference_snapshot(f); identity = _reference_identity(f)
+    reason = ('bounded_target_reference_policy' if mutation == 'unknown_schema' else
+        'bounded_target_reference_shape' if mutation in ('noncanonical','extra_key','missing_key') else
+        'invalid_digest' if mutation in ('wrong_type','invalid_digest') else 'bounded_target_reference_binding')
+    with f.store.db() as db:
+        statements = []; db.set_trace_callback(statements.append)
+        for read in (lambda: automatic._read_v2(db, key=f.key),
+                     lambda: automatic.admit(db, f.key, identity)):
+            with pytest.raises(Unavailable, match="^"+reason+"$"):read()
+        db.set_trace_callback(None)
+    assert not any(sql.lstrip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')) for sql in statements)
+    assert _reference_snapshot(f) == before and _reference_row(f)['job_id'] is None
+    with f.store.db() as db:
+        observed = _ReferenceComparisonDB(db)
+        assert automatic._read_v2(observed, key=f.key, expected=_reference_expected(f), reference_aware=True) is None
+        assert len(observed.comparisons) <= 1
+
+
+@pytest.mark.parametrize('phase', ['ordinary_waiting', 'ordinary_closed_waiting', 'bounded_proof_waiting'])
+def test_bound_target_reference_phase_refusal(support_local_ledger_factory, phase):
+    f = support_local_ledger_factory(reference=True, waiting=phase != 'bounded_proof_waiting',
+        fixed='ordinary_first' if phase != 'bounded_proof_waiting' else False)
+    with f.store.db() as db:
+        if phase == 'ordinary_closed_waiting':
+            automatic._terminal(db, f.row, 'no_result', 'synthetic_closed_waiting')
+        elif phase == 'bounded_proof_waiting':
+            db.execute(f"UPDATE {automatic.TABLE} SET plan_phase='waiting' WHERE candidate_key=?", (f.key,))
+    wire = automatic._bound_target_reference(f.row['proof'], f.case['target'])
+    _set_reference_wire(f, wire)
+    before = _reference_snapshot(f)
+    with f.store.db() as db:
+        with pytest.raises(Unavailable, match='^bounded_target_reference_phase$'):
+            automatic._read_v2(db, key=f.key)
+    assert _reference_snapshot(f) == before
+
+
+@pytest.mark.parametrize('direction', ['full_to_reference', 'reference_to_full'])
+def test_bound_target_reference_database_callback_equivalence(support_local_ledger_factory, direction):
+    from audio_backend.native_owned_cell_capture import PrimaryAuthority
+    f = support_local_ledger_factory(reference=direction == 'reference_to_full')
+    proof = f.row['proof']; full = automatic.canonical(f.doc['target'])
+    ref = automatic._bound_target_reference(proof, f.doc['target'])
+    assert len(proof) + len(full) <= 65536
+    old, new = (full, ref) if direction == 'full_to_reference' else (ref, full)
+    boundaries = []
+    for index, wire in enumerate((old, new, new)):
+        if index == 1:_set_reference_wire(f, wire)
+        # Database-callback equivalence only: this exact fresh callback is
+        # invoked by core.current. The full C test separately switches both
+        # directions through all three real owner/receipt/file fences.
+        with Budget().phase() as budget:
+            authority = PrimaryAuthority(f.store)
+            assert authority._read(budget, 'automatic_intent', lambda db:
+                automatic.qualify_bounded_document(db, f.doc, budget,
+                    f.store_key, automatic_key=f.key))
+        with f.store.db() as db:
+            observed = _ReferenceComparisonDB(db)
+            row, resolved = automatic._read_v2(observed, key=f.key, expected=(proof, full),
+                reference_aware=True, with_validation=True, budget=Budget())
+            assert row['target_body'] == wire and row['proof'] == proof and resolved[0] == f.doc['target']
+            assert observed.comparisons == [(2, len(proof) + len(wire))]
+            _reference_accounting(db, row['sid'])
+            boundaries.append(row['proof_sha256'])
+    assert boundaries == [f.row['proof_sha256']] * 3
+
+
+@pytest.mark.parametrize('stale', ['planning_bytes', 'charge_bytes'])
+def test_bound_target_reference_stale_switch_accounting(support_local_ledger_factory, stale):
+    f = support_local_ledger_factory()
+    _set_reference_wire(f, automatic._bound_target_reference(f.row['proof'], f.doc['target']), stale=stale)
+    before = _reference_snapshot(f)
+    with f.store.db() as db:
+        with pytest.raises(Unavailable, match='^bounded_original_owner_binding$'):
+            automatic._read_v2(db, key=f.key, expected=_reference_expected(f), reference_aware=True)
+    assert _reference_snapshot(f) == before
+
+
+def test_bound_target_reference_exact_comparison_contract(support_local_ledger_factory, monkeypatch):
+    f = support_local_ledger_factory(reference=True)
+    proof, full = _reference_expected(f); ref = f.row['target_body']
+    assert len(full) != len(ref)
+    for wire in (full, ref):
+        _set_reference_wire(f, wire)
+        with f.store.db() as db:
+            observed = _ReferenceComparisonDB(db); budget = Budget()
+            row = automatic._read_v2(observed, key=f.key, expected=(proof, full),
+                reference_aware=True, budget=budget)
+            assert row['target_body'] == wire
+            selects = [(sql, values) for sql, values in observed.calls
+                if f'FROM {automatic.TABLE} ' in sql]
+            assert len(selects) == 2 and selects[0][0].startswith('SELECT length(binding),length(proof),length(target_body)')
+            assert 'proof=? AS proof_same' in selects[1][0]
+            assert selects[1][1] == (proof, full if wire == full else None, ref if wire == ref else None, f.key)
+            assert observed.comparisons == [(2, len(proof) + len(wire))]
+            assert budget.sql_bytes == (len(row['binding']) + 1024 + 32 + 320 +
+                sum(160 + len(root['cid']) for root in f.doc['dependency_roots']))
+    # A byte mismatch with matching length gets one comparison and no fallback.
+    _set_reference_wire(f, ref[:-1] + b'!')
+    with f.store.db() as db:
+        observed = _ReferenceComparisonDB(db)
+        assert automatic._read_v2(observed, key=f.key, expected=(proof, full), reference_aware=True) is None
+        assert len(observed.calls) == 2 and len(observed.comparisons) == 1
+    # Neither option matches this exact length, so only the length preflight runs.
+    _set_reference_wire(f, ref + b' ')
+    with f.store.db() as db:
+        observed = _ReferenceComparisonDB(db)
+        assert automatic._read_v2(observed, key=f.key, expected=(proof, full), reference_aware=True) is None
+        assert len(observed.calls) == 1 and not observed.comparisons
+    _set_reference_wire(f, full)
+    # Defense-only equal-length encoder seam. Two matching booleans may never
+    # silently pick the first option. This is not an authentic wire format.
+    with monkeypatch.context() as patch, f.store.db() as db:
+        patch.setattr(automatic, '_bound_target_reference', lambda actual, target: full)
+        observed = _ReferenceComparisonDB(db)
+        if len(proof) + 2 * len(full) <= automatic.PROOF_BYTES:
+            assert automatic._read_v2(observed, key=f.key, expected=(proof, full), reference_aware=True) is None
+            assert observed.comparisons == [(3, len(proof) + 2 * len(full))]
+        else:
+            with pytest.raises(Unavailable, match='^bounded_certificate_capacity$'):
+                automatic._read_v2(observed, key=f.key, expected=(proof, full), reference_aware=True)
+            assert len(observed.calls) == 1 and not observed.comparisons
+    # Defense-only input arithmetic at the immutable 65536-byte boundary. The
+    # strict validator is replaced solely to reach an otherwise impossible
+    # equal-length full/reference operand shape; no authority result is used.
+    padded = b'p' * (automatic.PROOF_BYTES - len(full))
+    class LengthOnly:
+        def __init__(self):self.calls=[]
+        def execute(self, sql, values):
+            assert sql.startswith('SELECT length(binding),length(proof),length(target_body)')
+            self.calls.append((sql, values)); assert len(self.calls) == 1
+            return self
+        def fetchone(self):return (len(f.row['binding']), len(padded), len(full))
+    db = LengthOnly()
+    with monkeypatch.context() as patch:
+        patch.setattr(automatic, 'validate_document', lambda raw: (f.doc, None, None))
+        patch.setattr(automatic, '_bound_target_reference', lambda raw, target: full)
+        with pytest.raises(Unavailable, match='^bounded_certificate_capacity$') as caught:
+            automatic._read_v2(db, key=f.key, expected=(padded, full), reference_aware=True)
+    assert caught.value.certificate_capacity == {'guard': 'expected_certificate', 'check': 'certificate',
+        'proof_bytes': len(padded), 'target_bytes': 2 * len(full),
+        'total_bytes': len(padded) + 2 * len(full), 'minimum_bytes': 2, 'limit_bytes': 65536}
+    assert len(db.calls) == 1
+
+
+@pytest.mark.parametrize('sign', ['positive', 'zero', 'negative'])
+def test_bound_target_reference_signed_accounting_delta(support_local_ledger_factory, monkeypatch, sign):
+    f = support_local_ledger_factory(waiting=True)
+    local = core.localize_inventory(f.case['target'], f.final['commits'], f.snapshot,
+        f.final['query']['query_start_frame'], f.final['query']['query_end_frame'], f.final['support'])
+    cell = core.make_bounded_cell(f.final['commits'], f.final['query'], f.final['evidence'],
+        f.final['pcm'], f.case['target'], local)
+    doc = json.loads(cell.proof)
+    binding = automatic.source_binding_v2(f.row['kind'], doc, cell.support, cell.parts, f.context)
+    ref = automatic._bound_target_reference(cell.proof, doc['target'])
+    delta = {'positive': 1, 'zero': 0, 'negative': -1}[sign]
+    # Explicit arithmetic-only input seam: old bytes below are not a valid
+    # waiting certificate. They make exact signed deltas reachable without a
+    # cap change or pretending that padding is authentic storage benefit.
+    old_proof = b'p' * (len(cell.proof) + len(ref) - len(f.row['target_body']) - delta)
+    old_binding = b'b' * len(binding)
+    assert 1 <= len(old_proof) and len(old_proof) + len(f.row['target_body']) <= 65536
+    assert 1 <= len(old_binding) <= 4096
+    with f.store.db() as db:
+        charge = automatic.ACCOUNTING_BYTES + len(old_proof) + len(old_binding) + len(f.row['target_body'])
+        old_cert = len(f.row['proof']) + len(f.row['target_body'])
+        db.execute(f'UPDATE {automatic.TABLE} SET proof=?,proof_sha256=?,binding=?,charge_bytes=? WHERE seq=?',
+            (old_proof, hashlib.sha256(old_proof).hexdigest(), old_binding, charge, f.row['seq']))
+        automatic._charge(db, f.row['sid'], (0, charge-f.row['charge_bytes'], 0,
+            len(old_proof)+len(f.row['target_body'])-old_cert))
+        before = _reference_accounting(db, f.row['sid'])
+        row = _reference_row(f, db); reserves=[]; deltas=[]
+        capacity = automatic.capacity; charge_usage = automatic._charge
+        def reserve(database, sid, **values):
+            reserves.append(values); return capacity(database, sid, **values)
+        def apply(database, sid, values):
+            deltas.append(values); return charge_usage(database, sid, values)
+        with monkeypatch.context() as patch:
+            patch.setattr(automatic, 'capacity', reserve); patch.setattr(automatic, '_charge', apply)
+            assert automatic._bind_target(db, row, f.final, f.context, f.snapshot, Budget(),
+                row['created'], support_local=True) == cell.cell_id
+        bound = automatic._read_v2(db, key=f.key)
+        after = _reference_accounting(db, f.row['sid'])
+        assert bound['proof'] == cell.proof and bound['binding'] == binding and bound['target_body'] == ref
+        assert bound['planning_bytes'] == len(ref) and bound['plan_revision'] == row['plan_revision']+1
+        assert reserves == [{'rows': 0, 'pending': 0, 'proofs': max(0, delta), 'charge': max(0, delta)}]
+        assert deltas == [(0, delta, 0, delta)]
+        assert [tuple(b-a for a,b in zip(old,new)) for old,new in zip(before,after)] == [(0,delta,0,delta)]*2
+
+
+@pytest.mark.parametrize('failure', ['compare_and_swap', 'after_charge_sql_fault'])
+def test_bound_target_reference_failed_bind_atomicity(support_local_ledger_factory, monkeypatch, failure):
+    f = support_local_ledger_factory(waiting=True); before = _reference_snapshot(f); charged=[]
+    apply = automatic._charge
+    def charge(db, sid, delta):
+        apply(db, sid, delta); charged.append(delta)
+    with monkeypatch.context() as patch:
+        patch.setattr(automatic, '_charge', charge)
+        if failure == 'after_charge_sql_fault':
+            with f.store.db() as db:
+                db.execute(f'''CREATE TRIGGER reference_bind_abort BEFORE UPDATE OF plan_phase ON {automatic.TABLE}
+                    WHEN NEW.plan_phase='bound' BEGIN SELECT RAISE(ABORT,'reference bind hard fault'); END''')
+            error, reason = sqlite3.DatabaseError, 'reference bind hard fault'
+        else:error, reason = Unavailable, '^bounded_bind_compare_and_swap$'
+        with pytest.raises(error, match=reason):
+            with f.store.db() as db:
+                row = dict(f.row)
+                if failure == 'compare_and_swap':row['plan_revision'] += 1
+                automatic._bind_target(db, row, f.final, f.context, f.snapshot, Budget(),
+                    row['created'], support_local=True)
+    assert len(charged) == 1
+    assert _reference_snapshot(f) == before
+    with f.store.db() as db:
+        row = automatic._read_v2(db, key=f.key)
+        assert row == f.row and row['plan_phase'] == 'waiting'
+        assert row['target_body'] == automatic.canonical(f.case['target'])
+        _reference_accounting(db, row['sid'])
+
+
+@pytest.mark.parametrize('root_kind', ['original_zero_pcm', 'final_commit', 'whole_parent_lexical_source'])
+def test_bound_target_reference_all_root_authority(support_local_ledger_factory, root_kind):
+    f = support_local_ledger_factory(reference=True); before=f.row['proof']; cid='source-0'
+    if root_kind == 'original_zero_pcm':
+        _, originals = core.validate_target(f.doc['target'])
+        assert any(commit['part']['chunk_id'] == cid for commit in originals)
+        assert all(part['chunk_id'] != cid for part in f.doc['dependencies'])
+        assert all(source['id'] != cid for source in f.doc['inventories']['sources'])
+    elif root_kind == 'final_commit':cid=f.doc['commits'][-1]['part']['chunk_id']
+    else:
+        cid='source-2'
+        assert any(source['id'] == cid for source in f.doc['inventories']['sources'])
+        assert f.case['sources'][cid]['timeline_start'] >= f.doc['geometry']['end_frame']/RATE
+        assert all(part['chunk_id'] != cid for part in f.doc['dependencies'])
+    assert _local_binding(f)[1:3] == (16,24)
+    with f.store.db() as db:
+        automatic._check_dependencies(db, f.row['seq'], f.doc['dependency_roots'])
+        for root in f.doc['dependency_roots']:
+            assert automatic.retention_root(db, cid=root['cid'])
+            if root['slot'] is not None:assert automatic.retention_root(db, slot=root['slot'])
+        automatic._terminal(db, f.row, 'no_result', 'synthetic_terminal_roots')
+        if root_kind == 'final_commit':
+            db.execute("UPDATE native_core_commits SET state='cancelled' WHERE slot=?", (core.slot(f.doc['commits'][-1]),))
+        else:db.execute('UPDATE chunks SET digest=? WHERE id=?', ('e'*64,cid))
+    reason = {'original_zero_pcm': 'automatic_source_unplaced', 'final_commit': 'bounded_compact_changed',
+        'whole_parent_lexical_source': 'bounded_inventory_source_changed'}[root_kind]
+    with pytest.raises(ReadError, match='^'+reason+'$'):_local_binding(f)
+    with f.store.db() as db:
+        terminal=automatic._read_v2(db,key=f.key)
+        assert terminal['plan_phase']=='closed' and terminal['proof']==before
+        assert terminal['target_body']==f.row['target_body']
+        automatic._check_dependencies(db, terminal['seq'], f.doc['dependency_roots'])
+        assert automatic.retention_root(db,cid=cid)
+        _reference_accounting(db, terminal['sid'])
+
+
+def _reference_controller(f, *, submissions=None, publications=None):
+    from types import SimpleNamespace
+    submissions = [] if submissions is None else submissions
+    publications = [] if publications is None else publications
+    @contextmanager
+    def database(*, write=False, budget=None):
+        with f.store.db() as db:yield db
+    identity = _reference_identity(f)
+    def submit(selected):
+        with f.store.db() as db:automatic.admit(db, selected['candidate_key'], identity)
+        submissions.append(selected['candidate_key'])
+    def publish(*args):publications.append(args); raise AssertionError('unexpected publication')
+    jobs=SimpleNamespace(_enabled=lambda: True, automatic_idle=lambda: True, submit_automatic=submit)
+    capture=SimpleNamespace(owner=SimpleNamespace(_slot=None, submit=publish))
+    return automatic.Automatic(f.store, SimpleNamespace(_database=database), capture=capture, jobs=jobs)
+
+
+def test_bound_target_reference_terminal_cancel_restart_lost_ack(support_local_ledger_factory):
+    from types import SimpleNamespace
+    from threading import Event
+    f = support_local_ledger_factory(reference=True); submitted=[]; published=[]
+    controller = _reference_controller(f, submissions=submitted, publications=published)
+    row=f.row; identity=_reference_identity(f); event=Event(); event.set()
+    op=SimpleNamespace(slot_released=event, deadline=time.monotonic()+1., result={
+        'status':'durable', 'cells':[{'cell_id':row['cell_id'], 'status':'existing'}]})
+    # The exact already-retained owner acknowledgement advances once. A lost
+    # caller acknowledgement after the durable ledger write is not a new job.
+    controller.flight=(f.key,op,row['cell_id']); controller._finish_flight(lambda:False)
+    assert submitted==[f.key] and controller.flight is None and not published
+    accepted=_reference_row(f); assert accepted['state']=='accepted' and accepted['job_id']==identity.job_id
+    controller._admit_key(f.key); assert submitted==[f.key]
+    with f.store.db() as db:
+        automatic.complete(db,f.key,identity)
+        committed=automatic._read_v2(db,key=f.key)
+        before=_reference_accounting(db,row['sid'])
+        automatic.complete(db,f.key,identity)
+        assert automatic._read_v2(db,key=f.key)==committed
+        assert _reference_accounting(db,row['sid'])==before
+    assert committed['state']=='committed' and committed['plan_phase']=='closed'
+    assert all(committed[name]==row[name] for name in ('proof','proof_sha256','target_body','binding','charge_bytes'))
+    restarted=_reference_controller(f,submissions=submitted,publications=published)
+    assert not restarted.current()  # Fixture settings remain automatic-disabled.
+    assert restarted.read_candidate(f.key,proof=True)==committed
+    assert restarted._snapshot() is False
+    restarted._admit_key(f.key); assert submitted==[f.key] and not published
+    # Accepted-unknown recovery and explicit cancel retain their own bound refs,
+    # charges and roots. They never erase a proof or create a retry instruction.
+    for outcome in ('interrupted','cancelled'):
+        other=support_local_ledger_factory(reference=True); other_identity=_reference_identity(other)
+        with other.store.db() as db:
+            if outcome=='interrupted':
+                db.execute(f"UPDATE {automatic.TABLE} SET state='published' WHERE candidate_key=?",(other.key,))
+                automatic.admit(db,other.key,other_identity)
+                automatic.reconcile_job(db,other_identity.job_id)
+            else:automatic.cancel_session(db,other.row['sid'])
+            terminal=automatic._read_v2(db,key=other.key)
+            assert terminal['state']==outcome and terminal['plan_phase']=='closed'
+            assert terminal['proof']==other.row['proof'] and terminal['target_body']==other.row['target_body']
+            for root in other.doc['dependency_roots']:
+                assert automatic.retention_root(db,cid=root['cid'])
+                if root['slot'] is not None:assert automatic.retention_root(db,slot=root['slot'])
+            _reference_accounting(db,terminal['sid'])
+        fresh=_reference_controller(other)
+        assert fresh._snapshot() is False and fresh.read_candidate(other.key,proof=True)==terminal
+
+
+def test_bound_target_reference_pinned_old_reader_refuses(support_local_ledger_factory, monkeypatch):
+    f=support_local_ledger_factory(reference=True); old=_source70_target_reader_oracle()
+    assert '_resolve_target_body' not in old and '_bound_target_reference' not in old
+    with f.store.db() as db:
+        with pytest.raises(Unavailable,match='^core_seam_shape$'):
+            old['validate_v2_row'](db,f.row,f.row['proof'])
+    before=_reference_snapshot(f); published=[]; admitted=[]
+    controller=_reference_controller(f,submissions=admitted,publications=published)
+    # Pin the complete old read/validation closure, not merely a shape lambda
+    # that might call the new resolver indirectly. This is one old-reader
+    # refusal contract, not a claim that an old binary is globally read-only.
+    with monkeypatch.context() as patch:
+        patch.setattr(automatic,'_read_v2',old['_read_v2'])
+        with pytest.raises(Unavailable,match='^core_seam_shape$'):
+            controller.read_candidate(f.key,proof=True)
+        f.store.settings.moss_automatic_enabled=True
+        controller.step()
+        assert controller.flight is None and not published and not admitted
+        with f.store.db() as db:
+            db.execute(f"UPDATE {automatic.TABLE} SET state='published' WHERE candidate_key=?",(f.key,))
+        published_before=_reference_snapshot(f)
+        with pytest.raises(Unavailable,match='^core_seam_shape$'):controller._admit_key(f.key)
+        with f.store.db() as db:
+            with pytest.raises(Unavailable,match='^core_seam_shape$'):
+                automatic.admit(db,f.key,_reference_identity(f))
+        assert _reference_snapshot(f)==published_before and not published and not admitted
+    with f.store.db() as db:
+        db.execute(f"UPDATE {automatic.TABLE} SET state='queued' WHERE candidate_key=?",(f.key,))
+    assert _reference_snapshot(f)==before
+
+
+def test_bound_target_reference_caps_and_quota_boundaries(support_local_ledger_factory):
+    from audio_backend import native_owned_cells as cells
+    assert (automatic.PROOF_BYTES,automatic.BINDING_BYTES,automatic.MAX_CHARGE,
+        automatic.BOUND_TARGET_REFERENCE_BYTES)==(65536,4096,86016,512)
+    f=support_local_ledger_factory(reference=True,fixed=True)
+    proof,full=_reference_expected(f); ref=f.row['target_body']
+    assert len(proof)+len(ref)<=65536<len(proof)+len(full)
+    # The reference cannot legalize its over-cap full equivalent or an over-cap
+    # proof. The private historical expected tuple keeps its pre-SQL contract.
+    with pytest.raises(Unavailable,match='^bounded_certificate_capacity$'):
+        automatic._read_v2(None,key=f.key,expected=(proof,full))
+    oversized=b'p'*65537
+    with pytest.raises(Unavailable,match='^proof_capacity$'):
+        automatic._resolve_target_body(ref,oversized,'bound')
+    full_row={**f.row,'target_body':full,'planning_bytes':len(full),
+        'charge_bytes':f.row['charge_bytes']+len(full)-len(ref)}
+    with pytest.raises(Unavailable,match='^bounded_certificate_capacity$'):
+        automatic.validate_v2_row(None,full_row,proof)
+    class LengthOnly:
+        def __init__(self,sizes):self.sizes=sizes;self.calls=0
+        def execute(self,sql,values):
+            assert sql.startswith('SELECT length(binding),length(proof),length(target_body)')
+            self.calls+=1;assert self.calls==1;return self
+        def fetchone(self):return self.sizes
+    for sizes in ((4097,len(proof),len(ref)),(1,65536,1)):
+        db=LengthOnly(sizes)
+        with pytest.raises(Unavailable,match='^bounded_certificate_capacity$'):
+            automatic._read_v2(db,key=f.key)
+        assert db.calls==1
+    # Every quota is still inclusive at its exact current remaining capacity,
+    # and the next byte/row/pending item refuses without changing either scope.
+    with f.store.db() as db:
+        totals=automatic.usage(db,f.row['sid'])
+        limits=((automatic.MAX_ROWS,automatic.MAX_BYTES,automatic.MAX_PENDING,automatic.MAX_PROOFS),
+            (automatic.SESSION_ROWS,automatic.SESSION_BYTES,automatic.SESSION_PENDING,automatic.SESSION_PROOFS))
+        for column,name in enumerate(('rows','charge','pending','proofs')):
+            remaining=min(limit[column]-have[column] for have,limit in zip(totals,limits))
+            values=dict(rows=0,charge=0,pending=0,proofs=0);values[name]=remaining
+            assert automatic.capacity(db,f.row['sid'],**values)==totals
+            values[name]+=1
+            reason={'rows':'rows','charge':'bytes','pending':'pending','proofs':'proof_bytes'}[name]
+            with pytest.raises(ReadError,match='^automatic_'+reason+'_capacity$'):
+                automatic.capacity(db,f.row['sid'],**values)
+        assert automatic.usage(db,f.row['sid'])==totals
+        _reference_accounting(db,f.row['sid'])
+    before=_reference_snapshot(f)
+    with pytest.raises(sqlite3.IntegrityError):
+        with f.store.db() as db:
+            db.execute(f'UPDATE {automatic.TABLE} SET charge_bytes=? WHERE candidate_key=?',
+                (automatic.MAX_CHARGE+1,f.key))
+    assert _reference_snapshot(f)==before
+    assert cells.PROOF_BYTES==automatic.PROOF_BYTES
+
+
+# Frozen exact source70 reader and automatic-helper closure from source SHA256
+# d99722d4da243e9c928399e126b092993897a38cb03b81dfdfd53d6a923e7d02.
+_SOURCE70_TARGET_READER_SHA256 = '886a51090b2244517005ec64010cb36305a8a303aa1df1f77e20bf0df6f019fd'
+_SOURCE70_TARGET_READER_ORACLE = (
+    'def has_bounded_schema(db):\n'
+    "    return db.execute('SELECT 1 FROM sqlite_master WHERE type=\\'table\\' AND name=?',(DEPENDENCIES,)).fetchone() is not None\n"
+    '\n'
+    'def extended_row(db,row,*,proof=False):\n'
+    '    if row is None:return None\n'
+    '    result=dict(row)\n'
+    '    if all(name in result for name in V2_COLUMNS):return result\n'
+    '    if has_bounded_schema(db):\n'
+    "        names=','.join(V2_COLUMNS)\n"
+    "        extra=db.execute(f'SELECT {names} FROM {TABLE} WHERE seq=?',(row['seq'],)).fetchone()\n"
+    '        result.update(dict(extra))\n'
+    '    else:result.update({name:None for name in V2_COLUMNS})\n'
+    '    return result\n'
+    '\n'
+    'def _original_dependencies(target):\n'
+    '    from .native_owned_core_seams import validate_target,slot\n'
+    '    _,commits=validate_target(target)\n'
+    "    return sorted(({'kind':1,'cid':c['part']['chunk_id'],'slot':slot(c)} for c in commits),\n"
+    "                  key=lambda item:(item['cid'],item['slot']))\n"
+    '\n'
+    'def _check_dependencies(db,seq,expected,budget=None):\n'
+    "    values=db.execute(f'''SELECT dependency_kind,ordinal,cid,slot FROM {DEPENDENCIES}\n"
+    "        WHERE intent_seq=? ORDER BY ordinal LIMIT 133''',(seq,)).fetchall()\n"
+    "    if budget is not None:budget.projection(sum(160+len(r['cid']) for r in values))\n"
+    "    actual=[{'kind':r['dependency_kind'],'cid':r['cid'],'slot':r['slot']} for r in values]\n"
+    "    if [r['ordinal'] for r in values]!=list(range(len(expected))) or actual!=expected:\n"
+    "        raise Unavailable('bounded_dependency_index_mismatch')\n"
+    '\n'
+    'def source_binding(kind,doc,support,parts,commits):\n'
+    "    binding={'automation_policy':POLICY,'selection_policy':doc['policy'],\n"
+    "        'kind':kind,'session_id':parts[0].session_id,\n"
+    "        'parts':[p.content() for p in parts],\n"
+    "        'source_aliases':[{'chunk_id':p.chunk_id,'receipt_sha256':p.receipt_sha256} for p in parts],\n"
+    "        'support_frames':[support.start_frame,support.end_frame],\n"
+    "        'core_frames':[[c['part']['logical_start'],c['part']['logical_end']] for c in commits]}\n"
+    '    return canonical(binding,BINDING_BYTES)\n'
+    '\n'
+    'def source_binding_v2(kind,doc,support,parts,context):\n'
+    '    try:\n'
+    "        binding=json.loads(source_binding(kind,doc,support,parts,doc['commits']))\n"
+    "        binding.update(schema='automatic-recording-overlap-v2',target_key=doc['target']['key'],\n"
+    "            target_sha256=doc['target_sha256'],dependency_roots=doc['dependency_roots'],\n"
+    "            plan_ordinal=context['ordinal'],plan_batch_id=context['batch_id'],\n"
+    "            retention_store_key=context['retention_store_key'])\n"
+    '        return canonical(binding,BINDING_BYTES)\n'
+    '    except Unavailable as exc:\n'
+    "        if str(exc)=='serialization_capacity' and getattr(exc,'capacity_phase',None) is None:\n"
+    "            exc.capacity_phase='source_binding'\n"
+    '        raise\n'
+    '\n'
+    'def _certificate_detail(guard, proof_bytes=None, target_bytes=None, binding_bytes=None):\n'
+    '    """Fixed numeric annotation only; never inspect or serialize a payload."""\n'
+    "    fields = {'proof_bytes': proof_bytes, 'target_bytes': target_bytes}\n"
+    "    if guard in ('stored_certificate', 'new_charge', 'bound_charge'):\n"
+    "        fields['binding_bytes'] = binding_bytes\n"
+    "    result = {'guard': guard, 'check': 'shape'}\n"
+    '    result.update((key, value) for key, value in fields.items()\n'
+    '                  if type(value) is int and 0 <= value <= MAX_FRAME)\n'
+    '    if len(result) != len(fields) + 2:\n'
+    '        return result\n'
+    "    if guard == 'stored_certificate' and not 1 <= binding_bytes <= BINDING_BYTES:\n"
+    "        result.update(check='binding', total_bytes=binding_bytes,\n"
+    '                      minimum_bytes=1, limit_bytes=BINDING_BYTES)\n'
+    "    elif guard in ('new_charge', 'bound_charge'):\n"
+    '        total = ACCOUNTING_BYTES + proof_bytes + target_bytes + binding_bytes\n'
+    '        if total <= MAX_FRAME:\n'
+    "            result.update(check='charge', accounting_bytes=ACCOUNTING_BYTES,\n"
+    '                          total_bytes=total, minimum_bytes=0, limit_bytes=MAX_CHARGE)\n'
+    '    else:\n'
+    '        total = proof_bytes + target_bytes\n'
+    '        if total <= MAX_FRAME:\n'
+    "            result.update(check='certificate', total_bytes=total,\n"
+    '                          minimum_bytes=2, limit_bytes=PROOF_BYTES)\n'
+    '    return result\n'
+    '\n'
+    'def _certificate_capacity(guard, proof_bytes=None, target_bytes=None, binding_bytes=None):\n'
+    "    error = Unavailable('bounded_certificate_capacity')\n"
+    '    error.certificate_capacity = _certificate_detail(guard, proof_bytes, target_bytes, binding_bytes)\n'
+    '    return error\n'
+    '\n'
+    'def validate_v2_row(db,row,proof,budget=None):\n'
+    '    """Strict version dispatch. Legacy candidate hashing is never relaxed."""\n'
+    '    from .native_owned_core_seams import validate_target,slot,BOUNDED_SCHEMA\n'
+    '    from .native_owned_cells import digest,text\n'
+    '    row=extended_row(db,row)\n'
+    "    if row['target_key'] is None:\n"
+    "        if any(row[name] is not None for name in V2_COLUMNS):raise Unavailable('automatic_mixed_version')\n"
+    '        return None\n'
+    "    if any(row[name] is None for name in V2_COLUMNS):raise Unavailable('automatic_mixed_version')\n"
+    "    raw=row['target_body']\n"
+    '    if type(raw) is not bytes or type(proof) is not bytes or not 2<=len(raw)+len(proof)<=PROOF_BYTES:\n'
+    "        raise _certificate_capacity('row_certificate', len(proof) if type(proof) is bytes else None, len(raw) if type(raw) is bytes else None)\n"
+    '    target=json.loads(raw); identity,originals=validate_target(target)\n'
+    "    if canonical(target)!=raw or target['key']!=row['target_key'] or identity['scope']['session_id']!=row['sid']:\n"
+    "        raise Unavailable('bounded_target_binding')\n"
+    "    first=target['origins'][0]; original_binding=first['binding'].encode('ascii')\n"
+    "    first_commits=first['commits']; first_slots=[slot(c) for c in first_commits]\n"
+    "    digest(row['target_key']);digest(row['plan_scope_key']);text(row['plan_batch_id'])\n"
+    "    start,last,revision=(row[name] for name in ('wait_start_ordinal','wait_last_ordinal','plan_revision'))\n"
+    '    if (any(type(n) is not int or not 0<=n<(1<<63)-1 for n in (start,last,revision)) or start<1\n'
+    '            or not start<=last<=start+min(3,4-len(originals))\n'
+    "            or row['plan_scope_key']!=sha(first_commits[0]['scope'])\n"
+    "            or row['kind']!=json.loads(original_binding)['kind']\n"
+    '            or any(type(row[name]) not in (int,float) or not math.isfinite(row[name])\n'
+    "                   for name in ('created','updated','wait_deadline'))\n"
+    "            or row['wait_deadline']!=row['created']+300.\n"
+    "            or row['plan_phase'] not in ('waiting','bound','closed')\n"
+    "            or revision<(0 if row['plan_phase']=='waiting' else 1)\n"
+    "            or (row['plan_phase']=='closed')!=(row['state'] not in ACTIVE)\n"
+    "            or row['plan_phase']=='waiting' and row['state']!='queued'):\n"
+    "        raise Unavailable('bounded_wait_metadata')\n"
+    '    if budget is not None:budget.projection(320)\n'
+    "    anchor=db.execute('''SELECT recording_batch_id,commit_ordinal,retention_store_key\n"
+    "        FROM native_core_commits WHERE slot=?''',(first_slots[-1],)).fetchone()\n"
+    "    if (anchor is None or anchor['recording_batch_id']!=row['plan_batch_id']\n"
+    "            or anchor['commit_ordinal']!=start):raise Unavailable('bounded_wait_metadata')\n"
+    "    digest(anchor['retention_store_key'])\n"
+    "    if (hashlib.sha256(original_binding).hexdigest()!=row['candidate_key']\n"
+    "            or row['slot1']!=first_slots[0] or row['slot2']!=(first_slots[1] if len(first_slots)==2 else None)\n"
+    "            or row['cid1']!=first_commits[0]['part']['chunk_id']\n"
+    "            or row['cid2']!=(first_commits[1]['part']['chunk_id'] if len(first_commits)==2 else None)\n"
+    "            or row['planning_bytes']!=len(raw)\n"
+    "            or row['charge_bytes']!=ACCOUNTING_BYTES+len(raw)+len(proof)+len(row['binding'])\n"
+    "            or row['proof_sha256']!=hashlib.sha256(proof).hexdigest()):\n"
+    "        raise Unavailable('bounded_original_owner_binding')\n"
+    '    doc,support,parts=validate_document(proof)\n'
+    "    if row['cell_id']!=sha({'policy':doc['policy'],'support':support.to_dict()}):\n"
+    "        raise Unavailable('bounded_cell_binding')\n"
+    "    if doc.get('schema')==BOUNDED_SCHEMA:\n"
+    "        if row['plan_phase'] not in ('bound','closed') or doc['target']!=target:raise Unavailable('bounded_phase_binding')\n"
+    "        binding=json.loads(row['binding'])\n"
+    "        context={'ordinal':binding.get('plan_ordinal'),'batch_id':binding.get('plan_batch_id'),\n"
+    "                 'retention_store_key':binding.get('retention_store_key')}\n"
+    "        digest(context['retention_store_key'])\n"
+    "        ordinal=context['ordinal']\n"
+    "        if (type(ordinal) is not int or not row['wait_start_ordinal']<=ordinal<=row['wait_last_ordinal']\n"
+    "                or context['batch_id']!=row['plan_batch_id']\n"
+    "                or row['binding']!=source_binding_v2(row['kind'],doc,support,parts,context)):\n"
+    "            raise Unavailable('bounded_final_binding')\n"
+    "        expected=doc['dependency_roots']\n"
+    '    else:\n'
+    "        if row['plan_phase'] not in ('waiting','closed') or row['binding']!=original_binding or proof!=first['proof'].encode('ascii'):\n"
+    "            raise Unavailable('bounded_waiting_binding')\n"
+    "        if row['job_id'] is not None:raise Unavailable('bounded_waiter_admitted')\n"
+    '        expected=_original_dependencies(target)\n'
+    "    _check_dependencies(db,row['seq'],expected,budget)\n"
+    '    return target,doc,support,parts\n'
+    '\n'
+    'def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,expected=None):\n'
+    '    # Publication already holds the validated canonical certificate. Compare\n'
+    '    # those exact bytes in this fresh snapshot rather than project them again.\n'
+    '    # No result/row survives the callback; other readers keep the full read.\n'
+    '    if expected is not None:\n'
+    '        if (type(expected) is not tuple or len(expected)!=2\n'
+    '                or any(type(raw) is not bytes for raw in expected)\n'
+    '                or not 2<=sum(map(len,expected))<=PROOF_BYTES):\n'
+    "            raise _certificate_capacity('expected_certificate', len(expected[0]) if type(expected) is tuple and len(expected)==2 and type(expected[0]) is bytes else None, len(expected[1]) if type(expected) is tuple and len(expected)==2 and type(expected[1]) is bytes else None)\n"
+    "    field,value=('candidate_key',key) if key is not None else ('target_key',target_key)\n"
+    "    sizes=db.execute(f'SELECT length(binding),length(proof),length(target_body) FROM {TABLE} WHERE {field}=?',(value,)).fetchone()\n"
+    '    if sizes is None:return None\n'
+    '    if (any(type(n) is not int for n in sizes) or not 1<=sizes[0]<=BINDING_BYTES\n'
+    "            or not 2<=sizes[1]+sizes[2]<=PROOF_BYTES):raise _certificate_capacity('stored_certificate', sizes[1], sizes[2], sizes[0])\n"
+    '    if expected is None:\n'
+    '        if budget is not None:budget.projection(sum(sizes)+1024)\n'
+    "        row=dict(db.execute(f'SELECT {COLUMNS},proof,'+','.join(V2_COLUMNS)+f' FROM {TABLE} WHERE {field}=?',(value,)).fetchone())\n"
+    '    else:\n'
+    '        proof,target=expected\n'
+    '        if (sizes[1],sizes[2])!=(len(proof),len(target)):return None\n'
+    '        if budget is not None:budget.projection(sizes[0]+1024+32)\n'
+    "        names=','.join(name for name in V2_COLUMNS if name!='target_body')\n"
+    "        found=db.execute(f'''SELECT {COLUMNS},{names},proof=? AS proof_same,\n"
+    '            target_body=? AS target_same FROM {TABLE} WHERE {field}=?\n'
+    "            AND typeof(proof)='blob' AND typeof(target_body)='blob' ''',\n"
+    '            (proof,target,value)).fetchone()\n'
+    "        if found is None or found['proof_same']!=1 or found['target_same']!=1:return None\n"
+    "        row=dict(found);del row['proof_same'];del row['target_same']\n"
+    '        row.update(proof=proof,target_body=target)\n'
+    "    validated=validate_v2_row(db,row,row['proof'],budget)\n"
+    '    return (row,validated) if with_validation else row\n'
+)
+_SOURCE70_UNCHANGED_HELPER_PINS = {'native_owned_core_seams': '3608374af430d7e7396ecf32d726f02a96356a35bed89c85ea15f35c6609bdfc', 'native_owned_cells': '416718496c6ba1f3c8eaeb701a694c7882654bbd890c8af54c58ed60d7dbb6f3', 'native_owned_seam_cells': 'f0c5addf9932027d5fb76bdeadf1d03d50b5efd75785ee946e27ebad649b6489'}
+
+
+def _source70_target_reader_oracle():
+    from pathlib import Path
+    from audio_backend import native_owned_cells, native_owned_seam_cells
+    assert hashlib.sha256(_SOURCE70_TARGET_READER_ORACLE.encode()).hexdigest() == _SOURCE70_TARGET_READER_SHA256
+    for module in (core, native_owned_cells, native_owned_seam_cells):
+        assert hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest() == _SOURCE70_UNCHANGED_HELPER_PINS[module.__name__.rsplit('.',1)[1]]
+    # Retain only imported primitives and immutable module data. Every local
+    # automatic helper reachable by the old reader is defined by frozen text.
+    namespace = {name:value for name,value in vars(automatic).items()
+        if getattr(value,'__module__',None) != automatic.__name__}
+    exec(compile(_SOURCE70_TARGET_READER_ORACLE,'<pinned-source70-target-reader>','exec'),namespace)
+    assert '_resolve_target_body' not in namespace and '_bound_target_reference' not in namespace
+    assert namespace['validate_v2_row'].__globals__ is namespace
+    assert namespace['_read_v2'].__globals__ is namespace
+    return namespace

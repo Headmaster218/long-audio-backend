@@ -27,6 +27,8 @@ MAX_PROOFS, SESSION_PROOFS = 16 * 1024**2, 4 * 1024**2
 BINDING_BYTES, ACCOUNTING_BYTES = 4096, 16384
 MAX_CHARGE = ACCOUNTING_BYTES + PROOF_BYTES + BINDING_BYTES
 CORE_INTENTS = BATCH_CELLS + 1
+BOUND_TARGET_REFERENCE_SCHEMA = 'bounded-target-proof-reference-v1'
+BOUND_TARGET_REFERENCE_BYTES = 512
 ACTIVE = ('queued', 'published', 'accepted')
 POLICY = sha({'schema':'automatic-recording-overlap-v1', 'coverage':'ordinary-and-core-seam',
     'selection':'existing-native-positive-overlap', 'execution':'one-attempt-no-unknown-replay',
@@ -534,6 +536,42 @@ def _certificate_notice(error):
     return dict(value)
 
 
+def _bound_target_reference(proof,target):
+    """Encode same-proof bindings after caller validation; not an authority check."""
+    from .native_owned_cells import digest
+    if type(proof) is not bytes or not 1<=len(proof)<=PROOF_BYTES:
+        raise Unavailable('bounded_target_reference_shape')
+    digest(target['key'])
+    return canonical({'schema':BOUND_TARGET_REFERENCE_SCHEMA,
+        'target_key':target['key'],
+        'target_sha256':hashlib.sha256(canonical(target)).hexdigest(),
+        'proof_sha256':hashlib.sha256(proof).hexdigest()},BOUND_TARGET_REFERENCE_BYTES)
+
+
+def _resolve_target_body(raw,proof,phase):
+    """Resolve only a canonical full target or this same proof's strict reference."""
+    from .native_owned_core_seams import TARGET_SCHEMA,BOUNDED_SCHEMA
+    from .native_owned_cells import digest
+    value=json.loads(raw)
+    if type(value) is dict and value.get('schema')==TARGET_SCHEMA:
+        return value,None
+    if type(value) is not dict or value.get('schema')!=BOUND_TARGET_REFERENCE_SCHEMA:
+        raise Unavailable('bounded_target_reference_policy')
+    if set(value)!={'schema','target_key','target_sha256','proof_sha256'}:
+        raise Unavailable('bounded_target_reference_shape')
+    for name in ('target_key','target_sha256','proof_sha256'):digest(value[name])
+    if len(raw)>BOUND_TARGET_REFERENCE_BYTES or canonical(value,BOUND_TARGET_REFERENCE_BYTES)!=raw:
+        raise Unavailable('bounded_target_reference_shape')
+    validated=validate_document(proof)
+    doc,_,_=validated
+    if doc.get('schema')!=BOUNDED_SCHEMA or phase not in ('bound','closed'):
+        raise Unavailable('bounded_target_reference_phase')
+    target=doc['target']
+    if _bound_target_reference(proof,target)!=raw:
+        raise Unavailable('bounded_target_reference_binding')
+    return target,validated
+
+
 def validate_v2_row(db,row,proof,budget=None):
     """Strict version dispatch. Legacy candidate hashing is never relaxed."""
     from .native_owned_core_seams import validate_target,slot,BOUNDED_SCHEMA
@@ -546,8 +584,10 @@ def validate_v2_row(db,row,proof,budget=None):
     raw=row['target_body']
     if type(raw) is not bytes or type(proof) is not bytes or not 2<=len(raw)+len(proof)<=PROOF_BYTES:
         raise _certificate_capacity('row_certificate', len(proof) if type(proof) is bytes else None, len(raw) if type(raw) is bytes else None)
-    target=json.loads(raw); identity,originals=validate_target(target)
-    if canonical(target)!=raw or target['key']!=row['target_key'] or identity['scope']['session_id']!=row['sid']:
+    target,validated=_resolve_target_body(raw,proof,row['plan_phase'])
+    identity,originals=validate_target(target)
+    if ((validated is None and canonical(target)!=raw) or target['key']!=row['target_key']
+            or identity['scope']['session_id']!=row['sid']):
         raise Unavailable('bounded_target_binding')
     first=target['origins'][0]; original_binding=first['binding'].encode('ascii')
     first_commits=first['commits']; first_slots=[slot(c) for c in first_commits]
@@ -579,7 +619,7 @@ def validate_v2_row(db,row,proof,budget=None):
             or row['charge_bytes']!=ACCOUNTING_BYTES+len(raw)+len(proof)+len(row['binding'])
             or row['proof_sha256']!=hashlib.sha256(proof).hexdigest()):
         raise Unavailable('bounded_original_owner_binding')
-    doc,support,parts=validate_document(proof)
+    doc,support,parts=validated if validated is not None else validate_document(proof)
     if row['cell_id']!=sha({'policy':doc['policy'],'support':support.to_dict()}):
         raise Unavailable('bounded_cell_binding')
     if doc.get('schema')==BOUNDED_SCHEMA:
@@ -603,15 +643,31 @@ def validate_v2_row(db,row,proof,budget=None):
     return target,doc,support,parts
 
 
-def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,expected=None):
-    # Publication already holds the validated canonical certificate. Compare
-    # those exact bytes in this fresh snapshot rather than project them again.
-    # No result/row survives the callback; other readers keep the full read.
+def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,expected=None,
+             reference_aware=False):
+    # Each fresh callback accepts only an exact canonical wire for this same
+    # proof. A valid lossless representation switch between callbacks is legal;
+    # no previous wire choice or authority result is cached.
+    reference=None
+    if type(reference_aware) is not bool or reference_aware and expected is None:
+        raise Unavailable('bounded_target_reference_shape')
     if expected is not None:
-        if (type(expected) is not tuple or len(expected)!=2
-                or any(type(raw) is not bytes for raw in expected)
-                or not 2<=sum(map(len,expected))<=PROOF_BYTES):
-            raise _certificate_capacity('expected_certificate', len(expected[0]) if type(expected) is tuple and len(expected)==2 and type(expected[0]) is bytes else None, len(expected[1]) if type(expected) is tuple and len(expected)==2 and type(expected[1]) is bytes else None)
+        if not reference_aware:
+            # Preserve the historical direct-call contract and pre-SQL guard.
+            if (type(expected) is not tuple or len(expected)!=2
+                    or any(type(raw) is not bytes for raw in expected)
+                    or not 2<=sum(map(len,expected))<=PROOF_BYTES):
+                raise _certificate_capacity('expected_certificate', len(expected[0]) if type(expected) is tuple and len(expected)==2 and type(expected[0]) is bytes else None, len(expected[1]) if type(expected) is tuple and len(expected)==2 and type(expected[1]) is bytes else None)
+        else:
+            if (type(expected) is not tuple or len(expected)!=2
+                    or any(type(raw) is not bytes or not 1<=len(raw)<=PROOF_BYTES for raw in expected)):
+                raise _certificate_capacity('expected_certificate', len(expected[0]) if type(expected) is tuple and len(expected)==2 and type(expected[0]) is bytes else None, len(expected[1]) if type(expected) is tuple and len(expected)==2 and type(expected[1]) is bytes else None)
+            from .native_owned_core_seams import BOUNDED_SCHEMA
+            proof,target=expected
+            doc,_,_=validate_document(proof)
+            if doc.get('schema')!=BOUNDED_SCHEMA or canonical(doc['target'])!=target:
+                raise Unavailable('bounded_target_reference_binding')
+            reference=_bound_target_reference(proof,doc['target'])
     field,value=('candidate_key',key) if key is not None else ('target_key',target_key)
     sizes=db.execute(f'SELECT length(binding),length(proof),length(target_body) FROM {TABLE} WHERE {field}=?',(value,)).fetchone()
     if sizes is None:return None
@@ -622,15 +678,40 @@ def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,exp
         row=dict(db.execute(f'SELECT {COLUMNS},proof,'+','.join(V2_COLUMNS)+f' FROM {TABLE} WHERE {field}=?',(value,)).fetchone())
     else:
         proof,target=expected
-        if (sizes[1],sizes[2])!=(len(proof),len(target)):return None
-        if budget is not None:budget.projection(sizes[0]+1024+32)
-        names=','.join(name for name in V2_COLUMNS if name!='target_body')
-        found=db.execute(f'''SELECT {COLUMNS},{names},proof=? AS proof_same,
-            target_body=? AS target_same FROM {TABLE} WHERE {field}=?
-            AND typeof(proof)='blob' AND typeof(target_body)='blob' ''',
-            (proof,target,value)).fetchone()
-        if found is None or found['proof_same']!=1 or found['target_same']!=1:return None
-        row=dict(found);del row['proof_same'];del row['target_same']
+        if not reference_aware:
+            if (sizes[1],sizes[2])!=(len(proof),len(target)):return None
+            if budget is not None:budget.projection(sizes[0]+1024+32)
+            names=','.join(name for name in V2_COLUMNS if name!='target_body')
+            found=db.execute(f'''SELECT {COLUMNS},{names},proof=? AS proof_same,
+                target_body=? AS target_same FROM {TABLE} WHERE {field}=?
+                AND typeof(proof)='blob' AND typeof(target_body)='blob' ''',
+                (proof,target,value)).fetchone()
+            if found is None or found['proof_same']!=1 or found['target_same']!=1:return None
+            row=dict(found);del row['proof_same'];del row['target_same']
+        else:
+            if sizes[1]!=len(proof):return None
+            options=[wire if len(wire)==sizes[2] and 2<=len(proof)+len(wire)<=PROOF_BYTES
+                     else None for wire in (target,reference)]
+            if all(wire is None for wire in options):return None
+            # Input bytes are bounded separately from actual projected results.
+            # Even an unusual equal-length dual option never expands this cap.
+            wire_bytes=sum(len(wire) for wire in options if wire is not None)
+            if len(proof)+wire_bytes>PROOF_BYTES:
+                raise _certificate_capacity('expected_certificate',len(proof),wire_bytes)
+            if budget is not None:budget.projection(sizes[0]+1024+32)
+            names=','.join(name for name in V2_COLUMNS if name!='target_body')
+            found=db.execute(f'''SELECT {COLUMNS},{names},proof=? AS proof_same,
+                target_body=? AS target_same,target_body=? AS reference_same
+                FROM {TABLE} WHERE {field}=?
+                AND typeof(proof)='blob' AND typeof(target_body)='blob' ''',
+                (proof,*options,value)).fetchone()
+            if found is None or found['proof_same']!=1:return None
+            matches=[wire for name,wire in zip(('target_same','reference_same'),options)
+                     if wire is not None and found[name]==1]
+            if len(matches)!=1:return None
+            target=matches[0]
+            row=dict(found)
+            for name in ('proof_same','target_same','reference_same'):del row[name]
         row.update(proof=proof,target_body=target)
     validated=validate_v2_row(db,row,row['proof'],budget)
     return (row,validated) if with_validation else row
@@ -694,7 +775,7 @@ def qualify_bounded_document(db,doc,budget,store_key,*,record=None,automatic_key
     if automatic_key is not None:
         if record is not None:raise Unavailable('bounded_authority_record_scope')
         raw=canonical(doc)
-        row=_read_v2(db,key=automatic_key,budget=budget,expected=(raw,canonical(doc['target'])))
+        row=_read_v2(db,key=automatic_key,budget=budget,expected=(raw,canonical(doc['target'])),reference_aware=True)
         if (row is None or row['state'] not in ACTIVE or row['plan_phase']!='bound'
                 or row['proof_sha256']!=hashlib.sha256(raw).hexdigest()):return False
     else:
@@ -745,16 +826,19 @@ def _bind_target(db,row,proposal,context,actual_snapshot,budget,now,*,support_lo
     doc=json.loads(cell.proof);support,parts=cell.support,cell.parts
     if doc['geometry']!=proposal['support']:raise Unavailable('bounded_frozen_support_changed')
     binding=source_binding_v2(row['kind'],doc,support,parts,context)
-    if len(cell.proof)+len(row['target_body'])>PROOF_BYTES:raise _certificate_capacity('bound_certificate', len(cell.proof) if type(cell.proof) is bytes else None, len(row['target_body']) if type(row['target_body']) is bytes else None)
-    new_charge=ACCOUNTING_BYTES+len(binding)+len(cell.proof)+len(row['target_body'])
-    if new_charge>MAX_CHARGE:raise _certificate_capacity('bound_charge', len(cell.proof) if type(cell.proof) is bytes else None, len(row['target_body']) if type(row['target_body']) is bytes else None, len(binding) if type(binding) is bytes else None)
-    delta_proofs=len(cell.proof)-len(row['proof']); delta_charge=new_charge-row['charge_bytes']
+    target_body=_bound_target_reference(cell.proof,target)
+    if len(cell.proof)+len(target_body)>PROOF_BYTES:raise _certificate_capacity('bound_certificate', len(cell.proof) if type(cell.proof) is bytes else None, len(target_body))
+    new_charge=ACCOUNTING_BYTES+len(binding)+len(cell.proof)+len(target_body)
+    if new_charge>MAX_CHARGE:raise _certificate_capacity('bound_charge', len(cell.proof) if type(cell.proof) is bytes else None, len(target_body), len(binding) if type(binding) is bytes else None)
+    delta_proofs=len(cell.proof)+len(target_body)-len(row['proof'])-len(row['target_body'])
+    delta_charge=new_charge-row['charge_bytes']
     capacity(db,row['sid'],rows=0,pending=0,proofs=max(0,delta_proofs),charge=max(0,delta_charge))
     _charge(db,row['sid'],(0,delta_charge,0,delta_proofs))
     changed=db.execute(f'''UPDATE {TABLE} SET binding=?,proof=?,proof_sha256=?,cell_id=?,charge_bytes=?,
-        plan_phase='bound',plan_revision=plan_revision+1,reason='awaiting_publication',updated=?
+        target_body=?,planning_bytes=?,plan_phase='bound',plan_revision=plan_revision+1,reason='awaiting_publication',updated=?
         WHERE seq=? AND plan_phase='waiting' AND state='queued' AND job_id IS NULL AND plan_revision=?''',
-        (binding,cell.proof,hashlib.sha256(cell.proof).hexdigest(),cell.cell_id,new_charge,now,row['seq'],row['plan_revision'])).rowcount
+        (binding,cell.proof,hashlib.sha256(cell.proof).hexdigest(),cell.cell_id,new_charge,target_body,
+         len(target_body),now,row['seq'],row['plan_revision'])).rowcount
     if changed!=1:raise Unavailable('bounded_bind_compare_and_swap')
     _write_dependencies(db,row['seq'],doc['dependency_roots'])
     return cell.cell_id

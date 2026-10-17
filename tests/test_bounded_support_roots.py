@@ -1121,7 +1121,8 @@ def test_bounded_configured_timeout_rolls_back_primary_and_waiter(bounded_app_fa
             ordinal = db.execute('SELECT native_core_ordinal FROM recording_batches WHERE session_id=?', (h.sid,)).fetchone()[0]
             compacts = db.execute('SELECT COUNT(*) FROM native_core_commits WHERE sid=?', (h.sid,)).fetchone()[0]
         observed = []
-        def expired_bind(db, row, proposal, context, snapshot, budget, now):
+        def expired_bind(db, row, proposal, context, snapshot, budget, now, *, support_local=False):
+            assert support_local is True
             assert budget.seconds == .75 and budget.primary_sql and db.in_transaction
             observed.append(budget)
             # Deterministically expire the same cumulative clock inside the

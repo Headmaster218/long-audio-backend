@@ -1,3 +1,37 @@
+# dev40：同 proof 的绑定目标引用
+
+版本：0.2.0rc3.dev40。继续实验性、默认关闭，仅在显式配置的新会话和隔离数据目录使用。启用与外部模型/运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。这是绑定行的表示变化；目标选择、inventory-v3 支持范围、store 身份和等待 horizon 不变。
+
+## 精确表示与读取
+
+首次 waiting→bound 提交写入规范的 bounded-target-proof-reference-v1，只有 schema、target_key、target_sha256、proof_sha256 四个字段，引用本身最多 512 字节。target 摘要对应同一完整 proof 内 target 的规范字节，proof 摘要对应该 proof 的精确字节。完整 proof 仍自包含，保留所有 origins、提交、词汇清单和来源，不增加表或跨回调缓存。等待行保留完整 origins；closed-waiting 与 closed-bound 必须由已验证 proof schema 区分，不能仅凭 closed phase 解引用。
+
+新 reader 继续接受既有完整 bound target，不自动重写历史行。每个新快照可接受完整 target 或严格引用这两种同 proof 的无损规范表示，并验证当前行的实际 planning/charge 字节。允许的写入转换在已有记账调用点原子更新 global/session usage；不新增每次读取的全局汇总检查。并不承诺跨回调 target_body 字节不变。未知/非规范/被篡改引用、不同 proof 或 target 摘要、含糊匹配及陈旧额度拒绝。已经支持 inventory-v3 的旧发布 reader 仍拒绝新 target 引用，不能据此创建/发布候选；不声称整个旧二进制全局只读。
+
+读取保留一次长度预检和一次精确比较投影。仅为长度及各自组合上限都合格的候选绑定比较输入，其他候选绑定 NULL；必须恰有一个规范 wire 匹配，且 proof 精确相等。每次比较绑定的 proof 与所有非 NULL target 候选字节之和仍不得超过 65,536，含糊同长度且超限时直接拒绝，不顺序重读或回退。实际返回 wire 用于累计 SQL 投影及行额度；首次绑定的正、零、负净额度变化仍与 CAS、依赖和回滚原子提交。
+
+原完整 proof 与 proof+实际存储 target 的独立 65,536 字节限制、清单大小/数量、最多四根/20 秒、SQL/VM/PCM/来源/取消限制均不提高。所有原始及最终依赖根仍受保护，包括零选中 PCM 的原始根。发布前、owner 提交前、提交后的三个 authority 边界都重新读取并验证，不缓存先前快照。引用不能消除完整 proof、等待别名合并、其他 certificate guards 或完整规划的容量拒绝，也不改变普通 origin-first 的较短 horizon。
+
+## 固定模型无关测量及配置范围
+
+累计固定源依赖复核通过 94 个不同用例：31 个新引用用例；4 个显式配置为 1.0 秒的既有 C/边界复核；2 个默认预算/真实主事务回滚检查；57 个受影响回归。原 fixture owner 错误及默认 deadline 失败均保留。不是一次默认配置整套 PASS，也没有重新运行全部历史用例。
+
+默认 native_owned_bounded_core_support_seconds 仍为 0.75，可配置范围仍为 0.5–1.0。一次 C 第四主提交的 finalization 达到默认 0.73 秒子阶段 deadline，实际累计 0.735475 秒并回滚；没有把它改记为通过，也未隔离证明某个新增热点。四个 correctness fixture 仅在支持的 1.0 秒配置下完成，三个 mutation 边界拒绝仍有完整原子性/任务/租约检查。默认 0.75 的数值边界及真实 SQLite progress interruption 回滚另行通过；57 个受影响回归的实际 app 记录仍用 0.75。owner 发布保持原 2.0 秒预算，与主提交设置分开。
+
+C 的 proof 30,705 字节、引用 291、组合 30,996，inventory 5,134。真实 owner fixture 在三个新鲜性边界依次使用引用→完整→引用，完整 target 14,143；实际六个非 NULL 比较参数累计 106,840 字节，分布于三次新读取，每次仍守单次上限。该次 authority 投影 72,702 字节、总投影 103,407，owner 发布 0.997945 秒且确认 durable；原 PCM、目标、文本、结果、转写和禁用模型重启检查保留。这些是 fake native/stub MOSS 的模型无关证据。
+
+另一个固定四相邻提交/四独立上传/单个完整 opaque 父行/三个 origins 的合成案例，严格选择和完整 proof 验证通过后测得 proof 39,449、完整 target 26,894，组合 66,343，超过原 65,536 上限 807 字节。原 ordinary-first 增量注册的首 owner 保持 anchor1；seam alias 到达后 horizon 从4缩至3，ordinal4仍以 unresolved_commit_horizon 终止。不能重排或恢复该行。单独获准的新 seam-first ledger 用 anchor2/horizon4，目标 key、几何和 origin 集相同，但 candidate、kind/slots、target/proof hashes 改变；它自己的 proof+引用为 39,740，实际 charge 58,459，旧完整存储拒绝而新引用绑定通过。这个 lifecycle 是独立合成顺序，未证明 producer 会自然发现该历史，也不证明原真实失败已恢复。
+
+## 实际失败与保留限制
+
+[dev39 固定 63 秒失败报告](reports/DEV39_FIXED63_FAILURE_DIAGNOSIS.md)及原 dev37/dev38 报告按原字节保留。dev39 已有主文本、可读 v3 proof、部分父行精确分割和重启检查，但没有正长度第三根/跨上传见证，原结果仍为失败。历史 bounded_certificate_capacity 的具体 guard/大小未知；后续源代码诊断只为未来拒绝记录固定 guard/check 与已知字节操作数，不能倒推旧操作。本版没有新的实际模型执行或识别质量结论。
+
+原 baseline 复现的 150000 VM-step seam 预算失败继续未解决。保守全 store v2 GC fence、缺失主词汇闭包 unresolved_lexical_gap、bounded v2 持久身份 annotation/linking 拒绝及任务局部标签限制不变。本地模型/profile pins 只建立可重复性，上游转换/量化来源仍未独立验证。离线128文件 source/wheel/install 一致不构成真实 native/model 资格；wheel 仍需外部运行时、manifest 和模型，不是自包含部署包。
+
+---
+
+以下保留 dev39 及更早版本当时的格式、测量和资格记录；其中“本版”等措辞仅指对应历史版本。
+
 # dev39：版本化的支持区间 authority
 
 版本：0.2.0rc3.dev39。继续实验性、默认关闭，只用于显式启用的新会话和隔离数据目录。设置及外部模型/运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。这次是显式版本化的 authority 范围变化，不只是压缩；原有重叠目标、PCM 映射、native 根和选择器算法不变。

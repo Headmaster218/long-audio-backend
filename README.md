@@ -2,6 +2,12 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev40：绑定目标的同 proof 引用
+
+默认关闭的实验路径在首次绑定时，把重复保存的完整 target 改为严格的 bounded-target-proof-reference-v1：只引用同一完整 proof 内的原 target，并绑定 target key、规范 target 摘要与精确 proof 摘要。等待 origins 保持完整；已有完整 bound 行不自动转换。每次新鲜性检查独立验证当前实际存储表示和额度，旧格式继续读取，旧 reader 拒绝新引用；原 64 KiB、SQL、根、PCM、取消和回滚限制不变。
+
+94 个不同模型无关用例通过：31 个新用例、4 个显式 1.0 秒配置的真实 owner fixture 复核、2 个默认预算检查及 57 个受影响回归。默认 0.75 秒的 C finalization 曾达到原 deadline，失败保留，默认未改变；owner 发布预算仍为 2.0 秒。另一个固定 seam-first 合成 ledger 的完整 proof+target 为 66,343 字节，proof+引用为 39,740 字节；它改变了新 ledger 的首 owner 顺序，未证明生产发现可达性或历史失败恢复。普通 origin-first 顺序仍受原 horizon 限制。此前 dev39 真实试验未获得正长度第三根/跨上传见证，本版没有新的真实推理或完整实际路径资格。详见[格式、实测与限制](docs/COMPACT_BOUNDED_INVENTORY.md)及[dev39 原失败报告](docs/reports/DEV39_FIXED63_FAILURE_DIAGNOSIS.md)。
+
 ## 0.2.0rc3.dev39：显式的支持区间 authority 范围
 
 默认关闭的实验路径新增 inventory-v3 / selected-support-whole-parent-v1。完整计划仍使用原选择器；只在保留所选支持相交的完整父行及全部有效词汇来源后，重放选择得到完全相同几何时才采用局部 authority。支持外新增上下文不再撤销这种新 proof；相交行、保留的整行或词汇来源变化，以及任何原始/最终 native 根撤销仍拒绝。历史 v1/v2 proof 保留原广范围检查，新旧语义由保存的版本严格区分。
