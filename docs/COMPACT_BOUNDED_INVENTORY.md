@@ -1,3 +1,33 @@
+# dev41：按固定 owner anchor 的原始根前缀计算等待上界
+
+版本：0.2.0rc3.dev41。继续实验性、默认关闭，仅用于显式启用的新会话和隔离数据目录；启用及外部运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。本次只有等待上界的计数修正，不改变支持选择、proof/target/inventory wire、store 身份或模型。
+
+## 有界计数与历史行
+
+严格 validate_target 已返回唯一、按时间排列且帧连续的原始根链。在该链中定位首 origin 的最终 commit（固定 owner anchor），只计算截至该 anchor 的不同根前缀 p。新候选上界为 start + min(3, 4 - p)。后来加入的 successor alias 不再从固定 start 重复扣除；更早的必需根仍消耗前缀额度。已有行始终使用 min(stored_last, new_upper)，原墙钟 deadline、首 owner/候选身份和顺序不变。首次普通/seam 注册、迟到较早 alias、已有更紧 expiry 及 closed 行均有直接测试；既有窄 horizon 不延长，已关闭行不重开。
+
+原始加最终根的不同并集仍最多四根，真实第五根和帧 gap/错误根顺序继续由生产验证器拒绝。原有 owner-anchor ordinal 查询及所有 SQL/投影保持原字节，不新增非 anchor 连续 ordinal 规则；其既有 gap 语义不变。取消、删除、当前 compact/batch/scope/store、来源/摘要、原始零 PCM 根、20 秒及全部字节/数量/VM 上限仍独立检查。较老 reader 会以 bounded_wait_metadata 拒绝新规则下合法的 forward-alias 等待元数据；不声称可降级处理或整个旧二进制全局只读。新 reader 继续接受原较短 horizon 和已绑定 proof，不改写历史证据。
+
+## 固定正常生产路径的模型无关结果
+
+当前源 19 个专项和 29 个直接受影响复核共 48 个不同用例通过，未重跑全套。先前固定 fixture 的操作顺序浮点断言失败保留；修正只匹配原生 analyzer 的 origin + local-frame-difference 运算顺序，没有改变传入时间或生产舍入。之后原生产代码的真实失败也保留：owner 3 的 ordinary3、seam2/3 先给出 horizon [3,5]，ordinal 4 的自然 seam3/4 把它错误缩为 [3,4]，ordinal 5 以 unresolved_commit_horizon 关闭。当时等待组合 37,840 字节，没有容量拒绝。
+
+修正后复用同一预声明几何、普通 origin 在 seam 之前的正常 Capture.bounded_prepare → planning → enqueue_bounded 路径，不重排或手工注册合并目标。ordinal 4 的真实 alias 仍被发现，horizon 保持 [3,5]，ordinal 5 绑定。原支持优先和完整 atom 固定点选择器保持原样；已选支持为 [310400,505600) 帧，四根 2–5 的 PCM 贡献依次为 0、25,600、168,000、1,600 帧。两次上传贡献分别为 193,600 和 1,600 帧；零贡献 root 2 仍为受保护依赖。真实 owner PCM、三个新鲜准入边界、结果提交、whole-parent 与 lexical-estimated-v1 两种转写视图均通过。
+
+该 proof 为 49,183 字节，完整 target 为 32,447，旧完整组合为 81,630，超过原 65,536 上限；初次绑定的 291 字节严格同 proof 引用使实际组合为 49,474，行 charge 为 68,287。完整 proof 独立验证且容纳；所有上限不提高。另一个既有固定 ordinary-first 合成 ledger 在新规则下也可绑定，旧的保存紧 horizon 控制仍拒绝；dev40 的原顺序失败证据保留为历史结果。
+
+这些结果使用预声明的合成 native 查询、合法词汇父行/单元和 fake MOSS 驱动，不能证明实际识别库存会选出相同支持。正常生产 fixture 的累计 bounded-primary 预算显式为支持的 1.0 秒；规划阶段仍为 0.4 秒 / 120000 steps / 128 KiB，finalization 为 0.98 秒、notice 为 1.0 秒；产品默认仍为 0.75 秒，dev40 的默认 deadline 失败及非默认正确性资格保持分开，owner 发布预算仍为 2.0 秒。没有新的真实模型运行、质量或历史实际失败恢复资格。
+
+## 保留的限制
+
+dev40 的 94 个用例和更早累计证据是各自已审阅版本的历史资格，不合并成当前最终 hash 的全套通过。baseline 已复现的 150000 VM-step seam 预算失败仍未解决。所有 dev37/dev38/dev39 固定实际失败报告保持原字节；语音加数字零输入不等于真实跨文件对话准确性。保守全 store v2 GC fence、长期孤儿回收限制、bounded v2 持久身份/说话人链接 abstention 均保持。完整计划、等待别名、完整 proof 及其他 certificate guards 仍可能拒绝。
+
+离线 128 文件 source/wheel/install 一致只验证包字节；wheel 不是自包含 native/model 运行包。本地模型/profile 固定只能建立重复性，上游转换/量化来源仍未独立验证。任何后续实际试验都需要单独固定配置、部署和运行资格。
+
+---
+
+以下 dev40 及更早章节保留当时的格式、测量和资格；其中“本版”“普通顺序仍受限”等指该历史版本。
+
 # dev40：同 proof 的绑定目标引用
 
 版本：0.2.0rc3.dev40。继续实验性、默认关闭，仅在显式配置的新会话和隔离数据目录使用。启用与外部模型/运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。这是绑定行的表示变化；目标选择、inventory-v3 支持范围、store 身份和等待 horizon 不变。

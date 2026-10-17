@@ -572,6 +572,20 @@ def _resolve_target_body(raw,proof,phase):
     return target,validated
 
 
+def _wait_horizon(start,target,roots):
+    """Count authenticated original roots only through the fixed owner anchor.
+
+    Later aliases may name a successor already inside the original horizon.
+    The full distinct-root union is still checked independently at binding.
+    This prefix bound does not assert consecutive stored commit ordinals.
+    """
+    from .native_owned_core_seams import slot
+    anchor=slot(target['origins'][0]['commits'][-1])
+    keys=[slot(commit) for commit in roots]
+    if anchor not in keys:raise Unavailable('bounded_wait_metadata')
+    return start+min(3,4-(keys.index(anchor)+1))
+
+
 def validate_v2_row(db,row,proof,budget=None):
     """Strict version dispatch. Legacy candidate hashing is never relaxed."""
     from .native_owned_core_seams import validate_target,slot,BOUNDED_SCHEMA
@@ -594,7 +608,7 @@ def validate_v2_row(db,row,proof,budget=None):
     digest(row['target_key']);digest(row['plan_scope_key']);text(row['plan_batch_id'])
     start,last,revision=(row[name] for name in ('wait_start_ordinal','wait_last_ordinal','plan_revision'))
     if (any(type(n) is not int or not 0<=n<(1<<63)-1 for n in (start,last,revision)) or start<1
-            or not start<=last<=start+min(3,4-len(originals))
+            or not start<=last<=_wait_horizon(start,target,originals)
             or row['plan_scope_key']!=sha(first_commits[0]['scope'])
             or row['kind']!=json.loads(original_binding)['kind']
             or any(type(row[name]) not in (int,float) or not math.isfinite(row[name])
@@ -728,7 +742,7 @@ def _register_target(db,proposal,context,scope,now,budget):
         raw=canonical(saved)
         if len(raw)+len(existing['proof'])>PROOF_BYTES:raise _certificate_capacity('alias_certificate', len(existing['proof']) if type(existing['proof']) is bytes else None, len(raw))
         _,roots=validate_target(saved)
-        last=min(existing['wait_last_ordinal'],existing['wait_start_ordinal']+min(3,4-len(roots)))
+        last=min(existing['wait_last_ordinal'],_wait_horizon(existing['wait_start_ordinal'],saved,roots))
         delta=len(raw)-len(existing['target_body'])
         if delta:
             capacity(db,existing['sid'],rows=0,pending=0,proofs=delta,charge=delta)
@@ -743,7 +757,7 @@ def _register_target(db,proposal,context,scope,now,budget):
     charge=ACCOUNTING_BYTES+len(raw)+len(proof)+len(binding)
     if charge>MAX_CHARGE:raise _certificate_capacity('new_charge', len(proof) if type(proof) is bytes else None, len(raw), len(binding) if type(binding) is bytes else None)
     capacity(db,proposal['sid'],rows=1,pending=1,proofs=len(raw)+len(proof),charge=charge)
-    ordinal=context['ordinal']; last=ordinal+min(3,4-len(roots))
+    ordinal=context['ordinal']; last=_wait_horizon(ordinal,target,roots)
     cur=db.execute(f'''INSERT INTO {TABLE}(candidate_key,sid,kind,binding,proof,proof_sha256,cell_id,
         slot1,slot2,cid1,cid2,state,reason,created,updated,charge_bytes,target_key,plan_phase,target_body,
         wait_deadline,wait_start_ordinal,wait_last_ordinal,plan_batch_id,plan_scope_key,plan_revision,planning_bytes)

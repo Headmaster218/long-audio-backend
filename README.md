@@ -2,6 +2,12 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev41：等待根前缀计数修正
+
+默认关闭的实验路径修正了后来 seam 别名把已经过的 successor 再扣一次的问题：只计算已验证原始根链中、固定首 owner anchor 及其之前的不同根；别名更新仍取已有到期值与新上界的较小值。四根并集、原始墙钟到期、选择器、SQL、proof/source/PCM 和三次 authority 检查均不变；既有较短或已关闭行不会延长或重开。
+
+48 个不同当前源模型无关用例通过（19 个专项及 29 个直接受影响复核）。固定 ordinary-before-seam 的正常生产 fixture 在 ordinal 5 绑定：四个依赖根中三个分别贡献 25,600、168,000、1,600 帧，覆盖两次上传；零 PCM 的原始根仍受保护。它经过真实 capture/planning/enqueue、准入、结果和两种转写视图，但 native 查询与词汇输入为预声明合成数据，累计 bounded-primary 预算显式为 1.0 秒（规划阶段仍为 0.4 秒 / 120000 steps / 128 KiB，finalization 为 0.98 秒，notice 为 1.0 秒；owner 的 2.0 秒另计）。默认 0.75 秒及其历史 deadline 失败保留；没有新的真实模型或固定实际语料成功资格。完整 proof+target 为 81,630 字节，proof+引用为 49,474 字节。详见[规则、兼容性及限制](docs/COMPACT_BOUNDED_INVENTORY.md)。下列 dev40 及更早段落保留当时证据与限制。
+
 ## 0.2.0rc3.dev40：绑定目标的同 proof 引用
 
 默认关闭的实验路径在首次绑定时，把重复保存的完整 target 改为严格的 bounded-target-proof-reference-v1：只引用同一完整 proof 内的原 target，并绑定 target key、规范 target 摘要与精确 proof 摘要。等待 origins 保持完整；已有完整 bound 行不自动转换。每次新鲜性检查独立验证当前实际存储表示和额度，旧格式继续读取，旧 reader 拒绝新引用；原 64 KiB、SQL、根、PCM、取消和回滚限制不变。

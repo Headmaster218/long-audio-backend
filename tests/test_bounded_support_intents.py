@@ -105,14 +105,15 @@ def _switch_owner_reference_wire(h, key, wire):
 def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
     """Extend the existing real lifespan fixture, changing only fake producers."""
     original_post_init = Settings.__post_init__
-    state = {'windows': {}, 'last_group_end': 31.6, 'support_seconds': None}
+    state = {'windows': {}, 'last_group_end': 31.6, 'support_seconds': None,
+             'natural_producer': False}
 
     def post_init(settings):
         if settings.moss_automatic_enabled:
             settings.native_owned_bounded_core_support_enabled = True
             settings.lexical_evidence_enabled = True
-            settings.window_seconds = 10.5
-            settings.context_seconds = 5.
+            settings.window_seconds = 30. if state['natural_producer'] else 10.5
+            settings.context_seconds = 2. if state['natural_producer'] else 5.
             if state['support_seconds'] is not None:
                 settings.native_owned_bounded_core_support_seconds = state['support_seconds']
         original_post_init(settings)
@@ -121,7 +122,13 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                 capture_lexical=False):
         assert not stop() and not capture_support
         a, b = frame(start), frame(end)
-        assert start == a / RATE and end == b / RATE
+        if state['natural_producer'] and capture_lexical:
+            origin = chunk['timeline_start']; origin_frame = frame(origin)
+            assert start == origin + (a-origin_frame) / RATE
+            assert end == origin + (b-origin_frame) / RATE
+            assert worker.native.process.queries[-1] == [a, b]
+        else:
+            assert start == a / RATE and end == b / RATE
         parts = context_parts(worker.store, chunk, start, end)
         snapshots = None
         if capture_lexical:
@@ -141,6 +148,8 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
             target.setnchannels(1);target.setsampwidth(2);target.setframerate(RATE)
             target.writeframes(data)
         state['windows'][str(wav)] = (a, b)
+        if state['natural_producer'] and capture_lexical:
+            state['lexical_windows'][str(wav)] = deepcopy(snapshots)
         return {'_lexical_sources': snapshots} if snapshots is not None else None
 
     def analyze(analyzer, path, **kwargs):
@@ -151,6 +160,10 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
         definitions = [(18.8, 19.1, ' prefix'), (19.4, 21.7, ' alpha'),
             (22.5, 24.6, ' beta'), (30.2, state['last_group_end'], ' gamma'),
             (40., 40.4, ' suffix')]
+        if state['natural_producer']:
+            # Fixed opaque two-Han parents. Do not split them into characters,
+            # clip them to extraction, or make an early partial P1 observation.
+            definitions = [(19.4, 21.7, '甲乙'), (21.5, 31.6, '丙丁')]
         units = []
         for lo, hi, value in definitions:
             lo, hi = frame(lo), frame(hi)
@@ -165,6 +178,11 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                 'raw_text': ''.join(u['raw_text'] for u in units).strip(),
                 'asr_backend': 'sensevoice', 'timestamp_kind': lexical.PRIMARY_TIMESTAMP,
                 '_units': units})
+        if state['natural_producer']:
+            state['analysis'].append({'window': [a, b],
+                'units': [[a + frame(u['start']), a + frame(u['end']), u['text']]
+                          for u in units],
+                'sources': state['lexical_windows'][str(path)]})
         return {'segments': segments, 'events': [], 'speaker_turns': [],
             'metadata': {'asr_backend': 'sensevoice', 'timestamp_semantics': lexical.PRIMARY_TIMESTAMP,
                 'diarization_turns': deepcopy(native['turns'])}}
@@ -174,11 +192,15 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
     monkeypatch.setattr(FakeAnalyzer, 'analyze', analyze)
 
     @contextmanager
-    def open_app(*, sid=None, enabled=True, last_group_end=31.6, support_seconds=None):
+    def open_app(*, sid=None, enabled=True, last_group_end=31.6, support_seconds=None,
+                 natural_producer=False):
         state['last_group_end'] = last_group_end
         state['support_seconds'] = support_seconds
+        state['natural_producer'] = natural_producer
+        state['analysis'] = []; state['lexical_windows'] = {}
         with automatic_app_factory(sid=sid, automatic=enabled) as h:
             h.planning = []; h.committed_targets = []; h.timings = []; h.publications = []
+            if natural_producer:h.natural_analysis = state['analysis']
             if enabled:
                 assert h.store.settings.native_owned_bounded_core_support_seconds == (.75 if support_seconds is None else support_seconds)
                 assert h.owner.bounded_core_enabled
@@ -190,6 +212,7 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                     def __init__(self):
                         self.frames = 0;self.epoch = None;self.closed = False
                         self.calls = [];self.queries = []
+                        self.progress = []
                     def request(self, action, stop, **arguments):
                         assert not stop();self.calls.append(action)
                         if action == 'reset':
@@ -198,8 +221,17 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                                         'provenance': synthetic_provenance()}
                         elif action == 'push':
                             with wave.open(arguments['wav'], 'rb') as source:
-                                self.frames += source.getnframes()
-                            response = synthetic_state(self.epoch, self.frames, stable_frames=0)
+                                old = self.frames;self.frames += source.getnframes()
+                                if natural_producer:
+                                    assert source.readframes(self.frames-old) == fixture_pcm(old, self.frames)
+                            if natural_producer:
+                                processed, stable = {
+                                    339200: (0, 0), 504000: (337920, 305920),
+                                    843200: (675840, 643840), 1008000: (855040, 823040),
+                                }[self.frames]
+                                response = synthetic_state(self.epoch, self.frames,
+                                    processed_frames=processed, stable_frames=stable)
+                            else:response = synthetic_state(self.epoch, self.frames, stable_frames=0)
                         elif action == 'finish':
                             response = synthetic_state(self.epoch, self.frames, finished=True)
                         else:
@@ -207,12 +239,18 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                             qa, qb = frame(arguments['start']), frame(arguments['end'])
                             assert 0 <= qa < qb <= self.frames and qb - qa <= 60 * RATE
                             self.queries.append([qa, qb]); turns = []
-                            for voice, intervals in ((1, [[qa, qb]]), (2, C_COMPONENTS)):
+                            overlap = [[332336, 336000]] if natural_producer else C_COMPONENTS
+                            for voice, intervals in ((1, [[qa, qb]]), (2, overlap)):
                                 for lo, hi in intervals:
                                     lo, hi = max(qa, lo), min(qb, hi)
                                     if lo < hi:turns.append({'start': lo / RATE, 'end': hi / RATE,
                                         'speaker_local_id': f'{self.epoch}:speaker_{voice}'})
                             response = {'turns': turns}
+                        if natural_producer and action != 'turns':
+                            current = response['state'] if action == 'reset' else response
+                            self.progress.append([frame(current[key]) for key in
+                                ('input_seconds', 'processed_seconds', 'stable_seconds')]
+                                + [int(current['finished'])])
                         h.worker._native_response(response)
                         return response
                     def close(self):self.closed = True
@@ -265,7 +303,8 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                         record.update(total_projected_bytes=budget.sql_bytes-before,
                                       publication_seconds=time.monotonic()-began)
                         h.publications.append((cell_id, record))
-                        with capsys.disabled():print('bounded_publication_counts '+json.dumps(record, sort_keys=True), flush=True)
+                        if not natural_producer:
+                            with capsys.disabled():print('bounded_publication_counts '+json.dumps(record, sort_keys=True), flush=True)
                 monkeypatch.setattr(automatic, '_read_v2', measured_read)
                 monkeypatch.setattr(h.owner, '_cell_current', measured_current)
                 monkeypatch.setattr(h.owner, '_publish', measured_publish)
@@ -331,7 +370,8 @@ def bounded_app_factory(automatic_app_factory, monkeypatch, capsys):
                             committed=int(getattr(budget, 'sql_outcome', None)=='committed'),
                             rolled_back=int(getattr(budget, 'sql_outcome', None)=='rolled_back'))
                         h.timings.append(record)
-                        with capsys.disabled():print('bounded_synthetic_timing '+json.dumps(record, sort_keys=True), flush=True)
+                        if not natural_producer:
+                            with capsys.disabled():print('bounded_synthetic_timing '+json.dumps(record, sort_keys=True), flush=True)
                     if accepted:
                         assert handoff['budget'] is result['_native_core_seam']['_bounded_budget']
                         h.committed_targets.append({'end': frame(chunk['timeline_start'] + end),
@@ -453,6 +493,317 @@ def assert_conservation(h, page):
                 assert ordered[-1][extent][1] == len(parent[field])
                 assert all(a[extent][1] == b[extent][0] for a, b in zip(ordered, ordered[1:]))
                 assert ''.join(item[field] for item in ordered).encode('utf-8') == parent[field].encode('utf-8')
+
+
+def test_natural_order_cross_upload_normal_producer_lifecycle(bounded_app_factory, capsys, monkeypatch):
+    """Prospective normal producer route; a natural refusal is a failing result.
+
+    Fixed page timing, native progress, opaque parents and origin order are not
+    tuned to obtain admission. Seam 3/4 aliases the ordinary-3 owner while the
+    owner-anchor prefix preserves its original [3,5] wait horizon.
+    """
+    overlap = [[332336, 336000]]
+    selected = [310400, 505600]
+    with bounded_app_factory(support_seconds=1.0, natural_producer=True) as h:
+        # This supported 1.0s primary budget is explicitly NONDEFAULT. The
+        # production .75s default and all non-opt-in fixture behavior stay put.
+        assert h.store.settings.native_owned_bounded_core_support_seconds == 1.0
+        assert (h.store.settings.window_seconds, h.store.settings.context_seconds) == (30., 2.)
+        h.store.settings.api_key = 'synthetic-natural-producer-token'
+        h.client.headers['Authorization'] = 'Bearer ' + h.store.settings.api_key
+        prefix = f'/sessions/{h.sid}/recordings/natural-producer-cross-upload'
+        observations = []; diagnostic_bytes = [0]; uploads = []
+
+        def emit(value):
+            # Bounded scalar evidence only, including the exact retained reason.
+            # No proof, identifier, SQL body, text payload or PCM is printed.
+            wire = 'natural_producer ' + json.dumps(value, sort_keys=True, separators=(',', ':'))
+            diagnostic_bytes[0] += len(wire.encode('ascii')) + 1
+            if diagnostic_bytes[0] >= 8192:
+                pytest.fail('natural producer scalar diagnostics exceeded the fixed 8KiB limit')
+            with capsys.disabled():print(wire, flush=True)
+
+        def publish_page(number, start, end, eos):
+            response = h.client.post(prefix + '/pages',
+                json={'page_number': number, 'capture_origin_frame': 0})
+            assert response.status_code == 202, response.text
+            page = prefix + f'/pages/{number}'
+            response = h.client.put(page + '/sources', params={'source_start_frame': start},
+                content=wav_bytes(start, end), headers={'Idempotency-Key': f'natural-upload-{number}'})
+            assert response.status_code == 202, response.text
+            uploads.append(response.json()['source_id'])
+            response = h.client.post(page + '/seal', json={
+                'idempotency_key': f'natural-seal-{number}',
+                'expected_revision': response.json()['revision'], 'end_frame': end, 'eos': eos})
+            assert response.status_code == 202, response.text
+            deadline = time.monotonic() + 12.
+            while time.monotonic() < deadline:
+                flight = h.worker.recordings._flight
+                operation = flight['operation'] if flight is not None else h.owner._slot
+                if operation is not None:assert operation.slot_released.wait(3.), operation.result
+                h.worker.recordings.advance(h.capture)
+                response = h.client.get(page)
+                assert response.status_code == 200, response.text
+                if response.json()['state'] == 'published':break
+                assert response.json()['state'] in ('sealed', 'preparing', 'pending_receipts'), response.text
+                time.sleep(max(.01, min(.1, h.worker.recordings._next_tick-time.monotonic())))
+            else:pytest.fail('natural producer page receipts did not publish within the fixture bound')
+            with h.store.db() as db:
+                return [dict(row) for row in db.execute('''SELECT c.* FROM chunks c
+                    JOIN recording_work w ON w.chunk_id=c.id
+                    WHERE c.session_id=? ORDER BY w.position''', (h.sid,))]
+
+        commit_window = h.store.commit_window
+        def observe_commit(chunk, offset, end, result):
+            accepted = commit_window(chunk, offset, end, result)
+            if not accepted:return accepted
+            handoff = result['_native_bounded_support']
+            with h.store.db() as db:
+                compacts = [dict(row) for row in db.execute('''SELECT slot,commit_ordinal
+                    FROM native_core_commits WHERE sid=? ORDER BY commit_ordinal''', (h.sid,))]
+                ordinals = {row['slot']: row['commit_ordinal'] for row in compacts}
+                usage = automatic.usage(db, h.sid)
+            def origin_order(target):
+                return [[ordinals.get(core.slot(c), 0) for c in origin['commits']]
+                        for origin in target['origins']]
+            def roots(target):
+                return sorted({ordinal for group in origin_order(target) for ordinal in group})
+            matching = [row for row in intent_rows(h) if row['target_body'] is not None
+                        and resolved_target(row)['identity']['components'] == overlap]
+            saved = []
+            for row in matching:
+                target = resolved_target(row)
+                bounded = json.loads(row['proof']).get('schema') == core.BOUNDED_SCHEMA
+                if bounded:automatic.validate_document(row['proof'])
+                saved.append({'origins': origin_order(target), 'roots': roots(target),
+                    'wait': [row['wait_start_ordinal'], row['wait_last_ordinal']],
+                    'phase': row['plan_phase'], 'state': row['state'], 'reason': row['reason'],
+                    'proof': len(row['proof']), 'full': len(automatic.canonical(target)),
+                    # A waiting ordinary proof has no admissible bound reference.
+                    'ref': len(automatic._bound_target_reference(row['proof'], target)) if bounded else None,
+                    'stored': len(row['target_body']), 'charge': row['charge_bytes'],
+                    'planning': row['planning_bytes']})
+            plans = [{'origins': origin_order(plan['target']), 'roots': roots(plan['target']),
+                'reason': plan.get('reason'), 'pcm': int('pcm' in plan),
+                'support': plan.get('support'), 'full': len(automatic.canonical(plan['target']))}
+                for plan in handoff['plans'] if plan['target']['identity']['components'] == overlap]
+            part = result['_native_core_seam']['commit']['part']
+            notice = h.store.chunk(chunk['id'])['metadata']['bounded_core_support']
+            record = {'ordinal': handoff['batch']['ordinal'],
+                'core': [part['logical_start'], part['logical_end']],
+                'new_origins': [origin_order(item['target'])[0] for item in handoff['origins']],
+                'plans': plans, 'saved': saved, 'usage': usage,
+                'notice': {key: notice[key] for key in ('status', 'reason', 'capacity', 'registered', 'bound')
+                           if key in notice}}
+            observations.append(record); emit(record)
+            # Accounting assertions follow the diagnostic, including on refusal.
+            with h.store.db() as db:_reference_accounting(db, h.sid)
+            return accepted
+        monkeypatch.setattr(h.store, 'commit_window', observe_commit)
+
+        chunks = publish_page(1, 0, 504000, False)
+        assert len(chunks) == 3 and [row['duration'] for row in chunks] == [10.5] * 3
+        assert process_primary(h) == chunks[0]['id']
+        assert process_primary(h) == chunks[1]['id']
+        partial = h.store.chunk(chunks[1]['id'])
+        emit({'event': 'first_page_wait', 'offset': frame(partial['next_offset']),
+              'state': partial['status'], 'progress': h.natives[0].progress,
+              'analysis': [[*item['window'], len(item['units'])] for item in h.natural_analysis]})
+        assert partial['status'] == 'waiting_input' and frame(partial['next_offset']) == 137920
+        assert h.natives[0].progress == [[0, 0, 0, 0], [339200, 0, 0, 0],
+                                         [504000, 337920, 305920, 0]]
+        assert h.natural_analysis[-1]['window'] == [136000, 337920]
+        assert h.natural_analysis[-1]['units'] == [], 'P1 is not yet wholly inside the actual extraction'
+        assert len(observations) == 2 and not intent_rows(h)
+        # Only the observed stable19.12 wait permits publishing the second page.
+        chunks = publish_page(2, 504000, 1008000, True)
+        assert len(uploads) == len(set(uploads)) == 2
+        assert len(chunks) == 6 and [row['duration'] for row in chunks] == [10.5] * 6
+        assert process_primary(h) == chunks[1]['id']
+        for chunk in chunks[2:]:assert process_primary(h) == chunk['id']
+
+        # Diagnose the entire genuine producer trajectory before asking for a
+        # successful binding. Never discard seam3/4 or repair the saved horizon.
+        matching = [row for row in intent_rows(h) if row['target_body'] is not None
+                    and resolved_target(row)['identity']['components'] == overlap]
+        emit({'event': 'primary_done', 'count': len(matching),
+              'progress': h.natives[0].progress, 'queries': h.natives[0].queries,
+              'phases': [[row['plan_phase'], row['state'], row['reason']] for row in matching]})
+        assert [item['core'] for item in observations[:5]] == [
+            [0, 168000], [168000, 305920], [305920, 336000],
+            [336000, 504000], [504000, 672000]]
+        assert len(observations) == 7
+        assert len(h.natives) == 1 and h.natives[0].progress == [
+            [0, 0, 0, 0], [339200, 0, 0, 0], [504000, 337920, 305920, 0],
+            [843200, 675840, 643840, 0], [1008000, 855040, 823040, 0],
+            [1008000, 1008000, 1008000, 1]]
+        assert h.natives[0].calls.count('reset') == h.natives[0].calls.count('finish') == 1
+        assert observations[2]['new_origins'] == [[3], [2, 3]]
+        assert observations[2]['saved'][0]['origins'] == [[3], [2, 3]]
+        assert observations[2]['saved'][0]['roots'] == [2, 3]
+        assert observations[2]['saved'][0]['wait'] == [3, 5]
+        assert observations[3]['new_origins'] == [[3, 4]], 'the natural same-target alias must remain'
+        assert observations[3]['saved'][0]['roots'] == [2, 3, 4]
+        assert observations[3]['saved'][0]['wait'] == [3, 5]
+        # Every supplied unit came from a complete actual analyzer extraction.
+        for item in h.natural_analysis:
+            a, b = item['window']
+            assert all(a <= lo < hi <= b for lo, hi, _ in item['units'])
+            assert item['sources'] and sum(p['analyzer_frames'][1]-p['analyzer_frames'][0]
+                                           for p in item['sources']) == b-a
+        with h.store.db() as db:
+            parents = [dict(row) for row in db.execute('''SELECT s.* FROM segments s
+                JOIN chunks c ON c.id=s.chunk_id WHERE c.session_id=? ORDER BY s.start,s.id''', (h.sid,))]
+            assert [(transcript.primary_frame(row['start']), transcript.primary_frame(row['end'], end=True),
+                     row['text'], row['raw_text']) for row in parents] == [
+                (310400, 347200, '甲乙', '甲乙'), (344000, 505600, '丙丁', '丙丁')]
+            assert [row['chunk_id'] for row in parents] == [chunks[1]['id'], chunks[2]['id']]
+            parent_evidence = []
+            for index, row in enumerate(parents):
+                current = lexical.current_inventory(db, h.sid, row)
+                assert current is not None and len(current['inventory']['units']) == 1
+                inventory = current['inventory']
+                assert inventory['source_parts'] == h.natural_analysis[index+2]['sources']
+                origin = chunks[index+1]['timeline_start']
+                # Repeat the normal analyzer -> lexical_core -> commit_window
+                # arithmetic order. Do not round stored floats to the literals
+                # 19.4/21.7/21.5/31.6 or mutate their whole-row proof evidence.
+                window = h.natural_analysis[index+2]['window']
+                core_start = [305920, 336000][index]
+                offset = (core_start-frame(origin))/RATE
+                base = (window[0]-frame(origin))/RATE
+                owned_start = (offset-base)+base
+                expected = [origin+offset+((point-window[0])/RATE+base-owned_start)
+                            for point in [(310400, 347200), (344000, 505600)][index]]
+                assert [row['start'], row['end']] == expected
+                assert [frame(origin+inventory['coordinates'][key]) for key in
+                        ('core_start', 'core_end')] == [[305920, 336000], [336000, 504000]][index]
+                unit = current['inventory']['units'][0]
+                assert unit['anchor_kind'] == 'ctc_emission' and unit['ownership_anchor'] == unit['start']
+                assert unit['granular_eligible'] is False
+                parent_evidence.append(transcript.primary_evidence(h.sid, row))
+        assert len(matching) == 1
+        bound = matching[0]
+        target = resolved_target(bound)
+        ordinary = json.loads(target['origins'][0]['proof'])
+        assert [ordinary['support']['start_frame'], ordinary['support']['end_frame']] == [305920, 336000]
+        assert ordinary['support']['start_frame'] < 310400 < ordinary['support']['end_frame'] < 347200
+        # This is deliberately a positive route gate, not an expected-refusal
+        # test. The preceding scalar records preserve the exact natural failure.
+        assert bound['plan_phase'] == 'bound', json.dumps({
+            'phase': bound['plan_phase'], 'state': bound['state'], 'reason': bound['reason'],
+            'wait': [bound['wait_start_ordinal'], bound['wait_last_ordinal']],
+            'last_notice': observations[-1]['notice']}, sort_keys=True)
+
+        doc, support, parts = automatic.validate_document(bound['proof'])
+        owner_key = bound['candidate_key']; proof = bound['proof']
+        full = automatic.canonical(doc['target'])
+        reference = automatic._bound_target_reference(proof, doc['target'])
+        emit({'event': 'bound_sizes', 'proof': len(proof), 'full': len(full), 'ref': len(reference),
+              'full_combined_fits': int(len(proof)+len(full) <= 65536),
+              'reference_combined_fits': int(len(proof)+len(reference) <= 65536)})
+        assert proof == automatic.canonical(doc) and full == automatic.canonical(target)
+        assert bound['target_body'] == reference
+        assert max(len(proof), len(full), len(reference)) <= 65536
+        assert len(proof) + len(reference) <= 65536
+        assert doc['schema'] == core.BOUNDED_SCHEMA
+        assert [support.start_frame, support.end_frame] == selected
+        assert doc['geometry'] == {'start_frame': selected[0], 'end_frame': selected[1]}
+        with h.store.db() as db:
+            ordinal_by_slot = {row['slot']: row['commit_ordinal'] for row in db.execute(
+                'SELECT slot,commit_ordinal FROM native_core_commits WHERE sid=?', (h.sid,))}
+            assert [ordinal_by_slot[core.slot(c)] for c in doc['commits']] == [2, 3, 4, 5]
+            assert [max(0, min(selected[1], c['part']['logical_end'])-
+                max(selected[0], c['part']['logical_start'])) for c in doc['commits']] == [0, 25600, 168000, 1600]
+            assert any(root['slot'] == core.slot(doc['commits'][0]) and root['kind'] & 1
+                       for root in doc['dependency_roots'])
+            for root in doc['dependency_roots']:
+                assert automatic.retention_root(db, cid=root['cid'])
+                if root['slot'] is not None:assert automatic.retention_root(db, slot=root['slot'])
+            ranges = [dict(row) for row in db.execute('''SELECT r.*,s.path FROM recording_ranges r
+                JOIN recording_sources s ON s.id=r.source_id JOIN recording_batches b ON b.id=r.batch_id
+                WHERE b.session_id=? AND r.relation='owner' ORDER BY r.capture_start_frame''', (h.sid,))]
+        counts = {source_id: 0 for source_id in uploads}; original_pcm = bytearray()
+        for item in ranges:
+            a = max(selected[0], item['capture_start_frame'])
+            b = min(selected[1], item['capture_start_frame']+item['frames'])
+            if a >= b:continue
+            counts[item['source_id']] += b-a
+            with wave.open(item['path'], 'rb') as source:
+                source.setpos(item['source_start_frame']+a-item['capture_start_frame'])
+                original_pcm.extend(source.readframes(b-a))
+        assert [counts[source_id] for source_id in uploads] == [193600, 1600]
+        assert bytes(original_pcm) == fixture_pcm(*selected)
+        assert doc['support']['pcm16le_sha256'] == hashlib.sha256(original_pcm).hexdigest()
+        query = doc['query']
+        assert [query['query_start_frame'], query['query_end_frame']] in h.natives[0].queries
+        assert query['query_pcm16le_sha256'] == hashlib.sha256(fixture_pcm(
+            query['query_start_frame'], query['query_end_frame'])).hexdigest()
+        with Budget().phase() as budget:
+            assert automatic.authority_valid(h.capture.authority, owner_key, doc, budget)
+        with Budget().phase() as budget:
+            assert not automatic.authority_valid(h.capture.authority, '0' * 64, doc, budget)
+        # Read the real reference-form owner row during actual admission; no
+        # equivalent-wire switching or target/compact/manual enqueue is used.
+        admitted = []; cell_current = h.owner._cell_current
+        def reference_admission(op, cell, budget):
+            if op.kind == 'publish_auto' and op.payload[0] == owner_key:
+                row = next(row for row in intent_rows(h) if row['candidate_key'] == owner_key)
+                admitted.append([len(row['proof']), len(row['target_body']), row['target_body'] == reference])
+                assert row['proof'] == proof and row['target_body'] == reference
+                assert sum(admitted[-1][:2]) <= 65536
+            return cell_current(op, cell, budget)
+        monkeypatch.setattr(h.owner, '_cell_current', reference_admission)
+        primary = primary_output(h)
+        drain_automatic(h)
+        completed = next(row for row in intent_rows(h) if row['candidate_key'] == owner_key)
+        emit({'event': 'admitted', 'calls': admitted, 'proof': len(proof),
+              'full': len(full), 'ref': len(reference), 'state': completed['state']})
+        assert completed['state'] == 'committed' and completed['job_id'] is not None
+        assert len(admitted) == 3 and all(item[2] for item in admitted)
+        assert len(h.drivers) == sum(driver.starts for driver in h.drivers) == 1
+        with h.store.db() as db:
+            jobs = db.execute(f'SELECT job_id FROM {history.TABLE} WHERE session_id=?', (h.sid,)).fetchall()
+        assert [row[0] for row in jobs] == [completed['job_id']]
+        proof_url = f"/sessions/{h.sid}/native-owned-cells/{completed['cell_id']}"
+        assert h.client.get(proof_url, headers={'Authorization': ''}).status_code == 401
+        response = h.client.get(proof_url)
+        assert response.status_code == 200 and response.content == proof
+        assert response.headers['X-Native-Cell-Proof-SHA256'] == hashlib.sha256(proof).hexdigest()
+        read = h.owner.submit('read', completed['cell_id'])
+        assert read.slot_released.wait(3.) and read.result['status'] == 'available'
+        pin = read.result['pin']
+        try:assert pin.read() == fixture_pcm(*selected)
+        finally:pin.release()
+        result_url = f"/sessions/{h.sid}/moss-jobs/history/{completed['job_id']}/result"
+        response = h.client.get(result_url)
+        assert response.status_code == 200
+        assert response.content == h.jobs.results.result(h.sid, completed['job_id'])
+        qualified = []
+        for params in ({}, {'projection': 'lexical-estimated-v1'}):
+            response = h.client.get(f'/sessions/{h.sid}/transcript', params=params)
+            assert response.status_code == 200 and len(response.content) <= transcript.MAX_RESPONSE_BYTES
+            page = response.json()
+            runs = [run for run in page['selected_runs'] if owner_key in run['candidate_keys']]
+            assert len(runs) == 1 and runs[0]['candidate_keys'] == [owner_key]
+            assert [runs[0]['start_frame'], runs[0]['end_frame']] == selected
+            candidates = [item for item in runs[0]['supports'] if item['candidate_key'] == owner_key]
+            assert len(candidates) == 1 and candidates[0]['eligible']
+            assert candidates[0]['job_id'] == completed['job_id']
+            qualified.append({key: candidates[0][key] for key in
+                ('candidate_key', 'job_id', 'result_sha256', 'start_frame', 'end_frame', 'eligible')})
+            represented = [item for item in page['reading'] if item['source'] == 'primary']
+            represented += [item for alt in page['alternatives'] if alt['reason'] == 'replaced_primary'
+                            for item in alt['primary_reading']]
+            for parent in parent_evidence:
+                same = [item for item in represented if item['source_ref'] == parent['source_ref']]
+                assert len(same) == 1 and same[0]['reference_only'] is False
+                for key, value in parent.items():assert same[0][key] == value
+                for key in ('text', 'raw_text'):
+                    assert same[0][key].encode('utf-8') == parent[key].encode('utf-8')
+            assert not [item for item in page['reading'] if item['source'] == 'primary_lexical']
+        assert qualified[0] == qualified[1]
+        assert primary_output(h) == primary
 
 
 def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(bounded_app_factory, capsys, monkeypatch):
@@ -856,8 +1207,8 @@ def _support_local_seed(db, schema, *, reference=False, waiting=False, fixed=Fal
         if fixed == 'ordinary_first':
             case['target'] = core.append_target_origin(core.append_target_origin(first, second), third)
         else:
-            # Separately approved lifecycle variant: the same three originals,
-            # with the seam first so its genuine anchor2 permits horizon4.
+            # Same three authentic originals, retaining the separate seam-first
+            # comparison whose genuine anchor2 permits horizon4.
             case['target'] = core.append_target_origin(
                 core.append_target_origin(core.original_target(third), first['origins'][0]), second)
         assert case['target']['key'] == first['key'] and len(case['target']['origins']) == 3
@@ -928,7 +1279,7 @@ def _support_local_seed(db, schema, *, reference=False, waiting=False, fixed=Fal
             context = {**context, 'ordinal': 2}; available = 2
             initial, status = automatic._register_target(db, {'target': core.original_target(third)},
                 context, cells.sha(case['commits'][0]['scope']), now, budget)
-            assert status == 'alias_registered' and initial['wait_last_ordinal'] == 3
+            assert status == 'alias_registered' and initial['wait_last_ordinal'] == 4
             assert initial['wait_start_ordinal'] == first_registration['wait_start_ordinal'] == 1
             assert initial['candidate_key'] == first_registration['candidate_key']
             assert initial['target_body'] == cells.canonical(case['target'])
@@ -1495,6 +1846,177 @@ class _ReferenceComparisonDB:
         return self.db.execute(sql, parameters)
 
 
+def _horizon_reset_waiter(db, f, target, ordinal):
+    """Fresh test ledger setup from a real synthetic origin certificate."""
+    from audio_backend import native_owned_cells as cells
+    origin = target['origins'][0]
+    proof, binding = origin['proof'].encode('ascii'), origin['binding'].encode('ascii')
+    doc, support, _ = cells.validate_document(proof)
+    commits = origin['commits']
+    proposal = {'key': hashlib.sha256(binding).hexdigest(), 'sid': f.row['sid'],
+        'kind': json.loads(binding)['kind'], 'binding': binding, 'proof': proof,
+        'proof_sha256': hashlib.sha256(proof).hexdigest(),
+        'cell_id': cells.sha({'policy': doc['policy'], 'support': support.to_dict()}),
+        'slot1': core.slot(commits[0]), 'slot2': core.slot(commits[1]) if len(commits) == 2 else None,
+        'cid1': commits[0]['part']['chunk_id'],
+        'cid2': commits[1]['part']['chunk_id'] if len(commits) == 2 else None, 'target': target}
+    db.execute(f'DELETE FROM {automatic.DEPENDENCIES}')
+    db.execute(f'DELETE FROM {automatic.TABLE}')
+    db.execute(f'UPDATE {automatic.USAGE} SET rows=0,charge=0,pending=0,proofs=0')
+    row, status = automatic._register_target(db, proposal, {**f.context, 'ordinal': ordinal},
+        cells.sha(commits[0]['scope']), f.row['created'], Budget())
+    assert status == 'registered'
+    f.key = row['candidate_key']; f.row = row
+    _reference_accounting(db, row['sid'])
+    return row
+
+
+@pytest.mark.parametrize('case_name', [
+    'ordinary_initial', 'seam_initial', 'forward_alias', 'late_earlier_alias', 'duplicate_alias'])
+def test_wait_horizon_prefix_initial_and_alias_cases(support_local_ledger_factory, case_name):
+    from test_bounded_core_support import ordinary_origin, seam_origin
+    f = support_local_ledger_factory(waiting=True)
+    ordinary = core.original_target(ordinary_origin(f.case, 1))
+    earlier = core.original_target(seam_origin(f.case, 0))
+    forward = core.original_target(seam_origin(f.case, 1))
+    target = earlier if case_name == 'seam_initial' else ordinary
+    with f.store.db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        initial = _horizon_reset_waiter(db, f, target, 2)
+        assert [initial['wait_start_ordinal'], initial['wait_last_ordinal']] == [
+            2, 4 if case_name == 'seam_initial' else 5]
+        row = initial
+        if case_name in ('forward_alias', 'late_earlier_alias', 'duplicate_alias'):
+            row, status = automatic._register_target(db, {'target': forward},
+                {**f.context, 'ordinal': 3}, initial['plan_scope_key'], initial['created']+1, Budget())
+            assert status == 'alias_registered' and row['wait_last_ordinal'] == 5
+            assert resolved_target(row)['origins'] == ordinary['origins']+forward['origins']
+        if case_name == 'late_earlier_alias':
+            row, status = automatic._register_target(db, {'target': earlier},
+                {**f.context, 'ordinal': 3}, initial['plan_scope_key'], initial['created']+2, Budget())
+            assert status == 'alias_registered' and row['wait_last_ordinal'] == 4
+            assert resolved_target(row)['origins'] == ordinary['origins']+forward['origins']+earlier['origins']
+        if case_name == 'duplicate_alias':
+            before = row; accounting = _reference_accounting(db, row['sid'])
+            row, status = automatic._register_target(db, {'target': forward},
+                {**f.context, 'ordinal': 4}, initial['plan_scope_key'], initial['created']+3, Budget())
+            assert status == 'already_owned' and row == before
+            assert _reference_accounting(db, row['sid']) == accounting
+        target = resolved_target(row); _, roots = core.validate_target(target)
+        expected_roots = {'ordinary_initial': [2], 'seam_initial': [1, 2],
+            'forward_alias': [2, 3], 'late_earlier_alias': [1, 2, 3], 'duplicate_alias': [2, 3]}[case_name]
+        ordinals = {item['slot']: item['commit_ordinal'] for item in db.execute(
+            'SELECT slot,commit_ordinal FROM native_core_commits')}
+        assert [ordinals[core.slot(root)] for root in roots] == expected_roots
+        assert automatic._wait_horizon(2, target, roots) == row['wait_last_ordinal']
+        assert all(row[key] == initial[key] for key in
+            ('candidate_key', 'kind', 'binding', 'proof', 'cell_id', 'wait_start_ordinal', 'created', 'wait_deadline'))
+        assert target['origins'][0] == resolved_target(initial)['origins'][0]
+        assert automatic._read_v2(db, key=f.key) == row
+        _reference_accounting(db, row['sid'])
+
+
+@pytest.mark.parametrize('case_name', [
+    'tighter', 'closed', 'anchor_ordinal', 'nonanchor_gap', 'cancelled', 'deleted', 'old_reader'])
+def test_wait_horizon_prefix_saved_expiry_and_authority(support_local_ledger_factory, case_name):
+    from test_bounded_core_support import ordinary_origin, seam_origin
+    f = support_local_ledger_factory(waiting=True)
+    ordinary = core.original_target(ordinary_origin(f.case, 1))
+    forward = core.original_target(seam_origin(f.case, 1))
+    earlier = core.original_target(seam_origin(f.case, 0))
+    with f.store.db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        initial = _horizon_reset_waiter(db, f, ordinary, 2)
+        row, status = automatic._register_target(db, {'target': forward},
+            {**f.context, 'ordinal': 3}, initial['plan_scope_key'], initial['created']+1, Budget())
+        assert status == 'alias_registered' and row['wait_last_ordinal'] == 5
+        if case_name == 'tighter':
+            db.execute(f'UPDATE {automatic.TABLE} SET wait_last_ordinal=3 WHERE candidate_key=?', (f.key,))
+            row = automatic._read_v2(db, key=f.key)
+            row, status = automatic._register_target(db, {'target': earlier}, f.context,
+                row['plan_scope_key'], row['created']+2, Budget())
+            assert status == 'alias_registered' and row['wait_last_ordinal'] == 3
+            assert automatic._waiting_reason(row, f.context, row['plan_scope_key'], row['created']) == 'unresolved_commit_horizon'
+        elif case_name == 'closed':
+            automatic._terminal(db, row, 'no_result', 'unresolved_commit_horizon')
+            row = automatic._read_v2(db, key=f.key)
+        elif case_name == 'anchor_ordinal':
+            db.execute('UPDATE native_core_commits SET commit_ordinal=7 WHERE slot=?',
+                (core.slot(f.case['commits'][1]),))
+        elif case_name == 'nonanchor_gap':
+            # Existing authority permits non-anchor stored-ordinal gaps. The
+            # alias uses min(saved5,prefix4), never the non-anchor ordinal8.
+            db.execute('UPDATE native_core_commits SET commit_ordinal=8 WHERE slot=?',
+                (core.slot(f.case['commits'][2]),))
+            db.execute('UPDATE recording_batches SET native_core_ordinal=9 WHERE id=?', (f.context['batch_id'],))
+            row, status = automatic._register_target(db, {'target': earlier},
+                {**f.context, 'ordinal': 9}, row['plan_scope_key'], row['created']+2, Budget())
+            assert status == 'alias_registered' and row['wait_last_ordinal'] == 4
+        elif case_name == 'cancelled':
+            db.execute("UPDATE native_core_commits SET state='cancelled' WHERE slot=?",
+                (core.slot(f.case['commits'][2]),))
+        elif case_name == 'deleted':
+            db.execute('DELETE FROM native_core_commits WHERE slot=?', (core.slot(f.case['commits'][2]),))
+        accounting = _reference_accounting(db, row['sid'])
+    before = _reference_snapshot(f)
+    with f.store.db() as db:
+        if case_name == 'anchor_ordinal':
+            with pytest.raises(Unavailable, match='^bounded_wait_metadata$'):
+                automatic._read_v2(db, key=f.key)
+        else:
+            saved = automatic._read_v2(db, key=f.key)
+            assert saved == row
+            target = resolved_target(saved); _, roots = core.validate_target(target)
+            if case_name in ('cancelled', 'deleted'):
+                with pytest.raises(Unavailable, match='^bounded_compact_changed$'):
+                    automatic._exact_compacts(db, roots, f.context, Budget())
+            elif case_name == 'nonanchor_gap':
+                context = {**f.context, 'ordinal': 9}
+                automatic._exact_compacts(db, roots, context, Budget())
+                assert saved['wait_last_ordinal'] == 4 < 8
+                assert automatic._waiting_reason(saved, context, saved['plan_scope_key'], saved['created']) == 'unresolved_commit_horizon'
+            elif case_name in ('tighter', 'closed'):
+                unchanged, status = automatic._register_target(db, {'target': earlier}, f.context,
+                    saved['plan_scope_key'], saved['created']+3, Budget())
+                assert status == 'already_owned' and unchanged == saved
+                assert saved['wait_last_ordinal'] == (3 if case_name == 'tighter' else 5)
+                if case_name == 'closed':assert saved['state'] == 'no_result' and saved['plan_phase'] == 'closed'
+            else:
+                assert case_name == 'old_reader'
+                assert json.loads(saved['target_body'])['schema'] == core.TARGET_SCHEMA
+                assert 'schema' not in json.loads(saved['proof'])
+                # Verified pre-edit against dev40 moss_automatic.py:597. The
+                # pinned source70 full-row reader has this identical predicate;
+                # this makes no reference-row compatibility claim.
+                assert 'or not start<=last<=start+min(3,4-len(originals))\n' in _SOURCE70_TARGET_READER_ORACLE
+                old = _source70_target_reader_oracle()
+                with pytest.raises(Unavailable, match='^bounded_wait_metadata$'):
+                    old['validate_v2_row'](db, saved, saved['proof'])
+            assert all(saved[key] == initial[key] for key in
+                ('candidate_key', 'kind', 'binding', 'proof', 'cell_id', 'wait_start_ordinal', 'created', 'wait_deadline'))
+        assert _reference_accounting(db, row['sid']) == accounting
+    assert _reference_snapshot(f) == before
+
+
+def test_wait_horizon_root_order_and_frame_gap_refuse():
+    from test_bounded_core_support import synthetic_case, seam_origin
+    case = synthetic_case([0, 16, 32, 48], [(18, 22)], origin_index=1, separate_sources=True)
+    target = core.original_target(seam_origin(case, 0))
+    _, roots = core.validate_target(target)
+    assert automatic._wait_horizon(2, target, roots) == 4
+    reversed_target = deepcopy(target)
+    reversed_target['origins'][0]['commits'].reverse()
+    gapped_target = deepcopy(target)
+    part = gapped_target['origins'][0]['commits'][1]['part']
+    part['logical_start'] += 1; part['source_start'] += 1
+    for invalid in (reversed_target, gapped_target):
+        with pytest.raises(Unavailable, match='^source_gap$'):
+            # The helper only consumes validated roots; invalid geometry must
+            # fail at the existing validation boundary, before horizon use.
+            _, invalid_roots = core.validate_target(invalid)
+            automatic._wait_horizon(2, invalid, invalid_roots)
+
+
 def test_bound_target_reference_fixed_authentic_bind(support_local_ledger_factory, capsys):
     from audio_backend import native_owned_cells as cells
     original = support_local_ledger_factory(waiting=True, fixed='ordinary_first')
@@ -1503,11 +2025,11 @@ def test_bound_target_reference_fixed_authentic_bind(support_local_ledger_factor
     assert (len(original.cell.proof), len(original_full)) == (39449, 26894)
     assert len(original_parts) == 4 and original.row['wait_start_ordinal'] == 1
     assert original.first_registration['wait_last_ordinal'] == 4
-    assert original.row['wait_last_ordinal'] == 3
+    assert original.row['wait_last_ordinal'] == 4
     assert original.row['candidate_key'] == original.first_registration['candidate_key']
     assert original.row['target_body'] == original_full
     assert automatic._waiting_reason(original.row, original.context,
-        original.row['plan_scope_key'], original.row['created']) == 'unresolved_commit_horizon'
+        original.row['plan_scope_key'], original.row['created']) is None
     original_before = _reference_snapshot(original)
     # Premerged ordinary-first at arrival2 is also not a lawful registration:
     # its first anchor remains1. Roll back every tentative write after the exact
@@ -1526,7 +2048,7 @@ def test_bound_target_reference_fixed_authentic_bind(support_local_ledger_factor
         finally:
             db.execute('ROLLBACK TO premerged_negative');db.execute('RELEASE premerged_negative')
     assert _reference_snapshot(original) == original_before
-    # Do not call _bind_target beyond the ordinary-first caller horizon.
+    # Retain the independent seam-first comparison, including its real bind.
     f = support_local_ledger_factory(reference=True, fixed=True)
     row = f.row; doc, support, parts = cells.validate_document(row['proof'])
     assert f.initial['wait_start_ordinal'] == 2 and f.initial['wait_last_ordinal'] == 4
@@ -1548,8 +2070,8 @@ def test_bound_target_reference_fixed_authentic_bind(support_local_ledger_factor
         assert core.select_support(selected.case['target'],selected.case['commits'],
             selected.snapshot,0,32000)=={'start_frame':0,'end_frame':32000}
     assert _reference_snapshot(original) == original_before
-    # Exercise the production caller's terminal horizon branch. It must never
-    # enter _bind_target for this original ownership order at ordinal4.
+    # The ordinary-first caller now enters its genuine ordinal4 binding attempt
+    # without changing target order, PCM, source authority or certificate caps.
     with original.store.db() as db:
         db.execute('BEGIN IMMEDIATE')
         handoff={'waiters':[original.row],'batch':original.context,'reserved':True,
@@ -1557,40 +2079,69 @@ def test_bound_target_reference_fixed_authentic_bind(support_local_ledger_factor
             'snapshot':original.snapshot,'draft_ids':[]}
         notice=automatic.enqueue_bounded(db,[],{'commit':original.case['commits'][-1]},
             handoff,{'session_id':original.row['sid']},[],None)
+        assert notice['bound']==1 and notice['status']=='bound'
+        original.row=automatic._read_v2(db,key=original.key)
+        assert original.row['state']=='queued' and original.row['plan_phase']=='bound'
+        assert original.row['candidate_key']==original.first_registration['candidate_key']
+        assert original.row['job_id'] is None
+        _reference_accounting(db,original.row['sid'])
+    # Explicit saved-tight legacy control. A wider current helper never widens
+    # this stored expiry, turns its terminal refusal into success, or reopens it.
+    tight = support_local_ledger_factory(waiting=True, fixed='ordinary_first')
+    with tight.store.db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        db.execute(f'UPDATE {automatic.TABLE} SET wait_last_ordinal=3 WHERE candidate_key=?', (tight.key,))
+        saved=automatic._read_v2(db,key=tight.key)
+        assert automatic._waiting_reason(saved,tight.context,saved['plan_scope_key'],saved['created'])=='unresolved_commit_horizon'
+        handoff={'waiters':[saved],'batch':tight.context,'reserved':True,
+            'budget':Budget(),'origins':[],'plans':[tight.final],
+            'snapshot':tight.snapshot,'draft_ids':[]}
+        notice=automatic.enqueue_bounded(db,[],{'commit':tight.case['commits'][-1]},
+            handoff,{'session_id':saved['sid']},[],None)
         assert notice['bound']==0 and notice['reason']=='unresolved_commit_horizon'
-        closed=automatic._read_v2(db,key=original.key)
+        closed=automatic._read_v2(db,key=tight.key)
         assert closed['state']=='no_result' and closed['plan_phase']=='closed'
-        assert closed['proof']==original.row['proof'] and closed['target_body']==original_full
-        assert closed['cell_id']==original.row['cell_id'] and closed['job_id'] is None
-        _reference_accounting(db,closed['sid'])
-    full = cells.canonical(doc['target']); reference = row['target_body']
-    assert doc['target'] == f.case['target'] and len(doc['target']['origins']) == 3
-    assert (support.start_frame, support.end_frame) == (0, 32000)
-    assert len(doc['commits']) == len(parts) == len({part.chunk_id for part in parts}) == 4
-    assert all(part.logical_end > part.logical_start for part in parts)
-    assert f.cell.pcm == b'\0\0' * 32000
-    assert row['proof'] == f.cell.proof
-    assert len(row['proof']) <= 65536 < len(row['proof']) + len(full)
-    assert reference == automatic._bound_target_reference(row['proof'], doc['target'])
-    assert json.loads(reference) == {'schema': 'bounded-target-proof-reference-v1',
-        'target_key': doc['target']['key'], 'target_sha256': hashlib.sha256(full).hexdigest(),
-        'proof_sha256': hashlib.sha256(row['proof']).hexdigest()}
-    assert reference == json.dumps(json.loads(reference),sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')
-    assert len(reference) <= 512 and len(row['proof']) + len(reference) <= 65536
-    assert resolved_target(row) == doc['target']
-    assert row['planning_bytes'] == len(reference) and row['plan_revision'] == f.initial['plan_revision'] + 1
-    with f.store.db() as db:
-        _reference_accounting(db, row['sid'])
-        observed = _ReferenceComparisonDB(db)
-        assert automatic.qualify_bounded_document(observed, doc, Budget(), f.store_key, automatic_key=f.key)
-        assert observed.comparisons == [(2, len(row['proof']) + len(reference))]
-    with capsys.disabled():
-        print('bound_target_reference_fixed ' + json.dumps({'synthetic_only': True,
-            'historical_reproduction': False, 'ownership_order': 'seam-first-lifecycle-variant',
-            'ordinary_first_lifecycle': 'unresolved_commit_horizon', 'origins': 3, 'positive_parts': 4,
-            'distinct_uploads': 4, 'proof_bytes': len(row['proof']), 'full_target_bytes': len(full),
-            'reference_bytes': len(reference), 'stored_certificate_bytes': len(row['proof']) + len(reference),
-            'actual_charge_bytes': row['charge_bytes']}, sort_keys=True), flush=True)
+        assert all(closed[key]==saved[key] for key in
+            ('proof','target_body','cell_id','wait_start_ordinal','wait_last_ordinal','created','wait_deadline'))
+        assert closed['job_id'] is None
+        accounting=_reference_accounting(db,closed['sid'])
+        again,status=automatic._register_target(db,tight.original,tight.context,
+            closed['plan_scope_key'],closed['created']+1,Budget())
+        assert status=='already_owned' and again==closed
+        assert _reference_accounting(db,closed['sid'])==accounting
+    for selected, order in ((original, 'ordinary-first-lifecycle'), (f, 'seam-first-lifecycle-variant')):
+        row=selected.row; doc,support,parts=cells.validate_document(row['proof'])
+        full = cells.canonical(doc['target']); reference = row['target_body']
+        assert doc['target'] == selected.case['target'] and len(doc['target']['origins']) == 3
+        assert (support.start_frame, support.end_frame) == (0, 32000)
+        assert len(doc['commits']) == len(parts) == len({part.chunk_id for part in parts}) == 4
+        assert all(part.logical_end > part.logical_start for part in parts)
+        assert selected.cell.pcm == b'\0\0' * 32000
+        assert row['proof'] == selected.cell.proof
+        assert len(row['proof']) <= 65536 < len(row['proof']) + len(full)
+        assert reference == automatic._bound_target_reference(row['proof'], doc['target'])
+        assert json.loads(reference) == {'schema': 'bounded-target-proof-reference-v1',
+            'target_key': doc['target']['key'], 'target_sha256': hashlib.sha256(full).hexdigest(),
+            'proof_sha256': hashlib.sha256(row['proof']).hexdigest()}
+        assert reference == json.dumps(json.loads(reference),sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')
+        assert len(reference) <= 512 and len(row['proof']) + len(reference) <= 65536
+        assert resolved_target(row) == doc['target']
+        assert row['planning_bytes'] == len(reference) and row['plan_revision'] == selected.initial['plan_revision'] + 1
+        assert all(row[key]==selected.initial[key] for key in
+            ('candidate_key','wait_start_ordinal','wait_last_ordinal','created','wait_deadline'))
+        with selected.store.db() as db:
+            _reference_accounting(db, row['sid'])
+            observed = _ReferenceComparisonDB(db)
+            assert automatic.qualify_bounded_document(observed, doc, Budget(), selected.store_key, automatic_key=selected.key)
+            assert observed.comparisons == [(2, len(row['proof']) + len(reference))]
+        with capsys.disabled():
+            print('bound_target_reference_fixed ' + json.dumps({'synthetic_only': True,
+                'historical_reproduction': False, 'ownership_order': order,
+                'ordinary_first_lifecycle': 'bound', 'saved_tight_legacy': 'unresolved_commit_horizon',
+                'origins': 3, 'positive_parts': 4, 'distinct_uploads': 4,
+                'proof_bytes': len(row['proof']), 'full_target_bytes': len(full),
+                'reference_bytes': len(reference), 'stored_certificate_bytes': len(row['proof']) + len(reference),
+                'actual_charge_bytes': row['charge_bytes']}, sort_keys=True), flush=True)
 
 
 def test_bound_target_reference_legacy_full_compatibility(support_local_ledger_factory):
