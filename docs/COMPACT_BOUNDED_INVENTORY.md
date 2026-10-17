@@ -1,3 +1,35 @@
+# dev42：在可选 payload 读取前检查预计 SQL 额度
+
+版本：0.2.0rc3.dev42。实验路径继续默认关闭；启用和外部运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。本次仅修正未执行读取的额度预留及可选回滚后的硬预算确认，不改变 proof/target/inventory wire、等待上界、支持选择、来源身份或模型。
+
+## 前置预留与主流程守恒
+
+原 Budget.projection 对已消耗工作先记账再检查的行为保持原样。新 reserve_projection 先验证参数和当前预算，再比较 spent + requested 与现有阶段/总 SQL 上限。预计超限时拒绝本次尚未执行的读取，原 spent 不变；接受时在读取之前恰好记账一次。先前已接受的预留不退款、不重置，即使后续父行检查拒绝而使 body loop 未运行。
+
+仅四处读取前调用改用该行为：等待行 body、普通完整 intent body、已筛查长度的 lexical parent body，以及来源 descriptor 的保守 1,024 字节预留。最后一项是既有固定 allowance，并非已读取描述符的精确长度。SQL 文本、语句数、投影字段以及发布时的精确比较分支不变。适配器只对真实 Budget 使用新方法；转写页/审计使用的其他预算类型继续原 projection 方法，其原计数和超限行为保留。
+
+enqueue_bounded 的可选拒绝只有在外层事务仍有效、ROLLBACK TO 与 RELEASE 都成功、剩余 notice/global 预算检查通过后才返回等待通知。SQLite OperationalError、已经超出的已耗字节/时间/steps、失败或不确定的回滚/释放仍传播为硬错误；不把提交未知状态当成成功。不存在跨回调缓存、事务内去重、降低计费或提高额度。预计拒绝不输出混淆 spent 与 requested 的日志；既有已耗工作诊断保持不变。
+
+## 当前源的有限模型无关资格
+
+32 个专项及既有硬失败复核，加 6 个直接受影响复核，共 38 个不同当前源用例通过。边界覆盖阶段/全局的相等与一字节超限、无效类型、当前预算已经耗尽、先前预留保留及旧后置计费。四处真实调用确认预计拒绝前未执行 body SELECT；真实转写预算确认成功记账与超限仍记账。合成压力场景在已消耗 252 KiB−1 后请求超过 4,097 字节，拒绝不污染原计数；正向回滚清除可选 ledger/dependency/usage 写入，同时真实主 segment、lexical、native compact、ordinal 和 offset 提交。回滚/释放失败、SQLite 中断、已耗 SQL 超限和过期时间仍使外层回滚。
+
+没有通过关闭全部可选工作来取得守恒：未改动的 ordinary-before-seam 正常生产 fixture 仍发现自然 alias，保持 horizon [3,5]，在 ordinal 5 绑定支持 [310400,505600) 帧。根 2–5 的选定 PCM 依次为 0、25,600、168,000、1,600 帧，两次上传分别贡献 193,600 和 1,600 帧；零 PCM 原始根仍受保护。三个真实 owner 新鲜准入、结果、owner PCM 和 whole-parent / lexical-estimated-v1 两种视图均通过。proof 49,183 字节、完整 target 32,447、引用 291；完整组合 81,630 仍超原上限，实际引用组合 49,474 容纳。精确发布投影、完整/引用比较以及历史 v1 全带 freshness 复核通过；页与审计的真实共享预算兼容通过。
+
+自然生产与合成压力的累计 bounded-primary 设置显式为 1.0 秒：planning 仍为 0.4 秒 / 120000 steps / 128 KiB，finalization 0.98 秒 / 148000 steps / 252 KiB，notice 1.0 秒 / 150000 steps / 256 KiB；owner 的 2.0 秒另计。产品默认 0.75 秒未改，原默认 timeout 与 heavy-SQL 回滚用例也通过。该 fixture 的 native 查询、词汇输入及 MOSS 驱动均为合成数据。
+
+## 实际失败与仍未证明的能力
+
+[dev41 原失败报告](reports/DEV41_FIXED63_FAILURE_DIAGNOSIS.md)逐字保留：63 秒固定实际试验退出 1，主流程只完成前 21 秒；chunk 3 在 offset 0 保存 OperationalError: interrupted。日志记录 finalization 的 SQL 计费 282,415 字节，超过阶段 258,048 和总量 262,144；当时 elapsed 0.240236 秒，时间、steps 和读字节未超限。该证据支持进度处理器中断机制，但不能确定历史抛出语句、可选 savepoint 回滚或外层提交结局；本次压力测试是前瞻复现，不是历史回放。
+
+前置拒绝可保护剩余主流程额度，不减少一个候选完整成功路径的总成本，也不保证它在后续机会中会容纳。未运行新模型，未证明 dev41 实际候选恢复、正第三根/跨上传/部分父文本目标或实际质量达标。所有四根、证书、SQL/VM、来源/摘要/取消、GC/身份限制及历史 baseline 已知失败继续保留。旧版本测试数属于其历史 hash，不合并成当前全套通过。
+
+离线 128 文件 source/wheel/install 一致只验证包字节，wheel 不是自包含 native/model 运行包。本地模型/profile 固定建立重复性，上游转换/量化来源仍未独立验证。后续实际试验需另行固定部署、配置与观察者保存顺序并独立批准。
+
+---
+
+以下 dev41 及更早章节保持原字节；其中本版与历史测量均指当时版本。
+
 # dev41：按固定 owner anchor 的原始根前缀计算等待上界
 
 版本：0.2.0rc3.dev41。继续实验性、默认关闭，仅用于显式启用的新会话和隔离数据目录；启用及外部运行时条件沿用 [dev37 指南](BOUNDED_MULTI_CORE_SUPPORT.md)。本次只有等待上界的计数修正，不改变支持选择、proof/target/inventory wire、store 身份或模型。

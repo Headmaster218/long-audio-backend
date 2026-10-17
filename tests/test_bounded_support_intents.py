@@ -2798,3 +2798,391 @@ def _source70_target_reader_oracle():
     assert namespace['validate_v2_row'].__globals__ is namespace
     assert namespace['_read_v2'].__globals__ is namespace
     return namespace
+
+
+# Prospective SQL reservations are mechanism tests against fresh synthetic rows.
+# The raised pressure below is declared test input, not historical replay data.
+@pytest.mark.parametrize('phase,over', [
+    ('planning', False), ('planning', True),
+    ('finalization', False), ('finalization', True),
+    ('notice', False), ('notice', True),
+    ('operation', False), ('operation', True)], ids=[
+    'planning_equal', 'planning_over', 'finalization_equal', 'finalization_over',
+    'notice_equal', 'notice_over', 'operation_equal', 'operation_over'])
+def test_projection_reservation_boundary(monkeypatch, phase, over):
+    from types import SimpleNamespace
+    from audio_backend import native_owned_cell_store as cellstore
+    monkeypatch.setattr(cellstore, 'time', SimpleNamespace(monotonic=lambda: 10.))
+    diagnostics = []
+    monkeypatch.setattr(cellstore, '_diagnostic', lambda *args: diagnostics.append(True))
+    limits = {'planning': 128*1024, 'finalization': 252*1024,
+              'notice': 256*1024, 'operation': 256*1024}
+    budget = Budget.for_bounded(.75)
+    limit = limits[phase]; budget.sql_bytes = limit - 17
+    before = (budget.elapsed, budget.steps, budget.read_bytes, budget.sql_bytes)
+    manager = budget.phase() if phase == 'operation' else getattr(budget, phase + '_phase')()
+    with manager:
+        if over:
+            reason = 'operation_work_capacity' if phase == 'operation' else 'bounded_planning_capacity'
+            with pytest.raises(Unavailable, match='^' + reason + '$'):
+                budget.reserve_projection(18)
+            assert (budget.elapsed, budget.steps, budget.read_bytes, budget.sql_bytes) == before
+        else:
+            budget.reserve_projection(17)
+            assert budget.sql_bytes == limit
+            assert (budget.elapsed, budget.steps, budget.read_bytes) == before[:3]
+        budget.check()
+        assert budget._refusal_diagnosed is False and diagnostics == []
+    assert budget.sql_bytes == (limit - 17 if over else limit)
+
+
+@pytest.mark.parametrize('exhaustion', ['elapsed', 'deadline', 'steps', 'sql', 'read'])
+def test_projection_reservation_current_exhaustion_is_hard(monkeypatch, exhaustion):
+    from types import SimpleNamespace
+    from audio_backend import native_owned_cell_store as cellstore
+    monkeypatch.setattr(cellstore, 'time', SimpleNamespace(monotonic=lambda: 10.))
+    diagnostics = []
+    monkeypatch.setattr(cellstore, '_diagnostic', lambda *args: diagnostics.append(True))
+    budget = Budget(); budget.sql_bytes = 23
+    if exhaustion == 'elapsed':budget.elapsed = budget.seconds + .01
+    elif exhaustion == 'deadline':budget.deadline = 10.
+    elif exhaustion == 'steps':budget.steps = cellstore.SQL_STEPS + 1
+    elif exhaustion == 'sql':budget.sql_bytes = cellstore.SQL_PROJECTION_BYTES + 1
+    else:budget.read_bytes = cellstore.SOURCE_READ_BYTES + 1
+    before = (budget.elapsed, budget.steps, budget.read_bytes, budget.sql_bytes)
+    reason = 'cooperative_deadline' if exhaustion in ('elapsed', 'deadline') else 'operation_work_capacity'
+    with pytest.raises(Unavailable, match='^' + reason + '$'):
+        budget.reserve_projection(1)
+    assert (budget.elapsed, budget.steps, budget.read_bytes, budget.sql_bytes) == before
+    assert budget._refusal_diagnosed is True and diagnostics == [True]
+
+
+@pytest.mark.parametrize('count', [True, -1, 256*1024 + 1, .5],
+                         ids=['bool', 'negative', 'oversized', 'fractional'])
+def test_projection_reservation_invalid_count(count):
+    budget = Budget(); budget.sql_bytes = 23
+    before = (budget.elapsed, budget.steps, budget.read_bytes, budget.sql_bytes)
+    with pytest.raises(Unavailable, match='^invalid_integer_geometry$'):
+        budget.reserve_projection(count)
+    assert (budget.elapsed, budget.steps, budget.read_bytes, budget.sql_bytes) == before
+    assert budget._refusal_diagnosed is False
+
+
+def test_projection_reservation_keeps_prior_debits():
+    budget = Budget()
+    with budget.planning_phase():
+        budget.reserve_projection(128*1024 - 19)
+        budget.reserve_projection(7)
+        before = budget.sql_bytes
+        with pytest.raises(Unavailable, match='^bounded_planning_capacity$'):
+            budget.reserve_projection(13)
+        assert budget.sql_bytes == before == 128*1024 - 12
+        budget.reserve_projection(12)
+        assert budget.sql_bytes == 128*1024
+    assert budget.sql_bytes == 128*1024
+    assert budget._refusal_diagnosed is False
+
+
+def test_post_work_projection_overrun_remains_charged(monkeypatch):
+    from audio_backend import native_owned_cell_store as cellstore
+    diagnostics = []
+    monkeypatch.setattr(cellstore, '_diagnostic', lambda *args: diagnostics.append(True))
+    budget = Budget(); budget.sql_bytes = cellstore.SQL_PROJECTION_BYTES - 7
+    with pytest.raises(Unavailable, match='^operation_work_capacity$'):
+        budget.projection(8)
+    assert budget.sql_bytes == cellstore.SQL_PROJECTION_BYTES + 1
+    assert budget._refusal_diagnosed is True and diagnostics == [True]
+
+
+@pytest.mark.parametrize('site', ['waiter', 'intent', 'parent', 'source_descriptor'])
+def test_projection_reservation_precedes_payload_sql(support_local_ledger_factory, site):
+    from audio_backend import native_owned_cell_capture as capture
+    from test_bounded_core_support import primary_row
+    f = support_local_ledger_factory(waiting=True)
+    limit = 128*1024; events = []
+    payload_prefix = 'SELECT ' + automatic.COLUMNS + ',proof,'
+    parent_prefix = 'SELECT ' + ','.join(transcript.PRIMARY_FIELDS) + ',lexical_evidence FROM segments'
+    def trace(statement):
+        # Retain only fixed categories. Expanded SQL and payloads are never logged.
+        if statement.startswith(payload_prefix):events.append('intent_body')
+        elif statement.startswith('SELECT seq,length(binding)'):events.append('waiter_lengths')
+        elif statement.startswith('SELECT length(binding),length(proof),length(target_body)'):
+            events.append('intent_lengths')
+        elif statement.startswith('SELECT s.id,'):events.append('parent_lengths')
+        elif statement.startswith(parent_prefix):events.append('parent_body')
+        elif statement.startswith('SELECT length(id),length(session_id),length(digest)'):
+            events.append('descriptor_lengths')
+        elif statement.startswith('SELECT id,session_id,digest,timeline_start,duration'):
+            events.append('descriptor_body')
+    with f.store.db() as db:
+        if site == 'parent':
+            _insert_local_parent(db, primary_row(2, 18, 20, cid='source-1', text='second synthetic parent'))
+        def read(budget):
+            if site == 'waiter':
+                return automatic.read_waiters(db, f.context['batch_id'],
+                    core.scope_key(f.case['commits'][0]['scope']), budget)
+            if site == 'intent':return automatic._read_v2(db, key=f.key, budget=budget)
+            return capture.bounded_primary_snapshot(db, f.row['sid'], 0., [0, 64], budget)
+        # Establish valid real rows and source validation with an ordinary budget.
+        baseline = Budget.for_bounded(1.0)
+        valid = read(baseline)
+        if site == 'waiter':assert len(valid) == 1 and valid[0]['candidate_key'] == f.key
+        elif site == 'intent':assert valid['candidate_key'] == f.key
+        else:
+            assert [row['id'] for row in valid['rows']] == ([1, 2] if site == 'parent' else [1])
+            assert set(valid['sources']) == set(f.case['sources'])
+        if site in ('waiter', 'intent'):
+            count = sum(len(f.row[name]) for name in ('binding', 'proof', 'target_body')) + 1024
+            initial = limit - count + 1; accepted_inside = 0
+        else:
+            variable = ('text', 'raw_text', 'asr_backend', 'timestamp_kind', 'speaker_local_id', 'lexical_evidence')
+            sizes = [256 + sum(len(row[name].encode('utf-8')) if row[name] is not None else 0
+                              for name in variable)
+                     for row in db.execute('SELECT * FROM segments ORDER BY start,id')]
+            chunks_charge = len(f.case['sources']) * 256
+            if site == 'parent':
+                assert len(sizes) == 2
+                count = sizes[1]; accepted_inside = chunks_charge + sizes[0]
+            else:
+                assert len(sizes) == 1
+                count = 1024; accepted_inside = chunks_charge + sizes[0]
+            initial = limit - accepted_inside - count + 1
+        budget = Budget.for_bounded(1.0)
+        with budget.planning_phase():
+            budget.reserve_projection(initial)
+            db.set_trace_callback(trace)
+            try:
+                with pytest.raises(Unavailable, match='^bounded_planning_capacity$'):
+                    read(budget)
+            finally:db.set_trace_callback(None)
+            assert budget.sql_bytes == initial + accepted_inside
+            assert budget.sql_bytes + count == limit + 1
+            assert budget._refusal_diagnosed is False
+            budget.check()
+        if site in ('waiter', 'intent'):
+            assert events == [('waiter_lengths' if site == 'waiter' else 'intent_lengths')]
+        elif site == 'parent':
+            assert 'parent_lengths' in events
+            assert 'parent_body' not in events and 'descriptor_body' not in events
+        else:
+            assert 'parent_lengths' in events and events.count('parent_body') == 1
+            assert 'descriptor_lengths' not in events and 'descriptor_body' not in events
+        # Transcript reads use the real legacy projection/check protocol and
+        # retain its independent 4 MiB accounting, including charged overruns.
+        from audio_backend.transcript_store import _CertificateReadBudget
+        checks = []; legacy = _CertificateReadBudget(lambda: checks.append(True))
+        read(legacy)
+        assert legacy.sql_bytes == baseline.sql_bytes and checks
+        prior_events = list(events); events.clear()
+        legacy = _CertificateReadBudget()
+        legacy.sql_bytes = transcript.MAX_BINDING_BYTES - accepted_inside - count + 1
+        db.set_trace_callback(trace)
+        try:
+            with pytest.raises(ReadError, match='^unresolved_capacity$'):
+                read(legacy)
+        finally:db.set_trace_callback(None)
+        assert legacy.sql_bytes == transcript.MAX_BINDING_BYTES + 1
+        assert events == prior_events
+
+
+def test_prospective_capacity_rolls_back_optional_and_commits_primary(bounded_app_factory, monkeypatch):
+    """Synthetic higher consumed-byte pressure, never a replay of hidden values."""
+    with bounded_app_factory(support_seconds=1.0) as h:
+        chunks, waiting = advance_to_waiter(h)
+        tables = (automatic.TABLE, automatic.DEPENDENCIES, automatic.USAGE)
+        def optional_rows(db):
+            return {table: [tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                    for table in tables}
+        with h.store.db() as db:
+            before = optional_rows(db); usage_before = _reference_accounting(db, h.sid)
+            compacts_before = db.execute('SELECT COUNT(*) FROM native_core_commits WHERE sid=?', (h.sid,)).fetchone()[0]
+            ordinal_before = db.execute('SELECT native_core_ordinal FROM recording_batches WHERE session_id=?', (h.sid,)).fetchone()[0]
+        publications_before = list(h.publications)
+        enqueue = automatic.enqueue_bounded; dependencies = automatic._write_dependencies
+        read_v2 = automatic._read_v2; reserve = Budget.reserve_projection
+        state = {'active': False, 'mutated': False, 'in_full_read': False, 'injected': False,
+                 'refused': False, 'body_reads': 0, 'size_reads': 0, 'cleanup': []}
+        payload_prefix = 'SELECT ' + automatic.COLUMNS + ',proof,'
+        class TracedDB:
+            def __init__(self, db):self.db = db
+            @property
+            def in_transaction(self):return self.db.in_transaction
+            def set_progress_handler(self, callback, count):return self.db.set_progress_handler(callback, count)
+            def execute(self, sql, parameters=()):
+                if sql.startswith(payload_prefix):state['body_reads'] += 1
+                elif sql.startswith('SELECT length(binding),length(proof),length(target_body)'):
+                    state['size_reads'] += 1
+                if sql in ('ROLLBACK TO bounded_optional', 'RELEASE bounded_optional'):
+                    state['cleanup'].append(sql)
+                return self.db.execute(sql, parameters)
+        def mutated_dependencies(db, seq, roots):
+            result = dependencies(db, seq, roots)
+            if state['active'] and not state['injected']:
+                current = optional_rows(db)
+                # All three real optional ledgers have changed before pressure.
+                if all(current[table] != before[table] for table in tables):
+                    _reference_accounting(db, h.sid)
+                    state['mutated'] = True
+            return result
+        def full_read(*args, **kwargs):
+            armed = (state['active'] and kwargs.get('budget') is state.get('budget')
+                     and kwargs.get('expected') is None)
+            old = state['in_full_read']; state['in_full_read'] = armed
+            bodies, sizes, injected = state['body_reads'], state['size_reads'], state['injected']
+            try:return read_v2(*args, **kwargs)
+            finally:
+                state['in_full_read'] = old
+                if not injected and state['injected']:
+                    assert state['size_reads'] == sizes + 1
+                    assert state['body_reads'] == bodies
+        def pressured_reservation(budget, count):
+            if (state['active'] and state['mutated'] and state['in_full_read']
+                    and not state['injected'] and budget is state['budget']):
+                assert budget._planning_limits == (.98, 148000, 252*1024)
+                assert budget.primary_sql and state['db'].in_transaction
+                # Add declared synthetic consumed pressure at this real screened
+                # full-row call site. Do not change caps, elapsed time or steps.
+                pressure = 252*1024 - 1
+                assert count > 4097 and pressure + count > 256*1024
+                assert budget.sql_bytes < pressure <= 252*1024
+                state.update(injected=True, earlier_bytes=budget.sql_bytes, pressure=pressure,
+                             requested=count, diagnostic_before=budget._refusal_diagnosed)
+                budget.sql_bytes = pressure
+                try:return reserve(budget, count)
+                except Unavailable as exc:
+                    assert str(exc) == 'bounded_planning_capacity'
+                    assert budget.sql_bytes == pressure
+                    assert budget._refusal_diagnosed is state['diagnostic_before']
+                    state['refused'] = True
+                    raise
+            return reserve(budget, count)
+        def observed_enqueue(db, cells, packet, handoff, chunk, lexical_rows, lexical_status):
+            assert chunk['id'] == chunks[-1]['id'] and not state['active']
+            assert all(optional_rows(db)[table] == before[table] for table in tables)
+            state.update(active=True, budget=handoff['budget'], db=db)
+            try:
+                notice = enqueue(TracedDB(db), cells, packet, handoff, chunk, lexical_rows, lexical_status)
+                assert state['injected'] and state['refused'] and state['mutated']
+                assert db.in_transaction
+                assert all(optional_rows(db)[table] == before[table] for table in tables)
+                assert _reference_accounting(db, h.sid) == usage_before
+                assert handoff['budget'].sql_bytes == state['pressure']
+                state['notice'] = notice
+                return notice
+            finally:state['active'] = False
+        monkeypatch.setattr(automatic, '_write_dependencies', mutated_dependencies)
+        monkeypatch.setattr(automatic, '_read_v2', full_read)
+        monkeypatch.setattr(Budget, 'reserve_projection', pressured_reservation)
+        monkeypatch.setattr(automatic, 'enqueue_bounded', observed_enqueue)
+        assert process_primary(h) == chunks[-1]['id']
+        assert state['cleanup'] == ['ROLLBACK TO bounded_optional', 'RELEASE bounded_optional']
+        assert state['notice'] == {'schema': 'bounded-core-support-notice-v1', 'status': 'waiting',
+            'reason': 'bounded_planning_capacity', 'owned_targets_preserved': True}
+        budget = state['budget']
+        assert budget.sql_outcome == 'committed' and budget.sql_bytes == state['pressure']
+        assert budget.seconds == 1.0 and budget.sql_bytes == 252*1024 - 1
+        assert budget.sql_bytes + state['requested'] > 256*1024
+        last = h.store.chunk(chunks[-1]['id'])
+        assert last['status'] == 'completed' and last['next_offset'] == last['duration']
+        assert last['metadata']['bounded_core_support'] == state['notice']
+        assert last['metadata']['lexical_evidence']['status'] == 'retained'
+        with h.store.db() as db:
+            assert all(optional_rows(db)[table] == before[table] for table in tables)
+            assert _reference_accounting(db, h.sid) == usage_before
+            saved = [dict(row) for row in db.execute('SELECT * FROM segments WHERE chunk_id=? ORDER BY id', (last['id'],))]
+            assert saved and all(row['lexical_evidence'] is not None for row in saved)
+            assert all(lexical.current_inventory(db, h.sid, row) is not None for row in saved)
+            assert ''.join(row['text'] for row in saved).strip() == 'suffix'
+            assert db.execute('SELECT COUNT(*) FROM native_core_commits WHERE sid=?', (h.sid,)).fetchone()[0] == compacts_before + 1
+            assert db.execute('SELECT native_core_ordinal FROM recording_batches WHERE session_id=?', (h.sid,)).fetchone()[0] == ordinal_before + 1
+            assert db.execute(f'SELECT COUNT(*) FROM {automatic.TABLE} WHERE sid=? AND job_id IS NOT NULL', (h.sid,)).fetchone()[0] == 0
+        assert c_target(h)['candidate_key'] == waiting['candidate_key']
+        assert c_target(h)['plan_phase'] == 'waiting'
+        assert h.publications == publications_before
+        assert not h.drivers and h.jobs._live is None and h.jobs.permit._optional is None
+        assert not h.owner._pins and h.capture.analyzer is None and not h.capture.active
+
+
+@pytest.mark.parametrize('failure', ['rollback', 'release', 'interrupted', 'consumed_sql', 'expired_time'])
+def test_optional_reservation_uncertainty_stays_hard(support_local_ledger_factory, monkeypatch, failure):
+    from test_bounded_core_support import primary_row
+    f = support_local_ledger_factory(waiting=True)
+    before = _reference_snapshot(f); budget = Budget.for_bounded(1.0)
+    tables = (automatic.TABLE, automatic.DEPENDENCIES, automatic.USAGE)
+    evidence = {'mutated': False, 'cleanup': [], 'restored': False, 'handlers': []}
+    exact_compacts = automatic._exact_compacts
+    def optional_rows(db):
+        return {table: [tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                for table in tables}
+    class FaultDB:
+        def __init__(self, db):self.db = db
+        @property
+        def in_transaction(self):return self.db.in_transaction
+        def set_progress_handler(self, callback, count):
+            evidence['handlers'].append((callback, count))
+            return self.db.set_progress_handler(callback, count)
+        def execute(self, sql, parameters=()):
+            if sql in ('ROLLBACK TO bounded_optional', 'RELEASE bounded_optional'):
+                evidence['cleanup'].append(sql)
+                if failure == 'rollback' and sql.startswith('ROLLBACK TO'):
+                    raise sqlite3.OperationalError('synthetic rollback failure')
+                if failure == 'release' and sql.startswith('RELEASE'):
+                    raise sqlite3.OperationalError('synthetic release failure')
+            cursor = self.db.execute(sql, parameters)
+            if sql == 'ROLLBACK TO bounded_optional':
+                current = optional_rows(self.db)
+                assert all(current[table] == before[table] for table in tables)
+                assert self.db.execute('SELECT text FROM segments WHERE id=2').fetchone()[0] == 'primary pending'
+                assert self.db.in_transaction
+                evidence['restored'] = True
+            return cursor
+    def mutate_then_refuse(db, commits, context, current_budget):
+        exact_compacts(db, commits, context, current_budget)
+        assert not evidence['mutated'] and current_budget is budget
+        # Real writes within the optional savepoint, all checked after cleanup.
+        db.execute("UPDATE segments SET text='optional pending' WHERE id=2")
+        db.execute(f"UPDATE {automatic.TABLE} SET reason='synthetic optional pending' WHERE seq=?", (f.row['seq'],))
+        automatic._charge(db, f.row['sid'], (0, 1, 0, 0))
+        db.execute(f'DELETE FROM {automatic.DEPENDENCIES} WHERE intent_seq=?', (f.row['seq'],))
+        current = optional_rows(db)
+        assert all(current[table] != before[table] for table in tables)
+        evidence['mutated'] = True
+        if failure == 'interrupted':
+            db.set_progress_handler(lambda: 1, 1)
+            db.execute('WITH RECURSIVE work(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM work WHERE n<1000) SELECT sum(n) FROM work').fetchone()
+            pytest.fail('actual SQLite progress interruption did not propagate')
+        if failure == 'consumed_sql':budget.sql_bytes = 256*1024 + 1
+        elif failure == 'expired_time':budget.elapsed = budget.seconds + .01
+        else:budget.sql_bytes = 252*1024
+        budget.reserve_projection(1)
+        pytest.fail('exhausted optional reservation returned')
+    monkeypatch.setattr(automatic, '_exact_compacts', mutate_then_refuse)
+    error_type = sqlite3.OperationalError if failure in ('rollback', 'release', 'interrupted') else Unavailable
+    with pytest.raises(error_type) as caught:
+        with f.store.db(budget=budget) as db:
+            db.execute('BEGIN IMMEDIATE')
+            _insert_local_parent(db, primary_row(2, 48, 56, cid='source-3', text='primary pending'))
+            handoff = {'waiters': [f.row], 'batch': f.context, 'reserved': True, 'budget': budget,
+                       'origins': [f.original], 'plans': []}
+            automatic.enqueue_bounded(FaultDB(db), [], {'commit': f.case['commits'][-1]}, handoff,
+                {'session_id': f.row['sid']}, [], None)
+            pytest.fail('hard optional uncertainty returned a notice')
+    assert evidence['mutated'] and budget.sql_outcome == 'rolled_back'
+    after = _reference_snapshot(f)
+    assert all(after[table] == before[table] for table in before)
+    assert evidence['handlers'][-1] == (budget.progress, 100)
+    if failure == 'rollback':
+        assert str(caught.value) == 'synthetic rollback failure'
+        assert evidence['cleanup'] == ['ROLLBACK TO bounded_optional'] and not evidence['restored']
+    elif failure == 'interrupted':
+        assert caught.value.sqlite_errorcode == sqlite3.SQLITE_INTERRUPT
+        assert evidence['cleanup'] == [] and not evidence['restored']
+    else:
+        assert evidence['cleanup'] == ['ROLLBACK TO bounded_optional', 'RELEASE bounded_optional']
+        assert evidence['restored']
+        if failure == 'release':assert str(caught.value) == 'synthetic release failure'
+        else:
+            assert str(caught.value) == 'bounded_planning_capacity'
+            assert budget._refusal_diagnosed is True
+            if failure == 'consumed_sql':assert budget.sql_bytes == 256*1024 + 1
+            else:assert budget.elapsed > budget.seconds

@@ -25,7 +25,7 @@ from .native_owned_cells import (Unavailable, RollingWitness, SourceSpan, Cell,
     RATE, MAX_FRAME, CORE_FRAMES, MAX_PARTS, IO_BYTES, PROOF_BYTES,
     intersect_mapping, BATCH_CELLS, HANDOFF_BYTES)
 from .native_owned_cell_store import (CellStore, Receipt, Budget, qualified_runtime,
-    RECEIPT_BYTES, LOCK_SECONDS, Operation, _diagnostic_failure, _diagnostic)
+    RECEIPT_BYTES, LOCK_SECONDS, Operation, _diagnostic_failure, _diagnostic, reserve_projection)
 
 _REGISTRY = {}
 _REGISTRY_LOCK = threading.Lock()
@@ -80,7 +80,7 @@ def bounded_primary_snapshot(db, sid, scope_origin, scan_frames, budget):
         for row in found:
             if not 0 <= row['lexical_bytes'] <= lexical.MAX_SEGMENT_BYTES:
                 raise Unavailable('bounded_inventory_capacity')
-            budget.projection(row['bytes'])
+            reserve_projection(budget,row['bytes'])
             screened.append((row['id'], chunk))
     rows = []; fields = ','.join(contract.PRIMARY_FIELDS) + ',lexical_evidence'
     for ident, chunk in screened:
@@ -110,7 +110,7 @@ def bounded_primary_snapshot(db, sid, scope_origin, scan_frames, budget):
         if len(source_ids | lexical_source_ids) > 128:raise Unavailable('bounded_source_capacity')
     sources = {}
     for cid in sorted(source_ids | lexical_source_ids):
-        budget.projection(1024); budget.check()
+        reserve_projection(budget,1024); budget.check()
         length = db.execute('SELECT length(id),length(session_id),length(digest) FROM chunks WHERE id=?', (cid,)).fetchone()
         if length is None or any(type(n) is not int or n < 1 or n > 512 for n in length):
             if cid in source_ids:raise Unavailable('bounded_source_missing')

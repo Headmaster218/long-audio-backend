@@ -185,6 +185,18 @@ class Budget:
     def projection(self, count):
         integer(count, SQL_PROJECTION_BYTES); self.sql_bytes += count; self.check()
 
+    def reserve_projection(self, count):
+        """Reserve a known pre-read allowance without charging refused work."""
+        integer(count, SQL_PROJECTION_BYTES); self.check()
+        prospective = self.sql_bytes + count
+        if self._planning_limits is not None and prospective > self._planning_limits[2]:
+            raise Unavailable('bounded_planning_capacity')
+        if prospective > SQL_PROJECTION_BYTES:
+            raise Unavailable('operation_work_capacity')
+        # Keep accepted allowances charged even if a later read refuses.
+        # The existing check still makes elapsed/consumed exhaustion hard.
+        self.projection(count)
+
     def progress(self):
         self.steps += 100
         try:self.check()
@@ -192,6 +204,12 @@ class Budget:
             self._progress_refusal=str(exc)
             return 1
         return 0
+
+
+def reserve_projection(budget, count):
+    """Keep legacy read-budget accounting while reserving native primary reads."""
+    if isinstance(budget, Budget):budget.reserve_projection(count)
+    else:budget.projection(count)
 
 
 def _runtime_hash(path, budget, maximum=64 * 1024**2):

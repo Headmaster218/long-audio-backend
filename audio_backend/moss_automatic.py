@@ -15,6 +15,7 @@ import time
 from .native_owned_cells import (Cell, Unavailable, canonical, sha, validate_document,
     SourceSpan, PROOF_BYTES, BATCH_CELLS, MAX_FRAME, exact_frame)
 from .native_owned_support_cache import ReadError
+from .native_owned_cell_store import reserve_projection
 
 _WINDOW_READ_DEFERRED = object()
 
@@ -406,7 +407,7 @@ def read_waiters(db,batch_id,scope_key,budget,limit=4):
     for row in rows:
         if (type(row['pn']) is not int or type(row['tn']) is not int or not 1<=row['bn']<=BINDING_BYTES
                 or not 2<=row['pn']+row['tn']<=PROOF_BYTES):raise Unavailable('bounded_waiter_payload')
-        budget.projection(row['bn']+row['pn']+row['tn']+1024)
+        reserve_projection(budget,row['bn']+row['pn']+row['tn']+1024)
         value=dict(db.execute(f'SELECT {COLUMNS},proof,'+','.join(V2_COLUMNS)+f' FROM {TABLE} WHERE seq=?',(row['seq'],)).fetchone())
         validate_v2_row(db,value,value['proof'],budget)
         value['target']=json.loads(value['target_body'])
@@ -688,7 +689,7 @@ def _read_v2(db,*,key=None,target_key=None,budget=None,with_validation=False,exp
     if (any(type(n) is not int for n in sizes) or not 1<=sizes[0]<=BINDING_BYTES
             or not 2<=sizes[1]+sizes[2]<=PROOF_BYTES):raise _certificate_capacity('stored_certificate', sizes[1], sizes[2], sizes[0])
     if expected is None:
-        if budget is not None:budget.projection(sum(sizes)+1024)
+        if budget is not None:reserve_projection(budget,sum(sizes)+1024)
         row=dict(db.execute(f'SELECT {COLUMNS},proof,'+','.join(V2_COLUMNS)+f' FROM {TABLE} WHERE {field}=?',(value,)).fetchone())
     else:
         proof,target=expected
@@ -952,6 +953,10 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
         db.set_progress_handler(None,0)
         if not db.in_transaction:raise
         db.execute('ROLLBACK TO bounded_optional');db.execute('RELEASE bounded_optional')
+        if not db.in_transaction:raise
+        # A deferred optional read must leave the shared primary budget usable.
+        # Never soften consumed global exhaustion or uncertain SQL rollback.
+        with budget.notice_phase():budget.check()
         notice['reason']=(getattr(exc,'reason',None) or str(exc))[:80]
         if str(exc)=='serialization_capacity':
             phase=getattr(exc,'capacity_phase','unknown')
