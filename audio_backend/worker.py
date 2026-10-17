@@ -511,7 +511,11 @@ class Worker:
                         arguments['diarization_path']=diarization_path
                     if options is not None:arguments['analysis_options']=options
                     result=process.analyze(wav,tmp/'result.json',lambda:self.interrupted(chunk['id']),**arguments)
+                from .recording_primary_provenance import enabled as primary_provenance_enabled, observe, validate_observation
+                primary_snapshot = observe(result, native) if automatic and primary_provenance_enabled(self.settings) else None
                 result=validate_result(result,extract_end-extract_start)
+                if primary_snapshot is not None:validate_observation(result, primary_snapshot)
+                primary_snapshot = None
                 if native:
                     result.setdefault('metadata',{}).update(native['provenance'])
                     result['metadata']['native_diarization']=native['state']

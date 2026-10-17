@@ -67,6 +67,8 @@ def main(argv=None):
     parser.add_argument('--moss-automatic',action='store_true',help='Candidate default-OFF automatic timestamped recording MOSS dispatch; requires MOSS jobs, native-owned support/cells/core-seams and the ordinary Worker; excludes legacy seam-cells')
     parser.add_argument('--recording-speaker-links', action='store_true', help='EXPERIMENTAL default-off recording-scoped anonymous speaker links; 32-node cap; requires automatic MOSS')
     parser.add_argument('--recording-speaker-model', type=Path, help='Explicit existing local audited speaker.onnx; no downloads or gallery enrollment')
+    parser.add_argument('--recording-primary-provenance-recording-bytes', type=int, default=128 * 1024**2, help='Logical immutable primary provenance quota per recording; no eviction')
+    parser.add_argument('--recording-primary-provenance-global-bytes', type=int, default=512 * 1024**2, help='Global logical immutable primary provenance quota; physical DB/WAL is separate')
     parser.add_argument('--speaker-threshold', type=float, default=.75)
     parser.add_argument('--new-speaker-threshold', type=float, default=.45)
     parser.add_argument('--speaker-margin', type=float, default=.10)
@@ -246,6 +248,8 @@ def main(argv=None):
                         moss_result_max_bytes=args.moss_result_max_bytes,
                         moss_result_max_bytes_per_session=args.moss_result_max_bytes_per_session,
                         recording_speaker_links_enabled=args.recording_speaker_links,
+                        recording_primary_provenance_recording_bytes=args.recording_primary_provenance_recording_bytes,
+                        recording_primary_provenance_global_bytes=args.recording_primary_provenance_global_bytes,
                         recording_speaker_model_path=str(args.recording_speaker_model.resolve()) if args.recording_speaker_model else None,
                         moss_jobs_enabled=args.moss_jobs,
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,

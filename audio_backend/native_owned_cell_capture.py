@@ -1334,6 +1334,9 @@ class Capture:
                 if original != observed:raise Unavailable('original_native_analyzer_mismatch')
                 evidence = {'chunk_id': chunk['id'], 'start': start_local, 'end': end_local,
                             'native': native['state'], 'core_cut': result['metadata']['core_cut']}
+                if result.get('_primary_observation') is not None:
+                    from .recording_primary_provenance import freeze
+                    freeze(self, chunk, native, offset, end, result, parts, evidence, original)
                 commit_hash = sha(evidence)
                 cells = make_cells(witness=self.witness, native=native, scope_start=self.scope_start,
                     origin_frame=self.origin_frame, core_start=a, core_end=b,

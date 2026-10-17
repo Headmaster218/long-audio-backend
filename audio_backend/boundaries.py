@@ -168,6 +168,8 @@ def lexical_core(result,start,end,previous=None,base=0.,*,retain_lexical=False):
             s.update(start=u['start']-lo,end=u['end']-lo,text=u['text'],
                      raw_text=u.get('raw_text',u['text']),_source=original)
             assembled.append(s)
+        if type(original.get('_primary_parent_ordinal')) is int and type(u.get('_primary_unit_ordinal')) is int:
+            s.setdefault('_primary_units', []).append([original['_primary_parent_ordinal'], u['_primary_unit_ordinal']])
         if capture is not None:capture.add(s,u)
     for s in assembled:
         s.pop('_source');s['text']=s['text'].strip();s['raw_text']=s['raw_text'].strip()

@@ -111,6 +111,8 @@ class Settings:
     moss_automatic_enabled: bool = False
     recording_speaker_links_enabled: bool = False
     recording_speaker_model_path: str | None = None
+    recording_primary_provenance_recording_bytes: int = 128 * 1024**2
+    recording_primary_provenance_global_bytes: int = 512 * 1024**2
     speaker_support_max_records: int = 4096
     speaker_support_max_pcm_bytes: int = 1280000
     speaker_support_total_pcm_bytes: int = 64 * 1024**2
@@ -166,6 +168,12 @@ class Settings:
             if (type(self.moss_jobs_model_path) is not str or len(self.moss_jobs_model_path.encode('utf-8')) > 4096
                     or not Path(self.moss_jobs_model_path).is_absolute()):
                 raise ValueError('MOSS jobs requires an explicit absolute local model path')
+        for name in ('recording_primary_provenance_recording_bytes', 'recording_primary_provenance_global_bytes'):
+            value = getattr(self, name)
+            if type(value) is not int or not 1 <= value <= 64 * 1024**3:
+                raise ValueError(name + ' must be a positive integer no greater than 64 GiB')
+        if self.recording_primary_provenance_recording_bytes > self.recording_primary_provenance_global_bytes:
+            raise ValueError('Per-recording primary provenance quota exceeds global quota')
         if type(self.recording_speaker_links_enabled) is not bool:
             raise ValueError('recording_speaker_links_enabled must be boolean')
         if self.recording_speaker_model_path is not None and not self.recording_speaker_links_enabled:

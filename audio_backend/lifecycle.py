@@ -94,6 +94,8 @@ def delete_session(store, sid, delete_file=None):
             db.execute('DELETE FROM speaker_observations WHERE session_id=?', (sid,))
             # Explicit stream and event-candidate ledgers cascade from chunks.
             db.execute('DELETE FROM chunks WHERE session_id=?', (sid,))
+            from .recording_primary_provenance import erased as primary_provenance_erased
+            primary_provenance_erased(db, sid)
             db.execute('DELETE FROM corrections WHERE session_id=?', (sid,))
             db.execute('''DELETE FROM speaker_identity_generations WHERE identity_group=?
                 AND NOT EXISTS (SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0)''',

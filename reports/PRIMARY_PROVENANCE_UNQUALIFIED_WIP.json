@@ -1,12 +1,23 @@
 {
-  "status": "UNQUALIFIED INCOMPLETE WIP: source backup only",
+  "status": "UNQUALIFIED INTEGRATED WIP: remaining acceptance gates open",
+  "parent_commit": "a13c842cc895ec09e68b3a49a13096c164c3edb2",
   "baseline_commit": "2be2be425e51091d890fab03564661524752afa9",
-  "baseline_tree": "ba824ca95bdf6c68203eb1a504850b4383eee2c0",
-  "qualification": "No new tests executed. Integration hooks are absent from this first helper checkpoint. Prior scratch terminal artifacts were lost in environment replacement and are not reproduced.",
+  "qualification": "Fresh replacement-runtime standard pytest: one real Worker/ownership/Capture.prepare/actual SQL p.refs/restart test passed, independently audited. This is model-free integration evidence only; no historical test result transferred.",
+  "result": {
+    "tests_passed": 1,
+    "seconds": 3.6673028780001005,
+    "peak_combined_rss_bytes": 88293376,
+    "peak_fixture_bytes": 1294336,
+    "violations": null,
+    "positive_child_wait": true,
+    "remaining_processes": [],
+    "terminal_sha256": "f0236bb1eebd84b50073b7692b0515f9bade7d6a9d65543920477d2716ade899",
+    "independent_review_sha256": "b264fa498036413b5d33a67812848caffbe1dd8ccbc242322e975542a4f2812a"
+  },
   "pending": [
-    "seven integration hooks",
-    "fresh model-free producer/SQL/restart/fault/old-binary qualification",
-    "metadata-only fixed-shape size measurements"
+    "fresh refusal/current/counter/fault tests",
+    "fresh old-dev45 startup and erasure compatibility",
+    "fixed-shape metadata-only 12h/48h physical measurements"
   ],
-  "runtime": "Replacement Python 3.12.14/pytest 8.4.2; no historical runtime parity claim."
+  "runtime": "Python3.12.14/pytest8.4.2; source/runtime manifests and terminal evidence retained in the fresh qualification stage."
 }

@@ -205,6 +205,10 @@ class Store:
             init_bounded_schema(db,enable=bounded_enabled(settings))
             from .transcript_revision import init_bounded_schema as init_bounded_revision
             init_bounded_revision(db)
+            from .recording_primary_provenance import init_schema as init_primary_provenance
+            init_primary_provenance(db)
+        from .recording_primary_provenance import database_identity, enabled as primary_provenance_enabled
+        self._primary_provenance_identity = database_identity(self.path) if primary_provenance_enabled(settings) else None
 
     @contextmanager
     def db(self,*,budget=None):
@@ -595,6 +599,8 @@ class Store:
     def commit_window(self, chunk, offset, end, result):
         # Conservatively include primary statements, added revision triggers,
         # and COMMIT in the same bounded budget. No hidden second allowance.
+        from .recording_primary_provenance import enabled as primary_provenance_enabled
+        retain_primary_provenance = primary_provenance_enabled(self.settings)
         bounded_handoff=result.get('_native_bounded_support')
         if isinstance(bounded_handoff,dict):
             bounded_handoff['reserved']=bounded_handoff['budget'].reserve_planning()
@@ -606,6 +612,7 @@ class Store:
             from .moss_automatic import enabled,recording,bounded_enabled
             automatic=enabled(self.settings) and recording(db,chunk['id'])
             bounded=automatic and bounded_enabled(self.settings)
+            retain_primary_provenance = retain_primary_provenance and bounded
             if bounded and bounded_handoff and (bounded_handoff.get('batch') or {}).get('ordinal')==1:
                 from .moss_automatic import batch_context
                 if batch_context(db,chunk,bounded_handoff['store_key'],bounded_handoff['budget'])!=bounded_handoff['batch']:
@@ -620,7 +627,7 @@ class Store:
                 check_resources(self.settings,additional_disk=4*size+65536)
             local={};local_turn_ids={}
             metadata=dict(result.get('metadata',{}))
-            lexical_prepared=None;lexical_rows=[]
+            lexical_prepared=None;lexical_rows=[];primary_provenance_ids=[]
             if getattr(self.settings,'lexical_evidence_enabled',False):
                 from . import lexical_evidence
                 lexical_prepared,reason=lexical_evidence.prepare(result,chunk,offset,end)
@@ -700,6 +707,7 @@ class Store:
                     speaker,score,status,observation=local[key]
                 support_id,support_status=support_for(local_id,observation)
                 segment_cursor=db.execute('INSERT INTO segments(chunk_id,start,end,text,speaker_id,speaker_local_id,confidence,speaker_match_score,speaker_status,asr_backend,timestamp_kind,raw_text,candidate_observation_id,speaker_window_start,speaker_support_id,speaker_support_status,identity_decision_id,identity_profile_revision,identity_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (chunk['id'],chunk['timeline_start']+offset+segment['start'],chunk['timeline_start']+offset+segment['end'],segment.get('text',''),speaker,local_id,segment.get('confidence'),score,status,segment.get('asr_backend') or metadata.get('asr_backend'),segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),segment.get('raw_text'),observation,offset,support_id,support_status,*decision_refs.get(local_id,(None,None)),'current' if local_id in decision_refs else None))
+                if retain_primary_provenance:primary_provenance_ids.append(segment_cursor.lastrowid)
                 if lexical_prepared is not None:
                     from .transcript_contract import PRIMARY_FIELDS
                     lexical_rows.append(db.execute('SELECT '+','.join(PRIMARY_FIELDS)+' FROM segments WHERE id=?',(segment_cursor.lastrowid,)).fetchone())
@@ -739,6 +747,11 @@ class Store:
                         result.get('_native_core_seam'),bounded_handoff,chunk,lexical_rows,
                         metadata.get('lexical_evidence',{}).get('status'))
                 else:enqueue(db,result.get('_native_automatic_cells'),result.get('_native_core_seam'))
+            if retain_primary_provenance:
+                from .recording_primary_provenance import persist, retain_status, SCHEMA as PRIMARY_PROVENANCE_SCHEMA
+                primary_status = persist(self, db, chunk, offset, end, result, primary_provenance_ids)
+                metadata['recording_primary_provenance'] = {'schema': PRIMARY_PROVENANCE_SCHEMA, 'status': primary_status}
+                retain_status(provenance, primary_status, offset)
             db.execute('UPDATE chunks SET next_offset=?,status=?,metadata=?,provenance=? WHERE id=?',(end,status,json.dumps(metadata),json.dumps(provenance),chunk['id']))
             if status=='completed':wake_stream_successor(db,chunk['id'])
             return True
