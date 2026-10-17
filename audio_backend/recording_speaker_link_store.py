@@ -371,9 +371,10 @@ class RecordingSpeakerLinkStore:
                     or own['batch_count'] + 1 > MAX_SCOPE_BATCHES
                     or own['retained_bytes'] + RESERVATION_BYTES > MAX_SCOPE_BYTES))
             if exhausted:
-                if own is not None:
-                    if own['revision'] >= MAX_REVISION: _fail('capacity_exhausted', 429)
-                    db.execute(f"UPDATE {SCOPES} SET state='capacity_exhausted',revision=revision+1 WHERE scope_id=?", (scope_id,))
+                # Refusing admission adds no evidence and must not stale a current
+                # decision. State still participates in the transcript cursor.
+                if own is not None and own['state'] != 'capacity_exhausted':
+                    db.execute(f"UPDATE {SCOPES} SET state='capacity_exhausted' WHERE scope_id=?", (scope_id,))
                 return {'scope_id': scope_id, 'token': None, 'should_probe': False, 'state': 'capacity_exhausted'}
             if _cancelled(cancelled):
                 return {'scope_id': scope_id, 'token': None, 'should_probe': False, 'state': 'probe_unavailable'}

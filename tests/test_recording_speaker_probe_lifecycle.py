@@ -122,6 +122,29 @@ def test_durable_text_survives_every_optional_phase(automatic_cell_jobs,monkeypa
     if drivers:assert events==['after_moss_reap_before_text','probe_start_after_text']
 
 
+def test_pure_capacity_refusal_never_probes_or_reconciles(automatic_cell_jobs,monkeypatch):
+    f=automatic_cell_jobs
+    sidecar,events,drivers,_=setup_probe(f,monkeypatch)
+    def refuse(*args,**kwargs):
+        sidecar.reservations.append((args,kwargs))
+        return {'scope_id':'1'*64,'token':None,'should_probe':False,'state':'capacity_exhausted'}
+    def forbidden(*args,**kwargs): pytest.fail('Pure capacity refusal ran optional computation')
+    monkeypatch.setattr(sidecar,'reserve',refuse)
+    monkeypatch.setattr(sidecar,'recompute_scope',forbidden)
+    monkeypatch.setattr(runner,'ProbeOperation',forbidden)
+    monkeypatch.setattr(runner,'ProbeDriver',forbidden)
+    record=f.finish()
+    assert record['durable_result_available'] and not record['storage_pending']
+    assert f.owner.results.result('session',record['job_id'])==record['history_snapshot'].result_json
+    probe=record['speaker_probe']
+    assert probe['state']=='capacity_exhausted' and probe['reservation']['token'] is None
+    assert not probe['commit_pending'] and not record['cancelled'].is_set()
+    assert len(sidecar.reservations)==1
+    assert not sidecar.commits and not sidecar.recomputes and not sidecar.resolutions and not drivers
+    assert events==['after_moss_reap_before_text']
+    assert f.permit._optional is None and f.owner._probe_staging_bytes==0
+
+
 def test_primary_preemption_cancels_probe_only(automatic_cell_jobs,monkeypatch):
     f=automatic_cell_jobs
     sidecar,events,drivers,primary=setup_probe(f,monkeypatch,preempt=True)
@@ -176,11 +199,12 @@ def test_storage_retry_never_starts_a_probe(automatic_cell_jobs,monkeypatch):
     assert not drivers and record['durable_result_available']
 
 
-def test_annotation_whitelist_preserves_source_content_and_never_exports_vectors(data,monkeypatch):
+@pytest.mark.parametrize('state',['provisional_linked','capacity_exhausted'])
+def test_annotation_whitelist_preserves_source_content_and_never_exports_vectors(data,monkeypatch,state):
     job=data.job(1,0,10.5)
     before=data.reader.evidence(SID,'m.'+job['jid']+'.'+job['sha']+'.all')
     data.reader.speaker_links_enabled=True
-    saved={'state':'provisional_linked','revision':2,'decision_revision':2,'policy_sha256':links.POLICY_SHA256,
+    saved={'state':state,'revision':2,'decision_revision':2,'policy_sha256':links.POLICY_SHA256,
         'space_id':runner.expected_space()[1],'scope_id':'1'*64,
         'annotations':[{'job_id':job['jid'],'result_sha256':job['sha'],'phrase_index':0,
             'status':'provisional_linked','provisional_speaker_id':'recording-speaker-synthetic',

@@ -14,6 +14,7 @@ import pytest
 from audio_backend import moss_result_store as history
 from audio_backend import recording_speaker_link_store as ledger
 from audio_backend import recording_speaker_links as links
+from audio_backend import transcript_contract as contract, transcript_revision
 from audio_backend.native_owned_support_cache import ReadError
 from audio_backend.resources import InstanceLock
 from test_recording_speaker_links import ordinary, projection, vector
@@ -135,6 +136,226 @@ def finish(value,batch,*,rid=RID,state='source_scoped'):
     for node in embedded['nodes']: node['vector']=vector(1.,0.)
     value.commit(token,embedded,state)
     return token,embedded
+
+
+def positive_saved(environment):
+    """Fresh synthetic evidence plus the production source/text revision triggers."""
+    store,value,_=environment
+    with connection(store.path) as db:
+        db.execute(f'CREATE INDEX auto_cid1 ON {moss_automatic.TABLE}(cid1)')
+        db.execute(f'CREATE INDEX auto_cid2 ON {moss_automatic.TABLE}(cid2)')
+        db.execute('''CREATE TABLE segments(id INTEGER PRIMARY KEY,chunk_id TEXT,
+            start REAL,end REAL,text TEXT,raw_text TEXT,asr_backend TEXT,timestamp_kind TEXT,
+            confidence REAL,speaker_local_id TEXT,speaker_window_start REAL)''')
+        for sql in transcript_revision.SCHEMA.values(): db.execute(sql)
+    batches=[]
+    for number,components in enumerate(((1.,0.),(.99,.1),(0.,1.)),1):
+        batch=prepared(store,number)
+        admission=reserve(value,batch)
+        embedded=deepcopy(batch)
+        for node in embedded['nodes']: node['vector']=vector(*components)
+        value.commit(admission,embedded)
+        batches.append(batch)
+    # The refused job's text already exists when this decision is saved. A later
+    # text/source change is deliberately a separate invalidation in the tests.
+    pending=prepared(store,4)
+    with connection(store.path) as db:
+        db.execute("INSERT INTO segments VALUES(1,'chunk-1',0,1,'synthetic','synthetic','fake','native',1,'S1',0)")
+    scope=admission['scope_id']
+    assert value.recompute_scope(scope,links.reconcile_batches)['saved']
+    saved=value.read_saved(SID,RID)
+    assert saved['state']=='provisional_linked'
+    assert sum(a['status']=='provisional_linked' for a in saved['annotations'])==2
+    return scope,batches,pending,saved
+
+
+def sidecar_rows(store):
+    with connection(store.path) as db:
+        return {
+            'scopes':[dict(row) for row in db.execute(f'SELECT * FROM {ledger.SCOPES} ORDER BY scope_seq')],
+            'batches':[dict(row) for row in db.execute(f'SELECT * FROM {ledger.BATCHES} ORDER BY scope_seq,batch_seq')],
+        }
+
+
+@pytest.mark.parametrize('cap',[
+    'MAX_SCOPE_NODES','MAX_GLOBAL_NODES','MAX_SCOPE_BATCHES','MAX_GLOBAL_BATCHES',
+    'MAX_SCOPE_BYTES','MAX_GLOBAL_BYTES','MAX_STAGING_BYTES',
+])
+def test_pure_quota_refusal_preserves_current_positive_decision(environment,monkeypatch,cap):
+    store,value,_=environment
+    scope,batches,pending,saved=positive_saved(environment)
+    before=sidecar_rows(store)
+    limits={
+        'MAX_SCOPE_NODES':3,'MAX_GLOBAL_NODES':3,
+        'MAX_SCOPE_BATCHES':3,'MAX_GLOBAL_BATCHES':3,
+        'MAX_SCOPE_BYTES':before['scopes'][1]['retained_bytes']+ledger.RESERVATION_BYTES-1,
+        'MAX_GLOBAL_BYTES':before['scopes'][0]['retained_bytes']+ledger.RESERVATION_BYTES-1,
+        'MAX_STAGING_BYTES':0,
+    }
+    monkeypatch.setattr(ledger,cap,limits[cap])
+    def forbidden(*args,**kwargs): pytest.fail('Pure refusal or getter recomputed evidence')
+    monkeypatch.setattr(value,'recompute_scope',forbidden)
+    monkeypatch.setattr(links,'reconcile_batches',forbidden)
+    with connection(store.path) as db:
+        cursor_before=ledger.read_session_revision(db,SID)
+    refusal=reserve(value,pending)
+    assert refusal=={'scope_id':scope,'token':None,'should_probe':False,'state':'capacity_exhausted'}
+    expected=deepcopy(before)
+    expected['scopes'][1]['state']='capacity_exhausted'
+    assert sidecar_rows(store)==expected
+    current=value.read_saved(SID,RID)
+    assert current['state']=='capacity_exhausted'
+    for key in ('revision','decision_revision','decision_sha256','session_revision',
+                'annotations','jobs','diagnostics','probe_outcomes'):
+        assert current[key]==saved[key]
+    for batch in batches:
+        assert contract.speaker_annotation(current,batch['job_id'],batch['result_sha256'],0)==(
+            contract.speaker_annotation(saved,batch['job_id'],batch['result_sha256'],0))
+    new=contract.speaker_annotation(current,pending['job_id'],pending['result_sha256'],0)
+    assert new['status']=='capacity_exhausted' and new['provisional_speaker_id'] is None
+    with connection(store.path) as db:
+        cursor_after=ledger.read_session_revision(db,SID)
+        # A repeated status-only refusal should not even issue a redundant write.
+        db.execute(f'''CREATE TRIGGER reject_noop_capacity BEFORE UPDATE ON {ledger.SCOPES}
+            WHEN OLD.state='capacity_exhausted' AND NEW.state=OLD.state
+            BEGIN SELECT RAISE(ABORT,'Redundant capacity update'); END''')
+    assert cursor_after!=cursor_before
+    assert current['revision_sha256']!=saved['revision_sha256']
+    for _ in range(3):
+        assert reserve(value,pending)==refusal
+        assert sidecar_rows(store)==expected
+        assert value.read_saved(SID,RID)==current
+        with connection(store.path) as db:
+            assert ledger.read_session_revision(db,SID)==cursor_after
+
+
+def test_quota_status_needs_no_revision_headroom_but_admission_still_does(environment,monkeypatch):
+    store,value,_=environment
+    scope,_,pending,_=positive_saved(environment)
+    with connection(store.path) as db:
+        db.execute(f'UPDATE {ledger.SCOPES} SET revision=?,decision_revision=? WHERE scope_id=?',
+            (ledger.MAX_REVISION,ledger.MAX_REVISION,scope))
+    with monkeypatch.context() as patcher:
+        patcher.setattr(ledger,'MAX_SCOPE_NODES',3)
+        assert reserve(value,pending)['state']=='capacity_exhausted'
+    saved=value.read_saved(SID,RID)
+    assert saved['revision']==saved['decision_revision']==ledger.MAX_REVISION
+    assert any(a['status']=='provisional_linked' for a in saved['annotations'])
+    before=sidecar_rows(store)
+    with pytest.raises(ReadError) as caught: reserve(value,pending)
+    assert caught.value.reason=='capacity_exhausted' and caught.value.status_code==429
+    assert sidecar_rows(store)==before
+
+
+@pytest.mark.parametrize('change',['session','text','cancel','delete','reassign','policy','hash','inflight'])
+def test_quota_status_does_not_bypass_current_decision_guards(environment,monkeypatch,change):
+    store,value,_=environment
+    scope,batches,pending,saved=positive_saved(environment)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(ledger,'MAX_SCOPE_NODES',3)
+        assert reserve(value,pending)['state']=='capacity_exhausted'
+    before=sidecar_rows(store)
+    raw=before['scopes'][1]['decision_json']
+    if change=='inflight':
+        admission=reserve(value,pending)
+        assert admission['should_probe'] and admission['revision']==saved['revision']+1
+        after=sidecar_rows(store)
+        repeated=reserve(value,pending)
+        assert not repeated['should_probe'] and repeated['token']==admission['token']
+        assert repeated['state']=='probe_unavailable' and sidecar_rows(store)==after
+    else:
+        with connection(store.path) as db:
+            if change=='session': db.execute('UPDATE sessions SET transcript_revision=transcript_revision+1 WHERE id=?',(SID,))
+            elif change=='text': db.execute("UPDATE segments SET text='changed synthetic text' WHERE id=1")
+            elif change=='cancel': db.execute("UPDATE chunks SET status='cancelled' WHERE id='chunk-1'")
+            elif change=='delete': db.execute("DELETE FROM chunks WHERE id='chunk-1'")
+            elif change=='reassign':
+                db.execute('INSERT INTO recording_batches VALUES(?,?,0)',('b'*32,SID))
+                db.execute("UPDATE recording_work SET batch_id=? WHERE chunk_id='chunk-1'",('b'*32,))
+            elif change=='policy': db.execute(f'UPDATE {ledger.SCOPES} SET policy_sha256=? WHERE scope_id=?',('f'*64,scope))
+            elif change=='hash': db.execute(f'UPDATE {ledger.SCOPES} SET decision_sha256=? WHERE scope_id=?',('f'*64,scope))
+    if change=='hash':
+        with pytest.raises(ReadError) as caught: value.read_saved(SID,RID)
+        assert caught.value.reason=='probe_unavailable'
+    else:
+        current=value.read_saved(SID,RID)
+        assert current['annotations']==[] and current['jobs']==[]
+        assert contract.speaker_annotation(current,batches[0]['job_id'],batches[0]['result_sha256'],0)['provisional_speaker_id'] is None
+        if change in ('session','text','cancel','delete','reassign'):
+            assert current['session_revision']>saved['session_revision']
+        assert not value.save_decision(scope,saved['revision'],json.loads(raw),
+            session_revision=saved['session_revision'],policy_sha256=links.POLICY_SHA256)
+    if change in ('cancel','delete','reassign'):
+        with pytest.raises(ReadError): value.snapshot(scope)
+        with pytest.raises(ReadError): reserve(value,batches[0])
+    if change=='policy':
+        with pytest.raises(ReadError): reserve(value,pending)
+    assert sidecar_rows(store)['scopes'][1]['decision_json']==raw
+    assert sidecar_rows(store)['batches']==before['batches']
+
+
+def test_new_accepted_batch_after_refusal_still_invalidates_evidence_revision(environment,monkeypatch):
+    store,value,_=environment
+    scope,_,pending,saved=positive_saved(environment)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(ledger,'MAX_SCOPE_NODES',3)
+        assert reserve(value,pending)['state']=='capacity_exhausted'
+    admission,_=finish(value,pending)
+    current=value.read_saved(SID,RID)
+    assert admission['revision']==saved['revision']+1
+    assert current['revision']==saved['revision']+2
+    assert current['decision_revision']==saved['decision_revision']
+    assert current['annotations']==[] and current['state']=='links_stale'
+    assert len(value.snapshot(scope)['batches'])==4
+
+
+def test_real_recompute_capacity_failure_still_invalidates_positive_decision(environment,monkeypatch):
+    store,value,_=environment
+    scope,_,pending,saved=positive_saved(environment)
+    monkeypatch.setattr(ledger,'MAX_STAGING_BYTES',0)
+    assert reserve(value,pending)['state']=='capacity_exhausted'
+    before=sidecar_rows(store)
+    status=value.recompute_scope(scope,links.reconcile_batches)
+    current=value.read_saved(SID,RID)
+    assert not status['saved'] and status['state']=='capacity_exhausted'
+    assert current['annotations']==[] and current['decision_revision']==-1
+    assert current['revision']==saved['revision']+1
+    assert sidecar_rows(store)['batches']==before['batches']
+
+
+def test_restart_after_pure_refusal_preserves_saved_decision_without_reprobe(environment,monkeypatch):
+    store,value,lock=environment
+    _,_,pending,saved=positive_saved(environment)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(ledger,'MAX_SCOPE_NODES',3)
+        assert reserve(value,pending)['state']=='capacity_exhausted'
+    before=sidecar_rows(store)
+    def forbidden(*args,**kwargs): pytest.fail('Current saved decision triggered computation')
+    monkeypatch.setattr(links,'reconcile_batches',forbidden)
+    from audio_backend import recording_speaker_probe_runner as runner
+    monkeypatch.setattr(runner,'ProbeOperation',forbidden)
+    monkeypatch.setattr(runner,'ProbeDriver',forbidden)
+    reopened=ledger.RecordingSpeakerLinkStore(store); reopened.bind_recovery(lock)
+    assert reopened.reconcile(recompute=links.reconcile_batches)=={
+        'interrupted':0,'reconciled':0,'remaining_work':False}
+    assert reopened.read_saved(SID,RID)['annotations']==saved['annotations']
+    assert sidecar_rows(store)==before
+
+
+def test_session_erasure_after_refusal_removes_saved_decision_and_fences_writes(environment,monkeypatch):
+    store,value,_=environment
+    _,batches,pending,_=positive_saved(environment)
+    monkeypatch.setattr(ledger,'MAX_SCOPE_NODES',3)
+    assert reserve(value,pending)['state']=='capacity_exhausted'
+    with connection(store.path) as db:
+        db.execute('BEGIN IMMEDIATE')
+        db.execute('UPDATE sessions SET deleted=1 WHERE id=?',(SID,))
+        ledger.erase_session(db,SID)
+    assert counters(store)==[(0,0,0,0,0)]
+    assert sidecar_rows(store)['batches']==[]
+    with pytest.raises(ReadError): value.read_saved(SID,RID)
+    with pytest.raises(ReadError): reserve(value,batches[0])
+    with pytest.raises(ReadError): reserve(value,pending)
 
 
 def test_constants_and_exactly_two_owned_tables(environment):
