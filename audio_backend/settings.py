@@ -98,6 +98,8 @@ class Settings:
     native_owned_cells_enabled: bool = False
     native_owned_seam_cells_enabled: bool = False
     native_owned_core_seams_enabled: bool = False
+    native_owned_bounded_core_support_enabled: bool = False
+    native_owned_bounded_core_support_seconds: float = .75
     native_owned_compact_gc_enabled: bool = False
     native_owned_receipt_gc_enabled: bool = False
     moss_result_max_rows: int = 65536
@@ -122,6 +124,17 @@ class Settings:
     def __post_init__(self):
         if type(self.lexical_evidence_enabled) is not bool:
             raise ValueError('lexical_evidence_enabled must be boolean')
+        if type(self.native_owned_bounded_core_support_enabled) is not bool:
+            raise ValueError('native_owned_bounded_core_support_enabled must be boolean')
+        bounded_seconds = self.native_owned_bounded_core_support_seconds
+        if (type(bounded_seconds) not in (int, float) or not math.isfinite(bounded_seconds)
+                or not .5 <= bounded_seconds <= 1.):
+            raise ValueError('native_owned_bounded_core_support_seconds must be finite between 0.5 and 1.0')
+        if self.native_owned_bounded_core_support_enabled and not (
+                self.moss_automatic_enabled and self.native_owned_core_seams_enabled
+                and self.native_owned_cells_enabled and self.native_owned_support_enabled
+                and self.lexical_evidence_enabled):
+            raise ValueError('Bounded core support requires automatic MOSS, native-owned support, cells, core seams and lexical retention')
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
         validate_framemn_options(self.framemn_enabled, self.framemn_checkpoint_path, self.framemn_profile)

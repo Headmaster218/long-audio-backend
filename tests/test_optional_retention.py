@@ -814,8 +814,10 @@ def test_real_owner_idle_refresh_failure_does_not_create_cleanup_failure(fresh,
     assert observed == [('ready', False, 'unavailable')] * 2
     assert len(waits) == 3
     assert owner._status == 'ready'
+    assert owner.close() is True
     assert owner._cleanup_pending is False
     assert owner._db is None
+    assert owner._status == 'closed'
 
 
 def test_missing_primary_counter_is_explicitly_incomplete_and_never_eligible(fresh,

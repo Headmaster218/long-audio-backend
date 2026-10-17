@@ -22,7 +22,7 @@ def classify_row(kind, *, referenced=False, pending=False, in_flight=False,
     return 'unknown_protected'
 
 
-def row_counts(kind, occupied, limit, referenced=None, pending=None):
+def row_counts(kind, occupied, limit, referenced=None, pending=None, *, bounded_protection=False):
     """Fixed-size, conservative live projection; no frontier is asserted."""
     if kind not in ('cells', 'sources', 'compacts'):raise Unavailable('retention_count_kind')
     if type(limit) is not int or limit < 1:raise Unavailable('retention_count_limit')
@@ -32,7 +32,11 @@ def row_counts(kind, occupied, limit, referenced=None, pending=None):
                 or type(pending) is not int or not 0 <= pending <= occupied):
             raise Unavailable('retention_count_capacity')
         if kind == 'cells':referenced = occupied
-    return {'occupied': occupied, 'limit': limit, 'referenced': referenced,
+    result={'occupied': occupied, 'limit': limit, 'referenced': referenced,
             'referenced_is_lower_bound': kind != 'cells', 'eligible_orphan': 0,
             'unknown_protected': None if occupied is None else occupied - referenced,
             'pending': pending}
+    if bounded_protection:
+        result['protection_reason']='bounded_complete_root_census_unqualified'
+        result['reclamation_qualified']=False
+    return result

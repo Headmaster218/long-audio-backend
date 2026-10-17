@@ -1,5 +1,5 @@
 """SQLite-backed bounded queues. One OS process owns this store and its worker."""
-from contextlib import contextmanager
+from contextlib import contextmanager,nullcontext
 import sqlite3
 import json
 import hashlib
@@ -100,7 +100,7 @@ def update_provenance(previous, metadata, offset):
 
 
 class _ClaimDeferred(Exception):
-    """Automatic claim did not acquire its transaction; no queue state was read."""
+    """No work acquired: unobserved queue or positively rolled-back pre-claim."""
 
 
 class Store:
@@ -201,20 +201,67 @@ class Store:
             if getattr(settings, 'native_owned_core_seams_enabled', False):
                 from .native_owned_core_seams import init_schema as init_core_seams
                 init_core_seams(db)
+            from .moss_automatic import init_bounded_schema,bounded_enabled
+            init_bounded_schema(db,enable=bounded_enabled(settings))
+            from .transcript_revision import init_bounded_schema as init_bounded_revision
+            init_bounded_revision(db)
 
     @contextmanager
-    def db(self):
-        db = sqlite3.connect(self.path, timeout=15)
+    def db(self,*,budget=None):
+        db = sqlite3.connect(self.path, timeout=0 if budget is not None else 15)
         db.row_factory = sqlite3.Row
-        db.execute('PRAGMA foreign_keys=ON')
+        committing=False
+        if budget is not None:budget.sql_outcome='not_started'
         try:
-            yield db
-            db.commit()
+            with budget.notice_phase() if budget is not None else nullcontext():
+                if budget is not None:
+                    budget.primary_sql=True
+                    db.set_progress_handler(budget.progress,100)
+                db.execute('PRAGMA foreign_keys=ON')
+                yield db
+                if budget is not None:budget.check()
+                committing=True
+                if budget is not None:budget.sql_outcome='commit_attempted'
+                db.commit()
+                if budget is not None:budget.sql_outcome='committed'
+                if budget is not None:budget.check()
         except BaseException:
-            db.rollback()
+            if budget is None:db.rollback()
+            else:
+                # Exhausted SQL/time budgets never interrupt cleanup or replace
+                # the original hard/uncertain transaction failure.
+                db.set_progress_handler(None,0)
+                try:
+                    db.rollback()
+                    if not committing:budget.sql_outcome='rolled_back'
+                except sqlite3.Error:budget.sql_outcome='unknown'
             raise
         finally:
+            if budget is not None:budget.primary_sql=False
             db.close()
+
+    @contextmanager
+    def _claim_database(self,budget):
+        """Only a proven pre-claim rollback may become an ordinary defer."""
+        from .native_owned_cells import Unavailable
+        from .native_owned_support_cache import ReadError
+        if budget is not None:budget.claim_running_write=False
+        previous=getattr(self,'_automatic_claim_after',None)
+        try:
+            with (self.db(budget=budget) if budget is not None else self.db()) as db:yield db
+        except (Unavailable,ReadError,sqlite3.OperationalError) as exc:
+            reason=str(exc) if isinstance(exc,Unavailable) else None
+            if (isinstance(exc,sqlite3.OperationalError)
+                    and getattr(exc,'sqlite_errorcode',None)==sqlite3.SQLITE_INTERRUPT and budget is not None):
+                reason=budget._progress_refusal
+            if (reason in ('bounded_planning_capacity','cooperative_deadline','operation_work_capacity')
+                    and budget is not None and not budget.claim_running_write
+                    and getattr(budget,'sql_outcome',None)=='rolled_back'):
+                owner=getattr(self,'moss_automatic',None)
+                if owner is not None:owner.last_reason='bounded_claim_deferred'
+                self._automatic_claim_after=previous
+                raise _ClaimDeferred() from None
+            raise
 
     def recover(self):
         with self.db() as db:
@@ -346,9 +393,11 @@ class Store:
         return cid, True
 
     def claim(self, *, probe=False):
-        from .moss_automatic import enabled,recording,capacity
+        from .moss_automatic import enabled,recording,capacity,bounded_enabled,release_wait_pressure
         automatic=enabled(self.settings)
-        with self.db() as db:
+        from .native_owned_cell_store import Budget
+        wait_budget=Budget() if automatic and bounded_enabled(self.settings) else None
+        with self._claim_database(wait_budget) as db:
             if automatic:db.execute('PRAGMA busy_timeout=0')
             try:
                 db.execute('BEGIN IMMEDIATE')
@@ -374,6 +423,7 @@ class Store:
                 previous=getattr(self,'_automatic_claim_after',None)
                 if automatic:self._automatic_claim_after=(row['created'],row['id'])
                 if automatic and recording(db,row['id']):
+                    released=release_wait_pressure(db,row['session_id'],wait_budget) if wait_budget is not None else 0
                     try:
                         capacity(db,row['session_id'])
                         from .native_owned_core_seams import MAX_COMPACTS
@@ -383,12 +433,18 @@ class Store:
                     except Exception as exc:
                         owner=getattr(self,'moss_automatic',None)
                         if owner is not None:owner.last_reason=getattr(exc,'reason','automatic_capacity_unavailable')
+                        if released:
+                            # Commit this one bounded pressure closure before
+                            # another large certificate can consume its budget.
+                            self._automatic_claim_after=previous
+                            return None
                         continue
                 chosen=db.execute('SELECT * FROM chunks WHERE id=?',(row['id'],)).fetchone()
                 if probe:
                     # Keep this eligible key for the post-grant real claim.
                     if automatic:self._automatic_claim_after=previous
                     return dict(chosen)
+                if wait_budget is not None:wait_budget.claim_running_write=True
                 db.execute("UPDATE chunks SET status='running',error=NULL WHERE id=?",(row['id'],))
                 if automatic:self._automatic_claim_after=None
                 return dict(chosen)
@@ -537,13 +593,23 @@ class Store:
 
 
     def commit_window(self, chunk, offset, end, result):
-        with self.db() as db:
+        # Conservatively include primary statements, added revision triggers,
+        # and COMMIT in the same bounded budget. No hidden second allowance.
+        bounded_handoff=result.get('_native_bounded_support')
+        if isinstance(bounded_handoff,dict):
+            bounded_handoff['reserved']=bounded_handoff['budget'].reserve_planning()
+        with (self.db(budget=bounded_handoff['budget']) if isinstance(bounded_handoff,dict) else self.db()) as db:
             db.execute('BEGIN IMMEDIATE')
             current=db.execute('SELECT * FROM chunks WHERE id=?',(chunk['id'],)).fetchone()
             if not current or current['status'] not in ('running','paused'): return False
             if abs(current['next_offset']-offset)>1e-5: return False
-            from .moss_automatic import enabled,recording
+            from .moss_automatic import enabled,recording,bounded_enabled
             automatic=enabled(self.settings) and recording(db,chunk['id'])
+            bounded=automatic and bounded_enabled(self.settings)
+            if bounded and bounded_handoff and (bounded_handoff.get('batch') or {}).get('ordinal')==1:
+                from .moss_automatic import batch_context
+                if batch_context(db,chunk,bounded_handoff['store_key'],bounded_handoff['budget'])!=bounded_handoff['batch']:
+                    raise ValueError('Bounded fresh-session context changed')
             diagnostic_rows=(result.get('overlap_candidates') or {}).get('diagnostics',[])
             if diagnostic_rows:
                 from .overlap_diagnostics import encoded, MAX_WINDOW_BYTES
@@ -654,14 +720,25 @@ class Store:
             provenance=update_provenance(current['provenance'],metadata,offset)
             if getattr(self.settings, 'native_owned_core_seams_enabled', False):
                 from .native_owned_core_seams import transaction as commit_core_seam
-                optional_reason = (commit_core_seam(db, chunk, offset, end, result, strict=True, automatic=True)
+                if bounded and result.get('_native_core_seam') is not None:
+                    result['_native_core_seam']['_bounded_budget']=bounded_handoff['budget'] if bounded_handoff else None
+                optional_reason = (commit_core_seam(db, chunk, offset, end, result, strict=not bounded, automatic=True)
                     if automatic else commit_core_seam(db, chunk, offset, end, result))
                 result['_native_core_seam_status'] = optional_reason
                 if optional_reason is not None:
                     metadata['native_core_seam'] = {'status': optional_reason}
             if automatic:
-                from .moss_automatic import enqueue
-                enqueue(db,result.get('_native_automatic_cells'),result.get('_native_core_seam'))
+                from .moss_automatic import enqueue,enqueue_bounded
+                if bounded:
+                    if bounded_handoff is not None:
+                        automatic_owner=getattr(self,'moss_automatic',None)
+                        if automatic_owner is not None:
+                            bounded_handoff['effective_now']=automatic_owner.bounded_now()
+                            bounded_handoff['clock_owner']=automatic_owner
+                    metadata['bounded_core_support']=enqueue_bounded(db,result.get('_native_automatic_cells'),
+                        result.get('_native_core_seam'),bounded_handoff,chunk,lexical_rows,
+                        metadata.get('lexical_evidence',{}).get('status'))
+                else:enqueue(db,result.get('_native_automatic_cells'),result.get('_native_core_seam'))
             db.execute('UPDATE chunks SET next_offset=?,status=?,metadata=?,provenance=? WHERE id=?',(end,status,json.dumps(metadata),json.dumps(provenance),chunk['id']))
             if status=='completed':wake_stream_successor(db,chunk['id'])
             return True

@@ -390,7 +390,8 @@ def test_worker_claim_and_completion_windows_refuse_gc(fresh_gc, phase):
 
 def test_supported_loop_keeps_current_chunk_through_processing_finally():
     # The separate pause-gap fixture checks interruption safety.
-    source = inspect.getsource(Worker.loop)
+    assert 'self._run_loop()' in inspect.getsource(Worker.loop)
+    source = inspect.getsource(Worker._run_loop)
     assert source.index('current_chunk') < source.index('self.process(')
     assert 'finally:' in source and 'self.current_chunk=None' in source
 

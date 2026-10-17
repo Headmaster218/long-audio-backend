@@ -280,10 +280,13 @@ def test_automatic_restart_never_redispatches_prior_accepted_or_completed(automa
             assert sum(d.starts for d in h.drivers)==1
         else:
             # Real cell publication, then actual result+intent commit with a lost acknowledgement.
-            for _ in range(4):
-                h.automatic.next_attempt=0;h.automatic.step()
-                if h.automatic.flight:assert h.automatic.flight[1].slot_released.wait(3)
-                if candidate(h.store,key)['state']=='published':break
+            # Publication and admission share one production step. Hold only
+            # automatic admission until the explicit lost-ack submission below.
+            with patch.object(h.automatic,'_admit_key',return_value=None):
+                for _ in range(4):
+                    h.automatic.next_attempt=0;h.automatic.step()
+                    if h.automatic.flight:assert h.automatic.flight[1].slot_released.wait(3)
+                    if candidate(h.store,key)['state']=='published':break
             record=h.automatic.read_candidate(key)
             assert record['state']=='published'
             with observed_connections(lose_commit_ack=True,commit_match=f'INSERT INTO {history.TABLE}'):

@@ -39,6 +39,18 @@ def _capacity(limit, optional=False):
     c.fail('unresolved_capacity')
 
 
+class _CertificateReadBudget:
+    """Actual v2 projections share the existing closure byte/VM/time limits."""
+    def __init__(self,check=lambda:None):
+        self.check=check;self.sql_bytes=0
+
+    def projection(self,count):
+        if type(count) is not int or count<0:c.fail('unresolved_capacity')
+        self.sql_bytes+=count
+        if self.sql_bytes>c.MAX_BINDING_BYTES:c.fail('unresolved_capacity')
+        self.check()
+
+
 class TranscriptStore:
     def __init__(self, store, *, clock=time.monotonic):
         self.path, self.clock = Path(store.path).resolve(), clock
@@ -176,16 +188,30 @@ class TranscriptStore:
         FROM {AUTO} a {{index}} LEFT JOIN {HISTORY} h ON h.job_id=a.job_id {{where}}'''
 
     @staticmethod
-    def _check_descriptor_lengths(rows, *, optional=False):
+    def _check_descriptor_lengths(rows, *, optional=False, db=None):
         total = 0
+        values=[]
         for row in rows:
             if row is None: c.fail('transcript_dependency_missing')
             size = row['binding_bytes']
             if type(size) is not int or size < 1: c.fail('unresolved_capacity')
             if size > 4096: _capacity('binding_bytes', optional)
             total += size
+            row=dict(row)
+            if db is not None:
+                from .moss_automatic import has_bounded_schema
+                if has_bounded_schema(db):
+                    extra=db.execute(f'''SELECT target_key,plan_phase,length(proof),length(target_body)
+                        FROM {AUTO} WHERE seq=?''',(row['seq'],)).fetchone()
+                    if extra is None:c.fail('transcript_dependency_missing')
+                    if extra[0] is not None:
+                        if any(type(n) is not int or n<1 for n in extra[2:]) or sum(extra[2:])>65536:
+                            c.fail('automatic_binding_invalid')
+                        row['target_key']=extra[0];row['plan_phase']=extra[1]
+                        row['certificate_bytes']=sum(extra[2:]);total+=row['certificate_bytes']
+            values.append(row)
         if total > c.MAX_BINDING_BYTES: _capacity('binding_bytes', optional)
-        return [dict(row) for row in rows]
+        return values
 
     @classmethod
     def _descriptors(cls, db, sid, chunks, *, optional=False):
@@ -200,9 +226,16 @@ class TranscriptStore:
                     (chunk['id'], sid, c.MAX_BINDINGS + 1)).fetchall()
                 sequences.update(row['seq'] for row in rows)
                 if len(sequences) > c.MAX_BINDINGS: _capacity('bindings', optional)
+            from .moss_automatic import DEPENDENCIES,has_bounded_schema
+            if has_bounded_schema(db):
+                found=db.execute(f'''SELECT d.intent_seq FROM {DEPENDENCIES} d INDEXED BY auto_v2_dependency_cid
+                    JOIN {AUTO} a ON a.seq=d.intent_seq WHERE d.cid=? AND a.sid=? LIMIT ?''',
+                    (chunk['id'],sid,c.MAX_BINDINGS+1)).fetchall()
+                sequences.update(row[0] for row in found)
+                if len(sequences)>c.MAX_BINDINGS:_capacity('bindings',optional)
         query = cls._DESCRIPTOR_SQL.format(index='', where='WHERE a.seq=? AND a.sid=?')
         rows = [db.execute(query, (seq, sid)).fetchone() for seq in sorted(sequences)]
-        return cls._check_descriptor_lengths(rows, optional=optional)
+        return cls._check_descriptor_lengths(rows, optional=optional,db=db)
 
     def _revision(self, db, sid, session, *, policy_hash=c.POLICY_HASH):
         counter = session['transcript_revision']
@@ -221,7 +254,14 @@ class TranscriptStore:
         return c.digest(value)
 
     @staticmethod
-    def _binding(db, sid, row, source_cache=None):
+    def _binding(db, sid, row, source_cache=None,read_budget=None):
+        from .moss_automatic import has_bounded_schema
+        if has_bounded_schema(db):
+            version=db.execute(f'SELECT target_key FROM {AUTO} WHERE seq=? AND sid=?',(row['seq'],sid)).fetchone()
+            if version is None:c.fail('transcript_dependency_missing')
+            if version[0] is not None:
+                if row.get('target_key') != version[0]:c.fail('automatic_binding_invalid')
+                return TranscriptStore._binding_v2(db,sid,row,source_cache,read_budget)
         saved = db.execute(f'SELECT binding FROM {AUTO} WHERE seq=? AND sid=?', (row['seq'], sid)).fetchone()
         if saved is None: c.fail('transcript_dependency_missing')
         raw = saved[0]
@@ -295,6 +335,58 @@ class TranscriptStore:
         start, end = support[0] + offsets[0], support[1] + offsets[0]
         if not 0 <= start < end <= c.MAX_FRAME: c.fail('automatic_source_unplaced')
         return binding, start, end, cancelled
+
+    @staticmethod
+    def _binding_v2(db,sid,row,source_cache=None,read_budget=None):
+        from . import moss_automatic as automatic
+        from .native_owned_core_seams import BOUNDED_SCHEMA,validate_target,lexical_snapshot
+        from .native_owned_cell_capture import bounded_primary_snapshot
+        from .native_owned_cells import Unavailable
+        try:
+            read_budget=read_budget if read_budget is not None else _CertificateReadBudget()
+            found=automatic._read_v2(db,key=row['candidate_key'],budget=read_budget,with_validation=True)
+            if found is None:raise Unavailable('automatic_binding_invalid')
+            record,validated=found
+            if record['sid']!=sid:raise Unavailable('automatic_binding_invalid')
+            target,doc,support,parts=validated
+            binding=c.parse_json(record['binding'],4096)
+            row['binding_sha256']=hashlib.sha256(record['binding']).hexdigest()
+            row['plan_phase']=record['plan_phase'];row['target_key']=record['target_key']
+            _,originals=validate_target(target)
+            if doc.get('schema')==BOUNDED_SCHEMA:
+                if not automatic.qualify_bounded_document(db,doc,read_budget,None,record=record):raise Unavailable('automatic_source_unplaced')
+                roots=doc['dependency_roots'];commitments=[*originals,*doc['commits']]
+                expected=doc['inventories'];origin=float.fromhex(expected['origin'])
+                saved=bounded_primary_snapshot(db,sid,origin,expected['scan_frames'],read_budget)
+                actual=lexical_snapshot(sid,saved['rows'],saved['sources'],origin,scan_frames=expected['scan_frames'])
+                if actual!=expected:raise Unavailable('bounded_inventory_changed')
+            else:roots=automatic._original_dependencies(target);commitments=originals
+            row['source_roots']=sorted({root['cid'] for root in roots})
+            if len(row['source_roots'])>MAX_CHUNKS:raise Unavailable('unresolved_capacity')
+            cancelled=False;offsets=[]
+            for commit in commitments:
+                p=commit['part'];cid=p['chunk_id']
+                read_budget.projection(1024)
+                source=db.execute('''SELECT c.session_id,c.digest,c.timeline_start,c.duration,c.status,
+                    w.frames,w.receipt_id,w.capture_start_frame,b.capture_origin_frame,b.session_id AS batch_sid
+                    FROM chunks c LEFT JOIN recording_work w ON w.chunk_id=c.id
+                    LEFT JOIN recording_batches b ON b.id=w.batch_id WHERE c.id=?''',(cid,)).fetchone()
+                if (source is None or source['session_id']!=sid or source['batch_sid']!=sid
+                        or source['digest']!=p['source_sha256'] or source['frames']!=p['source_frames']
+                        or source['receipt_id']!=p['receipt_sha256']
+                        or source['capture_origin_frame'] is None
+                        or c.frame(source['duration'])!=p['source_frames']
+                        or c.frame(source['timeline_start'])!=source['capture_start_frame']-source['capture_origin_frame']):
+                    raise Unavailable('automatic_source_unplaced')
+                offsets.append(c.frame(source['timeline_start'])+p['source_start']-p['logical_start'])
+                cancelled|=source['status']=='cancelled'
+                if source_cache is not None:source_cache[cid]=source
+            if not offsets or len(set(offsets))!=1:raise Unavailable('automatic_source_unplaced')
+            start,end=support.start_frame+offsets[0],support.end_frame+offsets[0]
+            if not 0<=start<end<=c.MAX_FRAME:raise Unavailable('automatic_source_unplaced')
+            return binding,start,end,cancelled
+        except (Unavailable,ValueError,TypeError,KeyError,UnicodeError) as exc:
+            c.fail(str(exc) if isinstance(exc,Unavailable) else 'automatic_binding_invalid')
 
     @staticmethod
     def _result(db, sid, row, binding, start, end, cancelled, *, optional=False):
@@ -421,6 +513,7 @@ class TranscriptStore:
         chunks = {chunk['id']: chunk for chunk in initial_chunks}
         charged_chunks, queried_chunks, rows, placed = set(chunks), set(), {}, {}
         sources, candidates, loaded = {}, {}, {}
+        read_budget=_CertificateReadBudget(check)
         notices, binding_bytes, result_bytes = {}, 0, 0
         while frontier:
             kind, a, b = frontier.popleft()
@@ -438,14 +531,20 @@ class TranscriptStore:
                 seq = row['seq']
                 if seq in rows: continue
                 rows[seq] = row
-                binding_bytes += row['binding_bytes']
+                binding_bytes += row['binding_bytes']+row.get('certificate_bytes',0)
                 charged_chunks.update(cid for cid in (row['cid1'], row['cid2']) if cid is not None)
                 if len(rows) > c.MAX_BINDINGS: _capacity('bindings', True)
                 if binding_bytes > c.MAX_BINDING_BYTES: _capacity('binding_bytes', True)
                 if len(charged_chunks) > MAX_CHUNKS: _capacity('chunks', True)
                 check()
                 try:
-                    binding, x, y, cancelled = self._binding(db, sid, row, sources)
+                    if row.get('target_key') is not None:
+                        binding, x, y, cancelled = self._binding(db, sid, row, sources,read_budget)
+                    else:
+                        read_budget.projection(row['binding_bytes'])
+                        binding, x, y, cancelled = self._binding(db, sid, row, sources)
+                    charged_chunks.update(row.get('source_roots',[]))
+                    if len(charged_chunks)>MAX_CHUNKS:_capacity('chunks',True)
                     placed[seq] = (row, binding, x, y, cancelled)
                 except ReadError as exc:
                     if exc.reason in ('unresolved_capacity', 'transcript_dependency_missing'): raise
@@ -474,7 +573,7 @@ class TranscriptStore:
                 if row['history_state'] != 'committed':
                     if x < end and start < y:
                         notices[seq] = {'candidate_key': row['candidate_key'], 'job_id': row['job_id'],
-                            'status': row['history_state'] or row['state'], 'reason': row['reason'],
+                            'status': ('waiting' if row.get('plan_phase')=='waiting' else row['history_state'] or row['state']), 'reason': row['reason'],
                             'start_frame': x, 'end_frame': y, 'home_block': x // c.BLOCK_FRAMES,
                             'complete_content': False, 'eos': None}
                     continue
@@ -637,12 +736,17 @@ class TranscriptStore:
                 where='WHERE a.sid=? AND a.seq>? ORDER BY a.seq LIMIT ?')
             rows = db.execute(query, (sid, after, c.AUDIT_BINDINGS + 1)).fetchall()
             more = len(rows) > c.AUDIT_BINDINGS
-            rows = self._check_descriptor_lengths(rows[:c.AUDIT_BINDINGS])
+            rows = self._check_descriptor_lengths(rows[:c.AUDIT_BINDINGS],db=db)
             unplaced = []
+            read_budget=_CertificateReadBudget(check)
             for row in rows:
                 check()
                 try:
-                    self._binding(db, sid, row)
+                    if row.get('target_key') is not None:
+                        self._binding(db, sid, row,read_budget=read_budget)
+                    else:
+                        read_budget.projection(row['binding_bytes'])
+                        self._binding(db, sid, row)
                 except ReadError as exc:
                     if exc.reason == 'unresolved_capacity': raise
                     unplaced.append({'seq': row['seq'], 'candidate_key': row['candidate_key'],

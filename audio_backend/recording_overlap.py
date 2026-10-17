@@ -45,6 +45,17 @@ MAX_PAGES = 1024
 MAX_PAGE_CHUNKS = 28
 MAX_HISTORY_PER_SOURCE = 13
 MAX_HISTORY_REFS = 208
+BOUNDED_COLUMNS = {
+    'native_core_ordinal': 'INTEGER CHECK(native_core_ordinal IS NULL OR native_core_ordinal>=0)',
+    'retention_store_key': 'TEXT CHECK(retention_store_key IS NULL OR length(retention_store_key)=64)',
+}
+
+
+def init_bounded_columns(db):
+    """Called only by the encompassing all-or-none v2 automatic migration."""
+    if not db.in_transaction:raise ValueError('Bounded recording migration requires transaction')
+    for name,definition in BOUNDED_COLUMNS.items():
+        db.execute(f'ALTER TABLE recording_batches ADD COLUMN {name} {definition}')
 
 
 class RecordingStorageCapacityError(RuntimeError):

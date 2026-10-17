@@ -2,6 +2,12 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev37：默认关闭的有界多 core 支持
+
+实验性 `Settings.native_owned_bounded_core_support_enabled=True` 只用于新会话，在已有 native-owned/automatic MOSS 与词汇证据前提下，让原始重叠目标等待后续 core，并以实际提交和来源证据绑定最多四个根、20 秒的支持区间。当前 v2 使用保守的全 store GC fence，尚不能声称长期孤儿回收可用；v2 说话人身份 annotation/linking 保持拒绝，文本和转写仅保留任务局部标签。
+
+累计固定版本批次及针对性复核通过 144/144 个新用例和 926/927 个既有用例；一个既有 VM-step 预算失败在未改动 baseline 复现，仍明确未解决。这不是最终单一 hash 上的一次整套 PASS，也没有真实 native/MOSS 或识别质量结论。局部累计预算默认 0.75 秒、可配置 0.5–1.0 秒；规划和 SQL/字节/内存上限及旧路径预算不变。详见[范围、证据与限制](docs/BOUNDED_MULTI_CORE_SUPPORT.md)。wheel 仍依赖外部模型/运行时 manifest 与本地模型。
+
 ## 0.2.0rc3.dev36：显式选择的估计边界词汇视图
 
 时间页可显式请求 `projection=lexical-estimated-v1`，在当前有效的 CTC 清单中选择完整词汇组，保留原主文本的前后片段、独立的原始/显示字符跨度和完整来源证据。默认 whole-primary 策略、旧游标身份与词汇保留默认关闭不变；历史 NULL 清单不重建。支持区间、相邻 DAG 和排序不变；可选词汇准入或响应溢出时退回完整主文本并明确标注不完整，不发布部分替换。

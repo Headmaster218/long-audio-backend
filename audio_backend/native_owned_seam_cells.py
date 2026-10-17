@@ -292,8 +292,11 @@ def validate_document(proof):
 
 
 def validate_cell_pcm(doc, pcm):
-    from .native_owned_core_seams import is_core
+    from .native_owned_core_seams import is_core, BOUNDED_SCHEMA
     if is_core(doc):
+        if doc['schema'] == BOUNDED_SCHEMA and (type(pcm) is not bytes or
+                len(pcm) != 2 * (doc['geometry']['end_frame'] - doc['geometry']['start_frame'])):
+            raise Unavailable('bounded_support_pcm_length')
         if hashlib.sha256(pcm).hexdigest() != doc['query']['support_pcm16le_sha256']:
             raise Unavailable('core_seam_pcm_mismatch')
         return

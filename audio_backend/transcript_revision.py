@@ -98,3 +98,61 @@ def init_schema(db):
             db.execute(sql)
         elif ' '.join(row[0].split()) != ' '.join(sql.split()):
             raise ValueError('Incompatible transcript revision trigger: ' + name)
+
+
+def _bounded_schema():
+    """Additional triggers only; the exact v1 trigger bytes stay unchanged."""
+    from .moss_automatic import DEPENDENCIES,V2_COLUMNS,COMPACT_V2_COLUMNS
+    def cid_owners(cid):
+        return f'''SELECT a.sid FROM {DEPENDENCIES} d INDEXED BY auto_v2_dependency_cid
+            JOIN {AUTO} a ON a.seq=d.intent_seq WHERE d.cid={cid}'''
+    def owners(table,ref):
+        if table==AUTO:return [f'SELECT {ref}.sid']
+        if table==DEPENDENCIES:return [f'SELECT sid FROM {AUTO} WHERE seq={ref}.intent_seq']
+        if table=='segments':return [cid_owners(ref+'.chunk_id')]
+        if table=='chunks':return [cid_owners(ref+'.id')]
+        if table=='recording_work':return [cid_owners(ref+'.chunk_id'),
+            f'SELECT sid FROM {AUTO} INDEXED BY auto_v2_wait_range WHERE plan_batch_id={ref}.batch_id']
+        if table=='recording_batches':return [f'SELECT {ref}.session_id',
+            f'SELECT sid FROM {AUTO} INDEXED BY auto_v2_wait_range WHERE plan_batch_id={ref}.id',
+            f'''SELECT a.sid FROM recording_work w CROSS JOIN {DEPENDENCIES} d INDEXED BY auto_v2_dependency_cid
+                JOIN {AUTO} a ON a.seq=d.intent_seq WHERE w.batch_id={ref}.id AND d.cid=w.chunk_id''']
+        return [cid_owners(ref+'.cid'),f'''SELECT a.sid FROM {DEPENDENCIES} d INDEXED BY auto_v2_dependency_slot
+            JOIN {AUTO} a ON a.seq=d.intent_seq WHERE d.slot={ref}.slot''',
+            f'SELECT sid FROM {AUTO} INDEXED BY auto_v2_wait_range WHERE plan_batch_id={ref}.recording_batch_id']
+    fields={AUTO:tuple(V2_COLUMNS)+('proof','binding','sid'),
+        DEPENDENCIES:('intent_seq','dependency_kind','ordinal','cid','slot'),
+        'segments':FIELDS['segments']+('lexical_evidence',),'chunks':FIELDS['chunks']+('next_offset',),
+        'recording_work':FIELDS['recording_work'],
+        'recording_batches':FIELDS['recording_batches']+('native_core_ordinal','retention_store_key'),
+        'native_core_commits':('slot','sid','cid','body','state',*COMPACT_V2_COLUMNS)}
+    schema={}
+    for table,names in fields.items():
+        for operation,refs in (('INSERT',('NEW',)),('UPDATE',('OLD','NEW')),('DELETE',('OLD',))):
+            name=f'transcript_revision_v2_{table}_{operation.lower()}'
+            event=operation;condition=''
+            if operation=='UPDATE':
+                event+=' OF '+','.join(names)
+                condition='WHEN '+' OR '.join(f'OLD.{column} IS NOT NEW.{column}' for column in names)
+            timing='BEFORE' if operation=='DELETE' else 'AFTER'
+            found=' UNION '.join(query for ref in refs for query in owners(table,ref))
+            schema[name]=f'''CREATE TRIGGER {name} {timing} {event} ON {table} {condition} BEGIN
+                UPDATE sessions SET transcript_revision=CASE WHEN transcript_revision<9223372036854775807
+                    THEN transcript_revision+1 ELSE RAISE(ROLLBACK,'Transcript revision exhausted') END
+                    WHERE id IN ({found}); END'''
+    return schema
+
+
+def init_bounded_schema(db):
+    from .moss_automatic import has_bounded_schema
+    if not db.in_transaction:raise ValueError('Bounded transcript migration requires transaction')
+    schema=_bounded_schema()
+    present=[db.execute('SELECT sql FROM sqlite_master WHERE name=?',(name,)).fetchone() for name in schema]
+    if not has_bounded_schema(db):
+        if any(present):raise ValueError('Incomplete bounded transcript revision schema')
+        return
+    if any(present) and not all(present):raise ValueError('Incomplete bounded transcript revision schema')
+    for (name,sql),row in zip(schema.items(),present):
+        if row is None:db.execute(sql)
+        elif ' '.join(row[0].split())!=' '.join(sql.split()):
+            raise ValueError('Incompatible bounded transcript revision trigger: '+name)

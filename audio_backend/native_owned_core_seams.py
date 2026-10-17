@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import time
@@ -22,6 +23,15 @@ from .native_owned_cells import (Cell, SourceSpan, SourceSupport, Turn, Unavaila
 SCHEMA = 'native-owned-core-seam-v3'
 RESET_SCHEMA = 'native-owned-reset-replay-core-seam-v1'
 RESTART_SCHEMA = 'native-owned-restart-replay-core-seam-v1'
+BOUNDED_SCHEMA = 'native-owned-bounded-core-support-v1'
+TARGET_SCHEMA = 'native-owned-original-target-v2'
+INVENTORY_SCHEMA = 'native-owned-bounded-inventory-v1'
+MAX_BOUND_COMMITS = 4
+MAX_ORIGINS = 8
+MAX_PLAN_PARENTS = 128
+MAX_PLAN_UNITS = 512
+MAX_PLAN_ATOMS = 128
+SUPPORT_FRAMES = 320000
 COMPACT_BYTES = 2048
 MAX_COMPACTS = 2056
 PENDING_BYTES = 128 * 1024
@@ -45,20 +55,32 @@ RESTART_POLICY = {**POLICY, 'schema': RESTART_SCHEMA, 'reset_straddling': True,
     'witness': 'one-new-current-exact-support-response-with-observed-replay-pcm',
     'labels': 'current-capture-run-and-epoch-local-only'}
 RESTART_POLICY_SHA256 = sha(RESTART_POLICY)
+BOUNDED_POLICY = {**POLICY, 'schema': BOUNDED_SCHEMA,
+    'support_frames': SUPPORT_FRAMES, 'commitments': MAX_BOUND_COMMITS,
+    'target': 'full-original-positive-overlap-union-v2',
+    'support': 'unchanged-or-least-whole-lexical-atom-fixed-point',
+    'lexical': 'current-inventory-existing-ordinal-groups',
+    'labels': 'current-capture-run-and-epoch-local-only'}
+BOUNDED_POLICY_SHA256 = sha(BOUNDED_POLICY)
 # Fresh isolated policy identity; existing optional stores are never adopted.
-def store_policy():
+def store_policy(*, bounded=False):
     from .native_owned_seam_cells import POLICY_SHA256 as V2_POLICY
+    if bounded:
+        return sha({'schema': 'native-owned-cell-store-policy-bounded-core-v1',
+            'accepted_cell_policies': sorted([V1_POLICY, V2_POLICY, POLICY_SHA256,
+                RESET_POLICY_SHA256, RESTART_POLICY_SHA256, BOUNDED_POLICY_SHA256])})
     return sha({'schema': 'native-owned-cell-store-policy-restart-replay-v1',
                 'accepted_cell_policies': sorted([V1_POLICY, V2_POLICY, POLICY_SHA256, RESET_POLICY_SHA256, RESTART_POLICY_SHA256])})
 
 
-def is_core(doc):return type(doc) is dict and doc.get('schema') in (SCHEMA, RESET_SCHEMA, RESTART_SCHEMA)
+def is_core(doc):return type(doc) is dict and doc.get('schema') in (SCHEMA, RESET_SCHEMA, RESTART_SCHEMA, BOUNDED_SCHEMA)
 
 
 def policy(schema):
     if schema == SCHEMA:return POLICY_SHA256
     if schema == RESET_SCHEMA:return RESET_POLICY_SHA256
     if schema == RESTART_SCHEMA:return RESTART_POLICY_SHA256
+    if schema == BOUNDED_SCHEMA:return BOUNDED_POLICY_SHA256
     raise Unavailable('core_seam_policy')
 
 
@@ -175,12 +197,21 @@ def mapping(commits, shape):
 
 
 def ownership(doc):
+    if doc['schema'] == BOUNDED_SCHEMA:return doc['target']['key']
     return sha({'schema': doc['schema'], 'commits': [slot(c) for c in doc['commits']],
                 'geometry': doc['geometry']})
 
 
 def coverage(doc):
     shape = doc['geometry']; commits = doc['commits']; scope = commits[0]['scope']
+    if doc['schema'] == BOUNDED_SCHEMA:
+        return {'kind': 'bounded_same_epoch_core_alternative', 'scope_sha256': sha(scope),
+            'frame_range': [shape['start_frame'], shape['end_frame']],
+            'source_support_core_semantics': 'bounded_committed_core_envelope',
+            'coverage_envelope_frames': [commits[0]['part']['logical_start'], commits[-1]['part']['logical_end']],
+            'primary_commit_refs': [anchor(c) for c in commits],
+            'target_key': doc['target']['key'], 'adds_primary_audio': False,
+            'automatic_dispatch': False}
     result = {'kind': 'same_epoch_core_seam_alternative', 'scope_sha256': sha(scope),
         'frame_range': [shape['start_frame'], shape['end_frame']],
         'source_support_core_semantics': 'two_committed_core_envelope',
@@ -246,6 +277,8 @@ def validate_query(query, right, shape, evidence, schema=SCHEMA):
 def validate_document(proof):
     if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:raise Unavailable('proof_capacity')
     doc = json.loads(proof)
+    if type(doc) is dict and doc.get('schema') == BOUNDED_SCHEMA:
+        return validate_bounded_document(proof, doc)
     exact(doc, 'schema policy commits geometry support dependencies query right_evidence selection publication_anchor selected coverage')
     if not is_core(doc) or doc['policy'] != policy(doc['schema']) or doc['selected'] is not True:
         raise Unavailable('core_seam_policy')
@@ -296,6 +329,509 @@ def make_cell(commits, query, evidence, pcm, schema=SCHEMA):
                 p['chunk_id'], p['start'], p['end'], p['sha256'])
 
 
+def overlap_components(turns, start, end):
+    """Full positive distinct-label union from one response, in bounded events.
+
+    Per-label counts avoid inventing overlap from duplicate same-label turns.
+    End/start events are applied together at half-open boundaries. Neither pair
+    ordering nor a display name participates in the resulting target identity.
+    """
+    integer(start); integer(end)
+    if start >= end or type(turns) not in (tuple, list) or len(turns) > MAX_TURNS:
+        raise Unavailable('bounded_overlap_shape')
+    events = {}; labels = set()
+    for turn in turns:
+        if type(turn) is Turn:
+            label, a, b = turn.label, turn.start, turn.end
+        else:
+            if type(turn) is not dict or not {'label', 'original'} <= set(turn):
+                raise Unavailable('bounded_overlap_shape')
+            label = text(turn['label']); interval = turn['original']
+            if type(interval) is not list or len(interval) != 2:
+                raise Unavailable('bounded_overlap_shape')
+            a, b = interval
+        text(label); integer(a); integer(b)
+        if a >= b:raise Unavailable('native_turn_geometry')
+        labels.add(label)
+        if len(labels) > 8:raise Unavailable('native_label_capacity')
+        a, b = max(start, a), min(end, b)
+        if a < b:
+            events.setdefault(a, []).append((label, 1))
+            events.setdefault(b, []).append((label, -1))
+    active = {}; previous = None; result = []
+    for position in sorted(events):
+        if previous is not None and previous < position and len(active) > 1:
+            if result and result[-1][1] == previous:result[-1][1] = position
+            else:result.append([previous, position])
+        for label, delta in events[position]:
+            count = active.get(label, 0) + delta
+            if count:active[label] = count
+            else:active.pop(label, None)
+        previous = position
+    if not result:raise Unavailable('no_same_response_native_overlap')
+    if len(result) > MAX_TURNS:raise Unavailable('bounded_overlap_capacity')
+    return result
+
+
+def bounded_chain(commits):
+    """Validate original compact slots without coalescing their authority."""
+    if type(commits) not in (tuple, list) or not 1 <= len(commits) <= MAX_BOUND_COMMITS:
+        raise Unavailable('commitment_capacity')
+    parts = [validate_commit(c) for c in commits]
+    if not math.isfinite(float.fromhex(commits[0]['scope']['origin'])):
+        raise Unavailable('core_seam_origin')
+    if len({slot(c) for c in commits}) != len(commits):
+        raise Unavailable('bounded_duplicate_commitment')
+    first = commits[0]
+    for c in commits:
+        if c['scope'] != first['scope']:
+            raise Unavailable('unresolved_scope_transition')
+        if c['runtime_sha256'] != first['runtime_sha256']:
+            raise Unavailable('core_seam_runtime_changed')
+    seen = set(); previous = None
+    for p in parts:
+        if previous is not None:
+            if previous.logical_end != p.logical_start:
+                raise Unavailable('source_gap')
+            if p.chunk_id == previous.chunk_id:
+                if (p.source_start != previous.source_end or
+                        (p.session_id, p.receipt_sha256, p.source_sha256, p.source_frames) !=
+                        (previous.session_id, previous.receipt_sha256, previous.source_sha256, previous.source_frames)):
+                    raise Unavailable('core_seam_source_alias')
+            elif p.chunk_id in seen:raise Unavailable('source_mapping_repeated_alias')
+        seen.add(p.chunk_id); previous = p
+    return parts[0].logical_start, parts[-1].logical_end
+
+
+def bounded_mapping(commits, start, end):
+    a, b = bounded_chain(commits); integer(start); integer(end)
+    if not a <= start < end <= b:raise Unavailable('authority_unavailable')
+    parts = []
+    for c in commits:
+        p = SourceSpan(**c['part'])
+        lo, hi = max(start, p.logical_start), min(end, p.logical_end)
+        if lo >= hi:continue
+        p = SourceSpan(p.session_id, p.chunk_id, p.receipt_sha256, p.source_sha256,
+            p.source_frames, p.source_start + lo - p.logical_start,
+            p.source_start + hi - p.logical_start, lo, hi)
+        if parts and parts[-1].chunk_id == p.chunk_id:
+            old = parts.pop()
+            if (old.source_end != p.source_start or old.logical_end != p.logical_start or
+                    (old.session_id, old.receipt_sha256, old.source_sha256, old.source_frames) !=
+                    (p.session_id, p.receipt_sha256, p.source_sha256, p.source_frames)):
+                raise Unavailable('core_seam_source_alias')
+            p = SourceSpan(old.session_id, old.chunk_id, old.receipt_sha256, old.source_sha256,
+                old.source_frames, old.source_start, p.source_end, old.logical_start, p.logical_end)
+        parts.append(p)
+    return validate_mapping(tuple(parts), start, end)
+
+
+def origin_certificate(proof, commits, binding):
+    if type(proof) is not bytes or type(binding) is not bytes:
+        raise Unavailable('bounded_origin_shape')
+    if not 1 <= len(proof) <= PROOF_BYTES or not 1 <= len(binding) <= 4096:
+        raise Unavailable('bounded_origin_capacity')
+    result = {'proof': proof.decode('ascii'), 'binding': binding.decode('ascii'),
+              'commits': list(commits)}
+    _origin_identity(result)
+    canonical(result)
+    return result
+
+
+def _origin_identity(origin):
+    """Revalidate genuine v1 originals. A final plan can never become an origin."""
+    exact(origin, 'proof binding commits')
+    if (type(origin['proof']) is not str or not 1 <= len(origin['proof']) <= PROOF_BYTES
+            or type(origin['binding']) is not str or not 1 <= len(origin['binding']) <= 4096):
+        raise Unavailable('bounded_origin_capacity')
+    raw = origin['proof'].encode('ascii'); binding = origin['binding'].encode('ascii')
+    parsed = json.loads(raw)
+    if type(parsed) is not dict or parsed.get('schema') not in (None, SCHEMA):
+        raise Unavailable('unresolved_scope_transition')
+    from .native_owned_cells import validate_document as validate_original
+    from .moss_automatic import ordinary_binding, source_binding
+    doc, support, parts = validate_original(raw)
+    commits = origin['commits']; bounded_chain(commits)
+    if 'schema' not in doc:
+        if len(commits) != 1:raise Unavailable('bounded_origin_commitments')
+        ordinary_binding(doc, commits[0]); kind = 'ordinary'; turns = doc['turns']
+        scope = commits[0]['scope']
+        if (doc['native']['epoch_id'] != scope['epoch'] or doc['native']['epoch_index'] != scope['index']
+                or doc['commit_evidence']['native']['epoch_id'] != scope['epoch']
+                or doc['commit_evidence']['native']['epoch_index'] != scope['index']):
+            raise Unavailable('unresolved_scope_transition')
+    else:
+        if commits != doc['commits']:raise Unavailable('bounded_origin_commitments')
+        kind = 'core_seam'; turns = doc['query']['turns']
+    if binding != source_binding(kind, doc, support, parts, commits):
+        raise Unavailable('bounded_origin_binding')
+    if bounded_mapping(commits, support.start_frame, support.end_frame) != parts:
+        raise Unavailable('bounded_origin_mapping')
+    components = overlap_components(turns, support.start_frame, support.end_frame)
+    scope = commits[0]['scope']
+    return {'schema': TARGET_SCHEMA, 'scope': {k: scope[k] for k in ('session_id', 'kind', 'key', 'origin')},
+        'components': components,
+        'mapping': [[asdict(p) for p in intersect_mapping(parts, a, b)] for a, b in components]}
+
+
+def original_target(origin):
+    identity = _origin_identity(origin)
+    target = {'schema': TARGET_SCHEMA, 'key': sha(identity), 'identity': identity, 'origins': [origin]}
+    validate_target(target)
+    return target
+
+
+def validate_target(target):
+    exact(target, 'schema key identity origins')
+    if target['schema'] != TARGET_SCHEMA:raise Unavailable('bounded_target_policy')
+    digest(target['key']); origins = target['origins']
+    if type(origins) is not list or not 1 <= len(origins) <= MAX_ORIGINS:
+        raise Unavailable('bounded_origin_capacity')
+    identity = None; roots = {}; fingerprints = set()
+    for origin in origins:
+        current_identity = _origin_identity(origin)
+        if identity is None:identity = current_identity
+        if current_identity != identity:raise Unavailable('bounded_target_alias_mismatch')
+        fingerprint = sha(origin)
+        if fingerprint in fingerprints:raise Unavailable('bounded_origin_duplicate')
+        fingerprints.add(fingerprint)
+        for c in origin['commits']:
+            key = slot(c)
+            if key in roots and roots[key] != c:raise Unavailable('core_slot_evidence_conflict')
+            roots[key] = c
+    if len(roots) > MAX_BOUND_COMMITS:raise Unavailable('commitment_capacity')
+    ordered = sorted(roots.values(), key=lambda c: c['part']['logical_start'])
+    bounded_chain(ordered)
+    if target['identity'] != identity or target['key'] != sha(identity):
+        raise Unavailable('bounded_target_identity')
+    canonical(target)
+    return identity, ordered
+
+
+def append_target_origin(target, origin):
+    identity, _ = validate_target(target)
+    if _origin_identity(origin) != identity:raise Unavailable('bounded_target_alias_mismatch')
+    if origin in target['origins']:return target
+    result = {**target, 'origins': [*target['origins'], origin]}
+    validate_target(result)
+    return result
+
+
+def lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None):
+    from .native_owned_support_cache import ReadError
+    try:
+        return _lexical_snapshot(sid, rows, sources, scope_origin,
+            complete=complete, scan_frames=scan_frames)
+    except ReadError as exc:
+        # Shared projection validators use their HTTP/read-domain exception.
+        # Numeric planning keeps this an optional unresolved placement result.
+        raise Unavailable(exc.reason) from exc
+
+
+def _lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None):
+    """Pure adapter over the *existing* inventory and ordinal-group validators.
+
+    The caller supplies a complete bounded indexed scan and source snapshots.
+    No database or source I/O is hidden here, including for a stale inventory.
+    Retaining exact rows allows proof decoding to repeat identical semantics.
+    """
+    from .lexical_evidence import current_inventory, SOURCE_FIELDS, MAX_SEGMENT_BYTES
+    from .transcript_contract import PRIMARY_FIELDS, primary_evidence, primary_frame
+    from .transcript_projection import lexical_groups
+    from .transcript_store import CONTEXT_SECONDS
+    text(sid)
+    if complete is not True:raise Unavailable('incomplete_primary')
+    if type(rows) not in (list, tuple) or len(rows) > MAX_PLAN_PARENTS:
+        raise Unavailable('primary_capacity')
+    if type(sources) is not dict or not 1 <= len(sources) <= MAX_PARTS:
+        raise Unavailable('source_part_capacity')
+    origin = exact_frame(scope_origin)
+    if type(scan_frames) not in (list, tuple) or len(scan_frames) != 2:
+        raise Unavailable('incomplete_primary')
+    scan_start, scan_end = scan_frames; integer(scan_start); integer(scan_end)
+    if scan_start >= scan_end:raise Unavailable('incomplete_primary')
+    retained_sources = []
+    for cid in sorted(sources):
+        source = sources[cid]
+        if any(k not in source for k in SOURCE_FIELDS):raise Unavailable('source_unavailable')
+        item = {k: source[k] for k in SOURCE_FIELDS}
+        text(cid); digest(item['digest'])
+        if item['id'] != cid or item['session_id'] != sid:raise Unavailable('source_unavailable')
+        exact_frame(item['timeline_start']); integer(exact_frame(item['duration']), minimum=1)
+        retained_sources.append(item)
+    parents = []; atoms = []; units = 0; seen = set()
+    for supplied in rows:
+        row = {k: supplied[k] for k in (*PRIMARY_FIELDS, 'lexical_evidence')}
+        if row['id'] in seen:raise Unavailable('bounded_primary_duplicate')
+        seen.add(row['id'])
+        if row['chunk_id'] not in sources:raise Unavailable('source_unavailable')
+        raw = row['lexical_evidence']
+        if raw is not None and (type(raw) is not str or len(raw) > MAX_SEGMENT_BYTES):
+            raise Unavailable('inventory_capacity')
+        parent = primary_evidence(sid, row)
+        own = sources[row['chunk_id']]
+        if (parent['start_frame'] < max(0, primary_frame(own['timeline_start']) - CONTEXT_SECONDS * RATE) or
+                parent['end_frame'] > primary_frame(own['timeline_start'] + own['duration'], end=True) + CONTEXT_SECONDS * RATE):
+            raise Unavailable('primary_source_placement')
+        if not (parent['start_frame'] < origin + scan_end and origin + scan_start < parent['end_frame']):
+            raise Unavailable('bounded_primary_scan_mismatch')
+        current = current_inventory(None, sid, row, source_lookup=lambda cid: sources.get(cid))
+        groups = lexical_groups(parent, current) if current is not None else None
+        if current is not None:
+            units += len(current['inventory']['units'])
+            if units > MAX_PLAN_UNITS:raise Unavailable('lexical_unit_capacity')
+        parent_atoms = groups if groups is not None else [parent]
+        descriptors = []
+        for item in parent_atoms:
+            atom = {'source': item['source'], 'segment_id': row['id'],
+                'start_frame': item['start_frame'] - origin, 'end_frame': item['end_frame'] - origin}
+            # ASR context may precede a nonzero recording scope origin. Keep
+            # that known placement; only source/support frames must be >= 0.
+            integer(atom['start_frame'], minimum=-((1 << 53) - 1))
+            integer(atom['end_frame'], minimum=-((1 << 53) - 1))
+            if groups is not None:
+                atom.update(unit_range=item['unit_range'], display_span=item['display_span'], raw_span=item['raw_span'],
+                    parent_start_frame=item['parent_start_frame'] - origin,
+                    parent_end_frame=item['parent_end_frame'] - origin,
+                    inventory_sha256=current['inventory_sha256'], policy_sha256=item['policy_sha256'])
+            descriptors.append(atom); atoms.append(atom)
+            if len(atoms) > MAX_PLAN_ATOMS:raise Unavailable('lexical_atom_capacity')
+        parents.append({'row': row, 'primary_sha256': parent['content_sha256'],
+            'inventory_sha256': current['inventory_sha256'] if current is not None else None,
+            'atoms': descriptors})
+    snapshot = {'schema': INVENTORY_SCHEMA, 'session_id': sid, 'origin': float(scope_origin).hex(),
+        'scan_frames': [scan_start, scan_end], 'complete': True,
+        'parents': parents, 'sources': retained_sources, 'atoms': atoms, 'unit_count': units}
+    canonical(snapshot)
+    return snapshot
+
+
+def validate_inventory(snapshot):
+    exact(snapshot, 'schema session_id origin scan_frames complete parents sources atoms unit_count')
+    if snapshot['schema'] != INVENTORY_SCHEMA:raise Unavailable('bounded_inventory_policy')
+    if type(snapshot['parents']) is not list or len(snapshot['parents']) > MAX_PLAN_PARENTS:
+        raise Unavailable('primary_capacity')
+    if type(snapshot['sources']) is not list or not 1 <= len(snapshot['sources']) <= MAX_PARTS:
+        raise Unavailable('source_part_capacity')
+    sources = {}
+    for source in snapshot['sources']:
+        if type(source) is not dict or source.get('id') in sources:
+            raise Unavailable('bounded_source_duplicate')
+        sources[source.get('id')] = source
+    try:origin = float.fromhex(snapshot['origin'])
+    except (TypeError, ValueError) as exc:raise Unavailable('core_seam_origin') from exc
+    if not math.isfinite(origin) or origin.hex() != snapshot['origin']:
+        raise Unavailable('core_seam_origin')
+    expected = lexical_snapshot(snapshot['session_id'], [p['row'] for p in snapshot['parents']],
+        sources, origin, complete=snapshot['complete'], scan_frames=snapshot['scan_frames'])
+    if canonical(expected) != canonical(snapshot):raise Unavailable('bounded_inventory_mismatch')
+    return snapshot
+
+
+def same_numeric_snapshot(planned, actual, row_ids=None):
+    """Match retained transaction rows to drafts, allowing only actual row IDs.
+
+    A generated inventory hash changes with its primary row ID. Its exact
+    canonical body may therefore differ only in that validated primary hash;
+    all units, ordinals, text partitions and source snapshots remain equal.
+    Missing/refused inventory cannot silently convert a planned lexical atom
+    into a whole opaque parent or choose a second support.
+    """
+    validate_inventory(planned); validate_inventory(actual)
+    row_ids = {} if row_ids is None else row_ids
+    if type(row_ids) is not dict or len(row_ids) > MAX_PLAN_PARENTS:
+        raise Unavailable('bounded_row_binding')
+    for before, after in row_ids.items():
+        integer(before, maximum=(1 << 63) - 1, minimum=1)
+        integer(after, maximum=(1 << 63) - 1, minimum=1)
+    if any(planned[k] != actual[k] for k in ('schema', 'session_id', 'origin', 'scan_frames', 'complete', 'sources', 'unit_count')):
+        return False
+    old = planned['parents']; new = actual['parents']
+    if len(old) != len(new):return False
+    by_id = {p['row']['id']: p for p in new}
+    if len(by_id) != len(new):return False
+    observed = set()
+    for before in old:
+        old_row = before['row']; new_id = row_ids.get(old_row['id'], old_row['id'])
+        after = by_id.get(new_id)
+        if after is None or new_id in observed:return False
+        observed.add(new_id); new_row = after['row']
+        if any(old_row[k] != new_row[k] for k in old_row if k not in ('id', 'lexical_evidence')):
+            return False
+        left, right = old_row['lexical_evidence'], new_row['lexical_evidence']
+        if old_row['id'] == new_id:
+            if left != right:return False
+        elif before['inventory_sha256'] is None:
+            if left != right or after['inventory_sha256'] is not None:return False
+        else:
+            if after['inventory_sha256'] is None:return False
+            lv, rv = json.loads(left), json.loads(right)
+            if {k: v for k, v in lv.items() if k != 'primary_sha256'} != {
+                    k: v for k, v in rv.items() if k != 'primary_sha256'}:return False
+        if len(before['atoms']) != len(after['atoms']):return False
+        for one, two in zip(before['atoms'], after['atoms']):
+            expected = {**one, 'segment_id': new_id}
+            if 'inventory_sha256' in expected:expected['inventory_sha256'] = after['inventory_sha256']
+            if expected != two:return False
+    return True
+
+
+def select_support(target, commits, snapshot, query_start, query_end):
+    """One deterministic fixed point, never a search over acoustic attempts."""
+    from .transcript_projection import _legal
+    identity, originals = validate_target(target); validate_inventory(snapshot)
+    ca, cb = bounded_chain(commits); integer(query_start); integer(query_end)
+    all_roots = {slot(c): c for c in originals}
+    for c in commits:
+        if slot(c) in all_roots and all_roots[slot(c)] != c:
+            raise Unavailable('core_slot_evidence_conflict')
+        all_roots[slot(c)] = c
+    if len(all_roots) > MAX_BOUND_COMMITS:raise Unavailable('commitment_capacity')
+    bounded_chain(sorted(all_roots.values(), key=lambda c: c['part']['logical_start']))
+    if (identity['scope'] != {k: commits[0]['scope'][k] for k in identity['scope']}
+            or snapshot['session_id'] != identity['scope']['session_id']
+            or snapshot['origin'] != identity['scope']['origin']
+            or not snapshot['scan_frames'][0] <= ca < cb <= snapshot['scan_frames'][1]):
+        raise Unavailable('bounded_plan_scope')
+    if not 0 < query_end - query_start <= CORE_FRAMES:raise Unavailable('core_seam_query_coverage')
+    atoms = snapshot['atoms']; components = identity['components']
+    # Exact source placement must remain equal, even for an alias-origin O.
+    for (a, b), expected in zip(components, identity['mapping']):
+        if [asdict(p) for p in bounded_mapping(commits, a, b)] != expected:
+            raise Unavailable('bounded_target_mapping_changed')
+    def legal(a, b):
+        return (0 < b - a <= SUPPORT_FRAMES and ca <= a < b <= cb
+            and query_start <= a < b <= query_end
+            and all(a <= lo < hi <= b for lo, hi in components)
+            and any(a < atom['end_frame'] and atom['start_frame'] < b for atom in atoms)
+            and _legal(a, b, atoms))
+    original = json.loads(target['origins'][0]['proof'])['support']
+    a, b = original['start_frame'], original['end_frame']
+    if legal(a, b):return {'start_frame': a, 'end_frame': b}
+    a, b = components[0][0], components[-1][1]; included = set()
+    ordered = sorted(enumerate(atoms), key=lambda pair: (pair[1]['start_frame'], pair[1]['end_frame'], pair[0]))
+    changed = True
+    while changed:
+        changed = False
+        for index, atom in ordered:
+            if index not in included and a < atom['end_frame'] and atom['start_frame'] < b:
+                included.add(index)
+                lo, hi = min(a, atom['start_frame']), max(b, atom['end_frame'])
+                if (lo, hi) != (a, b):changed = True
+                a, b = lo, hi
+        if b - a > SUPPORT_FRAMES:raise Unavailable('support_duration')
+    if not included:raise Unavailable('unresolved_lexical_gap')
+    if not ca <= a < b <= cb:raise Unavailable('authority_unavailable')
+    if not query_start <= a < b <= query_end:raise Unavailable('witness_unavailable')
+    if not legal(a, b):raise Unavailable('no_legal_fixed_point')
+    return {'start_frame': a, 'end_frame': b}
+
+
+def dependency_roots(target, commits, inventories):
+    """One canonical role mask per (source, compact); slots never coalesce."""
+    _, originals = validate_target(target); bounded_chain(commits)
+    validate_inventory(inventories)
+    roots = {}; unique_slots = set()
+    def add(cid, compact, role):
+        text(cid)
+        if compact is not None:digest(compact); unique_slots.add(compact)
+        key = (cid, compact)
+        roots[key] = roots.get(key, 0) | role
+    for c in originals:add(c['part']['chunk_id'], slot(c), 1)
+    for c in commits:add(c['part']['chunk_id'], slot(c), 2)
+    for source in inventories['sources']:add(source['id'], None, 4)
+    for parent in inventories['parents']:add(parent['row']['chunk_id'], None, 8)
+    if len(unique_slots) > MAX_BOUND_COMMITS:raise Unavailable('commitment_capacity')
+    if len({cid for cid, _ in roots}) > MAX_PARTS:raise Unavailable('source_part_capacity')
+    result = [{'kind': roots[key], 'cid': key[0], 'slot': key[1]}
+              for key in sorted(roots, key=lambda key: (key[0], key[1] or ''))]
+    canonical(result, 4096)
+    return result
+
+
+def _bounded_query(query, commit, shape, evidence):
+    exact(query, 'query_start_frame query_end_frame query_pcm16le_sha256 support_pcm16le_sha256 native turns capture_run')
+    if query['capture_run'] != commit['scope']['run']:raise Unavailable('bounded_query_run')
+    turns = query['turns']
+    if type(turns) is not list or len(turns) > MAX_TURNS:raise Unavailable('native_turn_capacity')
+    prefix = query['capture_run'] + ':'; normalized = []
+    for t in turns:
+        exact(t, 'label original')
+        if type(t['label']) is not str or not t['label'].startswith(prefix):
+            raise Unavailable('bounded_query_label_run')
+        normalized.append({**t, 'label': t['label'][len(prefix):]})
+    legacy = {k: v for k, v in query.items() if k != 'capture_run'}
+    legacy['turns'] = normalized
+    validate_query(legacy, commit, shape, evidence, SCHEMA)
+
+
+def validate_bounded_document(proof, doc=None):
+    if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:raise Unavailable('proof_capacity')
+    if doc is None:doc = json.loads(proof)
+    exact(doc, 'schema policy commits geometry support dependencies query right_evidence selection publication_anchor selected coverage target inventories dependency_roots target_sha256')
+    if doc['schema'] != BOUNDED_SCHEMA or doc['policy'] != BOUNDED_POLICY_SHA256 or doc['selected'] is not True:
+        raise Unavailable('core_seam_policy')
+    identity, originals = validate_target(doc['target']); commits = doc['commits']
+    ca, cb = bounded_chain(commits); validate_inventory(doc['inventories'])
+    shape = exact(doc['geometry'], 'start_frame end_frame')
+    _bounded_query(doc['query'], commits[-1], shape, doc['right_evidence'])
+    if doc['target_sha256'] != sha(doc['target']):raise Unavailable('bounded_target_hash')
+    expected_shape = select_support(doc['target'], commits, doc['inventories'],
+        doc['query']['query_start_frame'], doc['query']['query_end_frame'])
+    if shape != expected_shape:raise Unavailable('bounded_nondeterministic_support')
+    current_overlap = overlap_components(doc['query']['turns'], shape['start_frame'], shape['end_frame'])
+    if any(not any(a <= lo < hi <= b for a, b in current_overlap) for lo, hi in identity['components']):
+        raise Unavailable('bounded_current_target_disagreement')
+    # Current query scope is identical to every accepted origin's acoustic scope.
+    if any(c['scope'] != commits[-1]['scope'] for c in originals):
+        raise Unavailable('unresolved_scope_transition')
+    parts = bounded_mapping(commits, shape['start_frame'], shape['end_frame'])
+    if doc['dependencies'] != [asdict(p) for p in parts]:raise Unavailable('core_seam_mapping')
+    if doc['dependency_roots'] != dependency_roots(doc['target'], commits, doc['inventories']):
+        raise Unavailable('bounded_dependency_mismatch')
+    from .native_owned_seam_cells import selected_pair
+    if doc['selection'] != selected_pair([doc['query']], shape['start_frame'], shape['end_frame']):
+        raise Unavailable('core_seam_selection')
+    support = SourceSupport.from_dict(doc['support']); contents = [p.content() for p in parts]
+    expected_core = sha({'commits': commits, 'geometry': shape, 'query': doc['query'],
+        'target_sha256': doc['target_sha256'], 'inventories_sha256': sha(doc['inventories']),
+        'dependency_roots': doc['dependency_roots']})
+    if (support.source_generation != sha({'schema': 'immutable-source-cell-generation-v1', 'sources': contents})
+            or support.plan_sha256 != sha({'schema': 'bounded-cell-mapping-v1', 'parts': contents})
+            or support.native_runtime_sha256 != commits[-1]['runtime_sha256']
+            or support.core_sha256 != expected_core
+            or (support.source_frames, support.core_start_frame, support.core_end_frame,
+                support.start_frame, support.end_frame) != (cb, ca, cb, shape['start_frame'], shape['end_frame'])
+            or support.pcm16le_sha256 != doc['query']['support_pcm16le_sha256']):
+        raise Unavailable('core_seam_support')
+    if doc['publication_anchor'] != anchor(commits[-1]) or doc['coverage'] != coverage(doc):
+        raise Unavailable('core_seam_publication')
+    if canonical(doc) != proof:raise Unavailable('noncanonical_proof')
+    return doc, support, parts
+
+
+def make_bounded_cell(commits, query, evidence, pcm, target, snapshot):
+    from .native_owned_seam_cells import selected_pair
+    shape = select_support(target, commits, snapshot, query['query_start_frame'], query['query_end_frame'])
+    ca, cb = bounded_chain(commits); parts = bounded_mapping(commits, shape['start_frame'], shape['end_frame'])
+    contents = [p.content() for p in parts]; target_hash = sha(target)
+    roots = dependency_roots(target, commits, snapshot)
+    support = SourceSupport(sha({'schema': 'immutable-source-cell-generation-v1', 'sources': contents}),
+        sha({'schema': 'bounded-cell-mapping-v1', 'parts': contents}), commits[-1]['runtime_sha256'],
+        sha({'commits': commits, 'geometry': shape, 'query': query, 'target_sha256': target_hash,
+             'inventories_sha256': sha(snapshot), 'dependency_roots': roots}),
+        cb, ca, cb, shape['start_frame'], shape['end_frame'], hashlib.sha256(pcm).hexdigest(), float32_digest(pcm))
+    doc = {'schema': BOUNDED_SCHEMA, 'policy': BOUNDED_POLICY_SHA256, 'commits': list(commits),
+        'geometry': shape, 'support': support.to_dict(), 'dependencies': [asdict(p) for p in parts],
+        'query': query, 'right_evidence': evidence,
+        'selection': selected_pair([query], shape['start_frame'], shape['end_frame']),
+        'publication_anchor': anchor(commits[-1]), 'selected': True, 'target': target,
+        'target_sha256': target_hash, 'inventories': snapshot, 'dependency_roots': roots}
+    doc['coverage'] = coverage(doc); p = doc['publication_anchor']
+    return Cell(support, parts, canonical(doc), pcm, commits[-1]['scope']['session_id'],
+                p['chunk_id'], p['start'], p['end'], p['sha256'])
+
+
 def init_schema(db):
     """Additive and initially empty: no metadata backfill, no old witness adoption."""
     db.execute('''CREATE TABLE IF NOT EXISTS native_core_commits (
@@ -330,15 +866,22 @@ def retention_counts(db, budget):
     return {'occupied': row[0], 'pending': row[1], 'pending_bytes': row[2]}
 
 
-def read_commit(db, slot_id, budget):
+def read_commit(db, slot_id, budget, *, reserve=False):
     row = db.execute('SELECT length(body) AS n FROM native_core_commits WHERE slot=?', (slot_id,)).fetchone()
     if row is None:return None
     if not 1 <= row[0] <= COMPACT_BYTES:raise Unavailable('core_receipt_capacity')
+    size = row[0]
+    if reserve:budget.projection(size)
     # Length is checked again in the same statement which projects bytes.
-    row = db.execute('SELECT body FROM native_core_commits WHERE slot=? AND length(body) BETWEEN 1 AND ?',
-                     (slot_id, COMPACT_BYTES)).fetchone()
+    if reserve:
+        row = db.execute('SELECT body FROM native_core_commits WHERE slot=? AND length(body)=? AND length(body) BETWEEN 1 AND ?',
+                         (slot_id, size, COMPACT_BYTES)).fetchone()
+    else:
+        row = db.execute('SELECT body FROM native_core_commits WHERE slot=? AND length(body) BETWEEN 1 AND ?',
+                         (slot_id, COMPACT_BYTES)).fetchone()
     if row is None:return None
-    budget.projection(len(row[0])); commit = json.loads(row[0]); validate_commit(commit)
+    if not reserve:budget.projection(len(row[0]))
+    commit = json.loads(row[0]); validate_commit(commit)
     if canonical(commit, COMPACT_BYTES) != row[0] or slot(commit) != slot_id:raise Unavailable('core_receipt_corrupt')
     return commit
 
@@ -370,13 +913,15 @@ def _gc_guard(owner, op, db, budget):
         if type(dependencies) is not list or not 1 <= len(dependencies) <= MAX_PARTS:
             raise Unavailable('compact_gc_producer_roots_pending')
         for dependency in dependencies:roots.add(text(dependency['chunk_id']))
+        if pin.document.get('schema') == BOUNDED_SCHEMA:
+            for dependency in pin.document['dependency_roots']:roots.add(text(dependency['cid']))
     budget.projection(64); budget.check()
     return frozenset(roots)
 
 
 def _gc_outbox_root(db, cid, budget):
-    from .moss_automatic import root
-    if root(db,cid=cid):return True
+    from .moss_automatic import retention_root
+    if retention_root(db,cid=cid):return True
     row = db.execute('''SELECT 1 FROM recording_work rw
         JOIN recording_batches rb ON rb.id=rw.batch_id
         LEFT JOIN recording_pages rp ON rp.id=rw.page_id
@@ -434,6 +979,14 @@ def _gc_receipt(owner, commit):
                 == p['logical_start'] - p['source_start'])
 
 
+def _gc_store_eligible(owner, db, slot_id, budget, *, cid=None):
+    from .moss_automatic import retention_eligible, has_bounded_schema
+    if not getattr(owner, 'bounded_core_enabled', False) and not has_bounded_schema(db):return True
+    budget.projection(384)
+    eligible = retention_eligible(db, owner.retention_store_key, slot=slot_id, cid=cid)
+    return eligible
+
+
 def collect_compacts(owner, op, budget, result=None):
     """One primary-only transaction; never writes through PrimaryAuthority.
 
@@ -479,6 +1032,7 @@ def collect_compacts(owner, op, budget, result=None):
                 result['scanned'] += 1; cursor = slot_id
                 p = commit['part']; cid = p['chunk_id']
                 eligible = _gc_exact_row(db, slot_id, commit, raw, budget)
+                if not _gc_store_eligible(owner, db, slot_id, budget):eligible = False
                 if cid in roots:eligible = False
                 if owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1', (cid,)).fetchone():
                     eligible = False
@@ -516,6 +1070,7 @@ def collect_compacts(owner, op, budget, result=None):
             for slot_id, raw, commit, frontier_id, frontier_raw, frontier in plans:
                 cid = commit['part']['chunk_id']
                 if (not _gc_exact_row(db, slot_id, commit, raw, budget)
+                        or not _gc_store_eligible(owner, db, slot_id, budget)
                         or not _gc_exact_row(db, frontier_id, frontier, frontier_raw, budget)
                         or _gc_stream_source(db, commit, budget) is None
                         or _gc_stream_source(db, frontier, budget) is None
@@ -594,9 +1149,13 @@ def transaction(db, chunk, offset, end, result, *, strict=False, automatic=False
                 elif db.execute("SELECT COUNT(*) FROM native_core_commits WHERE pending IS NOT NULL").fetchone()[0] >= MAX_PENDING:
                     reason = 'core_pending_row_capacity'; proof = None; state = 'gap'
                 else:state = 'pending'; reason = 'core_pending'
-        db.execute('INSERT INTO native_core_commits VALUES(?,?,?,?,?,?,?,?,?)',
+        db.execute('''INSERT INTO native_core_commits
+            (slot,sid,cid,scope_key,logical_end,body,pending,state,reason) VALUES(?,?,?,?,?,?,?,?,?)''',
             (slot(commit), chunk['session_id'], chunk['id'], scope_key(commit['scope']), p.logical_end,
              raw, proof, state, reason[:80]))
+        if packet.get('_bounded_context') is not None:
+            from .moss_automatic import commit_ordinal
+            commit_ordinal(db, packet, chunk)
         return reason
     except (Unavailable, ValueError, TypeError, KeyError) as exc:
         db.execute('ROLLBACK TO native_core_optional')
@@ -605,14 +1164,29 @@ def transaction(db, chunk, offset, end, result, *, strict=False, automatic=False
     finally:db.execute('RELEASE native_core_optional')
 
 
-def current(authority, doc, budget):
+def current(authority, doc, budget, *, automatic_key=None):
     """Independent of mutable chunk.metadata, and fail-closed after cancellation."""
     doc, _, parts = validate_document(canonical(doc)); owner = authority.owner
     generation = owner._epoch
-    for commit in doc['commits']:
+    commits = doc['commits']
+    if doc['schema'] == BOUNDED_SCHEMA:
+        from .moss_automatic import qualify_bounded_document
+        if not authority._read(budget, 'automatic_intent', lambda db:
+                qualify_bounded_document(db, doc, budget, owner.retention_store_key,
+                                         automatic_key=automatic_key)):
+            return False
+        _, originals = validate_target(doc['target'])
+        roots = {slot(c): c for c in originals}
+        for c in commits:
+            if slot(c) in roots and roots[slot(c)] != c:return False
+            roots[slot(c)] = c
+        commits = sorted(roots.values(), key=lambda c: c['part']['logical_start'])
+        bounded_chain(commits)
+        if not authority.bounded_inventory_current(doc['inventories'], budget):return False
+    for commit in commits:
         p = validate_commit(commit)
         def observed_commit(db):
-            observed = read_commit(db, slot(commit), budget)
+            observed = read_commit(db, slot(commit), budget, reserve=doc['schema'] == BOUNDED_SCHEMA)
             state = db.execute('SELECT state FROM native_core_commits WHERE slot=?', (slot(commit),)).fetchone()
             return observed if state is not None and state[0] != 'cancelled' else None
         stored = authority._read(budget, 'core_commit', observed_commit)
@@ -628,8 +1202,10 @@ def current(authority, doc, budget):
                 or (row['stream_id'] != scope['key'] if scope['kind'] == 'stream' else row['stream_id'] is not None)):
             return False
     # Mapping is independently reconstructed, catching changed stream/source aliases.
-    right = authority.row(doc['commits'][1]['part']['chunk_id'], budget)
-    observed = authority.mapping(right, float.fromhex(doc['commits'][1]['scope']['origin']),
+    publication = doc['commits'][-1] if doc['schema'] == BOUNDED_SCHEMA else doc['commits'][1]
+    right = authority.row(publication['part']['chunk_id'], budget)
+    if right is None:return False
+    observed = authority.mapping(right, float.fromhex(publication['scope']['origin']),
                                  doc['geometry']['start_frame'], doc['geometry']['end_frame'], budget)
     return observed == parts and generation is owner._epoch
 
@@ -652,9 +1228,10 @@ class CoreSeams:
             if required:raise Unavailable('core_owner_revoked')
             return
         from .native_owned_cell_store import Budget
-        budget = Budget()
+        bounded = result.get('_native_bounded_support')
+        budget = bounded['budget'] if bounded is not None else Budget()
         try:
-            with budget.phase():
+            with (budget.planning_phase() if bounded is not None else budget.phase()):
                 a, b = c.origin_frame + exact_frame(offset), c.origin_frame + exact_frame(end)
                 parts = c.authority.mapping(chunk, c.scope_start, a, b, budget)
                 if len(parts) != 1 or parts[0].chunk_id != chunk['id']:raise Unavailable('core_single_source_required')
@@ -678,8 +1255,15 @@ class CoreSeams:
                     rows = db.execute('SELECT slot FROM native_core_commits WHERE sid=? AND scope_key=? AND logical_end=? LIMIT 2',
                         (chunk['session_id'], scope_key(scope), a)).fetchall()
                     if len(rows) > 1:raise Unavailable('core_left_ambiguous')
-                    return read_commit(db, rows[0][0], budget) if rows else None
+                    return read_commit(db, rows[0][0], budget, reserve=bounded is not None) if rows else None
                 left = c.authority._read(budget, 'core_previous', previous)
+            if bounded is not None:
+                # The existing bounded TURNS opportunity runs outside optional
+                # CPU/SQL phases, just as it does on the legacy prepare path.
+                c.bounded_prepare(chunk, native, offset, end, result, coordinator, stop,
+                    commit, left, ordinary_turns, observed, budget)
+                return
+            with budget.phase():
                 if left is None:
                     if required:
                         if a!=0:raise Unavailable('automatic_previous_compact_missing')
@@ -739,6 +1323,15 @@ class CoreSeams:
             reason = str(exc) if isinstance(exc, Unavailable) else 'core_prepare_unavailable'
             if '_native_core_seam' in result:result['_native_core_seam']['reason'] = reason
             self.last_reason = reason
+            if bounded is not None:
+                if isinstance(exc, sqlite3.Error):raise
+                if isinstance(exc, (Unavailable, ValueError, TypeError, KeyError)):
+                    # A discovery refusal owns no new target. Already staged
+                    # origin certificates stay available to the transaction;
+                    # only provisional PCM/final plans are discarded here.
+                    bounded['reason'] = reason; bounded['plans'] = []
+                    result['_native_automatic_cells'] = ()
+                    return
             if required and reason not in ('no_same_response_native_overlap','core_reset_short_side'):
                 raise
             # Only a positively checked nonoverlap or the policy's explicitly
@@ -901,6 +1494,8 @@ def collect_receipts(owner, op, budget, result=None):
                 source=receipt_gc_source(db,receipt,budget)
                 if source is None:
                     result['protected']+=1;continue
+                if not _gc_store_eligible(owner,db,None,budget,cid=cid):
+                    result['protected']+=1;continue
                 key=(receipt.session_id,source['batch_id'])
                 if key not in seen:
                     pending_roots[key]=receipt_gc_pending_roots(db,source['batch_id'],cids,budget)
@@ -937,6 +1532,7 @@ def collect_receipts(owner, op, budget, result=None):
                 with owner._transaction(budget):
                     for cid,raw,receipt,source,start,future in plans:
                         if (receipt_gc_source(db,receipt,budget)!=source
+                                or not _gc_store_eligible(owner,db,None,budget,cid=cid)
                                 or capture.receipt_retention_start(receipt.session_id,receipt.stream_id,future)!=start
                                 or cid in roots or _gc_outbox_root(db,cid,budget)
                                 or owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1',(cid,)).fetchone()

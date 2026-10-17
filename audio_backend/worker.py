@@ -142,6 +142,25 @@ class Worker:
 
     def _run_loop(self):
         while not self.stop_event.is_set():
+            if (self.moss_automatic is not None
+                    and getattr(self.settings,'native_owned_bounded_core_support_enabled',False)):
+                # One metadata-only expiry/startup turn before claiming any
+                # primary/model permit, including when no input will arrive.
+                try:self.moss_automatic.maintain_bounded_waiters(stop=self.stop_event.is_set)
+                except Exception as exc:
+                    # Optional metadata maintenance cannot kill the primary
+                    # worker. Its failed or uncertain transaction is not an
+                    # acknowledged closure: the next turn rereads durable state.
+                    from .native_owned_cells import Unavailable
+                    from .native_owned_support_cache import ReadError
+                    from .native_owned_cell_store import _diagnostic
+                    reason=(exc.reason if isinstance(exc,ReadError) else str(exc)
+                            if isinstance(exc,Unavailable) else 'bounded_waiter_maintenance_unavailable')
+                    if (type(reason) is not str or not 1<=len(reason)<=80
+                            or any(c not in 'abcdefghijklmnopqrstuvwxyz_' for c in reason)):
+                        reason='bounded_waiter_maintenance_unavailable'
+                    self.moss_automatic.last_reason=reason
+                    _diagnostic('bounded_waiter_maintenance_refused reason=%s',reason)
             fragments=getattr(self.store,'fragment_http',None)
             permit=getattr(self.settings, '_native_execution_permit', None)
             if permit is not None and fragments and fragments.factory is not None:
@@ -527,8 +546,14 @@ class Worker:
                 previous=result['metadata'].get('boundary_tail',[])
                 if automatic:
                     if self.native_owned_cells is None:raise RuntimeError('automatic_capture_unavailable')
+                    if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
+                        self.native_owned_cells.start_bounded(result)
                     selected_cells=self.native_owned_cells.prepare(chunk,native,offset,end,result,required=True)
                     result['_native_automatic_cells']=selected_cells
+                    if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
+                        # The result packet is the sole handoff owner; bounded
+                        # preparation releases ordinary PCM after freezing origins.
+                        selected_cells=()
                 else:selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
                 if automatic:
                     self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,

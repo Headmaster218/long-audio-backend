@@ -34,6 +34,132 @@ _CLOSED_AUTOMATIC_READ_BUSY = object()
 _PRELAUNCH_READ_BUSY_CODES = frozenset((5, 261, 517, 773, 6, 262, 518))
 
 
+def bounded_primary_snapshot(db, sid, scope_origin, scan_frames, budget):
+    """One complete indexed primary band, screened before projecting bodies.
+
+    This is also the transaction/publication read: it discovers inserted
+    parents again, rather than trusting a list of previously known row IDs.
+    No source files or model requests are used here.
+    """
+    from . import lexical_evidence as lexical, transcript_contract as contract
+    text(sid)
+    if (type(scan_frames) not in (list, tuple) or len(scan_frames) != 2
+            or not 0 <= scan_frames[0] < scan_frames[1]):
+        raise Unavailable('bounded_primary_geometry')
+    for value in scan_frames:integer(value)
+    start = scope_origin + scan_frames[0] / RATE
+    end = scope_origin + scan_frames[1] / RATE
+    lower, upper = max(0., start - 5.), end + 5.
+    budget.check()
+    chunks = list(db.execute('''SELECT id,timeline_start,duration FROM chunks INDEXED BY chunk_timeline
+        WHERE session_id=? AND timeline_start<=? ORDER BY timeline_start DESC LIMIT 1''', (sid, lower)))
+    chunks += list(db.execute('''SELECT id,timeline_start,duration FROM chunks INDEXED BY chunk_timeline
+        WHERE session_id=? AND timeline_start>? AND timeline_start<? ORDER BY timeline_start LIMIT 129''',
+        (sid, lower, upper)))
+    if len(chunks) > 128:raise Unavailable('bounded_source_capacity')
+    budget.projection(len(chunks) * 256)
+    previous_end = None; screened = []; source_ids = set(); lexical_source_ids = set()
+    floor = math.nextafter(start - 1 / RATE, -math.inf)
+    ceiling = math.nextafter(end + 1 / RATE, math.inf)
+    variable = ('text','raw_text','asr_backend','timestamp_kind','speaker_local_id','lexical_evidence')
+    lengths_sql = '+'.join('COALESCE(length(CAST(s.' + name + ' AS BLOB)),0)' for name in variable)
+    for chunk in chunks:
+        a, duration = chunk['timeline_start'], chunk['duration']
+        contract.primary_frame(a); contract.primary_frame(duration, end=True)
+        if duration <= 0 or previous_end is not None and a < previous_end:
+            raise Unavailable('bounded_source_geometry')
+        previous_end = a + duration
+        if previous_end <= lower:continue
+        text(chunk['id']); source_ids.add(chunk['id'])
+        found = db.execute(f'''SELECT s.id,{lengths_sql}+256 AS bytes,
+            COALESCE(length(CAST(s.lexical_evidence AS BLOB)),0) AS lexical_bytes
+            FROM segments s INDEXED BY segments_chunk
+            WHERE s.chunk_id=? AND s.start<? AND s.end>? ORDER BY s.start,s.id LIMIT 129''',
+            (chunk['id'], ceiling, floor)).fetchall()
+        if len(screened) + len(found) > 128:raise Unavailable('bounded_primary_capacity')
+        for row in found:
+            if not 0 <= row['lexical_bytes'] <= lexical.MAX_SEGMENT_BYTES:
+                raise Unavailable('bounded_inventory_capacity')
+            budget.projection(row['bytes'])
+            screened.append((row['id'], chunk))
+    rows = []; fields = ','.join(contract.PRIMARY_FIELDS) + ',lexical_evidence'
+    for ident, chunk in screened:
+        budget.check()
+        raw = db.execute('SELECT ' + fields + ' FROM segments WHERE id=? AND chunk_id=?',
+                         (ident, chunk['id'])).fetchone()
+        if raw is None:raise Unavailable('bounded_primary_missing')
+        row = dict(raw); parent = contract.primary_evidence(sid, row)
+        a = contract.primary_frame(chunk['timeline_start'])
+        b = contract.primary_frame(chunk['timeline_start'] + chunk['duration'], end=True)
+        if parent['start_frame'] < max(0, a - 5 * RATE) or parent['end_frame'] > b + 5 * RATE:
+            raise Unavailable('bounded_primary_geometry')
+        if parent['end_frame'] <= contract.primary_frame(start) or parent['start_frame'] >= contract.primary_frame(end, end=True):
+            continue
+        rows.append(row)
+        if row['lexical_evidence'] is not None:
+            try:
+                value = json.loads(row['lexical_evidence'])
+                if (type(value) is dict and value.get('schema') == lexical.SCHEMA
+                        and lexical.encoded(value).decode('ascii') == row['lexical_evidence']):
+                    parts = lexical._sources(value.get('source_parts'), sid)
+                    lexical_source_ids.update(part['id'] for part in parts)
+            except (ValueError, KeyError, TypeError, UnicodeError, OverflowError):
+                # Invalid lexical evidence is the whole known opaque parent.
+                # Its arbitrary source IDs cannot invent a source lookup.
+                pass
+        if len(source_ids | lexical_source_ids) > 128:raise Unavailable('bounded_source_capacity')
+    sources = {}
+    for cid in sorted(source_ids | lexical_source_ids):
+        budget.projection(1024); budget.check()
+        length = db.execute('SELECT length(id),length(session_id),length(digest) FROM chunks WHERE id=?', (cid,)).fetchone()
+        if length is None or any(type(n) is not int or n < 1 or n > 512 for n in length):
+            if cid in source_ids:raise Unavailable('bounded_source_missing')
+            continue
+        row = db.execute('SELECT id,session_id,digest,timeline_start,duration FROM chunks WHERE id=?', (cid,)).fetchone()
+        if row is None or row['session_id'] != sid:
+            if cid in source_ids:raise Unavailable('bounded_source_scope')
+            continue
+        sources[cid] = dict(row)
+    budget.check()
+    return {'rows': sorted(rows, key=lambda row: row['id']), 'sources': sources}
+
+
+def bounded_prospective_rows(chunk, offset, end, result, sources, budget):
+    """Exact prospective lexical payloads; fake IDs never leave the prepare plan.
+
+    The primary transaction must replace every temporary ID and rebuild all
+    inventory hashes from the actually retained rows before binding a proof.
+    """
+    from . import lexical_evidence as lexical
+    if result.get('segments') == []:return []
+    prepared, reason = lexical.prepare(result, chunk, offset, end)
+    if prepared is None:raise Unavailable('bounded_prospective_inventory_unavailable')
+    drafts, parts = prepared
+    if len(drafts) > 128:raise Unavailable('bounded_primary_capacity')
+    if not lexical._sources_current(None, parts, source_lookup=sources.get):
+        raise Unavailable('bounded_prospective_source_changed')
+    metadata = result.get('metadata', {}); rows = []
+    for index, (segment, draft) in enumerate(zip(result['segments'], drafts)):
+        budget.check()
+        row = {'id': MAX_FRAME - index, 'chunk_id': chunk['id'],
+            'start': chunk['timeline_start'] + offset + segment['start'],
+            'end': chunk['timeline_start'] + offset + segment['end'],
+            'text': segment.get('text', ''), 'raw_text': segment.get('raw_text'),
+            'asr_backend': segment.get('asr_backend') or metadata.get('asr_backend'),
+            'timestamp_kind': segment.get('timestamp_kind') or metadata.get('timestamp_semantics'),
+            'confidence': segment.get('confidence'), 'speaker_local_id': segment.get('speaker_local_id'),
+            'speaker_window_start': offset}
+        lexical._geometry(draft, row, chunk, parts, absolute=True)
+        value = {'schema': lexical.SCHEMA, 'primary_sha256': lexical.primary_sha(chunk['session_id'], row),
+            'source_provenance': lexical.SOURCE_NOTE, 'source_parts': parts,
+            'timestamp_semantics': lexical.TIME_NOTE, **draft}
+        raw = lexical.encoded(value).decode('ascii')
+        if len(raw) > lexical.MAX_SEGMENT_BYTES:raise Unavailable('bounded_inventory_capacity')
+        budget.projection(len(raw) + 256)
+        rows.append(dict(row, lexical_evidence=raw))
+    return rows
+
+
 def _sample_gap_cut(turns, start, target, a, b, window):
     """The safe_cut gap policy on validated samples, never on external floats.
 
@@ -279,11 +405,12 @@ class PrimaryAuthority:
         self._list_reads = threading.local()
 
     @contextmanager
-    def list_read_scope(self, budget):
+    def list_read_scope(self, budget, *, bounded_planning=False):
         """Cache only a connection for one list, never a read snapshot or result."""
         if getattr(self._list_reads, 'current', None) is not None:
             raise Unavailable('nested_primary_list_read')
-        scope = {'budget': budget, 'thread': threading.get_ident(), 'db': None}
+        scope = {'budget': budget, 'thread': threading.get_ident(), 'db': None,
+                 'bounded_planning': bounded_planning is True}
         self._list_reads.current = scope
         try:yield
         finally:
@@ -292,7 +419,7 @@ class PrimaryAuthority:
             if db is not None:db.close()
 
     @contextmanager
-    def db(self, budget, *, _closure=None):
+    def db(self, budget, *, _closure=None, _planning_read=None):
         scope = getattr(self._list_reads, 'current', None)
         db = scope['db'] if scope is not None else None
         retained = False
@@ -308,6 +435,8 @@ class PrimaryAuthority:
                 db.execute('PRAGMA query_only=ON'); db.execute('PRAGMA busy_timeout=0')
                 if scope is not None:scope['db'] = db
             if db.in_transaction:raise Unavailable('primary_read_snapshot_not_ended')
+            if _planning_read is not None:
+                db.set_progress_handler(_planning_read['progress'], 100)
             yield db
             budget.check()
             if _identity(self.path) != self.identity:raise Unavailable('primary_database_replaced')
@@ -322,8 +451,21 @@ class PrimaryAuthority:
         finally:
             if not retained and db is not None:
                 if scope is not None:scope['db'] = None
-                db.close()
-                if _closure is not None:_closure['closed'] = True
+                try:
+                    if _planning_read is not None and _planning_read['interrupt'] is not None:
+                        # Only a positively Budget-interrupted read body gets
+                        # this cleanup. The exhausted callback must not abort
+                        # ROLLBACK or replace its original refusal. Cleanup
+                        # failure remains a hard error, never a safe defer.
+                        db.set_progress_handler(None, 0)
+                        if db.in_transaction:
+                            db.execute('ROLLBACK')
+                            if db.in_transaction:
+                                raise sqlite3.OperationalError('primary_read_snapshot_not_ended')
+                            _closure['rolled_back'] = True
+                finally:
+                    db.close()
+                    if _closure is not None:_closure['closed'] = True
 
     def _read(self, budget, phase, reader):
         """Retry only a complete read snapshot, within the ORIGINAL budget.
@@ -338,21 +480,58 @@ class PrimaryAuthority:
             with budget.phase():
                 for attempt in range(1, 4):
                     budget.check()
-                    closure = {'closed': False}; body_error = None
+                    closure = {'closed': False, 'rolled_back': False}; body_error = None
+                    scope = getattr(self._list_reads, 'current', None)
+                    planning = (scope is not None and scope.get('bounded_planning') is True
+                        and scope['budget'] is budget and scope['thread'] == threading.get_ident()
+                        and budget._planning_limits == (.4, 120000, 128 * 1024))
+                    read_attempt = None
+                    if planning:
+                        read_attempt = {'body': False, 'refusal': None, 'interrupt': None}
+                        def progress():
+                            # Same charge/check as Budget.progress, but capture
+                            # this callback's own exception, never its shared
+                            # historical _progress_refusal marker.
+                            budget.steps += 100
+                            try:budget.check()
+                            except Unavailable as exc:
+                                budget._progress_refusal = str(exc)
+                                if (read_attempt['body'] and not getattr(budget, 'primary_sql', False)
+                                        and budget._planning_limits == (.4, 120000, 128 * 1024)
+                                        and str(exc) in ('bounded_planning_capacity',
+                                            'cooperative_deadline', 'operation_work_capacity')):
+                                    read_attempt['refusal'] = exc
+                                return 1
+                            return 0
+                        read_attempt['progress'] = progress
                     try:
-                        context = (self.db(budget, _closure=closure) if phase == 'automatic_intent'
+                        context = (self.db(budget, _closure=closure, _planning_read=read_attempt) if planning
+                                   else self.db(budget, _closure=closure) if phase == 'automatic_intent'
                                    else self.db(budget))
                         with context as db:
                             try:
                                 db.execute('BEGIN')
-                                result = reader(db)
+                                if read_attempt is not None:read_attempt['body'] = True
+                                try:result = reader(db)
+                                finally:
+                                    if read_attempt is not None:read_attempt['body'] = False
                             except sqlite3.OperationalError as exc:
                                 body_error = exc
+                                if (read_attempt is not None and read_attempt['refusal'] is not None
+                                        and type(exc) is sqlite3.OperationalError
+                                        and getattr(exc, 'sqlite_errorcode', None) == sqlite3.SQLITE_INTERRUPT):
+                                    read_attempt['interrupt'] = exc
                                 raise
                         budget.check()
                         return result
                     except sqlite3.OperationalError as exc:
                         code = getattr(exc, 'sqlite_errorcode', None)
+                        if (read_attempt is not None and type(exc) is sqlite3.OperationalError
+                                and exc is body_error and exc is read_attempt['interrupt']
+                                and code == sqlite3.SQLITE_INTERRUPT
+                                and closure['rolled_back'] and closure['closed']
+                                and not getattr(budget, 'primary_sql', False)):
+                            raise read_attempt['refusal'] from exc
                         if (phase == 'automatic_intent' and type(exc) is sqlite3.OperationalError
                                 and exc is body_error and closure['closed']
                                 and type(code) is int and code in _PRELAUNCH_READ_BUSY_CODES):
@@ -382,6 +561,17 @@ class PrimaryAuthority:
     def retention_counts(self, budget):
         from .native_owned_core_seams import retention_counts
         return self._read(budget, 'retention', lambda db: retention_counts(db, budget))
+
+    def bounded_inventory_current(self, snapshot, budget):
+        from .native_owned_core_seams import lexical_snapshot, validate_inventory
+        validate_inventory(snapshot)
+        origin = float.fromhex(snapshot['origin'])
+        def read(db):
+            found = bounded_primary_snapshot(db, snapshot['session_id'], origin,
+                                             snapshot['scan_frames'], budget)
+            return lexical_snapshot(snapshot['session_id'], found['rows'], found['sources'], origin,
+                                    scan_frames=snapshot['scan_frames'])
+        return self._read(budget, 'core_commit', read) == snapshot
 
     def session_valid(self, sid, budget):
         text(sid)
@@ -725,6 +915,254 @@ class Capture:
             return self.core_seams.prepare(*args,required=True) if required else self.core_seams.prepare(*args)
         if required:raise Unavailable('automatic_core_seams_required')
 
+    def start_bounded(self, result):
+        """One optional planning budget and packet for this primary opportunity."""
+        if (not getattr(self.owner, 'bounded_core_enabled', False)
+                or not getattr(self.authority.store.settings, 'native_owned_bounded_core_support_enabled', False)
+                or self.core_seams is None):
+            raise Unavailable('bounded_configuration_required')
+        store_key = getattr(self.owner, 'retention_store_key', None)
+        digest(store_key)
+        budget = Budget.for_bounded(self.authority.store.settings.native_owned_bounded_core_support_seconds)
+        result['_native_bounded_support'] = {'budget': budget, 'store_key': store_key,
+            'origins': [], 'plans': [], 'waiters': [], 'reason': 'pending',
+            'draft_ids': [], 'snapshot': None, 'batch': None}
+
+    def bounded_prepare(self, chunk, native, offset, end, result, coordinator, stop,
+                        commit, left, ordinary_turns, observed, budget):
+        """Prepare one numeric plan and one authentic current query per turn.
+
+        Waiting retains only origin certificates. PCM is retained only for a
+        transaction-ready numeric proposal, under the existing handoff ceiling.
+        The transaction still has to validate actual lexical retention and CAS.
+        """
+        from . import moss_automatic as automatic, native_owned_core_seams as core
+        from .native_owned_support_cache import ReadError
+        handoff = result['_native_bounded_support']
+        if handoff['budget'] is not budget:raise Unavailable('bounded_budget_mismatch')
+        packet = result['_native_core_seam']; scope = commit['scope']
+        # Native may already have finished lookahead while later primary cores
+        # are still uncommitted. Only this committed frontier reaching its true
+        # input end closes waiters for missing future authority.
+        handoff['true_eof'] = (observed['true_eof'] and commit['part']['logical_end']
+            == observed['replay_start'] + observed['state']['input']['frame'])
+        handoff['logical_end'] = commit['part']['logical_end']
+        evidence = {'chunk_id': chunk['id'], 'start': exact_frame(offset), 'end': exact_frame(end),
+                    'native': native['state'], 'core_cut': result['metadata']['core_cut']}
+        candidates = []; used_bytes = 0
+        def reason(exc):
+            value = str(exc) if isinstance(exc, (Unavailable, ReadError)) else 'bounded_prepare_unavailable'
+            return value if re.fullmatch('[a-z_]{1,80}', value) else 'bounded_prepare_unavailable'
+        def add_origin(plan, commits):
+            origin = core.origin_certificate(plan['proof'], commits, plan['binding'])
+            target = core.original_target(origin)
+            prepared = dict(plan, target=target)
+            handoff['origins'].append(prepared)
+            existing = next((item for item in candidates if item['target']['key'] == target['key']), None)
+            if existing is not None:
+                existing['target'] = core.append_target_origin(existing['target'], origin)
+            else:candidates.append({'owner_key': plan['key'], 'target': target, 'new': True})
+        try:
+            with budget.planning_phase(), self.authority.list_read_scope(budget, bounded_planning=True):
+                def context(db):
+                    batch = automatic.batch_context(db, chunk, handoff['store_key'], budget)
+                    waiters = automatic.read_waiters(db, batch['batch_id'], sha(scope), budget, limit=4)
+                    return batch, waiters
+                handoff['batch'], handoff['waiters'] = self.authority._read(budget, 'automatic_intent', context)
+                packet['_bounded_context'] = handoff['batch']
+                for row in handoff['waiters']:
+                    candidates.append({'owner_key': row['candidate_key'], 'target': row['target'],
+                                       'new': False, 'waiter': row})
+                # These are the genuine unchanged original ordinary cells.
+                for plan in automatic.plans(result['_native_automatic_cells'], packet):
+                    add_origin(plan, [commit])
+                result['_native_automatic_cells'] = ()
+                # Read at most three exact predecessor links. A missing or
+                # different-domain predecessor supplies no invented authority.
+                chain = [commit]; current = left
+                while current is not None and len(chain) < 4:
+                    if current['scope'] != scope:break
+                    chain.insert(0, current)
+                    if len(chain) == 4:break
+                    at = current['part']['logical_start']
+                    def previous(db):
+                        rows = db.execute('''SELECT slot FROM native_core_commits
+                            WHERE sid=? AND scope_key=? AND logical_end=? LIMIT 2''',
+                            (chunk['session_id'], core.scope_key(scope), at)).fetchall()
+                        budget.projection(len(rows) * 64)
+                        if len(rows) > 1:raise Unavailable('core_left_ambiguous')
+                        return core.read_commit(db, rows[0][0], budget, reserve=True) if rows else None
+                    current = self.authority._read(budget, 'core_previous', previous)
+                ca, cb = core.bounded_chain(chain)
+                found = self.authority._read(budget, 'core_commit', lambda db:
+                    bounded_primary_snapshot(db, chunk['session_id'], self.scope_start, [ca, cb], budget))
+                drafts = bounded_prospective_rows(chunk, offset, end, result, found['sources'], budget)
+                if len(found['rows']) + len(drafts) > 128:raise Unavailable('bounded_primary_capacity')
+                if {row['id'] for row in drafts} & {row['id'] for row in found['rows']}:
+                    raise Unavailable('bounded_prospective_id_collision')
+                rows = sorted([*found['rows'], *drafts], key=lambda row: row['id'])
+                snapshot = core.lexical_snapshot(chunk['session_id'], rows, found['sources'],
+                    self.scope_start, scan_frames=[ca, cb])
+                handoff['snapshot'] = snapshot; handoff['draft_ids'] = [row['id'] for row in drafts]
+                handoff['commits'] = chain
+                used_bytes = len(canonical(snapshot)) + sum(
+                    len(item['proof']) + len(item['binding']) + len(canonical(item['target']))
+                    for item in handoff['origins']) + sum(
+                    len(item['proof'] or b'') + len(item['binding']) + len(canonical(item['target']))
+                    for item in handoff['waiters'])
+                if used_bytes > HANDOFF_BYTES:raise Unavailable('bounded_handoff_capacity')
+                ranges = []
+                for index, candidate in enumerate(candidates):
+                    try:
+                        if index >= 4:raise Unavailable('waiting_service_capacity')
+                        target = candidate['target']; identity, roots = core.validate_target(target)
+                        if any(root['scope'] != scope for root in roots):raise Unavailable('unresolved_scope_transition')
+                        waiter = candidate.get('waiter')
+                        manager = getattr(self.authority.store, 'moss_automatic', None)
+                        if manager is None:raise Unavailable('bounded_wait_clock_unavailable')
+                        if manager.bounded_expired(target['key'], waiter['wait_deadline'] if waiter else None):
+                            raise Unavailable('unresolved_wait_deadline')
+                        if waiter is not None and (waiter['wait_deadline'] <= time.time()
+                                or handoff['batch']['ordinal'] > waiter['wait_last_ordinal']):
+                            raise Unavailable('unresolved_wait_deadline')
+                        first, last = identity['components'][0][0], identity['components'][-1][1]
+                        # Every legal <=20s support containing O fits this
+                        # <=40s numeric envelope; this is not query evidence.
+                        lo, hi = max(ca, last - 20 * RATE), min(cb, first + 20 * RATE)
+                        shape = core.select_support(target, chain, snapshot, lo, hi)
+                        candidate['support'] = shape
+                        ranges.append((shape['start_frame'], shape['end_frame']))
+                    except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
+                        candidate['reason'] = reason(exc)
+                seam_shape = None
+                if left is not None and left['scope'] == scope:
+                    seam_shape = core.geometry([left, commit])
+                    seam_range = (seam_shape['start_frame'], seam_shape['end_frame'])
+                    if not ranges or max(b for _, b in [*ranges, seam_range]) - min(a for a, _ in [*ranges, seam_range]) <= CORE_FRAMES:
+                        ranges.append(seam_range)
+                    else:seam_shape = None
+                qa = max(self.origin_frame + round(native['extract_start'] * RATE), observed['replay_start'])
+                qb = self.origin_frame + exact_frame(native['extract_end'])
+                if ranges:
+                    lo, hi = min(a for a, _ in ranges), max(b for _, b in ranges)
+                    if hi - lo > CORE_FRAMES:
+                        # Oldest waiter first; other numeric choices stay fixed
+                        # and visibly wait rather than invoking another query.
+                        lo, hi = ranges[0]
+                    if not qa <= lo < hi <= qb:qa, qb = lo, hi
+                if (not observed['replay_start'] <= qa < qb
+                        <= observed['replay_start'] + observed['state']['processed']['frame']
+                        or qb - qa > CORE_FRAMES or qa < self.witness.ring_start
+                        or qb > self.witness.ring_end):
+                    raise Unavailable('witness_unavailable')
+            turns, proof = ordinary_turns, observed
+            original_qa = max(self.origin_frame + round(native['extract_start'] * RATE), observed['replay_start'])
+            original_qb = self.origin_frame + exact_frame(native['extract_end'])
+            if (qa, qb) != (original_qa, original_qb):
+                if stop():raise Unavailable('core_seam_cancelled')
+                token = self.observed_reset_generation; actions = self.witness.actions
+                old_budget = self.budget; self.budget = budget; self.active = True
+                self._bounded_response_budget = budget
+                self._bounded_response_error = None
+                try:
+                    # This replaces the opportunity's ordinary seam request.
+                    response = coordinator.process.request('turns', stop,
+                        start=(qa - observed['replay_start']) / RATE,
+                        end=(qb - observed['replay_start']) / RATE)
+                finally:
+                    self.active = False; self.budget = old_budget
+                    self._bounded_response_budget = None
+                with budget.planning_phase():
+                    if self._bounded_response_error is not None:
+                        raise Unavailable(self._bounded_response_error)
+                    if (token != self.observed_reset_generation or self.owner._epoch is not self.core_seams.generation
+                            or self.witness.actions != actions + 1 or self.witness.state != observed['state']):
+                        raise Unavailable('core_seam_query_not_observed')
+                    transformed = []
+                    for turn in response['turns']:
+                        a = max(qa / RATE, observed['replay_start'] / RATE + turn['start'])
+                        b = min(qb / RATE, observed['replay_start'] / RATE + turn['end'])
+                        if a < b:transformed.append(dict(turn, start=a - qa / RATE, end=b - qa / RATE))
+                    query_native = dict(native, extract_start=(qa - self.origin_frame) / RATE,
+                        extract_end=(qb - self.origin_frame) / RATE, turns=transformed)
+                    turns, proof = self.witness.prepared(query_native, self.scope_start, self.origin_frame)
+            with budget.planning_phase(), self.authority.list_read_scope(budget, bounded_planning=True):
+                query_digest = hashlib.sha256(self.witness.read(qa, qb)).hexdigest()
+                base_query = {'query_start_frame': qa, 'query_end_frame': qb,
+                    'query_pcm16le_sha256': query_digest, 'native': proof,
+                    'turns': [{'label': turn.label, 'original': [turn.start, turn.end]} for turn in turns]}
+                if seam_shape is not None and qa <= seam_shape['start_frame'] < seam_shape['end_frame'] <= qb:
+                    try:
+                        pcm = self.witness.read(seam_shape['start_frame'], seam_shape['end_frame'])
+                        expected = core.mapping([left, commit], seam_shape)
+                        if pcm != self.authority.original_pcm(expected, budget):raise Unavailable('core_seam_source_pcm_mismatch')
+                        seam = core.make_cell([left, commit], dict(base_query,
+                            support_pcm16le_sha256=hashlib.sha256(pcm).hexdigest()), evidence, pcm)
+                        packet['proof'] = seam.proof
+                        seam_plan = automatic.plans((), packet)[0]
+                        used_bytes += len(seam_plan['proof']) + len(seam_plan['binding'])
+                        add_origin(seam_plan, [left, commit])
+                        used_bytes += len(canonical(handoff['origins'][-1]['target']))
+                        if used_bytes > HANDOFF_BYTES:raise Unavailable('bounded_handoff_capacity')
+                        del seam, pcm
+                    except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
+                        packet['reason'] = reason(exc)
+                # Origin registration has a separate four-origin ceiling, but
+                # only four targets total may receive this bind opportunity.
+                # No waiter ever gains a second numeric support selection.
+                for index, candidate in enumerate(candidates):
+                    try:
+                        if index >= 4:raise Unavailable('waiting_service_capacity')
+                        if candidate.get('reason'):raise Unavailable(candidate['reason'])
+                        manager = getattr(self.authority.store, 'moss_automatic', None)
+                        if manager is None:raise Unavailable('bounded_wait_clock_unavailable')
+                        waiter = candidate.get('waiter')
+                        if manager.bounded_expired(candidate['target']['key'], waiter['wait_deadline'] if waiter else None):
+                            raise Unavailable('unresolved_wait_deadline')
+                        shape = candidate.get('support')
+                        if shape is None:
+                            shape = core.select_support(candidate['target'], chain, snapshot, qa, qb)
+                            candidate['support'] = shape
+                        a, b = shape['start_frame'], shape['end_frame']
+                        if not qa <= a < b <= qb:raise Unavailable('witness_unavailable')
+                        current_overlap = core.overlap_components(turns, a, b)
+                        if any(not any(x <= lo < hi <= y for x, y in current_overlap)
+                               for lo, hi in candidate['target']['identity']['components']):
+                            raise Unavailable('bounded_current_target_disagreement')
+                        _, original_roots = core.validate_target(candidate['target'])
+                        wanted = {core.slot(root) for root in original_roots}
+                        needed = [position for position, item in enumerate(chain)
+                            if core.slot(item) in wanted or item is commit
+                            or item['part']['logical_start'] < b and a < item['part']['logical_end']]
+                        final_chain = chain[min(needed):max(needed) + 1]
+                        query = dict(base_query, capture_run=scope['run'],
+                            turns=[dict(turn, label=scope['run'] + ':' + turn['label']) for turn in base_query['turns']],
+                            support_pcm16le_sha256='0' * 64)
+                        charge = 2 * (b - a) + len(canonical(candidate['target'])) + len(canonical(snapshot)) + len(canonical(query))
+                        if used_bytes + charge > HANDOFF_BYTES:raise Unavailable('bounded_handoff_capacity')
+                        pcm = self.witness.read(a, b)
+                        if pcm != self.authority.original_pcm(core.bounded_mapping(final_chain, a, b), budget):
+                            raise Unavailable('core_seam_source_pcm_mismatch')
+                        query['support_pcm16le_sha256'] = hashlib.sha256(pcm).hexdigest()
+                        used_bytes += charge
+                        handoff['plans'].append({'owner_key': candidate['owner_key'], 'target': candidate['target'],
+                            'commits': final_chain, 'snapshot': snapshot, 'query': query, 'evidence': evidence,
+                            'support': shape, 'pcm': pcm, 'reason': None})
+                    except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
+                        handoff['plans'].append({'owner_key': candidate['owner_key'],
+                            'target': candidate['target'], 'reason': reason(exc)})
+                    finally:pcm = None
+                handoff['reason'] = 'prepared'; packet['reason'] = 'bounded_prepared'
+                handoff['logical_end'] = cb
+        except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
+            handoff['reason'] = reason(exc); packet['reason'] = handoff['reason']
+            handoff['plans'] = []
+        finally:
+            # The ordinary originals now live only as bounded proof/binding
+            # proposals. They cannot accidentally use legacy automatic enqueue.
+            result['_native_automatic_cells'] = ()
+            self.analyzer = None
+
     def drain_core_seams(self, status=None):
         if self.core_seams is not None:
             if status is not None:
@@ -785,11 +1223,20 @@ class Capture:
                 if self.observed_reset_generation >= (1 << 31) - 1:
                     self._seam_disabled = True; raise Unavailable('seam_reset_generation_overflow')
                 self.observed_reset_generation += 1
-            with self.budget.phase():self.witness.observe(response)
+            phase = (self.budget.planning_phase if getattr(self, '_bounded_response_budget', None) is self.budget
+                     else self.budget.phase)
+            with phase():self.witness.observe(response)
             if self.witness.failure:
                 self.invalidate_seam('seam_invalid_native_observation')
                 if type(response) is dict and set(response) == {'state', 'provenance'}:self._seam_disabled = True
         except Exception as exc:
+            if (getattr(self, '_bounded_response_budget', None) is self.budget
+                    and isinstance(exc, Unavailable)):
+                # A refused optional TURNS projection does not corrupt the
+                # unchanged native push/frontier state. This response cannot
+                # authorize a plan; a later ordinary observation remains valid.
+                self._bounded_response_error = str(exc)
+                return
             self.witness.fail('native_response_budget_or_proof'); self._failure(exc)
 
     def observe_pcm(self, kind, path, start, end, analyzer_local=None):
@@ -1144,6 +1591,14 @@ class Capture:
 
 
 def configuration_reason(settings, fragment_provider_factory=None):
+    bounded = getattr(settings, 'native_owned_bounded_core_support_enabled', False)
+    if type(bounded) is not bool:return 'bounded_configuration_required'
+    if bounded and not (getattr(settings, 'moss_automatic_enabled', False)
+            and getattr(settings, 'native_owned_core_seams_enabled', False)
+            and getattr(settings, 'native_owned_cells_enabled', False)
+            and getattr(settings, 'native_owned_support_enabled', False)
+            and getattr(settings, 'lexical_evidence_enabled', False)):
+        return 'bounded_configuration_required'
     if not getattr(settings, 'native_owned_cells_enabled', False):return None
     if (settings.diarization_backend != 'nemotron' or settings.inference_device != 'cpu'
             or settings.overlap_backend != 'none' or not settings.start_worker
@@ -1163,6 +1618,8 @@ def register(store, *, fragment_provider_factory=None, instance_lock=None):
         existing = _REGISTRY.get(key)
         if existing is not None:
             if existing.authority.identity != authority.identity:raise Unavailable('primary_database_replaced')
+            if getattr(existing.owner, 'bounded_core_enabled', False) != bool(getattr(settings, 'native_owned_bounded_core_support_enabled', False)):
+                raise Unavailable('bounded_activation_requires_new_owner')
             return existing
         if _REGISTRY:raise Unavailable('one_optional_component_owner')
         reason = configuration_reason(settings, fragment_provider_factory)

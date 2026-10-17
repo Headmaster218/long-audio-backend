@@ -93,6 +93,40 @@ class Budget:
         self._began = None
         self.seconds = OP_SECONDS; self.deadline = None
         self._refusal_diagnosed = False
+        self._planning_limits = None
+        self._bounded_seconds = None
+        self._progress_refusal = None
+
+    def reserve_planning(self):
+        """Reserve transaction/notice headroom in this same cumulative budget."""
+        now = time.monotonic()
+        elapsed = self.elapsed + (now-self._began if self._began is not None else 0.)
+        return (elapsed <= .4 and self.steps <= 120000 and self.sql_bytes <= 128*1024
+                and self.read_bytes <= SOURCE_READ_BYTES)
+
+    @contextmanager
+    def _bounded_phase(self, limits):
+        previous = self._planning_limits
+        self._planning_limits = limits
+        try:
+            with self.phase():yield self
+        finally:self._planning_limits = previous
+
+    def planning_phase(self):return self._bounded_phase((.4,120000,128*1024))
+    def finalization_phase(self):
+        return self._bounded_phase(((self._bounded_seconds or .5)-.02,148000,252*1024))
+    def notice_phase(self):
+        return self._bounded_phase((self._bounded_seconds or .5,150000,256*1024))
+
+    @classmethod
+    def for_bounded(cls, seconds):
+        # Opted-in fresh capture only; ordinary/owner budgets keep their exact
+        # existing defaults. Planning and every numeric work cap are unchanged.
+        if type(seconds) not in (int,float) or not .5 <= seconds <= 1.:
+            raise Unavailable('invalid_bounded_budget_seconds')
+        budget = cls(); budget._bounded_seconds = float(seconds)
+        budget.seconds = float(seconds)
+        return budget
 
     @classmethod
     def for_owner(cls, operation=None):
@@ -115,6 +149,11 @@ class Budget:
     def check(self):
         now = time.monotonic()
         elapsed = self.elapsed + (now - self._began if self._began is not None else 0.)
+        if self._planning_limits is not None:
+            seconds, steps, sql_bytes = self._planning_limits
+            if elapsed > seconds or self.steps > steps or self.sql_bytes > sql_bytes:
+                self._diagnose_refusal('bounded_planning_capacity', elapsed, now)
+                raise Unavailable('bounded_planning_capacity')
         if elapsed > self.seconds or (self.deadline is not None and now >= self.deadline):
             self._diagnose_refusal('cooperative_deadline', elapsed, now)
             raise Unavailable('cooperative_deadline')
@@ -125,13 +164,20 @@ class Budget:
     def _diagnose_refusal(self, reason, elapsed, now):
         if self._refusal_diagnosed:return
         self._refusal_diagnosed = True
+        phase = {( .4, 120000, 128*1024): 'planning',
+                 ((self._bounded_seconds or .5)-.02, 148000, 252*1024): 'finalization',
+                 (self._bounded_seconds or .5, 150000, 256*1024): 'notice'}.get(self._planning_limits, 'operation')
+        limits = self._planning_limits or (self.seconds, SQL_STEPS, SQL_PROJECTION_BYTES)
         _diagnostic('native_owned_budget_refusal reason=%s elapsed=%g seconds=%g deadline_remaining=%s '
                     'elapsed_exceeded=%d deadline_expired=%d '
-                    'read_bytes=%d read_limit=%d sql_bytes=%d sql_limit=%d steps=%d step_limit=%d',
+                    'read_bytes=%d read_limit=%d sql_bytes=%d sql_limit=%d steps=%d step_limit=%d '
+                    'phase=%s phase_seconds=%g phase_step_limit=%d phase_sql_limit=%d '
+                    'phase_elapsed_exceeded=%d phase_steps_exceeded=%d phase_sql_exceeded=%d',
                     reason, elapsed, self.seconds,
                     None if self.deadline is None else '%g' % (self.deadline - now),
                     elapsed > self.seconds, self.deadline is not None and now >= self.deadline,
-                    self.read_bytes, SOURCE_READ_BYTES, self.sql_bytes, SQL_PROJECTION_BYTES, self.steps, SQL_STEPS)
+                    self.read_bytes, SOURCE_READ_BYTES, self.sql_bytes, SQL_PROJECTION_BYTES, self.steps, SQL_STEPS,
+                    phase, *limits, elapsed > limits[0], self.steps > limits[1], self.sql_bytes > limits[2])
 
     def read(self, count):
         integer(count, IO_BYTES); self.read_bytes += count; self.check()
@@ -142,7 +188,9 @@ class Budget:
     def progress(self):
         self.steps += 100
         try:self.check()
-        except Unavailable:return 1
+        except Unavailable as exc:
+            self._progress_refusal=str(exc)
+            return 1
         return 0
 
 
@@ -515,6 +563,12 @@ class CellStore:
     """No growing thread set, active+pending queue, or retained omitted-row log."""
     def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None,
                  seam_enabled=False, core_seam_enabled=False, compact_gc_enabled=False, receipt_gc_enabled=False):
+        settings=getattr(getattr(authority,'store',None),'settings',None)
+        self.bounded_core_enabled=bool(getattr(settings,'native_owned_bounded_core_support_enabled',False))
+        if self.bounded_core_enabled:
+            if not enabled or not core_seam_enabled:raise Unavailable('bounded_core_configuration')
+            directory=Path(directory).with_name(Path(directory).name+'-bounded-v1')
+        self.retention_store_key=None
         self.directory = Path(directory)
         self.path = self.directory / 'cells.sqlite3'
         self.authority = authority; self.enabled = enabled; self.qualification = qualification
@@ -543,7 +597,7 @@ class CellStore:
             'scanned': 0, 'retired': 0, 'protected': 0, 'body_bytes': 0, 'prefix_rows': 0}
         if core_seam_enabled:
             from .native_owned_core_seams import store_policy
-            self._store_policy = store_policy()
+            self._store_policy = (store_policy(bounded=True) if self.bounded_core_enabled else store_policy())
         self.instance_lock = instance_lock  # Retained while owner cleanup is unresolved.
         self._publication_guard = threading.RLock()
         self._publication_revoke_pending = False
@@ -792,13 +846,13 @@ class CellStore:
                 result = {key: dict(value) if type(value) is dict else value
                           for key, value in self._retention_snapshot[2].items()}
                 result.update(cells=row_counts('cells', cells[0], MAX_CELLS, cells[0], 0),
-                              sources=row_counts('sources', sources[0], MAX_RECEIPTS, sources[1], 0),
+                              sources=row_counts('sources', sources[0], MAX_RECEIPTS, sources[1], 0,bounded_protection=self.bounded_core_enabled),
                               compacts=row_counts('compacts', None, MAX_COMPACTS),
                               metadata_only_cells=cells[1], pending_proof_bytes=None,
                               occupancy_complete=primary is not None)
                 if primary is not None:
                     result['compacts'] = row_counts('compacts', primary['occupied'], MAX_COMPACTS,
-                                                   primary['pending'], primary['pending'])
+                                                   primary['pending'], primary['pending'],bounded_protection=self.bounded_core_enabled)
                     result['pending_proof_bytes'] = primary.get('pending_bytes')
                 result['storage'] = {'page_count': pages, 'freelist_pages': free,
                     'reusable_bytes': free * PAGE_SIZE, 'last_observed_allocated_bytes': self._charge}
@@ -889,12 +943,13 @@ class CellStore:
         # opt-in post-publication revocation classification is a reviewed delta.
         for cell in cells:
             doc, _, _ = validate_document(cell.proof)
-            from .native_owned_core_seams import is_core, store_policy
+            from .native_owned_core_seams import is_core, store_policy, BOUNDED_SCHEMA
             if is_core(doc):
-                if not self.core_seam_enabled or self._store_policy != store_policy():
+                if (not self.core_seam_enabled or self._store_policy != (store_policy(bounded=True) if self.bounded_core_enabled else store_policy())
+                        or doc['schema']==BOUNDED_SCHEMA and not self.bounded_core_enabled):
                     return 'core_seams_disabled_or_policy'
             elif is_composite(doc):
-                if self._store_policy not in (STORE_POLICY_SHA256, store_policy()):
+                if self._store_policy not in (STORE_POLICY_SHA256, (store_policy(bounded=True) if self.bounded_core_enabled else store_policy())):
                     return 'incompatible_legacy_cell_policy'
                 if not self.seam_enabled:return 'seam_composites_disabled'
         return None
@@ -1088,7 +1143,7 @@ class CellStore:
                     raise Unavailable('optional_schema_mismatch')
                 row = db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
                 from .native_owned_core_seams import store_policy
-                accepted_store_policies = ((store_policy(),) if self.core_seam_enabled else (POLICY_SHA256, STORE_POLICY_SHA256))
+                accepted_store_policies = (((store_policy(bounded=True) if self.bounded_core_enabled else store_policy()),) if self.core_seam_enabled else (POLICY_SHA256, STORE_POLICY_SHA256))
                 if (row is None or row['policy'] not in accepted_store_policies
                         or tuple(row)[:1] + tuple(row)[2:] != binding[:1] + binding[2:]):
                     raise Unavailable('optional_primary_binding_mismatch')
@@ -1099,6 +1154,8 @@ class CellStore:
                 self._schema(db)
                 db.execute('INSERT INTO store_meta(id,schema,policy,primary_identity,qualification,namespace_identity,database_identity) VALUES(1,?,?,?,?,?,?)',
                            binding)
+            verified=db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
+            self.retention_store_key=hashlib.sha256(canonical(list(verified))).hexdigest()
             if db.execute('SELECT COUNT(*) FROM cells').fetchone()[0] > MAX_CELLS or db.execute('SELECT COUNT(*) FROM sources').fetchone()[0] > MAX_RECEIPTS:
                 raise Unavailable('existing_row_capacity')
             self._db_identity = self._scan(budget)['cells.sqlite3']
@@ -1273,10 +1330,9 @@ class CellStore:
             with self._transaction(budget):
                 self._db.execute('INSERT INTO cells(cell_id,ownership,sid,cid,proof,pcm,state) VALUES(?,?,?,?,?,?,?)',
                     (cell.cell_id, cell.ownership, cell.session_id, cell.chunk_id, cell.proof, cell.pcm if with_pcm else None, state))
-                for pos, p in enumerate(cell.parts):
+                for pos, values in enumerate(self._dependency_values(json.loads(cell.proof),cell.parts)):
                     self._db.execute('INSERT INTO dependencies VALUES(?,?,?,?,?,?,?,?,?)',
-                        (cell.cell_id, pos, p.chunk_id, p.source_sha256, p.receipt_sha256,
-                         p.source_start, p.source_end, p.logical_start, p.logical_end))
+                        (cell.cell_id,pos,*values))
                 self._generation(op)
                 if not self._cell_current(op,cell,budget):
                     raise Unavailable('source_changed_before_publication_commit')
@@ -1288,6 +1344,28 @@ class CellStore:
                 if with_pcm:return self._insert_cell(op, cell, budget, False)
                 return 'not_retained_metadata_capacity'
             raise
+
+    @staticmethod
+    def _dependency_values(doc,parts):
+        values=[(p.chunk_id,p.source_sha256,p.receipt_sha256,p.source_start,p.source_end,
+                 p.logical_start,p.logical_end) for p in parts]
+        from .native_owned_core_seams import BOUNDED_SCHEMA,validate_target
+        if doc.get('schema')!=BOUNDED_SCHEMA:return values
+        _,originals=validate_target(doc['target'])
+        sources={p.chunk_id:p.source_sha256 for p in parts}
+        for commit in [*originals,*doc['commits']]:
+            p=commit['part']; old=sources.setdefault(p['chunk_id'],p['source_sha256'])
+            if old!=p['source_sha256']:raise Unavailable('bounded_source_identity_changed')
+        for source in doc['inventories']['sources']:
+            old=sources.setdefault(source['id'],source['digest'])
+            if old!=source['digest']:raise Unavailable('bounded_source_identity_changed')
+        acoustic={p.chunk_id for p in parts}
+        for cid in sorted({r['cid'] for r in doc['dependency_roots']}-acoustic):
+            # Explicit zero-span retention-only index entry. It grants no PCM
+            # mapping/receipt authority; that remains in the strict full proof.
+            values.append((cid,sources[cid],'',0,0,0,0))
+        if len(values)>MAX_PARTS:raise Unavailable('bounded_dependency_capacity')
+        return values
 
     def _document(self, cell_id, budget, *, expected_session=None,
                   expected_sequence=None, expected_revision=None):
@@ -1304,18 +1382,28 @@ class CellStore:
         if not 1 <= row['pn'] <= PROOF_BYTES or row['n'] is not None and not 1 <= row['n'] <= CELL_PCM_BYTES:
             raise Unavailable('stored_cell_length')
         proof = self._db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell_id,)).fetchone()[0]
-        budget.projection(len(proof)); doc, support, _ = validate_document(proof)
+        budget.projection(len(proof)); doc, support, parts = validate_document(proof)
         policy = doc['policy']
         anchor = seam_anchor(doc) if is_composite(doc) else doc['commit']
         accepted = (POLICY_SHA256, SEAM_POLICY_SHA256) if self._store_policy == STORE_POLICY_SHA256 else (POLICY_SHA256,)
-        from .native_owned_core_seams import store_policy, POLICY_SHA256 as CORE_POLICY, RESET_POLICY_SHA256, RESTART_POLICY_SHA256
+        from .native_owned_core_seams import store_policy, POLICY_SHA256 as CORE_POLICY, RESET_POLICY_SHA256, RESTART_POLICY_SHA256,BOUNDED_POLICY_SHA256
         if self._store_policy == store_policy():accepted = (POLICY_SHA256, SEAM_POLICY_SHA256, CORE_POLICY, RESET_POLICY_SHA256, RESTART_POLICY_SHA256)
+        if self.bounded_core_enabled and self._store_policy==store_policy(bounded=True):
+            accepted=(POLICY_SHA256,SEAM_POLICY_SHA256,CORE_POLICY,RESET_POLICY_SHA256,RESTART_POLICY_SHA256,BOUNDED_POLICY_SHA256)
         if (canonical(doc) != proof or policy not in accepted
                 or type(doc.get('dependencies')) is not list or not 1 <= len(doc['dependencies']) <= MAX_PARTS
                 or anchor['chunk_id'] != row['cid']
                 or any(p['session_id'] != row['sid'] for p in doc['dependencies'])
                 or hashlib.sha256(canonical({'policy': policy, 'support': support.to_dict()})).hexdigest() != cell_id):
             raise Unavailable('stored_cell_proof')
+        from .native_owned_core_seams import BOUNDED_SCHEMA
+        if doc.get('schema')==BOUNDED_SCHEMA:
+            expected=self._dependency_values(doc,parts)
+            saved=self._db.execute('''SELECT position,cid,digest,receipt_id,source_start,source_end,logical_start,logical_end
+                FROM dependencies WHERE cell_id=? ORDER BY position LIMIT 129''',(cell_id,)).fetchall()
+            budget.projection(len(saved)*384)
+            if [tuple(r) for r in saved]!=[(i,*v) for i,v in enumerate(expected)]:
+                raise Unavailable('bounded_cell_dependency_index_mismatch')
         return row, doc, proof
 
     def _read(self, op, budget):
