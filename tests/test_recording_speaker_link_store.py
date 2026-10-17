@@ -106,7 +106,7 @@ def prepared(store, number=1, *, seed=None, rid=RID, no_crop=False):
     result=projection(support,'[1] [S01] Short. [1.25]' if no_crop else None)
     result['cell_binding']=cell
     result_raw=history.encoded(result); result_hash=hashlib.sha256(result_raw).hexdigest()
-    batch,_=links.capture_candidates(support,pcm,proof,result,jid,result_hash,links.expected_space())
+    batch,_=links.capture_candidates_v2(support,pcm,proof,result,jid,result_hash,links.expected_space())
     metadata=history.encoded({'cell_binding':cell,'source_support':support.to_dict(),
         'identity':{'job_id':jid,'session_id':SID,'original_jobs_epoch':'e'*32,
                     'canonical_request_sha256':'f'*64,'idempotency_key':jid},
@@ -126,7 +126,7 @@ def prepared(store, number=1, *, seed=None, rid=RID, no_crop=False):
 
 
 def reserve(value,batch,*,rid=RID,**kwargs):
-    return value.reserve(SID,rid,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256,
+    return value.reserve(SID,rid,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256_V2,
         links.expected_space(),max_nodes=len(batch['nodes']),batch=batch,**kwargs)
 
 
@@ -284,7 +284,7 @@ def test_quota_status_does_not_bypass_current_decision_guards(environment,monkey
         if change in ('session','text','cancel','delete','reassign'):
             assert current['session_revision']>saved['session_revision']
         assert not value.save_decision(scope,saved['revision'],json.loads(raw),
-            session_revision=saved['session_revision'],policy_sha256=links.POLICY_SHA256)
+            session_revision=saved['session_revision'],policy_sha256=links.POLICY_SHA256_V2)
     if change in ('cancel','delete','reassign'):
         with pytest.raises(ReadError): value.snapshot(scope)
         with pytest.raises(ReadError): reserve(value,batches[0])
@@ -521,7 +521,7 @@ def test_stale_scope_and_source_revision_cas_leave_annotations_hidden(environmen
     with connection(store.path) as db:
         db.execute('UPDATE sessions SET transcript_revision=transcript_revision+1 WHERE id=?',(SID,))
     assert not value.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision'],policy_sha256=links.POLICY_SHA256)
+        session_revision=snap['session_revision'],policy_sha256=links.POLICY_SHA256_V2)
     assert value.recompute_scope(token['scope_id'],links.reconcile_batches)['saved'] is True
     assert value.read_saved(SID,RID)['annotations']
     second=prepared(store,2); reserve(value,second)
@@ -601,7 +601,7 @@ def test_current_policy_full_space_and_recording_job_binding_are_required(enviro
     with pytest.raises(ReadError):
         value.reserve(SID,RID,batch['job_id'],batch['result_sha256'],'f'*64,links.expected_space())
     with pytest.raises(ReadError):
-        value.reserve(SID,RID,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256,batch['space_id'])
+        value.reserve(SID,RID,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256_V2,batch['space_id'])
     with pytest.raises(ReadError): reserve(value,batch,rid='b'*32)
     with connection(store.path) as db:
         db.execute("UPDATE moss_automatic_intents_v1 SET state='cancelled'")
@@ -791,7 +791,7 @@ def _committed_bounded(f):
         moss_automatic.admit(db,f.key,identity)
         moss_automatic.complete(db,f.key,identity)
         f.row = moss_automatic._read_v2(db,key=f.key)
-    f.batch, f.crops = links.capture_candidates(support,f.cell.pcm,proof,f.result,
+    f.batch, f.crops = links.capture_candidates_v2(support,f.cell.pcm,proof,f.result,
         f.jid,f.digest,links.expected_space())
     f.links = ledger.RecordingSpeakerLinkStore(f.store)
     f.reader = TranscriptStore(f.store)
@@ -814,7 +814,7 @@ def _bound_descriptor(f, db):
 
 
 def _finish_bounded(f):
-    token = f.links.reserve(f.sid,f.rid,f.jid,f.digest,links.POLICY_SHA256,
+    token = f.links.reserve(f.sid,f.rid,f.jid,f.digest,links.POLICY_SHA256_V2,
         links.expected_space(),max_nodes=0,batch=f.batch)
     assert token['should_probe']
     f.links.commit(token,f.batch,'insufficient_clean_support')

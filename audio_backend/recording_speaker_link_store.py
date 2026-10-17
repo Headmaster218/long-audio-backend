@@ -222,8 +222,11 @@ def _saved(row, session_revision):
         if row['decision_json'] is not None and hashlib.sha256(row['decision_json']).hexdigest()!=row['decision_sha256']:
             _fail('probe_unavailable',503)
         decision = _json(row['decision_json'], MAX_DECISION_BYTES) if row['decision_json'] is not None else None
-        from .recording_speaker_links import POLICY_SHA256
-        current=current and row['policy_sha256']==POLICY_SHA256
+        from .recording_speaker_links import SUPPORTED_POLICIES
+        current=current and row['policy_sha256'] in SUPPORTED_POLICIES
+        if decision is not None:
+            current = current and type(decision.get('diagnostics')) is dict and (
+                decision['diagnostics'].get('policy_sha256') == row['policy_sha256'])
         state = row['state']
         if not current and state not in ('capacity_exhausted','probe_interrupted','probe_unavailable') and (decision is not None or state == 'provisional_linked'):
             state = 'links_stale'
@@ -257,8 +260,8 @@ def read_session_revision(db, sid, *, session_revision=None):
         decision_sha256,state,policy_sha256,space_id FROM {SCOPES}
         INDEXED BY recording_link_session_scope WHERE session_id=? ORDER BY scope_seq LIMIT 1025''',(sid,)).fetchall()
     if len(rows)>MAX_GLOBAL_BATCHES: _fail('capacity_exhausted',503)
-    from .recording_speaker_links import POLICY_SHA256
-    return hashlib.sha256(encoded({'session_id':sid,'session_revision':revision,'current_policy_sha256':POLICY_SHA256,
+    from .recording_speaker_links import SUPPORTED_POLICIES
+    return hashlib.sha256(encoded({'session_id':sid,'session_revision':revision,'supported_policy_sha256':SUPPORTED_POLICIES,
         'scopes':[tuple(row) for row in rows]})).hexdigest()
 
 
@@ -272,6 +275,55 @@ class RecordingSpeakerLinkStore:
         self.recovery_after = 0
         self.recovery_remaining = None
         self._staging_lock, self._staging = threading.Lock(), 0
+        self._primary_source = None
+
+    def bind_primary_source(self, source):
+        """Only the already-owned CellJobsSource; no new owner/provider path."""
+        from .native_owned_cell_jobs import CellJobsSource
+        if type(source) is not CellJobsSource or source.store is not self.store:
+            _fail('primary_probe_authority_unavailable')
+        if self._primary_source is not None and self._primary_source is not source:
+            _fail('primary_probe_authority_changed')
+        self._primary_source = source
+
+    def capture_policy(self, sid, proof):
+        """New scopes choose v2 before their first ordinary or bounded capture."""
+        from .native_owned_cells import validate_document
+        from .recording_speaker_links import POLICY_SHA256_V2, SUPPORTED_POLICIES
+        _, _, parts = validate_document(proof)
+        with self._database() as db:
+            _session(db, sid)
+            recordings = set()
+            for cid in sorted({p.chunk_id for p in parts}):
+                row = db.execute('''SELECT w.batch_id FROM recording_work w
+                    JOIN recording_batches b ON b.id=w.batch_id JOIN chunks c ON c.id=w.chunk_id
+                    WHERE w.chunk_id=? AND c.session_id=? AND b.session_id=?''', (cid,sid,sid)).fetchone()
+                if row is None:_fail('probe_unavailable')
+                recordings.add(row[0])
+            if len(recordings) != 1:_fail('probe_unavailable')
+            row = db.execute(f'SELECT policy_sha256 FROM {SCOPES} WHERE session_id=? AND recording_id=?',
+                (sid, next(iter(recordings)))).fetchone()
+            policy = POLICY_SHA256_V2 if row is None else row[0]
+            if policy not in SUPPORTED_POLICIES:_fail('speaker_link_policy_conflict')
+            return policy
+
+    def capture_primary_packets(self, proof):
+        from .recording_primary_probe import read_named
+        with self._database() as db:
+            return read_named(db, proof, self._primary_source)
+
+    def _primary_current(self, db, batch, *, boundary=None):
+        from .recording_primary_probe import current_packets
+        from .recording_speaker_links import SCHEMA_V2
+        from .native_owned_cells import Unavailable
+        if batch.get('schema') != SCHEMA_V2:return
+        try:
+            current = current_packets(db, encoded(batch['proof']), batch.get('primary_packets', []),
+                                      self._primary_source, boundary=boundary)
+        except (Unavailable, ReadError, ValueError, TypeError, KeyError):
+            _fail('primary_probe_source_stale')
+        if not current:
+            _fail('primary_probe_source_stale')
 
     @property
     def enabled(self):
@@ -282,6 +334,18 @@ class RecordingSpeakerLinkStore:
         # Reuse the exact inode/headroom/zero-wait/250ms/50k-VM-step envelope.
         with self.sql._database(write=write) as db:
             yield db
+
+    @contextmanager
+    def _authority_database(self, *, write=False):
+        from .recording_primary_probe import packet_boundary
+        from .native_owned_cells import Unavailable
+        # The final generation check runs before the SQL context commits.
+        with self._database(write=write) as db:
+            try:
+                with packet_boundary(self._primary_source) as boundary:
+                    yield db, boundary
+            except Unavailable:
+                _fail('primary_probe_source_stale')
 
     @staticmethod
     def _bound_job(db, sid, jid, digest, recording_id=None):
@@ -327,8 +391,8 @@ class RecordingSpeakerLinkStore:
         sid, rid = session_id, recording_id
         scope_id = scope_identity(sid, rid)
         _hash(result_sha256); _hash(policy_sha256)
-        from .recording_speaker_links import POLICY_SHA256
-        if policy_sha256 != POLICY_SHA256: _fail('speaker_link_policy_conflict')
+        from .recording_speaker_links import POLICY_SHA256_V2, SUPPORTED_POLICIES
+        if policy_sha256 not in SUPPORTED_POLICIES: _fail('speaker_link_policy_conflict')
         raw_space, space_id = _space(space)
         if type(max_nodes) is not int or not 0 <= max_nodes <= MAX_BATCH_NODES:
             _fail('invalid_speaker_link_capacity')
@@ -344,13 +408,16 @@ class RecordingSpeakerLinkStore:
                     or batch.get('space_id')!=space_id or len(batch['nodes'])>max_nodes):
                 _fail('speaker_link_identity_conflict')
         token = uuid.uuid4().hex
-        with self._database(write=True) as db:
+        with self._authority_database(write=True) as (db, boundary):
             _session(db, sid)
             _,proof=self._bound_job(db, sid, job_id, result_sha256, rid)
             if batch is not None and batch['proof_sha256']!=proof: _fail('speaker_link_identity_conflict')
             own = db.execute(f'SELECT * FROM {SCOPES} WHERE scope_id=?', (scope_id,)).fetchone()
+            if own is None and policy_sha256 != POLICY_SHA256_V2:
+                _fail('speaker_link_policy_conflict')
             if own is not None and (own['policy_sha256'] != policy_sha256 or own['space_json'] != raw_space):
                 _fail('speaker_link_policy_conflict')
+            if batch is not None:self._primary_current(db, batch, boundary=boundary)
             previous = db.execute(f'''SELECT scope_seq,state FROM {BATCHES}
                 WHERE job_id=? AND result_sha256=? AND policy_sha256=?''', (job_id,result_sha256,policy_sha256)).fetchone()
             if previous is not None:
@@ -412,15 +479,11 @@ class RecordingSpeakerLinkStore:
             _fail('invalid_speaker_probe_batch')
         if len(raw) > MAX_BATCH_BYTES:
             _fail('capacity_exhausted', 429)
-        seen = set()
         for node in batch['nodes']:
             if (type(node) is not dict or node.get('job_id') != batch.get('job_id')
                     or node.get('result_sha256') != batch.get('result_sha256')
-                    or node.get('space_id') != batch.get('space_id')
-                    or type(node.get('phrase_index')) is not int or not 0 <= node['phrase_index'] < 256
-                    or node['phrase_index'] in seen):
+                    or node.get('space_id') != batch.get('space_id')):
                 _fail('invalid_speaker_probe_batch')
-            seen.add(node['phrase_index'])
             vector = node.get('vector')
             if vector is not None and (type(vector) is not list or not 1 <= len(vector) <= MAX_VECTOR_DIMENSION
                     or any(type(x) not in (float,int) or not math.isfinite(x) for x in vector)
@@ -458,7 +521,7 @@ class RecordingSpeakerLinkStore:
         token = self._token(token)
         if state not in STATES: _fail('invalid_speaker_link_state')
         raw = self._validate_batch(batch)
-        with self._database(write=True) as db:
+        with self._authority_database(write=True) as (db, boundary):
             row = db.execute(f'SELECT * FROM {SCOPES} WHERE inflight_token=?', (token,)).fetchone()
             if row is None:
                 previous = db.execute(f'SELECT * FROM {BATCHES} WHERE reservation_token=?', (token,)).fetchone()
@@ -480,6 +543,7 @@ class RecordingSpeakerLinkStore:
                 original=_json(row['inflight_batch_json'],262144)
                 if original.get('batch_sha256')!=batch.get('batch_sha256'): _fail('speaker_link_commit_conflict')
             if _cancelled(cancelled): _fail('probe_unavailable')
+            self._primary_current(db, batch, boundary=boundary)
             self._finish(db,row,raw,len(batch['nodes']),state)
             answer = {'scope_id': row['scope_id'], 'revision': row['revision']+1,
                       'state': 'links_stale' if batch['nodes'] and state not in ('probe_unavailable','probe_interrupted','capacity_exhausted') else state}
@@ -526,7 +590,14 @@ class RecordingSpeakerLinkStore:
             answer.update(resolved=True,revision=row['revision']+1)
         return answer
 
-    def _current_batches(self, db, row):
+    def _current_batches(self, db, row, *, boundary=None):
+        if boundary is not None:
+            return self._current_batches_in_boundary(db, row, boundary)
+        from .recording_primary_probe import packet_boundary
+        with packet_boundary(self._primary_source) as boundary:
+            return self._current_batches_in_boundary(db, row, boundary)
+
+    def _current_batches_in_boundary(self, db, row, boundary):
         headers=db.execute(f'''SELECT batch_seq,job_id,result_sha256,policy_sha256,space_id,
             batch_sha256,state,length(batch_json) AS bytes FROM {BATCHES}
             WHERE scope_seq=? ORDER BY batch_seq LIMIT 33''',(row['scope_seq'],)).fetchall()
@@ -540,17 +611,19 @@ class RecordingSpeakerLinkStore:
             raw=db.execute(f'SELECT batch_json FROM {BATCHES} WHERE scope_seq=? AND batch_seq=?',
                 (row['scope_seq'],header['batch_seq'])).fetchone()[0]
             if hashlib.sha256(raw).hexdigest()!=header['batch_sha256']: _fail('probe_unavailable',503)
+            batch = _json(raw, MAX_BATCH_BYTES)
+            self._primary_current(db, batch, boundary=boundary)
             values.append({**dict(header),'batch_json':raw,'current_proof_sha256':proof})
         return values
 
     def snapshot(self, scope_id, *, _failure_context=None):
         _hash(scope_id)
-        with self._database() as db:
+        with self._authority_database() as (db, boundary):
             row = db.execute(f'SELECT * FROM {SCOPES} WHERE scope_id=?', (scope_id,)).fetchone()
             if row is None: _fail('speaker_link_scope_missing', 404)
             if _failure_context is not None: _failure_context['revision']=row['revision']
             session_revision = _session(db,row['session_id']); _usage(db,row)
-            inventory = self._current_batches(db,row)
+            inventory = self._current_batches(db,row,boundary=boundary)
             # Read immutable bounded bytes under SQL; decode/reconcile after close.
             values = [dict(x) for x in inventory]
             result = {key: row[key] for key in ('scope_id','session_id','recording_id','policy_sha256','space_id','revision','decision_revision','decision_session_revision','state')}
@@ -584,9 +657,9 @@ class RecordingSpeakerLinkStore:
         if (type(decision) is not dict or type(decision.get('annotations')) is not list
                 or len(decision['annotations'])>MAX_SCOPE_NODES):
             _fail('invalid_speaker_link_decision')
-        from .recording_speaker_links import POLICY_SHA256
+        from .recording_speaker_links import POLICY_SHA256, SUPPORTED_POLICIES
         policy_sha256=POLICY_SHA256 if policy_sha256 is None else policy_sha256
-        if (policy_sha256!=POLICY_SHA256 or type(decision.get('diagnostics')) is not dict
+        if (policy_sha256 not in SUPPORTED_POLICIES or type(decision.get('diagnostics')) is not dict
                 or decision['diagnostics'].get('policy_sha256')!=policy_sha256):
             _fail('speaker_link_policy_conflict')
         for annotation in decision['annotations']:
@@ -601,7 +674,7 @@ class RecordingSpeakerLinkStore:
         raw=encoded(decision)
         if len(raw)>MAX_DECISION_BYTES: _fail('capacity_exhausted',429)
         if not self.enabled or _cancelled(cancelled): return False
-        with self._database(write=True) as db:
+        with self._authority_database(write=True) as (db, boundary):
             row=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_id=?',(scope_id,)).fetchone()
             if row is None: return False
             source_revision=_session(db,row['session_id'])
@@ -609,7 +682,7 @@ class RecordingSpeakerLinkStore:
                     or policy_sha256 is not None and row['policy_sha256']!=policy_sha256 or _cancelled(cancelled)):
                 return False
             originals={}
-            for retained in self._current_batches(db,row):
+            for retained in self._current_batches(db,row,boundary=boundary):
                 batch=_json(retained['batch_json'],MAX_BATCH_BYTES)
                 if (batch.get('schema')!='recording-speaker-probe-interrupted-v1'
                         and batch.get('proof_sha256')!=retained['current_proof_sha256']): _fail('speaker_link_identity_conflict')
@@ -619,7 +692,8 @@ class RecordingSpeakerLinkStore:
             for annotation in decision['annotations']:
                 node=originals.get(annotation['node_id'])
                 if (node is None or annotation['node_id'] in seen or any(annotation.get(key)!=node.get(key)
-                        for key in ('job_id','result_sha256','phrase_index','space_id','proof_sha256','source_key'))):
+                        for key in ('job_id','result_sha256','phrase_index','space_id','proof_sha256','source_key',
+                                    'source_kind','primary_source_ref','primary_packet_sha256'))):
                     _fail('invalid_speaker_link_decision')
                 seen.add(annotation['node_id'])
             # Cancellation of a source chunk is checked independently of callback state.

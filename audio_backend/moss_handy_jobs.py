@@ -242,6 +242,8 @@ class MossJobs:
         self.cell_source = cell_source
         self.automatic = None
         self.speaker_links = speaker_links
+        if speaker_links is not None and cell_source is not None:
+            speaker_links.bind_primary_source(cell_source)
         self._probe_factory = _probe_factory
         self._probe_staging_bytes = 0
         self._probe_reconcile_after = 0.
@@ -668,14 +670,27 @@ class MossJobs:
             with self._lock:
                 if self._probe_staging_bytes:return
                 self._probe_staging_bytes = probe['charge_bytes'] = STAGING_BYTES
-            from .recording_speaker_links import capture_candidates
+            from .recording_speaker_links import (capture_candidates, capture_candidates_v2,
+                POLICY_SHA256, POLICY_SHA256_V2)
+            from .native_owned_cells import Unavailable
             space, space_id = expected_space()
-            batch, crops = capture_candidates(lease.support, lease.pcm, record['token'].proof,
-                projection, record['job_id'], result_sha, space)
+            policy = self.speaker_links.capture_policy(record['session_id'], record['token'].proof)
+            arguments = (lease.support, lease.pcm, record['token'].proof,
+                         projection, record['job_id'], result_sha, space)
+            if policy == POLICY_SHA256_V2:
+                # Missing prospective packets cannot veto ordinary MOSS
+                # observations or primary text. There is no historical scan.
+                try:packets = self.speaker_links.capture_primary_packets(record['token'].proof)
+                except (Unavailable, ReadError, ValueError, TypeError, KeyError):packets = []
+                batch, crops = capture_candidates_v2(*arguments, primary_packets=packets)
+            elif policy == POLICY_SHA256:
+                batch, crops = capture_candidates(*arguments)
+            else:
+                raise ValueError('Unsupported speaker probe policy')
             if (len(crops) > 4 or len(encoded(batch)) + sum(map(len,crops)) + MAX_OUTPUT_BYTES > STAGING_BYTES
                     or any(type(crop) is not bytes or len(crop) != 64000 for crop in crops)):
                 raise ValueError('Probe staging capacity')
-            self.cell_source.publication_current(record['token'])
+            self.cell_source.revalidate_dispatch(record['token'])
             if lease.released or lease.cancelled.is_set() or record['cancelled'].is_set():return
             probe.update(batch=batch, crops=crops, result_sha256=result_sha, space=space, space_id=space_id)
             probe['state'] = 'source_scoped' if crops else 'insufficient_clean_support'
@@ -708,14 +723,14 @@ class MossJobs:
                 return
             sid, jid = record['session_id'], record['job_id']
             recording_id = self.speaker_links.recording_for_job(sid, jid, snapshot.result_sha256)
-            from .recording_speaker_links import POLICY_SHA256, reconcile_batches
+            from .recording_speaker_links import reconcile_batches
             probe['attempt_key'] = (sid,recording_id,jid,snapshot.result_sha256)
             probe['commit_pending'] = True
             probe['resolve_only'] = True  # A lost reserve acknowledgement never authorizes inference.
             probe['terminal_state'] = 'probe_unavailable'
             phase = 'reserve'
             admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
-                POLICY_SHA256, probe['space'], max_nodes=len(probe['crops']), cancelled=probe['cancelled'], batch=batch)
+                batch['policy_sha256'], probe['space'], max_nodes=len(batch['nodes']), cancelled=probe['cancelled'], batch=batch)
             probe['reservation'] = admission
             if not admission.get('should_probe'):
                 probe['commit_pending'] = False
@@ -731,6 +746,9 @@ class MossJobs:
                 except Exception:
                     probe['state'] = 'probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable'
                 if reserved:
+                    # A current publication generation alone is insufficient:
+                    # dispatch independently checks current source authority.
+                    self.cell_source.revalidate_dispatch(record['token'])
                     from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
                     from .moss_handy_runner import float_bytes, samples_from_pcm
                     # Safe now: copies and retained text no longer depend on MOSS scratch.
@@ -747,7 +765,9 @@ class MossJobs:
                     try:
                         output = operation.run(probe['cancelled'])
                         if operation.cleaned and not probe['cancelled'].is_set():
-                            for node, result in zip(batch['nodes'], output['nodes']):node['vector'] = result['vector']
+                            physical = {item['index']: item for item in output['nodes']}
+                            for index, node in enumerate(batch['nodes']):
+                                node['vector'] = physical[node.get('probe_index', index)]['vector']
                             probe['state'] = 'source_scoped'
                         else:probe['state'] = 'probe_interrupted'
                     except BaseException:
@@ -805,7 +825,9 @@ class MossJobs:
             if exc.reason in ('probe_unavailable','automatic_source_unplaced','automatic_binding_invalid',
                     'automatic_history_binding_invalid','transcript_result_invalid',
                     'transcript_result_hash_invalid','speaker_link_commit_conflict',
-                    'bounded_inventory_changed','bounded_inventory_source_changed','bounded_compact_changed'):
+                    'bounded_inventory_changed','bounded_inventory_source_changed','bounded_compact_changed',
+                    'primary_probe_source_stale','primary_probe_authority_unavailable',
+                    'primary_probe_authority_changed'):
                 # Revoked current authority cannot be published or retried forever.
                 # The immutable reservation still permits a historical unavailable outcome.
                 return self._resolve_probe_attempt(probe)

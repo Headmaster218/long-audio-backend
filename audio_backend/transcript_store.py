@@ -472,29 +472,62 @@ class TranscriptStore:
             authority='historical_snapshot', source_current='not_checked')
         return candidate, result, meta
 
-    def _speaker_annotations(self, db, sid, candidates, intersecting):
-        """Read only the saved small decisions for page-local recording jobs."""
+    def _speaker_annotations(self, db, sid, candidates, intersecting, *,
+                             primary=(), chunks=(), primary_annotations=None):
+        """Read bounded saved decisions for current page-local recording roots.
+
+        Current chunk and batch session membership is checked even when no MOSS
+        job intersects this page. No probe, filesystem proof or model is opened.
+        """
         if not self.speaker_links_enabled:return []
         from .recording_speaker_link_store import read_saved_for_recording
-        scopes, by_job = {}, {}
+        scopes, by_job, memberships = {}, {}, {}
+        remaining = c.MAX_RESULTS_BYTES
+        def recording_for_chunk(cid):
+            if cid not in memberships:
+                if len(memberships) >= MAX_CHUNKS:return None
+                record = db.execute('''SELECT w.batch_id FROM recording_work w
+                    JOIN chunks ch ON ch.id=w.chunk_id
+                    JOIN recording_batches b ON b.id=w.batch_id
+                    WHERE ch.id=? AND ch.session_id=? AND b.session_id=?''', (cid,sid,sid)).fetchone()
+                memberships[cid] = record[0] if record is not None else None
+            return memberships[cid]
+        def saved_for_recording(rid):
+            nonlocal remaining
+            if rid not in scopes:
+                try:
+                    saved = read_saved_for_recording(db, sid, rid)
+                    if type(saved) is not dict:raise ValueError()
+                    size = len(c.encoded(saved))
+                    if size > remaining:raise ValueError()
+                    remaining -= size
+                    scopes[rid] = saved
+                except (ReadError, ValueError, TypeError, AttributeError, KeyError, RecursionError):
+                    # An optional malformed decision cannot hide durable text.
+                    # Scalar sidecar headers still bind this page's cursor.
+                    scopes[rid] = {'state':'probe_unavailable','reason':'saved_links_unavailable'}
+            return scopes[rid]
         for row, *_ in intersecting:
             recording_ids = []
             for cid in row.get('source_roots', (row['cid1'], row['cid2'])):
                 if cid is None:continue
-                record = db.execute('SELECT batch_id FROM recording_work WHERE chunk_id=?', (cid,)).fetchone()
-                if record is None:
+                rid = recording_for_chunk(cid)
+                if rid is None:
                     recording_ids = []
                     break
-                recording_ids.append(record[0])
+                recording_ids.append(rid)
             if not recording_ids or len(set(recording_ids)) != 1:continue
             rid = recording_ids[0]
-            if rid not in scopes:
-                try:scopes[rid] = read_saved_for_recording(db, sid, rid)
-                except (ReadError, ValueError, TypeError, AttributeError):
-                    # An optional malformed decision cannot hide durable text.
-                    # Scalar sidecar headers still bind this page's cursor.
-                    scopes[rid] = {'state':'probe_unavailable','reason':'saved_links_unavailable'}
-            by_job[row['job_id']] = scopes[rid]
+            by_job[row['job_id']] = saved_for_recording(rid)
+        for chunk in chunks:
+            rid = recording_for_chunk(chunk['id'])
+            if rid is not None:saved_for_recording(rid)
+        for parent in primary:
+            rid = recording_for_chunk(parent['canonical_asr']['chunk_id'])
+            if rid is None:continue
+            annotation = c.primary_speaker_annotation(saved_for_recording(rid), parent['source_ref'])
+            if annotation is not None and primary_annotations is not None:
+                primary_annotations[parent['source_ref']] = annotation
         for candidate in candidates:
             saved = by_job.get(candidate['job_id'], {'state':'probe_unavailable'})
             for index, phrase in enumerate(candidate['phrases']):
@@ -701,10 +734,13 @@ class TranscriptStore:
                         check()
                         lexical_reason = exc.limit
                         candidates, intersecting = [], []
-            link_scopes = self._speaker_annotations(db, sid, candidates, intersecting)
+            primary_annotations = {}
+            link_scopes = self._speaker_annotations(db, sid, candidates, intersecting,
+                primary=primary, chunks=chunks, primary_annotations=primary_annotations)
             check()
             value = project(block, primary, candidates, notices,lexical=lexical_inputs,policy_hash=policy_hash)
             if lexical_reason is not None:c.lexical_fallback(value,lexical_reason)
+            if primary_annotations:c.annotate_primary_speaker_links(value, primary_annotations)
             value.update(session_id=sid, revision=revision, policy_sha256=policy_hash,
                 optional_closure=closure,
                 recording_speaker_links={'enabled':self.speaker_links_enabled, 'scopes':link_scopes,

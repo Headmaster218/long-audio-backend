@@ -46,6 +46,21 @@ POLICY = {'schema': SCHEMA, 'sample_rate': RATE, 'crop_frames': CROP_FRAMES,
     'duplicates': 'same-source-crop-or-exact-pcm-is-one-independent-observation',
     'missing_runner_up': 'abstain', 'persistent_person_identity': False}
 POLICY_SHA256 = sha(POLICY)
+SCHEMA_V2 = 'recording-speaker-links-v2'
+POLICY_V2 = {**deepcopy(POLICY), 'schema': SCHEMA_V2,
+    'selection': 'typed-primary-first-alternation-four-node-admissions',
+    'duplicates': 'typed-aliases-share-explicit-physical-probe-index',
+    'native_attribution': 'all-original-and-independent-query-namespaces',
+    'source_dependency': 'rank-all-then-veto-overlap-in-current-best-runner-up-trio'}
+POLICY_SHA256_V2 = sha(POLICY_V2)
+SUPPORTED_POLICIES = (POLICY_SHA256, POLICY_SHA256_V2)
+MAX_OUTCOMES_V2 = 768
+_PRIMARY_NODE_FIELDS = frozenset(('primary_source_ref', 'primary_packet_sha256',
+    'primary_commit', 'primary_row_index', 'original_parent_ordinal',
+    'original_unit_ordinals', 'original_turn_ordinals', 'capture_namespace'))
+_TYPED_NODE_FIELDS = _PRIMARY_NODE_FIELDS | frozenset(('source_kind',
+    'native_attributions', 'probe_index', 'float32le_sha256'))
+_TYPED_BATCH_FIELDS = frozenset(('primary_packets', 'phrase_evidence'))
 
 
 def expected_space(num_threads=2):
@@ -67,7 +82,7 @@ def _bounded(value, maximum=MAX_BATCH_BYTES):
     return canonical(value, maximum)
 
 
-def _native_responses(doc, support, session_id):
+def _native_responses(doc, support, session_id, *, typed=False):
     """Never offset query.turns by support origin or by reset replay twice."""
     if 'query' in doc:
         responses = [(doc['query'], support.start_frame, support.end_frame)]
@@ -87,7 +102,10 @@ def _native_responses(doc, support, session_id):
             'epoch_index': native['epoch_index'],
             'native_runtime_sha256': support.native_runtime_sha256}
         from .native_owned_core_seams import RESTART_SCHEMA
-        if doc.get('schema') == RESTART_SCHEMA:
+        if typed and 'capture_run' in response:
+            domain.update(schema='recording-native-capture-query-scope-v2',
+                          capture_run=response['capture_run'])
+        elif doc.get('schema') == RESTART_SCHEMA:
             # Native epoch IDs can repeat after physical restart. This proof
             # explicitly owns its query labels in the freshly observed run.
             domain.update(schema='recording-native-restart-query-scope-v1',
@@ -322,10 +340,198 @@ def valid_vector(vector):
     return tuple(vector)
 
 
+def _combined_witnesses(*collections):
+    unique = {canonical(w): w for values in collections for w in values}
+    return [deepcopy(unique[key]) for key in sorted(unique)]
+
+
+def _moss_selection(phrase, phrases, responses):
+    """The v1 numeric crop rule, independently replayable without lexical text."""
+    if not phrase['probe_source_eligible']:
+        return 'timestamp_adjusted_unverified', None
+    eligible = {}
+    for scope, turns, lo, hi in responses:
+        for turn in turns:
+            a = max(lo, phrase['inward'][0], turn['original'][0])
+            b = min(hi, phrase['inward'][1], turn['original'][1])
+            if a >= b:
+                continue
+            blockers = [other['original'] for _, observations, _, _ in responses
+                for other in observations if other['label'] != turn['label']]
+            blockers += [other['outward'] for other in phrases
+                if other['moss_tag'] != phrase['moss_tag'] or not other['probe_source_eligible']]
+            for left, right in _subtract((a, b), blockers):
+                left += EROSION_FRAMES; right -= EROSION_FRAMES
+                if right - left >= CROP_FRAMES:
+                    eligible.setdefault((scope, turn['label']), set()).add((left, right))
+    if len(eligible) > 1:
+        return 'ambiguous_native_label', None
+    if not eligible:
+        return 'insufficient_clean_support', None
+    (scope, label), intervals = next(iter(eligible.items()))
+    a, b = min(intervals, key=lambda x: (-(x[1] - x[0]), x[0], x[1]))
+    start = a + (b - a - CROP_FRAMES) // 2
+    return 'candidate', (scope, label, start, start + CROP_FRAMES)
+
+
+def _owned_crop(pcm, support, start, end):
+    """The single v2 PCM allocation edge, after metadata capacity admission."""
+    crop = pcm[2 * (start - support.start_frame):2 * (end - support.start_frame)]
+    if len(crop) != 2 * CROP_FRAMES:
+        raise Unavailable('speaker_link_exact_crop_required')
+    return crop
+
+
+def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256,
+                          space, *, primary_packets=()):
+    """Capture at most four typed aliases, sharing exactly duplicate PCM probes.
+
+    The returned PCM tuple is indexed by node.probe_index, not node order.
+    Native primary rows and MOSS phrases remain distinct bounded admissions.
+    """
+    from .recording_primary_probe import primary_metadata, primary_witnesses
+    if type(support) is not SourceSupport:
+        raise Unavailable('speaker_link_support_required')
+    text(job_id); digest(result_sha256)
+    space_id = validate_space(space)
+    if space['model']['dimension'] != DIMENSION:
+        raise Unavailable('speaker_link_dimension')
+    doc, witnessed_support, parts = validate_document(proof)
+    if witnessed_support != support:
+        raise Unavailable('speaker_link_support_binding')
+    if (type(pcm) is not bytes or len(pcm) > CELL_PCM_BYTES
+            or len(pcm) != 2 * (support.end_frame - support.start_frame)
+            or _hash_bytes(pcm) != support.pcm16le_sha256
+            or float32_digest(pcm) != support.float32le_sha256):
+        raise Unavailable('speaker_link_pcm_binding')
+    if is_composite(doc):
+        validate_cell_pcm(doc, pcm)
+    session_id = parts[0].session_id
+    proof_sha256 = _hash_bytes(proof)
+    binding = projection.get('cell_binding') if type(projection) is dict else None
+    if binding is not None and (type(binding) is not dict
+            or binding.get('origin') != 'durable_cell'
+            or binding.get('proof_sha256') != proof_sha256
+            or binding.get('support') != support.to_dict()
+            or binding.get('cell_id') != sha({'policy': doc['policy'], 'support': support.to_dict()})):
+        raise Unavailable('speaker_link_result_cell_binding')
+    responses = _native_responses(doc, support, session_id, typed=True)
+    phrases = _phrases(projection, support)
+    primary, primary_outcomes = primary_metadata(support, proof, primary_packets, space_id)
+    # Validate packet witnesses even when there is no eligible primary row.
+    primary_hard = primary_witnesses(proof, primary_packets)
+    batch = {'schema': SCHEMA_V2, 'policy_sha256': POLICY_SHA256_V2,
+        'job_id': job_id, 'result_sha256': result_sha256, 'support_id': support.support_id,
+        'proof_sha256': proof_sha256, 'projection_sha256': _hash_bytes(_bounded(projection)),
+        'space_id': space_id, 'session_id': session_id,
+        'native_scope_id': responses[0][0], 'proof': doc, 'nodes': [], 'outcomes': [],
+        'primary_packets': deepcopy(list(primary_packets)),
+        'phrase_evidence': [{**p, 'inward': list(p['inward']), 'outward': list(p['outward'])}
+                            for p in phrases],
+        'witnesses': _combined_witnesses(_witnesses(responses, proof_sha256), primary_hard)}
+    if 'timestamp_policy' in projection:
+        batch['timestamp_policy'] = projection['timestamp_policy']
+    moss, moss_outcomes = [], []
+    for phrase in phrases:
+        status, selected = _moss_selection(phrase, phrases, responses)
+        outcome = {'phrase_index': phrase['phrase_index'], 'status': status}
+        if selected:
+            if len(moss) == MAX_CROPS:
+                outcome['status'] = 'crop_capacity'
+            else:
+                scope, label, start, end = selected
+                source_spans = [asdict(p) for p in intersect_mapping(parts, start, end)]
+                content = [{k: p[k] for k in ('source_sha256', 'source_frames',
+                            'source_start', 'source_end')} for p in source_spans]
+                moss.append({'source_kind': 'moss', 'phrase_index': phrase['phrase_index'],
+                    'moss_tag': phrase['moss_tag'], 'native_label': label,
+                    'native_scope_id': scope, 'start_frame': start, 'end_frame': end,
+                    'source_spans': source_spans,
+                    'source_key': sha({'schema': 'exact-source-crop-v1', 'parts': content}),
+                    'native_attributions': [{'native_scope_id': scope, 'native_label': label}]})
+        moss_outcomes.append(outcome)
+    candidates = []
+    for index in range(max(len(primary), len(moss))):
+        for kind in (primary, moss):
+            if index < len(kind):
+                candidates.append(kind[index])
+    # Reserve the worst case before the first crop allocation. Exact duplicate
+    # sharing can reduce this charge, never expand the four-admission ceiling.
+    reserved = deepcopy(batch)
+    bindings = {k: batch[k] for k in ('job_id', 'result_sha256', 'support_id',
+                'proof_sha256', 'projection_sha256', 'space_id')}
+    reserved['nodes'] = [{**deepcopy(n), **bindings, 'pcm16le_sha256': '0' * 64,
+        'float32le_sha256': '0' * 64, 'node_id': '0' * 64, 'probe_index': index}
+        for index, n in enumerate(candidates[:MAX_CROPS])]
+    reserved['outcomes'] = [dict(o, node_id='0' * 64) if o['status'] == 'candidate'
+                            else deepcopy(o) for o in moss_outcomes + list(primary_outcomes)]
+    reserved['batch_sha256'] = '0' * 64
+    if len(_bounded(reserved)) + len(reserved['nodes']) * 2 * CROP_FRAMES + 65536 > 524288:
+        raise Unavailable('speaker_link_staging_capacity')
+    del reserved
+    physical = []
+    for original in candidates[:MAX_CROPS]:
+        node = deepcopy(original)
+        for key in ('job_id', 'result_sha256', 'support_id', 'proof_sha256',
+                    'projection_sha256', 'space_id'):
+            node[key] = batch[key]
+        # Allocation happens after the final four typed admissions. Metadata
+        # from either candidate pool never owns an extra speculative PCM crop.
+        source_aliases = [n for n in batch['nodes'] if n['source_key'] == node['source_key']]
+        if source_aliases:
+            alias = source_aliases[0]
+            crop = physical[alias['probe_index']]
+            observed = memoryview(pcm)[2 * (node['start_frame'] - support.start_frame):
+                                       2 * (node['end_frame'] - support.start_frame)]
+            if observed != crop:
+                raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+            node.update(pcm16le_sha256=alias['pcm16le_sha256'],
+                        float32le_sha256=alias['float32le_sha256'])
+        else:
+            crop = _owned_crop(pcm, support, node['start_frame'], node['end_frame'])
+            node.update(pcm16le_sha256=_hash_bytes(crop), float32le_sha256=float32_digest(crop))
+        matches = [n for n in batch['nodes'] if n['source_key'] == node['source_key']
+                   or n['pcm16le_sha256'] == node['pcm16le_sha256']]
+        if matches:
+            indexes = {n['probe_index'] for n in matches}
+            if len(indexes) != 1:
+                raise Unavailable('speaker_link_probe_alias_conflict')
+            node['probe_index'] = next(iter(indexes))
+            if physical[node['probe_index']] != crop:
+                raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+        else:
+            node['probe_index'] = len(physical)
+            physical.append(crop)
+        node['node_id'] = sha({'schema': SCHEMA_V2, 'policy_sha256': POLICY_SHA256_V2, **node})
+        batch['nodes'].append(node)
+    for original in moss_outcomes + list(primary_outcomes):
+        outcome = {k: deepcopy(v) for k, v in original.items() if k != 'node_id'}
+        key = 'primary_source_ref' if 'primary_source_ref' in outcome else 'phrase_index'
+        kind = 'native_primary' if key == 'primary_source_ref' else 'moss'
+        matching = [n for n in batch['nodes'] if n['source_kind'] == kind
+                    and n.get(key) == outcome[key]]
+        if matching:
+            if len(matching) != 1:
+                raise Unavailable('speaker_link_duplicate_source_ref')
+            outcome.update(status='candidate', node_id=matching[0]['node_id'])
+        elif outcome.get('status') == 'candidate':
+            outcome['status'] = 'crop_capacity'
+        batch['outcomes'].append(outcome)
+    batch['batch_sha256'] = _batch_digest(batch)
+    if len(_bounded(batch)) + sum(map(len, physical)) + 65536 > 524288:
+        raise Unavailable('speaker_link_staging_capacity')
+    validate_batch(batch, require_vectors=False)
+    return batch, tuple(physical)
+
+
 def validate_batch(batch, *, require_vectors=True):
     """Validate trusted internal capture metadata after storage/IPC transport."""
+    if type(batch) is dict and batch.get('schema') == SCHEMA_V2:
+        return _validate_batch_v2(batch, require_vectors=require_vectors)
     if type(batch) is not dict or batch.get('schema') != SCHEMA or batch.get('policy_sha256') != POLICY_SHA256:
         raise Unavailable('speaker_link_batch_policy')
+    if (_TYPED_BATCH_FIELDS | _TYPED_NODE_FIELDS).intersection(batch):
+        raise Unavailable('speaker_link_mixed_policy_metadata')
     _bounded(batch, MAX_VECTOR_BATCH_BYTES)
     if 'timestamp_policy' in batch and batch['timestamp_policy'] != TIMESTAMP_POLICY:
         raise Unavailable('speaker_link_batch_policy')
@@ -350,6 +556,8 @@ def validate_batch(batch, *, require_vectors=True):
     for node in nodes:
         if type(node) is not dict:
             raise Unavailable('speaker_link_node_shape')
+        if _TYPED_NODE_FIELDS.intersection(node):
+            raise Unavailable('speaker_link_mixed_policy_metadata')
         integer(node.get('phrase_index'), 255)
         if node['phrase_index'] in indexes:
             raise Unavailable('speaker_link_duplicate_phrase')
@@ -381,6 +589,8 @@ def validate_batch(batch, *, require_vectors=True):
     for index, outcome in enumerate(outcomes):
         if type(outcome) is not dict or outcome.get('phrase_index') != index:
             raise Unavailable('speaker_link_outcome_shape')
+        if (_TYPED_NODE_FIELDS | _TYPED_BATCH_FIELDS).intersection(outcome):
+            raise Unavailable('speaker_link_mixed_policy_metadata')
         if outcome.get('status') == 'candidate':
             matching = [n for n in nodes if n['phrase_index'] == index]
             if len(matching) != 1 or matching[0]['node_id'] != outcome.get('node_id'):
@@ -397,7 +607,220 @@ def validate_batch(batch, *, require_vectors=True):
     return batch
 
 
-def cluster_scores(scores, n, cannot=frozenset()):
+def _validate_phrase_evidence(batch, support):
+    phrases = batch.get('phrase_evidence')
+    if type(phrases) is not list or len(phrases) > 256:
+        raise Unavailable('speaker_link_phrase_capacity')
+    tags = set()
+    for index, phrase in enumerate(phrases):
+        if (type(phrase) is not dict
+                or set(phrase) != {'phrase_index', 'moss_tag', 'probe_source_eligible', 'inward', 'outward'}
+                or type(phrase.get('phrase_index')) is not int or phrase['phrase_index'] != index
+                or type(phrase.get('probe_source_eligible')) is not bool
+                or type(phrase.get('moss_tag')) is not str
+                or re.fullmatch(r'S[0-9]{1,15}', phrase['moss_tag']) is None):
+            raise Unavailable('speaker_link_phrase_evidence')
+        tags.add(phrase['moss_tag'])
+        if len(tags) > 8:
+            raise Unavailable('speaker_link_phrase_evidence')
+        for key in ('inward', 'outward'):
+            interval = phrase[key]
+            if (type(interval) is not list or len(interval) != 2
+                    or any(type(x) is not int for x in interval)
+                    or any(not support.start_frame <= x <= support.end_frame for x in interval)
+                    or interval[0] > interval[1] + (1 if key == 'inward' else 0)):
+                raise Unavailable('speaker_link_phrase_evidence')
+        if phrase['probe_source_eligible']:
+            if not (0 <= phrase['inward'][0] - phrase['outward'][0] <= 1
+                    and 0 <= phrase['outward'][1] - phrase['inward'][1] <= 1):
+                raise Unavailable('speaker_link_phrase_evidence')
+        elif batch.get('timestamp_policy') != TIMESTAMP_POLICY:
+            raise Unavailable('speaker_link_phrase_evidence')
+    return phrases
+
+
+def _node_attributions(node):
+    if node.get('source_kind') is None:
+        return ({'native_scope_id': node['native_scope_id'],
+                 'native_label': node['native_label']},)
+    attributions = node.get('native_attributions')
+    if type(attributions) is not list or not 1 <= len(attributions) <= 4:
+        raise Unavailable('speaker_link_native_attributions')
+    seen = set()
+    for attribution in attributions:
+        if (type(attribution) is not dict
+                or set(attribution) != {'native_scope_id', 'native_label'}):
+            raise Unavailable('speaker_link_native_attributions')
+        digest(attribution['native_scope_id']); text(attribution['native_label'])
+        pair = (attribution['native_scope_id'], attribution['native_label'])
+        if pair in seen:
+            raise Unavailable('speaker_link_native_attributions')
+        seen.add(pair)
+    if (node.get('native_scope_id'), node.get('native_label')) not in seen:
+        raise Unavailable('speaker_link_native_attributions')
+    return attributions
+
+
+def _validate_probe_indexes(nodes):
+    seen = []
+    for node in nodes:
+        integer(node.get('probe_index'), MAX_CROPS - 1)
+        matches = [n for n in seen if n['source_key'] == node['source_key']
+                   or n['pcm16le_sha256'] == node['pcm16le_sha256']]
+        same_index = [n for n in seen if n['probe_index'] == node['probe_index']]
+        if matches:
+            if any(n['probe_index'] != node['probe_index'] for n in matches):
+                raise Unavailable('speaker_link_probe_alias_binding')
+        elif same_index:
+            raise Unavailable('speaker_link_probe_alias_binding')
+        elif node['probe_index'] != len({n['probe_index'] for n in seen}):
+            raise Unavailable('speaker_link_probe_index_order')
+        if any(n['pcm16le_sha256'] != node['pcm16le_sha256']
+               or n['float32le_sha256'] != node['float32le_sha256'] for n in same_index):
+            raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+        seen.append(node)
+
+
+def _validate_batch_v2(batch, *, require_vectors):
+    from .recording_primary_probe import primary_witnesses, primary_metadata, validate_primary_node
+    if batch.get('policy_sha256') != POLICY_SHA256_V2:
+        raise Unavailable('speaker_link_batch_policy')
+    _bounded(batch, MAX_VECTOR_BATCH_BYTES)
+    if 'timestamp_policy' in batch and batch['timestamp_policy'] != TIMESTAMP_POLICY:
+        raise Unavailable('speaker_link_batch_policy')
+    for key in ('result_sha256', 'proof_sha256', 'projection_sha256', 'space_id', 'support_id',
+                'batch_sha256', 'native_scope_id'):
+        digest(batch.get(key))
+    text(batch.get('session_id')); text(batch.get('job_id'))
+    if _batch_digest(batch) != batch['batch_sha256']:
+        raise Unavailable('speaker_link_batch_binding')
+    doc, support, parts = validate_document(canonical(batch.get('proof')))
+    if (support.support_id != batch['support_id'] or _hash_bytes(canonical(doc)) != batch['proof_sha256']
+            or parts[0].session_id != batch['session_id']):
+        raise Unavailable('speaker_link_batch_proof')
+    responses = _native_responses(doc, support, batch['session_id'], typed=True)
+    packets = batch.get('primary_packets')
+    if type(packets) is not list or len(packets) > 4:
+        raise Unavailable('speaker_link_primary_packet_capacity')
+    expected_witnesses = _combined_witnesses(_witnesses(responses, batch['proof_sha256']),
+        primary_witnesses(canonical(doc), packets))
+    if batch['native_scope_id'] != responses[0][0] or batch.get('witnesses') != expected_witnesses:
+        raise Unavailable('speaker_link_witness_binding')
+    phrases = _validate_phrase_evidence(batch, support)
+    primary_candidates, primary_outcomes = primary_metadata(support, canonical(doc), packets, batch['space_id'])
+    primary_statuses = {canonical(o['primary_source_ref']): o['status'] for o in primary_outcomes}
+    if len(primary_statuses) != len(primary_outcomes):
+        raise Unavailable('speaker_link_duplicate_source_ref')
+    moss_candidates = [('moss', p['phrase_index']) for p in phrases
+                       if _moss_selection(p, phrases, responses)[0] == 'candidate'][:MAX_CROPS]
+    primary_refs = [('native_primary', canonical(n['primary_source_ref'])) for n in primary_candidates]
+    ordered_refs = []
+    for index in range(max(len(primary_refs), len(moss_candidates))):
+        for values in (primary_refs, moss_candidates):
+            if index < len(values):
+                ordered_refs.append(values[index])
+    expected_refs = ordered_refs[:MAX_CROPS]
+    nodes, outcomes = batch.get('nodes'), batch.get('outcomes')
+    if (type(nodes) is not list or len(nodes) > MAX_CROPS
+            or type(outcomes) is not list or len(outcomes) > MAX_OUTCOMES_V2):
+        raise Unavailable('speaker_link_batch_capacity')
+    refs = set()
+    actual_refs = []
+    for node in nodes:
+        if type(node) is not dict or node.get('source_kind') not in ('moss', 'native_primary'):
+            raise Unavailable('speaker_link_node_shape')
+        for key in ('job_id', 'result_sha256', 'support_id', 'proof_sha256', 'projection_sha256', 'space_id'):
+            if node.get(key) != batch[key]:
+                raise Unavailable('speaker_link_node_binding')
+        original = {k: v for k, v in node.items() if k not in ('node_id', 'vector')}
+        if node.get('node_id') != sha({'schema': SCHEMA_V2, 'policy_sha256': POLICY_SHA256_V2, **original}):
+            raise Unavailable('speaker_link_node_digest')
+        integer(node.get('start_frame')); integer(node.get('end_frame'))
+        if (node['end_frame'] - node['start_frame'] != CROP_FRAMES
+                or not support.start_frame <= node['start_frame'] < node['end_frame'] <= support.end_frame):
+            raise Unavailable('speaker_link_node_geometry')
+        expected_parts = [asdict(p) for p in intersect_mapping(parts, node['start_frame'], node['end_frame'])]
+        if node.get('source_spans') != expected_parts:
+            raise Unavailable('speaker_link_node_sources')
+        content = [{k: p[k] for k in ('source_sha256', 'source_frames', 'source_start', 'source_end')}
+                   for p in expected_parts]
+        if node.get('source_key') != sha({'schema': 'exact-source-crop-v1', 'parts': content}):
+            raise Unavailable('speaker_link_source_key')
+        digest(node.get('pcm16le_sha256')); digest(node.get('float32le_sha256'))
+        attributions = _node_attributions(node)
+        if node['source_kind'] == 'moss':
+            integer(node.get('phrase_index'), 255)
+            if _PRIMARY_NODE_FIELDS.intersection(node) or node['phrase_index'] >= len(phrases):
+                raise Unavailable('speaker_link_phrase_binding')
+            ref = ('moss', node['phrase_index'])
+            phrase = phrases[node['phrase_index']]
+            status, selected = _moss_selection(phrase, phrases, responses)
+            actual = (node.get('native_scope_id'), node.get('native_label'),
+                      node['start_frame'], node['end_frame'])
+            if (status != 'candidate' or selected != actual or node.get('moss_tag') != phrase['moss_tag']
+                    or attributions != [{'native_scope_id': actual[0], 'native_label': actual[1]}]):
+                raise Unavailable('speaker_link_phrase_binding')
+        else:
+            if 'phrase_index' in node or 'moss_tag' in node:
+                raise Unavailable('speaker_link_primary_source_ref')
+            validate_primary_node(node, canonical(doc), packets)
+            ref = ('native_primary', canonical(node.get('primary_source_ref')))
+        if ref in refs:
+            raise Unavailable('speaker_link_duplicate_source_ref')
+        refs.add(ref)
+        actual_refs.append(ref)
+        if require_vectors:
+            valid_vector(node.get('vector'))
+    _validate_probe_indexes(nodes)
+    if actual_refs != expected_refs:
+        raise Unavailable('speaker_link_candidate_selection')
+    seen_outcomes = set()
+    for outcome in outcomes:
+        if type(outcome) is not dict:
+            raise Unavailable('speaker_link_outcome_shape')
+        primary = 'primary_source_ref' in outcome
+        if primary:
+            if 'phrase_index' in outcome:
+                raise Unavailable('speaker_link_outcome_shape')
+            ref = ('native_primary', canonical(outcome['primary_source_ref']))
+            if ref[1] not in primary_statuses:
+                raise Unavailable('speaker_link_primary_outcome_binding')
+            matching = [n for n in nodes if n['source_kind'] == 'native_primary'
+                        and n['primary_source_ref'] == outcome['primary_source_ref']]
+            expected_status = primary_statuses[ref[1]]
+            if outcome.get('status') != ('candidate' if matching else
+                    'crop_capacity' if expected_status == 'candidate' else expected_status):
+                raise Unavailable('speaker_link_primary_outcome_binding')
+        else:
+            integer(outcome.get('phrase_index'), 255)
+            index = outcome['phrase_index']
+            if index >= len(phrases):
+                raise Unavailable('speaker_link_outcome_shape')
+            ref = ('moss', index)
+            matching = [n for n in nodes if n['source_kind'] == 'moss' and n['phrase_index'] == index]
+            expected_status, _ = _moss_selection(phrases[index], phrases, responses)
+            if outcome.get('status') != ('candidate' if matching else
+                    'crop_capacity' if expected_status == 'candidate' else expected_status):
+                raise Unavailable('speaker_link_outcome_binding')
+        if ref in seen_outcomes:
+            raise Unavailable('speaker_link_outcome_shape')
+        seen_outcomes.add(ref)
+        if outcome.get('status') == 'candidate':
+            if len(matching) != 1 or matching[0]['node_id'] != outcome.get('node_id'):
+                raise Unavailable('speaker_link_outcome_binding')
+        elif matching or 'node_id' in outcome:
+            raise Unavailable('speaker_link_outcome_binding')
+        elif outcome.get('status') not in ('insufficient_clean_support', 'ambiguous_native_label',
+                'crop_capacity', 'timestamp_adjusted_unverified'):
+            raise Unavailable('speaker_link_outcome_status')
+    expected_outcomes = {('moss', i) for i in range(len(phrases))}
+    expected_outcomes.update(('native_primary', pref) for pref in primary_statuses)
+    if not refs <= seen_outcomes or seen_outcomes != expected_outcomes:
+        raise Unavailable('speaker_link_missing_outcome')
+    return batch
+
+
+def cluster_scores(scores, n, cannot=frozenset(), *, source_overlap=None):
     """Fixed-policy complete-link, including blocked/below-tau competitors.
 
     Ranking happens BEFORE a cannot-link winner veto. Removing that competitor
@@ -412,12 +835,18 @@ def cluster_scores(scores, n, cannot=frozenset()):
     cannot = frozenset(cannot)
     if not cannot <= expected:
         raise Unavailable('speaker_link_cannot_pair')
+    typed = source_overlap is not None
+    source_overlap = frozenset() if source_overlap is None else frozenset(source_overlap)
+    if not source_overlap <= expected:
+        raise Unavailable('speaker_link_source_overlap_pair')
     current = [(i,) for i in range(n)]
     traces = []
     for round_number in range(MAX_NODES):
         proposals = {}
         reasons = {'missing_runner_up': 0, 'exact_tie': 0, 'below_tau': 0,
                    'low_margin': 0, 'cannot_link_winner': 0, 'not_reciprocal': 0}
+        if typed:
+            reasons['source_overlap_dependency'] = 0
         for i, group in enumerate(current):
             candidates = []
             for j, other in enumerate(current):
@@ -430,6 +859,12 @@ def cluster_scores(scores, n, cannot=frozenset()):
                 reasons['missing_runner_up'] += 1
                 continue
             best, second = candidates[:2]
+            # All competitors remain in the original ranking. Dependency is a
+            # veto on the selected evidence trio, never a filter or fallback.
+            trio = (group, current[best[1]], current[second[1]])
+            dependent = any((min(a, b), max(a, b)) in source_overlap
+                for at, one in enumerate(trio) for other in trio[at + 1:]
+                for a in one for b in other)
             if best[0] == second[0]:
                 reasons['exact_tie'] += 1
             elif best[0] < TAU:
@@ -438,6 +873,8 @@ def cluster_scores(scores, n, cannot=frozenset()):
                 reasons['low_margin'] += 1
             elif best[2]:
                 reasons['cannot_link_winner'] += 1
+            elif dependent:
+                reasons['source_overlap_dependency'] += 1
             else:
                 proposals[i] = best[1]
         merges = [(i, j) for i, j in sorted(proposals.items()) if i < j and proposals.get(j) == i]
@@ -472,6 +909,11 @@ def reconcile_batches(batches, *, terminal_states=None):
     if type(batches) not in (list, tuple) or len(batches) > MAX_BATCHES:
         raise Unavailable('speaker_link_batch_count')
     batches = [validate_batch(batch, require_vectors=False) for batch in batches]
+    if len({b['policy_sha256'] for b in batches}) > 1:
+        raise Unavailable('speaker_link_mixed_policy')
+    policy_sha256 = batches[0]['policy_sha256'] if batches else POLICY_SHA256
+    schema = SCHEMA_V2 if policy_sha256 == POLICY_SHA256_V2 else SCHEMA
+    typed = schema == SCHEMA_V2
     terminal_states = {} if terminal_states is None else terminal_states
     if type(terminal_states) is not dict or len(terminal_states) > MAX_BATCHES:
         raise Unavailable('speaker_link_terminal_states')
@@ -499,7 +941,7 @@ def reconcile_batches(batches, *, terminal_states=None):
     # Connected duplicate classes account for both alias source provenance and
     # identical observed PCM. No duplicate earns a second runner-up vote.
     groups = []
-    for node in nodes:
+    for node in (all_nodes if typed else nodes):
         matches = [g for g in groups if any(n['source_key'] == node['source_key']
                    or n['pcm16le_sha256'] == node['pcm16le_sha256'] for n in g)]
         if matches:
@@ -510,40 +952,64 @@ def reconcile_batches(batches, *, terminal_states=None):
         else:
             groups.append([node])
     groups.sort(key=lambda g: g[0]['node_id'])
+    witnesses = {(w['native_scope_id'], tuple(w['labels'])) for b in batches for w in b['witnesses']}
+    if typed:
+        # Metadata-only aliases cannot cast a competitor vote, but their
+        # original observations and source intervals cannot be erased either.
+        # Validate even classes without a vector before dropping them from the
+        # acoustic matrix. A contradictory exact alias always fails closed.
+        for group in groups:
+            if (len({n['pcm16le_sha256'] for n in group}) != 1
+                    or len({n['float32le_sha256'] for n in group}) != 1):
+                raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+            aliases = [a for node in group for a in _node_attributions(node)]
+            if any(a['native_scope_id'] == b['native_scope_id'] and
+                    (a['native_scope_id'], tuple(sorted((a['native_label'], b['native_label'])))) in witnesses
+                    for a in aliases for b in aliases):
+                raise Unavailable('speaker_link_duplicate_native_conflict')
+        groups = [group for group in groups if any('vector' in node for node in group)]
     vectors = []
     for group in groups:
         if len({n['pcm16le_sha256'] for n in group}) != 1:
             raise Unavailable('speaker_link_duplicate_pcm_disagreement')
-        vector = valid_vector(group[0]['vector'])
-        if any(valid_vector(n['vector']) != vector for n in group[1:]):
+        if typed and len({n['float32le_sha256'] for n in group}) != 1:
+            raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+        available = [n for n in group if 'vector' in n]
+        vector = valid_vector(available[0]['vector'])
+        if any(valid_vector(n['vector']) != vector for n in available[1:]):
             raise Unavailable('speaker_link_duplicate_vector_disagreement')
         vectors.append(vector)
-    witnesses = {(w['native_scope_id'], tuple(w['labels'])) for b in batches for w in b['witnesses']}
     cannot = set()
+    attributions = [[a for node in group for a in (_node_attributions(node) if typed else
+        ({'native_scope_id': node['native_scope_id'], 'native_label': node['native_label']},))]
+        for group in groups]
     for i, group in enumerate(groups):
         for j in range(i, len(groups)):
             conflict = any(a['native_scope_id'] == b['native_scope_id'] and
                 (a['native_scope_id'], tuple(sorted((a['native_label'], b['native_label'])))) in witnesses
-                for a in group for b in groups[j])
+                for a in attributions[i] for b in attributions[j])
             if conflict:
                 if i == j:
                     raise Unavailable('speaker_link_duplicate_native_conflict')
                 cannot.add((i, j))
     scores = {(a, b): math.fsum(x * y for x, y in zip(vectors[a], vectors[b]))
               for a in range(len(groups)) for b in range(a + 1, len(groups))}
-    clusters, traces = cluster_scores(scores, len(groups), cannot)
+    source_overlap = {(a, b) for a in range(len(groups)) for b in range(a + 1, len(groups))
+        if any(_source_intersects(one, two) for one in groups[a] for two in groups[b])} if typed else None
+    clusters, traces = cluster_scores(scores, len(groups), cannot, source_overlap=source_overlap)
     annotations = []
     memberships = {}
     for cluster in clusters:
         if len(cluster) > 1:
-            identity = 'recording-speaker-' + sha({'policy_sha256': POLICY_SHA256,
+            identity = 'recording-speaker-' + sha({'policy_sha256': policy_sha256,
                 'session_id': batches[0]['session_id'],
                 'members': sorted(n['node_id'] for i in cluster for n in groups[i])})[:20]
         else:
             identity = None
         for i in cluster:
             for node in groups[i]:
-                memberships[node['node_id']] = (identity, len(groups[i]) > 1)
+                if 'vector' in node:
+                    memberships[node['node_id']] = (identity, len(groups[i]) > 1)
     jobs = []
     for batch in batches:
         terminal = terminal_states.get(batch['batch_sha256'], 'probe_unavailable')
@@ -560,10 +1026,21 @@ def reconcile_batches(batches, *, terminal_states=None):
         for node in batch['nodes']:
             identity, duplicate = memberships.get(node['node_id'], (None, False))
             available = node['node_id'] in memberships
-            annotation = {k: node[k] for k in ('job_id', 'result_sha256', 'phrase_index',
-                'node_id', 'moss_tag', 'native_label', 'native_scope_id', 'start_frame',
+            annotation = {k: node[k] for k in ('job_id', 'result_sha256',
+                'node_id', 'native_label', 'native_scope_id', 'start_frame',
                 'end_frame', 'pcm16le_sha256', 'source_key', 'space_id', 'support_id',
                 'proof_sha256', 'projection_sha256')}
+            if node.get('source_kind') == 'native_primary':
+                annotation.update({k: deepcopy(node[k]) for k in (
+                    'source_kind', 'primary_source_ref', 'primary_packet_sha256',
+                    'primary_row_index', 'original_parent_ordinal', 'original_unit_ordinals',
+                    'original_turn_ordinals', 'capture_namespace', 'native_attributions',
+                    'probe_index', 'float32le_sha256')})
+            else:
+                annotation.update(phrase_index=node['phrase_index'], moss_tag=node['moss_tag'])
+                if typed:
+                    annotation.update({k: deepcopy(node[k]) for k in (
+                        'source_kind', 'native_attributions', 'probe_index', 'float32le_sha256')})
             annotation.update(status=('provisional_linked' if identity else 'source_scoped')
                 if available else terminal, provisional_speaker_id=identity,
                 duplicate_evidence=duplicate, speaker_identity_valid=False)
@@ -580,7 +1057,7 @@ def reconcile_batches(batches, *, terminal_states=None):
     else:
         state = 'capacity_exhausted' if any(j['default_status'] == 'capacity_exhausted' for j in jobs) else 'insufficient_clean_support'
     result = {'annotations': annotations, 'jobs': jobs, 'state': state,
-        'diagnostics': {'schema': SCHEMA, 'policy_sha256': POLICY_SHA256,
+        'diagnostics': {'schema': schema, 'policy_sha256': policy_sha256,
             'node_count': len(all_nodes), 'available_node_count': len(nodes),
             'independent_node_count': len(groups), 'pair_count': len(scores),
             'duplicate_count': len(nodes) - len(groups), 'cannot_link_count': len(cannot),
@@ -589,5 +1066,17 @@ def reconcile_batches(batches, *, terminal_states=None):
                              for reason in traces[0]['reasons']},
             'merge_counts': [len(t['merges']) for t in traces],
             'speaker_identity_valid': False}}
+    if typed:
+        result['diagnostics']['source_overlap_pair_count'] = len(source_overlap)
+        result['diagnostics']['unembedded_alias_count'] = sum(
+            'vector' not in node for group in groups for node in group)
     _bounded(result, 65536)
     return result
+
+
+def _source_intersects(one, two):
+    """Recording-source coordinates, including every typed duplicate alias."""
+    return any(a['source_sha256'] == b['source_sha256']
+        and a['source_frames'] == b['source_frames']
+        and max(a['source_start'], b['source_start']) < min(a['source_end'], b['source_end'])
+        for a in one['source_spans'] for b in two['source_spans'])

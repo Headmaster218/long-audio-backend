@@ -1,0 +1,16 @@
+{
+  "status": "UNQUALIFIED_SOURCE_ONLY_WIP",
+  "parent_commit": "90d62f0a5f12586fb4ce209a80331e17375484f7",
+  "baseline_tree": "bd96476c88f162df842673a1a22a2857d4524d71",
+  "scope": "Prospective typed native-primary and MOSS recording-local probe consumer",
+  "production_modules": [
+    "recording_primary_probe.py",
+    "recording_speaker_links.py",
+    "recording_speaker_link_store.py",
+    "moss_handy_jobs.py",
+    "transcript_contract.py",
+    "transcript_store.py"
+  ],
+  "qualification": "Source authored and independently reviewed only. No project execution, tests, models, package or accuracy qualification performed for this increment. Real prospective pipeline acceptance remains pending. Version remains dev46 solely as inherited metadata; this WIP is not a versioned release.",
+  "invariants": "Four typed node admissions; four or fewer exact 64000-byte physical crops; 512 dimensions; 32 recording nodes; 496 pairs; 0.55 threshold; 0.10 margin; existing ownership, cleanup and no-replay limits unchanged. No new table, model, reader, scheduler, thread, provenance writer, backfill or enrollment."
+}

@@ -28,6 +28,12 @@ class SyntheticLinkStore:
         if self.failure == phase:raise ReadError(503, 'result_storage_unavailable'
             if phase in ('reserve','commit') else 'probe_unavailable')
 
+    def capture_policy(self, sid, proof):
+        return links.POLICY_SHA256_V2
+
+    def capture_primary_packets(self, proof):
+        return []
+
     def recording_for_job(self, sid, jid, sha):
         self.fail('binding')
         rows = result_rows(self.f.store)
@@ -56,14 +62,14 @@ class SyntheticLinkStore:
         return {'saved':not cancelled.is_set(), 'state':'source_scoped'}
 
 
-def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False):
+def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, aliases=False):
     f.store.settings.recording_speaker_links_enabled = True
     f.store.settings.recording_speaker_model_path = '/synthetic-no-model.onnx'
     sidecar = SyntheticLinkStore(f, failure)
     f.owner.speaker_links = sidecar
     observations, drivers, primary = [], [], []
 
-    def capture(support, pcm, proof, projection, job_id, result_sha256, space):
+    def capture(support, pcm, proof, projection, job_id, result_sha256, space, *, primary_packets=()):
         assert not f.owner._live['lease'].released
         assert f.owner._probe_staging_bytes == runner.STAGING_BYTES
         assert f.drivers[0].starts == 1
@@ -71,7 +77,11 @@ def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False):
         assert result_rows(f.store)[0]['state'] == 'accepted'
         observations.append('after_moss_reap_before_text')
         if failure == 'crop':raise ValueError('synthetic crop failure')
-        return {'job_id':job_id, 'result_sha256':result_sha256, 'nodes':[{'phrase_index':0}], 'outcomes':[]}, (b'\1\0'*32000,)
+        nodes = [{'phrase_index':0,'probe_index':0}]
+        if aliases:nodes.append({'source_kind':'native_primary','primary_source_ref':'p.1.'+'a'*64,'probe_index':0})
+        return {'job_id':job_id, 'result_sha256':result_sha256,
+            'policy_sha256':links.POLICY_SHA256_V2,
+            'nodes':nodes, 'outcomes':[]}, (b'\1\0'*32000,)
 
     class Driver:
         def __init__(self,directory,sha):
@@ -95,12 +105,24 @@ def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False):
                 'nodes':[{'index':0,'pcm_sha256':request['crops'][0]['pcm_sha256'],'vector':vector(1.)}]}
         def cleanup(self,stop):
             return clean() if clean_result else {'cleanup_verified':False}
-    monkeypatch.setattr(links,'capture_candidates',capture)
+    monkeypatch.setattr(links,'capture_candidates_v2',capture)
     f.owner._probe_factory=Driver
     cell,_=f.ready_cell(frames=16)
     intent=manager_intent(f,cell)
     f.owner.submit_automatic(intent)
     return sidecar,observations,drivers,primary
+
+
+def test_typed_alias_nodes_charge_twice_but_probe_one_index(automatic_cell_jobs,monkeypatch):
+    f = automatic_cell_jobs
+    sidecar,events,drivers,_ = setup_probe(f,monkeypatch,aliases=True)
+    record = f.finish()
+    assert record['durable_result_available'] and len(drivers) == 1
+    assert sidecar.reservations[0][1]['max_nodes'] == 2
+    batch, state = sidecar.commits[0]
+    assert state == 'source_scoped' and len(batch['nodes']) == 2
+    assert batch['nodes'][0]['vector'] == batch['nodes'][1]['vector'] == vector(1.)
+    assert f.owner._probe_staging_bytes == 0 and f.permit._optional is None
 
 
 @pytest.mark.parametrize('failure',[None,'crop','binding','reserve','start','wait','commit','recompute'])

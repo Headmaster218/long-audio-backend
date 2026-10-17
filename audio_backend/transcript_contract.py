@@ -253,23 +253,31 @@ SPEAKER_LINK_STATES = frozenset(('provisional_linked','source_scoped','insuffici
 
 def speaker_annotation(saved, job_id, result_sha256, phrase_index):
     """Whitelisted public annotation: no vectors or full native proof payloads."""
+    from .recording_speaker_links import POLICY_SHA256_V2
+    if type(saved) is not dict:saved = {}
     state = saved.get('state', 'probe_unavailable')
     if saved.get('scope_id') is None:state = 'probe_unavailable'
-    if state not in SPEAKER_LINK_STATES:state = 'probe_unavailable'
+    if type(state) is not str or state not in SPEAKER_LINK_STATES:state = 'probe_unavailable'
     value = {'status':state, 'provisional_speaker_id':None,
         'scope':'recording', 'speaker_identity_valid':False, 'profile_update_allowed':False,
         'policy_sha256':saved.get('policy_sha256'), 'space_id':saved.get('space_id'),
         'revision':saved.get('revision'), 'decision_revision':saved.get('decision_revision')}
+    if saved.get('policy_sha256') == POLICY_SHA256_V2:
+        value['validation_semantics'] = 'validated_at_decision_revision'
     if state == 'links_stale':return value
-    for item in saved.get('jobs', []):
+    jobs = saved.get('jobs', [])
+    for item in jobs if type(jobs) is list else ():
+        if type(item) is not dict:continue
         if (item.get('job_id'),item.get('result_sha256')) == (job_id,result_sha256):
             status=item.get('default_status',item.get('status'))
-            if status in SPEAKER_LINK_STATES:value['status']=status
+            if type(status) is str and status in SPEAKER_LINK_STATES:value['status']=status
             break
-    for item in saved.get('annotations', []):
+    annotations = saved.get('annotations', [])
+    for item in annotations if type(annotations) is list else ():
+        if type(item) is not dict or item.get('source_kind') == 'native_primary':continue
         if (item.get('job_id'),item.get('result_sha256'),item.get('phrase_index')) == (job_id,result_sha256,phrase_index):
             status = item.get('status')
-            if status not in SPEAKER_LINK_STATES:return value
+            if type(status) is not str or status not in SPEAKER_LINK_STATES:break
             value['status'] = status
             if status == 'provisional_linked':value['provisional_speaker_id']=item.get('provisional_speaker_id')
             for key in ('node_id','proof_sha256','source_key','reason','duplicate_evidence'):
@@ -277,4 +285,77 @@ def speaker_annotation(saved, job_id, result_sha256, phrase_index):
             return value
     # A linked scope is not evidence that an unprobed phrase shares a speaker.
     if value['status'] == 'provisional_linked':value['status']='insufficient_clean_support'
+    return value
+
+
+def primary_speaker_annotation(saved, primary_source_ref):
+    """One reversible annotation for an exact current parent, never a label.
+
+    Saved observations can contain several crops for the same parent. None may
+    win by list order: all matching observations must agree on status and ID.
+    The caller supplies a parent reference computed in its current DB snapshot.
+    """
+    if type(saved) is not dict or saved.get('scope_id') is None:return None
+    from .recording_speaker_links import POLICY_SHA256_V2
+    if saved.get('policy_sha256') != POLICY_SHA256_V2:return None
+    try:
+        if parse_reference(primary_source_ref)[0] != 'primary':return None
+    except ReadError:return None
+    annotations = saved.get('annotations', [])
+    if type(annotations) is not list:return None
+    matches = [item for item in annotations if type(item) is dict
+        and item.get('source_kind') == 'native_primary'
+        and item.get('primary_source_ref') == primary_source_ref]
+    if not matches:return None
+    if any(item.get('speaker_identity_valid') is not False for item in matches):return None
+    value = {'status':'probe_unavailable', 'provisional_speaker_id':None,
+        'source_kind':'native_primary', 'primary_source_ref':primary_source_ref,
+        'scope':'recording', 'speaker_identity_valid':False, 'profile_update_allowed':False,
+        'reversible':True, 'validation_semantics':'validated_at_decision_revision',
+        'policy_sha256':saved.get('policy_sha256'), 'space_id':saved.get('space_id'),
+        'revision':saved.get('revision'), 'decision_revision':saved.get('decision_revision')}
+    state = saved.get('state')
+    if type(state) is not str or state not in SPEAKER_LINK_STATES:return value
+    revision, decision_revision = saved.get('revision'), saved.get('decision_revision')
+    if (state == 'links_stale' or type(revision) is not int or revision < 0
+            or type(decision_revision) is not int or revision != decision_revision):
+        value['status'] = 'links_stale'
+        return value
+    identities = []
+    for item in matches:
+        status, identity = item.get('status'), item.get('provisional_speaker_id')
+        if (type(status) is not str or status not in SPEAKER_LINK_STATES
+                or status == 'provisional_linked' and (type(identity) is not str
+                    or re.fullmatch(r'recording-speaker-[a-f0-9]{20}', identity) is None)
+                or status != 'provisional_linked' and identity is not None):
+            return value
+        identities.append((status, identity))
+    if len(set(identities)) != 1:
+        value.update(status='insufficient_clean_support', reason='primary_observations_disagree')
+        return value
+    value['status'], value['provisional_speaker_id'] = identities[0]
+    # Keep only agreeing, bounded scalar provenance. Historical lexical refs,
+    # private capture packets, vectors and native labels are never exported.
+    for key in ('node_id','proof_sha256','source_key','primary_packet_sha256','reason','duplicate_evidence'):
+        item = matches[0].get(key)
+        if key == 'duplicate_evidence':valid = type(item) is bool
+        elif key == 'reason':valid = type(item) is str and len(item) <= 128
+        else:valid = type(item) is str and HASH.fullmatch(item) is not None
+        if valid and all(match.get(key) == item for match in matches):value[key] = item
+    return value
+
+
+def annotate_primary_speaker_links(value, annotations):
+    """Decorate projected rows only; exact content and lexical hashes stay put."""
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if type(item) is dict:
+            source = item.get('source')
+            ref = (item.get('source_ref') if source == 'primary' else
+                   item.get('parent_source_ref') if source == 'primary_lexical' else None)
+            if type(ref) is str and ref in annotations:
+                item['recording_speaker_link'] = dict(annotations[ref])
+            stack.extend(child for key, child in item.items() if key != 'recording_speaker_link')
+        elif type(item) is list:stack.extend(item)
     return value
