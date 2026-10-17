@@ -2,6 +2,12 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev38：有界证据清单的紧凑表示
+
+默认关闭的实验路径把完整主行及其词汇清单保留一次，使用显式嵌套 inventory-v2，并在验证时确定性重建 atom 视图；原有 proof、proof+target、条数、SQL 和时间上限不变。新版本继续读取原 inventory-v1 的精确字节与摘要；旧版本拒绝新的紧凑 payload。启用条件、最多四根/20 秒、保守全 store GC fence 和 v2 身份关联拒绝仍见 [dev37 指南](docs/BOUNDED_MULTI_CORE_SUPPORT.md)。
+
+本次固定源码通过 30 个新增模型无关用例、2 个针对性复核及 41 个受影响回归，共 73 个不同用例。三个保留规模的合成清单及完整 proof+target 在既有上限内；另一个清单虽能容纳，完整 proof 仍按原规则拒绝。合成 C 路径通过第三 core 绑定、发布、结果、转写与重启。此前 dev37 的真实 63 秒试验仍为失败，本版尚无真实模型结果或质量资格；详见 [紧凑格式、实测字节与边界](docs/COMPACT_BOUNDED_INVENTORY.md) 和 [原失败报告](docs/reports/DEV37_FIXED63_FAILURE_DIAGNOSIS.md)。
+
 ## 0.2.0rc3.dev37：默认关闭的有界多 core 支持
 
 实验性 `Settings.native_owned_bounded_core_support_enabled=True` 只用于新会话，在已有 native-owned/automatic MOSS 与词汇证据前提下，让原始重叠目标等待后续 core，并以实际提交和来源证据绑定最多四个根、20 秒的支持区间。当前 v2 使用保守的全 store GC fence，尚不能声称长期孤儿回收可用；v2 说话人身份 annotation/linking 保持拒绝，文本和转写仅保留任务局部标签。

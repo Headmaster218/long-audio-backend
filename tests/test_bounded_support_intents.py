@@ -417,7 +417,7 @@ def assert_conservation(h, page):
                 assert ''.join(item[field] for item in ordered).encode('utf-8') == parent[field].encode('utf-8')
 
 
-def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(bounded_app_factory):
+def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(bounded_app_factory, capsys):
     with bounded_app_factory() as h:
         chunks, waiting = advance_to_waiter(h)
         original_target = waiting['target_body']; owner_key = waiting['candidate_key']
@@ -427,6 +427,14 @@ def test_c_full_target_wait_bind_publish_result_transcript_and_disabled_restart(
         bound = c_target(h); doc = json.loads(bound['proof'])
         assert bound['candidate_key'] == owner_key and bound['target_body'] == original_target
         assert bound['plan_phase'] == 'bound' and doc['schema'] == core.BOUNDED_SCHEMA
+        assert doc['inventories']['schema'] == core.COMPACT_INVENTORY_SCHEMA
+        assert 'atoms' not in doc['inventories']
+        assert all(set(parent) == {'row'} for parent in doc['inventories']['parents'])
+        assert len(bound['proof']) + len(bound['target_body']) <= 65536
+        with capsys.disabled():print('compact_c_envelope '+json.dumps({
+            'inventory_bytes': len(core.canonical(doc['inventories'])),
+            'proof_bytes': len(bound['proof']), 'target_bytes': len(bound['target_body']),
+            'combined_bytes': len(bound['proof']) + len(bound['target_body'])}, sort_keys=True), flush=True)
         assert [doc['geometry']['start_frame'], doc['geometry']['end_frame']] == C_SUPPORT
         assert doc['target']['identity']['components'] == C_COMPONENTS
         assert len(doc['commits']) == 3
@@ -615,3 +623,76 @@ def test_waiter_maintenance_refusal_does_not_prevent_primary_claim(bounded_app_f
         assert h.automatic._bounded_deadlines == deadlines
         assert not h.drivers and not h.natives and h.jobs._live is None
         assert h.jobs.permit._optional is None and not h.owner._pins
+
+
+def test_compact_inventory_old_validator_refuses_before_owner_admission(bounded_app_factory, monkeypatch):
+    from audio_backend import native_owned_cells as cells
+    from test_bounded_core_support import source52_inventory_oracle
+    with bounded_app_factory() as h:
+        chunks, _ = advance_to_waiter(h)
+        assert process_primary(h) == chunks[-1]['id']
+        row = c_target(h); doc, support, parts = cells.validate_document(row['proof'])
+        assert doc['inventories']['schema'] == core.COMPACT_INVENTORY_SCHEMA
+        oracle = source52_inventory_oracle(); anchor = core.anchor(doc['commits'][-1])
+        submitted = []; submit = h.owner.submit
+        def observed_submit(kind, payload, *args, **kwargs):
+            if kind == 'publish_auto':submitted.append(kind)
+            return submit(kind, payload, *args, **kwargs)
+        monkeypatch.setattr(h.owner, 'submit', observed_submit)
+        # The pinned source52 validator refuses this exact candidate before a
+        # Cell can reach the owner. This does not simulate an entire old binary.
+        with monkeypatch.context() as old:
+            old.setattr(core, 'validate_bounded_document', oracle['validate_bounded_document'])
+            with pytest.raises(Unavailable, match='^core_seam_shape$'):
+                cell = cells.Cell(support, parts, row['proof'], fixture_pcm(*C_SUPPORT), h.sid,
+                    anchor['chunk_id'], anchor['start'], anchor['end'], anchor['sha256'])
+                h.owner.submit('publish_auto', (row['candidate_key'], cell))
+        assert not submitted and not h.publications
+        assert c_target(h) == row
+        assert row['state'] == 'queued' and row['job_id'] is None
+        assert not h.drivers and h.jobs._live is None and not h.owner._pins
+
+
+@pytest.mark.parametrize('boundary', [1, 2, 3])
+def test_compact_inventory_each_fresh_boundary_rejects_current_row_or_source_mutation(
+        bounded_app_factory, monkeypatch, boundary):
+    from audio_backend import native_owned_cells as cells
+    from audio_backend.native_owned_cell_store import Operation
+    with bounded_app_factory() as h:
+        chunks, _ = advance_to_waiter(h)
+        assert process_primary(h) == chunks[-1]['id']
+        row = c_target(h); doc, support, parts = cells.validate_document(row['proof'])
+        assert doc['inventories']['schema'] == core.COMPACT_INVENTORY_SCHEMA
+        anchor = core.anchor(doc['commits'][-1])
+        cell = cells.Cell(support, parts, row['proof'], fixture_pcm(*C_SUPPORT), h.sid,
+            anchor['chunk_id'], anchor['start'], anchor['end'], anchor['sha256'])
+        original = h.owner._cell_current; calls = []
+        def mutate(op, proposed, budget):
+            calls.append(True)
+            if len(calls) == boundary:
+                with h.store.db() as db:
+                    if boundary == 2:
+                        source = doc['inventories']['sources'][0]
+                        replacement = ('e' if source['digest'] == 'f' * 64 else 'f') * 64
+                        assert db.execute('UPDATE chunks SET digest=? WHERE id=?',
+                            (replacement, source['id'])).rowcount == 1
+                    else:
+                        parent = doc['inventories']['parents'][0]['row']
+                        assert db.execute('UPDATE segments SET text=? WHERE id=?',
+                            (parent['text'] + '甲', parent['id'])).rowcount == 1
+            return original(op, proposed, budget)
+        monkeypatch.setattr(h.owner, '_cell_current', mutate)
+        operation = h.owner.submit('publish_auto', (row['candidate_key'], cell))
+        assert isinstance(operation, Operation) and operation.slot_released.wait(3.)
+        assert operation.result['status'] == 'unknown'
+        assert operation.result['reason'] == {1: 'primary_commit_or_source_unavailable',
+            2: 'source_changed_before_publication_commit',
+            3: 'source_changed_after_publication_commit'}[boundary]
+        assert len(calls) == boundary
+        db = sqlite3.connect(h.owner.path.as_uri() + '?mode=ro', uri=True)
+        try:retained = db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell.cell_id,)).fetchone()
+        finally:db.close()
+        assert retained is None if boundary < 3 else retained[0] == row['proof']
+        assert all(record['publish_returned_durable'] == 0 for _, record in h.publications)
+        assert c_target(h)['state'] == 'queued' and c_target(h)['job_id'] is None
+        assert not h.drivers and h.jobs._live is None and not h.owner._pins

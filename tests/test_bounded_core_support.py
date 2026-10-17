@@ -453,3 +453,258 @@ def test_pcm_source_mapping_query_and_frozen_target_tampering_fail_closed():
     with pytest.raises(cells.Unavailable):cells.validate_document(cells.canonical(doc))
     doc = json.loads(cell.proof); doc['target']['identity']['components'] = [[2, 7]]
     with pytest.raises(cells.Unavailable):cells.validate_document(cells.canonical(doc))
+
+
+# Frozen source52 pure oracle; no historical database or runtime is loaded.
+_SOURCE52_CORE_SHA256 = '9f52933218006ba7ea5630dd8d4916b60038276fa52cbcd0d18022313cb45114'
+_SOURCE52_INVENTORY_ORACLE = 'def lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None):\n    from .native_owned_support_cache import ReadError\n    try:\n        return _lexical_snapshot(sid, rows, sources, scope_origin,\n            complete=complete, scan_frames=scan_frames)\n    except ReadError as exc:\n        # Shared projection validators use their HTTP/read-domain exception.\n        # Numeric planning keeps this an optional unresolved placement result.\n        raise Unavailable(exc.reason) from exc\n\ndef _lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None):\n    """Pure adapter over the *existing* inventory and ordinal-group validators.\n\n    The caller supplies a complete bounded indexed scan and source snapshots.\n    No database or source I/O is hidden here, including for a stale inventory.\n    Retaining exact rows allows proof decoding to repeat identical semantics.\n    """\n    from .lexical_evidence import current_inventory, SOURCE_FIELDS, MAX_SEGMENT_BYTES\n    from .transcript_contract import PRIMARY_FIELDS, primary_evidence, primary_frame\n    from .transcript_projection import lexical_groups\n    from .transcript_store import CONTEXT_SECONDS\n    text(sid)\n    if complete is not True:raise Unavailable(\'incomplete_primary\')\n    if type(rows) not in (list, tuple) or len(rows) > MAX_PLAN_PARENTS:\n        raise Unavailable(\'primary_capacity\')\n    if type(sources) is not dict or not 1 <= len(sources) <= MAX_PARTS:\n        raise Unavailable(\'source_part_capacity\')\n    origin = exact_frame(scope_origin)\n    if type(scan_frames) not in (list, tuple) or len(scan_frames) != 2:\n        raise Unavailable(\'incomplete_primary\')\n    scan_start, scan_end = scan_frames; integer(scan_start); integer(scan_end)\n    if scan_start >= scan_end:raise Unavailable(\'incomplete_primary\')\n    retained_sources = []\n    for cid in sorted(sources):\n        source = sources[cid]\n        if any(k not in source for k in SOURCE_FIELDS):raise Unavailable(\'source_unavailable\')\n        item = {k: source[k] for k in SOURCE_FIELDS}\n        text(cid); digest(item[\'digest\'])\n        if item[\'id\'] != cid or item[\'session_id\'] != sid:raise Unavailable(\'source_unavailable\')\n        exact_frame(item[\'timeline_start\']); integer(exact_frame(item[\'duration\']), minimum=1)\n        retained_sources.append(item)\n    parents = []; atoms = []; units = 0; seen = set()\n    for supplied in rows:\n        row = {k: supplied[k] for k in (*PRIMARY_FIELDS, \'lexical_evidence\')}\n        if row[\'id\'] in seen:raise Unavailable(\'bounded_primary_duplicate\')\n        seen.add(row[\'id\'])\n        if row[\'chunk_id\'] not in sources:raise Unavailable(\'source_unavailable\')\n        raw = row[\'lexical_evidence\']\n        if raw is not None and (type(raw) is not str or len(raw) > MAX_SEGMENT_BYTES):\n            raise Unavailable(\'inventory_capacity\')\n        parent = primary_evidence(sid, row)\n        own = sources[row[\'chunk_id\']]\n        if (parent[\'start_frame\'] < max(0, primary_frame(own[\'timeline_start\']) - CONTEXT_SECONDS * RATE) or\n                parent[\'end_frame\'] > primary_frame(own[\'timeline_start\'] + own[\'duration\'], end=True) + CONTEXT_SECONDS * RATE):\n            raise Unavailable(\'primary_source_placement\')\n        if not (parent[\'start_frame\'] < origin + scan_end and origin + scan_start < parent[\'end_frame\']):\n            raise Unavailable(\'bounded_primary_scan_mismatch\')\n        current = current_inventory(None, sid, row, source_lookup=lambda cid: sources.get(cid))\n        groups = lexical_groups(parent, current) if current is not None else None\n        if current is not None:\n            units += len(current[\'inventory\'][\'units\'])\n            if units > MAX_PLAN_UNITS:raise Unavailable(\'lexical_unit_capacity\')\n        parent_atoms = groups if groups is not None else [parent]\n        descriptors = []\n        for item in parent_atoms:\n            atom = {\'source\': item[\'source\'], \'segment_id\': row[\'id\'],\n                \'start_frame\': item[\'start_frame\'] - origin, \'end_frame\': item[\'end_frame\'] - origin}\n            # ASR context may precede a nonzero recording scope origin. Keep\n            # that known placement; only source/support frames must be >= 0.\n            integer(atom[\'start_frame\'], minimum=-((1 << 53) - 1))\n            integer(atom[\'end_frame\'], minimum=-((1 << 53) - 1))\n            if groups is not None:\n                atom.update(unit_range=item[\'unit_range\'], display_span=item[\'display_span\'], raw_span=item[\'raw_span\'],\n                    parent_start_frame=item[\'parent_start_frame\'] - origin,\n                    parent_end_frame=item[\'parent_end_frame\'] - origin,\n                    inventory_sha256=current[\'inventory_sha256\'], policy_sha256=item[\'policy_sha256\'])\n            descriptors.append(atom); atoms.append(atom)\n            if len(atoms) > MAX_PLAN_ATOMS:raise Unavailable(\'lexical_atom_capacity\')\n        parents.append({\'row\': row, \'primary_sha256\': parent[\'content_sha256\'],\n            \'inventory_sha256\': current[\'inventory_sha256\'] if current is not None else None,\n            \'atoms\': descriptors})\n    snapshot = {\'schema\': INVENTORY_SCHEMA, \'session_id\': sid, \'origin\': float(scope_origin).hex(),\n        \'scan_frames\': [scan_start, scan_end], \'complete\': True,\n        \'parents\': parents, \'sources\': retained_sources, \'atoms\': atoms, \'unit_count\': units}\n    canonical(snapshot)\n    return snapshot\n\ndef validate_inventory(snapshot):\n    exact(snapshot, \'schema session_id origin scan_frames complete parents sources atoms unit_count\')\n    if snapshot[\'schema\'] != INVENTORY_SCHEMA:raise Unavailable(\'bounded_inventory_policy\')\n    if type(snapshot[\'parents\']) is not list or len(snapshot[\'parents\']) > MAX_PLAN_PARENTS:\n        raise Unavailable(\'primary_capacity\')\n    if type(snapshot[\'sources\']) is not list or not 1 <= len(snapshot[\'sources\']) <= MAX_PARTS:\n        raise Unavailable(\'source_part_capacity\')\n    sources = {}\n    for source in snapshot[\'sources\']:\n        if type(source) is not dict or source.get(\'id\') in sources:\n            raise Unavailable(\'bounded_source_duplicate\')\n        sources[source.get(\'id\')] = source\n    try:origin = float.fromhex(snapshot[\'origin\'])\n    except (TypeError, ValueError) as exc:raise Unavailable(\'core_seam_origin\') from exc\n    if not math.isfinite(origin) or origin.hex() != snapshot[\'origin\']:\n        raise Unavailable(\'core_seam_origin\')\n    expected = lexical_snapshot(snapshot[\'session_id\'], [p[\'row\'] for p in snapshot[\'parents\']],\n        sources, origin, complete=snapshot[\'complete\'], scan_frames=snapshot[\'scan_frames\'])\n    if canonical(expected) != canonical(snapshot):raise Unavailable(\'bounded_inventory_mismatch\')\n    return snapshot\n\ndef select_support(target, commits, snapshot, query_start, query_end):\n    """One deterministic fixed point, never a search over acoustic attempts."""\n    from .transcript_projection import _legal\n    identity, originals = validate_target(target); validate_inventory(snapshot)\n    ca, cb = bounded_chain(commits); integer(query_start); integer(query_end)\n    all_roots = {slot(c): c for c in originals}\n    for c in commits:\n        if slot(c) in all_roots and all_roots[slot(c)] != c:\n            raise Unavailable(\'core_slot_evidence_conflict\')\n        all_roots[slot(c)] = c\n    if len(all_roots) > MAX_BOUND_COMMITS:raise Unavailable(\'commitment_capacity\')\n    bounded_chain(sorted(all_roots.values(), key=lambda c: c[\'part\'][\'logical_start\']))\n    if (identity[\'scope\'] != {k: commits[0][\'scope\'][k] for k in identity[\'scope\']}\n            or snapshot[\'session_id\'] != identity[\'scope\'][\'session_id\']\n            or snapshot[\'origin\'] != identity[\'scope\'][\'origin\']\n            or not snapshot[\'scan_frames\'][0] <= ca < cb <= snapshot[\'scan_frames\'][1]):\n        raise Unavailable(\'bounded_plan_scope\')\n    if not 0 < query_end - query_start <= CORE_FRAMES:raise Unavailable(\'core_seam_query_coverage\')\n    atoms = snapshot[\'atoms\']; components = identity[\'components\']\n    # Exact source placement must remain equal, even for an alias-origin O.\n    for (a, b), expected in zip(components, identity[\'mapping\']):\n        if [asdict(p) for p in bounded_mapping(commits, a, b)] != expected:\n            raise Unavailable(\'bounded_target_mapping_changed\')\n    def legal(a, b):\n        return (0 < b - a <= SUPPORT_FRAMES and ca <= a < b <= cb\n            and query_start <= a < b <= query_end\n            and all(a <= lo < hi <= b for lo, hi in components)\n            and any(a < atom[\'end_frame\'] and atom[\'start_frame\'] < b for atom in atoms)\n            and _legal(a, b, atoms))\n    original = json.loads(target[\'origins\'][0][\'proof\'])[\'support\']\n    a, b = original[\'start_frame\'], original[\'end_frame\']\n    if legal(a, b):return {\'start_frame\': a, \'end_frame\': b}\n    a, b = components[0][0], components[-1][1]; included = set()\n    ordered = sorted(enumerate(atoms), key=lambda pair: (pair[1][\'start_frame\'], pair[1][\'end_frame\'], pair[0]))\n    changed = True\n    while changed:\n        changed = False\n        for index, atom in ordered:\n            if index not in included and a < atom[\'end_frame\'] and atom[\'start_frame\'] < b:\n                included.add(index)\n                lo, hi = min(a, atom[\'start_frame\']), max(b, atom[\'end_frame\'])\n                if (lo, hi) != (a, b):changed = True\n                a, b = lo, hi\n        if b - a > SUPPORT_FRAMES:raise Unavailable(\'support_duration\')\n    if not included:raise Unavailable(\'unresolved_lexical_gap\')\n    if not ca <= a < b <= cb:raise Unavailable(\'authority_unavailable\')\n    if not query_start <= a < b <= query_end:raise Unavailable(\'witness_unavailable\')\n    if not legal(a, b):raise Unavailable(\'no_legal_fixed_point\')\n    return {\'start_frame\': a, \'end_frame\': b}\n\ndef dependency_roots(target, commits, inventories):\n    """One canonical role mask per (source, compact); slots never coalesce."""\n    _, originals = validate_target(target); bounded_chain(commits)\n    validate_inventory(inventories)\n    roots = {}; unique_slots = set()\n    def add(cid, compact, role):\n        text(cid)\n        if compact is not None:digest(compact); unique_slots.add(compact)\n        key = (cid, compact)\n        roots[key] = roots.get(key, 0) | role\n    for c in originals:add(c[\'part\'][\'chunk_id\'], slot(c), 1)\n    for c in commits:add(c[\'part\'][\'chunk_id\'], slot(c), 2)\n    for source in inventories[\'sources\']:add(source[\'id\'], None, 4)\n    for parent in inventories[\'parents\']:add(parent[\'row\'][\'chunk_id\'], None, 8)\n    if len(unique_slots) > MAX_BOUND_COMMITS:raise Unavailable(\'commitment_capacity\')\n    if len({cid for cid, _ in roots}) > MAX_PARTS:raise Unavailable(\'source_part_capacity\')\n    result = [{\'kind\': roots[key], \'cid\': key[0], \'slot\': key[1]}\n              for key in sorted(roots, key=lambda key: (key[0], key[1] or \'\'))]\n    canonical(result, 4096)\n    return result\n\ndef validate_bounded_document(proof, doc=None):\n    if type(proof) is not bytes or not 1 <= len(proof) <= PROOF_BYTES:raise Unavailable(\'proof_capacity\')\n    if doc is None:doc = json.loads(proof)\n    exact(doc, \'schema policy commits geometry support dependencies query right_evidence selection publication_anchor selected coverage target inventories dependency_roots target_sha256\')\n    if doc[\'schema\'] != BOUNDED_SCHEMA or doc[\'policy\'] != BOUNDED_POLICY_SHA256 or doc[\'selected\'] is not True:\n        raise Unavailable(\'core_seam_policy\')\n    identity, originals = validate_target(doc[\'target\']); commits = doc[\'commits\']\n    ca, cb = bounded_chain(commits); validate_inventory(doc[\'inventories\'])\n    shape = exact(doc[\'geometry\'], \'start_frame end_frame\')\n    _bounded_query(doc[\'query\'], commits[-1], shape, doc[\'right_evidence\'])\n    if doc[\'target_sha256\'] != sha(doc[\'target\']):raise Unavailable(\'bounded_target_hash\')\n    expected_shape = select_support(doc[\'target\'], commits, doc[\'inventories\'],\n        doc[\'query\'][\'query_start_frame\'], doc[\'query\'][\'query_end_frame\'])\n    if shape != expected_shape:raise Unavailable(\'bounded_nondeterministic_support\')\n    current_overlap = overlap_components(doc[\'query\'][\'turns\'], shape[\'start_frame\'], shape[\'end_frame\'])\n    if any(not any(a <= lo < hi <= b for a, b in current_overlap) for lo, hi in identity[\'components\']):\n        raise Unavailable(\'bounded_current_target_disagreement\')\n    # Current query scope is identical to every accepted origin\'s acoustic scope.\n    if any(c[\'scope\'] != commits[-1][\'scope\'] for c in originals):\n        raise Unavailable(\'unresolved_scope_transition\')\n    parts = bounded_mapping(commits, shape[\'start_frame\'], shape[\'end_frame\'])\n    if doc[\'dependencies\'] != [asdict(p) for p in parts]:raise Unavailable(\'core_seam_mapping\')\n    if doc[\'dependency_roots\'] != dependency_roots(doc[\'target\'], commits, doc[\'inventories\']):\n        raise Unavailable(\'bounded_dependency_mismatch\')\n    from .native_owned_seam_cells import selected_pair\n    if doc[\'selection\'] != selected_pair([doc[\'query\']], shape[\'start_frame\'], shape[\'end_frame\']):\n        raise Unavailable(\'core_seam_selection\')\n    support = SourceSupport.from_dict(doc[\'support\']); contents = [p.content() for p in parts]\n    expected_core = sha({\'commits\': commits, \'geometry\': shape, \'query\': doc[\'query\'],\n        \'target_sha256\': doc[\'target_sha256\'], \'inventories_sha256\': sha(doc[\'inventories\']),\n        \'dependency_roots\': doc[\'dependency_roots\']})\n    if (support.source_generation != sha({\'schema\': \'immutable-source-cell-generation-v1\', \'sources\': contents})\n            or support.plan_sha256 != sha({\'schema\': \'bounded-cell-mapping-v1\', \'parts\': contents})\n            or support.native_runtime_sha256 != commits[-1][\'runtime_sha256\']\n            or support.core_sha256 != expected_core\n            or (support.source_frames, support.core_start_frame, support.core_end_frame,\n                support.start_frame, support.end_frame) != (cb, ca, cb, shape[\'start_frame\'], shape[\'end_frame\'])\n            or support.pcm16le_sha256 != doc[\'query\'][\'support_pcm16le_sha256\']):\n        raise Unavailable(\'core_seam_support\')\n    if doc[\'publication_anchor\'] != anchor(commits[-1]) or doc[\'coverage\'] != coverage(doc):\n        raise Unavailable(\'core_seam_publication\')\n    if canonical(doc) != proof:raise Unavailable(\'noncanonical_proof\')\n    return doc, support, parts\n\ndef make_bounded_cell(commits, query, evidence, pcm, target, snapshot):\n    from .native_owned_seam_cells import selected_pair\n    shape = select_support(target, commits, snapshot, query[\'query_start_frame\'], query[\'query_end_frame\'])\n    ca, cb = bounded_chain(commits); parts = bounded_mapping(commits, shape[\'start_frame\'], shape[\'end_frame\'])\n    contents = [p.content() for p in parts]; target_hash = sha(target)\n    roots = dependency_roots(target, commits, snapshot)\n    support = SourceSupport(sha({\'schema\': \'immutable-source-cell-generation-v1\', \'sources\': contents}),\n        sha({\'schema\': \'bounded-cell-mapping-v1\', \'parts\': contents}), commits[-1][\'runtime_sha256\'],\n        sha({\'commits\': commits, \'geometry\': shape, \'query\': query, \'target_sha256\': target_hash,\n             \'inventories_sha256\': sha(snapshot), \'dependency_roots\': roots}),\n        cb, ca, cb, shape[\'start_frame\'], shape[\'end_frame\'], hashlib.sha256(pcm).hexdigest(), float32_digest(pcm))\n    doc = {\'schema\': BOUNDED_SCHEMA, \'policy\': BOUNDED_POLICY_SHA256, \'commits\': list(commits),\n        \'geometry\': shape, \'support\': support.to_dict(), \'dependencies\': [asdict(p) for p in parts],\n        \'query\': query, \'right_evidence\': evidence,\n        \'selection\': selected_pair([query], shape[\'start_frame\'], shape[\'end_frame\']),\n        \'publication_anchor\': anchor(commits[-1]), \'selected\': True, \'target\': target,\n        \'target_sha256\': target_hash, \'inventories\': snapshot, \'dependency_roots\': roots}\n    doc[\'coverage\'] = coverage(doc); p = doc[\'publication_anchor\']\n    return Cell(support, parts, canonical(doc), pcm, commits[-1][\'scope\'][\'session_id\'],\n                p[\'chunk_id\'], p[\'start\'], p[\'end\'], p[\'sha256\'])\n'
+_SOURCE52_ORACLE_SHA256 = 'eee113a98da3ef725841a8fb26dad6aea07a02b112706957d8b3a68011d164f4'
+_SOURCE52_UNCHANGED_FUNCTIONS = {'store_policy': '4ae3a8bc27e762d29a25fc89fcba4d128efbb17215004f0edde765da957c0cff', 'is_core': 'b24075a23a798641a7811fc1b06c4a7a0f4a37f0893ba4ed466eb88d64f54deb', 'policy': '4d7f2bab073ec320f2b5ddd98e3520663a0fa558bc6700f2d43583f35d4515ca', 'exact': '403c63a238fa0774c61921af1f36805aa0614d40999c63f729757cf2ca4bd94a', 'scope_key': 'a90c417a53eb5b49315c982c158b0ca65c035aca7f4ca9a679eef917e3bed921', 'slot': '4b030de9b9d923a9cf3a2f41bb7b6cd7f4710f29403a43b533ab45e74a0f7573', 'anchor': '252d887e828406cda2d6457d699522422e35cbe81edb7442b61e3c1e09ec5220', 'validate_commit': 'fba2339655e09f7e430e32be9909f69df2f4c1850fdc1cf424ded1db3e24168e', 'geometry': 'd1765c734ae9e25dc432541ad551a7cb3716ba53c664f324b7f353dc91d2381d', 'mapping': '69b0aae7be6193892f878296ceeca3424e4bc171f3f879e739eae5d5797fd63d', 'ownership': '3bf8843afb3adaedb21eaea9675ab8ebe8c611c8efc8354154585c3dc144fa4b', 'coverage': '8a85b4fffc1b7b4f9158ad176bbba102f6b4d1a97896a24fd982a551010ac08f', 'validate_query': '8182eb46f4793e0e99ef87d101e540755d45c34bf9cb415c7404ae99806ad31f', 'validate_document': '55e5444292e6b7f9227d18fb9867dc889451ed8ef9572737f16a7d8c36430e44', 'make_cell': 'eab84814d3e36d966cd214b7fde13a161d75f98b66a81fbb2bc91dad3df3192b', 'overlap_components': '3bc049b9be52b9b8f0856ef2467e7a0022e74902e0d8add3d8f929d7bf23f3d5', 'bounded_chain': '337636142e762bb89c73483aa3673cad82051e18066dd08c93c1d71ccd1bb7de', 'bounded_mapping': '2cb6c9452b7b3a53458986264f9ebf4f99b25a42a2f7b7855b1f4bd749ce467d', 'origin_certificate': 'fa5dc1be41eaaa519dd21d7d3f750ff81ab06e5469c1c5600ce9a2bf7f554521', '_origin_identity': 'b93d3e073c83df615f00cc707c3bbc3286fec9148af2d6d24ebda14c4445f5d9', 'original_target': 'dd01994f5e061c8acf2cf816786658c681f1ecd9ed5db8c6e05ba026731d77b4', 'validate_target': 'c642e88ac8e9c841064b1b51adaee50c91ea0919b135896d3ee738e2b74c5605', 'append_target_origin': 'c6f898e3218d1c46da788634f5a2796e8512706fcaeb0d1803d85b0c49c97941', '_bounded_query': 'd94c01db700d96bf416e3327d2cb83aa540208bed28a4aa6189c898765ddeec9', 'init_schema': '780abd1ac0bcc1ca80be7e85e839e186514df54b4fd3038ef6546adc01f3a554', 'retention_counts': '6ea007c321c5a9faeb7f5750b9ae92f82285470b87f6f4f259af59e4ce0710e0', 'read_commit': '014859aff28b21035a97f76266b232c67420a5835a006a31c4a48d152d28f555', '_gc_guard': '4a4f1cdba5281259a8964ecc2c49210d97ccf39603e78e3443d6459d79e19200', '_gc_outbox_root': 'c52b72ee35f09594a42fe9458d4e42c205f6475a66a31417183547a5fc882f57', '_gc_stream_source': '3e779a4d54e555267bb4f4e087e1fa68cf0be0bad02bea86e41c0b89bb1d3055', '_gc_exact_row': '3af6b2f377222c80652154e842a46bbf81dbe140af783fca53a87422c8d7beb2', '_gc_receipt': 'fd1ca96cf2bd6b6de2dadd6aa2a221ea5075d6b83204c23252353b275523fd2b', '_gc_store_eligible': '9358a46c7d99ebeb5def22893c149900d3c308b3a2446856ea7f6bc5ca11137f', 'collect_compacts': '64689c698fa522a1fa3eb39aa10c3b18101f4c4c972c44bed86db1c0aecba107', 'transaction': 'a34d1291d5c64515def230f65cb59dedcc47066d1145197e4c10a96565251d0d', 'current': '5b9183d5f692363ed0f533f39dcf933ccfc90254aa8955ee07f71357c719023e', 'collect_receipts': '2d8a54a90060adf62c237dcb01673644872f200be5ea5365ad1426b1ab84b3c5'}
+_SOURCE52_CONSTANTS = {'SCHEMA': 'a93dcab985400372ccef24d4bdce13aa04230b051c18c36c05e46f442aa2d009', 'RESET_SCHEMA': '14cfd4eb7a9c083aa34ddde9dfd881558179b807d4c92e88d537dcdab652ea44', 'RESTART_SCHEMA': '838f31b41245566bb11977dd77bbc800852d827042218441d00aae8bacc0ce1b', 'BOUNDED_SCHEMA': '5c78800447c1a146440a631c5421c6ff512925c474dfdae5ca1c943066032d10', 'TARGET_SCHEMA': 'a6bf1b768bdf6417b2c6e6da1cb64b20650c02d9d709e85f66e1da28d15d79c4', 'INVENTORY_SCHEMA': 'efe8f1b1dc76024a3a3e648a8e940c1e778b561bee8c617b0adebfa5154cb946', 'MAX_BOUND_COMMITS': '18c2c5afd1b5352fddedd29726c667397ec0d468e164b5a550cef8372d495f06', 'MAX_ORIGINS': 'f8140be7096d4007b5b1a091f537b6e63569716bdc66b4a2c01a3a9f6b18a20f', 'MAX_PLAN_PARENTS': 'bc79b9d282d78921129d5a6ad90157d850edfc38875da816a473e23fd517e7cc', 'MAX_PLAN_UNITS': '94591b39e8fcef4ff98a6183932bdca4801ab625bccf13a56ad5e4d2a1fd0fbe', 'MAX_PLAN_ATOMS': '5ab8cacd6cd2936ecfd84055fde979630caea4ccbce084ffad2eae7d4f6a8a00', 'SUPPORT_FRAMES': 'fd9e101a684c03dc7912971702301614fb87d1f921dbe54d0fd3cc6adc667991', 'COMPACT_BYTES': '1d95c1eed6915ec006562dc60c2d4c997cf006b3074c25ccb166dc58e1732e31', 'MAX_COMPACTS': '624f835ec62fb8f526aa40c36b50353fa2790603e4e387ecce2d1c0bda194dfa', 'PENDING_BYTES': 'eb1b0b48f2721fe41b0aff594a265c9bb75763e504a0b30af62aeadb7cec81ef', 'MAX_PENDING': '21498602f2af03c1807fad9810f27c228d91b6f367ebffdd91174d0eadfaf18a', 'COMPACT_GC_BATCH': 'bab15b66096e121f0e7cd5e94ce6d9209a4d5c9df4033b85536137a27b96d3c4', 'COMPACT_GC_BODY_BYTES': '9852fb6bde80207357a8297549c5b38157c83ab5c4d5cbebf331f643d86917fb', 'SIDE_FRAMES': 'a047df843132dec0a641f4be9e7aa368c288f75954d1bed3c5efe8b6da9937d4', 'POLICY': '8354c88ddf610952af79dcafed33a2c9dfb7fad430d5d32bde2eca7cd61eb129', 'POLICY_SHA256': '429ccd29ca057a9edd22e67540cb6226129af84645ab75fc673cce20106e4d0a', 'RESET_POLICY': '9e6001efa4f6eeb50278961a2f6f7a56acb2e6f122604a29bbf506bcd6b5de83', 'RESET_POLICY_SHA256': '778d78644fd7ead29c090325aeacc3a6be5121c3a9b80d45515c38d778b15d12', 'RESTART_POLICY': 'bdbe64dc7357167f0e166febb0fef4b20900967b1b3cbb723800a115d99db5e6', 'RESTART_POLICY_SHA256': '3dbc6fc609589aba922e1f9f89fa7e8384b49d8084a554541f288ffac104568c', 'BOUNDED_POLICY': '5b94f1b4c4a143f5091b7dd95fefb36683096a8ee2d91dfc243ea854fab15eb9', 'BOUNDED_POLICY_SHA256': '89433154003b78c7d5c9067996356813d61d70a0c9b0061ab9dd88a6022cf025'}
+_LITERAL_V1_INVENTORY = b'{"atoms":[],"complete":true,"origin":"0x0.0p+0","parents":[],"scan_frames":[0,1],"schema":"native-owned-bounded-inventory-v1","session_id":"bounded-synthetic-session","sources":[{"digest":"0000000000000000000000000000000000000000000000000000000000000000","duration":1.0,"id":"source","session_id":"bounded-synthetic-session","timeline_start":0.0}],"unit_count":0}'
+_LITERAL_V1_INVENTORY_SHA256 = 'aefc36f1f9d1b521e12b725943d5c0389da948423c02fe131c45b63453d952e5'
+
+
+def source52_inventory_oracle():
+    """Frozen encoder/validator closure; unchanged helpers are source-pinned.
+
+    Cell is replaced only by a result carrier, so the old proof producer never
+    indirectly invokes a new inventory reader. The frozen validator is then
+    called explicitly. This is old-code equivalence, not a saved old full proof.
+    """
+    import ast
+    import inspect
+    from types import SimpleNamespace
+    tree = ast.parse(inspect.getsource(core))
+    functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+    constants = {n.targets[0].id: n for n in tree.body if isinstance(n, ast.Assign)
+        and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)}
+    for name, expected in _SOURCE52_UNCHANGED_FUNCTIONS.items():
+        assert hashlib.sha256(ast.dump(functions[name], include_attributes=False).encode()).hexdigest() == expected
+    for name, expected in _SOURCE52_CONSTANTS.items():
+        assert hashlib.sha256(ast.dump(constants[name], include_attributes=False).encode()).hexdigest() == expected
+    assert hashlib.sha256(_SOURCE52_INVENTORY_ORACLE.encode()).hexdigest() == _SOURCE52_ORACLE_SHA256
+    namespace = dict(vars(core))
+    exec(compile(_SOURCE52_INVENTORY_ORACLE, '<frozen-source52-inventory>', 'exec'), namespace)
+    namespace['Cell'] = lambda support, parts, proof, *args: SimpleNamespace(
+        support=support, parts=parts, proof=proof)
+    return namespace
+
+
+def compact_snapshot_for(case, rows):
+    return core.lexical_snapshot(SID, rows, case['sources'], case['origin'],
+        scan_frames=core.bounded_chain(case['commits']), schema=core.COMPACT_INVENTORY_SCHEMA)
+
+
+def query_for_snapshot(case, snapshot, *, selector=core.select_support):
+    shape = selector(case['target'], case['commits'], snapshot,
+        case['query']['query_start_frame'], case['query']['query_end_frame'])
+    pcm = b'\0\0' * (shape['end_frame'] - shape['start_frame'])
+    query = deepcopy(case['query'])
+    query['support_pcm16le_sha256'] = hashlib.sha256(pcm).hexdigest()
+    query['capture_run'] = case['commits'][-1]['scope']['run']
+    query['turns'] = [{**turn, 'label': query['capture_run'] + ':' + turn['label']} for turn in query['turns']]
+    return query, pcm
+
+
+def compact_final_cell(case, rows):
+    snapshot = compact_snapshot_for(case, rows)
+    query, pcm = query_for_snapshot(case, snapshot)
+    return core.make_bounded_cell(case['commits'], query, case['evidences'][-1],
+        pcm, case['target'], snapshot)
+
+
+def test_compact_inventory_frozen_v1_bytes_and_full_proof_equivalence(capsys):
+    oracle = source52_inventory_oracle()
+    assert hashlib.sha256(_LITERAL_V1_INVENTORY).hexdigest() == _LITERAL_V1_INVENTORY_SHA256
+    literal = json.loads(_LITERAL_V1_INVENTORY)
+    assert cells.canonical(core.validate_inventory(literal)) == _LITERAL_V1_INVENTORY
+    assert cells.canonical(oracle['validate_inventory'](literal)) == _LITERAL_V1_INVENTORY
+    case = synthetic_case([0, 10, 20, 30], [(2, 8)])
+    rows = [primary_row(1, 0, 30)]
+    old_snapshot = oracle['lexical_snapshot'](SID, rows, case['sources'], case['origin'],
+        scan_frames=oracle['bounded_chain'](case['commits']))
+    query, pcm = query_for_snapshot(case, old_snapshot, selector=oracle['select_support'])
+    old = oracle['make_bounded_cell'](case['commits'], query, case['evidences'][-1],
+        pcm, case['target'], old_snapshot)
+    oracle['validate_bounded_document'](old.proof)
+    current = final_cell(case, rows)
+    assert current.proof == old.proof
+    assert hashlib.sha256(current.proof).digest() == hashlib.sha256(old.proof).digest()
+    assert cells.validate_document(old.proof)[1:] == (current.support, current.parts)
+    with capsys.disabled():print('compact_v1_equivalence', json.dumps({'inventory_bytes': len(cells.canonical(old_snapshot)),
+        'proof_bytes': len(old.proof), 'proof_sha256': hashlib.sha256(old.proof).hexdigest()}, sort_keys=True))
+
+
+@pytest.mark.parametrize('mode', ['lexical', 'null', 'opaque', 'noncanonical', 'stale', 'equal_parents', 'escaped'])
+def test_compact_inventory_lossless_numeric_and_atom_equivalence(mode):
+    case = synthetic_case([0, 64000], [(8000, 16000)])
+    row = lexical_row(case, 1, [{'text': '臺', 'raw_text': '台', 'start': .5, 'end': 1.},
+        {'text': '，', 'start': .5, 'end': .8}, {'text': '灣', 'raw_text': '湾', 'start': .5, 'end': 1.5},
+        {'text': '好', 'start': 2., 'end': 3.}])
+    if mode == 'escaped':
+        row = lexical_row(case, 1, [{'text': '甲"\\', 'raw_text': '乙\\"', 'start': .5, 'end': 1.},
+            {'text': '好', 'start': 2., 'end': 3.}])
+    if mode == 'null':row['lexical_evidence'] = None
+    elif mode == 'opaque':row['lexical_evidence'] = '{broken'
+    elif mode == 'noncanonical':row['lexical_evidence'] = json.dumps(json.loads(row['lexical_evidence']), indent=1)
+    elif mode == 'stale':
+        value = json.loads(row['lexical_evidence']); value['source_parts'][0]['digest'] = 'f' * 64
+        row['lexical_evidence'] = lexical.encoded(value).decode('ascii')
+    rows = [row]
+    if mode == 'equal_parents':
+        other = deepcopy(row); other['id'] = 2; value = json.loads(other['lexical_evidence'])
+        value['primary_sha256'] = lexical.primary_sha(SID, other)
+        other['lexical_evidence'] = lexical.encoded(value).decode('ascii'); rows.append(other)
+    old = snapshot_for(case, rows); compact = compact_snapshot_for(case, rows)
+    assert set(compact) == {'schema', 'session_id', 'origin', 'scan_frames', 'complete', 'parents', 'sources', 'unit_count'}
+    assert all(set(parent) == {'row'} for parent in compact['parents'])
+    view = core.inventory_view(compact)
+    assert view == old
+    assert [parent['row'] for parent in view['parents']] == rows
+    assert core.inventory_view(deepcopy(compact)) == view
+    assert compact_snapshot_for(case, rows) == compact
+    assert core.select_support(case['target'], case['commits'], compact, 0, 64000) == core.select_support(
+        case['target'], case['commits'], old, 0, 64000)
+    assert core.dependency_roots(case['target'], case['commits'], compact) == core.dependency_roots(
+        case['target'], case['commits'], old)
+    if mode in ('lexical', 'equal_parents', 'escaped'):
+        assert compact['parents'][0]['row']['lexical_evidence']['encoding'] == 'canonical-json-v1'
+        assert lexical.encoded(compact['parents'][0]['row']['lexical_evidence']['value']).decode('ascii') == row['lexical_evidence']
+    else:assert compact['parents'][0]['row']['lexical_evidence'] == row['lexical_evidence']
+    assert not core.same_numeric_snapshot(old, compact)
+
+
+def retained_size_rows(case, parent_count, unit_count, atom_count):
+    """Only retained scalar counts; every text/timing value here is synthetic."""
+    rows = []; remaining = unit_count; reductions = unit_count - atom_count
+    for index in range(parent_count):
+        count = -(-remaining // (parent_count - index)); remaining -= count
+        base = index * 2.0
+        units = []
+        for ordinal in range(count):
+            position = 0 if index == 0 and ordinal <= reductions else ordinal
+            start = base + position * .125
+            units.append({'text': '甲', 'raw_text': '甲', 'start': start, 'end': start + .0625})
+        rows.append(lexical_row(case, index + 1, units))
+    return rows
+
+
+@pytest.mark.parametrize('counts', [(8, 68, 65), (13, 106, 101), (12, 85, 80)])
+def test_compact_inventory_retained_size_geometry_and_complete_proof(counts, monkeypatch, capsys):
+    case = synthetic_case([0, 168000, 336000, 504000], [(8000, 16000)])
+    rows = retained_size_rows(case, *counts)
+    compact = compact_snapshot_for(case, rows); view = core.inventory_view(compact)
+    assert (len(view['parents']), view['unit_count'], len(view['atoms'])) == counts
+    # Observe the unchanged source52 semantic value immediately before its
+    # original persisted byte check; retain any actual serialization refusal.
+    oracle = source52_inventory_oracle()
+    original = oracle['canonical']
+    observed_old = []
+    def observe_old(value, maximum=cells.PROOF_BYTES):
+        if type(value) is dict and value.get('schema') == core.INVENTORY_SCHEMA:
+            observed_old.append(deepcopy(value))
+        return original(value, maximum)
+    oracle['canonical'] = observe_old
+    try:oracle['lexical_snapshot'](SID, rows, case['sources'], case['origin'], scan_frames=[0, 504000])
+    except cells.Unavailable as exc:assert str(exc) == 'serialization_capacity'
+    assert observed_old and observed_old[-1] == view
+    assert core.inventory_view(deepcopy(compact)) == view
+    measured = {'parents': counts[0], 'units': counts[1], 'atoms': counts[2],
+        'compact_bytes': len(cells.canonical(compact)),
+        'expanded_v1_bytes': len(lexical.encoded(view)), 'proof_bytes': None,
+        'target_bytes': len(cells.canonical(case['target'])), 'proof_accepted': False}
+    real = core.canonical
+    def observe(value, maximum=cells.PROOF_BYTES):
+        if type(value) is dict and value.get('schema') == core.BOUNDED_SCHEMA:
+            measured['proof_bytes'] = len(lexical.encoded(value))
+        return real(value, maximum)
+    monkeypatch.setattr(core, 'canonical', observe)
+    query, pcm = query_for_snapshot(case, compact)
+    try:
+        cell = core.make_bounded_cell(case['commits'], query, case['evidences'][-1], pcm, case['target'], compact)
+    except cells.Unavailable as exc:
+        assert str(exc) == 'serialization_capacity'
+        assert measured['proof_bytes'] is not None and measured['proof_bytes'] > cells.PROOF_BYTES
+    else:
+        assert len(cell.proof) == measured['proof_bytes'] <= cells.PROOF_BYTES
+        measured['proof_accepted'] = True
+    measured['proof_plus_target_bytes'] = measured['proof_bytes'] + measured['target_bytes']
+    measured['combined_capacity_fits'] = measured['proof_plus_target_bytes'] <= cells.PROOF_BYTES
+    with capsys.disabled():print('compact_retained_size', json.dumps(measured, sort_keys=True), flush=True)
+
+
+@pytest.mark.parametrize('mutation', ['unknown_schema', 'mixed_v1', 'extra_atoms', 'missing_sources',
+    'unknown_tag', 'tag_extra_key', 'tag_nonobject', 'raw_alias', 'row_text', 'source_digest',
+    'unit_anchor', 'unit_count'])
+def test_compact_inventory_wire_mutations_refuse(mutation):
+    case = synthetic_case([0, 64000], [(8000, 16000)])
+    row = lexical_row(case, 1, [{'text': '甲', 'start': .5, 'end': 1.}, {'text': '乙', 'start': 2., 'end': 3.}])
+    compact = compact_snapshot_for(case, [row]); changed = deepcopy(compact)
+    field = changed['parents'][0]['row']['lexical_evidence']
+    if mutation == 'unknown_schema':changed['schema'] = 'native-owned-bounded-inventory-v999'
+    elif mutation == 'mixed_v1':changed['schema'] = core.INVENTORY_SCHEMA
+    elif mutation == 'extra_atoms':changed['atoms'] = []
+    elif mutation == 'missing_sources':del changed['sources']
+    elif mutation == 'unknown_tag':field['encoding'] = 'canonical-json-v999'
+    elif mutation == 'tag_extra_key':field['raw'] = row['lexical_evidence']
+    elif mutation == 'tag_nonobject':field['value'] = []
+    elif mutation == 'raw_alias':changed['parents'][0]['row']['lexical_evidence'] = row['lexical_evidence']
+    elif mutation == 'row_text':changed['parents'][0]['row']['text'] += '丙'
+    elif mutation == 'source_digest':changed['sources'][0]['digest'] = 'f' * 64
+    elif mutation == 'unit_anchor':field['value']['units'][0]['ownership_anchor'] += .1
+    else:changed['unit_count'] += 1
+    with pytest.raises(cells.Unavailable):core.validate_inventory(changed)
+    assert compact_snapshot_for(case, [row]) == compact
+
+
+def test_compact_inventory_wire_and_count_caps_remain_hard():
+    case = synthetic_case([0, 64000], [(8000, 16000)])
+    row = primary_row(1, 0, 64000)
+    compact = compact_snapshot_for(case, [row])
+    mutations = []
+    more = deepcopy(compact); more['parents'] *= 129; mutations.append(more)
+    more = deepcopy(compact); more['sources'] *= 129; mutations.append(more)
+    more = deepcopy(compact); more['unit_count'] = 513; mutations.append(more)
+    more = deepcopy(compact); more['parents'][0]['row']['text'] = 'x' * 65536; mutations.append(more)
+    for changed in mutations:
+        with pytest.raises(cells.Unavailable):core.validate_inventory(changed)
+    units = [{'text': '甲', 'start': i * .02, 'end': i * .02 + .01} for i in range(129)]
+    with pytest.raises(cells.Unavailable, match='lexical_atom_capacity'):
+        compact_snapshot_for(case, [lexical_row(case, 1, units)])
+
+
+def test_compact_inventory_fit_does_not_relax_full_proof_capacity(monkeypatch, capsys):
+    case = synthetic_case([0, 10, 20, 30], [(2, 8)])
+    rows = [primary_row(1, 0, 30, text='x' * 30000)]
+    compact = compact_snapshot_for(case, rows)
+    assert len(cells.canonical(compact)) <= cells.PROOF_BYTES
+    sizes = []; original = core.canonical
+    def observe(value, maximum=cells.PROOF_BYTES):
+        if type(value) is dict and value.get('schema') == core.BOUNDED_SCHEMA:
+            sizes.append(len(lexical.encoded(value)))
+        return original(value, maximum)
+    monkeypatch.setattr(core, 'canonical', observe)
+    query, pcm = query_for_snapshot(case, compact)
+    with pytest.raises(cells.Unavailable, match='serialization_capacity'):
+        core.make_bounded_cell(case['commits'], query, case['evidences'][-1], pcm, case['target'], compact)
+    assert sizes and sizes[-1] > cells.PROOF_BYTES
+    # The independent comparison-input cap rejects before any SQL handle use.
+    with pytest.raises(cells.Unavailable, match='^bounded_certificate_capacity$'):
+        automatic._read_v2(None, key='0' * 64, expected=(b'x' * cells.PROOF_BYTES, b'y'))
+    with capsys.disabled():print('compact_full_proof_refusal', json.dumps({'compact_bytes': len(cells.canonical(compact)),
+        'proof_bytes': sizes[-1], 'limit_bytes': cells.PROOF_BYTES}, sort_keys=True))
+
+
+def test_compact_inventory_retained_id_remap_and_mixed_version_refusal():
+    case = synthetic_case([0, 64000], [(8000, 16000)])
+    row = lexical_row(case, (1 << 63) - 2,
+        [{'text': '甲', 'start': .5, 'end': 1.}, {'text': '乙', 'start': 2., 'end': 3.}])
+    actual_row = deepcopy(row); actual_row['id'] = 9
+    value = json.loads(actual_row['lexical_evidence']); value['primary_sha256'] = lexical.primary_sha(SID, actual_row)
+    actual_row['lexical_evidence'] = lexical.encoded(value).decode('ascii')
+    planned = compact_snapshot_for(case, [row]); actual = compact_snapshot_for(case, [actual_row])
+    assert core.same_numeric_snapshot(planned, actual, {row['id']: 9})
+    assert not core.same_numeric_snapshot(planned, snapshot_for(case, [actual_row]), {row['id']: 9})
+    refused = compact_snapshot_for(case, [dict(actual_row, lexical_evidence=None)])
+    assert not core.same_numeric_snapshot(planned, refused, {row['id']: 9})

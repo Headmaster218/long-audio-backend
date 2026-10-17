@@ -358,7 +358,8 @@ class TranscriptStore:
                 roots=doc['dependency_roots'];commitments=[*originals,*doc['commits']]
                 expected=doc['inventories'];origin=float.fromhex(expected['origin'])
                 saved=bounded_primary_snapshot(db,sid,origin,expected['scan_frames'],read_budget)
-                actual=lexical_snapshot(sid,saved['rows'],saved['sources'],origin,scan_frames=expected['scan_frames'])
+                actual=lexical_snapshot(sid,saved['rows'],saved['sources'],origin,
+                    scan_frames=expected['scan_frames'],schema=expected['schema'])
                 if actual!=expected:raise Unavailable('bounded_inventory_changed')
             else:roots=automatic._original_dependencies(target);commitments=originals
             row['source_roots']=sorted({root['cid'] for root in roots})

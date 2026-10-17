@@ -26,6 +26,7 @@ RESTART_SCHEMA = 'native-owned-restart-replay-core-seam-v1'
 BOUNDED_SCHEMA = 'native-owned-bounded-core-support-v1'
 TARGET_SCHEMA = 'native-owned-original-target-v2'
 INVENTORY_SCHEMA = 'native-owned-bounded-inventory-v1'
+COMPACT_INVENTORY_SCHEMA = 'native-owned-bounded-inventory-v2'
 MAX_BOUND_COMMITS = 4
 MAX_ORIGINS = 8
 MAX_PLAN_PARENTS = 128
@@ -517,11 +518,15 @@ def append_target_origin(target, origin):
     return result
 
 
-def lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None):
+def lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_frames=None,
+                     schema=INVENTORY_SCHEMA):
     from .native_owned_support_cache import ReadError
     try:
-        return _lexical_snapshot(sid, rows, sources, scope_origin,
+        if schema not in (INVENTORY_SCHEMA, COMPACT_INVENTORY_SCHEMA):
+            raise Unavailable('bounded_inventory_policy')
+        view = _lexical_snapshot(sid, rows, sources, scope_origin,
             complete=complete, scan_frames=scan_frames)
+        return _encode_inventory(view, schema)
     except ReadError as exc:
         # Shared projection validators use their HTTP/read-domain exception.
         # Numeric planning keeps this an optional unresolved placement result.
@@ -602,11 +607,34 @@ def _lexical_snapshot(sid, rows, sources, scope_origin, *, complete=True, scan_f
     snapshot = {'schema': INVENTORY_SCHEMA, 'session_id': sid, 'origin': float(scope_origin).hex(),
         'scan_frames': [scan_start, scan_end], 'complete': True,
         'parents': parents, 'sources': retained_sources, 'atoms': atoms, 'unit_count': units}
-    canonical(snapshot)
     return snapshot
 
 
-def validate_inventory(snapshot):
+def _encode_inventory(view, schema):
+    """Persist one lossless row/inventory copy, never the derived atom view."""
+    if schema == INVENTORY_SCHEMA:
+        canonical(view)
+        return view
+    if schema != COMPACT_INVENTORY_SCHEMA:raise Unavailable('bounded_inventory_policy')
+    from .lexical_evidence import encoded
+    parents = []
+    for parent in view['parents']:
+        row = dict(parent['row'])
+        if parent['inventory_sha256'] is not None:
+            raw = row['lexical_evidence']; value = json.loads(raw)
+            if encoded(value).decode('ascii') != raw:
+                raise Unavailable('bounded_inventory_roundtrip')
+            row['lexical_evidence'] = {'encoding': 'canonical-json-v1', 'value': value}
+        parents.append({'row': row})
+    result = {key: view[key] for key in
+        ('session_id', 'origin', 'scan_frames', 'complete', 'sources', 'unit_count')}
+    result.update(schema=COMPACT_INVENTORY_SCHEMA, parents=parents)
+    canonical(result)
+    return result
+
+
+def _legacy_inventory_view(snapshot):
+    """Exact v1 wire validation; historical bytes and hashes remain unchanged."""
     exact(snapshot, 'schema session_id origin scan_frames complete parents sources atoms unit_count')
     if snapshot['schema'] != INVENTORY_SCHEMA:raise Unavailable('bounded_inventory_policy')
     if type(snapshot['parents']) is not list or len(snapshot['parents']) > MAX_PLAN_PARENTS:
@@ -628,6 +656,68 @@ def validate_inventory(snapshot):
     return snapshot
 
 
+def inventory_view(snapshot):
+    """Validate versioned wire bytes and regenerate a bounded, pure semantic view.
+
+    Only the original wire payload may enter proof/core hashes or byte charges.
+    The derived v1-shaped view is temporary and is never persisted or serialized.
+    """
+    if type(snapshot) is not dict:raise Unavailable('core_seam_shape')
+    if snapshot.get('schema') == INVENTORY_SCHEMA:return _legacy_inventory_view(snapshot)
+    if snapshot.get('schema') != COMPACT_INVENTORY_SCHEMA:
+        raise Unavailable('bounded_inventory_policy')
+    canonical(snapshot)  # Screen the complete compact input before expansion.
+    exact(snapshot, 'schema session_id origin scan_frames complete parents sources unit_count')
+    if type(snapshot['parents']) is not list or len(snapshot['parents']) > MAX_PLAN_PARENTS:
+        raise Unavailable('primary_capacity')
+    if type(snapshot['sources']) is not list or not 1 <= len(snapshot['sources']) <= MAX_PARTS:
+        raise Unavailable('source_part_capacity')
+    integer(snapshot['unit_count'], maximum=MAX_PLAN_UNITS)
+    sources = {}
+    for source in snapshot['sources']:
+        if type(source) is not dict or source.get('id') in sources:
+            raise Unavailable('bounded_source_duplicate')
+        sources[source.get('id')] = source
+    try:origin = float.fromhex(snapshot['origin'])
+    except (TypeError, ValueError) as exc:raise Unavailable('core_seam_origin') from exc
+    if not math.isfinite(origin) or origin.hex() != snapshot['origin']:
+        raise Unavailable('core_seam_origin')
+    from .lexical_evidence import encoded, MAX_SEGMENT_BYTES
+    from .transcript_contract import PRIMARY_FIELDS
+    rows = []; tagged = []
+    for index, parent in enumerate(snapshot['parents']):
+        exact(parent, 'row')
+        row = dict(exact(parent['row'], ' '.join((*PRIMARY_FIELDS, 'lexical_evidence'))))
+        raw = row['lexical_evidence']
+        if type(raw) is dict:
+            exact(raw, 'encoding value')
+            if raw['encoding'] != 'canonical-json-v1' or type(raw['value']) is not dict:
+                raise Unavailable('bounded_inventory_encoding')
+            units = raw['value'].get('units')
+            if type(units) is not list or len(units) > MAX_PLAN_UNITS:
+                raise Unavailable('lexical_unit_capacity')
+            raw = encoded(raw['value']).decode('ascii'); tagged.append(index)
+            row['lexical_evidence'] = raw
+        if raw is not None and (type(raw) is not str or len(raw) > MAX_SEGMENT_BYTES):
+            raise Unavailable('inventory_capacity')
+        rows.append(row)
+    from .native_owned_support_cache import ReadError
+    try:
+        view = _lexical_snapshot(snapshot['session_id'], rows, sources, origin,
+            complete=snapshot['complete'], scan_frames=snapshot['scan_frames'])
+    except ReadError as exc:raise Unavailable(exc.reason) from exc
+    if any(view['parents'][index]['inventory_sha256'] is None for index in tagged):
+        raise Unavailable('bounded_inventory_encoding')
+    if canonical(_encode_inventory(view, COMPACT_INVENTORY_SCHEMA)) != canonical(snapshot):
+        raise Unavailable('bounded_inventory_mismatch')
+    return view
+
+
+def validate_inventory(snapshot):
+    inventory_view(snapshot)
+    return snapshot
+
+
 def same_numeric_snapshot(planned, actual, row_ids=None):
     """Match retained transaction rows to drafts, allowing only actual row IDs.
 
@@ -637,7 +727,10 @@ def same_numeric_snapshot(planned, actual, row_ids=None):
     Missing/refused inventory cannot silently convert a planned lexical atom
     into a whole opaque parent or choose a second support.
     """
-    validate_inventory(planned); validate_inventory(actual)
+    if type(planned) is not dict or type(actual) is not dict:
+        raise Unavailable('core_seam_shape')
+    if planned.get('schema') != actual.get('schema'):return False
+    planned, actual = inventory_view(planned), inventory_view(actual)
     row_ids = {} if row_ids is None else row_ids
     if type(row_ids) is not dict or len(row_ids) > MAX_PLAN_PARENTS:
         raise Unavailable('bounded_row_binding')
@@ -679,7 +772,7 @@ def same_numeric_snapshot(planned, actual, row_ids=None):
 def select_support(target, commits, snapshot, query_start, query_end):
     """One deterministic fixed point, never a search over acoustic attempts."""
     from .transcript_projection import _legal
-    identity, originals = validate_target(target); validate_inventory(snapshot)
+    identity, originals = validate_target(target); snapshot = inventory_view(snapshot)
     ca, cb = bounded_chain(commits); integer(query_start); integer(query_end)
     all_roots = {slot(c): c for c in originals}
     for c in commits:
@@ -730,7 +823,7 @@ def select_support(target, commits, snapshot, query_start, query_end):
 def dependency_roots(target, commits, inventories):
     """One canonical role mask per (source, compact); slots never coalesce."""
     _, originals = validate_target(target); bounded_chain(commits)
-    validate_inventory(inventories)
+    inventories = inventory_view(inventories)
     roots = {}; unique_slots = set()
     def add(cid, compact, role):
         text(cid)

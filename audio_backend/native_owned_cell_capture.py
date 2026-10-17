@@ -570,7 +570,7 @@ class PrimaryAuthority:
             found = bounded_primary_snapshot(db, snapshot['session_id'], origin,
                                              snapshot['scan_frames'], budget)
             return lexical_snapshot(snapshot['session_id'], found['rows'], found['sources'], origin,
-                                    scan_frames=snapshot['scan_frames'])
+                                    scan_frames=snapshot['scan_frames'], schema=snapshot['schema'])
         return self._read(budget, 'core_commit', read) == snapshot
 
     def session_valid(self, sid, budget):
@@ -1002,7 +1002,7 @@ class Capture:
                     raise Unavailable('bounded_prospective_id_collision')
                 rows = sorted([*found['rows'], *drafts], key=lambda row: row['id'])
                 snapshot = core.lexical_snapshot(chunk['session_id'], rows, found['sources'],
-                    self.scope_start, scan_frames=[ca, cb])
+                    self.scope_start, scan_frames=[ca, cb], schema=core.COMPACT_INVENTORY_SCHEMA)
                 handoff['snapshot'] = snapshot; handoff['draft_ids'] = [row['id'] for row in drafts]
                 handoff['commits'] = chain
                 used_bytes = len(canonical(snapshot)) + sum(

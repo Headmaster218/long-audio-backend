@@ -740,7 +740,7 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                 snapshot=bounded_primary_snapshot(db,chunk['session_id'],float.fromhex(planned['origin']),
                     planned['scan_frames'],budget)
                 actual=lexical_snapshot(chunk['session_id'],snapshot['rows'],snapshot['sources'],
-                    float.fromhex(planned['origin']),scan_frames=planned['scan_frames'])
+                    float.fromhex(planned['origin']),scan_frames=planned['scan_frames'],schema=planned['schema'])
                 ids=handoff.get('draft_ids',[])
                 if len(ids)!=len(lexical_rows):raise Unavailable('bounded_prospective_rows_changed')
                 if not same_numeric_snapshot(planned,actual,dict(zip(ids,[r['id'] for r in lexical_rows]))):
