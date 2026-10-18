@@ -1,0 +1,468 @@
+{
+  "version": "0.2.0rc3.dev48",
+  "qualification": "One exact replacement runtime has accepted finite SQLite allocation/process-crash recovery evidence. 468 of 469 affected model-free cases passed; one documented baseline failure remains unresolved. No inference or acoustic qualification.",
+  "published_parent_commit": "b78e9f3bed3baa63b23a176048d5164887c4bb27",
+  "published_parent_tree": "cfb1364e17919576c6a154ff53a4d00ed5b2f453",
+  "branch": "development/rc3-dev48-runtime-requalification",
+  "published_parent": {
+    "commit": "b78e9f3bed3baa63b23a176048d5164887c4bb27",
+    "only_changed_path_from_gate_input": "README.md",
+    "product_and_test_files_changed": false,
+    "readme": {
+      "bytes": 68574,
+      "path": "/workspace/scratch/12ec3121e93f/recording-primary-probe-links-dev47-final-20261018/source/README.md",
+      "sha256": "2df0e2d2636ce6846224761758b53c3ad506a634a5661e1472d1170f50970bfa"
+    },
+    "readme_git_blob": "2168fdd32ea1d8da7138af853d0c3ce847179246",
+    "source_bytes": 8833275,
+    "source_files": 520,
+    "source_manifest": {
+      "bytes": 81620,
+      "path": "/workspace/scratch/12ec3121e93f/recording-primary-probe-links-dev47-final-20261018/final-source-manifest.json",
+      "sha256": "69b45f8fe069544001208ce4f8c3a1ccb1088e11e4076419b6e51b730e6bab43"
+    },
+    "tree": "cfb1364e17919576c6a154ff53a4d00ed5b2f453"
+  },
+  "source_lineage": {
+    "physical_gate_input": {
+      "description": "Earlier dev47 export actually used by all four physical phases. Its README is76bytes shorter than the final published parent; the other519files match the published tree.",
+      "physical_source_module": {
+        "bytes": 103985,
+        "sha256": "d713c47e7402f80223d899ef332330dfed4f1849e32c7cd89ed462c5536f4e17"
+      },
+      "readme": {
+        "bytes": 68498,
+        "path": "/workspace/scratch/12ec3121e93f/recording-primary-probe-links-dev47-20261018/source/README.md",
+        "sha256": "7704899eac1f710846d86923106278ee4d47221b959f0899a1aeea32bd203475"
+      },
+      "source_bytes": 8833199,
+      "source_files": 520,
+      "source_manifest": {
+        "bytes": 81620,
+        "path": "/workspace/scratch/12ec3121e93f/recording-primary-probe-links-dev47-20261018/final-source-manifest.json",
+        "sha256": "b1e13e9be3b3120b25e27aa4b4454a7ee315bada38329561bd75a877eb95b57f"
+      }
+    },
+    "correction": "The physical gate and runtime restoration used the earlier 520-file export (8,833,199 bytes). Its README was 76 bytes shorter than the published parent. The other 519 files, including all product and test files, match the published parent. The candidate restored the exact published README before collection; no physical observation was relabeled as running from different bytes.",
+    "v1_terminal_preserved": {
+      "bytes": 6187,
+      "path": "/workspace/scratch/12ec3121e93f/native-cell-replacement-qualification-20261018/terminal-evidence.json",
+      "sha256": "da30cd7bfed4ab4dd9aa3a75a5727a0bb806c6be311a2b4904a9e1b019f16c73"
+    },
+    "v2_terminal": {
+      "bytes": 6111,
+      "sha256": "6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e"
+    },
+    "tested_candidate": {
+      "bytes": 67801,
+      "sha256": "81621e3931ac2b4a6ffd73c6e92bad327fd103ffb13304c2047eb622cb42d847"
+    },
+    "tested_source_files": 520,
+    "tested_source_bytes": 8835034,
+    "post_test_changes": "Only two version declarations, additive README, current qualification status prose, and this new report. All product behavior and selected test bytes remain those tested. Final source and offline package manifests are recorded separately; no final single-hash full-suite pass is claimed."
+  },
+  "product_scope": "Only the active RuntimeQualification evidence digest, interpreter-realpath hash, sqlite3-package inventory hash and descriptive docstring change. No selector, verifier, schema, storage bound, SQL limit, feature default or model algorithm change. Historical profiles/reports remain historical; only the current exact tuple is active.",
+  "active_profile": {
+    "allocation_slack_bytes_max": 2097152,
+    "compile_options_sha256": "600e922c0614cd07a1640976eb2e283b43072322af46cbeb0df7a998990095cb",
+    "filesystem_device": 27,
+    "interpreter_bytes": 30894944,
+    "interpreter_realpath_sha256": "65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b",
+    "interpreter_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+    "journal_headers_max": 1,
+    "platform": "linux",
+    "sector_bytes_max": 65536,
+    "sqlite3_binding": "observed-built-in-no-separate-sqlite-mapping-v1",
+    "sqlite3_extension_sha256": null,
+    "sqlite3_library_realpath_sha256": null,
+    "sqlite3_library_sha256": null,
+    "sqlite3_package_sha256": "7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1",
+    "sqlite_source_id": "2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9",
+    "sqlite_version": "3.53.1",
+    "vfs": "unix"
+  },
+  "physical_gate": {
+    "terminal_v2": {
+      "bytes": 6111,
+      "sha256": "6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e"
+    },
+    "terminal_v1": {
+      "bytes": 6187,
+      "sha256": "da30cd7bfed4ab4dd9aa3a75a5727a0bb806c6be311a2b4904a9e1b019f16c73"
+    },
+    "harness": {
+      "bytes": 22562,
+      "sha256": "07b998c71569082ce220fd219e87462a6bfc2023a91318167d59b31bddf8f55e"
+    },
+    "plan": {
+      "bytes": 4981,
+      "sha256": "795cdb40d345ed72395fb4a2f4c16f044dd5ea543f1ce1bf2efbaaec05f2d5da"
+    },
+    "phases": {
+      "crash": {
+        "bytes": 1730,
+        "path": "/workspace/scratch/12ec3121e93f/native-cell-replacement-qualification-20261018/crash.json",
+        "sha256": "b787f476b4074692630e18a20c0b4b3ac7d8bb4f461b773da9eec7f167839643"
+      },
+      "fill": {
+        "bytes": 6280,
+        "path": "/workspace/scratch/12ec3121e93f/native-cell-replacement-qualification-20261018/fill.json",
+        "sha256": "2941501a05f187c726fb9a3d841152984e0dfc97436c5b788ffbddede00cc7d4"
+      },
+      "identity": {
+        "bytes": 3383,
+        "path": "/workspace/scratch/12ec3121e93f/native-cell-replacement-qualification-20261018/identity.json",
+        "sha256": "ab36670c0b85c741e87e4734b2c6411cddd35de1f8891699ed0d8b6f9e775f59"
+      },
+      "recover": {
+        "bytes": 2618,
+        "path": "/workspace/scratch/12ec3121e93f/native-cell-replacement-qualification-20261018/recover.json",
+        "sha256": "86cc8d146dace2585a6f81e2e355a9b9f7d64513deadf59a097f59f765bc7491"
+      }
+    },
+    "raw_files": [
+      {
+        "bytes": 25165824,
+        "path": "data/fill/cells.sqlite3",
+        "sha256": "ff6c31019046370755779af988bfae9ce09f1e630e48a634596f8db9d7c1bec3"
+      },
+      {
+        "bytes": 25165824,
+        "path": "data/crash-1/cells.sqlite3",
+        "sha256": "82f642631f8a6d95154809fdffe3ee71769b4c7b605531fd0a1dfaa1658b8bc8"
+      },
+      {
+        "bytes": 25018496,
+        "path": "data/crash-1/cells.sqlite3-journal",
+        "sha256": "6da701af045969755fe672f0200c4e5427e6e0e1eedf9f36c418b8f7d2a76fe2"
+      },
+      {
+        "bytes": 25165824,
+        "path": "data/recovery/cells.sqlite3",
+        "sha256": "ff6c31019046370755779af988bfae9ce09f1e630e48a634596f8db9d7c1bec3"
+      }
+    ],
+    "independent_audit": {
+      "bytes": 2283,
+      "sha256": "bbea39c281dcbfb6e674a5ac151d30cd33a24496d47f758baa481848304b4d0d"
+    },
+    "observations": {
+      "schema": "Unchanged actual production schema, including sqlite_sequence.",
+      "page_size": 4096,
+      "max_page_count": 6144,
+      "observed_full_pages": 6144,
+      "sqlite_full_code": 13,
+      "journal_mode": "DELETE",
+      "synchronous": "FULL",
+      "cache_spill": "OFF",
+      "cache_size": -4096,
+      "retained_hot_journal_bytes": 25018496,
+      "verified_journal_records": 6096,
+      "changed_interrupted_pages": 6096,
+      "captured_attempt": 1,
+      "max_attempts": 2,
+      "recovery": "Separate ordinary copies, full exact pretransaction database byte equality, complete bounded typed six-table logical oracle, integrity_check and foreign_key_check. Original interrupted pair never opened with SQLite and retained unchanged.",
+      "peak_sampled_tree_rss_bytes": 69222400,
+      "peak_charged_artifact_bytes": 125624320,
+      "max_observed_namespace_slack_bytes": 8072
+    },
+    "limits": {
+      "cpu": [
+        3
+      ],
+      "nice": 19,
+      "seconds_per_phase": 120,
+      "phases": 4,
+      "sampled_tree_rss_bytes": 268435456,
+      "per_process_address_space_bytes": 1073741824,
+      "artifact_bytes": 201326592
+    },
+    "caveats": [
+      "One finite process-crash/allocation observation on the exact recorded build, interpreter realpath, sqlite3 closure, unix VFS and device27.",
+      "Schema-valid synthetic storage shapes are not authentic native producer or audio evidence.",
+      "No model loads, audio decode, inference, provider construction or external publication.",
+      "No power-loss or independently verified fsync completion guarantee; synchronous FULL was configured and read back.",
+      "Sampled RSS is not an instantaneous hard memory bound; the optional64MiB working reservation remains unmeasured.",
+      "Not a platform-wide filesystem quota or hostile concurrent same-UID namespace-safety proof.",
+      "No historical-profile parity or recovery of lost historical test evidence is claimed."
+    ]
+  },
+  "runtime_restoration": {
+    "runtime_manifest": {
+      "bytes": 30643,
+      "sha256": "c61280193593b8de27d0e4cb2039e537cf6fa82bebd3077262edbfa49e7dbbdb"
+    },
+    "restoration_receipt": {
+      "bytes": 15562,
+      "sha256": "5260d47324013a023dd65682374de45f8971767e4a6c64f4c188874819d872dd"
+    },
+    "download_receipts": {
+      "bytes": 44786,
+      "sha256": "9de4c317064006e4a514cf5987df47966fe6917d83283dcdef1135354ea6c529"
+    },
+    "retained_artifacts": {
+      "bytes": 21448,
+      "sha256": "1a13de9fac3daffadbcced171f8f323ee0b7b7d45e2b46250994703623be3581"
+    },
+    "cleanup": {
+      "bytes": 490,
+      "sha256": "1ca2896af98bb8c2e7db93f2b0e75be49e43cf3237695a24ec82e5b4db3ee862"
+    },
+    "dependency_versions": {
+      "annotated-doc": "0.0.5",
+      "annotated-types": "0.8.0",
+      "anyio": "4.15.1",
+      "cffi": "2.1.1",
+      "click": "8.5.0",
+      "fastapi": "0.143.0",
+      "h11": "0.16.0",
+      "idna": "3.20",
+      "numpy": "2.5.3",
+      "opencc-python-reimplemented": "0.1.7",
+      "opentelemetry-api": "1.45.1",
+      "psutil": "7.2.2",
+      "pycparser": "3.1",
+      "pydantic": "2.13.5",
+      "pydantic-core": "2.46.5",
+      "pydantic-settings": "2.15.0",
+      "python-dotenv": "1.2.4",
+      "python-multipart": "0.0.32",
+      "sherpa-onnx": "1.13.8",
+      "sherpa-onnx-core": "1.13.8",
+      "soundfile": "0.14.0",
+      "starlette": "1.7.0",
+      "typing-extensions": "4.16.0",
+      "typing-inspection": "0.4.4",
+      "uvicorn": "0.54.0",
+      "transcribe-cpp": "0.2.3",
+      "transcribe-cpp-native": "0.2.3"
+    },
+    "official_locked_wheels": 27,
+    "embedding_binding_id": "02763d940b59563aeeb7e70cc1b0b12542b6d09fa1f0c7be76f33faedb293be0",
+    "models": {
+      "models/moss-handy/MOSS-Transcribe-Diarize-Q8_0.gguf": {
+        "path": "models/moss-handy/MOSS-Transcribe-Diarize-Q8_0.gguf",
+        "bytes": 986899616,
+        "sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039"
+      },
+      "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf": {
+        "path": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+        "bytes": 107012128,
+        "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1"
+      },
+      "models/sensevoice/model.int8.onnx": {
+        "path": "models/sensevoice/model.int8.onnx",
+        "bytes": 239233841,
+        "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+      },
+      "models/sensevoice/tokens.txt": {
+        "path": "models/sensevoice/tokens.txt",
+        "bytes": 315894,
+        "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+      },
+      "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv": {
+        "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv",
+        "bytes": 14675,
+        "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429"
+      },
+      "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx": {
+        "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+        "bytes": 91932865,
+        "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34"
+      },
+      "models/speaker.onnx": {
+        "path": "models/speaker.onnx",
+        "bytes": 39593761,
+        "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+      }
+    },
+    "current_handy_publisher_model": {
+      "sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039",
+      "revision": "bfa3d24438711391d8713c6ab0efd6264527757c"
+    },
+    "historical_local_conversion": {
+      "sha256": "551c0a52fb0b75cb6fd85e2247554dfff84fbcd8435305ac83d06ec0c043162f",
+      "recreated_or_substituted": false
+    },
+    "fresh_environment": "Fresh no-system-site Python 3.12.14. Matching interpreter bytes do not establish historical path/package closure parity; both changed fields are separately qualified above.",
+    "native_runtime": "Official pinned nemo-speech 0.2.0 archive and transcribe.cpp 0.2.3 packages; archive/file/topology checks and dependency imports only. Imports loaded a CPU backend, but no native model contexts or inference calls were made.",
+    "host_media_tools": "Existing FFmpeg/FFprobe 7.1.5-0+deb13u1 bytes and configuration recorded. Local dpkg ownership was unestablished. The original preparation exit 1 and later read-only supplement exit 0 are retained; no official host-package restoration is claimed.",
+    "licenses": "Apache-2.0 for ERes2Net, Zipformer and MOSS; custom FunASR Model License 1.1 for SenseVoice; OpenMDW-1.1 for Nemotron. Runtime notices preserved with artifacts.",
+    "preparation_resources": {
+      "peak_rss_bytes": 211345408,
+      "peak_retained_bytes": 2027321614,
+      "minimum_free_disk_bytes": 29119201280,
+      "samples": 1677,
+      "affinity": [
+        3
+      ],
+      "nice": 19,
+      "inference_calls": 0,
+      "model_constructors": 0,
+      "sample_seconds": 0.2,
+      "started_free_disk_bytes": 31154802688,
+      "limits": {
+        "rss_bytes": 1073741824,
+        "retained_bytes": 4294967296,
+        "free_floor_bytes": 5905580032,
+        "wall_seconds": 1800
+      },
+      "exit_code": 1,
+      "stop_reason": null,
+      "elapsed_seconds": 371.852138278,
+      "final_retained_bytes": 2027376175,
+      "final_free_disk_bytes": 29119135744,
+      "boot_id": "17b8666b-458a-41ff-93d6-ccc24bbe3e93"
+    }
+  },
+  "affected_tests": {
+    "qualification": "468 passed, one documented unresolved baseline failure; no full-suite pass claim",
+    "unique_collected": 469,
+    "unique_completed": 469,
+    "passed": 468,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0,
+    "node_conservation": true,
+    "batches": {
+      "storage-retry": {
+        "count": 86,
+        "passed": 85,
+        "failed": [
+          "tests/test_native_owned_cell_capture.py::CaptureFixture::test_seam_primary_projection_budget_declines_without_widening_limits"
+        ],
+        "elapsed_seconds": 30.959777179999946,
+        "peak_sampled_tree_rss_bytes": 137773056,
+        "peak_charged_test_artifact_bytes": 5206016,
+        "positive_child_reap": true,
+        "source_runtime_unchanged": true,
+        "evidence": {
+          ".json": "a03df9d1990a8c4bda0fcf46544a2c0cbb93cde7fdade24f5c7505428e7bfe57",
+          ".xml": "f8748d84b084ca842b3df106ebaa10327be6466e1ac4793c4b778ae8cda98469",
+          ".log": "6f08b70363d6c96531f6fd63b005eaa1997f15c57be520fd69aeb6547535a0e4",
+          "-runtime.json": "a1cc04ce2f3fc131035a95bd2b7a26759de80f6a9fd7aec7a4a985ce95ff92cb"
+        }
+      },
+      "core": {
+        "count": 111,
+        "passed": 111,
+        "failed": [],
+        "elapsed_seconds": 43.030367535999176,
+        "peak_sampled_tree_rss_bytes": 112484352,
+        "peak_charged_test_artifact_bytes": 12283904,
+        "positive_child_reap": true,
+        "source_runtime_unchanged": true,
+        "evidence": {
+          ".json": "9c1a43099f60679b792b30559db7deb59f28869b8210c639d6837db4ff6b7435",
+          ".xml": "4742266269887f0c7e38fc7d04c0813d3615e5c80c5a0b590e86534270b6c9e9",
+          ".log": "3eba87bb92fa5b4ab93dcd6c3f222ad5f3986c4e9f02f3fccaf8eba5c861e23a",
+          "-runtime.json": "b73fa9d0f0afef66b357237c68cfd7a8e75731c567fea6cfd2e659582d587a11"
+        }
+      },
+      "automatic": {
+        "count": 92,
+        "passed": 92,
+        "failed": [],
+        "elapsed_seconds": 34.55663628500042,
+        "peak_sampled_tree_rss_bytes": 124825600,
+        "peak_charged_test_artifact_bytes": 23920640,
+        "positive_child_reap": true,
+        "source_runtime_unchanged": true,
+        "evidence": {
+          ".json": "6d29ae15dc211e129b102d6a8a387ebda92dbd55abadf006e3463ebdcf844fbf",
+          ".xml": "778300fb2a402fed31c9bd617dca67445c5e43d049fe7bf52901caf8555aa411",
+          ".log": "13081c51d80930eb21cfeab0a91ebe89a8a3e337cb8e73ee076db263a0299dac",
+          "-runtime.json": "b73fa9d0f0afef66b357237c68cfd7a8e75731c567fea6cfd2e659582d587a11"
+        }
+      },
+      "links": {
+        "count": 180,
+        "passed": 180,
+        "failed": [],
+        "elapsed_seconds": 37.57452334000118,
+        "peak_sampled_tree_rss_bytes": 143130624,
+        "peak_charged_test_artifact_bytes": 96804864,
+        "positive_child_reap": true,
+        "source_runtime_unchanged": true,
+        "evidence": {
+          ".json": "39ad4e01931c0fcdbec8069ca510b6cd01fcc5fe7103e18f6394601ae87eed6a",
+          ".xml": "79e625ff65ff57502e3ef3af7ae4bc2abeef99a01e8a3f39f46753cc63791bf4",
+          ".log": "4b086a5f4730859db39f4723745d5c5aa5da9f1da02851ee99ea2280aec67c0a",
+          "-runtime.json": "b73fa9d0f0afef66b357237c68cfd7a8e75731c567fea6cfd2e659582d587a11"
+        }
+      }
+    },
+    "interrupted_attempt": {
+      "completed_case_count": "unknown; no terminal JUnit",
+      "credited_completed_cases": 0,
+      "elapsed_seconds": 1.6947374540013698,
+      "positive_child_reap": true
+    },
+    "cumulative_test_seconds": 147.8160417950021,
+    "collection_separate_seconds": 4.969355986000664,
+    "collector_sha256": "156fa866c91895721e1c43cba47f54a903d8533554fa98645f1d039d5ca14717",
+    "historical_failure_references": [
+      "docs/BOUNDED_MULTI_CORE_SUPPORT.md:46-48",
+      "docs/COMPACT_BOUNDED_INVENTORY.md:216"
+    ],
+    "no_models_or_inference": true
+  },
+  "test_evidence": {
+    "independent_audit": {
+      "bytes": 18963,
+      "sha256": "af3291abfa9df9c2d29ee438966b6e5c17848defcd632ef9940ef24c603b290d"
+    },
+    "summary": {
+      "bytes": 3680,
+      "sha256": "130b860b4f28055b9f40b0ca839653434fe61c2f58fa16b20b305c2a70f0fb08"
+    },
+    "collection": {
+      "bytes": 55283,
+      "sha256": "156fa866c91895721e1c43cba47f54a903d8533554fa98645f1d039d5ca14717"
+    },
+    "supervisor": {
+      "bytes": 6385,
+      "sha256": "4717b2ed3e3f7e59d0ed1b6b42dfd58d85a92ec3b5a79967710f96ef4a22f740"
+    },
+    "entry": {
+      "bytes": 2006,
+      "sha256": "72cb0f9d02963709c0f9b869f6c652fb6b884a083cee630cdfc9439eb962ff97"
+    },
+    "source_manifest": {
+      "bytes": 67801,
+      "sha256": "81621e3931ac2b4a6ffd73c6e92bad327fd103ffb13304c2047eb622cb42d847"
+    },
+    "actual_origins_and_profile": {
+      "bytes": 6973,
+      "sha256": "b73fa9d0f0afef66b357237c68cfd7a8e75731c567fea6cfd2e659582d587a11"
+    },
+    "tool_inventory": {
+      "bytes": 190965,
+      "sha256": "9c414e6bc72eb80fad76f06c2b5cae2d5563c6248a56a5435ce26df4b71d07b5"
+    },
+    "http_tool_receipt": {
+      "bytes": 93195,
+      "sha256": "b0d489c6099a0bce66a2401b553a71a22018b596c2fcea74fe3f8ced07807a3b"
+    },
+    "genuine_admission": "Two AdmissionTests selected the exact production registry object and retained the actual verifier. They exercised qualified retention/restart/dispatch/OFF and four changed-record rejection cases (interpreter realpath, SQLite source id, sqlite3 package inventory, device). Other simulated-profile fixtures provide only model-free logic evidence. The historical Q-path branch was not executed.",
+    "test_tools": "Separate whitelisted pytest 8.4.2, iniconfig 2.1.0, pluggy 1.6.0, packaging 26.3, Pygments 2.21.0, httpx 0.28.1, httpcore 1.0.9, certifi 2026.7.22. Existing fresh anyio/idna/h11 and runtime NumPy 2.5.3 were not shadowed. Starlette used its supported deprecated httpx fallback. No historical pytest parity is claimed.",
+    "certifi_observation": "The shared cached certifi cacert.pem differed from its installed RECORD. Its bytes were preserved without attributing cause. Only the isolated test target received the exact official certifi 2026.7.22 wheel, SHA256 62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775, with verified publisher size/hash and installed RECORD.",
+    "preserved_wrapper_failures": "The initial collection preflight rejected an inherited per-file size cap before child dispatch; exact reviewed source hashes/sizes replaced that stale cap. The first storage batch was interrupted by a wrapper rejection of an ordinary pytest current-directory symlink; no terminal JUnit means completion count is unknown and zero cases are credited. Only disposable artifact accounting changed to lstat without following symlinks; source symlink rejection and resource bounds stayed intact. The distinct storage retry and its known product failure are retained."
+  },
+  "known_unresolved": {
+    "node": "tests/test_native_owned_cell_capture.py::CaptureFixture::test_seam_primary_projection_budget_declines_without_widening_limits",
+    "observed_steps": 150100,
+    "unchanged_limit": 150000,
+    "stage": "Ordinary success-control validation before the intentionally smaller projection budget; sqlite OperationalError interrupted.",
+    "baseline_documentation": [
+      "docs/BOUNDED_MULTI_CORE_SUPPORT.md:46-48",
+      "docs/COMPACT_BOUNDED_INVENTORY.md:216"
+    ],
+    "review": "Independent reviewer matched the failure stage and step values and verified capture test/module byte equality with the published baseline. No baseline rerun, cap relaxation, assertion edit or pass credit."
+  },
+  "remaining": [
+    "Real model execution and acoustic same-person/false-merge quality remain unqualified.",
+    "No long-recording, deployment, service-memory or power-loss qualification.",
+    "This is a finite exact-runtime storage observation, not restoration of lost historical evidence."
+  ]
+}

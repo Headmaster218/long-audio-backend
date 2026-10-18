@@ -1,10 +1,13 @@
-# Native-owned selected cells: rc3.dev6 finite retention qualification
+# Native-owned selected cells: rc3.dev48 replacement-runtime qualification
 
-**Default OFF. One exact runtime A profile has a finite conditional SQLite/unix
-VFS allocation and process-crash recovery qualification. UNQUALIFIED outside
-this exact profile.** The registry binds the accepted evidence digest below;
-the source activation still requires its separate enabled-retention check and
-refrozen source review. No model, acoustic, service RSS, long-recording or
+**Default OFF. One exact replacement runtime profile has a finite conditional
+SQLite/unix VFS allocation and process-crash recovery qualification. UNQUALIFIED
+outside this exact profile.** The registry binds the accepted fresh evidence
+digest below. Both genuine current-profile admission/retention/restart checks
+passed. The fixed affected model-free selection completed with 468/469 passing;
+the documented 150,000 VM-step baseline failure remains unresolved. Exact source
+lineage, resource receipts and limits are recorded in the
+[dev48 qualification report](../reports/REPLACEMENT_RUNTIME_DEV48_QUALIFICATION.json). No model, acoustic, service RSS, long-recording or
 power-loss qualification is claimed. Explicitly enabling on an unqualified
 runtime produces optional-unavailable status while the ordinary primary
 pipeline continues. No extra model execution or provider is constructed.
@@ -100,9 +103,9 @@ Shutdown closes admission and cancels handoffs/pins. If the original owner is
 still unresolved after the bounded wait, its ownership and instance lock stay
 referenced and shutdown is pending, never reported clean.
 
-## Release gates
+## Historical dev6 release gates
 
-The implementation is restricted to the separately reviewed 18-path inventory
+The original dev6 implementation was restricted to the separately reviewed 18-path inventory
 (9 additions, 9 changes), a fresh 340-file maximum source root, at most 4,600,000
 aggregate source bytes and 250,000 bytes per file. Dev5 is preserved. Historical
 dev5 source validation binds its published commit/tree and sole dev4 parent;
@@ -120,7 +123,7 @@ slice cancellation/preemption with safe original-handle cleanup; B follows a
 separately reviewed jobs adapter and covers preselected long, real upload-seam
 and sparse epoch-boundary diagnostics. Neither is authorized by this document.
 
-### Exact accepted runtime profile
+### Exact accepted replacement runtime profile
 
 The single accepted runtime record binds SQLite source ID and version, the
 canonical compile-options digest, actual interpreter content and realpath,
@@ -141,33 +144,58 @@ sector_bytes_max × journal_headers_max, no more than 32 MiB. The accepted
 allocated slack must fit 2 MiB and the component envelope 58 MiB. Cache spill is
 OFF; neither cache_size nor journal_size_limit establishes this proof alone.
 
-The independently accepted finite sequence filled the exact schema to 6,143
-pages under its 6,144-page ceiling and observed SQLITE_FULL using conservative
-schema-valid storage shapes. It retained a genuinely interrupted hot DELETE
-journal and recovered a separate copy to the exact pretransaction database
-bytes and complete logical oracle. The journal audit verified 3,067 records
-and checksums, one header and a 512-byte sector. Fill, immutable crash original,
-and recovery copy remain separate closed namespaces. These storage shapes are
-not authentic producer evidence.
+The independently accepted fresh finite sequence filled the unchanged schema to
+exactly 6,144 pages under its 6,144-page ceiling and observed SQLITE_FULL (code
+13) with 42 cell rows and 128 source rows. The fixed descending-size schedule
+used 51 bounded insert attempts. Its schema-valid synthetic storage shapes are
+not authentic producer or audio evidence.
 
-The record binds SQLite 3.53.1, its exact source/build and observed built-in
-interpreter/package identity, the accepted runtime A realpath digest, filesystem
-device 27, explicit unix VFS, and this terminal evidence SHA256:
-`7097319b7e75d603dd0730033e29847b76631d71ae1bf8215f2052fc01377f55`.
-The accepted journal bound retains the conservative 65,536-byte sector maximum,
-one header and 2 MiB allocated slack. Accounting charges max(logical size,
-allocated blocks times 512), including directories. Runtime relocation or a
-changed package, build, device or namespace requires separate qualification.
-The Q interpreter's equal content hash does not admit its different realpath.
+The first of at most two permitted commit-window attempts retained a genuinely
+interrupted hot DELETE journal. The owned child was positively observed stopped,
+killed and reaped. The journal audit verified all 6,096 records and checksums,
+all original page bytes, one header and a 512-byte sector. Its 25,018,496-byte
+journal accompanied 6,096 changed interrupted database pages. Only a separate
+ordinary copy was opened for recovery. The recovered 24 MiB database matched
+all pretransaction bytes and the complete bounded logical oracle, including
+sqlite_sequence; integrity and foreign-key checks passed. SQLite removed the
+recovery-copy journal. The retained closed original database/journal pair
+remained byte-for-byte unchanged.
 
-This proof is one bounded process-crash case under the pinned application and
-VFS assumptions. Synchronous FULL is configured; independent fsync completion
-and power-loss durability were not established. Sampled memory is not a hard
-RSS ceiling. It does not establish a platform-wide filesystem quota or hostile
-same-UID namespace safety. Source activation changes only the registry tuple
-and module status wording; all proof-bound store functions and schema remain
-unchanged. The genuine enabled-retention selected case and refreshed 398-case
-model-free denominator remain pending for this activation snapshot.
+The active record binds SQLite 3.53.1, its exact source/build, observed built-in
+interpreter/package identity, replacement interpreter realpath digest,
+filesystem device 27 and explicit unix VFS. Its terminal evidence SHA256 is:
+`6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e`.
+The interpreter content remains
+`fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7`,
+but the separately evidenced realpath digest is now
+`65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b`
+and the exact sqlite3 Python/bytecode closure is
+`7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1`.
+The historical profile remains unchanged in its original checkpoint; this
+replacement record does not claim historical runtime parity or recovery of lost
+historical evidence. Exactly this replacement tuple is active. No selector,
+verifier, schema, runtime budget or application operation changed.
+
+The accepted bound retains the conservative 65,536-byte sector maximum, one
+header and 2 MiB allocated slack. The resulting journal bound is 25,280,512
+bytes, below 32 MiB. Accounting charges max(logical size, allocated blocks times
+512), including directories. Peak sampled namespace slack was 8,072 bytes;
+peak sampled total qualification data was 125,624,320 bytes across the separate
+fill, interrupted-original and recovery-copy namespaces. These temporary copies
+are evidence-retention overhead, not a single production component. Each
+production-shaped namespace remained within the 58 MiB reserved envelope.
+Runtime relocation or changed package, build, device or namespace still requires
+separate qualification. Equal interpreter content alone does not admit another
+realpath.
+
+This is one bounded process-crash case under the pinned application and VFS
+assumptions. Synchronous FULL was configured and read back; independent fsync
+completion and power-loss durability were not established. Peak sampled
+combined gate-process RSS was 69,222,400 bytes, not a hard instantaneous ceiling
+or an optional-component working-memory measurement. No model, decoder or
+provider was constructed. No platform-wide filesystem quota or hostile same-UID
+namespace safety is established. The fresh gate does not replace the separate
+real-profile enabled-retention and affected model-free checks.
 
 Most model-free storage fixtures inject a test-only RuntimeQualification subclass
 through the private store constructor. SQLite source/build identity and pragma
@@ -176,9 +204,9 @@ explicitly SIMULATED. A separate fixture exercises the real binary verifier
 and rejects mismatch before any disk-sidecar connection; passing simulated
 fixtures cannot qualify allocation. Their zero-header journal case tests
 accounting only. The separate selected AdmissionTests case uses the actual
-production record and real verifier: runtime A must publish one tiny synthetic
-cell, read it, close, restart and read the exact retained proof/PCM; runtime Q
-must reject the A profile before any disk connection. Four real-verifier
+production record and real verifier: the active replacement runtime must publish one tiny
+synthetic cell, read it, close, restart and read the exact retained proof/PCM;
+the historical Q path must reject the active profile before any disk connection. Four real-verifier
 mismatches cover interpreter realpath, SQLite source/build, package and device.
 
 The implemented identity form is the explicitly observed Linux built-in

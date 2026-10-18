@@ -1,8 +1,9 @@
 """Real SQLite mechanics with explicitly SIMULATED injected fixture profiles.
 
 The separate AdmissionTests selected case exercises the one accepted production
-profile without binary-verifier injection. Its exact A path must publish/read/
-restart/close; the exact Q path must reject A before any disk connection.
+profile without binary-verifier injection. Its exact current path must publish/
+read/restart/close; the historical Q path must reject the current profile before
+any disk connection.
 Neither synthetic producer data nor these checks extends the finite proof's
 VFS/allocation/process-crash scope or establishes power-loss durability.
 """
@@ -96,7 +97,7 @@ class StoreFixture(unittest.TestCase):
         self.assertEqual(len(mod.QUALIFIED_RUNTIMES), 1)
         self.assertIs(type(mod.QUALIFIED_RUNTIMES[0]), mod.RuntimeQualification)
         self.assertEqual(mod.QUALIFIED_RUNTIMES[0].evidence_sha256,
-            '7097319b7e75d603dd0730033e29847b76631d71ae1bf8215f2052fc01377f55')
+            '6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e')
         health = self.owner.health()
         self.assertFalse(health['working_memory_measured'])
         self.assertEqual(health['working_reservation_bytes'], 64 * 1024**2)
@@ -459,7 +460,7 @@ class AdmissionTests(unittest.TestCase):
             self.assertIs(profile, mod.QUALIFIED_RUNTIMES[0])
             self.assertIs(type(profile), mod.RuntimeQualification)
             self.assertEqual(profile.evidence_sha256,
-                '7097319b7e75d603dd0730033e29847b76631d71ae1bf8215f2052fc01377f55')
+                '6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e')
             path_hash = hashlib.sha256(os.fsencode(Path(mod.sys.executable).resolve(strict=True))).hexdigest()
             q_path_hash = 'c5b3e95fab07ec74ee34233bd62a289fc32b3600b7d8dda9cb1b3295ec167937'
             self.assertIn(path_hash, (profile.interpreter_realpath_sha256, q_path_hash),
@@ -533,7 +534,7 @@ class AdmissionTests(unittest.TestCase):
 
 
     def test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off(self):
-        """Tiny synthetic v2; real pinned verifier/SQLite, no model or audio file."""
+        """Tiny synthetic v2; current real pinned verifier/SQLite, no model or audio file."""
         deadline = time.monotonic() + 30.
         def remaining():
             value = deadline - time.monotonic()

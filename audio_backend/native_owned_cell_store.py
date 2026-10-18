@@ -1,6 +1,6 @@
 """Optional serialized cell storage; all SQLite mutation belongs to one owner.
 
-One exact runtime has a finite conditional SQLite/unix-VFS allocation and
+One exact replacement runtime has a finite conditional SQLite/unix-VFS allocation and
 process-crash recovery qualification. This is not a universal quota or a
 power-loss/fsync guarantee. The 64 MiB working-memory reservation remains
 unmeasured, never a hard RSS claim. No caller runs a rollback, recovery,
@@ -363,11 +363,11 @@ QUALIFIED_RUNTIMES: tuple[RuntimeQualification, ...] = (RuntimeQualification(
     platform='linux', vfs='unix', filesystem_device=27,
     sector_bytes_max=65536, journal_headers_max=1,
     allocation_slack_bytes_max=2097152,
-    evidence_sha256='7097319b7e75d603dd0730033e29847b76631d71ae1bf8215f2052fc01377f55',
+    evidence_sha256='6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e',
     interpreter_bytes=30894944,
     interpreter_sha256='fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7',
-    interpreter_realpath_sha256='57c6e5fe045b039c86e05cea65b65abe385014580d745dfdb38674b8acafb5d8',
-    sqlite3_package_sha256='274ebd26b21834cfd405783cb389f8d7d22d4ce27db918c9781a363b0718f437',
+    interpreter_realpath_sha256='65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b',
+    sqlite3_package_sha256='7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1',
     sqlite3_binding='observed-built-in-no-separate-sqlite-mapping-v1',
     sqlite3_extension_sha256=None, sqlite3_library_sha256=None,
     sqlite3_library_realpath_sha256=None),)
