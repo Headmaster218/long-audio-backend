@@ -1,0 +1,93 @@
+{
+  "allocator_qualification": {
+    "cumulative_guard_seconds": 309.24155634101044,
+    "edges": [
+      "Moved native-primary crop through full v3 capture and batch validation; stale turn ordinals rejected.",
+      "Exact source aliases with different logical offsets move jointly.",
+      "Saved two-independent-group witness remains abstained."
+    ],
+    "failed": 0,
+    "finite_oracle": {
+      "admissible_assignments": 168420,
+      "groups": "1 through 4",
+      "legal_domain_combinations": 11110
+    },
+    "independent_payload_review_sha256": "32ea46f659c1a5f2d5e80a8eb8783761819cf85e84fbefa0bb5d55f0e84fa45f",
+    "independent_terminal_review_sha256": "236c7628368e1529d1b31e510c10e4d439a703afffdc8d0e56f07d27580e9b73",
+    "original_frozen_cases": 384,
+    "peak_retained_test_artifact_bytes": 195289088,
+    "peak_sampled_process_tree_rss_bytes": 165195776,
+    "production_unchanged_across_all_runs": true,
+    "report_sha256": "c30c209ba7769f18ad606499b004bee4ca3f6f2b9cfb3448502a5738e36e7a23",
+    "reviewed_supplement_cases": 2,
+    "skipped": 0,
+    "unique_passed": 386
+  },
+  "compatibility": [
+    "Only fresh scopes choose v3; historical v1/v2 policy hashes, immutable evidence, validation and meaning remain unchanged.",
+    "The supported policy set participates in revision hashing: old cursors may invalidate and new-binary revision digests may differ.",
+    "The diagnostic additive migration leaves old rows NULL and retains existing evidence hashes."
+  ],
+  "counting": "The diagnostic and allocator qualifications overlap and are not summed into one new unique-test count.",
+  "diagnostic_qualification": {
+    "batches": {
+      "lifecycle": 45,
+      "maintenance": 24,
+      "pipeline": 13,
+      "store": 50
+    },
+    "independent_terminal_review_sha256": "b64968de5d15b776ea6885910ba667f7413f6cd881431de43ec8fc85c980cb3f",
+    "report_sha256": "105612b1e19c0037e1d37291df38827e0f7baf22a8b21c012d09f0d7c6e32c20",
+    "snapshot_note": "A union across a fixture-only initialization correction; three production modules remained byte-identical. The original maintenance failure and wrong-interpreter collect-only attempt are preserved; no duplicate or invalid collection credit.",
+    "unique_passed": 132
+  },
+  "history": {
+    "diagnostic_parent_commit": "989ec179411ff2bd4787b6a21d22860295a7daf9",
+    "diagnostic_parent_tree": "817434d6dd38f840bf8e69ca666c02b33e7031b0",
+    "immutable_prior_reports": [
+      "reports/FIXED_VOXCONVERSE_DEV49_TRIAL.md",
+      "reports/FULL_VOXCONVERSE_DEV49_OBSERVATION.md"
+    ],
+    "qualified_allocator_tree": "8b7578c0bdaae73ea1a567598bba76179767a47a"
+  },
+  "limits": [
+    "Default-off behavior, crop durations, thresholds, margins, node/recording quotas and final overlap/duplicate vetoes are unchanged.",
+    "Allocation remains batch-local and retains all admitted competitors, aliases, primary attributions and cannot-link witnesses.",
+    "Baseline PCM hashes are captured evidence; metadata-only replay does not independently reverify the original PCM bytes.",
+    "Source-complex or mixed-source inputs, cross-coordinate PCM aliases and impossible full layouts retain centered evidence with explicit allocation fallback.",
+    "The existing three-independent-observation rule remains; the saved two-group witness still abstains.",
+    "Independent clean-primary observation scheduling is not implemented; capture remains on the existing MOSS lifecycle.",
+    "No model inference, acoustic identity improvement, full-suite pass, service-memory qualification or self-contained deployment is claimed.",
+    "Older actual-trial reports remain historical evidence and are not rerun or upgraded by synthetic tests."
+  ],
+  "offline_package": {
+    "checks": [
+      "Source, wheel and fresh local target byte parity.",
+      "Installed version/module origins and the existing qualified runtime registry tuple."
+    ],
+    "dependency_installation": false,
+    "model_constructors": false,
+    "network": false,
+    "production_file_count": 130,
+    "status": "Pending when this source snapshot was frozen; consult the separately source-bound package receipt for the final result."
+  },
+  "release_only_paths": [
+    "README.md",
+    "audio_backend/__init__.py",
+    "docs/RECORDING_SPEAKER_LINKS.md",
+    "pyproject.toml",
+    "reports/PROBE_DIAGNOSTICS_DISJOINT_DEV50_QUALIFICATION.json"
+  ],
+  "release_recheck": {
+    "maintenance_cases": 24,
+    "maintenance_module": "tests/test_speaker_probe_maintenance.py",
+    "status": "Pending when this source snapshot was frozen; final results are in the separately source-bound terminal receipt.",
+    "unchanged_existing_packaging_checks": [
+      "tests/test_package_privacy.py",
+      "tests/test_framemn_packaging.py"
+    ]
+  },
+  "schema": "probe-diagnostics-disjoint-dev50-qualification-v1",
+  "scope": "Combined source release for bounded terminal probe diagnostics and versioned batch-local disjoint crop allocation. No inference or acoustic trial.",
+  "version": "0.2.0rc3.dev50"
+}

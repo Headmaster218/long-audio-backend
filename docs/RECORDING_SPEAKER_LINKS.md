@@ -1,5 +1,64 @@
 # Provisional recording-local speaker links
 
+## dev50: terminal diagnostics and versioned batch-local allocation
+
+The default-off probe path now records one canonical, nullable, fixed-enum terminal
+failure object, capped at 512 bytes. The additive known-schema migration leaves old
+rows NULL without rewriting batch evidence or hashes. The first observed failure
+survives positive cleanup and metadata-only retries; uncertain acknowledgements do
+not authorize replacing frozen submissions. Explicit store reads expose bounded
+historical outcomes. Pre-terminal crashes and genuine no-row refusals remain
+unknown; the default transcript getter does not gain failure details.
+
+Only fresh recording scopes choose `recording-speaker-links-v3`. Historical v1/v2
+policy hashes, immutable batches/decisions, validation and meaning are preserved.
+Because the supported-policy set is part of revision hashing, upgrading can
+invalidate old HTTP cursors and change revision digests even for unchanged old
+scopes. This is not a claim of byte-identical HTTP envelopes across versions.
+
+V3 keeps the same primary-first, alternating admission of at most four typed nodes,
+the same eligible component and centered baseline, and every admitted competitor,
+primary attribution and cannot-link witness. Before an early disjoint return it
+checks every baseline source/PCM alias pair, including transitive PCM-only aliases.
+Conflicting bytes for the same source coordinates refuse capture. Any equal PCM at
+different coordinates keeps the whole centered batch with an explicit fallback.
+Captured baseline PCM hashes in the bounded allocation header are retained evidence;
+metadata replay does not independently reread or reverify those PCM bytes.
+
+Eligible movement is restricted to one shared source identity and a single affine
+source part per crop. Exact source aliases intersect their legal source-coordinate
+start domains and move together, with independent logical-offset remapping. The
+allocator enumerates all complete group orders (at most 24 for four groups), places
+each group at its earliest legal nonoverlapping start, and deterministically chooses
+the lexicographically smallest resulting start vector. It does not search individual
+audio frames or remove a competitor to obtain independence. Mixed sources, complex
+source geometry or no complete layout preserve all original centered geometry with
+an explicit allocation fallback. Primary turn ordinals and every selected geometry
+field are regenerated after movement; original packet/unit authority remains intact.
+
+This allocation is local to one captured batch. Cross-batch reconciliation, final
+source-overlap/PCM-duplicate vetoes, and the three-independent-observation linking
+rule are unchanged. The saved two-group numeric witness becomes source-disjoint but
+still abstains. V3 passes through the same live capture/reserve/commit/reconcile and
+transcript annotation authority gates. Crop duration, node and recording quotas,
+thresholds, margins and defaults have not changed. Capture still follows the
+existing MOSS lifecycle; independent clean-primary observation scheduling remains
+outside this change. A valid primary display is not evidence of a new probe dispatch.
+
+The diagnostic slice has 132 unique model-free passes across one fixture-only
+initialization correction, with its failed attempt and invalid collection retained.
+The allocator has 386 unique model-free passes, with no failures or skips. Its tiny
+domain oracle covers 11,110 domain combinations and 168,420 admissible assignments;
+additional fixtures cover moved primary capture/replay and aliases at different
+logical offsets. These overlapping qualifications are separately attributed, not
+added into one fresh unique-case count. The unchanged 24-case maintenance recheck,
+existing packaging/privacy checks and offline parity for 130 production files are
+qualified separately through source-bound terminal receipts; their status is recorded
+in the release report and final handoff. Package checks do not qualify model execution,
+acoustic identity accuracy, full-suite behavior or a self-contained deployment.
+See [the dev50 qualification](../reports/PROBE_DIAGNOSTICS_DISJOINT_DEV50_QUALIFICATION.json).
+The following historical dev47 description and qualification remain unchanged.
+
 ## dev47: typed native-primary / MOSS observations
 
 This default-off extension consumes prospective native-primary numerical packets
