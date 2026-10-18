@@ -1230,7 +1230,7 @@ def test_unknown_rival_latch_survives_primary_skip_until_actual_new_admission(hi
         assert skipped[field] == latched[field]
     assert env.value.begin_comparison() is None
     saved = saved_read(env, one)
-    assert saved['history_status'] == 'pending' and saved['reason'] == 'unknown_rival'
+    assert saved['history_status'] == 'abstained' and saved['reason'] == 'unknown_rival'
     assert saved['annotations'] == []
     two, batch = moss_fixture(env)
     assert two.rid == one.rid

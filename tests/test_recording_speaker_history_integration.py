@@ -416,7 +416,7 @@ def _passive_without_positive(h,reason):
         headers=[json.loads(row[0]) for row in db.execute(f'SELECT header FROM {history.CERTIFICATES} ORDER BY sequence')]
         saved=history.read_saved_for_refs(db,h.sid,scope['recording_id'],
             [(row['ref_kind'],row['ref_key']) for row in headers])
-    assert saved['history_status']=='pending' and saved['reason']==reason and saved['annotations']==[]
+    assert saved['history_status']==('abstained' if reason=='unknown_rival' else 'pending') and saved['reason']==reason and saved['annotations']==[]
     assert len(h.probes)==probes and _primary_rows(h)==before
     assert h.jobs._history_comparison is task and (task is None or task['thread'] is thread)
 

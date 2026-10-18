@@ -578,7 +578,9 @@ class TranscriptStore:
         # Only small scalar metadata is included at page level. All vectors,
         # native proof and per-crop geometry remain private immutable evidence.
         return [{'recording_id':rid, **{key:saved.get(key) for key in
-            ('scope_id','state','revision','decision_revision','policy_sha256','space_id','history_status','authority_revision')}}
+            ('scope_id','state','revision','decision_revision','policy_sha256','space_id','history_status','authority_revision')},
+            # Export this fixed terminal diagnostic, never arbitrary reason text.
+            **({'reason':'unknown_rival'} if saved.get('reason')=='unknown_rival' else {})}
             for rid,saved in sorted(scopes.items())]
 
     def _closure(self, db, sid, block, check, initial_chunks, primary, baseline):

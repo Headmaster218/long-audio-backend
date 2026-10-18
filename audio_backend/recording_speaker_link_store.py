@@ -31,7 +31,7 @@ MAX_FAILURE_BYTES = 512
 FAILURE_SCHEMA = 'recording-speaker-probe-failure-v1'
 FAILURE_STAGES = ('prepare', 'reservation', 'permit', 'dispatch_validation',
     'child_start', 'child_wait', 'return_validation', 'cleanup', 'publication', 'unknown')
-FAILURE_REASONS = ('optional_cancelled', 'permit_unavailable', 'source_authority_changed',
+FAILURE_REASONS = ('optional_cancelled', 'permit_unavailable', 'source_authority_changed','pre_dispatch_read_contention','pre_dispatch_deadline',
     'child_failed', 'invalid_return', 'storage_unavailable', 'cleanup_unverified', 'other')
 FAILURE_DISPATCH = ('not_attempted', 'possible', 'returned_validated', 'unknown')
 FAILURE_ERROR_TYPES = ('Cancelled', 'Busy', 'AdmissionError', 'RuntimeError',

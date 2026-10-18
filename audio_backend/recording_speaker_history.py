@@ -1374,7 +1374,14 @@ def read_saved_for_refs(db,sid,rid,refs,*,byte_limit=PAGE_BYTES):
     if scope['authority_blocked'] is not None:
         result.update(history_status='invalid',reason=scope['authority_blocked']);return result
     if scope['state']=='unknown_rival':
-        result.update(reason='unknown_rival');return result
+        # A terminal refusal is a settled negative result, never identity
+        # authority. In-flight or inconsistent ownership stays conservative.
+        settled=(scope['reserved_bytes']==0 and scope['staging_bytes']==0 and
+            scope['building_slot'] is None and scope['build_token'] is None and
+            scope['current_slot'] is None and not db.execute(
+                f"SELECT 1 FROM {ATTEMPTS} WHERE scope_seq=? AND state='reserved' LIMIT 1",
+                (scope['scope_seq'],)).fetchone())
+        result.update(history_status='abstained' if settled else 'pending',reason='unknown_rival');return result
     if db.execute(f"SELECT 1 FROM {ATTEMPTS} WHERE scope_seq=? AND state='reserved' LIMIT 1",(scope['scope_seq'],)).fetchone():
         result.update(reason='pending');return result
     if scope['current_slot'] is None:return result

@@ -22,6 +22,8 @@ MAX_ACCEPTED = 64
 TTL_SECONDS = 900
 MAX_LEDGER_BYTES = 32768
 MAX_RETAINED_BYTES = 1024 * 1024
+PRIMARY_READ_GRACE_SECONDS = .250
+PRIMARY_READ_WAIT_SECONDS = .010
 MAX_RESULT_BYTES, MAX_RAW_BYTES = 262144, 131072
 MAX_DETAIL_BYTES, MAX_LIST_BYTES = 16384, 32768
 CLEAN_TERMINAL = frozenset(('returned_diagnostic', 'failed', 'cancelled', 'invalidated'))
@@ -218,6 +220,9 @@ class _SpeakerProbeGate:
         if not self.owner._links_enabled():self.probe['cancelled'].set()
         self.owner.permit.check_optional(self.probe, phase)
         if self.probe['cancelled'].is_set():raise AdmissionError('optional_cancelled')
+        deadline = self.probe.get('work_deadline')
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ReadError(409,'primary_probe_deadline')
 
     def cleaning(self):self.owner.permit.cleaning(self.probe)
 
@@ -450,6 +455,7 @@ class MossJobs:
             'crop':None, 'charge_bytes':0, 'thread':None, 'operation':None,
             'reservation':None, 'admitted':False, 'completed':threading.Event(),
             'validated_output':None, 'terminal_reason':None, 'thread_start_attempted':False,
+            'work_deadline':None, 'read_defer_deadline':None, 'dispatch_binding':None,
             'invocation_id':uuid.uuid4().hex, 'failure_json':None, 'failure_frozen':False}
         due = self.history.primary_due(chunk['session_id'],rid,frame)
         if not due['due']:
@@ -488,6 +494,7 @@ class MossJobs:
     def _drop_primary_copy(self, probe):
         with self._lock:
             probe['crop'] = None
+            probe['dispatch_binding'] = None
             if probe.get('charge_bytes'):
                 self._probe_staging_bytes -= probe['charge_bytes']; probe['charge_bytes'] = 0
             if self._primary_pending is probe:self._primary_pending = None
@@ -601,6 +608,72 @@ class MossJobs:
         return bool(probe and (probe['state'] == 'thread_unknown' or probe['thread'] is not None and probe['thread'].is_alive()
             or probe['operation'] is not None and not probe['operation'].cleaned))
 
+    def _primary_dispatch_local(self, probe, *, reserved):
+        """No retry authority survives owner/copy/attempt replacement or dispatch."""
+        binding = probe.get('dispatch_binding')
+        if (probe is not self._primary_pending or probe.get('owner') is not self
+                or probe['state'] != ('running' if reserved else 'pending')
+                or not probe['admitted'] or probe['crop'] is None or probe['operation'] is not None
+                or probe['failure_frozen'] or binding is None
+                or probe['reservation'] is not binding[0] or probe['crop'] is not binding[1]
+                or probe['invocation_id'] != binding[2] or probe['node'] is not binding[3]
+                or tuple(sorted(probe['reservation'].items())) != binding[4]
+                or (not reserved and probe['thread_start_attempted'])):
+            raise ReadError(409,'primary_probe_source_stale')
+        if probe['cancelled'].is_set() or not self._history_enabled():
+            raise ReadError(409,'primary_probe_cancelled')
+        if time.monotonic() >= probe['work_deadline']:
+            error = ReadError(409,'primary_probe_deadline')
+            self._observe_probe_failure(probe,'dispatch_validation','pre_dispatch_deadline',error)
+            raise error
+
+    def _primary_dispatch_current(self, probe, *, reserved):
+        """Retry only a positively closed, read-only contention refusal.
+
+        Both admission reads share the first deferral's grace and first eligible
+        submit's work deadline. Existing SQL budgets and scheduling can add a
+        cooperative tail; no lock, transaction, permit regrant or child is held
+        across a wait (an already granted optional reservation stays charged).
+        """
+        import sqlite3
+        from .moss_result_store import _ReadDeferred
+        last_deferred = None
+        while True:
+            with self._gate():
+                self._primary_dispatch_local(probe,reserved=reserved)
+                if last_deferred is not None and time.monotonic() >= probe['read_defer_deadline']:
+                    self._observe_probe_failure(probe,'dispatch_validation','pre_dispatch_read_contention',last_deferred)
+                    raise ReadError(503,'primary_probe_read_contention')
+            if reserved:self.permit.check_optional(probe,'before_input')
+            try:
+                with self._gate(), self._primary_guard(probe):
+                    self._primary_dispatch_local(probe,reserved=reserved)
+                    if not self.history.dispatch_current(probe['reservation'],
+                            current_check=lambda db:self._primary_current(probe,db)):
+                        raise ReadError(409,'primary_probe_source_stale')
+                    # A delayed successful read cannot renew or outlive work.
+                    self._primary_dispatch_local(probe,reserved=reserved)
+                return True
+            except _ReadDeferred as error:
+                code = getattr(error,'sqlite_code',None)
+                if (type(error) is not _ReadDeferred or type(error.phase) is not str
+                        or error.phase not in ('begin','body') or error.reason != 'result_storage_unavailable'
+                        or type(code) is not int or not 0 <= code < 2**31
+                        or (code & 0xff) not in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED)):
+                    raise
+                # _database emits this exact private marker only after close.
+                # Unwind every manager/publication/SQLite lock before waiting.
+                with self._gate():
+                    self._primary_dispatch_local(probe,reserved=reserved)
+                    if probe['read_defer_deadline'] is None:
+                        probe['read_defer_deadline'] = time.monotonic() + PRIMARY_READ_GRACE_SECONDS
+                    remaining = min(probe['read_defer_deadline'],probe['work_deadline']) - time.monotonic()
+                    if remaining <= 0:
+                        self._observe_probe_failure(probe,'dispatch_validation','pre_dispatch_read_contention',error)
+                        raise ReadError(503,'primary_probe_read_contention') from None
+                last_deferred = error
+                probe['cancelled'].wait(min(PRIMARY_READ_WAIT_SECONDS,remaining))
+
     def submit_primary(self):
         """Synchronous permit reservation inside Worker's existing automatic turn."""
         probe = self._primary_pending
@@ -608,15 +681,21 @@ class MossJobs:
         reserved = False
         try:
             if not self.automatic_idle():return False
-            with self._gate(), self._primary_guard(probe):
+            with self._gate():
                 if probe is not self._primary_pending or probe['state'] != 'pending':return False
+                if probe['work_deadline'] is None:
+                    from .recording_speaker_probe_runner import WORK_SECONDS
+                    probe['work_deadline'] = time.monotonic() + WORK_SECONDS
+                    probe['dispatch_binding'] = (probe['reservation'],probe['crop'],probe['invocation_id'],probe['node'],
+                        tuple(sorted(probe['reservation'].items())))
                 if self._live is not None:self._retire(self._live)
-                if not self.history.dispatch_current(probe['reservation'],
-                        current_check=lambda db:self._primary_current(probe,db)):
-                    raise ReadError(409,'primary_probe_source_stale')
+            self._primary_dispatch_current(probe,reserved=False)
+            with self._gate(), self._primary_guard(probe):
+                self._primary_dispatch_local(probe,reserved=False)
                 self.permit.reserve_optional(probe,probe['cancelled'],probe['cancelled'].set,
                                              owner_kind='automatic_primary_probe')
                 reserved = True
+                self._primary_dispatch_local(probe,reserved=False)
                 probe['state'] = 'running'
                 thread = self._thread_factory(target=self._run_primary,args=(probe,),
                                               name='primary-speaker-probe',daemon=True)
@@ -641,25 +720,28 @@ class MossJobs:
         from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
         failure_stage, failure_reason = 'dispatch_validation', 'source_authority_changed'
         try:
-            with self._primary_guard(probe):
-                if not self.history.dispatch_current(probe['reservation'],
-                        current_check=lambda db:self._primary_current(probe,db)):
-                    raise ReadError(409,'primary_probe_source_stale')
+            self._primary_dispatch_current(probe,reserved=True)
             request = {'kind':KIND,'job_id':probe['invocation_id'],'space_id':probe['space_id'],
                 'model_path':self.store.settings.recording_speaker_model_path,
                 'crops':[{'index':0,'pcm_sha256':probe['node']['pcm16le_sha256'],
                           'float32_sha256':probe['node']['float32le_sha256']}]}
             failure_stage, failure_reason = 'child_start', 'other'
             operation = ProbeOperation(self.directory,request,(probe['crop'],),
-                gate=_SpeakerProbeGate(self,probe),driver_factory=self._probe_factory or ProbeDriver)
+                gate=_SpeakerProbeGate(self,probe),driver_factory=self._probe_factory or ProbeDriver,
+                work_deadline=probe['work_deadline'])
             probe['operation'] = operation
             output = operation.run(probe['cancelled'])
             if not operation.cleaned or probe['cancelled'].is_set():
                 raise ReadError(409,'primary_probe_cleanup_pending')
+            if time.monotonic() >= probe['work_deadline']:
+                raise ReadError(409,'primary_probe_deadline')
             # Freeze a detached validated result before the first durable submit.
             probe['validated_output'] = json.loads(encoded(output))
             probe['crop'] = None
+            probe['dispatch_binding'] = None
             with self._gate(), self._primary_guard(probe):
+                if time.monotonic() >= probe['work_deadline']:
+                    raise ReadError(409,'primary_probe_deadline')
                 probe['state'] = 'append_unknown'
                 self.history.append_primary(probe['reservation'],probe['node'],
                     probe['validated_output']['nodes'][0]['vector'],probe['invocation_id'],

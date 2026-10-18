@@ -5,6 +5,7 @@ extractor. No gallery, identity enrollment, downloads, inference retry or worker
 """
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import time
@@ -102,7 +103,11 @@ class ProbeDriver(OwnedDriver):
 
 class ProbeOperation:
     """Single owned invocation; unverified cleanup keeps claim/driver reachable."""
-    def __init__(self, directory, request, crops, *, gate, driver_factory=ProbeDriver):
+    def __init__(self, directory, request, crops, *, gate, driver_factory=ProbeDriver, work_deadline=None):
+        if work_deadline is not None and (type(work_deadline) not in (int,float)
+                or not math.isfinite(work_deadline)):
+            raise ValueError('Invalid absolute probe deadline')
+        self.work_deadline = work_deadline
         self.directory, self.request, self.crops = Path(directory), request, crops
         self.identity = directory_identity(self.directory)
         if any(self.directory.iterdir()):raise RuntimeError('MOSS slot was not discarded')
@@ -114,6 +119,10 @@ class ProbeOperation:
         self.started = False
         self.failure_json = None
         self.child_dispatch = 'not_attempted'
+
+    def _work_checkpoint(self):
+        if self.work_deadline is not None and time.monotonic() >= self.work_deadline:
+            raise TimeoutError('Probe work deadline')
 
     def _observe_failure(self, stage, reason, error=None):
         if self.failure_json is None:
@@ -131,7 +140,9 @@ class ProbeOperation:
         result = None
         stage = 'prepare'
         try:
+            self._work_checkpoint()
             self.gate.check('before_input')
+            self._work_checkpoint()
             self.claim = canonical({'schema':KIND, 'owner':uuid.uuid4().hex,
                 'job_id':self.request['job_id'], 'parent_identity':process_identity(os.getpid()),
                 'directory_identity':self.identity})
@@ -146,17 +157,26 @@ class ProbeOperation:
             stage = 'child_start'
             self.driver = self.factory(self.directory, hashlib.sha256(request).hexdigest())
             self.driver._service_gate = self.gate
+            if self.work_deadline is not None:
+                # Primary admission owns this clock; construction cannot renew it.
+                guard = getattr(self.driver,'guard',None)
+                if guard is not None:guard.deadline = min(guard.deadline,self.work_deadline)
+            self._work_checkpoint()
             self.child_dispatch = 'possible'  # start may lose its acknowledgement.
             self.driver.start(cancelled)
             stage = 'child_wait'
             result = self.driver.wait(cancelled)
+            self._work_checkpoint()
             if cancelled.is_set():raise RuntimeError('Probe interrupted')
             stage = 'return_validation'
             self._validate_return(result)
+            self._work_checkpoint()
             self.child_dispatch = 'returned_validated'
             return result
         except BaseException as error:
             reason = ('optional_cancelled' if cancelled.is_set() else
+                'pre_dispatch_deadline' if self.work_deadline is not None and self.child_dispatch == 'not_attempted'
+                    and time.monotonic() >= self.work_deadline else
                 'invalid_return' if stage == 'return_validation' else
                 'child_failed' if type(error) is ProbeChildFailure else 'other')
             self._observe_failure(stage, reason, error)
