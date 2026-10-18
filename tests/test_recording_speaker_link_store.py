@@ -533,11 +533,11 @@ def test_cancelled_cas_and_source_cancellation_cannot_publish(environment):
     store,value,_=environment; token,_=finish(value,prepared(store))
     snap=value.snapshot(token['scope_id']); decision=links.reconcile_batches(snap['evidence_batches'])
     assert not value.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision'],cancelled=lambda:True)
+        session_revision=snap['session_revision'],cancelled=lambda:True, policy_sha256=links.POLICY_SHA256_V2)
     with connection(store.path) as db:
         db.execute("UPDATE chunks SET status='cancelled'")
     with pytest.raises(ReadError) as error:
-        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'])
+        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2)
     assert error.value.reason=='probe_unavailable'
     assert value.read_saved(SID,RID)['annotations']==[]
 
@@ -648,8 +648,9 @@ def test_current_source_mutations_cannot_be_resealed(environment,change):
     with connection(store.path) as db:
         db.execute(change)
     with pytest.raises(ReadError): value.snapshot(token['scope_id'])
-    with pytest.raises(ReadError):
-        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'])
+    with pytest.raises(ReadError) as stale:
+        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2)
+    assert stale.value.reason != 'speaker_link_policy_conflict'
 
 
 def test_reservation_staging_and_recompute_staging_are_independently_bounded(environment,monkeypatch):
@@ -878,12 +879,13 @@ def test_bounded_extra_source_status_revocation_cannot_publish(bounded_job,cid,s
     with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
     with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
     assert f.links.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision']) is False
+        session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2) is False
     with f.store.db() as db:
         current = db.execute('SELECT transcript_revision FROM sessions WHERE id=?',(f.sid,)).fetchone()[0]
     assert current != snap['session_revision']
-    with pytest.raises(ReadError):
-        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current)
+    with pytest.raises(ReadError) as stale:
+        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current, policy_sha256=links.POLICY_SHA256_V2)
+    assert stale.value.reason != 'speaker_link_policy_conflict'
     assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
 
 
@@ -904,12 +906,13 @@ def test_bounded_stale_authority_cannot_reseal_after_snapshot(bounded_job,change
     with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
     with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
     assert f.links.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision']) is False
+        session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2) is False
     with f.store.db() as db:
         current = db.execute('SELECT transcript_revision FROM sessions WHERE id=?',(f.sid,)).fetchone()[0]
     assert current != snap['session_revision']
-    with pytest.raises(ReadError):
-        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current)
+    with pytest.raises(ReadError) as stale:
+        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current, policy_sha256=links.POLICY_SHA256_V2)
+    assert stale.value.reason != 'speaker_link_policy_conflict'
     assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
 
 

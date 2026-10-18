@@ -305,14 +305,14 @@ def test_fresh_current_boundary_refuses_each_real_mutation(primary_probe_app_fac
                         ident = int(packets[0]['packet']['refs'][0][0].split('.')[1])
                         assert db.execute('UPDATE segments SET text=? WHERE id=?', ('changed', ident)).rowcount == 1
                     elif mutation == 'mapping':
-                        assert db.execute('UPDATE chunks SET timeline_start=timeline_start+? WHERE id=?',
-                            (1 / RATE, cid)).rowcount == 1
+                        assert db.execute('DELETE FROM stream_time_index WHERE chunk_id=?',
+                                          (cid,)).rowcount == 1
                     else:
                         assert db.execute('DELETE FROM native_core_commits WHERE slot=?',
                             (packets[0]['header']['core_slot'],)).rowcount == 1
             with h.store.db() as db:
                 db.execute('BEGIN')
-                if mutation in ('packet', 'receipt_generation', 'file'):
+                if mutation in ('packet', 'receipt_generation', 'file', 'mapping'):
                     try:
                         accepted = probe.current_packets(db, lease.token.proof, packets, source)
                     except (cells.Unavailable, ReadError, ValueError):
@@ -462,7 +462,11 @@ def _decision_row(f, scope):
 def _change_real_evidence(f, mutation, monkeypatch=None):
     if mutation == 'file':
         with _source_path(f.h, f.cid).open('r+b') as target:
-            target.seek(44); target.write(b'\x04\0')
+            target.seek(44)
+            assert target.read(2) != b'\x04\0'
+            target.seek(44); target.write(b'\x04\0'); target.flush()
+            target.seek(44)
+            assert target.read(2) == b'\x04\0'
         return
     if mutation == 'receipt_unavailable':
         receipt = f.h.owner.receipt(f.cid)
@@ -498,8 +502,10 @@ def _change_real_evidence(f, mutation, monkeypatch=None):
         return observed
     with f.h.store.db() as db:
         if mutation == 'mapping':
-            changed = db.execute('UPDATE chunks SET timeline_start=timeline_start+? WHERE id=?',
-                                 (1 / RATE, f.cid)).rowcount
+            # Continuous source and indexed times are immutable. A missing
+            # exact derived mapping row is an allowed freshness failure.
+            changed = db.execute('DELETE FROM stream_time_index WHERE chunk_id=?',
+                                 (f.cid,)).rowcount
         elif mutation == 'primary_ref':
             ident = int(f.packets[0]['packet']['refs'][0][0].split('.')[1])
             changed = db.execute('UPDATE segments SET raw_text=? WHERE id=?', ('changed primary ref', ident)).rowcount
@@ -697,3 +703,229 @@ def test_real_native_lost_ack_resolution_is_storage_only_without_reprobe(
             f.value.snapshot(admission['scope_id'])
         assert [list(native.calls) for native in h.natives] == calls
         assert not h.owner._pins and not h.drivers and h.jobs._live is None
+
+
+def _primary_rows(h, cid):
+    with h.store.db() as db:
+        return [tuple(row) for row in db.execute(
+            'SELECT * FROM segments WHERE chunk_id=? ORDER BY id', (cid,))]
+
+
+def _run_real_manager_probe(h, monkeypatch, *, fault_boundary=None, mutation=None):
+    """Actual manager/controller/ledger, with fixed in-process producer output."""
+    from audio_backend import recording_speaker_probe_runner as runner
+    from test_moss_handy_controller import clean
+
+    cid, intent, saved = _produce(h)
+    with _live_lease(h, intent) as (source, lease):
+        assert _read(h, lease, source) == [saved]
+    h.automatic.note(intent['candidate_key'], 'synthetic_manager_dispatch', published=True)
+    intent = h.automatic.read_candidate(intent['candidate_key'])
+    assert intent['state'] == 'published'
+    before = _primary_rows(h, cid)
+    native_calls = [list(native.calls) for native in h.natives]
+    events = SimpleNamespace(stages=[], validations=[], dispatch=[], captures=[],
+                             reservations=[], mutations=[], drivers=[], committed=None)
+    edge = [None]
+    genuine_driver_factory = h.jobs._driver_factory
+
+    def moss_driver(directory, digest):
+        driver = genuine_driver_factory(directory, digest)
+        driver.raw = (b'[3.6] [S01] Matching synthetic observation. [6.4] '
+                      b'[6.6] [S02] Independent synthetic competitor. [9.4]')
+        return driver
+
+    class FixedProbeDriver:
+        # Same fixed-output pattern as test_recording_speaker_probe_lifecycle;
+        # real ProbeOperation still binds requests, outputs and private cleanup.
+        def __init__(self, directory, digest):
+            self.directory, self.digest = directory, digest
+            self.starts = self.cleanups = 0
+            events.drivers.append(self)
+
+        def start(self, cancelled):
+            self.starts += 1
+            assert not cancelled.is_set() and cancelled is not record['cancelled']
+            assert capture_lease.released and record['cleaned']
+            assert record['durable_result_available'] and not record['storage_pending']
+            assert h.jobs.permit._optional is record['speaker_probe']
+            assert h.jobs.results.result(h.sid, record['job_id']) == events.committed
+
+        def wait(self, cancelled):
+            assert not cancelled.is_set()
+            raw = (self.directory / 'request.json').read_bytes()
+            assert hashlib.sha256(raw).hexdigest() == self.digest
+            request = json.loads(raw)
+            values = (vector(1., 0.), vector(.98, .20), vector(0., 1.))
+            assert len(request['crops']) == len(values)
+            return {'kind': runner.KIND, 'job_id': request['job_id'],
+                'space': runner.expected_space()[0], 'space_id': request['space_id'],
+                'compute_attempts': len(request['crops']),
+                'nodes': [{'index': crop['index'], 'pcm_sha256': crop['pcm_sha256'],
+                           'vector': values[crop['index']]} for crop in request['crops']]}
+
+        def cleanup(self, stop):
+            self.cleanups += 1
+            return clean()
+
+    monkeypatch.setattr(h.jobs, '_driver_factory', moss_driver)
+    monkeypatch.setattr(h.jobs, '_probe_factory', FixedProbeDriver)
+    code, reply = h.jobs.submit_automatic(intent)
+    assert code == 202
+    record = h.jobs._live
+    assert record['job_id'] == reply['job_id']
+    capture_lease = record['lease']
+    assert type(capture_lease) is CellLease and not capture_lease.released
+    f = SimpleNamespace(h=h, cid=cid, packets=[saved])
+    real_stage, real_validate = h.jobs._stage_speaker_probe, h.jobs._validate
+    real_dispatch = source.revalidate_dispatch
+    real_capture, real_reserve = links.capture_candidates_v2, h.jobs.speaker_links.reserve
+
+    def mutate_at(boundary):
+        if fault_boundary != boundary:
+            return
+        assert events.mutations == []
+        _change_real_evidence(f, mutation)
+        events.mutations.append((boundary, mutation))
+
+    def dispatch(token):
+        current, edge[0] = edge[0], None
+        if current is None:
+            return real_dispatch(token)
+        assert token is capture_lease.token
+        try:
+            result = real_dispatch(token)
+        except ReadError:
+            events.dispatch.append((current, 'refused'))
+            raise
+        events.dispatch.append((current, 'accepted'))
+        return result
+
+    def validate(current):
+        if edge[0] == 'pre_capture':
+            assert current is record
+            events.validations.append('pre_capture')
+        return real_validate(current)
+
+    def stage(current):
+        assert current is record
+        events.stages.append('after_positive_moss_cleanup')
+        status = current['controller'].status(current['controller_id'])
+        assert runner.cleanup_verified(status['cleanup'])
+        assert status['native_receipt']['model_closed'] and status['native_receipt']['session_closed']
+        assert status['publication_valid'] and status['result'] is not None
+        assert not capture_lease.released and capture_lease.pcm == _pcm()[RATE:]
+        assert h.owner._pins and h.drivers[0].starts == h.drivers[0].cleanups == 1
+        edge[0] = 'pre_capture'
+        mutate_at('pre_capture')
+        try:
+            return real_stage(current)
+        finally:
+            edge[0] = None
+
+    def capture(*args, **kwargs):
+        assert not capture_lease.released and h.owner._pins
+        assert h.jobs._probe_staging_bytes == runner.STAGING_BYTES
+        assert kwargs['primary_packets'] == [saved]
+        batch, crops = real_capture(*args, **kwargs)
+        assert len(crops) == len(batch['nodes']) == 3
+        assert any(node['source_kind'] == 'native_primary' for node in batch['nodes'])
+        events.captures.append(deepcopy(batch))
+        edge[0] = 'post_crop'
+        mutate_at('post_crop')
+        return batch, crops
+
+    def reserve(*args, **kwargs):
+        admitted = real_reserve(*args, **kwargs)
+        assert admitted['should_probe'] and admitted['token'] is not None
+        assert capture_lease.released and record['cleaned']
+        assert record['durable_result_available'] and not record['storage_pending']
+        events.committed = h.jobs.results.result(h.sid, record['job_id'])
+        assert events.committed == record['history_snapshot'].result_json
+        events.reservations.append(admitted)
+        edge[0] = 'pre_probe'
+        mutate_at('pre_probe')
+        return admitted
+
+    monkeypatch.setattr(source, 'revalidate_dispatch', dispatch)
+    monkeypatch.setattr(h.jobs, '_validate', validate)
+    monkeypatch.setattr(h.jobs, '_stage_speaker_probe', stage)
+    monkeypatch.setattr(links, 'capture_candidates_v2', capture)
+    monkeypatch.setattr(h.jobs.speaker_links, 'reserve', reserve)
+    record['thread'].run()
+    # A refused post-text dispatch can leave an already-consumed reservation.
+    # Resolve only its historical metadata, through the real storage-only path.
+    h.jobs._retry_probe_storage(record)
+    assert events.stages == ['after_positive_moss_cleanup']
+    assert events.validations == ['pre_capture']
+    assert capture_lease.released and not h.owner._pins
+    assert record['process_cleanup_verified'] and record['cleaned']
+    assert not record['storage_pending'] and not record['speaker_probe']['commit_pending']
+    assert h.jobs.permit._optional is None and h.jobs._probe_staging_bytes == 0
+    assert not (h.jobs.directory / 'owner.json').exists()
+    assert len(h.drivers) == 1 and h.drivers[0].starts == h.drivers[0].cleanups == 1
+    assert [list(native.calls) for native in h.natives] == native_calls
+    assert _primary_rows(h, cid) == before
+    return record, events, saved
+
+
+def test_real_manager_consumes_native_packet_after_moss_cleanup_and_publishes_typed_link(
+        primary_probe_app_factory, monkeypatch):
+    with primary_probe_app_factory() as h:
+        record, events, saved = _run_real_manager_probe(h, monkeypatch)
+        assert events.dispatch == [('pre_capture', 'accepted'), ('post_crop', 'accepted'),
+                                   ('pre_probe', 'accepted')]
+        assert not events.mutations
+        assert len(events.captures) == len(events.reservations) == len(events.drivers) == 1
+        assert events.drivers[0].starts == events.drivers[0].cleanups == 1
+        assert record['speaker_probe']['operation'].cleaned
+        assert record['speaker_probe']['state'] == 'provisional_linked'
+        assert record['durable_result_available'] and not record['cancelled'].is_set()
+        assert h.jobs.results.result(h.sid, record['job_id']) == events.committed
+        scope = events.reservations[0]['scope_id']
+        retained = h.jobs.speaker_links.snapshot(scope)['evidence_batches']
+        assert len(retained) == 1 and retained[0]['primary_packets'] == [saved]
+        captured = next(n for n in events.captures[0]['nodes'] if n['source_kind'] == 'native_primary')
+        native = next(n for n in retained[0]['nodes'] if n['source_kind'] == 'native_primary')
+        assert {k: v for k, v in native.items() if k != 'vector'} == captured
+        assert native['vector'] == vector(1., 0.)
+        with h.store.db() as db:
+            rid = db.execute('SELECT batch_id FROM recording_work WHERE chunk_id=?',
+                             (saved['header']['cid'],)).fetchone()[0]
+        decision = h.jobs.speaker_links.read_saved(h.sid, rid)
+        annotation = next(a for a in decision['annotations'] if a['source_kind'] == 'native_primary')
+        assert annotation['node_id'] == native['node_id']
+        assert annotation['primary_source_ref'] == saved['packet']['refs'][0][0]
+        assert annotation['original_parent_ordinal'] == 0
+        assert annotation['original_unit_ordinals'] == [[0, 0]]
+        assert annotation['original_turn_ordinals'] == [0, 1]
+        assert annotation['status'] == 'provisional_linked' and annotation['speaker_identity_valid'] is False
+
+
+@pytest.mark.parametrize('boundary', ['pre_capture', 'post_crop', 'pre_probe'])
+@pytest.mark.parametrize('mutation', ['receipt_unavailable', 'file', 'mapping'])
+def test_real_manager_refuses_each_genuine_authority_mutation_at_each_dispatch_edge(
+        primary_probe_app_factory, monkeypatch, boundary, mutation):
+    with primary_probe_app_factory() as h:
+        record, events, _ = _run_real_manager_probe(h, monkeypatch,
+            fault_boundary=boundary, mutation=mutation)
+        edges = ['pre_capture', 'post_crop', 'pre_probe']
+        index = edges.index(boundary)
+        assert events.dispatch == [(name, 'accepted') for name in edges[:index]] + [(boundary, 'refused')]
+        assert events.mutations == [(boundary, mutation)]
+        assert len(events.captures) == int(boundary != 'pre_capture')
+        assert len(events.reservations) == int(boundary == 'pre_probe')
+        assert events.drivers == [] and record['speaker_probe']['operation'] is None
+        assert record['speaker_probe']['state'] == 'probe_unavailable'
+        if boundary == 'pre_probe':
+            assert record['durable_result_available'] and not record['cancelled'].is_set()
+            assert h.jobs.results.result(h.sid, record['job_id']) == events.committed
+        else:
+            assert not record['durable_result_available']
+        with h.store.db() as db:
+            decisions = db.execute(f'SELECT decision_json FROM {ledger.SCOPES} WHERE session_id=?',
+                                   (h.sid,)).fetchall()
+            assert all(row[0] is None for row in decisions)
+            batches = db.execute(f'SELECT batch_json FROM {ledger.BATCHES} WHERE session_id=?',
+                                 (h.sid,)).fetchall()
+            assert all('vector' not in node for row in batches for node in json.loads(row[0])['nodes'])

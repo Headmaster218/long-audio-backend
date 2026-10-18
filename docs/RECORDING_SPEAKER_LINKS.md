@@ -1,5 +1,127 @@
 # Provisional recording-local speaker links
 
+## dev47: typed native-primary / MOSS observations
+
+This default-off extension consumes prospective native-primary numerical packets
+in the existing recording-local probe path. It introduces no persistent table,
+provenance writer, source reader, scheduler, thread, model, enrollment or global
+person identity. The six implementation modules are identified with exact hashes
+in `reports/PRIMARY_PROBE_LINKS_DEV47_QUALIFICATION.json`. The dev46 provenance
+checkpoint and both explicitly unqualified WIP reports remain historical evidence.
+
+### Capture and live authority
+
+Capture runs after positive MOSS model/session cleanup while the exact CellLease
+is still owned. Native admission requires the bounded-core proof. At most four
+unique exact original/final commitment slots are read by name; there is no
+recording-wide discovery or historical backfill. Combined packet bodies are
+admitted before materialization at 64 KiB, with at most 256 turns per packet.
+Oversized packets remain stored historical evidence and abstain from this consumer.
+
+Each fresh authority boundary uses the real CellJobsSource owner receipt and
+PrimaryAuthority receipt/file/row/mapping checks, with one shared bounded read
+budget and generation fence across the retained inventory. Checks recur at
+capture, reserve, commit, recomputation and decision publication; no authority
+cache survives a boundary. The manager also uses genuine dispatch revalidation
+after detached crop capture and immediately before probing. A published generation
+alone is insufficient. Changed or missing owner, receipt, file, mapping, packet,
+primary row or core state refuses the optional work and preserves primary text.
+
+The immutable v2 batch retains bounded numerical packets and typed nodes. A
+native-primary node binds the exact packet digest and commitment, p.ref, original
+unit/parent/raw-turn ordinals, original capture namespace, source spans, PCM and
+float hashes, and embedding space. A MOSS node retains its job/result/phrase/tag
+binding with explicit source_kind. Primary rows receive no invented phrase IDs;
+equal local label strings never create identity authority. Current persisted
+packet presence and authority are still required.
+
+Primary crops require witnessed unambiguous attribution and continuous one-label
+raw-turn coverage, subtracting other-label activity and intersecting the exact
+owned core and live lease mapping. The lease query is independently qualified in
+its separate namespace. CTC anchors alone do not establish clean audio. Both ends
+are eroded by 1,600 frames; the longest component, then earliest coordinates,
+determine a centered 32,000-frame PCM16 crop. No concatenation, padding or invented
+timing is allowed. Adjusted MOSS phrases remain ineligible. Hard overlap witnesses
+survive even when their labels have no surviving crop.
+
+### Fixed limits and conservative comparisons
+
+Metadata admissions precede crop allocation. Eligible primary and MOSS candidates
+alternate deterministically, filling unused slots from the other kind. The old
+four-node/job, four exact 64,000-byte physical crop, 512-dimensional space,
+32-node/recording, 496-pair, 0.55 threshold and 0.10 margin limits are unchanged.
+All retained packet/batch metadata, selected physical crops and output allowance
+remain inside the existing 512 KiB staging charge. No threshold calibration or
+pooled-vector reuse occurred.
+
+Exact source/PCM duplicates share an explicit probe_index but retain typed aliases
+and consume node capacity conservatively. Runner outputs map through probe_index,
+never by zipping typed nodes to physical outputs. Aliases count once as comparison
+evidence. Unembedded aliases remain terminal and borrow no vector or identity,
+but their attribution and source spans constrain available duplicate classes;
+contradictory aliases fail closed. Hard cannot-links survive alias collapse.
+
+All competitors retain the existing ranking. Only after choosing the best and
+unchanged runner-up, a separate dependency veto refuses a proposal if original
+source audio overlaps between any two of current, best and runner-up clusters,
+including best versus runner-up. No competitor is removed and no second place is
+promoted. Unrelated disjoint observations can still link. Two observations alone
+abstain because there is no genuine runner-up. Unsupported primary proof types
+can still contribute ordinary eligible MOSS observations.
+
+Historical v1 scopes remain readable and MOSS-only. New scopes select v2 even for
+an ordinary first job. A scope never mixes policies or rewrites old evidence.
+Version-dispatched validation rejects typed metadata under v1 and incompatible
+primary metadata on v2 MOSS nodes, even with recomputed transport digests.
+
+### Exact, bounded annotation projection
+
+Annotations attach only to the current exact p.ref and lexical children whose
+parent_source_ref matches that current parent. They never alter primary or lexical
+content hashes. Repeated observations of one p.ref must agree on current identity
+and availability; conflicting observations abstain rather than selecting a job.
+Primary evidence does not grant an unprobed MOSS label an identity.
+
+Both v2 native-primary and MOSS annotations explicitly report
+validation_semantics=validated_at_decision_revision and speaker_identity_valid=false.
+They are anonymous, reversible and revision-bound. GET validates current DB/ref
+projection; it does not promise fresh filesystem/receipt checks on every request.
+Current source authority was checked when the decision was published. Enabled
+cursor revisions include supported policy semantics, so old-contract cursors are
+rejected without changing p./l. refs or historical v1 readability.
+
+Primary-only and MOSS-derived scope reads share one deduplicating cache and the
+existing 2 MiB decision-byte allowance. A fixed 64 KiB maximum is reserved before
+each unique scope read, including failed reads. No 33rd decision blob is decoded.
+On optional exhaustion, full transcript text remains available and
+recording_speaker_links.annotation_read explicitly reports incomplete with reason
+saved_decision_bytes. Scalar revision headers still cover unread scopes.
+
+### Qualification and remaining limits
+
+There are 582 unique passing model-free cases: 140 numerical/SQL projection
+contracts, all 54 prospective pipeline cases (33 real-packet ledger and 21
+capture/current/manager cases), 114 store/lifecycle regressions, 270 transcript
+regressions and four default-path manager checks. Genuine Worker/ownership/
+commit/restart fixtures use synthetic audio/native observations and fixed synthetic
+vectors; no native inference or embedding model was launched. The report lists
+all 54 exact pipeline node IDs, immutable source/argv/report pins, source-equivalent
+test-only deltas and three retained stopped fixture runs. Repeated diagnostic
+passes add no unique qualification credit. The unrelated 100,000-row transcript
+stress was outside the fresh fixture envelope and is not claimed here.
+
+These cases qualify synthetic typed identity plumbing, not actual acoustic
+same-person accuracy or false-merge quality. Clean native attribution is still a
+model prediction, not ground truth. Real embedding/model/runtime closure and
+quality require a later independently authorized qualification. Offline wheel
+and installed-package byte parity is a separate packaging check only. Existing
+durable ownership, reservations, capacity, cancellation, positive cleanup and
+storage-only lost-ack resolution retain their no-replay policy.
+
+The following dev45 and earlier text is preserved verbatim as historical,
+version-specific documentation. Its v1 one-node/one-crop descriptions do not
+override the v2 explicit probe_index contract above.
+
 ## dev45: bounded MOSS-to-MOSS evidence admission
 
 Version 0.2.0rc3.dev45 restores the existing optional recording-local evidence path

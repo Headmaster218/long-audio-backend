@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev47：录音内 primary / MOSS 临时身份链接
+
+既有默认关闭的 recording speaker links 现在可以消费新保留的 native-primary 数值包，并与同一录音的 MOSS crop 一起执行有类型的 v2 比较。主行必须由精确 p.ref、原始归属与当前 receipt / 文件 / mapping / core 共同授权；只在 MOSS 已确认清理且原 CellLease 仍由任务持有时选择连续干净的两秒 crop。每任务四个节点、每录音 32 节点 / 496 对、0.55 阈值与 0.10 margin 均不变；无历史补造、native 池化向量复用或全局人员身份；保留的逐观察向量可重新比较，但不做合并或平均。
+
+582 个不同模型无关用例通过，涵盖真实前瞻 Worker / owner / commit / restart 的合成 fixture、固定合成向量、三次 manager dispatch 与四次 ledger 新鲜性边界、别名 / 重叠 / cannot-link、丢失确认、取消、v1/v2、主行与词汇精确注解及有界 GET。三次中止均来自已修正的测试 fixture 契约，原失败报告保留。GET 注解明确为 validated-at-decision / revision-bound，speaker_identity_valid=false；当前 DB / ref 撤销会失效，不表示每次 GET 都重新验证文件。p./l. 内容哈希不变。
+
+这些测试仅验证合成的 typed identity 机制；实际同人识别、误合并率与声学质量仍未获资格，未运行模型。包字节核对也不构成模型或运行时部署资格。完整范围、限制、逐批源码与唯一用例核对见[录音内临时链接](docs/RECORDING_SPEAKER_LINKS.md)及[dev47 资格报告](reports/PRIMARY_PROBE_LINKS_DEV47_QUALIFICATION.json)。下列历史章节保持原字节和原有资格。
+
 ## 0.2.0rc3.dev46：前瞻的 native-primary 数值来源证据
 
 既有默认关闭的 recording speaker links + bounded automatic 路径现在可在主事务内保留不可变的 native-primary 数值归属证据：原始 unit/parent 序号、query/run/epoch/source/core 承诺、所有匹配的原始 turn 序号，以及实际 SQLite 主行的精确 p.ref。可选 l.ref 缺失不妨碍保留数值几何；不复制转写文本、PCM 或向量，不给历史主行补造证据。归属仍重放原有 unit 起点与 ±0.03 秒规则，多个不同标签或规范化不一致保持弃权。
