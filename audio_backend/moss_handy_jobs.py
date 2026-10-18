@@ -787,14 +787,12 @@ class MossJobs:
                 try:self.history.finish_comparison(record['snapshot'],record['finish_pending'])
                 except BaseException:return False
                 record['finish_pending'] = None
-            build = record.get('build')
-            if build is not None:
-                if record['state'] == 'published':record['prefix'] = build.score_prefix
-                build.discard(); record['build'] = None
+            driver = record.get('driver')
             self.permit.pause_comparison(record['grant'])
-            if record['cancelled'].is_set() or not self._history_comparison_enabled() or record.get('prefix') is None:
+            if (record['cancelled'].is_set() or not self._history_comparison_enabled()
+                    or driver is None or driver.cache_binding is None):
                 cancelled = record['cancelled'].is_set()
-                record['prefix'] = None
+                if not self._close_history_comparison_driver(record):return False
                 if not self.permit.release_comparison(record['grant']):return False
                 with self._lock:
                     if self._history_comparison is record:self._history_comparison = None
@@ -808,9 +806,9 @@ class MossJobs:
         fresh = record is None
         if fresh:
             record = {'grant':object(),'generation':object(),'cancelled':threading.Event(),
-                'completed':threading.Event(),'thread':None,'build':None,'snapshot':None,
+                'completed':threading.Event(),'thread':None,'driver':None,'snapshot':None,
                 'state':'starting','deadline':now + 180.,'session_id':None,'start_attempted':False,
-                'prefix':None,'cache_scope':None,'finish_pending':None}
+                'task_sequence':0,'driver_active':False,'finish_pending':None}
         try:
             with self._gate():
                 if fresh:
@@ -823,7 +821,7 @@ class MossJobs:
                               generation=object(),deadline=now + 180.)
                 generation = record['generation']
             if fresh:
-                self.permit.reserve_comparison(record['grant'],record['cancelled'],memory_bytes=128 * 1024**2)
+                self.permit.reserve_comparison(record['grant'],record['cancelled'],memory_bytes=192 * 1024**2)
             elif not self.permit.resume_comparison(record['grant']):
                 raise AdmissionError('comparison_pending')
             with self._gate():
@@ -846,38 +844,56 @@ class MossJobs:
             self.permit.pause_comparison(record['grant'])
             record['state'] = 'pending';record['completed'].set()
             if fresh:
-                record['prefix'] = None
                 if self.permit.release_comparison(record['grant']):
                     with self._lock:
                         if self._history_comparison is record:self._history_comparison = None
             return False
 
-    def _configure_history_comparison_thread(self, record):
-        """Configure only this authenticated native thread, never its parent.
+    def _history_comparison_driver(self, record, token):
+        """Start only the separately accounted pure-compute owner.
 
-        The inherited mask provides one time-shared logical CPU, not an
-        exclusive core or a guarantee about inference/GIL throughput.
+        This coordinator keeps DB and authority ownership. Neither it nor a
+        primary/model thread is reniced or moved by child setup. The child may
+        keep one prefix after a positively acknowledged task closure; no score
+        matrix or cross-snapshot authority cache is retained in this process.
         """
+        from .recording_speaker_history_process import ComparisonProcess
+        driver = record['driver']
+        if driver is None:
+            driver = ComparisonProcess(owner_nonce=uuid.uuid4().hex,
+                cancelled=record['cancelled'].is_set,
+                grant_valid=lambda:self.permit.comparison_grant_valid(record['grant']),
+                bind_child=lambda proc:self.permit.bind_comparison_process(
+                    record['grant'],proc,owner=record['driver']),
+                observe_child=lambda proc, startup=False, deadline=None:self.permit.observe_comparison_process(
+                    record['grant'],proc,startup=startup,deadline=deadline),
+                finish_child=lambda proc, deadline=None:self.permit.finish_comparison_process(
+                    record['grant'],proc,deadline=deadline))
+            # Retain the original owner before any spawn/bind can fail.
+            record['driver'] = driver
+            self.permit.bind_comparison_owner(record['grant'],driver)
+            driver.start(record['deadline'])
+        if record['driver_active']:
+            driver.rebase(token)  # Same task, prefix, and original deadline.
+        else:
+            record['task_sequence'] += 1
+            driver.begin(token,generation=record['task_sequence'],deadline=record['deadline'])
+            record['driver_active'] = True
+        return driver
+
+    def _close_history_comparison_driver(self, record):
+        driver = record['driver']
+        if driver is None:return True
         try:
-            thread = record['thread']
-            if sys.platform != 'linux' or threading.current_thread() is not thread:
-                raise RuntimeError('comparison_thread_unverified')
-            native_id = threading.get_native_id()
-            if thread.native_id != native_id:raise RuntimeError('comparison_thread_unverified')
-            allowed = os.sched_getaffinity(native_id)
-            if len(allowed) < 2:raise RuntimeError('comparison_cpu_unavailable')
-            cpu = max(allowed)
-            os.setpriority(os.PRIO_PROCESS,native_id,19)
-            os.sched_setaffinity(native_id,{cpu})
-            if (os.sched_getaffinity(native_id) != {cpu}
-                    or os.getpriority(os.PRIO_PROCESS,native_id) != 19):
-                raise RuntimeError('comparison_thread_unverified')
-            record['execution_lane'] = {'native_id':native_id,'cpu':cpu,'nice':19}
-            return True
-        except Exception:
-            record['state'] = 'pending'
-            record['reason'] = 'comparison_execution_lane_unavailable'
-            return False
+            receipt = driver.close()
+            if type(receipt) is dict and receipt.get('positive') is True:
+                record['driver_active'] = False
+                return True
+        except BaseException:
+            pass
+        record['state'] = 'ownership_unknown'
+        record['reason'] = 'comparison_cleanup_unknown'
+        return False
 
     def _comparison_checkpoint(self, record, snapshot=None):
         while not record['cancelled'].is_set() and time.monotonic() < record['deadline']:
@@ -911,58 +927,73 @@ class MossJobs:
         return False
 
     def _compare_history_snapshot(self, record, snapshot):
-        from .recording_speaker_history_compare import ComparisonBuild, Pending
+        from .recording_speaker_history_compare import Pending
+        from .recording_speaker_history_process import ProcessPending
         token = snapshot['token']
-        prefix = record.get('prefix') if record.get('cache_scope') == token.scope_id else None
-        # At most one prefix is retained; no previous loaded rows coexist here.
-        record['prefix'] = None
-        build = ComparisonBuild(token,admitted_bytes=128 * 1024**2,
-            cancelled=record['cancelled'].is_set,
-            grant_valid=lambda:self.permit.comparison_grant_valid(record['grant']),
-            deadline=record['deadline'],prefix=prefix)
-        record['build'] = build; record['cache_scope'] = token.scope_id
         cursor = 0
         while True:
-            if not self._comparison_checkpoint(record):return None
+            if not self._comparison_checkpoint(record,snapshot):return None
             page = self.history.active_source_page(snapshot,after=cursor)
-            if not self._comparison_checkpoint(record):return None
+            if not self._comparison_checkpoint(record,snapshot):return None
             self.history.revalidate_active_sources(snapshot,page,
-                checkpoint=lambda:self._comparison_checkpoint(record))
+                checkpoint=lambda:self._comparison_checkpoint(record,snapshot))
             if page['complete']:break
             cursor = page['next_after']
-        for reader, feeder in ((self.history.observation_page,build.feed_observations),
-                               (self.history.witness_page,build.feed_witnesses)):
+        # No source read or database connection remains open across this edge.
+        driver = self._history_comparison_driver(record,token)
+        for reader, feeder in ((self.history.observation_page,driver.feed_observations),
+                               (self.history.witness_page,driver.feed_witnesses)):
             cursor = 0
             while True:
-                if not self._comparison_checkpoint(record):return None
+                if not self._comparison_checkpoint(record,snapshot):return None
                 page = reader(snapshot,after=cursor)
-                if not self._comparison_checkpoint(record):return None
+                if not self._comparison_checkpoint(record,snapshot):return None
                 feeder(token,cursor,page['rows'],complete=page['complete'])
                 if page['complete']:break
                 cursor = page['next_after']
+        page = None  # Drop the last parent projection before child compute.
         while True:
             if not self._comparison_checkpoint(record,snapshot):return None
-            result = build.step(); record['state'] = result['state']
+            try:result = driver.step()
+            except ProcessPending as exc:
+                if str(exc) == 'comparison_grant_paused':continue
+                raise
+            # Even a negative terminal result belongs only to this exact
+            # revision. A late alias/rival cannot inherit the old refusal.
+            if not self._comparison_checkpoint(record,snapshot):return None
+            record['state'] = result['state']
             if result['state'] == 'ready':break
             if result['state'] in ('refused','cancelled'):return result
         cursor = 0
         while True:
             if not self._comparison_checkpoint(record,snapshot):return None
-            try:page = build.output_page(after=cursor,limit=32)
-            except Pending as exc:
-                if str(exc) == 'comparison_grant_paused' and build.state == 'ready':continue
+            try:page = driver.output_page(after=cursor,limit=16)
+            except (Pending,ProcessPending) as exc:
+                if str(exc) == 'comparison_grant_paused' and driver.state == 'ready':continue
                 raise
+            if not self._comparison_checkpoint(record,snapshot):return None
             self.history.write_decision_page(snapshot,page)
             if page['complete']:break
             cursor = page['next_after']
         if not self._comparison_checkpoint(record,snapshot):return None
-        return self.history.publish_comparison(snapshot,build.decision_counts)
+        return self.history.publish_comparison(snapshot,driver.decision_counts)
 
     def _run_history_comparison(self, record):
         snapshot = None; reason = 'unavailable'
         try:
-            if not self._configure_history_comparison_thread(record):return
             while self._comparison_checkpoint(record):
+                if reason == 'stale' and record['snapshot'] is not None:
+                    # A revocation can land between the last checkpoint and
+                    # publication. Do not confuse its absent dirty scope with
+                    # an append awaiting terminal evidence for 180 seconds.
+                    current = self.history.comparison_current(record['snapshot'])
+                    if current == 'invalid':
+                        record['cancelled'].set();record['state'] = 'cancelled'
+                        record['reason'] = 'history_authority_changed';return
+                    if current == 'pending':
+                        record['state'] = 'pending'
+                        record['cancelled'].wait(min(.05,max(0.,record['deadline']-time.monotonic())))
+                        continue
                 snapshot = self.history.begin_comparison(after_scope=(
                     record['snapshot']['scope_seq'] - 1 if reason == 'stale' and record['snapshot'] else None))
                 if snapshot is None:
@@ -972,7 +1003,9 @@ class MossJobs:
                         record['state'] = 'pending'
                         record['cancelled'].wait(min(.05,max(0.,record['deadline']-time.monotonic())))
                         continue
-                    record['state'] = 'cached' if record.get('prefix') is not None else 'idle';return
+                    driver = record['driver']
+                    record['state'] = 'cached' if driver is not None and driver.cache_binding else 'idle'
+                    return
                 record['snapshot'] = snapshot
                 record['session_id'] = snapshot.get('session_id')
                 try:result = self._compare_history_snapshot(record,snapshot)
@@ -980,7 +1013,13 @@ class MossJobs:
                     if exc.reason not in ('history_snapshot_changed','history_pending'):raise
                     result = {'saved':False,'reason':'stale'}
                 if result is not None and result.get('saved'):
-                    record['state'] = 'published';reason = 'complete';return
+                    # Durable publication is already acknowledged. Only a
+                    # positively acknowledged child task closure permits a
+                    # future task/deadline to reuse its recomputable prefix.
+                    reason = 'complete'
+                    record['driver'].finish_task(retain_prefix=True)
+                    record['driver_active'] = False
+                    record['state'] = 'published';return
                 if result is None:return
                 if result.get('state') in ('refused','cancelled'):
                     reason = result.get('reason','unavailable');record['reason'] = reason;return
@@ -989,12 +1028,11 @@ class MossJobs:
                 reason = 'stale'
                 self.history.finish_comparison(snapshot,reason)
                 snapshot = None
-                build = record['build']
-                if build is not None:
-                    record['prefix'] = build.score_prefix
-                    build.discard();record['build'] = None
-        except BaseException:
+                # The child retains the only prefix. The next complete input
+                # will rebase it under this task's original absolute deadline.
+        except BaseException as exc:
             record['state'] = 'pending'
+            record['reason'] = getattr(exc,'reason',None) or 'comparison_process_unavailable'
         finally:
             if record['cancelled'].is_set():
                 record['reason'] = record.get('reason') or 'comparison_cancelled'
@@ -1008,6 +1046,11 @@ class MossJobs:
                     self.history.finish_comparison(snapshot,reason)
                     record['finish_pending'] = None
                 except BaseException:record['state'] = 'storage_pending'
+            driver = record['driver']
+            if driver is not None and record['state'] not in ('published','cached'):
+                # Cleanup is outside every manager/permit/database lock. A
+                # failed close retains this exact owner and its full charge.
+                self._close_history_comparison_driver(record)
             self.permit.pause_comparison(record['grant'])
             record['completed'].set()
 
@@ -1030,14 +1073,17 @@ class MossJobs:
                 if self._history_maintenance is claim:self._history_maintenance = None
 
     def _stop_history_comparison_owned(self, record):
+        driver = record['driver']
+        if driver is not None:
+            try:driver.cancel()
+            except BaseException:return False
         thread = record['thread']
         if thread is not None and thread.is_alive():thread.join(timeout=5.)
         if thread is not None and thread.is_alive() or not record['completed'].is_set():return False
         if record.get('finish_pending') is not None:
             try:self.history.finish_comparison(record['snapshot'],record['finish_pending'])
             except BaseException:return False
-        if record.get('build') is not None:record['build'].discard();record['build'] = None
-        record['prefix'] = None
+        if not self._close_history_comparison_driver(record):return False
         if not self.permit.release_comparison(record['grant']):return False
         with self._lock:
             if self._history_comparison is record:self._history_comparison = None

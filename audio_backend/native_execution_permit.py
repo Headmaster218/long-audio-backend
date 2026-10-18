@@ -20,9 +20,16 @@ MOSS_ENVELOPE = int(3.5 * 1024**3)
 WRAPPER_RESERVE = 16 * 1024**2
 HOST_RESERVE = 2 * 1024**3
 DISK_RESERVE = int(5.5 * 1024**3)
+SERVICE_MEMORY_CEILING = 6 * 1024**3
+COMPARISON_LOGICAL_BYTES = 128 * 1024**2
+COMPARISON_BASELINE_BYTES = 32 * 1024**2
+COMPARISON_CHILD_RSS_BYTES = 160 * 1024**2
+COMPARISON_PARENT_BYTES = 32 * 1024**2
+COMPARISON_RESERVE_BYTES = 192 * 1024**2
 MAX_ROWS, MAX_IDENTITIES, SAMPLE_SECONDS = 4096, 128, .250
 _LOG = logging.getLogger(__name__)
 _SAMPLE_BUDGET = object()
+_COMPARISON_SAMPLE_DEADLINE = object()
 SAMPLING_RETRY_SECONDS = 1.
 _OPTIONAL_SAMPLE = object()
 OPTIONAL_BUSY_GRACE = .250
@@ -134,7 +141,7 @@ class ProcessSample:
     resampled: bool = False
 
 
-def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None):
+def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, comparison_deadline=False):
     """Bounded current accounting; a discarded census never proves an exit.
 
     One fresh census may replace an indeterminate non-caller identity read.
@@ -142,13 +149,23 @@ def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None):
     accounting, not proof about unseen historical descendants or PID reuse.
     """
     started = last_clock = clock()
-    deadline = min(started + SAMPLE_SECONDS, deadline) if deadline is not None else started + SAMPLE_SECONDS
+    budget_deadline = started + SAMPLE_SECONDS
+    deadline = min(budget_deadline, deadline) if deadline is not None else budget_deadline
+    clipped_comparison = comparison_deadline and deadline < budget_deadline
     enumerated = 0
     def time_exhausted():
         nonlocal last_clock
         last_clock = clock()
         return last_clock >= deadline
-    def exhausted(kind):return _sample_exhausted(kind, last_clock - started, enumerated)
+    def exhausted(kind):
+        # A comparison's shorter work/cleanup deadline is not evidence that the
+        # shared observer exhausted its original 250 ms budget. Real wall/row
+        # exhaustion retains the existing authenticated recovery behavior.
+        if kind == 'wall' and clipped_comparison and last_clock < budget_deadline:
+            error = AdmissionError('comparison_deadline')
+            error._comparison_sample_deadline = _COMPARISON_SAMPLE_DEADLINE
+            return error
+        return _sample_exhausted(kind, last_clock - started, enumerated)
     phase = 'caller_identity'
     try:
         caller = psutil.Process(os.getpid())
@@ -442,9 +459,48 @@ class NativeExecutionPermit:
                 if pid in known and known[pid] != created:
                     raise AdmissionError('primary_identity_uncertain')
                 known[pid] = created
+        comparison = self._comparison
+        child = comparison['child'] if comparison is not None else None
+        if child is not None:
+            identities = dict(child['children'])
+            if child['created'] is not None:identities[child['pid']] = child['created']
+            for pid, created in identities.items():
+                if pid in known and known[pid] != created:
+                    raise AdmissionError('process_identity_uncertain')
+                known[pid] = created
         if len(known) > MAX_IDENTITIES:
             raise AdmissionError('primary_identity_budget')
         return known
+
+    def _memory_limit(self):
+        return min(SERVICE_MEMORY_CEILING, self.settings.process_memory_limit_bytes)
+
+    @staticmethod
+    def _comparison_family(sample, child):
+        # Remember every observed descendant even after reparenting. A missing
+        # row is accounting absence only, never permission to release an owner.
+        children = dict(child['children'])
+        if not child['verified']:return children
+        family = {child['pid']} | set(children)
+        for _ in range(MAX_IDENTITIES):
+            added = {pid for pid, row in sample.identities.items() if row[1] in family} - family
+            if not added:break
+            family.update(added)
+            if len(family) > MAX_IDENTITIES:raise AdmissionError('process_identity_budget')
+        else:raise AdmissionError('process_identity_budget')
+        for pid in family - {child['pid']}:
+            row = sample.identities.get(pid)
+            if row is None:continue
+            if pid in children and children[pid] != row[0]:
+                raise AdmissionError('process_identity_uncertain')
+            children[pid] = row[0]
+        return children
+
+    @staticmethod
+    def _revoke_comparison(record, reason):
+        record['cancelled'].set()
+        record['running'] = False
+        if record['failure'] is None:record['failure'] = reason
 
     @property
     def sampling_recovery_pending(self):
@@ -458,7 +514,7 @@ class NativeExecutionPermit:
         except Exception:return False
         with self._condition:return not self._sampling_pending and not self._unavailable
 
-    def _take_sample(self, *, observe=False, recovery_only=False, sample_deadline=None):
+    def _take_sample(self, *, observe=False, recovery_only=False, sample_deadline=None, comparison_deadline=False):
         token = None
         phase = 'sample'
         try:
@@ -475,7 +531,8 @@ class NativeExecutionPermit:
                 known = tuple(self._known_identities_locked().items())
                 generation = self._sample_generation
                 token = self._sample_flight = object()
-            current = (service_sample(self.settings, known=known, deadline=sample_deadline) if self._sampler is service_sample
+            current = (service_sample(self.settings, known=known, deadline=sample_deadline,
+                           comparison_deadline=comparison_deadline and not observe) if self._sampler is service_sample
                        else self._sampler(self.settings))
             if len(current.identities) > MAX_IDENTITIES:
                 raise AdmissionError('process_identity_budget')
@@ -516,20 +573,30 @@ class NativeExecutionPermit:
                             raise AdmissionError('primary_identity_uncertain')
                         children[pid] = identity
                     staged[key] = children
-                if sum(1 + len(children) for children in staged.values()) > MAX_IDENTITIES:
+                comparison = self._comparison
+                child = comparison['child'] if comparison is not None else None
+                comparison_children = self._comparison_family(current, child) if child is not None else {}
+                if (sum(1 + len(children) for children in staged.values())
+                        + (1 + len(comparison_children) if child is not None else 0) > MAX_IDENTITIES):
                     raise AdmissionError('primary_identity_budget')
                 # All validation has completed. Publish accounting and families
                 # together; retained identities never imply cleanup or reaping.
                 observed = {pid:row[0] for pid,row in current.identities.items()}
                 for key, children in staged.items():self._handles[key]['children'] = children
                 self._observed = observed
-                comparison = self._comparison
-                if (comparison is not None and current.rss + comparison['bytes']
-                        >= self.settings.process_memory_limit_bytes):
-                    # Revoke only comparison work. Primary observation/cleanup
-                    # proceeds normally; its exact cache charge remains owned.
-                    comparison['cancelled'].set()
-                    comparison['running'] = False
+                if child is not None:
+                    child['children'] = comparison_children
+                    family = {child['pid']} | set(comparison_children)
+                    child['rss'] = sum(current.identities[pid][2] for pid in family if pid in current.identities)
+                    child['rss_peak'] = max(child['rss_peak'], child['rss'])
+                    # These failures affect comparison alone. Observing primary
+                    # ownership must not signal or cancel primary/model owners.
+                    if child['rss'] > COMPARISON_CHILD_RSS_BYTES:
+                        self._revoke_comparison(comparison, 'comparison_child_memory_capacity')
+                    if comparison_children:
+                        self._revoke_comparison(comparison, 'comparison_unexpected_descendant')
+                if comparison is not None and current.rss + comparison['bytes'] >= self._memory_limit():
+                    self._revoke_comparison(comparison, 'comparison_memory_capacity')
                 # Reporting only. A diagnostic clock failure cannot change an
                 # otherwise completed sample or authorize cached accounting.
                 try:
@@ -553,7 +620,10 @@ class NativeExecutionPermit:
         except _SampleSkipped:raise
         except Exception as error:
             budget = _authenticated_exhaustion(error) if self._sampler is service_sample else None
-            if observe or budget is not None:
+            caller_expired = (comparison_deadline and not observe and self._sampler is service_sample
+                and type(error) is AdmissionError and error.reason == 'comparison_deadline'
+                and getattr(error, '_comparison_sample_deadline', None) is _COMPARISON_SAMPLE_DEADLINE)
+            if not caller_expired and (observe or budget is not None):
                 self._record_primary_failure('observe_primary' if observe else 'other', phase, error,
                                              sample_budget=budget)
             raise
@@ -677,16 +747,30 @@ class NativeExecutionPermit:
             self.finish_primary(proc, normal=normal)
 
     def _resource_check(self, *, reserve, sample_deadline=None):
+        # Callers must not hold the condition across the bounded census or any
+        # original-handle/resident predicate. Recheck before using accounting.
+        with self._condition:generation = self._sample_generation
         try:sample = self._take_sample(sample_deadline=sample_deadline)
         except _SampleSkipped as skipped:
             error = AdmissionError('process_sample_unavailable')
             error._optional_sample_skip = (_OPTIONAL_SAMPLE,
                 'busy_flight' if type(skipped) is _SampleBusy else skipped.subtype)
             raise error from None
-        comparison = self._comparison
-        comparison_bytes = comparison['bytes'] if comparison is not None else 0
-        if sample.rss + comparison_bytes >= self.settings.process_memory_limit_bytes:
-            if comparison is not None:comparison['cancelled'].set()
+        with self._condition:
+            if generation is not self._sample_generation:raise AdmissionError('process_sample_unavailable')
+            comparison = self._comparison
+            comparison_bytes = comparison['bytes'] if comparison is not None else 0
+            child = comparison['child'] if comparison is not None else None
+            comparison_root = (child['proc'], child['pid']) if child is not None and child['verified'] else None
+            comparison_identities = dict(child['children']) if child is not None and child['verified'] else {}
+            if child is not None and child['verified'] and child['created'] is not None:
+                comparison_identities[child['pid']] = child['created']
+            residents = [(record['proc'], record['pid'], record['created'], record['idle'],
+                record['resident'], dict(record['children'])) for record in self._handles.values()]
+        if sample.rss + comparison_bytes >= self._memory_limit():
+            with self._condition:
+                if self._comparison is comparison and comparison is not None:
+                    self._revoke_comparison(comparison, 'comparison_memory_capacity')
             raise AdmissionError('service_memory_budget')
         if sample.disk_free < max(DISK_RESERVE, self.settings.disk_reserve_bytes):
             raise AdmissionError('service_disk_reserve')
@@ -694,29 +778,61 @@ class NativeExecutionPermit:
             raise AdmissionError('service_host_reserve')
         if reserve:
             allowed = {os.getpid()}
-            for record in self._handles.values():
-                if (not record['idle'] or record['resident'] is None or not record['resident']()
-                        or record['proc'].poll() is not None
-                        or sample.identities.get(record['pid'], (None,))[0] != record['created']):
+            for proc, pid, created, idle, resident, children in residents:
+                if (not idle or resident is None or not resident() or proc.poll() is not None
+                        or sample.identities.get(pid, (None,))[0] != created):
                     raise AdmissionError('resident_identity_uncertain')
-                allowed.add(record['pid'])
-                for pid, created in record['children'].items():
-                    if pid in sample.identities:
-                        if sample.identities[pid][0] != created:
+                allowed.add(pid)
+                for descendant, birth in children.items():
+                    if descendant in sample.identities:
+                        if sample.identities[descendant][0] != birth:
                             raise AdmissionError('resident_identity_uncertain')
-                        allowed.add(pid)
+                        allowed.add(descendant)
+            # Only identities bound to the original comparison handle or its
+            # bounded observed family qualify. An unrelated sibling still fails.
+            if comparison_root is not None:
+                proc, pid = comparison_root
+                row = sample.identities.get(pid)
+                if proc.pid != pid or row is not None and row[1] != os.getpid():
+                    raise AdmissionError('comparison_identity_uncertain')
+            for pid, created in comparison_identities.items():
+                if pid in sample.identities:
+                    if sample.identities[pid][0] != created:
+                        raise AdmissionError('comparison_identity_uncertain')
+                    allowed.add(pid)
             if set(sample.identities) - allowed:
                 raise AdmissionError('unclassified_service_child')
             resident_rss = sample.rss - sample.caller_rss
-            if resident_rss + MOSS_ENVELOPE + WRAPPER_RESERVE + comparison_bytes >= self.settings.process_memory_limit_bytes:
+            if resident_rss + MOSS_ENVELOPE + WRAPPER_RESERVE + comparison_bytes >= self._memory_limit():
                 raise AdmissionError('service_envelope_budget')
             if sample.available < HOST_RESERVE + max(0, MOSS_ENVELOPE - sample.caller_rss) + WRAPPER_RESERVE + comparison_bytes:
                 raise AdmissionError('service_host_envelope')
+        with self._condition:
+            if generation is not self._sample_generation or self._comparison is not comparison:
+                raise AdmissionError('process_sample_unavailable')
         return sample
+
+    def _optional_state_locked(self, *, allow_queued=False):
+        # Keep object references, not reusable numeric ids or caller equality.
+        comparison = self._comparison
+        identities = (self._sample_generation, self._optional, self._cancel,
+            self._cancel_callback, self._turn, getattr(self._local, 'turn', None),
+            self._handoff, self._configuration_current, comparison,
+            comparison['revision'] if comparison is not None else None)
+        values = (self._optional_kind, None if self._cancel is None else self._cancel.is_set(),
+            self._probe, self._closed, self._unavailable, bool(self._configuration_current()),
+            tuple((kind, intent, intent.granted, intent.entered, intent.released)
+                for kind, intent in sorted(self._primary.items())
+                if not allow_queued or intent.granted or intent.entered))
+        return identities, values
+
+    def _optional_state_unchanged_locked(self, state, *, allow_queued=False):
+        identities, values = self._optional_state_locked(allow_queued=allow_queued)
+        return all(old is new for old, new in zip(state[0], identities)) and state[1] == values
 
     def reserve_optional(self, token, cancelled, cancel_callback, *, owner_kind='preemptible'):
         if owner_kind not in ('preemptible', 'automatic_text', 'automatic_primary_probe'):raise ValueError('Unknown optional owner')
-        with self._condition:
+        def current():
             if self._closed or not self._configuration_current():
                 raise AdmissionError('jobs_configuration_unavailable')
             turn = (owner_kind in ('automatic_text','automatic_primary_probe') and self._turn is not None
@@ -724,21 +840,27 @@ class NativeExecutionPermit:
             primary = any(x.granted or x.entered for x in self._primary.values()) if turn else bool(self._primary)
             if self._optional is not None or primary or self._probe or self._handoff is not None and not turn:
                 raise AdmissionError('primary_or_optional_busy')
-            if self._unavailable:
-                raise AdmissionError(self._unavailable)
-            self._resource_check(reserve=True)
+            if self._unavailable:raise AdmissionError(self._unavailable)
+            if cancelled.is_set():raise AdmissionError('optional_cancelled')
+        with self._condition:
+            current()
+            allow_queued = (owner_kind in ('automatic_text','automatic_primary_probe')
+                and self._turn is not None and getattr(self._local, 'turn', None) is self._turn)
+            state = self._optional_state_locked(allow_queued=allow_queued)
+        self._resource_check(reserve=True)
+        with self._condition:
+            current()
+            if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
             self._optional, self._cancel, self._cancel_callback = token, cancelled, cancel_callback
             self._optional_kind = owner_kind
             self._state = 'OPTIONAL_RESERVED'
 
     def check_optional(self, token, phase='running', *, running_remaining=None, running_cancelled=None):
-        # Only an existing automatic text owner can wait for a competing census.
-        # The one absolute grace costs <=250ms, then a fresh census <=250ms;
-        # both are clipped to the original execution deadlines, never refreshed.
+        # One absolute busy-flight grace, then one fresh census clipped to the
+        # original deadline. No recursive condition hold spans either census.
         with self._condition:
             automatic = self._optional_kind == 'automatic_text' and phase == 'running'
             eligible = automatic and running_remaining is not None and running_cancelled is not None
-            began = grace_ended = None
             def current():
                 if self._optional is not token:raise AdmissionError('optional_ownership_changed')
                 primary = (any(x.granted or x.entered for x in self._primary.values())
@@ -748,33 +870,39 @@ class NativeExecutionPermit:
                         or eligible and (self._optional_kind != 'automatic_text' or running_cancelled())):
                     raise AdmissionError('optional_cancelled')
                 return running_remaining() if eligible else None
+            allow_queued = self._optional_kind in ('automatic_text','automatic_primary_probe')
+            state = self._optional_state_locked(allow_queued=allow_queued)
+        began = grace_ended = None
+        try:
+            with self._condition:remaining = current()
             try:
-                remaining = current()
-                try:
-                    self._resource_check(reserve=phase in ('reserved','before_spawn'))
-                except AdmissionError as error:
-                    if (not eligible or type(error) is not AdmissionError or
-                            getattr(error,'_optional_sample_skip',None) != (_OPTIONAL_SAMPLE,'busy_flight')):raise
-                    began = time.monotonic()
-                    until = began + OPTIONAL_BUSY_GRACE
-                    while True:
+                self._resource_check(reserve=phase in ('reserved','before_spawn'))
+            except AdmissionError as error:
+                if (not eligible or type(error) is not AdmissionError or
+                        getattr(error,'_optional_sample_skip',None) != (_OPTIONAL_SAMPLE,'busy_flight')):raise
+                began = time.monotonic()
+                until = began + OPTIONAL_BUSY_GRACE
+                while True:
+                    with self._condition:
                         remaining = current()
+                        if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
                         now = time.monotonic()
                         if now >= until:raise error
                         if self._sample_flight is None:
                             grace_ended = now
                             break
-                        # Condition.wait releases every recursive condition hold.
                         self._condition.wait(min(.05, until-now, remaining))
-                    remaining = current()
-                    # Exactly one new full observation; no failed sample retry.
-                    try:self._resource_check(reserve=False, sample_deadline=time.monotonic()+remaining)
-                    except Exception:
-                        running_remaining()  # Preserve an expired execution deadline's cause.
-                        raise
-                if eligible:current()
+                with self._condition:remaining = current()
+                try:self._resource_check(reserve=False, sample_deadline=time.monotonic()+remaining)
+                except Exception:
+                    running_remaining()  # Preserve the original expired deadline cause.
+                    raise
+            with self._condition:
+                current()
+                if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
                 self._state = 'OPTIONAL_RUNNING'
-            except Exception as error:
+        except Exception as error:
+            with self._condition:
                 if self._optional is token:self._cancel.set()
                 try:
                     skip = getattr(error,'_optional_sample_skip',None)
@@ -799,7 +927,7 @@ class NativeExecutionPermit:
                         detail.get('phase') if type(detail) is dict else None,
                         detail.get('cause_class') if type(detail) is dict else None,began is not None)
                 except Exception:pass
-                raise
+            raise
 
     def cleaning(self, token):
         with self._condition:
@@ -819,13 +947,13 @@ class NativeExecutionPermit:
             self._grant_primary_locked()
             self._condition.notify_all()
 
-    def reserve_comparison(self, token, cancelled, *, memory_bytes=128 * 1024**2):
-        """One accounted CPU/cache owner, separate from every inference owner.
+    def reserve_comparison(self, token, cancelled, *, memory_bytes=COMPARISON_RESERVE_BYTES):
+        """One complete child/parent owner, separate from inference ownership.
 
-        Charge the provisional owner before sampling without the condition.
-        This is a time-shared CPU lane, never a native/model execution permit.
+        The unchanged logical build is 128 MiB. Its process/interpreter and both
+        IPC ends require the full 192 MiB reservation even when the cache is idle.
         """
-        if type(memory_bytes) is not int or not 0 < memory_bytes <= 128 * 1024**2:
+        if type(memory_bytes) is not int or memory_bytes != COMPARISON_RESERVE_BYTES:
             raise AdmissionError('comparison_memory_capacity')
         with self._condition:
             if (self._closed or self._unavailable or self._comparison is not None
@@ -833,13 +961,48 @@ class NativeExecutionPermit:
                 raise AdmissionError('comparison_pending')
             record = self._comparison = {'token':token, 'bytes':memory_bytes,
                 'cancelled':cancelled, 'running':False, 'thread':None, 'completed':None,
-                'sampling':None, 'revision':object()}
+                'sampling':None, 'revision':object(), 'child':None, 'owner':None,
+                'failure':None, 'parent_bytes':0, 'parent_bytes_peak':0}
+            self._sample_generation = object()
         try:
             if not self._refresh_comparison(record):raise AdmissionError('comparison_pending')
         except BaseException:
-            # No thread/cache has been bound to this fresh provisional owner.
+            # No coordinator/child/buffer has been bound to this provisional owner.
             self.release_comparison(token)
             raise
+
+    @staticmethod
+    def _comparison_parent_usage(owner):
+        if owner is None:return 0
+        value = owner.comparison_parent_bytes()
+        if type(value) is not int or not 0 <= value <= COMPARISON_PARENT_BYTES:
+            raise AdmissionError('comparison_parent_memory_capacity')
+        return value
+
+    def _comparison_sample_check(self, record, sample, parent_bytes):
+        # Under the condition; these are only already observed scalar checks.
+        child = record['child']
+        if child is not None:
+            row = sample.identities.get(child['pid'])
+            if (not child['verified'] or child['closed'] or row is None
+                    or row[0] != child['created'] or row[1] != os.getpid()):
+                raise AdmissionError('comparison_identity_uncertain')
+            if child['children']:raise AdmissionError('comparison_unexpected_descendant')
+            if child['rss'] > COMPARISON_CHILD_RSS_BYTES:
+                raise AdmissionError('comparison_child_memory_capacity')
+            if child['rss'] + parent_bytes > record['bytes']:
+                raise AdmissionError('comparison_memory_capacity')
+        # Full measured parent+child+model RSS plus the full owner reserve.
+        service, available = sample.rss, HOST_RESERVE + record['bytes']
+        if self._optional is not None:
+            service = max(service, sample.rss-sample.caller_rss+MOSS_ENVELOPE+WRAPPER_RESERVE)
+            available += max(0, MOSS_ENVELOPE-sample.caller_rss)+WRAPPER_RESERVE
+        if service + record['bytes'] >= self._memory_limit() or sample.available < available:
+            raise AdmissionError('comparison_memory_capacity')
+        if sample.disk_free < max(DISK_RESERVE, self.settings.disk_reserve_bytes):
+            raise AdmissionError('service_disk_reserve')
+        record['parent_bytes'] = parent_bytes
+        record['parent_bytes_peak'] = max(record['parent_bytes_peak'], parent_bytes)
 
     def _refresh_comparison(self, record):
         with self._condition:
@@ -847,34 +1010,204 @@ class NativeExecutionPermit:
                     or self._closed or self._unavailable or not self._configuration_current()
                     or record['sampling'] is not None):return False
             flight = record['sampling'] = object()
-            revision, generation = record['revision'], self._sample_generation
+            revision, generation, owner = record['revision'], self._sample_generation, record['owner']
         try:
-            # Neither the manager gate nor this condition may enclose census.
+            # Neither a manager gate nor this condition encloses OS observation
+            # or the driver's bounded, read-only parent-buffer accounting.
+            parent_bytes = self._comparison_parent_usage(owner)
             sample = self._take_sample()
+            parent_bytes = max(parent_bytes, self._comparison_parent_usage(owner))
             with self._condition:
                 if (self._comparison is not record or record['sampling'] is not flight
                         or record['revision'] is not revision or self._sample_generation is not generation
                         or record['cancelled'].is_set() or self._closed or self._unavailable
                         or not self._configuration_current()):return False
-                if any(type(x) not in (int,float) or not math.isfinite(x) or x < 0
-                       for x in (sample.rss,sample.caller_rss,sample.available,sample.disk_free)):
-                    raise AdmissionError('process_sample_unavailable')
-                # Keep the conservative reservation + observed RSS double charge.
-                service, available = sample.rss, HOST_RESERVE + record['bytes']
-                if self._optional is not None:
-                    # A model reservation may precede its actual allocation.
-                    service = max(service,sample.rss-sample.caller_rss+MOSS_ENVELOPE+WRAPPER_RESERVE)
-                    available += max(0,MOSS_ENVELOPE-sample.caller_rss)+WRAPPER_RESERVE
-                if (service + record['bytes'] >= self.settings.process_memory_limit_bytes
-                        or sample.available < available):
-                    raise AdmissionError('comparison_memory_capacity')
-                if sample.disk_free < max(DISK_RESERVE,self.settings.disk_reserve_bytes):
-                    raise AdmissionError('service_disk_reserve')
+                self._comparison_sample_check(record, sample, parent_bytes)
                 record['running'] = True
                 return True
         finally:
             with self._condition:
                 if record['sampling'] is flight:record['sampling'] = None
+                self._condition.notify_all()
+
+    def bind_comparison_owner(self, token, owner):
+        """Bind scalar driver before socket creation, including pre-spawn errors."""
+        if (not callable(getattr(owner, 'comparison_parent_bytes', None))
+                or not callable(getattr(owner, 'comparison_resources_closed', None))):
+            raise AdmissionError('comparison_parent_ownership_uncertain')
+        with self._condition:
+            record = self._comparison
+            if (record is None or record['token'] is not token
+                    or record['owner'] is not None and record['owner'] is not owner):
+                raise AdmissionError('comparison_ownership_changed')
+            if record['owner'] is owner:return
+            record['owner'] = owner
+            record['revision'] = object()
+            self._sample_generation = object()
+
+    def bind_comparison_process(self, token, process, *, owner):
+        """Retain the original handle before any fallible identity observation.
+
+        Driver startup additionally authenticates argv, executable and UID. This
+        permit owns its own PID/birth/parent observation and never signals a PID.
+        Failed startup still leaves the exact original handle/reserve retained.
+        """
+        with self._condition:
+            record = self._comparison
+            if record is None or record['token'] is not token:
+                raise AdmissionError('comparison_ownership_changed')
+            if record['owner'] is not None and record['owner'] is not owner:
+                raise AdmissionError('comparison_ownership_changed')
+            record['owner'] = owner
+            old = record['child']
+            if old is not None:
+                if old['proc'] is not process or old['owner'] is not owner:
+                    raise AdmissionError('comparison_ownership_changed')
+                return bool(old['verified'] and not old['closed'] and not record['cancelled'].is_set())
+            child = record['child'] = {'proc':process, 'owner':owner, 'pid':process.pid,
+                'created':None, 'children':{}, 'verified':False, 'closed':False,
+                'closing':None, 'rss':0, 'rss_peak':0, 'baseline_rss':None, 'original_returncode':None}
+            record['revision'] = object()
+            self._sample_generation = object()
+            generation = self._sample_generation
+            conflicts = {value['pid'] for value in self._handles.values()}
+            conflicts.update(pid for value in self._handles.values() for pid in value['children'])
+        try:
+            if (type(child['pid']) is not int or child['pid'] <= 0 or child['pid'] == os.getpid()
+                    or child['pid'] in conflicts or not callable(getattr(owner, 'comparison_parent_bytes', None))
+                    or not callable(getattr(owner, 'comparison_resources_closed', None))):
+                raise AdmissionError('comparison_identity_uncertain')
+            deadline = time.monotonic() + SAMPLE_SECONDS
+            observed = psutil.Process(child['pid'])
+            birth = observed.create_time()
+            if type(birth) not in (int, float) or not math.isfinite(birth) or birth < 0:
+                raise AdmissionError('comparison_identity_uncertain')
+            with self._condition:
+                if self._comparison is not record or record['child'] is not child:
+                    raise AdmissionError('comparison_ownership_changed')
+                child['created'] = birth
+                self._sample_generation = object()
+                generation = self._sample_generation
+            if (observed.ppid() != os.getpid() or observed.create_time() != birth
+                    or process.pid != child['pid'] or process.poll() is not None
+                    or time.monotonic() >= deadline):
+                raise AdmissionError('comparison_identity_uncertain')
+            parent_bytes = self._comparison_parent_usage(child['owner'])
+            with self._condition:
+                if (self._comparison is not record or record['child'] is not child
+                        or self._sample_generation is not generation):
+                    raise AdmissionError('comparison_ownership_changed')
+                # OS ownership remains classified even if work was cancelled
+                # while identity reads ran; cancellation cannot erase a family.
+                child['verified'] = True
+                if (record['cancelled'].is_set() or self._closed or self._unavailable
+                        or not self._configuration_current()):
+                    raise AdmissionError('comparison_ownership_changed')
+                record['parent_bytes'] = parent_bytes
+                record['parent_bytes_peak'] = max(record['parent_bytes_peak'], parent_bytes)
+            return True
+        except Exception as error:
+            with self._condition:
+                if self._comparison is record:
+                    self._revoke_comparison(record, error.reason if type(error) is AdmissionError
+                        else 'comparison_identity_uncertain')
+            return False
+
+    def observe_comparison_process(self, token, process, *, startup=False, deadline=None):
+        """A fresh bounded census around a single child quantum or IPC page."""
+        with self._condition:
+            record = self._comparison
+            child = record['child'] if record is not None else None
+            if (record is None or record['token'] is not token or child is None
+                    or child['proc'] is not process or process.pid != child['pid']):
+                raise AdmissionError('comparison_ownership_changed')
+            if record['sampling'] is not None:raise AdmissionError('comparison_sampling_pending')
+            flight = record['sampling'] = object()
+            revision, generation = record['revision'], self._sample_generation
+        try:
+            parent_bytes = self._comparison_parent_usage(child['owner'])
+            sample = self._take_sample(sample_deadline=deadline, comparison_deadline=True)
+            parent_bytes = max(parent_bytes, self._comparison_parent_usage(child['owner']))
+            with self._condition:
+                if (self._comparison is not record or record['sampling'] is not flight
+                        or record['revision'] is not revision or self._sample_generation is not generation
+                        or record['cancelled'].is_set() or self._closed or self._unavailable
+                        or not self._configuration_current()):
+                    raise AdmissionError(record['failure'] or 'comparison_pending')
+                self._comparison_sample_check(record, sample, parent_bytes)
+                if startup and child['rss'] > COMPARISON_BASELINE_BYTES:
+                    raise AdmissionError('comparison_startup_memory_capacity')
+                if startup:child['baseline_rss'] = max(child['baseline_rss'] or 0, child['rss'])
+                return {'rss':child['rss'], 'parent_bytes':parent_bytes,
+                    'family_size':1+len(child['children'])}
+        except Exception as error:
+            with self._condition:
+                if self._comparison is record:
+                    self._revoke_comparison(record, error.reason if type(error) is AdmissionError
+                        else 'comparison_resource_observation_unavailable')
+            raise
+        finally:
+            with self._condition:
+                if record['sampling'] is flight:record['sampling'] = None
+                self._condition.notify_all()
+
+    def finish_comparison_process(self, token, process, *, deadline=None):
+        """Positive original wait and bounded observed-family/buffer closure.
+
+        Protocol close acknowledgement is diagnostic, not OS exit authority.
+        The coordinator may call this in its finally block; reservation release
+        independently requires that the coordinator has actually stopped.
+        """
+        with self._condition:
+            record = self._comparison
+            child = record['child'] if record is not None else None
+            if (record is None or record['token'] is not token or child is None
+                    or child['proc'] is not process or process.pid != child['pid']):return False
+            if child['closing'] is not None or record['sampling'] is not None:return False
+            flight = child['closing'] = object()
+            record['running'] = False
+            record['revision'] = object()
+            generation = self._sample_generation
+        try:
+            # No condition, manager lock, database transaction, or owner caller
+            # boolean substitutes for this exact retained handle's wait.
+            returncode = child['proc'].wait(timeout=0)
+            if type(returncode) is not int:return False
+            deadline = min(deadline, time.monotonic()+SAMPLE_SECONDS) if deadline is not None else time.monotonic()+SAMPLE_SECONDS
+            if time.monotonic() >= deadline:return False
+            self._take_sample(sample_deadline=deadline, comparison_deadline=True)
+            with self._condition:
+                if (self._comparison is not record or record['child'] is not child
+                        or self._sample_generation is not generation):return False
+                family = dict(child['children'])
+                family[child['pid']] = child['created']
+            for pid, created in family.items():
+                if time.monotonic() >= deadline:return False
+                try:
+                    live = psutil.Process(pid)
+                    # A reused PID belongs to somebody else; never signal it or
+                    # accept it as the former owner's positive closure proof.
+                    if created is None or live.create_time() != created or live.is_running():return False
+                except psutil.NoSuchProcess as error:
+                    if type(error) is not psutil.NoSuchProcess:return False
+            if child['owner'].comparison_resources_closed() is not True:return False
+            parent_bytes = self._comparison_parent_usage(child['owner'])
+            if parent_bytes != 0:return False
+            with self._condition:
+                if (self._comparison is not record or record['child'] is not child
+                        or child['closing'] is not flight or self._sample_generation is not generation
+                        or record['sampling'] is not None):return False
+                child['closed'] = True
+                child['original_returncode'] = returncode
+                record['parent_bytes'] = parent_bytes
+                record['revision'] = object()
+                self._sample_generation = object()
+                return True
+        except Exception:
+            return False  # Unknown ownership remains retained; never poison primary.
+        finally:
+            with self._condition:
+                if child['closing'] is flight:child['closing'] = None
                 self._condition.notify_all()
 
     def bind_comparison_thread(self, token, thread, completed):
@@ -910,12 +1243,23 @@ class NativeExecutionPermit:
         with self._condition:
             record = self._comparison
             if record is None:return True
-            if record['token'] is not token:return False
-            if record['sampling'] is not None:return False
-            thread, completed = record['thread'], record['completed']
-            if thread is not None and (completed is None or not completed.is_set() or thread.is_alive()):
-                return False
+            if record['token'] is not token or record['sampling'] is not None:return False
+            thread, completed, child = record['thread'], record['completed'], record['child']
+            owner = record['owner']
+        try:
+            if owner is not None and (owner.comparison_resources_closed() is not True
+                    or self._comparison_parent_usage(owner) != 0):return False
+        except Exception:return False
+        if thread is not None and (completed is None or not completed.is_set() or thread.is_alive()):return False
+        if child is not None and not child['closed'] and not self.finish_comparison_process(token, child['proc']):return False
+        with self._condition:
+            if (self._comparison is not record or record['sampling'] is not None
+                    or record['thread'] is not thread or record['completed'] is not completed
+                    or record['owner'] is not owner or record['child'] is not child
+                    or child is not None and (not child['closed']
+                        or type(child['original_returncode']) is not int)):return False
             self._comparison = None
+            self._sample_generation = object()
             self._condition.notify_all()
             return True
 
@@ -949,7 +1293,14 @@ class NativeExecutionPermit:
                 'comparison_reserved_bytes':self._comparison['bytes'] if self._comparison else 0,
                 'comparison_reserved_cpu_lanes':int(self._comparison is not None),
                 'comparison_cpu_lanes':int(bool(self._comparison and self._comparison['running'])),
-                'comparison_preemption_tail':'50ms_compute_plus_250ms_read_cooperative_scheduling_overrun',
+                'comparison_preemption_tail':'50ms_child_compute_plus_bounded_transport_cleanup',
+                'comparison_child_rss':self._comparison['child']['rss'] if self._comparison and self._comparison['child'] else 0,
+                'comparison_child_rss_peak':self._comparison['child']['rss_peak'] if self._comparison and self._comparison['child'] else 0,
+                'comparison_startup_rss':self._comparison['child']['baseline_rss'] if self._comparison and self._comparison['child'] else None,
+                'comparison_parent_bytes':self._comparison['parent_bytes'] if self._comparison else 0,
+                'comparison_parent_bytes_peak':self._comparison['parent_bytes_peak'] if self._comparison else 0,
+                'comparison_cleanup_confirmed':bool(self._comparison and self._comparison['child'] and self._comparison['child']['closed']),
+                'comparison_failure':self._comparison['failure'] if self._comparison else None,
                 'optional_admission_unavailable': self._unavailable,
                 'primary_sampling_pending': self._sampling_pending,
                 'primary_sampling_exhaustions': self._sampling_exhaustions,
