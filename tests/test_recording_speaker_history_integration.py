@@ -345,24 +345,50 @@ def test_three_natural_groups_aab_real_cleanup_and_passive_read(primary_history_
         monkeypatch.setattr(h.jobs,'submit_primary',primary_attempt)
         monkeypatch.setattr(h.jobs,'submit_automatic',text_refusal)
         monkeypatch.setattr(h.jobs,'_compare_history_snapshot',observe_comparison)
+        expected_observations=[1,2,2,3,3]
+        expected_vectors=[1,1,2,2,3]
+        expected_pending=[0,1,0,1,0]
+        expected_revisions=[2,3,4,5,6]
         for index,cid in enumerate(cids):
+            previous_probe=h.jobs._primary_pending
+            previous_rows=_observations(h)
+            previous_counts=_counts(h)
+            previous_primary=_primary_rows(h)
             assert _cohort(h)==cid
             # Finite manually interleaved cohorts prove progress with a retained
             # cache, not concurrent CPU/GIL throughput or a wall-clock SLO.
             assert h.store.chunk(cid)['next_offset']==(8. if index==4 else 10.5)
-            if h.jobs._primary_pending and h.jobs._primary_pending['state']=='pending':
-                assert len(h.jobs._primary_pending['crop'])==64000
-                assert h.jobs._probe_staging_bytes==runner.STAGING_BYTES
-                rows=_observations(h)
-                assert rows[-1]['evidence_kind']=='pending'
-                assert rows[-1]['invocation_id']==h.jobs._primary_pending['invocation_id']
-                _passive_without_positive(h,'pending')
-            identities=[_observation_identity(row) for row in _observations(h)]
+            assert _primary_rows(h)[:len(previous_primary)]==previous_primary
+            rows=_observations(h)
+            probe=h.jobs._primary_pending
+            assert probe is not None and probe['state']=='pending'
+            if previous_probe is not None:
+                # A text turn left this exact claim queued. The next real
+                # primary cohort still commits, without another observation
+                # or replacing/replaying the retained source opportunity.
+                assert index in (2,4) and probe is previous_probe
+                assert rows==previous_rows and _counts(h)==previous_counts
+            else:
+                assert index in (0,1,3) and len(rows)==len(previous_rows)+1
+                assert rows[:-1]==previous_rows
+            reservation=probe['reservation']
+            assert probe['thread'] is probe['operation'] is None
+            assert len(probe['crop'])==64000 and h.jobs._probe_staging_bytes==runner.STAGING_BYTES
+            assert rows[-1]['evidence_kind']=='pending'
+            assert rows[-1]['attempt']==probe['attempt_id']==reservation['token']
+            assert rows[-1]['invocation_id']==probe['invocation_id']==reservation['invocation_id']
+            with h.store.db() as db:
+                pending_claim=dict(db.execute(f'SELECT * FROM {history.ATTEMPTS} WHERE token=?',
+                    (probe['attempt_id'],)).fetchone())
+            assert pending_claim['state']=='reserved' and pending_claim['reserved_bytes']>0
+            assert pending_claim['staging_bytes']>0 and pending_claim['invocation_id']==probe['invocation_id']
+            _passive_without_positive(h,'pending')
+            identities=[_observation_identity(row) for row in rows]
             _turn(h)
-            assert len(h.probes)==(index+2)//2
+            assert len(h.probes)==expected_vectors[index]
             assert [_observation_identity(row) for row in _observations(h)]==identities
-            assert _counts(h)=={'observations':len(h.probes),'vectors':len(h.probes),
-                'pending':0,'candidate_missing':0,'attempts':len(h.probes)}
+            assert _counts(h)=={'observations':expected_observations[index],'vectors':expected_vectors[index],
+                'pending':expected_pending[index],'candidate_missing':0,'attempts':expected_observations[index]}
             current=h.jobs._history_comparison
             assert current['state']=='cached' and current['build'] is None
             if cache is not None:
@@ -370,7 +396,31 @@ def test_three_natural_groups_aab_real_cleanup_and_passive_read(primary_history_
             cache,prefix=current,current['prefix']
             assert prefix.row_count==len(h.probes)
             assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
-        assert selected[:5]==['primary','text','primary','text','primary']
+            with h.store.db() as db:
+                scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+                assert scope['history_revision']==expected_revisions[index]
+                assert scope['building_slot'] is None
+                if expected_pending[index]:
+                    assert scope['current_slot'] is None
+                    assert dict(db.execute(f'SELECT * FROM {history.ATTEMPTS} WHERE token=?',
+                        (probe['attempt_id'],)).fetchone())==pending_claim
+                else:
+                    assert scope['current_slot'] is not None
+                    decision=db.execute(f'SELECT * FROM {history.DECISIONS} WHERE scope_seq=? AND slot=?',
+                        (scope['scope_seq'],scope['current_slot'])).fetchone()
+                    assert decision['complete'] and decision['history_revision']==scope['history_revision']
+                    assert decision['observation_count']==decision['vector_count']==expected_vectors[index]
+            if expected_pending[index]:
+                assert h.jobs._primary_pending is probe and probe['reservation'] is reservation
+                assert probe['state']=='pending' and probe['thread'] is probe['operation'] is None
+                assert _observations(h)==rows
+                assert prefix.row_count<expected_observations[index]
+                # Cached scores remain internal; the admitted pending rival
+                # clears the old public decision until this same claim closes.
+                _passive_without_positive(h,'pending')
+            else:
+                assert h.jobs._primary_pending is None and probe['crop'] is None
+        assert selected==['primary','text','primary','text','primary']
         assert [row['old_rows'] for row in comparisons]==[0,1,2]
         assert [row['dot_products'] for row in comparisons]==[0,1,2]
         assert [row['rows'] for row in comparisons]==[1,2,3]

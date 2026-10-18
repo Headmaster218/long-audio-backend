@@ -542,6 +542,60 @@ def test_bound_mutation_fences_only_exact_scope_and_preserves_evidence(history_e
         assert snapshot(env.store)[table] == evidence[table]
 
 
+@pytest.mark.parametrize('key', ['chunks.id', 'stream_chunks.chunk_id', 'recording_work.chunk_id',
+                               'segments.id', 'recording_batches.id'])
+def test_bound_lookup_key_rename_fences_old_scope_and_preserves_unrelated_primary(history_env, key):
+    env = history_env; one = primary_fixture(env); two = primary_fixture(env, number=2)
+    success(env, one); success(env, two); publish_one(env, one); publish_one(env, two)
+    bound = scope_row(env.store, one.rid); other = scope_row(env.store, two.rid)
+    other_read = saved_read(env, two); evidence = snapshot(env.store)
+    assert saved_read(env, one)['history_status'] == other_read['history_status'] == 'current'
+    with connection(env.store.path) as db:
+        packets = [tuple(row) for row in db.execute(f'SELECT * FROM {provenance.TABLE} ORDER BY sequence')]
+        other_primary = tuple(db.execute('SELECT * FROM segments WHERE id=?', (two.number,)).fetchone())
+    statements = {
+        'chunks.id': ('UPDATE chunks SET id=? WHERE id=?', ('renamed-source', one.cid)),
+        'stream_chunks.chunk_id': ('UPDATE stream_chunks SET chunk_id=? WHERE chunk_id=?', ('renamed-source', one.cid)),
+        'recording_work.chunk_id': ('UPDATE recording_work SET chunk_id=? WHERE chunk_id=?', ('renamed-source', one.cid)),
+        'segments.id': ('UPDATE segments SET id=? WHERE id=?', (101, one.number)),
+        'recording_batches.id': ('UPDATE recording_batches SET id=? WHERE id=?', ('e' * 32, one.rid)),
+    }
+    if key == 'chunks.id':
+        # The retained provenance cid foreign key normally refuses this rename
+        # before any trigger effects can commit. Preserve that real boundary.
+        with pytest.raises(sqlite3.IntegrityError, match='FOREIGN KEY'):
+            with connection(env.store.path) as db:db.execute(*statements[key])
+        assert snapshot(env.store) == evidence
+        # This isolated fixture connection disables only FK enforcement so the
+        # history trigger's OLD-key defense can also be exercised independently.
+        # Production connections and the other four parameters keep FKs enabled.
+        fixture_db = sqlite3.connect(env.store.path)
+        try:
+            fixture_db.execute('PRAGMA foreign_keys=OFF')
+            assert fixture_db.execute('PRAGMA foreign_keys').fetchone()[0] == 0
+            fixture_db.execute(*statements[key])
+            fixture_db.commit()
+        finally:
+            fixture_db.close()
+    else:
+        with connection(env.store.path) as db:db.execute(*statements[key])
+    changed = scope_row(env.store, one.rid)
+    assert changed['authority_revision'] == bound['authority_revision'] + 1
+    assert changed['history_revision'] == bound['history_revision']
+    assert changed['authority_blocked'] == 'source_changed' and changed['current_slot'] is None
+    invalid = saved_read(env, one)
+    assert invalid['history_status'] == 'invalid' and invalid['reason'] == 'source_changed'
+    assert invalid['annotations'] == []
+    assert scope_row(env.store, two.rid) == other and saved_read(env, two) == other_read
+    for table in (history.CERTIFICATES, history.ATTEMPTS, history.OBJECTS, history.REFS,
+                  history.DEPENDENCIES, history.DECISIONS, history.ROWS):
+        assert snapshot(env.store)[table] == evidence[table]
+    with connection(env.store.path) as db:
+        assert [tuple(row) for row in db.execute(f'SELECT * FROM {provenance.TABLE} ORDER BY sequence')] == packets
+        assert tuple(db.execute('SELECT * FROM segments WHERE id=?', (two.number,)).fetchone()) == other_primary
+    assert_accounting(env)
+
+
 @pytest.mark.parametrize('state', ['reserved', 'failure'])
 def test_claim_time_dependencies_fence_source_mutation_before_any_vector(history_env, state):
     env = history_env; item = primary_fixture(env); reservation = claim(env, item)
@@ -1000,6 +1054,58 @@ def test_late_admission_and_failure_each_advance_revision_and_clear_publication(
     assert_accounting(env)
 
 
+def test_unknown_rival_latch_survives_primary_skip_until_actual_new_admission(history_env):
+    from audio_backend.recording_speaker_history_compare import ComparisonBuild, Pending
+    env = history_env; one = primary_fixture(env); reservation = claim(env, one)
+    env.value.finish_primary(reservation, 'probe_failed', failure_json=failure_bytes())
+    missing = observation_rows(env.store, reservation['token'])
+    assert len(missing) == 1
+    assert_missing_observation(missing[0], 'candidate_missing')
+    pending = env.value.begin_comparison()
+    assert pending is not None
+    sources = env.value.active_source_page(pending)
+    assert sources['complete'] and len(sources['rows']) == 1
+    env.value.revalidate_active_sources(pending, sources)
+    build = ComparisonBuild(pending['token'], admitted_bytes=history.COMPARE_BYTES, clock=lambda: 0.)
+    observations = env.value.observation_page(pending); witnesses = env.value.witness_page(pending)
+    assert observations['complete'] and len(observations['rows']) == 1
+    assert witnesses['complete'] and len(witnesses['rows']) <= 1
+    build.feed_observations(pending['token'], 0, observations['rows'], complete=True)
+    build.feed_witnesses(pending['token'], 0, witnesses['rows'], complete=True)
+    for _ in range(32):
+        result = build.step()
+        if result['state'] not in ('loading', 'pending'):break
+    assert result['state'] == 'refused' and result['reason'] == 'unknown_rival'
+    with pytest.raises(Pending, match='unknown_rival'):build.output_page()
+    assert env.value.finish_comparison(pending, result['reason']) is True
+    latched = scope_row(env.store, one.rid)
+    assert latched['state'] == 'unknown_rival' and latched['current_slot'] is None
+    assert env.value.begin_comparison() is None
+    next_frame = latched['high_water'] + FRAMES
+    assert env.value.note_primary_skip(one.sid, one.rid, next_frame, 'capacity', links.expected_space()) is True
+    skipped = scope_row(env.store, one.rid)
+    assert skipped['high_water'] == next_frame and skipped['skipped_count'] == latched['skipped_count'] + 1
+    for field in ('state', 'history_revision', 'authority_revision', 'authority_blocked',
+                  'observation_count', 'vector_count', 'witness_count', 'current_slot'):
+        assert skipped[field] == latched[field]
+    assert env.value.begin_comparison() is None
+    saved = saved_read(env, one)
+    assert saved['history_status'] == 'pending' and saved['reason'] == 'unknown_rival'
+    assert saved['annotations'] == []
+    two, batch = moss_fixture(env)
+    assert two.rid == one.rid
+    fresh = claim_moss(env, two, batch)
+    assert fresh['should_probe'] is True
+    admitted = scope_row(env.store, one.rid)
+    assert admitted['state'] == 'pending' and admitted['current_slot'] is None
+    assert admitted['history_revision'] == latched['history_revision'] + 1
+    assert admitted['authority_revision'] == latched['authority_revision']
+    assert admitted['observation_count'] == 2 and admitted['vector_count'] == 0
+    assert observation_rows(env.store, reservation['token']) == missing
+    assert env.owner.invocations == []
+    assert_accounting(env)
+
+
 def test_passive_model_disabled_read_is_db_only_and_restart_is_conservative(history_env, monkeypatch):
     env = history_env; item = primary_fixture(env); success(env, item); publish_one(env, item)
     env.store.settings.recording_primary_observation_policy = 'off'
@@ -1255,6 +1361,32 @@ def test_retirement_write_uncertainty_never_unlinks_without_later_exact_marker(h
         with pytest.raises(ReadError, match='history_retirement_missing'):
             cleanup_retirement(env, marker, calls.append)
         assert calls == [] and item.path.exists() and snapshot(env.store) == before
+    assert_accounting(env)
+
+
+def test_retirement_lost_ack_exact_same_process_retry_releases_owner_for_second_source(history_env, monkeypatch):
+    env = history_env; one = primary_fixture(env); two = primary_fixture(env, number=2)
+    success(env, one); success(env, two)
+    prepared = prepared_retirement(env, one); owner = env.value.owner
+    with database_write_fault(monkeypatch, env.value, after_commit=True,
+                              reason='synthetic_same_process_retirement_lost_ack'):
+        with pytest.raises(ReadError, match='synthetic_same_process_retirement_lost_ack'):
+            env.value.commit_retirement(prepared)
+    assert env.value.owner == owner and env.value._retirement is prepared
+    committed = source_row(env, one)
+    assert committed['state'] == 'retired' and committed['marker_token'] == prepared['token']
+    assert committed['cleanup'] == 'pending' and one.path.exists() and two.path.exists()
+    durable = snapshot(env.store)
+    retried = env.value.commit_retirement(prepared)
+    assert retried['acknowledged'] is True and retried['token'] == prepared['token']
+    assert env.value._retirement is None and env.value.owner == owner
+    assert snapshot(env.store) == durable and source_row(env, one)['marker'] == committed['marker']
+    second = prepared_retirement(env, two)
+    assert second is env.value._retirement and second is not prepared
+    assert second['complete'] and second['scope_seq'] != prepared['scope_seq']
+    assert second['source']['version'] == source_row(env, two)['version']
+    assert source_row(env, two)['state'] == 'active' and source_row(env, two)['marker'] is None
+    assert snapshot(env.store) == durable
     assert_accounting(env)
 
 
@@ -1706,6 +1838,32 @@ def test_attempt_audit_rejects_bounded_fixture_corruption_without_copying_oversi
         env.value.read_attempt(item.sid, item.rid, reservation['token'])
     assert snapshot(env.store) == before and env.owner.invocations == []
     assert env.value._frozen == {}
+
+
+def test_history_first_scope_stays_frozen_to_legacy_reserve_after_policy_off(history_env, monkeypatch):
+    env = history_env; item = primary_fixture(env); success(env, item)
+    env.store.settings.recording_primary_observation_policy = 'off'
+    value = legacy.RecordingSpeakerLinkStore(env.store, clock=lambda: 0.)
+    assert value.enabled and value.history is None
+    def forbidden(*args, **kwargs):
+        pytest.fail('History-first scope reached legacy bound-job lookup')
+    monkeypatch.setattr(value, '_bound_job', forbidden)
+    before = snapshot(env.store)
+    with connection(env.store.path) as db:
+        legacy_before = {table: [tuple(row) for row in db.execute('SELECT * FROM ' + table + ' ORDER BY 1')]
+                         for table in (legacy.SCOPES, legacy.BATCHES)}
+        primary_before = [tuple(row) for row in db.execute('SELECT * FROM segments ORDER BY id')]
+    # This sparse fixture intentionally has no job tables: the history guard
+    # must run inside the real transaction before any bound-job lookup or write.
+    with pytest.raises(ReadError, match='speaker_link_history_scope_frozen'):
+        value.reserve(item.sid, item.rid, '3' * 32, '4' * 64,
+            links.POLICY_SHA256_V3, links.expected_space(), max_nodes=1)
+    assert snapshot(env.store) == before
+    with connection(env.store.path) as db:
+        assert {table: [tuple(row) for row in db.execute('SELECT * FROM ' + table + ' ORDER BY 1')]
+                for table in (legacy.SCOPES, legacy.BATCHES)} == legacy_before
+        assert [tuple(row) for row in db.execute('SELECT * FROM segments ORDER BY id')] == primary_before
+    assert_accounting(env)
 
 
 def test_existing_legacy_scope_remains_frozen_and_cannot_mix_history(history_env):

@@ -195,10 +195,10 @@ def _dependency_scope(kind, key):
 
 # Exact source facts are dependencies, never broad transcript change hints.
 for table, key, columns, predicate, depkind in (
-    ('chunks','id',('session_id','digest','path','duration','timeline_start'),None,'source'),
-    ('stream_chunks','chunk_id',('session_id','stream_id','position'),None,'mapping'),
-    ('recording_work','chunk_id',('batch_id','position','frames','capture_start_frame','native_receipt','receipt_id','file_signature'),None,'mapping'),
-    ('segments','id',('chunk_id','start','end','text','raw_text','asr_backend','timestamp_kind','speaker_local_id','speaker_window_start'),None,'primary')):
+    ('chunks','id',('id','session_id','digest','path','duration','timeline_start'),None,'source'),
+    ('stream_chunks','chunk_id',('chunk_id','session_id','stream_id','position'),None,'mapping'),
+    ('recording_work','chunk_id',('chunk_id','batch_id','position','frames','capture_start_frame','native_receipt','receipt_id','file_signature'),None,'mapping'),
+    ('segments','id',('id','chunk_id','start','end','text','raw_text','asr_backend','timestamp_kind','speaker_local_id','speaker_window_start'),None,'primary')):
     different=' OR '.join(f'OLD.{c} IS NOT NEW.{c}' for c in columns)
     lookup=f"CAST(OLD.{key} AS TEXT)"
     for event in ('UPDATE','DELETE'):
@@ -211,8 +211,8 @@ DDL['recording_history_progress_v1']=f'''CREATE TRIGGER recording_history_progre
     {_fence_sql(f"scope_seq IN (SELECT scope_seq FROM {SOURCES} INDEXED BY recording_history_source_chunk_v1 WHERE chunk_id=OLD.id AND (NEW.status='cancelled' OR NEW.next_offset*16000<required_end))")} END'''
 for event in ('UPDATE','DELETE'):
     name=f'recording_history_recording_{event.lower()}_v1'
-    when=" WHEN OLD.session_id IS NOT NEW.session_id OR OLD.capture_origin_frame IS NOT NEW.capture_origin_frame OR NEW.state IN ('cancelled','aborted')" if event=='UPDATE' else ''
-    DDL[name]=f'''CREATE TRIGGER {name} AFTER {event}{' OF session_id,capture_origin_frame,state' if event=='UPDATE' else ''} ON recording_batches{when}
+    when=" WHEN OLD.id IS NOT NEW.id OR OLD.session_id IS NOT NEW.session_id OR OLD.capture_origin_frame IS NOT NEW.capture_origin_frame OR NEW.state IN ('cancelled','aborted')" if event=='UPDATE' else ''
+    DDL[name]=f'''CREATE TRIGGER {name} AFTER {event}{' OF id,session_id,capture_origin_frame,state' if event=='UPDATE' else ''} ON recording_batches{when}
         BEGIN {_fence_sql('recording_id=OLD.id')} END'''
 for table in (REFS,DEPENDENCIES):
     name=table+'_immutable'
@@ -470,7 +470,7 @@ class HistoryStore:
             scope=self._scope(db,sid,rid,space,create=True)
             if source_start_frame<=scope['high_water']:return False
             bucket=(source_start_frame-120*16000)//scope['interval_frames'] if source_start_frame>=120*16000 else -1
-            db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_bucket=MAX(last_bucket,?),skipped_count=MIN(2147483647,skipped_count+1),state=? WHERE scope_seq=?''',
+            db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_bucket=MAX(last_bucket,?),skipped_count=MIN(2147483647,skipped_count+1),state=CASE WHEN state='unknown_rival' THEN state ELSE ? END WHERE scope_seq=?''',
                 (source_start_frame,bucket,_reason(reason),scope['scope_seq']))
         return True
 
@@ -1227,33 +1227,35 @@ class HistoryStore:
             if not owner._history_source_quiescent(source['version']):_fail('history_source_busy')
             scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(prepared['scope_seq'],)).fetchone()
             row=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(prepared['scope_seq'],source['version'])).fetchone()
-            if row is not None and row['marker_token']==prepared['token'] and row['marker']==marker:
-                return {'acknowledged':True,'token':prepared['token'],'version':source['version'],'scope_seq':prepared['scope_seq']}
-            if (scope is None or row is None or row['state']!='active' or scope['authority_blocked'] is not None
-                    or scope['authority_revision']!=prepared['authority_revision']
-                    or any(row[k]!=source[k] for k in ('admission_revision','observation_count','vector_count','required_end'))):_fail('history_retirement_changed')
-            self._retirement_unreserved(db,prepared['scope_seq'],source['chunk_id'])
-            if self._source_fact(db,fact['receipt'],source['required_end'])['version']!=source['version']:_fail('history_source_changed')
-            aliases=db.execute(f'''SELECT 1 FROM chunks c LEFT JOIN {SOURCES} s ON s.chunk_id=c.id
-                WHERE c.path=? AND (s.version IS NULL OR s.scope_seq!=? OR s.version!=?) LIMIT 1''',
-                (fact['path'],scope['scope_seq'],source['version'])).fetchone()
-            if aliases is not None:_fail('history_active_source_alias')
-            charge=len(marker)+512
-            # Projection source authority metadata changes without changing any
-            # vector, competitor, alias, witness or exact comparison score.
-            decision=None;new_header=None;delta=0
-            if scope['current_slot'] is not None:
-                decision=db.execute(f'SELECT header FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],scope['current_slot'])).fetchone()
-                if decision is not None:
-                    header=_decode(decision['header'],65536);header['source_revision']=scope['source_revision']+1
-                    header['all_sources_retired']=scope['active_sources']==1;new_header=_raw(header,65536);delta=len(new_header)-len(decision['header'])
-            _admit(db,scope,charge+max(0,delta))
-            db.execute(f"UPDATE {SOURCES} SET state='retired',marker=?,marker_token=?,cleanup='pending',charge=charge+? WHERE scope_seq=? AND version=?",
-                (marker,prepared['token'],charge,prepared['scope_seq'],source['version']))
-            db.execute(f'UPDATE {SCOPES} SET active_sources=active_sources-1,source_revision=source_revision+1 WHERE scope_seq=?',(prepared['scope_seq'],))
-            _change_usage(db,prepared['scope_seq'],retained=charge+delta)
-            if new_header is not None:db.execute(f'UPDATE {DECISIONS} SET header=?,charge=charge+? WHERE scope_seq=? AND slot=?',(new_header,delta,prepared['scope_seq'],scope['current_slot']))
-        self._retirement=None
+            already=(row is not None and row['marker_token']==prepared['token'] and row['marker']==marker)
+            if not already:
+                if (scope is None or row is None or row['state']!='active' or scope['authority_blocked'] is not None
+                        or scope['authority_revision']!=prepared['authority_revision']
+                        or any(row[k]!=source[k] for k in ('admission_revision','observation_count','vector_count','required_end'))):_fail('history_retirement_changed')
+                self._retirement_unreserved(db,prepared['scope_seq'],source['chunk_id'])
+                if self._source_fact(db,fact['receipt'],source['required_end'])['version']!=source['version']:_fail('history_source_changed')
+                aliases=db.execute(f'''SELECT 1 FROM chunks c LEFT JOIN {SOURCES} s ON s.chunk_id=c.id
+                    WHERE c.path=? AND (s.version IS NULL OR s.scope_seq!=? OR s.version!=?) LIMIT 1''',
+                    (fact['path'],scope['scope_seq'],source['version'])).fetchone()
+                if aliases is not None:_fail('history_active_source_alias')
+                charge=len(marker)+512
+                # Projection source authority metadata changes without changing any
+                # vector, competitor, alias, witness or exact comparison score.
+                decision=None;new_header=None;delta=0
+                if scope['current_slot'] is not None:
+                    decision=db.execute(f'SELECT header FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],scope['current_slot'])).fetchone()
+                    if decision is not None:
+                        header=_decode(decision['header'],65536);header['source_revision']=scope['source_revision']+1
+                        header['all_sources_retired']=scope['active_sources']==1;new_header=_raw(header,65536);delta=len(new_header)-len(decision['header'])
+                _admit(db,scope,charge+max(0,delta))
+                db.execute(f"UPDATE {SOURCES} SET state='retired',marker=?,marker_token=?,cleanup='pending',charge=charge+? WHERE scope_seq=? AND version=?",
+                    (marker,prepared['token'],charge,prepared['scope_seq'],source['version']))
+                db.execute(f'UPDATE {SCOPES} SET active_sources=active_sources-1,source_revision=source_revision+1 WHERE scope_seq=?',(prepared['scope_seq'],))
+                _change_usage(db,prepared['scope_seq'],retained=charge+delta)
+                if new_header is not None:db.execute(f'UPDATE {DECISIONS} SET header=?,charge=charge+? WHERE scope_seq=? AND slot=?',(new_header,delta,prepared['scope_seq'],scope['current_slot']))
+        # Both initial commit and exact lost-ack retry release only this owner,
+        # after the transaction context has positively acknowledged closure.
+        if self._retirement is prepared:self._retirement=None
         return {'acknowledged':True,'token':prepared['token'],'version':source['version'],'scope_seq':prepared['scope_seq']}
 
     def read_retirement(self,scope_seq,source_version,token):

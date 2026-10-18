@@ -525,6 +525,11 @@ class RecordingSpeakerLinkStore:
         token = uuid.uuid4().hex
         with self._authority_database(write=True) as (db, boundary):
             _session(db, sid)
+            # Policy-off cannot move an already owned recording into the other
+            # retained format. The unique scope lookup precedes any mutation.
+            from .recording_speaker_history import SCOPES as HISTORY_SCOPES
+            if db.execute(f'SELECT 1 FROM {HISTORY_SCOPES} WHERE session_id=? AND recording_id=?',(sid,rid)).fetchone():
+                _fail('speaker_link_history_scope_frozen')
             _,proof=self._bound_job(db, sid, job_id, result_sha256, rid)
             if batch is not None and batch['proof_sha256']!=proof: _fail('speaker_link_identity_conflict')
             own = db.execute(f'SELECT * FROM {SCOPES} WHERE scope_id=?', (scope_id,)).fetchone()
