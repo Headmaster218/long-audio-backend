@@ -1,0 +1,142 @@
+{
+  "schema": "primary-probe-reservation-fingerprint-recovery-wip-v1",
+  "status": "NEW_UNQUALIFIED_SOURCE_STATIC_REVIEW_ACCEPTED",
+  "baseline": {
+    "commit": "cd89edba47ad48677db287f387507e4a5396b4df",
+    "tree": "7bee84323e1dfbcfd9d77b8e400443b4a03e2508",
+    "file_count": 560,
+    "bytes": 10130383,
+    "full_readback_manifest_sha256": "428b4e7147696bdf87c32d7a22bedf926e2292082d9aaf5d91a78775f59efe3c",
+    "receipt_sha256": "773c463482ecc9a58545f8617ca69a795a86d43212ff73c9b0d75a2d8334f751",
+    "permit_sha256": "4e6593570126e6f24634ab8db34ecb55446255c0593ebc08a29299c6ddca95d2"
+  },
+  "owned_changes": [
+    "audio_backend/native_execution_permit.py",
+    "tests/test_primary_probe_reservation_fingerprint.py",
+    "reports/PRIMARY_PROBE_RESERVATION_FINGERPRINT_RECOVERY_WIP.json"
+  ],
+  "source_sha256": {
+    "audio_backend/native_execution_permit.py": "6e177b86ff535f4fa972b1c78b4f2ace628fe811ff077b36a8da2a6dd7665998",
+    "tests/test_primary_probe_reservation_fingerprint.py": "ed8a5d0d2aa657c72c8a86ed8452e4038dc0d35ea887f33f25c05c999020e2b1"
+  },
+  "scope": "Only the exact already-reserved automatic_primary_probe running fingerprint excludes caller-turn, thread-local turn, handoff and nonexecuting queue-probe hints. Admission and all other kinds/phases remain unchanged.",
+  "preserved": [
+    "exact optional token/kind/event/callback",
+    "sample generation",
+    "comparison record/revision",
+    "configuration identity and currentness",
+    "closed/unavailable state",
+    "granted or entered primary work",
+    "fresh complete census and resource limits",
+    "existing source authority/currentness gates",
+    "cancellation and original work deadline",
+    "no added wait, census, regrant, replay, or cancellation clearing"
+  ],
+  "verification": {
+    "source_inspection": "static only; no project code imported or executed",
+    "test_execution": "NOT_RUN_TOOLING_BLOCKED",
+    "test_collection": "NOT_RUN_TOOLING_BLOCKED",
+    "tool_installation": "NOT_RUN_BY_SOURCE_WORKER; parent reports tooling restoration blocked before any installation",
+    "independent_review": "STATIC_SOURCE_AND_TEST_REVIEW_ACCEPTED; all other 559 baseline files unchanged; no collection or execution authorized or performed",
+    "early_source_only_publication": "PENDING",
+    "inherited_test_credit": 0,
+    "model_audio_db_work": "NONE",
+    "external_writes": "NONE"
+  },
+  "test_scope": {
+    "framework": "standard pytest",
+    "nonstdlib_dependencies": [
+      "pytest",
+      "psutil"
+    ],
+    "candidate_cases_static": 53,
+    "optional_authenticated_baseline_cases_static": 2,
+    "optional_baseline_environment": "PRIMARY_PROBE_FINGERPRINT_BASELINE",
+    "ordinary_checkout": "candidate cases require no external checkout; explicit baseline file override adds two negative controls",
+    "case_census": [
+      {
+        "name": "test_running_census_survives_caller_automatic_turn_exit",
+        "candidate_cases": 1,
+        "baseline_control_cases": 1
+      },
+      {
+        "name": "test_running_census_survives_queue_probe_and_ungranted_demand",
+        "candidate_cases": 1,
+        "baseline_control_cases": 1
+      },
+      {
+        "name": "test_each_irrelevant_hint_can_change_without_cancelling_exact_reservation",
+        "candidate_cases": 4,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_other_kinds_and_phases_keep_strict_hint_fingerprint",
+        "candidate_cases": 7,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_admission_still_refuses_new_queue_probe",
+        "candidate_cases": 3,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_primary_probe_admission_keeps_exact_handoff_fingerprint",
+        "candidate_cases": 1,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_wrong_token_never_samples_or_cancels_the_real_reservation",
+        "candidate_cases": 1,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_real_authority_change_during_census_still_refuses",
+        "candidate_cases": 15,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_no_wait_retry_cached_sample_or_release_on_invalid_census",
+        "candidate_cases": 7,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_real_census_incomplete_root_observation_cannot_authorize_running_probe",
+        "candidate_cases": 1,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_existing_cancellation_is_never_cleared",
+        "candidate_cases": 2,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_speaker_gate_keeps_original_deadline_across_complete_census",
+        "candidate_cases": 2,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_speaker_gate_disabled_configuration_still_cancels_before_sampling",
+        "candidate_cases": 1,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_existing_dispatch_source_binding_still_refuses_replacement",
+        "candidate_cases": 6,
+        "baseline_control_cases": 0
+      },
+      {
+        "name": "test_existing_dispatch_source_currentness_refusal_remains_authoritative",
+        "candidate_cases": 1,
+        "baseline_control_cases": 0
+      }
+    ]
+  },
+  "limits": [
+    "Reconstructed source receives no historical test credit.",
+    "Historical 42 passes do not qualify this source; final pre-reset portability run outcome and bytes are unavailable.",
+    "Historical failed trial recorded child_wait / optional_cancelled / AdmissionError / ownership_changed / reservation_held=true, with child dispatch possible; exact changed historical field remains unknown.",
+    "Synthetic scheduling counterexamples cannot establish historical causation.",
+    "No model, acoustic, production, package or complete-suite qualification is claimed."
+  ],
+  "tooling_blocker": "Parent reports pytest absent in both standard interpreters and no cached wheels; official PyPI timed out and escalated preparation failed before execution at sandbox initialization. Existing psutil 7.2.2 is not historical runtime parity. No custom runner or framework substitution."
+}

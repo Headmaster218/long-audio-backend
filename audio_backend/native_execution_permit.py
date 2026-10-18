@@ -812,22 +812,28 @@ class NativeExecutionPermit:
                 raise AdmissionError('process_sample_unavailable')
         return sample
 
-    def _optional_state_locked(self, *, allow_queued=False):
+    def _optional_state_locked(self, *, allow_queued=False, primary_probe_running=False):
         # Keep object references, not reusable numeric ids or caller equality.
+        # Once this primary probe owns its reservation, caller-turn and queue
+        # hints cannot execute primary work or revoke that exact reservation.
+        # Admission and every other owner/phase retain their full fingerprint.
         comparison = self._comparison
         identities = (self._sample_generation, self._optional, self._cancel,
-            self._cancel_callback, self._turn, getattr(self._local, 'turn', None),
-            self._handoff, self._configuration_current, comparison,
+            self._cancel_callback, None if primary_probe_running else self._turn,
+            None if primary_probe_running else getattr(self._local, 'turn', None),
+            None if primary_probe_running else self._handoff, self._configuration_current, comparison,
             comparison['revision'] if comparison is not None else None)
         values = (self._optional_kind, None if self._cancel is None else self._cancel.is_set(),
-            self._probe, self._closed, self._unavailable, bool(self._configuration_current()),
+            None if primary_probe_running else self._probe,
+            self._closed, self._unavailable, bool(self._configuration_current()),
             tuple((kind, intent, intent.granted, intent.entered, intent.released)
                 for kind, intent in sorted(self._primary.items())
                 if not allow_queued or intent.granted or intent.entered))
         return identities, values
 
-    def _optional_state_unchanged_locked(self, state, *, allow_queued=False):
-        identities, values = self._optional_state_locked(allow_queued=allow_queued)
+    def _optional_state_unchanged_locked(self, state, *, allow_queued=False, primary_probe_running=False):
+        identities, values = self._optional_state_locked(allow_queued=allow_queued,
+            primary_probe_running=primary_probe_running)
         return all(old is new for old, new in zip(state[0], identities)) and state[1] == values
 
     def reserve_optional(self, token, cancelled, cancel_callback, *, owner_kind='preemptible'):
@@ -871,7 +877,10 @@ class NativeExecutionPermit:
                     raise AdmissionError('optional_cancelled')
                 return running_remaining() if eligible else None
             allow_queued = self._optional_kind in ('automatic_text','automatic_primary_probe')
-            state = self._optional_state_locked(allow_queued=allow_queued)
+            primary_probe_running = (self._optional is token
+                and self._optional_kind == 'automatic_primary_probe' and phase == 'running')
+            state = self._optional_state_locked(allow_queued=allow_queued,
+                primary_probe_running=primary_probe_running)
         began = grace_ended = None
         try:
             with self._condition:remaining = current()
@@ -899,7 +908,8 @@ class NativeExecutionPermit:
                     raise
             with self._condition:
                 current()
-                if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
+                if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued,
+                        primary_probe_running=primary_probe_running):raise AdmissionError('optional_ownership_changed')
                 self._state = 'OPTIONAL_RUNNING'
         except Exception as error:
             with self._condition:
