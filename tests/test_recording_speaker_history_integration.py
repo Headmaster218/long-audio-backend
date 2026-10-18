@@ -1005,7 +1005,7 @@ def test_completed_comparison_keeps_token_until_real_thread_death_and_discard(pr
 
 
 @pytest.mark.parametrize('action',['cancel','revoke','revoke_ready','links_off','policy_off'])
-def test_real_store_revocation_or_cancel_fences_compute_and_ready_output(primary_history_factory,monkeypatch,action):
+def test_real_store_revocation_or_cancel_fences_compute_and_ready_output(primary_history_factory,monkeypatch,action,record_property):
     from audio_backend import recording_speaker_history_compare as comparator
     _linux_thread_state()
     with primary_history_factory() as h:
@@ -1027,13 +1027,20 @@ def test_real_store_revocation_or_cancel_fences_compute_and_ready_output(primary
             assert at_boundary.wait(5.),record['state']
             deadline=record['deadline'];snapshot=record['snapshot'];build=record['build']
             assert h.jobs.history.comparison_current(snapshot)=='current'
-            if action=='cancel':record['cancelled'].set()
-            elif action=='links_off':h.store.settings.recording_speaker_links_enabled=False
-            elif action=='policy_off':h.store.settings.recording_primary_observation_policy='off'
+            action_started=time.monotonic()
+            if action=='cancel':
+                record['cancelled'].set();mutation_returned=time.monotonic()
+            elif action=='links_off':
+                h.store.settings.recording_speaker_links_enabled=False;mutation_returned=time.monotonic()
+            elif action=='policy_off':
+                h.store.settings.recording_primary_observation_policy='off';mutation_returned=time.monotonic()
             else:
                 assert history.notify_source_mismatch(h.store,[cids[0]]) is True
+                mutation_returned=time.monotonic()
                 assert h.jobs.history.comparison_current(snapshot)=='invalid'
-            resume.set();assert _joined_comparison(h) is record
+            resume.set();barrier_released=time.monotonic()
+            assert _joined_comparison(h) is record
+            thread_joined=time.monotonic()
             assert record['state']!='published'
             if action=='revoke_ready':assert steps[-1].get('dot_products',0)==1
             else:assert len(steps)==1
@@ -1050,6 +1057,17 @@ def test_real_store_revocation_or_cancel_fences_compute_and_ready_output(primary
             assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
             assert h.jobs._stop_history_comparison()
             assert build.state=='discarded' and h.jobs.permit.status()['comparison_reserved_bytes']==0
+            cache_token_released=time.monotonic()
+            record_property('checkpoint_tail_measurement',
+                'observed checkpoint-boundary cancellation tails; fixture holds a completed quantum')
+            record_property('checkpoint_tail_action',action)
+            record_property('checkpoint_tail_action_started_monotonic_s',action_started)
+            record_property('checkpoint_tail_mutation_returned_monotonic_s',mutation_returned)
+            record_property('checkpoint_tail_barrier_released_monotonic_s',barrier_released)
+            record_property('checkpoint_tail_thread_joined_monotonic_s',thread_joined)
+            record_property('checkpoint_tail_cache_token_released_monotonic_s',cache_token_released)
+            record_property('checkpoint_tail_action_to_join_ms',1000*(thread_joined-action_started))
+            record_property('checkpoint_tail_barrier_release_to_join_ms',1000*(thread_joined-barrier_released))
         finally:resume.set()
 
 

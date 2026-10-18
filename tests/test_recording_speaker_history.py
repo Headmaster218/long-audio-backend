@@ -1124,10 +1124,23 @@ def test_old_unknown_rival_finish_cannot_latch_newer_admission(history_env, late
         assert sources['complete'] and len(sources['rows']) <= 2
         env.value.revalidate_active_sources(pending, sources)
         build = ComparisonBuild(pending['token'], admitted_bytes=history.COMPARE_BYTES, clock=lambda: 0.)
-        observations = env.value.observation_page(pending); witnesses = env.value.witness_page(pending)
-        assert observations['complete'] and witnesses['complete']
+        observations = env.value.observation_page(pending)
+        expected = pending['token'].observation_count
+        assert observations['complete'] and len(observations['rows']) == expected
+        assert observations['next_after'] == expected and expected in (1, 2)
         build.feed_observations(pending['token'], 0, observations['rows'], complete=True)
-        build.feed_witnesses(pending['token'], 0, witnesses['rows'], complete=True)
+        # Each of these one-node admissions retains exactly one witness basis.
+        # The reader intentionally stops a page at that basis boundary.
+        assert pending['token'].witness_count == expected
+        cursor = 0
+        for _ in range(2):
+            witnesses = env.value.witness_page(pending, after=cursor)
+            assert len(witnesses['rows']) == 1 and witnesses['next_after'] == cursor + 1 <= expected
+            assert witnesses['complete'] == (witnesses['next_after'] == expected)
+            build.feed_witnesses(pending['token'], cursor, witnesses['rows'], complete=witnesses['complete'])
+            cursor = witnesses['next_after']
+            if witnesses['complete']:break
+        assert cursor == expected
         for _ in range(32):
             result = build.step()
             if result['state'] not in ('loading', 'pending'):break
