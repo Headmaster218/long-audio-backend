@@ -109,6 +109,9 @@ class Settings:
     moss_jobs_enabled: bool = False
     moss_jobs_model_path: str | None = None
     moss_automatic_enabled: bool = False
+    recording_primary_observation_policy: str = "off"
+    recording_primary_observation_interval_seconds: int = 60
+    recording_speaker_history_read_enabled: bool = False
     recording_speaker_links_enabled: bool = False
     recording_speaker_model_path: str | None = None
     recording_primary_provenance_recording_bytes: int = 128 * 1024**2
@@ -174,6 +177,14 @@ class Settings:
                 raise ValueError(name + ' must be a positive integer no greater than 64 GiB')
         if self.recording_primary_provenance_recording_bytes > self.recording_primary_provenance_global_bytes:
             raise ValueError('Per-recording primary provenance quota exceeds global quota')
+        if type(self.recording_speaker_history_read_enabled) is not bool:
+            raise ValueError('recording_speaker_history_read_enabled must be boolean')
+        if self.recording_primary_observation_policy not in ('off', 'primary-clean-history-v1'):
+            raise ValueError('Unknown recording primary observation policy')
+        if type(self.recording_primary_observation_interval_seconds) is not int or self.recording_primary_observation_interval_seconds != 60:
+            raise ValueError('Reviewed primary observation interval is 60 seconds')
+        if self.recording_primary_observation_policy != 'off' and not (self.recording_speaker_links_enabled and self.native_owned_bounded_core_support_enabled):
+            raise ValueError('Primary observations require speaker producer and bounded primary provenance')
         if type(self.recording_speaker_links_enabled) is not bool:
             raise ValueError('recording_speaker_links_enabled must be boolean')
         if self.recording_speaker_model_path is not None and not self.recording_speaker_links_enabled:

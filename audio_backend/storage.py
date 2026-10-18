@@ -207,6 +207,8 @@ class Store:
             init_bounded_revision(db)
             from .recording_primary_provenance import init_schema as init_primary_provenance
             init_primary_provenance(db)
+            from .recording_speaker_history import init_schema as init_history
+            init_history(db)
         from .recording_primary_provenance import database_identity, enabled as primary_provenance_enabled
         self._primary_provenance_identity = database_identity(self.path) if primary_provenance_enabled(settings) else None
 

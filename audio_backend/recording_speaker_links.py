@@ -1373,3 +1373,31 @@ def _source_intersects(one, two):
         and a['source_frames'] == b['source_frames']
         and max(a['source_start'], b['source_start']) < min(a['source_end'], b['source_end'])
         for a in one['source_spans'] for b in two['source_spans'])
+
+
+def history_node(node, *, origin_kind):
+    """Compact typed certificate header; complete proof stays in its basis.
+
+    This new decision policy does not change legacy validation or MAX_NODES.
+    The selected exact transcript reference is never a native speaker label.
+    """
+    if origin_kind not in ('primary_commit','moss_result'):
+        raise Unavailable('history_origin_kind')
+    primary=node.get('source_kind')=='native_primary'
+    ref=node.get('primary_source_ref') if primary else encoded_history_ref(node)
+    attrs=node.get('native_attributions') or [{'native_scope_id':node['native_scope_id'],'native_label':node['native_label']}]
+    answer={'schema':1,'origin_kind':origin_kind,'source_kind':'native_primary' if primary else 'moss',
+        'node_id':node.get('node_id') or sha({k:v for k,v in node.items() if k!='vector'}),
+        'ref_kind':'primary' if primary else 'moss','ref_key':ref,
+        'source_key':node['source_key'],'pcm_hash':node['pcm16le_sha256'],'float_hash':node['float32le_sha256'],
+        'attributions':[[x['native_scope_id'],x['native_label']] for x in attrs],
+        'spans':[[x['source_sha256'],x['source_frames'],x['source_start'],x['source_end']] for x in node['source_spans']],
+        'space_id':node['space_id']}
+    if primary:answer.update(packet=node['primary_packet_sha256'],row=node['primary_row_index'])
+    if len(canonical(answer,2048))>2048:raise Unavailable('history_header_capacity')
+    return answer
+
+
+def encoded_history_ref(node):
+    from .moss_result_store import encoded
+    return encoded([node['job_id'],node['result_sha256'],node['phrase_index']]).decode('ascii')

@@ -113,6 +113,11 @@ SCHEMA[BATCHES] = LEGACY_BATCH_SCHEMA.replace(
     'PRIMARY KEY(scope_seq,batch_seq)', FAILURE_COLUMN + ', PRIMARY KEY(scope_seq,batch_seq)')
 
 
+PRE_HISTORY_BATCH_SCHEMA = SCHEMA[BATCHES]
+HISTORY_COLUMN = "history_format TEXT CHECK(history_format IS NULL OR history_format='primary-clean-history-v1')"
+SCHEMA[BATCHES] = PRE_HISTORY_BATCH_SCHEMA.replace('PRIMARY KEY(scope_seq,batch_seq)', HISTORY_COLUMN + ', PRIMARY KEY(scope_seq,batch_seq)')
+
+
 def init_schema(db):
     """Additive exact-schema migration in the caller's transaction; no recovery."""
     if not db.in_transaction:
@@ -123,17 +128,22 @@ def init_schema(db):
     normalize = lambda sql: ' '.join(sql.split())
     # Validate every owned object before any DDL, including the immutable trigger.
     legacy = False
+    history_marker = False
     for (name, sql), row in zip(SCHEMA.items(), present):
         if row is None:continue
         if normalize(row[0]) == normalize(sql):continue
         if name == BATCHES and normalize(row[0]) == normalize(LEGACY_BATCH_SCHEMA):
             legacy = True
+            history_marker = True
+        elif name == BATCHES and normalize(row[0]) == normalize(PRE_HISTORY_BATCH_SCHEMA):
+            history_marker = True
         else:
             raise ValueError('Incompatible recording speaker link schema: ' + name)
     if not any(present):
         for sql in SCHEMA.values():db.execute(sql)
-    elif legacy:
-        db.execute(f'ALTER TABLE {BATCHES} ADD COLUMN ' + FAILURE_COLUMN)
+    else:
+        if legacy:db.execute(f'ALTER TABLE {BATCHES} ADD COLUMN ' + FAILURE_COLUMN)
+        if history_marker:db.execute(f'ALTER TABLE {BATCHES} ADD COLUMN ' + HISTORY_COLUMN)
         actual = db.execute('SELECT sql FROM sqlite_master WHERE name=?', (BATCHES,)).fetchone()[0]
         if normalize(actual) != normalize(SCHEMA[BATCHES]):
             raise ValueError('Incompatible recording speaker link migration')
@@ -379,6 +389,8 @@ class RecordingSpeakerLinkStore:
         self.recovery_remaining = None
         self._staging_lock, self._staging = threading.Lock(), 0
         self._primary_source = None
+        from .recording_speaker_history import HistoryStore, enabled as history_enabled
+        self.history = HistoryStore(store,clock=clock) if history_enabled(self.settings) else None
 
     def bind_primary_source(self, source):
         """Only the already-owned CellJobsSource; no new owner/provider path."""
@@ -531,11 +543,13 @@ class RecordingSpeakerLinkStore:
                 # This includes lost admission acknowledgement. Never issue a second permission.
                 return self._reservation(own, state='probe_unavailable')
             total = _usage(db, own)
+            from .recording_speaker_history import aggregate_usage
+            history_retained, history_reserved, history_staging = aggregate_usage(db)
             extra = RESERVATION_BYTES + (SCOPE_BYTES if own is None else 0)
             exhausted = (total['node_count'] + max_nodes > MAX_GLOBAL_NODES
                 or total['batch_count'] + 1 > MAX_GLOBAL_BATCHES
-                or total['retained_bytes'] + extra > MAX_GLOBAL_BYTES
-                or total['staging_bytes'] + MAX_BATCH_BYTES > MAX_STAGING_BYTES
+                or total['retained_bytes'] + history_retained + history_reserved + extra > MAX_GLOBAL_BYTES
+                or total['staging_bytes'] + history_staging + MAX_BATCH_BYTES > MAX_STAGING_BYTES
                 or own is not None and (own['node_count'] + max_nodes > MAX_SCOPE_NODES
                     or own['batch_count'] + 1 > MAX_SCOPE_BATCHES
                     or own['retained_bytes'] + RESERVATION_BYTES > MAX_SCOPE_BYTES))
