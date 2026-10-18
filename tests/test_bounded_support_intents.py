@@ -2783,20 +2783,86 @@ _SOURCE70_TARGET_READER_ORACLE = (
 _SOURCE70_UNCHANGED_HELPER_PINS = {'native_owned_core_seams': '3608374af430d7e7396ecf32d726f02a96356a35bed89c85ea15f35c6609bdfc', 'native_owned_cells': '416718496c6ba1f3c8eaeb701a694c7882654bbd890c8af54c58ed60d7dbb6f3', 'native_owned_seam_cells': 'f0c5addf9932027d5fb76bdeadf1d03d50b5efd75785ee946e27ebad649b6489'}
 
 
+# Exact source70 ordinary binding from the same frozen automatic source above.
+_SOURCE70_ORDINARY_BINDING_SHA256 = 'a9b74db2d859c3f1e15260c1d76b11255cde1cec667eca020af45d2d82811aeb'
+_SOURCE70_ORDINARY_BINDING = r'''def ordinary_binding(doc,commit):
+    from .native_owned_core_seams import validate_commit
+    p=validate_commit(commit); c=doc['commit']; evidence=doc['commit_evidence']; support=doc['support']
+    if (c!={'chunk_id':p.chunk_id,'start':p.source_start,'end':p.source_end,'sha256':commit['evidence_sha256']}
+            or sha(evidence)!=commit['evidence_sha256'] or sha(evidence['native'])!=commit['native_sha256']
+            or sha(evidence['core_cut'])!=commit['cut_sha256']
+            or sha(doc['native']['provenance'])!=commit['runtime_sha256']
+            or support['core_start_frame']!=p.logical_start or support['core_end_frame']!=p.logical_end):
+        raise Unavailable('automatic_core_binding')
+    for raw in doc['dependencies']:
+        part=SourceSpan(**raw)
+        if (part.session_id!=p.session_id or part.chunk_id!=p.chunk_id
+                or part.receipt_sha256!=p.receipt_sha256 or part.source_sha256!=p.source_sha256
+                or part.source_frames!=p.source_frames or not p.source_start<=part.source_start<part.source_end<=p.source_end
+                or part.logical_start-part.source_start!=p.logical_start-p.source_start):
+            raise Unavailable('automatic_source_binding')
+'''
+
+
 def _source70_target_reader_oracle():
+    import builtins
+    import sys
     from pathlib import Path
+    from types import FunctionType, ModuleType
     from audio_backend import native_owned_cells, native_owned_seam_cells
     assert hashlib.sha256(_SOURCE70_TARGET_READER_ORACLE.encode()).hexdigest() == _SOURCE70_TARGET_READER_SHA256
-    for module in (core, native_owned_cells, native_owned_seam_cells):
+    assert hashlib.sha256(_SOURCE70_ORDINARY_BINDING.encode()).hexdigest() == _SOURCE70_ORDINARY_BINDING_SHA256
+    historical = Path(__file__).parent / 'fixtures' / 'source70_native_owned_core_seams.py'
+    core_bytes = historical.read_bytes()
+    assert hashlib.sha256(core_bytes).hexdigest() == _SOURCE70_UNCHANGED_HELPER_PINS['native_owned_core_seams']
+    for module in (native_owned_cells, native_owned_seam_cells):
         assert hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest() == _SOURCE70_UNCHANGED_HELPER_PINS[module.__name__.rsplit('.',1)[1]]
-    # Retain only imported primitives and immutable module data. Every local
-    # automatic helper reachable by the old reader is defined by frozen text.
-    namespace = {name:value for name,value in vars(automatic).items()
-        if getattr(value,'__module__',None) != automatic.__name__}
-    exec(compile(_SOURCE70_TARGET_READER_ORACLE,'<pinned-source70-target-reader>','exec'),namespace)
+    originals = (core, native_owned_cells, native_owned_seam_cells, automatic)
+    isolated = {module.__name__: ModuleType(module.__name__) for module in originals}
+    def oracle_import(name, globals=None, locals=None, fromlist=(), level=0):
+        absolute = globals['__package__'] + '.' + name if level == 1 else name
+        if absolute in isolated:
+            assert fromlist and level in (0, 1)
+            return isolated[absolute]
+        return builtins.__import__(name, globals, locals, fromlist, level)
+    private_builtins = {**vars(builtins), '__import__': oracle_import}
+    # Keep the unchanged public data/classes, but route all pinned helper
+    # functions and their imported function references through private globals.
+    for module in (native_owned_cells, native_owned_seam_cells):
+        namespace = isolated[module.__name__].__dict__
+        namespace.update(vars(module)); namespace['__builtins__'] = private_builtins
+        for name, value in vars(module).items():
+            if isinstance(value, FunctionType) and value.__module__ == module.__name__:
+                rebound = FunctionType(value.__code__, namespace, name, value.__defaults__, value.__closure__)
+                rebound.__kwdefaults__ = value.__kwdefaults__
+                namespace[name] = rebound
+    for module in (native_owned_cells, native_owned_seam_cells):
+        namespace = isolated[module.__name__].__dict__
+        for name, value in vars(module).items():
+            if isinstance(value, FunctionType) and value.__module__ in isolated and value.__module__ != module.__name__:
+                namespace[name] = getattr(isolated[value.__module__], value.__name__)
+    frozen_core = isolated[core.__name__].__dict__
+    frozen_core.update(__package__='audio_backend', __file__=str(historical), __builtins__=private_builtins)
+    exec(compile(core_bytes, str(historical), 'exec'), frozen_core)
+    # Every automatic helper reachable by the historical reader has frozen
+    # source text; imports of its core/cells/seam dependencies stay isolated.
+    namespace = isolated[automatic.__name__].__dict__
+    namespace.update({name:value for name,value in vars(automatic).items()
+        if getattr(value,'__module__',None) != automatic.__name__})
+    namespace['__builtins__'] = private_builtins
+    for name, value in list(namespace.items()):
+        if isinstance(value, FunctionType) and value.__module__ in isolated:
+            namespace[name] = getattr(isolated[value.__module__], value.__name__)
+    exec(compile(_SOURCE70_TARGET_READER_ORACLE + _SOURCE70_ORDINARY_BINDING,
+        '<pinned-source70-target-reader>', 'exec'), namespace)
     assert '_resolve_target_body' not in namespace and '_bound_target_reference' not in namespace
     assert namespace['validate_v2_row'].__globals__ is namespace
     assert namespace['_read_v2'].__globals__ is namespace
+    assert namespace['ordinary_binding'].__globals__ is namespace
+    assert namespace['validate_document'] is isolated[native_owned_cells.__name__].validate_document
+    for module in originals:
+        assert sys.modules[module.__name__] is module
+    assert frozen_core['Cell'] is native_owned_cells.Cell
     return namespace
 
 
@@ -3314,15 +3380,15 @@ def test_guarded_eof_authentic_final_primary_closure(bounded_app_factory, monkey
             row, status = register(*args, **kwargs)
             observed['registrations'].append(status)
             return row, status
-        def parity(target, commits, snapshot, qa, qb, support):
+        def parity(target, commits, snapshot, qa, qb, support, **options):
             if target['key'] != waiting['target_key']:
-                return localize(target, commits, snapshot, qa, qb, support)
+                return localize(target, commits, snapshot, qa, qb, support, **options)
             observed['faults'] += 1
             changed_rows = [dict(row) for row in observed['db'].execute(
                 f'SELECT * FROM {automatic.TABLE} WHERE sid=? ORDER BY seq', (h.sid,))]
             assert changed_rows != before
             return localize(target, commits, snapshot, qa, qb,
-                            {**support, 'end_frame': support['end_frame']+1})
+                            {**support, 'end_frame': support['end_frame']+1}, **options)
         read_v2 = automatic._read_v2
         def exact_restore(*args, **kwargs):
             if kwargs.get('expected') is not None:

@@ -676,7 +676,7 @@ def _local_source_ids(view):
     return required
 
 
-def localize_inventory(target, commits, snapshot, query_start, query_end, support):
+def localize_inventory(target, commits, snapshot, query_start, query_end, support, *, preparation=False):
     """Freeze a full-band result, retain whole parents, and require exact replay."""
     from .transcript_contract import primary_evidence
     if type(snapshot) is not dict or snapshot.get('schema') not in (
@@ -684,7 +684,9 @@ def localize_inventory(target, commits, snapshot, query_start, query_end, suppor
         raise Unavailable('bounded_inventory_policy')
     exact(support, 'start_frame end_frame')
     integer(support['start_frame']); integer(support['end_frame'])
-    selected = select_support(target, commits, snapshot, query_start, query_end)
+    if type(preparation) is not bool:raise Unavailable('bounded_plan_scope')
+    options = {'preparation': True} if preparation else {}
+    selected = select_support(target, commits, snapshot, query_start, query_end, **options)
     if selected != support:
         exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='full_band_reselect'
         raise exc
@@ -851,7 +853,39 @@ def same_numeric_snapshot(planned, actual, row_ids=None):
     return True
 
 
-def select_support(target, commits, snapshot, query_start, query_end):
+def target_context(target, commits):
+    """Complete numeric envelope of every legal <=20s support containing O.
+
+    This is preparation context, never a selected-support certificate. Every
+    intersecting parent must remain whole, including all of its outside atoms.
+    """
+    identity, _ = validate_target(target)
+    ca, cb = bounded_chain(commits)
+    first, last = identity['components'][0][0], identity['components'][-1][1]
+    lo, hi = max(ca, last - SUPPORT_FRAMES), min(cb, first + SUPPORT_FRAMES)
+    if not lo <= first < last <= hi:raise Unavailable('authority_unavailable')
+    return [lo, hi]
+
+
+def context_snapshot(sid, rows, sources, origin, scan_frames, *, complete_frames):
+    """Filter complete raw context before atom expansion, never clip a parent."""
+    from .transcript_contract import primary_evidence
+    if type(rows) not in (list, tuple) or len(rows) > MAX_PLAN_PARENTS:
+        raise Unavailable('bounded_primary_capacity')
+    start, end = scan_frames; base = exact_frame(origin)
+    for frame in (*scan_frames, *complete_frames):integer(frame)
+    if not complete_frames[0] <= start < end <= complete_frames[1]:
+        raise Unavailable('incomplete_primary')
+    selected = []
+    for row in rows:
+        parent = primary_evidence(sid, row)
+        if parent['start_frame'] < base + end and base + start < parent['end_frame']:
+            selected.append(row)
+    return lexical_snapshot(sid, selected, sources, origin,
+        scan_frames=scan_frames, schema=COMPACT_INVENTORY_SCHEMA)
+
+
+def select_support(target, commits, snapshot, query_start, query_end, *, preparation=False):
     """One deterministic fixed point, never a search over acoustic attempts."""
     from .transcript_projection import _legal
     local_scope = type(snapshot) is dict and snapshot.get('schema') == SUPPORT_LOCAL_INVENTORY_SCHEMA
@@ -864,10 +898,14 @@ def select_support(target, commits, snapshot, query_start, query_end):
         all_roots[slot(c)] = c
     if len(all_roots) > MAX_BOUND_COMMITS:raise Unavailable('commitment_capacity')
     bounded_chain(sorted(all_roots.values(), key=lambda c: c['part']['logical_start']))
+    if type(preparation) is not bool:raise Unavailable('bounded_plan_scope')
+    required = target_context(target, commits) if preparation else [ca, cb]
+    if preparation and (local_scope or snapshot['schema'] != INVENTORY_SCHEMA):
+        raise Unavailable('bounded_plan_scope')
     if (identity['scope'] != {k: commits[0]['scope'][k] for k in identity['scope']}
             or snapshot['session_id'] != identity['scope']['session_id']
             or snapshot['origin'] != identity['scope']['origin']
-            or (not local_scope and not snapshot['scan_frames'][0] <= ca < cb <= snapshot['scan_frames'][1])):
+            or (not local_scope and not snapshot['scan_frames'][0] <= required[0] < required[1] <= snapshot['scan_frames'][1])):
         raise Unavailable('bounded_plan_scope')
     if not 0 < query_end - query_start <= CORE_FRAMES:raise Unavailable('core_seam_query_coverage')
     atoms = snapshot['atoms']; components = identity['components']

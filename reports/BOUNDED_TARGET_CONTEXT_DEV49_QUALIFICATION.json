@@ -1,0 +1,111 @@
+{
+  "version": "0.2.0rc3.dev49",
+  "parent_commit": "329b12a9c8eb04ef5d6c6d5a61dbd7e28cd5d0b4",
+  "qualification": "Focused model-free context repair. Mixed finalized and independently reviewed interrupted-batch coverage; one known baseline failure remains unresolved. Actual identity quality is unmeasured.",
+  "production_scope": [
+    "native_owned_cell_capture.py: one complete bounded raw scan, then per-target lexical expansion over the complete legal-support envelope while retaining every intersecting whole parent and required source.",
+    "native_owned_core_seams.py: explicit default-off preparation scope; original-support priority and fixed-point selection preserved; persisted proof validation/localization unchanged.",
+    "moss_automatic.py: shared-budget per-target transaction replay, concrete preparation failure notices, and authenticated EOF closure for exact unresolved owned targets."
+  ],
+  "unchanged_limits_and_authority": [
+    "128 atoms; existing raw parent/source, SQL, byte, memory and time ceilings; at most four numeric target opportunities and no extra acoustic query.",
+    "Primary transaction progress; exact evidence and digest semantics; legacy proof bytes; alias/root authority; cancellation and revocation; intersecting mutation detection; no duplicate enqueue/publication.",
+    "Feature defaults, model assets, identity thresholds and runtime qualification tuple."
+  ],
+  "actual_trial": {
+    "fixed_audio_seconds": 84,
+    "primary_completed": 8,
+    "primary_expected": 8,
+    "expired_automatic_targets": 2,
+    "moss_jobs": 0,
+    "terminal_preparation_reason": "lexical_atom_capacity",
+    "gate": "failed automatic binding",
+    "identity_quality": "unmeasured",
+    "repair_model_runs": 0,
+    "reference_labels_used": false
+  },
+  "saved_state_counts": {
+    "scope": "Final retained immutable copied state only; not transient prospective preparation. Per-band projected bytes do not prove aggregate planning-budget fitness.",
+    "targets": [
+      {
+        "label": "A",
+        "full_chain_frames": [
+          504000,
+          1176000
+        ],
+        "full_chain_whole_parents": 19,
+        "full_chain_atoms": 141,
+        "legal_envelope_frames": [
+          835344,
+          1176000
+        ],
+        "legal_envelope_whole_parents": 13,
+        "legal_envelope_atoms": 98,
+        "legal_envelope_snapshot_bytes": 42730,
+        "unrelated_atoms_excluded": 43,
+        "original_support_whole_parents": 9,
+        "original_support_atoms": 56,
+        "original_support_legal": false
+      },
+      {
+        "label": "B",
+        "full_chain_frames": [
+          672000,
+          1344000
+        ],
+        "full_chain_whole_parents": 23,
+        "full_chain_atoms": 167,
+        "legal_envelope_frames": [
+          1024000,
+          1344000
+        ],
+        "legal_envelope_whole_parents": 15,
+        "legal_envelope_atoms": 96,
+        "legal_envelope_snapshot_bytes": 43175,
+        "unrelated_atoms_excluded": 71,
+        "original_support_whole_parents": 9,
+        "original_support_atoms": 56,
+        "original_support_legal": false
+      }
+    ]
+  },
+  "model_free_tests": {
+    "distinct_collected": 395,
+    "finalized_junit_passes": 169,
+    "independently_credited_completed_pre_cutoff_passes": 225,
+    "deduplicated_passing_union": 394,
+    "unresolved_known_baseline_failures": 1,
+    "unaccounted_nodes": 0,
+    "focused_unique_passes": 42,
+    "focused_new_cases": 17,
+    "focused_existing_cases": 25,
+    "affected_existing_cases": 378,
+    "affected_existing_passing_union": 377,
+    "guarded_seconds_including_cleanup": 410.8439467259959,
+    "cumulative_seconds_limit": 480,
+    "known_failure": {
+      "node": "tests/test_native_owned_cell_capture.py::CaptureFixture::test_seam_primary_projection_budget_declines_without_widening_limits",
+      "observed_steps": 150100,
+      "unchanged_limit": 150000,
+      "stage": "Third ordinary success-control validation; source_row SQLITE_INTERRUPT, before intentional reduced projection budget.",
+      "time_and_projection_limits_breached": false
+    },
+    "preserved_outcomes": [
+      "Initial focused run: 41 passed, 1 synthetic lexical-fixture binding failure. Integer-frame fixture corrected; all 17 new cases then passed.",
+      "Affected-core batch exceeded its 110-second work limit and was positively reaped without final JUnit. Its original failure remains; 225 completed passes received independent conservative credit.",
+      "Historical-reader oracle and deliberately corrupted-proof lookup failures were preserved and repaired only in test fixtures, keeping original hashes and safety assertions. Exact historical dependencies run in private test namespaces."
+    ],
+    "claims": "No full-suite PASS and no successful original affected-core batch are claimed. All completed execution receipts have positive cleanup and unchanged source/tool pins."
+  },
+  "tested_source": {
+    "manifest_sha256": "20ae6dac6bb23ebf192c48edb60bc5230ac6d0994a9a819ffc1c35644b00ef19",
+    "files": 523,
+    "bytes": 8992736,
+    "production_modules_unchanged_after_review": true
+  },
+  "package_scope": "Offline source/wheel/fresh-target parity for the same 130 audio_backend files is recorded separately. It verifies installed version/origin and the existing registry tuple without model constructors; it adds no feature or identity qualification.",
+  "remaining": "A separately authorized actual run is still needed to determine whether automatic binding succeeds on the fixed case; acoustic identity accuracy remains unmeasured.",
+  "attempt_scope": "The 98/96-atom final-state envelopes restore only an opportunity for the unchanged original-support-first/fixed-point selector and its single authenticated query. Both original supports were illegal. No feasible <=20-second support, missing query coverage, current-target disagreement, unchanged resource caps, lexical retention refusal, intersecting mutations or revoked authority may still refuse; authenticated EOF closure retains the concrete final reason. A retry must observe actual task/publication/link outcomes rather than infer them from atom counts.",
+  "independent_qualification_review_sha256": "dca8488215a269e1ab11c264d272fed30b52a5c23c6071dc40cd857d9c2376cf",
+  "package_status": "Pending when this source snapshot was frozen; consult the separately bound package receipt for the final result."
+}

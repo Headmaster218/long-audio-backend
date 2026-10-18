@@ -1224,5 +1224,8 @@ def test_owner_fresh_boundary_mutation_never_acknowledges_publication(bounded_ap
         try:retained = db.execute('SELECT proof FROM cells WHERE cell_id=?', (cell.cell_id,)).fetchone()
         finally:db.close()
         assert retained is None if boundary == 2 else retained[0] == row['proof']
-        assert c_target(h)['state'] == 'queued' and c_target(h)['job_id'] is None
+        retained_targets = [item for item in intent_rows(h) if item['candidate_key'] == row['candidate_key']]
+        assert len(retained_targets) == 1
+        assert retained_targets[0]['proof'] == row['proof'][:-1] + b' '
+        assert retained_targets[0]['state'] == 'queued' and retained_targets[0]['job_id'] is None
         assert not h.drivers and h.jobs._live is None and not h.owner._pins

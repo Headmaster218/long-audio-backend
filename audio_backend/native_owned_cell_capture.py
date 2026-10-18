@@ -996,6 +996,23 @@ class Capture:
                         return core.read_commit(db, rows[0][0], budget, reserve=True) if rows else None
                     current = self.authority._read(budget, 'core_previous', previous)
                 ca, cb = core.bounded_chain(chain)
+                if handoff['true_eof']:
+                    try:
+                        fa = max(self.origin_frame + round(native['extract_start'] * RATE), observed['replay_start'])
+                        fb = self.origin_frame + exact_frame(native['extract_end'])
+                        checksum = hashlib.sha256(self.witness.read(fa, fb)).hexdigest()
+                        frontier = {'commits': [commit], 'support': {'start_frame': fa, 'end_frame': fb},
+                            'evidence': evidence, 'query': {'query_start_frame': fa, 'query_end_frame': fb,
+                                'query_pcm16le_sha256': checksum, 'support_pcm16le_sha256': checksum,
+                                'capture_run': scope['run'], 'native': observed,
+                                'turns': [{'label': scope['run'] + ':' + turn.label,
+                                           'original': [turn.start, turn.end]} for turn in ordinary_turns]}}
+                        core._bounded_query(frontier['query'], commit, frontier['support'], evidence)
+                        handoff['frontier'] = frontier
+                    except (Unavailable, ReadError, ValueError, TypeError, KeyError):
+                        # Missing optional EOF evidence never suppresses the
+                        # ordinary supported preparation/query opportunity.
+                        pass
                 found = self.authority._read(budget, 'core_commit', lambda db:
                     bounded_primary_snapshot(db, chunk['session_id'], self.scope_start, [ca, cb], budget))
                 drafts = bounded_prospective_rows(chunk, offset, end, result, found['sources'], budget)
@@ -1003,11 +1020,17 @@ class Capture:
                 if {row['id'] for row in drafts} & {row['id'] for row in found['rows']}:
                     raise Unavailable('bounded_prospective_id_collision')
                 rows = sorted([*found['rows'], *drafts], key=lambda row: row['id'])
-                snapshot = core.lexical_snapshot(chunk['session_id'], rows, found['sources'],
-                    self.scope_start, scan_frames=[ca, cb], schema=core.COMPACT_INVENTORY_SCHEMA)
-                handoff['snapshot'] = snapshot; handoff['draft_ids'] = [row['id'] for row in drafts]
+                # Share the same bounded raw SQL/draft read across candidates;
+                # only complete candidate context is expanded into lexical atoms.
+                handoff['context'] = {'origin': float(self.scope_start).hex(), 'scan_frames': [ca, cb]}
+                handoff['draft_ids'] = [row['id'] for row in drafts]
+                def candidate_snapshot(candidate):
+                    band = core.target_context(candidate['target'], chain)
+                    return core.context_snapshot(chunk['session_id'], rows, found['sources'],
+                        self.scope_start, band, complete_frames=[ca, cb])
                 handoff['commits'] = chain
-                used_bytes = len(canonical(snapshot)) + sum(
+                used_bytes = len(canonical({'rows': rows, 'sources': found['sources']}, HANDOFF_BYTES)) + (
+                    len(canonical(handoff['frontier'])) if handoff.get('frontier') else 0) + sum(
                     len(item['proof']) + len(item['binding']) + len(canonical(item['target']))
                     for item in handoff['origins']) + sum(
                     len(item['proof'] or b'') + len(item['binding']) + len(canonical(item['target']))
@@ -1030,8 +1053,12 @@ class Capture:
                         first, last = identity['components'][0][0], identity['components'][-1][1]
                         # Every legal <=20s support containing O fits this
                         # <=40s numeric envelope; this is not query evidence.
-                        lo, hi = max(ca, last - 20 * RATE), min(cb, first + 20 * RATE)
-                        shape = core.select_support(target, chain, snapshot, lo, hi)
+                        lo, hi = core.target_context(target, chain)
+                        snapshot = candidate_snapshot(candidate)
+                        used_bytes += len(canonical(snapshot))
+                        if used_bytes > HANDOFF_BYTES:raise Unavailable('bounded_handoff_capacity')
+                        candidate['snapshot'] = snapshot
+                        shape = core.select_support(target, chain, snapshot, lo, hi, preparation=True)
                         candidate['support'] = shape
                         ranges.append((shape['start_frame'], shape['end_frame']))
                     except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
@@ -1122,8 +1149,16 @@ class Capture:
                         if manager.bounded_expired(candidate['target']['key'], waiter['wait_deadline'] if waiter else None):
                             raise Unavailable('unresolved_wait_deadline')
                         shape = candidate.get('support')
+                        snapshot = candidate.get('snapshot')
+                        if snapshot is None:
+                            # Genuine seam origins discovered after the one
+                            # current query receive their own complete context.
+                            snapshot = candidate_snapshot(candidate)
+                            used_bytes += len(canonical(snapshot))
+                            if used_bytes > HANDOFF_BYTES:raise Unavailable('bounded_handoff_capacity')
+                            candidate['snapshot'] = snapshot
                         if shape is None:
-                            shape = core.select_support(candidate['target'], chain, snapshot, qa, qb)
+                            shape = core.select_support(candidate['target'], chain, snapshot, qa, qb, preparation=True)
                             candidate['support'] = shape
                         a, b = shape['start_frame'], shape['end_frame']
                         if not qa <= a < b <= qb:raise Unavailable('witness_unavailable')
@@ -1149,7 +1184,7 @@ class Capture:
                         used_bytes += charge
                         handoff['plans'].append({'owner_key': candidate['owner_key'], 'target': candidate['target'],
                             'commits': final_chain, 'snapshot': snapshot, 'query': query, 'evidence': evidence,
-                            'support': shape, 'pcm': pcm, 'reason': None})
+                            'support': shape, 'pcm': pcm, 'reason': None, 'preparation': True})
                     except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
                         handoff['plans'].append({'owner_key': candidate['owner_key'],
                             'target': candidate['target'], 'reason': reason(exc)})
@@ -1158,7 +1193,8 @@ class Capture:
                 handoff['logical_end'] = cb
         except (Unavailable, ReadError, ValueError, TypeError, KeyError) as exc:
             handoff['reason'] = reason(exc); packet['reason'] = handoff['reason']
-            handoff['plans'] = []
+            handoff['plans'] = [{'owner_key': item['owner_key'], 'target': item['target'],
+                'reason': handoff['reason']} for item in candidates]
         finally:
             # The ordinary originals now live only as bounded proof/binding
             # proposals. They cannot accidentally use legacy automatic enqueue.

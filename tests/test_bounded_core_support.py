@@ -894,6 +894,39 @@ def validate_bounded_document(proof, doc=None):
 '''
 
 
+# The unchanged historical localizer is frozen separately from the newer
+# preparation-only keyword path; the original full-module AST pin stays exact.
+_SOURCE90_LOCALIZER_SHA256 = '77540bf4177d02cd44858dfe666aef64b558e16110ff7607baaa887fd23ca094'
+_SOURCE90_LOCALIZER = r'''def localize_inventory(target, commits, snapshot, query_start, query_end, support):
+    """Freeze a full-band result, retain whole parents, and require exact replay."""
+    from .transcript_contract import primary_evidence
+    if type(snapshot) is not dict or snapshot.get('schema') not in (
+            INVENTORY_SCHEMA, COMPACT_INVENTORY_SCHEMA):
+        raise Unavailable('bounded_inventory_policy')
+    exact(support, 'start_frame end_frame')
+    integer(support['start_frame']); integer(support['end_frame'])
+    selected = select_support(target, commits, snapshot, query_start, query_end)
+    if selected != support:
+        exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='full_band_reselect'
+        raise exc
+    view = inventory_view(snapshot)
+    start, end = selected['start_frame'], selected['end_frame']
+    origin = exact_frame(float.fromhex(view['origin']))
+    rows = []
+    for parent in view['parents']:
+        evidence = primary_evidence(view['session_id'], parent['row'])
+        if evidence['start_frame'] < origin + end and origin + start < evidence['end_frame']:
+            rows.append(parent['row'])
+    local = lexical_snapshot(view['session_id'], rows,
+        {source['id']: source for source in view['sources']}, float.fromhex(view['origin']),
+        complete=True, scan_frames=[start, end], schema=SUPPORT_LOCAL_INVENTORY_SCHEMA)
+    replay = select_support(target, commits, local, query_start, query_end)
+    if replay != selected or local['scan_frames'] != [start, end]:
+        exc=Unavailable('bounded_local_selection_changed');exc.local_selection_phase='local_replay'
+        raise exc
+    return local
+'''
+
 def source90_local_scope_oracle():
     """Keep the old selector inside its own complete, source-pinned reader.
 
@@ -910,20 +943,28 @@ def source90_local_scope_oracle():
     assert set(frozen) == set(_SOURCE90_LOCAL_READER_AST_SHA256)
     for name, expected in _SOURCE90_LOCAL_READER_AST_SHA256.items():
         assert hashlib.sha256(ast.dump(frozen[name], include_attributes=False).encode()).hexdigest() == expected
+    assert hashlib.sha256(_SOURCE90_LOCALIZER.encode()).hexdigest() == _SOURCE90_LOCALIZER_SHA256
+    localizer = ast.parse(_SOURCE90_LOCALIZER).body
+    assert len(localizer) == 1 and localizer[0].name == 'localize_inventory'
+    frozen['localize_inventory'] = localizer[0]
     tree = ast.parse(inspect.getsource(core))
-    names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
-    # Replacing only the two embedded functions must reconstruct the exact old
-    # module AST. This pins the full unchanged helper and constant closure.
+    preparation_helpers = {'target_context', 'context_snapshot'}
+    assert preparation_helpers <= {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    # Reconstruct only the three frozen functions and omit the two new planning
+    # helpers. The original complete historical AST digest is never relaxed.
     tree.body = [frozen.get(node.name, node) if isinstance(node, ast.FunctionDef) else node
-                 for node in tree.body]
+                 for node in tree.body
+                 if not isinstance(node, ast.FunctionDef) or node.name not in preparation_helpers]
     assert hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest() == _SOURCE90_CORE_AST_SHA256
-    namespace = dict(vars(core))
+    names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
+    namespace = {name: value for name, value in vars(core).items() if name not in preparation_helpers}
     for name in names:
         function = getattr(core, name)
         rebound = FunctionType(function.__code__, namespace, name, function.__defaults__, function.__closure__)
         rebound.__kwdefaults__ = function.__kwdefaults__
         namespace[name] = rebound
-    exec(compile(_SOURCE90_LOCAL_READER, '<frozen-source90-local-reader>', 'exec'), namespace)
+    exec(compile(_SOURCE90_LOCAL_READER + _SOURCE90_LOCALIZER,
+        '<frozen-source90-local-reader>', 'exec'), namespace)
     assert namespace['Cell'] is cells.Cell
     assert namespace['validate_document'].__globals__ is namespace
     assert namespace['validate_bounded_document'].__globals__['select_support'] is namespace['select_support']

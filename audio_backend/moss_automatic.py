@@ -835,8 +835,9 @@ def _bind_target(db,row,proposal,context,actual_snapshot,budget,now,*,support_lo
     _exact_compacts(db,originals,context,budget)
     _exact_compacts(db,proposal['commits'],context,budget)
     if support_local:
+        options={'preparation':True} if proposal.get('preparation') is True else {}
         actual_snapshot=localize_inventory(target,proposal['commits'],actual_snapshot,
-            proposal['query']['query_start_frame'],proposal['query']['query_end_frame'],proposal['support'])
+            proposal['query']['query_start_frame'],proposal['query']['query_end_frame'],proposal['support'],**options)
     cell=make_bounded_cell(proposal['commits'],proposal['query'],proposal['evidence'],
         proposal['pcm'],target,actual_snapshot)
     # This freshly constructed frozen Cell has already validated these exact
@@ -865,7 +866,12 @@ def _bind_target(db,row,proposal,context,actual_snapshot,budget,now,*,support_lo
 
 
 def _close_eof_localization(db,saved,proposal,packet,handoff,scope,now,budget):
-    """Close only a restored owner after a failed final localization attempt."""
+    return _close_eof_unresolved(db,saved,proposal,packet,handoff,scope,now,budget,
+        'bounded_local_selection_changed')
+
+
+def _close_eof_unresolved(db,saved,proposal,packet,handoff,scope,now,budget,reason):
+    """Close only an exact owned row under authenticated current final evidence."""
     from .native_owned_core_seams import _bounded_query
     if handoff.get('true_eof') is not True:return 'not_final'
     if saved is None:return 'new_target_rolled_back'
@@ -902,7 +908,7 @@ def _close_eof_localization(db,saved,proposal,packet,handoff,scope,now,budget):
                     restored=_read_v2(db,key=saved['candidate_key'],budget=budget,
                         expected=(saved['proof'],saved['target_body']))
                     if restored==saved:
-                        _terminal(db,restored,'no_result','bounded_local_selection_changed',budget=budget)
+                        _terminal(db,restored,'no_result',reason,budget=budget)
                         outcome='closed'
             budget.check()
         db.execute('RELEASE bounded_eof')
@@ -926,7 +932,7 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
     native requests, owner lease or model work occur inside the transaction.
     """
     from .native_owned_core_seams import (validate_target,lexical_snapshot,same_numeric_snapshot,
-        slot, SUPPORT_FRAMES)
+        slot, SUPPORT_FRAMES, context_snapshot)
     from .native_owned_cell_capture import bounded_primary_snapshot
     if not db.in_transaction:raise ValueError('Bounded planning requires primary transaction')
     existing_owned=bool(isinstance(handoff,dict) and handoff.get('waiters'))
@@ -940,7 +946,7 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
     origins=handoff.get('origins',[]); proposals=handoff.get('plans',[])
     if len(origins)>CORE_INTENTS or sum(p.get('reason') is None for p in proposals)>4:
         notice['reason']='bounded_target_capacity';return notice
-    registered=[]; bound=[]; refused=[]; rollback_rows={}; failed_binding=None
+    registered=[]; bound=[]; refused=[]; rollback_rows={}; failed_binding=None; eof_outcomes=[]
     db.execute('SAVEPOINT bounded_optional')
     try:
         # Cooperative checks happen before statements. A VM interrupt or any
@@ -964,20 +970,21 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                 registered.append((row['candidate_key'],status))
             # Finalize solely from the actually retained rows. A retention
             # refusal cannot silently convert prospective lexical atoms to opaque.
-            actual=None
+            actual=None; raw_context=None; ids=handoff.get('draft_ids',[])
             if any(p.get('reason') is None for p in proposals):
-                planned=handoff.get('snapshot')
+                planned=handoff.get('context') or handoff.get('snapshot')
                 if planned is None:raise Unavailable('bounded_snapshot_missing')
-                if handoff.get('draft_ids') and lexical_status!='retained':
+                if ids and lexical_status!='retained':
                     raise Unavailable('bounded_inventory_not_retained')
-                snapshot=bounded_primary_snapshot(db,chunk['session_id'],float.fromhex(planned['origin']),
+                raw_context=bounded_primary_snapshot(db,chunk['session_id'],float.fromhex(planned['origin']),
                     planned['scan_frames'],budget)
-                actual=lexical_snapshot(chunk['session_id'],snapshot['rows'],snapshot['sources'],
-                    float.fromhex(planned['origin']),scan_frames=planned['scan_frames'],schema=planned['schema'])
-                ids=handoff.get('draft_ids',[])
                 if len(ids)!=len(lexical_rows):raise Unavailable('bounded_prospective_rows_changed')
-                if not same_numeric_snapshot(planned,actual,dict(zip(ids,[r['id'] for r in lexical_rows]))):
-                    raise Unavailable('bounded_inventory_changed')
+                row_ids=dict(zip(ids,[r['id'] for r in lexical_rows]))
+                if handoff.get('context') is None:
+                    actual=lexical_snapshot(chunk['session_id'],raw_context['rows'],raw_context['sources'],
+                        float.fromhex(planned['origin']),scan_frames=planned['scan_frames'],schema=planned['schema'])
+                    if not same_numeric_snapshot(planned,actual,row_ids):
+                        raise Unavailable('bounded_inventory_changed')
             seen=set()
             for proposal in proposals:
                 target=proposal['target'];key=target['key']
@@ -990,6 +997,13 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                     # The arriving eligible core gets its attempt before the
                     # logical horizon or true-EOF closure below.
                     if proposal['commits'][-1]!=packet['commit']:raise Unavailable('bounded_publication_anchor_changed')
+                    if handoff.get('context') is not None:
+                        planned=proposal['snapshot']
+                        actual=context_snapshot(chunk['session_id'],raw_context['rows'],raw_context['sources'],
+                            float.fromhex(planned['origin']),planned['scan_frames'],
+                            complete_frames=handoff['context']['scan_frames'])
+                        if not same_numeric_snapshot(planned,actual,row_ids):
+                            raise Unavailable('bounded_inventory_changed')
                     rollback_rows.setdefault(key,row)
                     failed_binding=(rollback_rows[key],proposal)
                     bound.append(_bind_target(db,row,proposal,context,actual,budget,now,support_local=True))
@@ -997,8 +1011,16 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
                     continue
                 if reason is None:
                     components=target['identity']['components']
-                    if handoff.get('true_eof'):reason='unresolved_end_of_source'
-                    elif handoff.get('logical_end',0)>=components[0][0]+SUPPORT_FRAMES:
+                    if handoff.get('true_eof') is True:
+                        frontier=handoff.get('frontier')
+                        if frontier is not None:
+                            failure=proposal.get('reason') or 'unresolved_end_of_source'
+                            outcome=_close_eof_unresolved(db,row,dict(frontier,target=target),packet,
+                                handoff,scope,now,budget,failure)
+                            eof_outcomes.append(outcome)
+                            if outcome=='closed':refused.append(failure)
+                            continue
+                    if handoff.get('logical_end',0)>=components[0][0]+SUPPORT_FRAMES:
                         reason='unresolved_logical_horizon'
                     elif proposal.get('reason') in ('commitment_capacity','support_duration','source_gap',
                             'unresolved_scope_transition','unresolved_lexical_gap','no_legal_fixed_point'):
@@ -1008,8 +1030,13 @@ def enqueue_bounded(db,cells,packet,handoff,chunk,lexical_rows,lexical_status):
             budget.check()
         db.set_progress_handler(budget.progress if getattr(budget,'primary_sql',False) else None,100)
         db.execute('RELEASE bounded_optional')
-        return {'schema':notice['schema'],'status':'bound' if bound else 'waiting' if registered else 'unchanged',
-                'reason':refused[0] if refused else 'bounded_support_pending','registered':len(registered),'bound':len(bound)}
+        preparation_reason=handoff.get('reason')
+        pending=next((p['reason'] for p in proposals if p.get('reason')),None)
+        concrete=preparation_reason if preparation_reason not in (None,'pending','prepared') else pending
+        result={'schema':notice['schema'],'status':'bound' if bound else 'no_result' if 'closed' in eof_outcomes else 'waiting' if registered else 'unchanged',
+                'reason':refused[0] if refused else concrete or 'bounded_support_pending','registered':len(registered),'bound':len(bound)}
+        if eof_outcomes:result['eof_finalization']=next((value for value in eof_outcomes if value!='closed'),'closed')
+        return result
     except (Unavailable,ReadError) as exc:
         # This is only the cooperative refusal path. Never catch sqlite.Error:
         # interrupts/full/IO/lock failures invalidate the whole primary commit.
