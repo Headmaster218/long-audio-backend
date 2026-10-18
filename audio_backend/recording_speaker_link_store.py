@@ -390,9 +390,9 @@ class RecordingSpeakerLinkStore:
         self._primary_source = source
 
     def capture_policy(self, sid, proof):
-        """New scopes choose v2 before their first ordinary or bounded capture."""
+        """New scopes choose v3 before their first ordinary or bounded capture."""
         from .native_owned_cells import validate_document
-        from .recording_speaker_links import POLICY_SHA256_V2, SUPPORTED_POLICIES
+        from .recording_speaker_links import POLICY_SHA256_V3, SUPPORTED_POLICIES
         _, _, parts = validate_document(proof)
         with self._database() as db:
             _session(db, sid)
@@ -406,7 +406,7 @@ class RecordingSpeakerLinkStore:
             if len(recordings) != 1:_fail('probe_unavailable')
             row = db.execute(f'SELECT policy_sha256 FROM {SCOPES} WHERE session_id=? AND recording_id=?',
                 (sid, next(iter(recordings)))).fetchone()
-            policy = POLICY_SHA256_V2 if row is None else row[0]
+            policy = POLICY_SHA256_V3 if row is None else row[0]
             if policy not in SUPPORTED_POLICIES:_fail('speaker_link_policy_conflict')
             return policy
 
@@ -417,9 +417,9 @@ class RecordingSpeakerLinkStore:
 
     def _primary_current(self, db, batch, *, boundary=None):
         from .recording_primary_probe import current_packets
-        from .recording_speaker_links import SCHEMA_V2
+        from .recording_speaker_links import TYPED_SCHEMAS
         from .native_owned_cells import Unavailable
-        if batch.get('schema') != SCHEMA_V2:return
+        if batch.get('schema') not in TYPED_SCHEMAS:return
         try:
             current = current_packets(db, encoded(batch['proof']), batch.get('primary_packets', []),
                                       self._primary_source, boundary=boundary)
@@ -494,7 +494,7 @@ class RecordingSpeakerLinkStore:
         sid, rid = session_id, recording_id
         scope_id = scope_identity(sid, rid)
         _hash(result_sha256); _hash(policy_sha256)
-        from .recording_speaker_links import POLICY_SHA256_V2, SUPPORTED_POLICIES
+        from .recording_speaker_links import POLICY_SHA256_V3, SUPPORTED_POLICIES
         if policy_sha256 not in SUPPORTED_POLICIES: _fail('speaker_link_policy_conflict')
         raw_space, space_id = _space(space)
         if type(max_nodes) is not int or not 0 <= max_nodes <= MAX_BATCH_NODES:
@@ -516,7 +516,7 @@ class RecordingSpeakerLinkStore:
             _,proof=self._bound_job(db, sid, job_id, result_sha256, rid)
             if batch is not None and batch['proof_sha256']!=proof: _fail('speaker_link_identity_conflict')
             own = db.execute(f'SELECT * FROM {SCOPES} WHERE scope_id=?', (scope_id,)).fetchone()
-            if own is None and policy_sha256 != POLICY_SHA256_V2:
+            if own is None and policy_sha256 != POLICY_SHA256_V3:
                 _fail('speaker_link_policy_conflict')
             if own is not None and (own['policy_sha256'] != policy_sha256 or own['space_json'] != raw_space):
                 _fail('speaker_link_policy_conflict')
@@ -769,7 +769,7 @@ class RecordingSpeakerLinkStore:
         if (type(decision) is not dict or type(decision.get('annotations')) is not list
                 or len(decision['annotations'])>MAX_SCOPE_NODES):
             _fail('invalid_speaker_link_decision')
-        from .recording_speaker_links import POLICY_SHA256, POLICY_SHA256_V2, SUPPORTED_POLICIES
+        from .recording_speaker_links import POLICY_SHA256, TYPED_POLICIES, SUPPORTED_POLICIES
         policy_sha256=POLICY_SHA256 if policy_sha256 is None else policy_sha256
         if (policy_sha256 not in SUPPORTED_POLICIES or type(decision.get('diagnostics')) is not dict
                 or decision['diagnostics'].get('policy_sha256')!=policy_sha256):
@@ -807,7 +807,7 @@ class RecordingSpeakerLinkStore:
                         for key in ('job_id','result_sha256','phrase_index','space_id','proof_sha256','source_key',
                                     'source_kind','primary_source_ref','primary_packet_sha256'))):
                     _fail('invalid_speaker_link_decision')
-                if policy_sha256 == POLICY_SHA256_V2:
+                if policy_sha256 in TYPED_POLICIES:
                     expected = {k:v for k,v in node.items() if k not in
                                 ('vector','source_spans','primary_commit')}
                     observed = {k:v for k,v in annotation.items() if k not in

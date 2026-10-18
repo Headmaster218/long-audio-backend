@@ -501,3 +501,17 @@ def test_upgraded_annotation_contract_rejects_baseline_cursor_without_rehashing_
     assert parent_ref(f) == ref
     assert [group['source_ref'] for group in f.groups(1)] == lexical_refs
     assert {source:f.reader.evidence(SID,source) for source in source_bytes} == source_bytes
+
+
+@pytest.mark.parametrize('policy', [links.POLICY_SHA256_V2, links.POLICY_SHA256_V3])
+def test_typed_versions_keep_primary_and_moss_annotation_semantics(policy):
+    ref = 'p.1.' + 'b' * 64
+    saved = saved_primary(ref)
+    saved['policy_sha256'] = policy
+    primary = c.primary_speaker_annotation(saved, ref)
+    assert primary['provisional_speaker_id'] == IDENTITY
+    assert primary['speaker_identity_valid'] is False
+    assert primary['validation_semantics'] == 'validated_at_decision_revision'
+    moss = c.speaker_annotation(saved, 'job', 'a' * 64, 0)
+    assert moss['validation_semantics'] == 'validated_at_decision_revision'
+    assert moss['provisional_speaker_id'] is None

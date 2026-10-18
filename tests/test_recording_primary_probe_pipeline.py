@@ -192,7 +192,7 @@ def _batch(lease, packets, *, competitor=True):
     # Adapter time is support-relative; support starts at .5 s.
     phrases = phrases.replace('[4.1]', '[3.6]').replace('[6.9]', '[6.4]')
     phrases = phrases.replace('[7.1]', '[6.6]').replace('[9.9]', '[9.4]')
-    batch, crops = links.capture_candidates_v2(lease.support, lease.pcm, lease.token.proof,
+    batch, crops = links.capture_candidates_v3(lease.support, lease.pcm, lease.token.proof,
         projection(lease.support, phrases), 'prospective-synthetic-job', '1' * 64,
         links.expected_space(), primary_packets=packets)
     for node in batch['nodes']:
@@ -403,7 +403,7 @@ def _ledger_evidence(h):
             '[6.6] [S02] Independent synthetic competitor. [9.4]')
         result['cell_binding'] = lease.token.projection()
         digest = hashlib.sha256(history.encoded(result)).hexdigest()
-        batch, crops = links.capture_candidates_v2(lease.support, lease.pcm,
+        batch, crops = links.capture_candidates_v3(lease.support, lease.pcm,
             lease.token.proof, result, jid, digest, links.expected_space(), primary_packets=packets)
         assert len(crops) == len(batch['nodes']) == 3
         metadata = {'cell_binding': result['cell_binding'], 'source_support': lease.support.to_dict(),
@@ -434,7 +434,7 @@ def _ledger_evidence(h):
 
 
 def _reserve_evidence(f):
-    return f.value.reserve(f.sid, f.rid, f.jid, f.digest, links.POLICY_SHA256_V2,
+    return f.value.reserve(f.sid, f.rid, f.jid, f.digest, links.POLICY_SHA256_V3,
         links.expected_space(), max_nodes=len(f.batch['nodes']), batch=f.batch)
 
 
@@ -541,7 +541,7 @@ def test_real_primary_ledger_reserve_commit_snapshot_recompute_and_publish(prima
         raw, digest = _decision_row(f, scope)
         assert hashlib.sha256(raw).hexdigest() == digest == saved['decision_sha256']
         assert f.value.save_decision(scope, snapshot['revision'], json.loads(raw),
-            session_revision=snapshot['session_revision'], policy_sha256=links.POLICY_SHA256_V2)
+            session_revision=snapshot['session_revision'], policy_sha256=links.POLICY_SHA256_V3)
         native = next(a for a in saved['annotations'] if a['source_kind'] == 'native_primary')
         node = next(n for n in f.embedded['nodes'] if n['source_kind'] == 'native_primary')
         assert {k: v for k, v in native.items() if k not in ('status', 'provisional_speaker_id',
@@ -583,12 +583,12 @@ def test_real_primary_authority_mutation_at_every_ledger_boundary(
             current = _current_session_revision(f)
             if current != snapshot['session_revision']:
                 assert f.value.save_decision(admission['scope_id'], snapshot['revision'], decision,
-                    session_revision=snapshot['session_revision'], policy_sha256=links.POLICY_SHA256_V2) is False
+                    session_revision=snapshot['session_revision'], policy_sha256=links.POLICY_SHA256_V3) is False
             # Updating the optimistic revision cannot bless changed source
             # evidence. The publication boundary must independently refuse.
             with pytest.raises(ReadError):
                 f.value.save_decision(admission['scope_id'], snapshot['revision'], decision,
-                    session_revision=current, policy_sha256=links.POLICY_SHA256_V2)
+                    session_revision=current, policy_sha256=links.POLICY_SHA256_V3)
         assert _ledger_state(f) == before
         if mutation == 'owner_generation':
             assert observed == [f.packets[0]['header']['digest']]
@@ -648,7 +648,7 @@ def test_native_annotation_immutable_fields_reject_even_after_reserialization(pr
             # original typed node fields rather than a stale envelope checksum.
             with pytest.raises(ReadError, match='invalid_speaker_link_decision'):
                 f.value.save_decision(scope, snapshot['revision'], json.loads(changed_raw),
-                    session_revision=snapshot['session_revision'], policy_sha256=links.POLICY_SHA256_V2)
+                    session_revision=snapshot['session_revision'], policy_sha256=links.POLICY_SHA256_V3)
             assert _decision_row(f, scope) == (original_raw, original_digest)
         assert f.value.read_saved(f.sid, f.rid)['annotations'] == original['annotations']
 
@@ -664,7 +664,7 @@ def test_real_native_lost_ack_resolution_is_storage_only_without_reprobe(
         monkeypatch.setattr(FakeAnalyzer, 'analyze', no_replay)
         monkeypatch.setattr(provenance, 'observe', no_replay)
         monkeypatch.setattr(provenance, 'freeze', no_replay)
-        monkeypatch.setattr(links, 'capture_candidates_v2', no_replay)
+        monkeypatch.setattr(links, 'capture_candidates_v3', no_replay)
         monkeypatch.setattr(h.jobs.cell_source, 'acquire_dispatch', no_replay)
         admission = None
         if phase == 'commit':
@@ -779,7 +779,7 @@ def _run_real_manager_probe(h, monkeypatch, *, fault_boundary=None, mutation=Non
     f = SimpleNamespace(h=h, cid=cid, packets=[saved])
     real_stage, real_validate = h.jobs._stage_speaker_probe, h.jobs._validate
     real_dispatch = source.revalidate_dispatch
-    real_capture, real_reserve = links.capture_candidates_v2, h.jobs.speaker_links.reserve
+    real_capture, real_reserve = links.capture_candidates_v3, h.jobs.speaker_links.reserve
 
     def mutate_at(boundary):
         if fault_boundary != boundary:
@@ -850,7 +850,7 @@ def _run_real_manager_probe(h, monkeypatch, *, fault_boundary=None, mutation=Non
     monkeypatch.setattr(source, 'revalidate_dispatch', dispatch)
     monkeypatch.setattr(h.jobs, '_validate', validate)
     monkeypatch.setattr(h.jobs, '_stage_speaker_probe', stage)
-    monkeypatch.setattr(links, 'capture_candidates_v2', capture)
+    monkeypatch.setattr(links, 'capture_candidates_v3', capture)
     monkeypatch.setattr(h.jobs.speaker_links, 'reserve', reserve)
     record['thread'].run()
     # A refused post-text dispatch can leave an already-consumed reservation.

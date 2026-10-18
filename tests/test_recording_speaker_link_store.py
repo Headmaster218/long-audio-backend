@@ -87,7 +87,7 @@ def counters(store):
         FROM {ledger.SCOPES} ORDER BY scope_seq''')
 
 
-def prepared(store, number=1, *, seed=None, rid=RID, no_crop=False):
+def prepared(store, number=1, *, seed=None, rid=RID, no_crop=False, version=3):
     jid=f'{number:032x}'
     support,pcm,proof=ordinary(seed=seed or number)
     doc=json.loads(proof)
@@ -106,7 +106,8 @@ def prepared(store, number=1, *, seed=None, rid=RID, no_crop=False):
     result=projection(support,'[1] [S01] Short. [1.25]' if no_crop else None)
     result['cell_binding']=cell
     result_raw=history.encoded(result); result_hash=hashlib.sha256(result_raw).hexdigest()
-    batch,_=links.capture_candidates_v2(support,pcm,proof,result,jid,result_hash,links.expected_space())
+    capture = {1: links.capture_candidates, 2: links.capture_candidates_v2, 3: links.capture_candidates_v3}[version]
+    batch,_=capture(support,pcm,proof,result,jid,result_hash,links.expected_space())
     metadata=history.encoded({'cell_binding':cell,'source_support':support.to_dict(),
         'identity':{'job_id':jid,'session_id':SID,'original_jobs_epoch':'e'*32,
                     'canonical_request_sha256':'f'*64,'idempotency_key':jid},
@@ -126,7 +127,7 @@ def prepared(store, number=1, *, seed=None, rid=RID, no_crop=False):
 
 
 def reserve(value,batch,*,rid=RID,**kwargs):
-    return value.reserve(SID,rid,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256_V2,
+    return value.reserve(SID,rid,batch['job_id'],batch['result_sha256'],batch['policy_sha256'],
         links.expected_space(),max_nodes=len(batch['nodes']),batch=batch,**kwargs)
 
 
@@ -284,7 +285,7 @@ def test_quota_status_does_not_bypass_current_decision_guards(environment,monkey
         if change in ('session','text','cancel','delete','reassign'):
             assert current['session_revision']>saved['session_revision']
         assert not value.save_decision(scope,saved['revision'],json.loads(raw),
-            session_revision=saved['session_revision'],policy_sha256=links.POLICY_SHA256_V2)
+            session_revision=saved['session_revision'],policy_sha256=links.POLICY_SHA256_V3)
     if change in ('cancel','delete','reassign'):
         with pytest.raises(ReadError): value.snapshot(scope)
         with pytest.raises(ReadError): reserve(value,batches[0])
@@ -521,7 +522,7 @@ def test_stale_scope_and_source_revision_cas_leave_annotations_hidden(environmen
     with connection(store.path) as db:
         db.execute('UPDATE sessions SET transcript_revision=transcript_revision+1 WHERE id=?',(SID,))
     assert not value.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision'],policy_sha256=links.POLICY_SHA256_V2)
+        session_revision=snap['session_revision'],policy_sha256=links.POLICY_SHA256_V3)
     assert value.recompute_scope(token['scope_id'],links.reconcile_batches)['saved'] is True
     assert value.read_saved(SID,RID)['annotations']
     second=prepared(store,2); reserve(value,second)
@@ -533,11 +534,11 @@ def test_cancelled_cas_and_source_cancellation_cannot_publish(environment):
     store,value,_=environment; token,_=finish(value,prepared(store))
     snap=value.snapshot(token['scope_id']); decision=links.reconcile_batches(snap['evidence_batches'])
     assert not value.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision'],cancelled=lambda:True, policy_sha256=links.POLICY_SHA256_V2)
+        session_revision=snap['session_revision'],cancelled=lambda:True, policy_sha256=links.POLICY_SHA256_V3)
     with connection(store.path) as db:
         db.execute("UPDATE chunks SET status='cancelled'")
     with pytest.raises(ReadError) as error:
-        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2)
+        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V3)
     assert error.value.reason=='probe_unavailable'
     assert value.read_saved(SID,RID)['annotations']==[]
 
@@ -601,7 +602,7 @@ def test_current_policy_full_space_and_recording_job_binding_are_required(enviro
     with pytest.raises(ReadError):
         value.reserve(SID,RID,batch['job_id'],batch['result_sha256'],'f'*64,links.expected_space())
     with pytest.raises(ReadError):
-        value.reserve(SID,RID,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256_V2,batch['space_id'])
+        value.reserve(SID,RID,batch['job_id'],batch['result_sha256'],links.POLICY_SHA256_V3,batch['space_id'])
     with pytest.raises(ReadError): reserve(value,batch,rid='b'*32)
     with connection(store.path) as db:
         db.execute("UPDATE moss_automatic_intents_v1 SET state='cancelled'")
@@ -649,7 +650,7 @@ def test_current_source_mutations_cannot_be_resealed(environment,change):
         db.execute(change)
     with pytest.raises(ReadError): value.snapshot(token['scope_id'])
     with pytest.raises(ReadError) as stale:
-        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2)
+        value.save_decision(token['scope_id'],snap['revision'],decision,session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V3)
     assert stale.value.reason != 'speaker_link_policy_conflict'
 
 
@@ -792,7 +793,7 @@ def _committed_bounded(f):
         moss_automatic.admit(db,f.key,identity)
         moss_automatic.complete(db,f.key,identity)
         f.row = moss_automatic._read_v2(db,key=f.key)
-    f.batch, f.crops = links.capture_candidates_v2(support,f.cell.pcm,proof,f.result,
+    f.batch, f.crops = links.capture_candidates_v3(support,f.cell.pcm,proof,f.result,
         f.jid,f.digest,links.expected_space())
     f.links = ledger.RecordingSpeakerLinkStore(f.store)
     f.reader = TranscriptStore(f.store)
@@ -815,7 +816,7 @@ def _bound_descriptor(f, db):
 
 
 def _finish_bounded(f):
-    token = f.links.reserve(f.sid,f.rid,f.jid,f.digest,links.POLICY_SHA256_V2,
+    token = f.links.reserve(f.sid,f.rid,f.jid,f.digest,links.POLICY_SHA256_V3,
         links.expected_space(),max_nodes=0,batch=f.batch)
     assert token['should_probe']
     f.links.commit(token,f.batch,'insufficient_clean_support')
@@ -879,12 +880,12 @@ def test_bounded_extra_source_status_revocation_cannot_publish(bounded_job,cid,s
     with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
     with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
     assert f.links.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2) is False
+        session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V3) is False
     with f.store.db() as db:
         current = db.execute('SELECT transcript_revision FROM sessions WHERE id=?',(f.sid,)).fetchone()[0]
     assert current != snap['session_revision']
     with pytest.raises(ReadError) as stale:
-        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current, policy_sha256=links.POLICY_SHA256_V2)
+        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current, policy_sha256=links.POLICY_SHA256_V3)
     assert stale.value.reason != 'speaker_link_policy_conflict'
     assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
 
@@ -906,12 +907,12 @@ def test_bounded_stale_authority_cannot_reseal_after_snapshot(bounded_job,change
     with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
     with pytest.raises(ReadError):f.links.snapshot(token['scope_id'])
     assert f.links.save_decision(token['scope_id'],snap['revision'],decision,
-        session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V2) is False
+        session_revision=snap['session_revision'], policy_sha256=links.POLICY_SHA256_V3) is False
     with f.store.db() as db:
         current = db.execute('SELECT transcript_revision FROM sessions WHERE id=?',(f.sid,)).fetchone()[0]
     assert current != snap['session_revision']
     with pytest.raises(ReadError) as stale:
-        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current, policy_sha256=links.POLICY_SHA256_V2)
+        f.links.save_decision(token['scope_id'],snap['revision'],decision,session_revision=current, policy_sha256=links.POLICY_SHA256_V3)
     assert stale.value.reason != 'speaker_link_policy_conflict'
     assert f.links.read_saved(f.sid,f.rid)['annotations'] == []
 
@@ -1172,7 +1173,7 @@ def test_failure_read_is_exact_scope_and_rejects_wrong_cached_identity(environme
     value.commit(admission,second,'probe_unavailable')
     assert [x['job_id'] for x in value.read_saved(SID,RID)['probe_outcomes']]==[first['job_id']]
     assert [x['job_id'] for x in value.read_saved(SID,other_rid)['probe_outcomes']]==[second['job_id']]
-    wrong=history.encoded({'diagnostics':{'policy_sha256':links.POLICY_SHA256_V2},
+    wrong=history.encoded({'diagnostics':{'policy_sha256':links.POLICY_SHA256_V3},
         'annotations':[],'probe_outcomes':[{'job_id':second['job_id'],
         'result_sha256':second['result_sha256'],'state':'probe_unavailable'}]})
     with connection(store.path) as db:
@@ -1217,3 +1218,51 @@ def test_failure_read_existing_stage_and_output_caps_release_on_refusal(environm
     monkeypatch.setattr(ledger,'_saved',too_large)
     with pytest.raises(ReadError):value.read_saved(SID,RID)
     assert value._staging==0
+
+
+def test_only_new_scopes_choose_v3(environment):
+    store, value, _ = environment
+    batch = prepared(store)
+    assert value.capture_policy(SID, canonical(batch['proof'])) == links.POLICY_SHA256_V3
+    assert batch['schema'] == links.SCHEMA_V3
+    token = reserve(value, batch)
+    assert token['should_probe']
+
+
+@pytest.mark.parametrize('version', [1, 2])
+def test_historical_policies_replay_without_evidence_rewrite(environment, monkeypatch, version):
+    store, value, _ = environment
+    batch = prepared(store, version=version)
+    scope_id = ledger.scope_identity(SID, RID)
+    space = links.expected_space()
+    # Synthetic historical empty scope; new admission must honor its policy.
+    with connection(store.path) as db:
+        db.execute(f'INSERT INTO {ledger.SCOPES}(scope_seq,scope_id,session_id,recording_id,policy_sha256,space_json,space_id,retained_bytes) VALUES(1,?,?,?,?,?,?,?)',
+            (scope_id, SID, RID, batch['policy_sha256'], history.encoded(space), batch['space_id'], ledger.SCOPE_BYTES))
+        db.execute(f'UPDATE {ledger.SCOPES} SET retained_bytes=? WHERE scope_seq=0', (ledger.SCOPE_BYTES,))
+    assert value.capture_policy(SID, canonical(batch['proof'])) == batch['policy_sha256']
+    token = reserve(value, batch)
+    for node in batch['nodes']:node['vector'] = vector(1.)
+    value.commit(token, batch, 'source_scoped')
+    assert value.recompute_scope(scope_id, links.reconcile_batches)['saved']
+    before = sidecar_rows(store)
+    snapshot = value.snapshot(scope_id)
+    assert snapshot['evidence_batches'] == [batch]
+    saved = value.read_saved(SID, RID)
+    assert saved['policy_sha256'] == batch['policy_sha256']
+    assert links.validate_batch(batch) is batch
+    with connection(store.path) as db:
+        current_cursor = ledger.read_session_revision(db, SID)
+        with monkeypatch.context() as legacy:
+            legacy.setattr(links, 'SUPPORTED_POLICIES', (links.POLICY_SHA256, links.POLICY_SHA256_V2))
+            old_cursor = ledger.read_session_revision(db, SID)
+    assert old_cursor != current_cursor  # Expected cross-binary cursor invalidation.
+    assert sidecar_rows(store) == before  # No historical policy/batch/decision rewrite.
+
+
+@pytest.mark.parametrize('version', [1, 2])
+def test_fresh_scope_rejects_legacy_capture_policy(environment, version):
+    store, value, _ = environment
+    batch = prepared(store, version=version)
+    with pytest.raises(ReadError) as error:reserve(value, batch)
+    assert error.value.reason == 'speaker_link_policy_conflict'

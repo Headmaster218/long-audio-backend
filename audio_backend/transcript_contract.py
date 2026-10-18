@@ -253,7 +253,7 @@ SPEAKER_LINK_STATES = frozenset(('provisional_linked','source_scoped','insuffici
 
 def speaker_annotation(saved, job_id, result_sha256, phrase_index):
     """Whitelisted public annotation: no vectors or full native proof payloads."""
-    from .recording_speaker_links import POLICY_SHA256_V2
+    from .recording_speaker_links import TYPED_POLICIES
     if type(saved) is not dict:saved = {}
     state = saved.get('state', 'probe_unavailable')
     if saved.get('scope_id') is None:state = 'probe_unavailable'
@@ -262,7 +262,7 @@ def speaker_annotation(saved, job_id, result_sha256, phrase_index):
         'scope':'recording', 'speaker_identity_valid':False, 'profile_update_allowed':False,
         'policy_sha256':saved.get('policy_sha256'), 'space_id':saved.get('space_id'),
         'revision':saved.get('revision'), 'decision_revision':saved.get('decision_revision')}
-    if saved.get('policy_sha256') == POLICY_SHA256_V2:
+    if saved.get('policy_sha256') in TYPED_POLICIES:
         value['validation_semantics'] = 'validated_at_decision_revision'
     if state == 'links_stale':return value
     jobs = saved.get('jobs', [])
@@ -296,8 +296,8 @@ def primary_speaker_annotation(saved, primary_source_ref):
     The caller supplies a parent reference computed in its current DB snapshot.
     """
     if type(saved) is not dict or saved.get('scope_id') is None:return None
-    from .recording_speaker_links import POLICY_SHA256_V2
-    if saved.get('policy_sha256') != POLICY_SHA256_V2:return None
+    from .recording_speaker_links import TYPED_POLICIES
+    if saved.get('policy_sha256') not in TYPED_POLICIES:return None
     try:
         if parse_reference(primary_source_ref)[0] != 'primary':return None
     except ReadError:return None

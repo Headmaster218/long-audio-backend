@@ -233,7 +233,7 @@ def _union(intervals):
     return merged
 
 
-def _metadata(support, proof, packets, space_id):
+def _metadata(support, proof, packets, space_id, *, with_components=False):
     from .recording_speaker_links import (_native_responses, _subtract,
         CROP_FRAMES, EROSION_FRAMES)
     doc, observed, parts = validate_document(proof)
@@ -241,7 +241,7 @@ def _metadata(support, proof, packets, space_id):
         raise Unavailable('primary_probe_support_binding')
     validate_packets(proof, packets)
     responses = _native_responses(doc, support, parts[0].session_id, typed=True)
-    result, outcomes = [], []
+    result, outcomes, components = [], [], []
     for saved in packets:
         packet = saved['packet']; commit = packet['commit']; part = commit['part']
         namespace = _namespace(packet); scope_id = sha(namespace)
@@ -303,10 +303,16 @@ def _metadata(support, proof, packets, space_id):
                 'space_id': space_id}
             if len(result) < MAX_PACKETS:
                 result.append(node)
+                components.append((a, b))
                 outcome['status'] = 'candidate'
             else:
                 outcome['status'] = 'crop_capacity'
-    return result, outcomes
+    return (result, outcomes, components) if with_components else (result, outcomes)
+
+
+def primary_allocation_metadata(support, proof, packets, space_id):
+    """The unchanged admitted primary metadata plus its selected clean component."""
+    return _metadata(support, proof, packets, space_id, with_components=True)
 
 
 def primary_candidates(support, pcm, proof, packets, space_id):

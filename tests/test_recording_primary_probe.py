@@ -221,3 +221,12 @@ def test_combined_packet_body_ceiling_is_not_a_per_packet_allowance():
     assert probe.validate_packets(cell.proof, expanded[:2]) == expanded[:2]
     with pytest.raises(cells.Unavailable, match='primary_probe_packet_binding'):
         probe.validate_packets(cell.proof, expanded)
+
+
+def test_v3_component_exposure_preserves_centered_primary_metadata():
+    _, cell, packets = synthetic_primary_case()
+    original = probe.primary_metadata(cell.support, cell.proof, packets, SPACE)
+    nodes, outcomes, components = probe.primary_allocation_metadata(cell.support, cell.proof, packets, SPACE)
+    assert (nodes, outcomes) == original
+    assert components == [(1600, 46400)]
+    assert (nodes[0]['start_frame'], nodes[0]['end_frame']) == (8000, 40000)

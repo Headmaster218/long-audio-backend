@@ -30,7 +30,7 @@ class SyntheticLinkStore:
             if phase in ('reserve','commit') else 'probe_unavailable')
 
     def capture_policy(self, sid, proof):
-        return links.POLICY_SHA256_V2
+        return getattr(self, "policy", links.POLICY_SHA256_V3)
 
     def capture_primary_packets(self, proof):
         return []
@@ -65,10 +65,11 @@ class SyntheticLinkStore:
         return {'saved':not cancelled.is_set(), 'state':'source_scoped'}
 
 
-def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, aliases=False):
+def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, aliases=False, version=3):
     f.store.settings.recording_speaker_links_enabled = True
     f.store.settings.recording_speaker_model_path = '/synthetic-no-model.onnx'
     sidecar = SyntheticLinkStore(f, failure)
+    sidecar.policy = {1: links.POLICY_SHA256, 2: links.POLICY_SHA256_V2, 3: links.POLICY_SHA256_V3}[version]
     f.owner.speaker_links = sidecar
     observations, drivers, primary = [], [], []
 
@@ -83,7 +84,7 @@ def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, 
         nodes = [{'phrase_index':0,'probe_index':0}]
         if aliases:nodes.append({'source_kind':'native_primary','primary_source_ref':'p.1.'+'a'*64,'probe_index':0})
         return {'job_id':job_id, 'result_sha256':result_sha256,
-            'policy_sha256':links.POLICY_SHA256_V2,
+            'policy_sha256':sidecar.policy,
             'nodes':nodes, 'outcomes':[]}, (b'\1\0'*32000,)
 
     class Driver:
@@ -113,7 +114,7 @@ def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, 
             if failure in ('start','wait','child_exit','invalid_return'):
                 assert f.owner._live['speaker_probe']['operation'].failure_json is not None
             return clean() if clean_result else {'cleanup_verified':False}
-    monkeypatch.setattr(links,'capture_candidates_v2',capture)
+    monkeypatch.setattr(links, {1: 'capture_candidates', 2: 'capture_candidates_v2', 3: 'capture_candidates_v3'}[version], capture)
     f.owner._probe_factory=Driver
     cell,_=f.ready_cell(frames=16)
     intent=manager_intent(f,cell)
@@ -498,3 +499,12 @@ def test_failure_observation_contains_only_fixed_enums(error):
     assert observed['child_dispatch']=='unknown'
     assert observed['error_type'] in ledger.FAILURE_ERROR_TYPES
     assert 'private' not in raw.decode().lower()
+
+
+@pytest.mark.parametrize('version', [1, 2, 3])
+def test_manager_dispatches_existing_scope_policy_without_retagging(automatic_cell_jobs, monkeypatch, version):
+    sidecar, events, drivers, _ = setup_probe(automatic_cell_jobs, monkeypatch, version=version)
+    record = automatic_cell_jobs.finish()
+    assert record['durable_result_available'] and len(drivers) == 1
+    assert sidecar.commits[0][0]['policy_sha256'] == sidecar.policy
+    assert events.count('after_moss_reap_before_text') == 1

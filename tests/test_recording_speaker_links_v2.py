@@ -51,7 +51,7 @@ def test_new_ordinary_first_job_uses_v2_and_v1_remains_unchanged():
     assert new['phrase_evidence'][0]['inward'] == [16000, 144000]
     assert links.validate_batch(new, require_vectors=False) is new
     assert links.validate_batch(old, require_vectors=False) is old
-    assert links.SUPPORTED_POLICIES == (links.POLICY_SHA256, links.POLICY_SHA256_V2)
+    assert links.SUPPORTED_POLICIES == (links.POLICY_SHA256, links.POLICY_SHA256_V2, links.POLICY_SHA256_V3)
 
 
 def test_four_typed_alias_admissions_share_one_physical_probe():

@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import asdict
 import hashlib
+from itertools import permutations
 import json
 import math
 import re
@@ -53,14 +54,24 @@ POLICY_V2 = {**deepcopy(POLICY), 'schema': SCHEMA_V2,
     'native_attribution': 'all-original-and-independent-query-namespaces',
     'source_dependency': 'rank-all-then-veto-overlap-in-current-best-runner-up-trio'}
 POLICY_SHA256_V2 = sha(POLICY_V2)
-SUPPORTED_POLICIES = (POLICY_SHA256, POLICY_SHA256_V2)
+SCHEMA_V3 = 'recording-speaker-links-v3'
+POLICY_V3 = {**deepcopy(POLICY_V2), 'schema': SCHEMA_V3,
+    'allocation': 'baseline-preserving-single-affine-source-full-group-orders-v1',
+    'baseline_aliases': 'same-source-aliases-move-jointly-pcm-only-aliases-fallback',
+    'allocation_tie_break': 'lexicographically-smallest-enumerated-source-start-vector'}
+POLICY_SHA256_V3 = sha(POLICY_V3)
+SUPPORTED_POLICIES = (POLICY_SHA256, POLICY_SHA256_V2, POLICY_SHA256_V3)
+TYPED_POLICIES = (POLICY_SHA256_V2, POLICY_SHA256_V3)
+TYPED_SCHEMAS = (SCHEMA_V2, SCHEMA_V3)
+ALLOCATION_SCHEMA = 'recording-speaker-allocation-v1'
+MAX_ALLOCATION_BYTES = 512
 MAX_OUTCOMES_V2 = 768
 _PRIMARY_NODE_FIELDS = frozenset(('primary_source_ref', 'primary_packet_sha256',
     'primary_commit', 'primary_row_index', 'original_parent_ordinal',
     'original_unit_ordinals', 'original_turn_ordinals', 'capture_namespace'))
 _TYPED_NODE_FIELDS = _PRIMARY_NODE_FIELDS | frozenset(('source_kind',
     'native_attributions', 'probe_index', 'float32le_sha256'))
-_TYPED_BATCH_FIELDS = frozenset(('primary_packets', 'phrase_evidence'))
+_TYPED_BATCH_FIELDS = frozenset(('primary_packets', 'phrase_evidence', 'allocation'))
 _RESERVED_NODE_FIELDS = frozenset(('schema', 'policy_sha256', 'batch_sha256',
     'primary_packets', 'phrase_evidence'))
 _COMMON_NODE_FIELDS = frozenset(('job_id', 'result_sha256', 'node_id', 'native_label',
@@ -350,8 +361,8 @@ def _combined_witnesses(*collections):
     return [deepcopy(unique[key]) for key in sorted(unique)]
 
 
-def _moss_selection(phrase, phrases, responses):
-    """The v1 numeric crop rule, independently replayable without lexical text."""
+def _moss_component(phrase, phrases, responses):
+    """The unchanged single eligible label and longest clean component."""
     if not phrase['probe_source_eligible']:
         return 'timestamp_adjusted_unverified', None
     eligible = {}
@@ -375,8 +386,16 @@ def _moss_selection(phrase, phrases, responses):
         return 'insufficient_clean_support', None
     (scope, label), intervals = next(iter(eligible.items()))
     a, b = min(intervals, key=lambda x: (-(x[1] - x[0]), x[0], x[1]))
+    return 'candidate', (scope, label, a, b)
+
+
+def _moss_selection(phrase, phrases, responses):
+    """The v1/v2 centered numeric crop rule, retained byte-for-byte."""
+    status, component = _moss_component(phrase, phrases, responses)
+    if component is None:return status, None
+    scope, label, a, b = component
     start = a + (b - a - CROP_FRAMES) // 2
-    return 'candidate', (scope, label, start, start + CROP_FRAMES)
+    return status, (scope, label, start, start + CROP_FRAMES)
 
 
 def _owned_crop(pcm, support, start, end):
@@ -387,8 +406,212 @@ def _owned_crop(pcm, support, start, end):
     return crop
 
 
-def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256,
-                          space, *, primary_packets=()):
+def _allocation_header(hashes, status, reason=None):
+    header = {'schema': ALLOCATION_SCHEMA, 'baseline_pcm16le_sha256': list(hashes),
+              'status': status, 'reason': reason}
+    _bounded(header, MAX_ALLOCATION_BYTES)
+    return header
+
+
+def _validate_allocation_header(header, count):
+    if (type(header) is not dict or set(header) != {'schema', 'baseline_pcm16le_sha256', 'status', 'reason'}
+            or header['schema'] != ALLOCATION_SCHEMA):
+        raise Unavailable('speaker_link_allocation_shape')
+    _bounded(header, MAX_ALLOCATION_BYTES)
+    hashes = header['baseline_pcm16le_sha256']
+    if type(hashes) is not list or len(hashes) != count or count > MAX_CROPS:
+        raise Unavailable('speaker_link_allocation_shape')
+    for value in hashes:digest(value)
+    reasons = ('mixed_source', 'source_complex', 'cross_coordinate_pcm_alias', 'no_full_disjoint_layout')
+    if (header['status'] not in ('no_candidates', 'baseline_disjoint', 'joint_disjoint', 'baseline_fallback')
+            or (header['reason'] not in reasons if header['status'] == 'baseline_fallback'
+                else header['reason'] is not None)):
+        raise Unavailable('speaker_link_allocation_shape')
+    return hashes
+
+
+def _baseline_pcm_evidence(nodes, pcm, support):
+    """Borrow the admitted baseline views, without owning speculative crops."""
+    whole = memoryview(pcm)
+    views = [whole[2 * (n['start_frame'] - support.start_frame):
+                   2 * (n['end_frame'] - support.start_frame)] for n in nodes]
+    if any(len(view) != 2 * CROP_FRAMES for view in views):
+        raise Unavailable('speaker_link_exact_crop_required')
+    hashes = [_hash_bytes(view) for view in views]
+    # Every pair is checked before any geometry/early-return decision. The
+    # hashes retained below are captured evidence, not future PCM authority.
+    for i, one in enumerate(nodes):
+        for j in range(i + 1, len(nodes)):
+            same_source = one['source_key'] == nodes[j]['source_key']
+            same_pcm = hashes[i] == hashes[j]
+            if ((same_source and not same_pcm)
+                    or ((same_source or same_pcm) and views[i] != views[j])):
+                raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+    return hashes
+
+
+def _moss_metadata(phrase, selected, parts):
+    scope, label, start, end = selected
+    spans = [asdict(p) for p in intersect_mapping(parts, start, end)]
+    content = [{k: p[k] for k in ('source_sha256', 'source_frames', 'source_start', 'source_end')}
+               for p in spans]
+    return {'source_kind': 'moss', 'phrase_index': phrase['phrase_index'],
+        'moss_tag': phrase['moss_tag'], 'native_label': label, 'native_scope_id': scope,
+        'start_frame': start, 'end_frame': end, 'source_spans': spans,
+        'source_key': sha({'schema': 'exact-source-crop-v1', 'parts': content}),
+        'native_attributions': [{'native_scope_id': scope, 'native_label': label}]}
+
+
+def _baseline_metadata(primary, phrases, responses, parts):
+    moss = []
+    for phrase in phrases:
+        _, selected = _moss_selection(phrase, phrases, responses)
+        if selected is not None and len(moss) < MAX_CROPS:
+            moss.append(_moss_metadata(phrase, selected, parts))
+    ordered = []
+    for index in range(max(len(primary), len(moss))):
+        for pool in (primary, moss):
+            if index < len(pool):ordered.append(pool[index])
+    return ordered[:MAX_CROPS]
+
+
+def _candidate_components(nodes, support, proof, packets, space_id, phrases, responses):
+    from .recording_primary_probe import primary_allocation_metadata
+    primary, _, components = primary_allocation_metadata(support, proof, packets, space_id)
+    answer = []
+    for node in nodes:
+        if node['source_kind'] == 'moss':
+            _, component = _moss_component(phrases[node['phrase_index']], phrases, responses)
+            answer.append(component[2:])
+        else:
+            matches = [component for original, component in zip(primary, components)
+                if original['primary_source_ref'] == node['primary_source_ref']
+                and original['primary_packet_sha256'] == node['primary_packet_sha256']]
+            if len(matches) != 1:raise Unavailable('primary_probe_node_binding')
+            answer.append(matches[0])
+    return answer
+
+
+def _joint_layout(domains, *, crop_frames=CROP_FRAMES, counters=None):
+    """Bounded full-order earliest placements, with a finite-layout tie-break.
+
+    Domains are inclusive source-start intervals. No subsets, sampling, search
+    radius or competitor removal. The optional counters are model-free tests'
+    separate work census, never captured identity evidence.
+    """
+    if (not 1 <= len(domains) <= MAX_CROPS or type(crop_frames) is not int or crop_frames <= 0
+            or any(type(a) is not int or type(b) is not int or a > b for a, b in domains)):
+        raise Unavailable('speaker_link_allocation_domain')
+    counts = dict(orders=0, placements=0, collisions=0, domains=0, insertions=0, comparisons=0)
+    best = None
+    for order in permutations(range(len(domains))):
+        counts['orders'] += 1
+        occupied, current = [], [None] * len(domains)
+        for group in order:
+            counts['placements'] += 1
+            start, upper = domains[group]
+            for a, b in occupied:
+                counts['collisions'] += 1
+                if start + crop_frames <= a:break
+                if start < b:start = b
+            counts['domains'] += 1
+            if start > upper:break
+            current[group] = start
+            at = 0
+            while at < len(occupied):
+                counts['insertions'] += 1
+                if start < occupied[at][0]:break
+                at += 1
+            occupied.insert(at, (start, start + crop_frames))
+        else:
+            better = best is None
+            if best is not None:
+                for a, b in zip(current, best):
+                    counts['comparisons'] += 1
+                    if a != b:
+                        better = a < b
+                        break
+            if better:best = tuple(current)
+    if counters is not None:counters.update(counts)
+    return best
+
+
+def _move_candidate(original, start, parts, packets):
+    node = deepcopy(original)
+    end = start + CROP_FRAMES
+    spans = [asdict(p) for p in intersect_mapping(parts, start, end)]
+    content = [{k: p[k] for k in ('source_sha256', 'source_frames', 'source_start', 'source_end')}
+               for p in spans]
+    node.update(start_frame=start, end_frame=end, source_spans=spans,
+                source_key=sha({'schema': 'exact-source-crop-v1', 'parts': content}))
+    if node['source_kind'] == 'native_primary':
+        saved = next(p for p in packets if p['header']['digest'] == node['primary_packet_sha256'])
+        packet = saved['packet']
+        node['original_turn_ordinals'] = [t[0] for t in packet['turns']
+            if packet['labels'][t[1]] == node['native_label'] and max(start, t[2]) < min(end, t[3])]
+    return node
+
+
+def _allocate_candidates(nodes, components, parts, packets, baseline_hashes):
+    """Pure replay from bounded geometry and captured baseline hash evidence."""
+    if len(nodes) > MAX_CROPS or len(nodes) != len(components) or len(nodes) != len(baseline_hashes):
+        raise Unavailable('speaker_link_allocation_shape')
+    baseline = deepcopy(nodes)
+    if not nodes:return baseline, _allocation_header([], 'no_candidates')
+    cross_pcm = False
+    for i, one in enumerate(nodes):
+        for j in range(i + 1, len(nodes)):
+            same_source = one['source_key'] == nodes[j]['source_key']
+            same_pcm = baseline_hashes[i] == baseline_hashes[j]
+            if same_source and not same_pcm:
+                raise Unavailable('speaker_link_duplicate_pcm_disagreement')
+            cross_pcm |= same_pcm and not same_source
+    def fallback(reason):
+        return baseline, _allocation_header(baseline_hashes, 'baseline_fallback', reason)
+    if cross_pcm:return fallback('cross_coordinate_pcm_alias')
+    domains, offsets, identities = [], [], []
+    for node, (left, right) in zip(nodes, components):
+        spans = node['source_spans']
+        if len(spans) != 1:return fallback('source_complex')
+        span = spans[0]
+        offset = span['source_start'] - span['logical_start']
+        sources = [p for p in parts if p.logical_start <= node['start_frame']
+            and node['end_frame'] <= p.logical_end
+            and p.source_sha256 == span['source_sha256'] and p.source_frames == span['source_frames']
+            and p.chunk_id == span['chunk_id'] and p.receipt_sha256 == span['receipt_sha256']
+            and p.source_start - p.logical_start == offset]
+        if len(sources) != 1:return fallback('source_complex')
+        source = sources[0]
+        lower = max(left, source.logical_start) + offset
+        upper = min(right, source.logical_end) + offset - CROP_FRAMES
+        centered = node['start_frame'] + offset
+        if not lower <= centered <= upper:raise Unavailable('speaker_link_allocation_domain')
+        domains.append((lower, upper));offsets.append(offset)
+        identities.append((span['source_sha256'], span['source_frames']))
+    if len(set(identities)) != 1:return fallback('mixed_source')
+    groups = []
+    for index, node in enumerate(nodes):
+        match = next((g for g in groups if nodes[g[0]]['source_key'] == node['source_key']), None)
+        if match is None:groups.append([index])
+        else:match.append(index)
+    group_domains = [(max(domains[i][0] for i in group), min(domains[i][1] for i in group))
+                     for group in groups]
+    starts = [nodes[g[0]]['start_frame'] + offsets[g[0]] for g in groups]
+    if any(not a <= start <= b for (a, b), start in zip(group_domains, starts)):
+        raise Unavailable('speaker_link_allocation_domain')
+    if all(abs(one - two) >= CROP_FRAMES for i, one in enumerate(starts) for two in starts[i + 1:]):
+        return baseline, _allocation_header(baseline_hashes, 'baseline_disjoint')
+    selected = _joint_layout(group_domains)
+    if selected is None:return fallback('no_full_disjoint_layout')
+    answer = [None] * len(nodes)
+    for group, start in zip(groups, selected):
+        for index in group:
+            answer[index] = _move_candidate(nodes[index], start - offsets[index], parts, packets)
+    return answer, _allocation_header(baseline_hashes, 'joint_disjoint')
+
+
+def _capture_typed(support, pcm, proof, projection, job_id, result_sha256,
+                   space, *, primary_packets=(), version=2):
     """Capture at most four typed aliases, sharing exactly duplicate PCM probes.
 
     The returned PCM tuple is indexed by node.probe_index, not node order.
@@ -425,7 +648,8 @@ def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256
     primary, primary_outcomes = primary_metadata(support, proof, primary_packets, space_id)
     # Validate packet witnesses even when there is no eligible primary row.
     primary_hard = primary_witnesses(proof, primary_packets)
-    batch = {'schema': SCHEMA_V2, 'policy_sha256': POLICY_SHA256_V2,
+    schema, policy = (SCHEMA_V3, POLICY_SHA256_V3) if version == 3 else (SCHEMA_V2, POLICY_SHA256_V2)
+    batch = {'schema': schema, 'policy_sha256': policy,
         'job_id': job_id, 'result_sha256': result_sha256, 'support_id': support.support_id,
         'proof_sha256': proof_sha256, 'projection_sha256': _hash_bytes(_bounded(projection)),
         'space_id': space_id, 'session_id': session_id,
@@ -471,11 +695,34 @@ def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256
     reserved['outcomes'] = [dict(o, node_id='0' * 64) if o['status'] == 'candidate'
                             else deepcopy(o) for o in moss_outcomes + list(primary_outcomes)]
     reserved['batch_sha256'] = '0' * 64
+    if version == 3:
+        reserved['allocation'] = _allocation_header(['0' * 64] * len(reserved['nodes']),
+            'baseline_fallback', 'cross_coordinate_pcm_alias')
+        # Movement can intersect more original same-label turns and increase
+        # coordinate digit counts. Admit their full metadata envelope before
+        # borrowing baseline views or owning any final crop bytes.
+        for node in reserved['nodes']:
+            node['start_frame'] = node['end_frame'] = (1 << 53) - 1
+            for span in node['source_spans']:
+                for key in ('source_start', 'source_end', 'logical_start', 'logical_end'):
+                    span[key] = (1 << 53) - 1
+            if node['source_kind'] == 'native_primary':
+                packet = next(p['packet'] for p in primary_packets
+                    if p['header']['digest'] == node['primary_packet_sha256'])
+                node['original_turn_ordinals'] = [t[0] for t in packet['turns']
+                    if packet['labels'][t[1]] == node['native_label']]
     if len(_bounded(reserved)) + len(reserved['nodes']) * 2 * CROP_FRAMES + 65536 > 524288:
         raise Unavailable('speaker_link_staging_capacity')
     del reserved
+    admitted = candidates[:MAX_CROPS]
+    if version == 3:
+        baseline_hashes = _baseline_pcm_evidence(admitted, pcm, support)
+        components = _candidate_components(admitted, support, proof, primary_packets,
+                                            space_id, phrases, responses)
+        admitted, batch['allocation'] = _allocate_candidates(
+            admitted, components, parts, primary_packets, baseline_hashes)
     physical = []
-    for original in candidates[:MAX_CROPS]:
+    for original in admitted:
         node = deepcopy(original)
         for key in ('job_id', 'result_sha256', 'support_id', 'proof_sha256',
                     'projection_sha256', 'space_id'):
@@ -507,7 +754,7 @@ def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256
         else:
             node['probe_index'] = len(physical)
             physical.append(crop)
-        node['node_id'] = sha({'schema': SCHEMA_V2, 'policy_sha256': POLICY_SHA256_V2, **node})
+        node['node_id'] = sha({'schema': schema, 'policy_sha256': policy, **node})
         batch['nodes'].append(node)
     for original in moss_outcomes + list(primary_outcomes):
         outcome = {k: deepcopy(v) for k, v in original.items() if k != 'node_id'}
@@ -529,9 +776,21 @@ def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256
     return batch, tuple(physical)
 
 
+def capture_candidates_v2(support, pcm, proof, projection, job_id, result_sha256,
+                          space, *, primary_packets=()):
+    return _capture_typed(support, pcm, proof, projection, job_id, result_sha256,
+                          space, primary_packets=primary_packets, version=2)
+
+
+def capture_candidates_v3(support, pcm, proof, projection, job_id, result_sha256,
+                          space, *, primary_packets=()):
+    return _capture_typed(support, pcm, proof, projection, job_id, result_sha256,
+                          space, primary_packets=primary_packets, version=3)
+
+
 def validate_batch(batch, *, require_vectors=True):
     """Validate trusted internal capture metadata after storage/IPC transport."""
-    if type(batch) is dict and batch.get('schema') == SCHEMA_V2:
+    if type(batch) is dict and batch.get('schema') in TYPED_SCHEMAS:
         return _validate_batch_v2(batch, require_vectors=require_vectors)
     if type(batch) is not dict or batch.get('schema') != SCHEMA or batch.get('policy_sha256') != POLICY_SHA256:
         raise Unavailable('speaker_link_batch_policy')
@@ -690,8 +949,12 @@ def _validate_probe_indexes(nodes):
 
 def _validate_batch_v2(batch, *, require_vectors):
     from .recording_primary_probe import primary_witnesses, primary_metadata, validate_primary_node
-    if batch.get('policy_sha256') != POLICY_SHA256_V2:
+    version3 = batch.get('schema') == SCHEMA_V3
+    schema, policy = (SCHEMA_V3, POLICY_SHA256_V3) if version3 else (SCHEMA_V2, POLICY_SHA256_V2)
+    if batch.get('policy_sha256') != policy:
         raise Unavailable('speaker_link_batch_policy')
+    if not version3 and 'allocation' in batch:
+        raise Unavailable('speaker_link_mixed_policy_metadata')
     _bounded(batch, MAX_VECTOR_BATCH_BYTES)
     if 'timestamp_policy' in batch and batch['timestamp_policy'] != TIMESTAMP_POLICY:
         raise Unavailable('speaker_link_batch_policy')
@@ -731,9 +994,18 @@ def _validate_batch_v2(batch, *, require_vectors):
     if (type(nodes) is not list or len(nodes) > MAX_CROPS
             or type(outcomes) is not list or len(outcomes) > MAX_OUTCOMES_V2):
         raise Unavailable('speaker_link_batch_capacity')
+    allocated = None
+    if version3:
+        baseline = _baseline_metadata(primary_candidates, phrases, responses, parts)
+        components = _candidate_components(baseline, support, canonical(doc), packets,
+                                            batch['space_id'], phrases, responses)
+        hashes = _validate_allocation_header(batch.get('allocation'), len(baseline))
+        allocated, expected_allocation = _allocate_candidates(baseline, components, parts, packets, hashes)
+        if batch['allocation'] != expected_allocation:
+            raise Unavailable('speaker_link_allocation_binding')
     refs = set()
     actual_refs = []
-    for node in nodes:
+    for node_index, node in enumerate(nodes):
         if type(node) is not dict or node.get('source_kind') not in ('moss', 'native_primary'):
             raise Unavailable('speaker_link_node_shape')
         if _RESERVED_NODE_FIELDS.intersection(node):
@@ -742,7 +1014,7 @@ def _validate_batch_v2(batch, *, require_vectors):
             if node.get(key) != batch[key]:
                 raise Unavailable('speaker_link_node_binding')
         original = {k: v for k, v in node.items() if k not in ('node_id', 'vector')}
-        if node.get('node_id') != sha({'schema': SCHEMA_V2, 'policy_sha256': POLICY_SHA256_V2, **original}):
+        if node.get('node_id') != sha({'schema': schema, 'policy_sha256': policy, **original}):
             raise Unavailable('speaker_link_node_digest')
         integer(node.get('start_frame')); integer(node.get('end_frame'))
         if (node['end_frame'] - node['start_frame'] != CROP_FRAMES
@@ -766,14 +1038,20 @@ def _validate_batch_v2(batch, *, require_vectors):
             status, selected = _moss_selection(phrase, phrases, responses)
             actual = (node.get('native_scope_id'), node.get('native_label'),
                       node['start_frame'], node['end_frame'])
-            if (status != 'candidate' or selected != actual or node.get('moss_tag') != phrase['moss_tag']
+            if (status != 'candidate' or (not version3 and selected != actual) or node.get('moss_tag') != phrase['moss_tag']
                     or attributions != [{'native_scope_id': actual[0], 'native_label': actual[1]}]):
                 raise Unavailable('speaker_link_phrase_binding')
         else:
             if 'phrase_index' in node or 'moss_tag' in node:
                 raise Unavailable('speaker_link_primary_source_ref')
-            validate_primary_node(node, canonical(doc), packets)
+            if not version3:validate_primary_node(node, canonical(doc), packets)
             ref = ('native_primary', canonical(node.get('primary_source_ref')))
+        if version3:
+            if node_index >= len(allocated) or any(node.get(k) != v for k, v in allocated[node_index].items()):
+                raise Unavailable('speaker_link_allocation_selection')
+            if (batch['allocation']['status'] != 'joint_disjoint'
+                    and node['pcm16le_sha256'] != hashes[node_index]):
+                raise Unavailable('speaker_link_allocation_baseline_pcm')
         fields = _COMMON_NODE_FIELDS | frozenset(('source_kind', 'native_attributions',
             'probe_index', 'float32le_sha256'))
         fields |= (frozenset(('phrase_index', 'moss_tag')) if node['source_kind'] == 'moss'
@@ -927,8 +1205,8 @@ def reconcile_batches(batches, *, terminal_states=None):
     if len({b['policy_sha256'] for b in batches}) > 1:
         raise Unavailable('speaker_link_mixed_policy')
     policy_sha256 = batches[0]['policy_sha256'] if batches else POLICY_SHA256
-    schema = SCHEMA_V2 if policy_sha256 == POLICY_SHA256_V2 else SCHEMA
-    typed = schema == SCHEMA_V2
+    schema = {POLICY_SHA256: SCHEMA, POLICY_SHA256_V2: SCHEMA_V2, POLICY_SHA256_V3: SCHEMA_V3}[policy_sha256]
+    typed = policy_sha256 in TYPED_POLICIES
     terminal_states = {} if terminal_states is None else terminal_states
     if type(terminal_states) is not dict or len(terminal_states) > MAX_BATCHES:
         raise Unavailable('speaker_link_terminal_states')

@@ -672,18 +672,19 @@ class MossJobs:
                 if self._probe_staging_bytes:return
                 self._probe_staging_bytes = probe['charge_bytes'] = STAGING_BYTES
             from .recording_speaker_links import (capture_candidates, capture_candidates_v2,
-                POLICY_SHA256, POLICY_SHA256_V2)
+                capture_candidates_v3, POLICY_SHA256, POLICY_SHA256_V2, POLICY_SHA256_V3)
             from .native_owned_cells import Unavailable
             space, space_id = expected_space()
             policy = self.speaker_links.capture_policy(record['session_id'], record['token'].proof)
             arguments = (lease.support, lease.pcm, record['token'].proof,
                          projection, record['job_id'], result_sha, space)
-            if policy == POLICY_SHA256_V2:
+            if policy in (POLICY_SHA256_V2, POLICY_SHA256_V3):
                 # Missing prospective packets cannot veto ordinary MOSS
                 # observations or primary text. There is no historical scan.
                 try:packets = self.speaker_links.capture_primary_packets(record['token'].proof)
                 except (Unavailable, ReadError, ValueError, TypeError, KeyError):packets = []
-                batch, crops = capture_candidates_v2(*arguments, primary_packets=packets)
+                capture = capture_candidates_v3 if policy == POLICY_SHA256_V3 else capture_candidates_v2
+                batch, crops = capture(*arguments, primary_packets=packets)
             elif policy == POLICY_SHA256:
                 batch, crops = capture_candidates(*arguments)
             else:
