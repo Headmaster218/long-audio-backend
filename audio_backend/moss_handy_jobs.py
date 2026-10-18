@@ -250,6 +250,13 @@ class MossJobs:
         self._probe_reconcile_active = False
         self._pending_record = None
         self.stopped = False
+        self._primary_pending = None
+        self._history_comparison = None
+        self._history_comparison_pending = False
+        self._history_compare_after = 0.
+        self.history = getattr(speaker_links,'history',None)
+        self._history_success_capability = (self.history.bind_success_owner(self)
+            if self.history is not None else None)
         cache.jobs_owner = self
 
     @contextmanager
@@ -394,7 +401,495 @@ class MossJobs:
     def submit_cell(self, sid, cell_id, request, key, *, _admission_open=None):
         return self._submit('durable_cell', sid, cell_id, request, key, _admission_open)
 
+    def _history_enabled(self):
+        return self.history is not None and self._links_enabled()
+
+    @contextmanager
+    def _primary_guard(self, probe):
+        owner = self.cell_source.owner
+        if not owner._publication_guard.acquire(timeout=LOCK_SECONDS):
+            raise ReadError(503,'primary_probe_publication_busy')
+        try:
+            from .recording_primary_probe import _check_fence
+            _check_fence(self.cell_source, probe['fence'])
+            if probe['cancelled'].is_set() or not self._history_enabled():
+                raise ReadError(409,'primary_probe_cancelled')
+            yield
+            _check_fence(self.cell_source, probe['fence'])
+        finally:owner._publication_guard.release()
+
+    def prepare_primary_copy(self, capture, chunk, offset, end, draft, owned_pcm):
+        """One optional live copy; this method never writes the primary DB."""
+        if not self._history_enabled() or self.cell_source is None:return None
+        from .native_owned_cell_store import Budget
+        from .native_owned_cells import exact_frame
+        from .recording_primary_probe import _fence, copy_standalone_primary
+        from .recording_speaker_probe_runner import expected_space, STAGING_BYTES
+        if capture.owner is not self.cell_source.owner or capture.authority.store is not self.store:return None
+        with Budget().phase() as budget, capture.authority.db(budget) as db:
+            db.execute('BEGIN')
+            row = db.execute('''SELECT w.batch_id FROM recording_work w
+                JOIN recording_batches b ON b.id=w.batch_id
+                WHERE w.chunk_id=? AND b.session_id=?''', (chunk['id'],chunk['session_id'])).fetchone()
+            budget.projection(256)
+            if row is None:return None
+            rid = row[0]
+        space, space_id = expected_space()
+        frame = capture.origin_frame + exact_frame(offset)
+        handle = {'owner':self, 'session_id':chunk['session_id'], 'recording_id':rid,
+            'source_start_frame':frame, 'chunk_id':chunk['id'], 'start':exact_frame(offset),
+            'end':exact_frame(end), 'space':space, 'space_id':space_id,
+            'state':'skip', 'reason':'missed', 'cancelled':threading.Event(),
+            'crop':None, 'charge_bytes':0, 'thread':None, 'operation':None,
+            'reservation':None, 'admitted':False, 'completed':threading.Event(),
+            'validated_output':None, 'terminal_reason':None, 'thread_start_attempted':False}
+        due = self.history.primary_due(chunk['session_id'],rid,frame)
+        if not due['due']:
+            handle['reason'] = due['reason']; return handle
+        handle['reason'] = 'insufficient_clean_support'
+        if draft is None:return handle
+        with self._gate():
+            if self._primary_pending is not None or self._probe_staging_bytes:
+                handle['reason'] = 'busy'; return handle
+            self._primary_pending = handle
+            self._probe_staging_bytes = handle['charge_bytes'] = STAGING_BYTES
+            handle['state'] = 'provisional'
+        try:
+            handle['fence'] = _fence(self.cell_source)
+            receipt = capture.owner.receipt(chunk['id'])
+            if receipt is None:raise ReadError(409,'primary_probe_source_stale')
+            handle['receipt_bytes'] = receipt.encoded
+            copied = copy_standalone_primary(draft,owned_pcm,space_id)
+            if copied is None:
+                self._drop_primary_copy(handle); handle['state'] = 'skip'; return handle
+            handle['draft_bytes'], handle['node'], handle['crop'] = copied
+            if (len(handle['draft_bytes']) + len(encoded(handle['node'])) + len(handle['crop'])
+                    + len(handle['receipt_bytes']) + 65536 > STAGING_BYTES):
+                raise ReadError(429,'primary_probe_staging_capacity')
+            return handle
+        except BaseException:
+            self._drop_primary_copy(handle)
+            handle['state'], handle['reason'] = 'skip', 'unavailable'
+            return handle
+
+    def abort_primary_copy(self, handle):
+        if type(handle) is dict and handle.get('owner') is self and handle.get('state') == 'provisional':
+            handle['cancelled'].set()
+            self._drop_primary_copy(handle)
+
+    def _drop_primary_copy(self, probe):
+        with self._lock:
+            probe['crop'] = None
+            if probe.get('charge_bytes'):
+                self._probe_staging_bytes -= probe['charge_bytes']; probe['charge_bytes'] = 0
+            if self._primary_pending is probe:self._primary_pending = None
+            if probe.get('state') == 'terminal':
+                token = (probe['reservation']['token'] if probe.get('reservation') is not None
+                         else probe.get('attempt_id'))
+                if token is not None:self.history.release_attempt(token)
+
+    def _primary_current(self, probe, db):
+        from .recording_primary_probe import standalone_current
+        if probe['cancelled'].is_set():return False
+        saved = {'header':probe['saved_header'],'packet':json.loads(probe['saved_packet_bytes'])}
+        return standalone_current(db,saved,self.cell_source,probe['fence'],
+                                  probe['receipt_bytes'],admitted=probe['admitted'])
+
+    def primary_committed(self, handle):
+        """Called solely by Worker after the exact commit_window returned True."""
+        if type(handle) is not dict or handle.get('owner') is not self:return False
+        if handle['state'] == 'skip':
+            handle['state'] = 'terminal'
+            self.history.note_primary_skip(handle['session_id'],handle['recording_id'],
+                handle['source_start_frame'],handle['reason'],handle['space'])
+            return False
+        if handle is not self._primary_pending or handle['state'] != 'provisional':return False
+        from . import recording_primary_provenance as provenance
+        from .recording_primary_probe import bind_standalone_primary, standalone_staging_bound
+        from .native_owned_cell_store import Budget
+        from .native_owned_cells import sha
+        try:
+            with self._primary_guard(handle):
+                with Budget().phase() as budget, self.cell_source.owner.authority.db(budget) as db:
+                    db.execute('BEGIN')
+                    saved = provenance.read_exact(db,cid=handle['chunk_id'],start=handle['start'],end=handle['end'])
+                    if saved is None or saved['header']['rid'] != handle['recording_id']:
+                        raise ReadError(409,'primary_probe_packet_missing')
+                    budget.projection(len(provenance.bounded(saved['packet'])))
+                handle['saved_header'] = dict(saved['header'])
+                handle['saved_packet_bytes'] = provenance.bounded(saved['packet'])
+                handle['node'] = bind_standalone_primary(saved,handle['draft_bytes'],handle['node'])
+                standalone_staging_bound(saved,handle['node'],
+                    wire_bytes=len(handle['saved_packet_bytes']),receipt_bytes=len(handle['receipt_bytes']))
+                handle['identity'] = {'sid':handle['session_id'],'rid':handle['recording_id'],
+                    'origin_kind':'primary_commit','origin_id':saved['header']['digest'],
+                    'node_sha256':sha(handle['node']),'space_id':handle['space_id']}
+                handle['attempt_id'] = sha(handle['identity'])[:32]
+                # An exception now is an unknown claim acknowledgement. Freeze
+                # exact identity, discard audio, and allow storage closure only.
+                handle['state'] = 'claim_unknown'
+                reservation = self.history.claim_primary(handle['session_id'],handle['recording_id'],
+                    handle['attempt_id'],saved,handle['node'],handle['receipt_bytes'],
+                    current_check=lambda db:self._primary_current(handle,db),space=handle['space'])
+                handle['reservation'] = reservation
+                if not reservation.get('should_probe'):
+                    handle['crop'] = None
+                    if reservation.get('state') == 'reserved':handle['state'] = 'claim_unknown'
+                    else:
+                        handle['state'] = 'terminal';self._drop_primary_copy(handle)
+                    return False
+                handle['admitted'] = True
+                handle.pop('draft_bytes',None)
+                handle['state'] = 'pending'
+                return True
+        except BaseException:
+            if handle['state'] == 'claim_unknown':handle['crop'] = None
+            else:self._drop_primary_copy(handle)
+            return False
+
+    def primary_ready_hint(self):
+        with self._gate():
+            probe = self._primary_pending
+            return bool(probe and probe['state'] == 'pending' and probe['admitted']
+                and not probe['cancelled'].is_set() and probe['crop'] is not None)
+
+    def primary_maintenance_hint(self):
+        with self._gate():
+            probe = self._primary_pending
+            return bool(probe and probe['state'] in ('claim_unknown','append_unknown','finish_pending','terminal')
+                        and (probe['thread'] is None or not probe['thread'].is_alive()))
+
+    def _primary_executing(self):
+        probe = self._primary_pending
+        return bool(probe and (probe['state'] == 'thread_unknown' or probe['thread'] is not None and probe['thread'].is_alive()
+            or probe['operation'] is not None and not probe['operation'].cleaned))
+
+    def submit_primary(self):
+        """Synchronous permit reservation inside Worker's existing automatic turn."""
+        probe = self._primary_pending
+        if probe is None or not self.primary_ready_hint():return False
+        reserved = False
+        try:
+            if not self.automatic_idle():return False
+            with self._gate(), self._primary_guard(probe):
+                if probe is not self._primary_pending or probe['state'] != 'pending':return False
+                if self._live is not None:self._retire(self._live)
+                if not self.history.dispatch_current(probe['reservation'],
+                        current_check=lambda db:self._primary_current(probe,db)):
+                    raise ReadError(409,'primary_probe_source_stale')
+                self.permit.reserve_optional(probe,probe['cancelled'],probe['cancelled'].set,
+                                             owner_kind='automatic_primary_probe')
+                reserved = True
+                probe['invocation_id'] = uuid.uuid4().hex
+                probe['state'] = 'running'
+                thread = self._thread_factory(target=self._run_primary,args=(probe,),
+                                              name='primary-speaker-probe',daemon=True)
+                probe['thread'] = thread
+                probe['thread_start_attempted'] = True
+                thread.start()
+            return True
+        except BaseException:
+            if probe['thread_start_attempted'] and not probe['completed'].is_set():
+                probe['cancelled'].set(); probe['state'] = 'thread_unknown'
+                if reserved:self.permit.release_optional(probe,cleaned=False)
+                return False
+            if reserved:self.permit.release_optional(probe,cleaned=True)
+            probe['terminal_reason'] = probe['terminal_reason'] or 'unavailable'
+            probe['state'] = 'finish_pending'
+            self._maintain_primary()
+            return False
+
+    def _run_primary(self, probe):
+        from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
+        try:
+            with self._primary_guard(probe):
+                if not self.history.dispatch_current(probe['reservation'],
+                        current_check=lambda db:self._primary_current(probe,db)):
+                    raise ReadError(409,'primary_probe_source_stale')
+            request = {'kind':KIND,'job_id':probe['invocation_id'],'space_id':probe['space_id'],
+                'model_path':self.store.settings.recording_speaker_model_path,
+                'crops':[{'index':0,'pcm_sha256':probe['node']['pcm16le_sha256'],
+                          'float32_sha256':probe['node']['float32le_sha256']}]}
+            operation = ProbeOperation(self.directory,request,(probe['crop'],),
+                gate=_SpeakerProbeGate(self,probe),driver_factory=self._probe_factory or ProbeDriver)
+            probe['operation'] = operation
+            output = operation.run(probe['cancelled'])
+            if not operation.cleaned or probe['cancelled'].is_set():
+                raise ReadError(409,'primary_probe_cleanup_pending')
+            # Freeze a detached validated result before the first durable submit.
+            probe['validated_output'] = json.loads(encoded(output))
+            probe['crop'] = None
+            with self._gate(), self._primary_guard(probe):
+                probe['state'] = 'append_unknown'
+                self.history.append_primary(probe['reservation'],probe['node'],
+                    probe['validated_output']['nodes'][0]['vector'],probe['invocation_id'],
+                    success_capability=self._history_success_capability,
+                    current_check=lambda db:self._primary_current(probe,db))
+                probe['state'] = 'terminal'
+            self._kick_history_comparison()
+        except BaseException:
+            if probe['state'] != 'append_unknown':
+                probe['terminal_reason'] = probe['terminal_reason'] or ('cancelled'
+                    if probe['cancelled'].is_set() else 'unavailable')
+                probe['state'] = 'finish_pending'
+        finally:
+            operation = probe['operation']
+            clean = operation is None or operation.cleaned
+            self.permit.release_optional(probe,cleaned=clean)
+            if not clean:probe['state'] = 'cleanup_unknown'
+            probe['completed'].set()
+
+    def _primary_success_matches(self, reservation, node, vector, invocation_id):
+        from .recording_speaker_probe_runner import ProbeOperation, cleanup_verified
+        probe = self._primary_pending
+        if (probe is None or probe['reservation'] != reservation or probe['node'] != node
+                or probe.get('invocation_id') != invocation_id or not probe['admitted']
+                or probe['cancelled'].is_set()):return False
+        operation = probe['operation']; output = probe['validated_output']
+        if (type(operation) is not ProbeOperation or not operation.started or not operation.cleaned
+                or operation.child_dispatch != 'returned_validated' or not cleanup_verified(operation.receipt)
+                or output is None or output['nodes'][0]['vector'] != vector
+                or operation.request['job_id'] != invocation_id
+                or operation.request['space_id'] != node['space_id']
+                or operation.request['crops'] != [{'index':0,'pcm_sha256':node['pcm16le_sha256'],
+                                                 'float32_sha256':node['float32le_sha256']}]):return False
+        operation._validate_return(output)
+        return True
+
+    def _maintain_primary(self):
+        probe = self._primary_pending
+        if probe is None:return True
+        thread = probe['thread']
+        if thread is not None and thread.is_alive():return False
+        if probe['thread_start_attempted'] and not probe['completed'].is_set():return False
+        if thread is not None:thread.join(timeout=0)
+        operation = probe['operation']
+        if operation is not None and not operation.cleaned:return False
+        try:
+            state = probe['state']
+            if state in ('claim_unknown','append_unknown'):
+                outcome = self.history.resolve_primary(probe['attempt_id'],probe['identity'])
+                if not outcome.get('resolved'):return False
+                probe['state'] = 'terminal'
+            elif state == 'finish_pending':
+                self.history.finish_primary(probe['reservation'],probe['terminal_reason'])
+                probe['state'] = 'terminal'
+            if probe['state'] == 'terminal':self._drop_primary_copy(probe)
+        except BaseException:return False
+        return self._primary_pending is None
+
+    def _stop_primary(self, sid=None):
+        probe = self._primary_pending
+        if probe is None or sid is not None and probe['session_id'] != sid:return True
+        probe['cancelled'].set()
+        thread = probe['thread']
+        if thread is not None and thread.is_alive():thread.join(timeout=5.)
+        if thread is not None and thread.is_alive():return False
+        if probe['thread_start_attempted'] and not probe['completed'].is_set():return False
+        operation = probe['operation']
+        if operation is not None and not operation.cleaned:
+            try:clean = operation.cleanup()
+            except BaseException:clean = False
+            self.permit.release_optional(probe,cleaned=clean)
+            if not clean:return False
+        if probe['state'] == 'provisional':self._drop_primary_copy(probe);return True
+        if probe['state'] not in ('append_unknown','claim_unknown','terminal'):
+            probe['terminal_reason'] = probe['terminal_reason'] or 'cancelled'
+            probe['state'] = 'finish_pending'
+        return self._maintain_primary()
+
+    def _history_source_quiescent(self, source_version):
+        with self._gate(), self.permit._condition:
+            if (self._closed or self.permit._primary or self.permit._optional is not None
+                    or self._pending_record is not None or self._primary_pending is not None):return False
+            record = self._live
+            return record is None or (record['cleaned'] and not record['storage_pending']
+                and not self._probe_unresolved(record) and not record.get('speaker_probe',{}).get('commit_pending')
+                and (record['thread'] is None or not record['thread'].is_alive()))
+
+    def _kick_history_comparison(self):
+        # A durable append marks work, never computes synchronously in its caller.
+        self._history_comparison_pending = True
+
+    def maintain_history_comparison(self):
+        """One task/cache: no reservation is released while bytes remain owned."""
+        record = self._history_comparison
+        if record is not None:
+            thread = record['thread']
+            if not record['completed'].is_set() or thread is not None and thread.is_alive():return False
+            if thread is not None:thread.join(timeout=0)
+            if record.get('finish_pending') is not None:
+                try:self.history.finish_comparison(record['snapshot'],record['finish_pending'])
+                except BaseException:return False
+                record['finish_pending'] = None
+            build = record.get('build')
+            if build is not None:
+                if record['state'] == 'published':record['prefix'] = build.score_prefix
+                build.discard(); record['build'] = None
+            self.permit.pause_comparison(record['grant'])
+            if record['cancelled'].is_set() or not self._history_enabled() or record.get('prefix') is None:
+                record['prefix'] = None
+                if not self.permit.release_comparison(record['grant']):return False
+                with self._lock:
+                    if self._history_comparison is record:self._history_comparison = None
+                record = None
+            else:record['state'] = 'cached'
+        if not self._history_enabled():return True
+        now = time.monotonic()
+        if not self._history_comparison_pending and now < self._history_compare_after:return True
+        self._history_compare_after = now + 1.
+        fresh = record is None
+        if fresh:
+            record = {'grant':object(),'generation':object(),'cancelled':threading.Event(),
+                'completed':threading.Event(),'thread':None,'build':None,'snapshot':None,
+                'state':'starting','deadline':now + 180.,'session_id':None,'start_attempted':False,
+                'prefix':None,'cache_scope':None,'finish_pending':None}
+        try:
+            with self._gate():
+                if fresh:
+                    if self._history_comparison is not None:return False
+                    self.permit.reserve_comparison(record['grant'],record['cancelled'],memory_bytes=128 * 1024**2)
+                    self._history_comparison = record
+                elif not self.permit.resume_comparison(record['grant']):return False
+                completed = threading.Event()
+                thread = self._thread_factory(target=self._run_history_comparison,args=(record,),
+                                              name='recording-history-compare',daemon=True)
+                self.permit.bind_comparison_thread(record['grant'],thread,completed)
+                record.update(thread=thread,completed=completed,state='starting',deadline=now + 180.,
+                              start_attempted=True,finish_pending=None)
+                thread.start()
+                self._history_comparison_pending = False
+            return True
+        except BaseException:
+            if record['start_attempted'] and not record['completed'].is_set():
+                record['cancelled'].set(); record['state'] = 'ownership_unknown';return False
+            if fresh:
+                record['prefix'] = None
+                self.permit.release_comparison(record['grant'])
+                with self._lock:
+                    if self._history_comparison is record:self._history_comparison = None
+            return False
+
+    def _comparison_checkpoint(self, record):
+        while not record['cancelled'].is_set() and time.monotonic() < record['deadline']:
+            if self.permit.comparison_grant_valid(record['grant']):return True
+            record['state'] = 'paused'
+            try:
+                if self.permit.resume_comparison(record['grant']):return True
+            except Exception:pass
+            record['cancelled'].wait(min(.05,max(0.,record['deadline']-time.monotonic())))
+        return False
+
+    def _compare_history_snapshot(self, record, snapshot):
+        from .recording_speaker_history_compare import ComparisonBuild, Pending
+        token = snapshot['token']
+        prefix = record.get('prefix') if record.get('cache_scope') == token.scope_id else None
+        # At most one prefix is retained; no previous loaded rows coexist here.
+        record['prefix'] = None
+        build = ComparisonBuild(token,admitted_bytes=128 * 1024**2,
+            cancelled=record['cancelled'].is_set,
+            grant_valid=lambda:self.permit.comparison_grant_valid(record['grant']),
+            deadline=record['deadline'],prefix=prefix)
+        record['build'] = build; record['cache_scope'] = token.scope_id
+        cursor = 0
+        while True:
+            if not self._comparison_checkpoint(record):return None
+            page = self.history.active_source_page(snapshot,after=cursor)
+            if not self._comparison_checkpoint(record):return None
+            self.history.revalidate_active_sources(snapshot,page,
+                checkpoint=lambda:self._comparison_checkpoint(record))
+            if page['complete']:break
+            cursor = page['next_after']
+        for reader, feeder in ((self.history.observation_page,build.feed_observations),
+                               (self.history.witness_page,build.feed_witnesses)):
+            cursor = 0
+            while True:
+                if not self._comparison_checkpoint(record):return None
+                page = reader(snapshot,after=cursor)
+                if not self._comparison_checkpoint(record):return None
+                feeder(token,cursor,page['rows'],complete=page['complete'])
+                if page['complete']:break
+                cursor = page['next_after']
+        while True:
+            if not self._comparison_checkpoint(record):return None
+            result = build.step(); record['state'] = result['state']
+            if result['state'] == 'ready':break
+            if result['state'] in ('refused','cancelled'):return result
+        cursor = 0
+        while True:
+            if not self._comparison_checkpoint(record):return None
+            try:page = build.output_page(after=cursor,limit=32)
+            except Pending as exc:
+                if str(exc) == 'comparison_grant_paused' and build.state == 'ready':continue
+                raise
+            self.history.write_decision_page(snapshot,page)
+            if page['complete']:break
+            cursor = page['next_after']
+        if not self._comparison_checkpoint(record):return None
+        return self.history.publish_comparison(snapshot,build.decision_counts)
+
+    def _run_history_comparison(self, record):
+        snapshot = None; reason = 'unavailable'
+        try:
+            while self._comparison_checkpoint(record):
+                snapshot = self.history.begin_comparison(after_scope=(
+                    record['snapshot']['scope_seq'] - 1 if reason == 'stale' and record['snapshot'] else None))
+                if snapshot is None:
+                    record['state'] = 'cached' if record.get('prefix') is not None else 'idle';return
+                record['snapshot'] = snapshot
+                record['session_id'] = snapshot.get('session_id')
+                try:result = self._compare_history_snapshot(record,snapshot)
+                except ReadError as exc:
+                    if exc.reason != 'history_snapshot_changed':raise
+                    result = {'saved':False,'reason':'stale'}
+                if result is not None and result.get('saved'):
+                    record['state'] = 'published';reason = 'complete';return
+                if result is None:return
+                if result.get('state') in ('refused','cancelled'):
+                    reason = result.get('reason','unavailable');return
+                # An already acknowledged late append may invalidate the CAS.
+                # Rebase with one verified prefix under this unchanged deadline.
+                reason = 'stale'
+                self.history.finish_comparison(snapshot,reason)
+                snapshot = None
+                build = record['build']
+                if build is not None:
+                    record['prefix'] = build.score_prefix
+                    build.discard();record['build'] = None
+        except BaseException:
+            record['state'] = 'pending'
+        finally:
+            if snapshot is not None and reason != 'complete':
+                if record['cancelled'].is_set():reason = 'cancelled'
+                elif time.monotonic() >= record['deadline']:reason = 'deadline'
+                record['finish_pending'] = reason
+                try:
+                    self.history.finish_comparison(snapshot,reason)
+                    record['finish_pending'] = None
+                except BaseException:record['state'] = 'storage_pending'
+            self.permit.pause_comparison(record['grant'])
+            record['completed'].set()
+
+    def _stop_history_comparison(self, sid=None):
+        record = self._history_comparison
+        if record is None:return True
+        if sid is not None and record['session_id'] not in (None,sid):return True
+        record['cancelled'].set()
+        thread = record['thread']
+        if thread is not None and thread.is_alive():thread.join(timeout=5.)
+        if thread is not None and thread.is_alive() or not record['completed'].is_set():return False
+        if record.get('finish_pending') is not None:
+            try:self.history.finish_comparison(record['snapshot'],record['finish_pending'])
+            except BaseException:return False
+        if record.get('build') is not None:record['build'].discard();record['build'] = None
+        record['prefix'] = None
+        if not self.permit.release_comparison(record['grant']):return False
+        with self._lock:
+            if self._history_comparison is record:self._history_comparison = None
+        return True
+
     def _reconcile_speaker_links(self):
+        self.maintain_history_comparison()
         if not self._links_enabled():return
         with self._lock:
             record = self._live
@@ -442,6 +937,7 @@ class MossJobs:
 
     def automatic_ready_hint(self):
         """Bounded metadata-only hint; never reconcile/publish under primary."""
+        if self._primary_executing():return False
         with self._gate():
             if self._pending_record is not None:return False
             record=self._live
@@ -454,6 +950,7 @@ class MossJobs:
 
     def automatic_maintenance_hint(self):
         """One exact cleaned pending probe, metadata only; never model readiness."""
+        if self.primary_maintenance_hint():return True
         with self._gate():
             record = self._live
             if self._pending_record is not None or record is None:return False
@@ -467,6 +964,8 @@ class MossJobs:
                 and (thread is None or not thread.is_alive()))
 
     def automatic_idle(self):
+        self._maintain_primary()
+        if self._primary_executing():return False
         self._reconcile_speaker_links()
         record = self._live
         if record is not None:self._retry_probe_storage(record)
@@ -648,6 +1147,99 @@ class MossJobs:
             'resolve_only':False, 'attempt_key':None, 'storage_failure':None,
             'failure_json':None, 'failure_frozen':False}
 
+    def _stage_moss_history_binding(self, record, probe):
+        """Freeze the new-vs-legacy route before any model crop is allocated."""
+        if self.history is None:return
+        from .native_owned_cells import validate_document
+        from .recording_primary_probe import _fence
+        _, _, parts = validate_document(record['token'].proof)
+        with self.speaker_links._database() as db:
+            recordings = set()
+            for cid in sorted({part.chunk_id for part in parts}):
+                row = db.execute('''SELECT w.batch_id FROM recording_work w
+                    JOIN recording_batches b ON b.id=w.batch_id
+                    WHERE w.chunk_id=? AND b.session_id=?''', (cid,record['session_id'])).fetchone()
+                if row is None:raise ReadError(409,'primary_probe_source_stale')
+                recordings.add(row[0])
+        if len(recordings) != 1:raise ReadError(409,'primary_probe_source_stale')
+        rid = next(iter(recordings))
+        if not self.history.uses_history(record['session_id'],rid):return
+        probe['history_route'] = True
+        probe['history_admitted'] = False
+        probe['recording_id'] = rid
+        probe['fence'] = _fence(self.cell_source)
+        receipts = []
+        for cid in sorted({part.chunk_id for part in parts}):
+            receipt = self.cell_source.owner.receipt(cid)
+            if receipt is None:raise ReadError(409,'primary_probe_source_stale')
+            receipts.append(receipt.encoded)
+        if len(receipts) > 128:raise ReadError(429,'primary_probe_staging_capacity')
+        probe['receipt_bytes'] = tuple(receipts)
+
+    def _moss_history_current(self, record, probe, db):
+        from .recording_primary_probe import detached_sources_current, standalone_current
+        from .native_owned_cell_store import Receipt
+        rid, proof = self.speaker_links._bound_job(db,record['session_id'],record['job_id'],
+            probe['result_sha256'],probe['recording_id'])
+        if rid != probe['recording_id'] or proof != probe['batch']['proof_sha256']:return False
+        if record['cancelled'].is_set() or probe['cancelled'].is_set():return False
+        if not detached_sources_current(db,self.cell_source,probe['fence'],
+                encoded(probe['batch']['proof']),probe['receipt_bytes']):return False
+        receipts = {Receipt.decode(raw).chunk_id:raw for raw in probe['receipt_bytes']}
+        for saved in probe['batch'].get('primary_packets',[]):
+            raw = receipts.get(saved['packet']['commit']['part']['chunk_id'])
+            if raw is None or not standalone_current(db,saved,self.cell_source,probe['fence'],raw,
+                    admitted=probe['history_admitted']):return False
+        return True
+
+    def _moss_success_matches(self, reservation, batch, invocation_id):
+        from .recording_speaker_probe_runner import ProbeOperation, cleanup_verified
+        record = self._live
+        if record is None:return False
+        probe = record.get('speaker_probe')
+        if (not probe or not probe.get('history_route') or probe.get('reservation') != reservation
+                or probe.get('batch') != batch or probe.get('invocation_id') != invocation_id
+                or record['cancelled'].is_set() or probe['cancelled'].is_set()
+                or not record['cleaned'] or not record['process_cleanup_verified']
+                or not record['durable_result_available'] or record['storage_pending']):return False
+        operation = probe.get('operation'); output = probe.get('validated_output')
+        if (type(operation) is not ProbeOperation or not operation.started or not operation.cleaned
+                or operation.child_dispatch != 'returned_validated' or not cleanup_verified(operation.receipt)
+                or output is None or operation.request['job_id'] != invocation_id):return False
+        operation._validate_return(output)
+        physical = {row['index']:row for row in output['nodes']}
+        return all(node.get('vector') == physical[node.get('probe_index',index)]['vector']
+            and node['pcm16le_sha256'] == physical[node.get('probe_index',index)]['pcm_sha256']
+            for index,node in enumerate(batch['nodes']))
+
+    def _publish_moss_history(self, probe):
+        if probe['resolve_only']:
+            outcome = self.history.resolve_moss(probe['history_attempt_id'],probe['history_identity'])
+            if not outcome.get('resolved'):raise ReadError(503,'speaker_probe_storage_pending')
+            probe['state'] = outcome.get('state','probe_unavailable')
+            probe['commit_pending'] = False
+            self.history.release_attempt(probe['reservation']['token'] if probe.get('reservation') is not None
+                                         else probe['history_attempt_id'])
+            return
+        record = self._live
+        if record is None or record.get('speaker_probe') is not probe:
+            raise ReadError(409,'primary_probe_authority_changed')
+        self._freeze_probe_failure(probe,probe['terminal_state'])
+        if probe['terminal_state'] == 'source_scoped' and probe['batch']['nodes']:
+            with self._gate(), self._primary_guard(probe):
+                self.history.append_moss(probe['reservation'],probe['batch'],probe['invocation_id'],
+                    success_capability=self._history_success_capability,
+                    current_check=lambda db:self._moss_history_current(record,probe,db))
+            self._kick_history_comparison()
+        else:
+            # The reason is frozen before the first submit, including retries.
+            reason = probe.setdefault('history_terminal_reason',
+                'cancelled' if probe['terminal_state'] == 'probe_interrupted' else 'unavailable')
+            self.history.finish_moss(probe['reservation'],reason)
+        probe['commit_pending'] = False
+        self.history.release_attempt(probe['reservation']['token'])
+        probe['state'] = 'links_stale' if probe['terminal_state'] == 'source_scoped' else probe['terminal_state']
+
     def _stage_speaker_probe(self, record):
         """Capture at most four owned copies while the full CellLease is charged."""
         if (not getattr(self.store.settings,'recording_speaker_links_enabled',False)
@@ -665,6 +1257,7 @@ class MossJobs:
                     or not receipt.get('session_closed')):return
             self._validate(record)
             if hashlib.sha256(record['token'].proof).hexdigest() != record['token'].proof_sha256:return
+            self._stage_moss_history_binding(record,probe)
             projection = {**status['result'], 'cell_binding':record['token'].projection()}
             result_sha = hashlib.sha256(encoded(projection)).hexdigest()
             # Reserve the separate fixed staging before allocating crop copies.
@@ -675,7 +1268,8 @@ class MossJobs:
                 capture_candidates_v3, POLICY_SHA256, POLICY_SHA256_V2, POLICY_SHA256_V3)
             from .native_owned_cells import Unavailable
             space, space_id = expected_space()
-            policy = self.speaker_links.capture_policy(record['session_id'], record['token'].proof)
+            policy = (POLICY_SHA256_V3 if probe.get('history_route') else
+                self.speaker_links.capture_policy(record['session_id'], record['token'].proof))
             arguments = (lease.support, lease.pcm, record['token'].proof,
                          projection, record['job_id'], result_sha, space)
             if policy in (POLICY_SHA256_V2, POLICY_SHA256_V3):
@@ -689,7 +1283,19 @@ class MossJobs:
                 batch, crops = capture_candidates(*arguments)
             else:
                 raise ValueError('Unsupported speaker probe policy')
-            if (len(crops) > 4 or len(encoded(batch)) + sum(map(len,crops)) + MAX_OUTPUT_BYTES > STAGING_BYTES
+            if probe.get('history_route'):
+                from .native_owned_cell_store import Receipt
+                receipts = {Receipt.decode(raw).chunk_id:raw for raw in probe['receipt_bytes']}
+                for saved in batch.get('primary_packets',[]):
+                    cid = saved['packet']['commit']['part']['chunk_id']
+                    if cid not in receipts:
+                        receipt = self.cell_source.owner.receipt(cid)
+                        if receipt is None:raise ReadError(409,'primary_probe_source_stale')
+                        receipts[cid] = receipt.encoded
+                if len(receipts) > 128:raise ReadError(429,'primary_probe_staging_capacity')
+                probe['receipt_bytes'] = tuple(receipts[cid] for cid in sorted(receipts))
+            if (len(crops) > 4 or len(encoded(batch)) + sum(map(len,crops))
+                    + sum(map(len,probe.get('receipt_bytes',()))) + MAX_OUTPUT_BYTES > STAGING_BYTES
                     or any(type(crop) is not bytes or len(crop) != 64000 for crop in crops)):
                 raise ValueError('Probe staging capacity')
             self.cell_source.revalidate_dispatch(record['token'])
@@ -702,6 +1308,10 @@ class MossJobs:
             if probe['batch'] is None:self._drop_probe_staging(probe)
 
     def _drop_probe_staging(self, probe):
+        if (probe.get('history_route') and probe.get('reservation') is not None
+                and not probe.get('commit_pending')
+                and (probe.get('operation') is None or probe['operation'].cleaned)):
+            self.history.release_attempt(probe['reservation']['token'])
         probe['crops'], probe['batch'] = (), None
         with self._lock:
             if probe['charge_bytes']:
@@ -733,13 +1343,26 @@ class MossJobs:
             probe['terminal_state'] = 'probe_unavailable'
             phase = 'reserve'
             failure_stage, failure_reason = 'reservation', 'storage_unavailable'
-            admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
-                batch['policy_sha256'], probe['space'], max_nodes=len(batch['nodes']), cancelled=probe['cancelled'], batch=batch)
+            if probe.get('history_route'):
+                from .native_owned_cells import sha
+                if recording_id != probe['recording_id']:raise ReadError(409,'primary_probe_source_stale')
+                probe['history_identity'] = {'sid':sid,'rid':recording_id,'origin_kind':'moss_result',
+                    'origin_id':jid,'result_sha256':snapshot.result_sha256,
+                    'batch_sha256':batch['batch_sha256'],'space_id':probe['space_id']}
+                probe['history_attempt_id'] = sha(probe['history_identity'])[:32]
+                with self._primary_guard(probe):
+                    admission = self.history.claim_moss(sid,recording_id,probe['history_attempt_id'],
+                        batch,probe['receipt_bytes'],space=probe['space'],
+                        current_check=lambda db:self._moss_history_current(record,probe,db))
+            else:
+                admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
+                    batch['policy_sha256'], probe['space'], max_nodes=len(batch['nodes']), cancelled=probe['cancelled'], batch=batch)
             probe['reservation'] = admission
             if not admission.get('should_probe'):
-                probe['commit_pending'] = False
+                probe['commit_pending'] = bool(probe.get('history_route') and admission.get('state') == 'reserved')
                 probe['state'] = admission.get('state', 'probe_unavailable')
                 return
+            if probe.get('history_route'):probe['history_admitted'] = True
             phase = 'probe'
             failure_stage, failure_reason = 'permit', 'permit_unavailable'
             if probe['crops']:
@@ -756,17 +1379,23 @@ class MossJobs:
                     # A current publication generation alone is insufficient:
                     # dispatch independently checks current source authority.
                     failure_stage, failure_reason = 'dispatch_validation', 'source_authority_changed'
-                    self.cell_source.revalidate_dispatch(record['token'])
+                    if probe.get('history_route'):
+                        with self._primary_guard(probe):
+                            if not self.history.dispatch_current(probe['reservation'],
+                                    current_check=lambda db:self._moss_history_current(record,probe,db)):
+                                raise ReadError(409,'primary_probe_source_stale')
+                    else:self.cell_source.revalidate_dispatch(record['token'])
                     failure_reason = 'other'
                     from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
-                    from .moss_handy_runner import float_bytes, samples_from_pcm
+                    from .recording_primary_probe import standalone_float_digest
                     # Safe now: copies and retained text no longer depend on MOSS scratch.
                     record['controller'].discard(record['controller_id'])
                     record['controller'] = record['controller_id'] = None
-                    request = {'kind':KIND, 'job_id':jid, 'space_id':probe['space_id'],
+                    probe['invocation_id'] = uuid.uuid4().hex if probe.get('history_route') else jid
+                    request = {'kind':KIND, 'job_id':probe['invocation_id'], 'space_id':probe['space_id'],
                         'model_path':self.store.settings.recording_speaker_model_path,
                         'crops':[{'index':index, 'pcm_sha256':hashlib.sha256(crop).hexdigest(),
-                            'float32_sha256':hashlib.sha256(float_bytes(samples_from_pcm(crop))).hexdigest()}
+                            'float32_sha256':standalone_float_digest(crop)}
                             for index,crop in enumerate(probe['crops'])]}
                     failure_stage = 'child_start'
                     operation = ProbeOperation(self.directory, request, probe['crops'],
@@ -775,6 +1404,7 @@ class MossJobs:
                     try:
                         output = operation.run(probe['cancelled'])
                         if operation.cleaned and not probe['cancelled'].is_set():
+                            probe['validated_output'] = json.loads(encoded(output))
                             physical = {item['index']: item for item in output['nodes']}
                             for index, node in enumerate(batch['nodes']):
                                 node['vector'] = physical[node.get('probe_index', index)]['vector']
@@ -854,6 +1484,7 @@ class MossJobs:
             'errno':observed.get('errno')}
 
     def _publish_probe_batch(self, probe):
+        if probe.get('history_route'):return self._publish_moss_history(probe)
         if probe['resolve_only']:
             return self._resolve_probe_attempt(probe)
         self._freeze_probe_failure(probe, probe['terminal_state'])
@@ -887,6 +1518,9 @@ class MossJobs:
             probe['state'] = 'links_stale'
 
     def _resolve_probe_attempt(self, probe):
+        if probe.get('history_route'):
+            probe['resolve_only'] = True
+            return self._publish_moss_history(probe)
         # Exact same-owner job/result/prepared-proof identity only. Resolving a
         # lost acknowledgement never starts inference or promotes old evidence.
         prepared = {**probe['batch'], 'nodes':[{key:value for key,value in node.items()
@@ -1391,6 +2025,8 @@ class MossJobs:
             self._await_memory_cleanup(record)
 
     def invalidate_session(self, sid):
+        primary_pending = not self._stop_primary(sid)
+        comparison_pending = not self._stop_history_comparison(sid)
         record = self._live
         if record is not None and record['session_id'] == sid:
             record['invalidated'] = True
@@ -1413,18 +2049,22 @@ class MossJobs:
                         self._retire(record)
             except Exception:
                 record['purge_pending'] = True
-            return (self._probe_unresolved(record) or not record['cleaned'] or record['purge_pending']
+            return (primary_pending or comparison_pending or self._probe_unresolved(record) or not record['cleaned'] or record['purge_pending']
                     or bool(record['lease'] and not record['lease'].released))
-        return False
+        return primary_pending or comparison_pending
 
     def close_admission(self):
         with self._lock:self._closed = True
         self.permit.close_admission()
         if self._live is not None:self._cancel_record(self._live)
+        if self._primary_pending is not None:self._primary_pending['cancelled'].set()
+        if self._history_comparison is not None:self._history_comparison['cancelled'].set()
         if self.cell_source is not None:self.cell_source.close_admission()
 
     def stop(self):
         self.close_admission()
+        if not self._stop_primary():return False
+        if not self._stop_history_comparison():return False
         if not self._drain_pending():return False
         record = self._live
         if record is not None:
@@ -1459,6 +2099,9 @@ class MossJobs:
         return {'enabled':self._enabled(), 'jobs_epoch':self.jobs_epoch,
             'cleanup_pending':bool(record and self._probe_unresolved(record)) or bool(self._pending_record) or bool(self.cell_source and self.cell_source.cleanup_pending) or bool(record and (not record['cleaned'] or record['purge_pending'] or (record['lease'] and not record['lease'].released))),
             'speaker_probe_staging_bytes':self._probe_staging_bytes,
+            'primary_probe_state':self._primary_pending['state'] if self._primary_pending else None,
+            'primary_probe_crop_bytes':len(self._primary_pending['crop']) if self._primary_pending and self._primary_pending['crop'] is not None else 0,
+            'history_comparison_state':self._history_comparison['state'] if self._history_comparison else None,
             'speaker_probe_state':record.get('speaker_probe',{}).get('state') if record else None,
             'speaker_probe_storage_pending':bool(record and record.get('speaker_probe',{}).get('commit_pending')),
             'speaker_probe_storage_failure':(dict(record['speaker_probe']['storage_failure'])

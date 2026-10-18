@@ -1248,6 +1248,7 @@ class Automatic:
         self.store,self.results,self.capture,self.jobs=store,results,capture,jobs
         self.flight=None; self.next_attempt=0.; self.last_reason='not_started'
         self._round={};self._sessions=deque()
+        self._identity_next='primary'
         self.closed=False
         self._bounded_started_wall=time.time();self._bounded_started_mono=time.monotonic()
         self._bounded_startup=True
@@ -1443,6 +1444,7 @@ class Automatic:
             # model candidate. It never grants model readiness before the ack.
             if self.jobs.automatic_maintenance_hint():return True
             if not self.jobs.automatic_ready_hint():return False
+            if self.jobs.primary_ready_hint():return True
             if self.flight is not None:return self.flight[1].slot_released.is_set()
             if self.capture.owner._slot is not None:return False
             return self._snapshot()
@@ -1480,6 +1482,14 @@ class Automatic:
         self.next_attempt=time.monotonic()+1.
         try:
             if not self.jobs.automatic_idle():self.last_reason='automatic_job_slot_occupied';return
+            primary_ready=self.jobs.primary_ready_hint()
+            text_ready=self.flight is not None or self._snapshot()
+            if primary_ready and (not text_ready or self._identity_next=='primary'):
+                # Advance even when the bounded selected attempt refuses.
+                self._identity_next='text'
+                self.last_reason='automatic_primary_probe_attempt'
+                self.jobs.submit_primary();return
+            if text_ready:self._identity_next='primary'
             if self.flight is not None:
                 self._finish_flight(stop);return
             key=self._select_key()

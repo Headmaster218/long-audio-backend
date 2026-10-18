@@ -254,6 +254,8 @@ SPEAKER_LINK_STATES = frozenset(('provisional_linked','source_scoped','insuffici
 def speaker_annotation(saved, job_id, result_sha256, phrase_index):
     """Whitelisted public annotation: no vectors or full native proof payloads."""
     from .recording_speaker_links import TYPED_POLICIES
+    if type(saved) is dict and saved.get('history_policy'):
+        return history_speaker_annotation(saved,job_id,result_sha256,phrase_index)
     if type(saved) is not dict:saved = {}
     state = saved.get('state', 'probe_unavailable')
     if saved.get('scope_id') is None:state = 'probe_unavailable'
@@ -297,7 +299,8 @@ def primary_speaker_annotation(saved, primary_source_ref):
     """
     if type(saved) is not dict or saved.get('scope_id') is None:return None
     from .recording_speaker_links import TYPED_POLICIES
-    if saved.get('policy_sha256') not in TYPED_POLICIES:return None
+    from .recording_speaker_history import POLICY_SHA256 as HISTORY_POLICY
+    if saved.get('policy_sha256') not in (*TYPED_POLICIES,HISTORY_POLICY):return None
     try:
         if parse_reference(primary_source_ref)[0] != 'primary':return None
     except ReadError:return None
@@ -314,6 +317,9 @@ def primary_speaker_annotation(saved, primary_source_ref):
         'reversible':True, 'validation_semantics':'validated_at_decision_revision',
         'policy_sha256':saved.get('policy_sha256'), 'space_id':saved.get('space_id'),
         'revision':saved.get('revision'), 'decision_revision':saved.get('decision_revision')}
+    if saved.get('history_policy'):
+        value['history_status']=saved.get('history_status','pending')
+        value['validation_semantics']=saved.get('validation_semantics','validated_at_admission')
     state = saved.get('state')
     if type(state) is not str or state not in SPEAKER_LINK_STATES:return value
     revision, decision_revision = saved.get('revision'), saved.get('decision_revision')
@@ -359,3 +365,24 @@ def annotate_primary_speaker_links(value, annotations):
             stack.extend(child for key, child in item.items() if key != 'recording_speaker_link')
         elif type(item) is list:stack.extend(item)
     return value
+
+
+def history_speaker_annotation(saved,job_id,result_sha256,phrase_index):
+    """Complete indexed history matches use unanimous status and identity."""
+    base={'status':saved.get('state','probe_unavailable'),'provisional_speaker_id':None,
+        'scope':'recording','speaker_identity_valid':False,'profile_update_allowed':False,'reversible':True,
+        'policy_sha256':saved.get('policy_sha256'),'space_id':saved.get('space_id'),
+        'revision':saved.get('revision'),'decision_revision':saved.get('decision_revision'),
+        'history_status':saved.get('history_status','pending'),
+        'validation_semantics':saved.get('validation_semantics','validated_at_admission')}
+    if base['history_status']!='current' or saved.get('complete') is not True:return base
+    found=[x for x in saved.get('annotations',[]) if x.get('source_kind')=='moss' and
+        (x.get('job_id'),x.get('result_sha256'),x.get('phrase_index'))==(job_id,result_sha256,phrase_index)]
+    if not found:return {**base,'status':'insufficient_clean_support'}
+    identities={(x.get('status'),x.get('provisional_speaker_id')) for x in found}
+    if len(identities)!=1:return {**base,'status':'insufficient_clean_support','reason':'observations_disagree'}
+    status,identity=next(iter(identities))
+    if (status not in SPEAKER_LINK_STATES or any(x.get('speaker_identity_valid') is not False for x in found)
+            or status=='provisional_linked' and (type(identity) is not str or re.fullmatch(r'recording-speaker-[a-f0-9]{20}',identity) is None)
+            or status!='provisional_linked' and identity is not None):return {**base,'status':'probe_unavailable'}
+    return {**base,'status':status,'provisional_speaker_id':identity}

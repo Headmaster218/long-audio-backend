@@ -251,9 +251,15 @@ class Worker:
         if self.stop_event.is_set():permit.abandon_automatic_turn();return
         if permit.sampling_recovery_pending:permit.recover_primary_sampling()
         automatic.maintain_text_storage(stop=self.stop_event.is_set)
+        if automatic.jobs is not None:
+            try:automatic.jobs.maintain_history_comparison()
+            except Exception:pass
         if request and automatic.primary_yield_due():permit.request_automatic_turn()
         with permit.automatic_turn() as granted:
             if granted:automatic.step(stop=self.stop_event.is_set)
+        if automatic.jobs is not None:
+            try:automatic.jobs.maintain_history_comparison()
+            except Exception:pass
 
     def _begin_native_support(self,chunk,watermark):
         cache=self.native_owned_support_cache
@@ -548,30 +554,42 @@ class Worker:
                 result['_speaker_support']=prepared
                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
                 previous=result['metadata'].get('boundary_tail',[])
-                if automatic:
-                    if self.native_owned_cells is None:raise RuntimeError('automatic_capture_unavailable')
-                    if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
-                        self.native_owned_cells.start_bounded(result)
-                    selected_cells=self.native_owned_cells.prepare(chunk,native,offset,end,result,required=True)
-                    result['_native_automatic_cells']=selected_cells
-                    if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
-                        # The result packet is the sole handoff owner; bounded
-                        # preparation releases ordinary PCM after freezing origins.
-                        selected_cells=()
-                else:selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
-                if automatic:
-                    self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
-                        lambda:self.interrupted(chunk['id']),required=True)
-                    # Disk headroom includes the same primary DB/WAL and existing
-                    # write/scratch allowance immediately before enqueue.
-                    self.moss_automatic.results._headroom()
-                else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
-                if self.interrupted(chunk['id']): raise InterruptedError()
-                if not self.store.commit_window(chunk,offset,end,result): return
-                self._publish_native_support(native,offset,end)
-                if not automatic:
-                    self._cell_call('committed',selected_cells)
-                    self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
+                primary_jobs=getattr(self.moss_automatic,'jobs',None)
+                try:
+                    if automatic:
+                        if self.native_owned_cells is None:raise RuntimeError('automatic_capture_unavailable')
+                        if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
+                            self.native_owned_cells.start_bounded(result)
+                        selected_cells=self.native_owned_cells.prepare(chunk,native,offset,end,result,required=True)
+                        result['_native_automatic_cells']=selected_cells
+                        if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
+                            # The result packet is the sole handoff owner; bounded
+                            # preparation releases ordinary PCM after freezing origins.
+                            selected_cells=()
+                    else:selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
+                    if automatic:
+                        self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
+                            lambda:self.interrupted(chunk['id']),required=True)
+                        # Disk headroom includes the same primary DB/WAL and existing
+                        # write/scratch allowance immediately before enqueue.
+                        self.moss_automatic.results._headroom()
+                    else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
+                    if self.interrupted(chunk['id']): raise InterruptedError()
+                    if not self.store.commit_window(chunk,offset,end,result): return
+                    # A positively returned primary acknowledgement alone transfers ownership.
+                    if primary_jobs is not None:
+                        try:primary_jobs.primary_committed(result.get('_primary_probe_handle'))
+                        except Exception:pass
+                    self._publish_native_support(native,offset,end)
+                    if not automatic:
+                        self._cell_call('committed',selected_cells)
+                        self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
+                finally:
+                    # This also aborts after seam/headroom/cancel/unknown-ack failures.
+                    handle=result.pop('_primary_probe_handle',None)
+                    if primary_jobs is not None:
+                        try:primary_jobs.abort_primary_copy(handle)
+                        except Exception:pass
             offset=end
             if self._fair_core_handoff and self.moss_automatic is not None and self.moss_automatic.primary_yield_due():
                 permit=getattr(self.settings, '_native_execution_permit', None)

@@ -1278,6 +1278,8 @@ class CellStore:
             if not self.authority.receipt_valid(receipt, budget):raise Unavailable('source_changed_before_receipt_commit')
         self._generation(op)
         if not self.authority.receipt_valid(receipt, budget):
+            from .recording_speaker_history import notify_source_mismatch
+            notify_source_mismatch(self.authority.store,[receipt.chunk_id])
             self.revoked(); raise Unavailable('source_changed_after_receipt_commit')
         self._receipts[receipt.chunk_id] = receipt
         return {'status': 'receipt_retained', 'receipt_id': receipt.receipt_id}
@@ -1337,6 +1339,8 @@ class CellStore:
                     # Keep the failed/unknown publication outcome. Expected v1
                     # metadata supersession must not revoke independent v3 work.
                     raise Unavailable('primary_commit_advanced_after_publication')
+                from .recording_speaker_history import notify_source_mismatch
+                notify_source_mismatch(self.authority.store,[part['chunk_id'] for part in doc['dependencies']])
                 self.revoked(); raise Unavailable('source_changed_after_publication_commit')
         durable_states=('retained','existing') if op.kind=='publish_auto' else ('retained','not_retained_pcm','existing')
         self._durable = min(self._durable + sum(r['status'] in durable_states for r in results), (1 << 31) - 1)

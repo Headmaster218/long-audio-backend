@@ -1386,7 +1386,18 @@ class Capture:
                         _diagnostic_failure('seam_prepare', exc)
                         # Optional composition must not discard already valid v1 cells.
                         self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_prepare_unavailable')
-                return cells
+            # Optional identity copying has its own read/budget boundary. It is
+            # deliberately outside the required-primary Budget and exception
+            # boundary; no probe failure invalidates native capture or text.
+            try:
+                automatic = getattr(self.authority.store, 'moss_automatic', None)
+                jobs = getattr(automatic, 'jobs', None)
+                if jobs is not None:
+                    result['_primary_probe_handle'] = jobs.prepare_primary_copy(
+                        self, chunk, offset, end, result.get('_primary_provenance'), original)
+            except Exception:
+                result.pop('_primary_probe_handle', None)
+            return cells
         except Exception as exc:
             self._failure(exc)
             if required:raise

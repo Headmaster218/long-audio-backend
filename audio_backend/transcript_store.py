@@ -54,7 +54,9 @@ class _CertificateReadBudget:
 class TranscriptStore:
     def __init__(self, store, *, clock=time.monotonic):
         self.path, self.clock = Path(store.path).resolve(), clock
-        self.speaker_links_enabled = bool(getattr(getattr(store,'settings',None),'recording_speaker_links_enabled',False))
+        self.legacy_speaker_links_enabled = bool(getattr(getattr(store,'settings',None),'recording_speaker_links_enabled',False))
+        self.speaker_history_read_enabled = bool(getattr(getattr(store,'settings',None),'recording_speaker_history_read_enabled',False))
+        self.speaker_links_enabled = self.legacy_speaker_links_enabled or self.speaker_history_read_enabled
         st = self.path.stat()
         self.database_identity = (st.st_dev, st.st_ino)
 
@@ -247,6 +249,8 @@ class TranscriptStore:
         if self.speaker_links_enabled:
             from .recording_speaker_link_store import read_session_revision
             links_revision = read_session_revision(db, sid)
+            from .recording_speaker_history import read_session_revision as history_revision
+            links_revision = [links_revision,history_revision(db,sid)]
         value = {'policy': policy_hash, 'session': sid,
             'primary_change_max': change[0] if change else 0,
             'transcript_revision': counter, 'timeline_end': session['timeline_end']}
@@ -498,9 +502,26 @@ class TranscriptStore:
                     WHERE ch.id=? AND ch.session_id=? AND b.session_id=?''', (cid,sid,sid)).fetchone()
                 memberships[cid] = record[0] if record is not None else None
             return memberships[cid]
+        exact_refs=[('primary',parent['source_ref']) for parent in primary]
+        exact_refs.extend(('moss',c.encoded([candidate['job_id'],candidate['result_sha256'],index]).decode('ascii'))
+            for candidate in candidates for index,_ in enumerate(candidate['phrases']))
         def saved_for_recording(rid):
             nonlocal remaining
             if rid not in scopes:
+                from .recording_speaker_history import read_saved_for_refs
+                try:
+                    history=read_saved_for_refs(db,sid,rid,exact_refs,byte_limit=remaining)
+                except (ReadError,ValueError,TypeError,KeyError,RecursionError):
+                    history={'state':'probe_unavailable','history_policy':True,'reason':'saved_history_unavailable','complete':False}
+                if history is not None:
+                    remaining=max(0,remaining-history.get('read_bytes',remaining if history.get('complete') is False else 1024))
+                    if history.get('complete') is False and annotation_read is not None:
+                        annotation_read.update(complete=False,reason=history.get('reason','saved_history_unavailable'))
+                    scopes[rid]=history
+                    return history
+                if not self.legacy_speaker_links_enabled:
+                    scopes[rid]={'state':'probe_unavailable'}
+                    return scopes[rid]
                 # Reserve the full per-decision bound before the getter can
                 # materialize or decode its BLOB. Failed/stale/malformed reads
                 # consume the same reservation, even if their public result is
@@ -557,7 +578,7 @@ class TranscriptStore:
         # Only small scalar metadata is included at page level. All vectors,
         # native proof and per-crop geometry remain private immutable evidence.
         return [{'recording_id':rid, **{key:saved.get(key) for key in
-            ('scope_id','state','revision','decision_revision','policy_sha256','space_id')}}
+            ('scope_id','state','revision','decision_revision','policy_sha256','space_id','history_status','authority_revision')}}
             for rid,saved in sorted(scopes.items())]
 
     def _closure(self, db, sid, block, check, initial_chunks, primary, baseline):

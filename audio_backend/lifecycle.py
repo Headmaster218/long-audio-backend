@@ -182,3 +182,49 @@ def recover_cancelled_streams(db):
         AND EXISTS (SELECT 1 FROM stream_chunks member JOIN chunks c ON c.id=member.chunk_id
             WHERE member.session_id=tail.session_id AND member.stream_id=tail.stream_id
             AND c.status='cancelled')''')
+
+
+def cleanup_verified_retirement(store, history, scope_seq, source_version, token, *, delete_file=None):
+    """Explicit marker-gated owned cleanup; no automatic retention-age policy.
+
+    An independently and positively read marker is required on every call.
+    Replacement-path bytes are never unlinked. A committed marker with absent
+    original reconciles to done after a crash; absence alone creates no marker.
+    """
+    import os
+    from .native_owned_cell_store import Receipt
+    from .native_owned_cell_capture import signature,regular
+    row=history.read_retirement(scope_seq,source_version,token)
+    receipt=Receipt.decode(row['receipt'])
+    try:
+        current=os.stat(row['path'],follow_symlinks=False)
+    except FileNotFoundError:
+        history.record_retirement_cleanup(scope_seq,source_version,token,'done')
+        return {'cleanup':'done'}
+    except OSError:
+        history.record_retirement_cleanup(scope_seq,source_version,token,'failed','io_unavailable')
+        return {'cleanup':'failed'}
+    if not regular(current) or signature(current)!=receipt.signature:
+        from .recording_speaker_history import notify_source_mismatch
+        notify_source_mismatch(store,[row['chunk_id']])
+        return {'cleanup':'failed','reason':'path_changed'}
+    owner=history._success_owner
+    if owner is None or not owner._history_source_quiescent(source_version):return {'cleanup':'pending'}
+    try:
+        with owner.cell_source.owner._publication_guard:
+            # Repeat exact marker/path identity under the existing owned-writer guard.
+            row=history.read_retirement(scope_seq,source_version,token)
+            if signature(os.stat(row['path'],follow_symlinks=False))!=receipt.signature:
+                from .recording_speaker_history import notify_source_mismatch
+                notify_source_mismatch(store,[row['chunk_id']])
+                return {'cleanup':'failed','reason':'path_changed'}
+            (delete_file or (lambda path:unlink_owned(store,path)))(row['path'])
+    except FileNotFoundError:pass
+    except OSError:
+        history.record_retirement_cleanup(scope_seq,source_version,token,'failed','io_unavailable')
+        return {'cleanup':'failed'}
+    except BaseException:
+        history.record_retirement_cleanup(scope_seq,source_version,token,'unknown','other')
+        raise
+    history.record_retirement_cleanup(scope_seq,source_version,token,'done')
+    return {'cleanup':'done'}

@@ -7,6 +7,9 @@ evidence, while each live boundary independently requires the current owner.
 from dataclasses import asdict
 from contextlib import contextmanager
 import hashlib
+import json
+import struct
+import sys
 
 from . import recording_primary_provenance as provenance
 from .native_owned_cell_store import Budget
@@ -17,6 +20,50 @@ from .native_owned_core_seams import BOUNDED_SCHEMA, slot, validate_target
 MAX_PACKETS = 4
 MAX_PACKET_BYTES = 65536
 MAX_PACKET_TURNS = 256
+# These tighter standalone limits bound the temporary decoded graph inside the
+# existing512KiB per-probe envelope. Refusal never truncates a retained packet.
+MAX_STANDALONE_UNITS, MAX_STANDALONE_TURNS, MAX_STANDALONE_ROWS = 128, 64, 16
+MAX_STANDALONE_LABELS = 8
+
+
+def standalone_staging_bound(packet,node=None,*,wire_bytes=0,receipt_bytes=0):
+    """Conservative owned-graph admission, separate from sampled service RSS.
+
+    Three graph/wire copies cover the live basis, detached current read and
+    serialization. 128 KiB covers one validated vector/result, <=28 witnesses,
+    <=16 row dependencies, fixed owner metadata and the 4 KiB hash buffer.
+    Shared values are intentionally counted repeatedly; no dedup set is built.
+    """
+    count = 0
+    def charge(value,depth=0):
+        nonlocal count
+        count += 1
+        if count > 8192 or depth > 16:raise Unavailable('primary_probe_staging_capacity')
+        total = sys.getsizeof(value)
+        if type(value) is dict:
+            for key,item in value.items():total += charge(key,depth+1)+charge(item,depth+1)
+        elif type(value) in (list,tuple):
+            for item in value:total += charge(item,depth+1)
+        elif value is not None and type(value) not in (str,int,float,bool,bytes):
+            raise Unavailable('primary_probe_staging_capacity')
+        return total
+    forecast = 3 * (charge(packet)+charge(node)) + 3 * (wire_bytes+receipt_bytes) + 64000 + 131072
+    if forecast > 512 * 1024:raise Unavailable('primary_probe_staging_capacity')
+    return forecast
+
+
+def standalone_float_digest(pcm):
+    """Exact conversion hash with a 4 KiB buffer and no float/object array."""
+    if type(pcm) is not bytes or len(pcm) != 64000:
+        raise Unavailable('primary_probe_exact_crop_required')
+    result = hashlib.sha256(); block = bytearray(4096)
+    for start in range(0,len(pcm),2048):
+        count = min(2048,len(pcm)-start)//2
+        for index in range(count):
+            value = struct.unpack_from('<h',pcm,start+index*2)[0]
+            struct.pack_into('<f',block,index*4,value/32768.)
+        result.update(memoryview(block)[:count*4])
+    return result.hexdigest()
 
 
 def named_commits(proof):
@@ -59,10 +106,10 @@ def _check_fence(source, fence):
         raise Unavailable('primary_probe_authority_changed')
 
 
-def _source_current(source, fence, scope, part, budget):
+def _source_current(source, fence, scope, part, budget, *, receipt=None):
     _check_fence(source, fence)
     owner, authority, _, _ = fence
-    receipt = owner.receipt(part['chunk_id'])
+    receipt = owner.receipt(part['chunk_id']) if receipt is None else receipt
     if (receipt is None or receipt.receipt_id != part['receipt_sha256']
             or receipt.session_id != part['session_id']
             or receipt.digest != part['source_sha256']
@@ -344,3 +391,186 @@ def validate_primary_node(node, proof, packets):
     if 'phrase_index' in node or 'moss_tag' in node:
         raise Unavailable('primary_probe_fabricated_phrase')
     return node
+
+
+def _standalone_metadata(packet, space_id, *, saved=None):
+    """One naturally observed clean crop, without inventing a MOSS query.
+
+    The prospective form has no primary reference. Only the positively
+    acknowledged primary transaction can supply that reference later.
+    """
+    from .recording_speaker_links import CROP_FRAMES, EROSION_FRAMES, _subtract
+    if len(packet['turns']) > MAX_PACKET_TURNS:
+        raise Unavailable('primary_probe_packet_capacity')
+    part = packet['commit']['part']
+    namespace = _namespace(packet); scope_id = sha(namespace)
+    lo, hi = part['logical_start'], part['logical_end']
+    for row_index, (parent, unit_indices) in enumerate(packet['rows']):
+        units = [packet['units'][i] for i in unit_indices]
+        assigned = {unit[5] for unit in units}
+        if len(assigned) != 1 or None in assigned:continue
+        label_index = next(iter(assigned)); label = packet['labels'][label_index]
+        turns = [turn for turn in packet['turns'] if turn[1] == label_index]
+        blocked = [turn[2:4] for turn in packet['turns'] if turn[1] != label_index]
+        clean = [piece for a, b in _union((max(lo, t[2]), min(hi, t[3])) for t in turns)
+                 for piece in _subtract((a, b), blocked)]
+        eligible = [(a + EROSION_FRAMES, b - EROSION_FRAMES) for a, b in clean
+                    if b - a >= CROP_FRAMES + 2 * EROSION_FRAMES]
+        if not eligible:continue
+        a, b = min(eligible, key=lambda value: (-(value[1] - value[0]), *value))
+        start = a + (b - a - CROP_FRAMES) // 2; end = start + CROP_FRAMES
+        span = dict(part, source_start=part['source_start'] + start - lo,
+                    source_end=part['source_start'] + end - lo,
+                    logical_start=start, logical_end=end)
+        content = [{key: span[key] for key in
+                    ('source_sha256', 'source_frames', 'source_start', 'source_end')}]
+        node = {'source_kind':'native_primary', 'primary_row_index':row_index,
+            'original_parent_ordinal':parent,
+            'original_unit_ordinals':[[unit[0], unit[1]] for unit in units],
+            'original_turn_ordinals':[turn[0] for turn in turns
+                if max(start, turn[2]) < min(end, turn[3])],
+            'capture_namespace':namespace, 'native_scope_id':scope_id,
+            'native_label':label,
+            'native_attributions':[{'native_scope_id':scope_id, 'native_label':label}],
+            'start_frame':start, 'end_frame':end, 'source_spans':[span],
+            'source_key':sha({'schema':'exact-source-crop-v1', 'parts':content}),
+            'space_id':space_id}
+        if saved is not None:
+            node.update(primary_source_ref=packet['refs'][row_index][0],
+                        primary_packet_sha256=saved['header']['digest'])
+        return node
+    return None
+
+
+def standalone_primary_metadata(saved, space_id):
+    """Deterministic standalone metadata from one exact immutable packet."""
+    provenance.validate_packet(saved['packet'], saved['header'])
+    return _standalone_metadata(saved['packet'], space_id, saved=saved)
+
+
+def validate_standalone_primary_node(saved, node):
+    expected = standalone_primary_metadata(saved, node['space_id'])
+    if expected is None or any(node.get(key) != value for key, value in expected.items()):
+        raise Unavailable('primary_probe_node_binding')
+    if any(key in node for key in ('phrase_index', 'moss_tag', 'job_id', 'result_sha256')):
+        raise Unavailable('primary_probe_fabricated_phrase')
+    from .native_owned_cells import digest
+    digest(node['pcm16le_sha256']); digest(node['float32le_sha256'])
+    return node
+
+
+def copy_standalone_primary(draft, owned_pcm, space_id):
+    """The sole 64,000-byte owned copy, made while Capture owns exact PCM."""
+    original = draft['packet']
+    if (len(original['units']) > MAX_STANDALONE_UNITS
+            or len(original['turns']) > MAX_STANDALONE_TURNS
+            or len(original['rows']) > MAX_STANDALONE_ROWS
+            or len(original['labels']) > MAX_STANDALONE_LABELS):
+        raise Unavailable('primary_probe_staging_capacity')
+    raw = provenance.bounded(original)
+    if len(raw) > MAX_PACKET_BYTES:raise Unavailable('primary_probe_packet_capacity')
+    standalone_staging_bound(original,wire_bytes=len(raw))
+    packet = json.loads(raw)
+    node = _standalone_metadata(packet, space_id)
+    if node is None:return None
+    part = packet['commit']['part']
+    if (type(owned_pcm) is not bytes or len(owned_pcm) != 2 *
+            (part['logical_end'] - part['logical_start']) or
+            hashlib.sha256(owned_pcm).hexdigest() != packet['owned_pcm16le_sha256']):
+        raise Unavailable('primary_probe_source_binding')
+    a = 2 * (node['start_frame'] - part['logical_start'])
+    crop = owned_pcm[a:a + 64000]
+    if len(crop) != 64000:raise Unavailable('primary_probe_exact_crop_required')
+    node.update(pcm16le_sha256=hashlib.sha256(crop).hexdigest(),
+                float32le_sha256=standalone_float_digest(crop))
+    standalone_staging_bound(packet,node,wire_bytes=len(raw))
+    return raw, node, crop
+
+
+def bind_standalone_primary(saved, draft_bytes, prospective_node):
+    packet = saved['packet']
+    if provenance.bounded({key:value for key,value in packet.items() if key != 'refs'}) != draft_bytes:
+        raise Unavailable('primary_probe_packet_changed')
+    node = standalone_primary_metadata(saved, prospective_node['space_id'])
+    if node is None or any(node.get(key) != value for key,value in prospective_node.items()
+                          if key not in ('pcm16le_sha256','float32le_sha256')):
+        raise Unavailable('primary_probe_node_binding')
+    node.update({key:prospective_node[key] for key in ('pcm16le_sha256','float32le_sha256')})
+    return validate_standalone_primary_node(saved, node)
+
+
+def standalone_current(db, saved, source, fence, receipt_bytes, *, admitted=False):
+    """Live receipt/mapping/row authority without retaining a lease or compact.
+
+    The caller's fresh, acknowledged in-memory transfer is required separately.
+    Immutable audit packets alone never call this path or create permission.
+    """
+    from .native_owned_cell_store import Receipt
+    from .native_owned_cells import exact_frame
+    from .native_owned_core_seams import COMPACT_BYTES
+    from . import transcript_contract as contract
+    if not db.in_transaction:raise ValueError('Primary history requires a snapshot')
+    receipt = Receipt.decode(receipt_bytes)
+    packet = provenance.validate_packet(saved['packet'], saved['header'])
+    part = packet['commit']['part']; header = saved['header']
+    with Budget().phase() as budget:
+        _check_fence(source, fence)
+        if not admitted:
+            # First authority still requires the actual committed compact.
+            # Only this manager's positively acknowledged claim may later use
+            # its detached reservation basis after ordinary compact cleanup.
+            budget.projection(len(provenance.bounded(packet)) + provenance.MAX_BODY)
+            current = provenance.current(db, saved, source_current=lambda part:
+                _source_current(source, fence, packet['commit']['scope'], part, budget, receipt=receipt))
+            _check_fence(source, fence)
+            return current
+        actual = provenance.read_exact(db, cid=part['chunk_id'],
+            start=part['source_start'], end=part['source_end'])
+        if actual != saved:return False
+        budget.projection(len(provenance.bounded(packet)))
+        live = db.execute('''SELECT 1 FROM sessions s JOIN recording_batches b ON b.session_id=s.id
+            JOIN recording_work w ON w.batch_id=b.id WHERE s.id=? AND s.deleted=0
+            AND b.id=? AND w.chunk_id=?''', (part['session_id'], header['rid'], part['chunk_id'])).fetchone()
+        if live is None:return False
+        # An absent ordinary-GC compact is harmless; a present conflicting or
+        # explicitly cancelled one is never ignored.
+        compact = db.execute('SELECT body,state FROM native_core_commits WHERE slot=?',
+                             (header['core_slot'],)).fetchone()
+        if compact is not None and (bytes(compact['body']) != canonical(packet['commit'], COMPACT_BYTES)
+                                     or compact['state'] == 'cancelled'):return False
+        row = db.execute('SELECT next_offset,status FROM chunks WHERE id=?', (part['chunk_id'],)).fetchone()
+        if row is None or row['status'] in ('cancelled','failed','staging') or exact_frame(row['next_offset']) < part['source_end']:
+            return False
+        if not _source_current(source, fence, packet['commit']['scope'], part, budget, receipt=receipt):
+            return False
+        for index, (ref, _) in enumerate(packet['refs']):
+            ident = int(ref.split('.')[1])
+            lengths = db.execute('SELECT ' + '+'.join('COALESCE(length(CAST(' + key + ' AS BLOB)),0)'
+                for key in ('text','raw_text','asr_backend','timestamp_kind','speaker_local_id'))
+                + '+512 FROM segments WHERE id=?', (ident,)).fetchone()
+            if lengths is None:return False
+            budget.projection(lengths[0])
+            row = db.execute('SELECT ' + ','.join(contract.PRIMARY_FIELDS) +
+                             ' FROM segments WHERE id=?', (ident,)).fetchone()
+            if (row is None or not provenance._row_binding(packet,index,row)
+                    or contract.primary_evidence(part['session_id'],row)['source_ref'] != ref):return False
+        _check_fence(source, fence)
+    return True
+
+
+def detached_sources_current(db, source, fence, proof, receipt_bytes):
+    """Validate a freshly copied MOSS basis using its detached source receipts."""
+    from .native_owned_cell_store import Receipt
+    from .native_owned_cells import RATE
+    _, _, parts = validate_document(proof)
+    receipts = {item.chunk_id:item for item in (Receipt.decode(raw) for raw in receipt_bytes)}
+    if len(receipts) != len(receipt_bytes) or len(receipts) > 128:
+        raise Unavailable('primary_probe_packet_capacity')
+    with Budget().phase() as budget:
+        for part in parts:
+            receipt = receipts.get(part.chunk_id)
+            if receipt is None:return False
+            origin = float(receipt.timeline_start - (part.logical_start - part.source_start) / RATE).hex()
+            if not _source_current(source, fence, {'origin':origin}, asdict(part), budget, receipt=receipt):return False
+        _check_fence(source, fence)
+    return True

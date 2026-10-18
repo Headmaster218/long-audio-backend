@@ -58,6 +58,9 @@ SCOPES: f'''CREATE TABLE {SCOPES} (
     authority_revision INTEGER NOT NULL DEFAULT 0 {_INT.format('authority_revision')},
     certificate_count INTEGER NOT NULL DEFAULT 0 {_INT.format('certificate_count')},
     witness_count INTEGER NOT NULL DEFAULT 0 {_INT.format('witness_count')},
+    source_count INTEGER NOT NULL DEFAULT 0 {_INT.format('source_count')},
+    active_sources INTEGER NOT NULL DEFAULT 0 {_INT.format('active_sources')},
+    source_revision INTEGER NOT NULL DEFAULT 0 {_INT.format('source_revision')},
     authority_blocked TEXT CHECK(authority_blocked IN ({_STATE_SQL})),
     state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ({_STATE_SQL})),
     high_water INTEGER NOT NULL DEFAULT -1 CHECK(high_water>=-1),
@@ -82,6 +85,7 @@ ATTEMPTS: f'''CREATE TABLE {ATTEMPTS} (
     reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes BETWEEN 0 AND 1204736),
     staging_bytes INTEGER NOT NULL CHECK(staging_bytes BETWEEN 0 AND 524288),
     charge INTEGER NOT NULL CHECK(charge>=1024),
+    witness_start INTEGER NOT NULL DEFAULT 0 CHECK(witness_start>=0), witness_count INTEGER NOT NULL DEFAULT 0 CHECK(witness_count>=0),
     basis BLOB CHECK(basis IS NULL OR (typeof(basis)='blob' AND length(basis) BETWEEN 1 AND 512)),
     terminal BLOB CHECK(terminal IS NULL OR (typeof(terminal)='blob' AND length(terminal) BETWEEN 1 AND 512)),
     terminal_sha256 TEXT CHECK(terminal_sha256 IS NULL OR length(terminal_sha256)=64),
@@ -155,6 +159,7 @@ ROWS: f'''CREATE TABLE {ROWS} (
 'recording_history_session_v1': f'CREATE INDEX recording_history_session_v1 ON {SCOPES}(session_id,scope_seq)',
 'recording_history_dirty_v1': f"CREATE INDEX recording_history_dirty_v1 ON {SCOPES}(scope_seq) WHERE scope_seq>0 AND authority_blocked IS NULL AND state!='none'",
 'recording_history_attempt_scope_v1': f'CREATE INDEX recording_history_attempt_scope_v1 ON {ATTEMPTS}(scope_seq,state,token)',
+'recording_history_witness_v1': f"CREATE INDEX recording_history_witness_v1 ON {ATTEMPTS}(scope_seq,witness_start,token) WHERE state='success' AND witness_count>0",
 'recording_history_certificate_attempt_v1': f'CREATE INDEX recording_history_certificate_attempt_v1 ON {CERTIFICATES}(scope_seq,attempt,sequence)',
 'recording_history_ref_object_v1': f'CREATE INDEX recording_history_ref_object_v1 ON {REFS}(scope_seq,kind,digest)',
 'recording_history_dependency_fact_v1': f'CREATE INDEX recording_history_dependency_fact_v1 ON {DEPENDENCIES}(kind,dependency_key,scope_seq,attempt)',
@@ -465,15 +470,15 @@ class HistoryStore:
             count=len(packet['refs'])
             if not 1<=count<=128:_fail('history_dependency_capacity')
             maximum=10240+512*count+512
-            answer=self._claim(db,scope,attempt_id,'primary_commit',saved['header']['digest'],identity,maximum,64000,current_check)
+            answer=self._claim(db,scope,attempt_id,'primary_commit',saved['header']['digest'],identity,maximum,PROBE_STAGING_BYTES,current_check)
             if answer['should_probe']:
                 bucket=(frame-120*16000)//scope['interval_frames'] if frame>=120*16000 else -1
                 db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_claim_frame=?,last_bucket=MAX(last_bucket,?),
                     bootstrap_count=bootstrap_count+?,state='pending' WHERE scope_seq=?''',
                     (frame,frame,bucket,int(frame<120*16000),scope['scope_seq']))
         # Acknowledged live basis only. Never reconstructed by resolve_primary.
-        with self._memory_lock:self._frozen[attempt_id]={'saved':_decode(_raw(saved,70000),70000),
-            'node':_decode(_raw(node,16384),16384),'receipts':(bytes(receipt_bytes),),'sources':(fact,),
+        with self._memory_lock:self._frozen[attempt_id]={'saved':saved,
+            'node':node,'receipts':(bytes(receipt_bytes),),'sources':(fact,),
             'identity':identity,'terminal':None,'payload':None}
         return answer
 
@@ -505,13 +510,21 @@ class HistoryStore:
         return True
 
     def resolve_primary(self,attempt_id,identity=None):
-        with self._database() as db:
+        # Exact unknown-outcome closure is allowed to discard optional output;
+        # a recovered reservation never becomes fresh execution permission.
+        with self._database(write=True) as db:
             row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
-            if row is None:return {'found':False,'should_probe':False}
+            if row is None:return {'found':False,'resolved':True,'should_probe':False}
             expected=_hash(encoded(identity)) if type(identity) is dict else identity
-            if expected is not None and expected!=row['identity_sha256']:_fail('history_attempt_conflict')
+            if expected is None or expected!=row['identity_sha256']:_fail('history_attempt_conflict')
             scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(row['scope_seq'],)).fetchone()
-            return {**self._reservation(row,scope),'found':True,'terminal_sha256':row['terminal_sha256']}
+            if row['state']=='reserved':
+                terminal=_raw({'schema':1,'outcome':'failure','reason':'storage_unknown'},512)
+                _change_usage(db,row['scope_seq'],reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
+                db.execute(f"UPDATE {ATTEMPTS} SET state='failure',reserved_bytes=0,staging_bytes=0,terminal=?,terminal_sha256=? WHERE token=?",
+                    (terminal,_hash(terminal),attempt_id))
+                row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+            return {**self._reservation(row,scope),'found':True,'resolved':True,'terminal_sha256':row['terminal_sha256']}
 
     resolve_moss=resolve_primary
 
@@ -519,8 +532,8 @@ class HistoryStore:
         token=reservation['token']
         with self._memory_lock:
             pending=self._frozen.setdefault(token,{'terminal':None,'payload':None})
-            if pending['terminal'] is None:pending['terminal']=_raw({'schema':1,'outcome':'failure','reason':_reason(reason)},512)
-            terminal=pending['terminal']
+            if pending.get('failure_terminal') is None:pending['failure_terminal']=_raw({'schema':1,'outcome':'failure','reason':_reason(reason)},512)
+            terminal=pending['failure_terminal']
         with self._database(write=True) as db:
             row,scope=self._attempt(db,reservation)
             if row['state']!='reserved':
@@ -557,9 +570,9 @@ class HistoryStore:
                 fact['required_end']=ends[fact['chunk_id']]
                 self._source_admissible(db,scope['scope_seq'],fact)
             answer=self._claim(db,scope,attempt_id,'moss_result',batch['job_id'],identity,1204736,
-                min(PROBE_STAGING_BYTES,64000*len(batch['nodes'])),current_check)
+                PROBE_STAGING_BYTES,current_check)
         if answer['should_probe']:
-            with self._memory_lock:self._frozen[attempt_id]={'batch':_decode(_raw(batch,524288),524288),
+            with self._memory_lock:self._frozen[attempt_id]={'batch_raw':_raw(batch,524288),
                 'receipts':tuple(bytes(x) for x in receipts),'sources':facts,'identity':identity,'terminal':None,'payload':None}
         return answer
 
@@ -573,9 +586,13 @@ class HistoryStore:
         from .recording_speaker_links import valid_vector,history_node
         token=reservation['token'];pending=self._frozen.get(token)
         if pending is None:_fail('history_unknown_ack_no_replay')
-        if pending['payload'] is not None:return pending['payload']
+        input_digest=_hash(encoded([nodes,invocation]))
+        if pending['payload'] is not None:
+            if pending.get('success_input_digest')!=input_digest:_fail('history_terminal_conflict')
+            return pending['payload']
         if not 1<=len(nodes)<= (4 if moss else 1):_fail('history_certificate_capacity')
-        packets=pending['batch'].get('primary_packets',[]) if moss else [pending['saved']]
+        batch=_decode(pending['batch_raw'],524288) if moss else None
+        packets=batch.get('primary_packets',[]) if moss else [pending['saved']]
         packet_refs=[];dependencies=[]
         for saved in packets:
             header,packet=saved['header'],saved['packet']
@@ -585,9 +602,9 @@ class HistoryStore:
         objects=[('receipt',_hash(raw),raw) for raw in pending['receipts']]
         basis={'schema':1,'kind':reservation['origin_kind'],'packet_digests':[p['header']['digest'] for p in packets]}
         if moss:
-            proof_raw=_raw(pending['batch'],524288)
+            proof_raw=pending['batch_raw']
             basis['proof_digest']=_hash(proof_raw);objects.append(('proof',_hash(proof_raw),proof_raw))
-            witnesses=list(pending['batch'].get('cannot_link_witnesses',pending['batch'].get('witnesses',[])))
+            witnesses=list(batch.get('witnesses',[]))
         else:
             packet=pending['saved']['packet']
             from .recording_speaker_links import _witnesses
@@ -619,7 +636,7 @@ class HistoryStore:
         payload={'basis':basis_raw,'terminal':terminal,'certificates':tuple(certs),'objects':tuple(objects),
             'packets':tuple(packet_refs),'dependencies':tuple(dependencies),'sources':pending['sources'],
             'witnesses':tuple(witnesses)}
-        pending['terminal']=terminal;pending['payload']=payload
+        pending['terminal']=terminal;pending['payload']=payload;pending['success_input_digest']=input_digest
         return payload
 
     def _append(self,reservation,payload,current_check,authorize):
@@ -661,10 +678,10 @@ class HistoryStore:
                 old=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(scope['scope_seq'],fact['version'])).fetchone()
                 if old is None:
                     charge+=512
+                    db.execute(f'UPDATE {SCOPES} SET source_count=source_count+1,active_sources=active_sources+1 WHERE scope_seq=?',(scope['scope_seq'],))
                     db.execute(f'''INSERT INTO {SOURCES}(scope_seq,version,chunk_id,receipt_digest,path_digest,mapping_digest,required_end)
                         VALUES(?,?,?,?,?,?,?)''',(scope['scope_seq'],fact['version'],fact['chunk_id'],fact['receipt_digest'],fact['path_digest'],fact['mapping_digest'],fact['required_end']))
-                bound=sum(any(span[0]==_decode(fact['receipt'],1024)['digest'] for span in _decode(c[1],2048)['spans']) for c in payload['certificates'])
-                if bound==0:bound=len(payload['certificates'])  # Full proof sources remain authority dependencies.
+                bound=len(payload['certificates'])
                 db.execute(f'''UPDATE {SOURCES} SET admission_revision=admission_revision+1,certificate_count=certificate_count+?,required_end=MAX(required_end,?)
                     WHERE scope_seq=? AND version=?''',(bound,fact['required_end'],scope['scope_seq'],fact['version']))
             if charge>row['charge']+row['reserved_bytes']:_fail('history_reservation_exceeded')
@@ -673,8 +690,8 @@ class HistoryStore:
             for index,cert in enumerate(payload['certificates'],1):
                 db.execute(f'INSERT INTO {CERTIFICATES} VALUES(?,?,?,?,?,?,?,?)',(scope['scope_seq'],base+index,token,*cert))
             _change_usage(db,scope['scope_seq'],retained=charge-row['charge'],reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
-            db.execute(f'''UPDATE {ATTEMPTS} SET state='success',basis=?,terminal=?,terminal_sha256=?,reserved_bytes=0,staging_bytes=0,charge=? WHERE token=?''',
-                (payload['basis'],payload['terminal'],_hash(payload['terminal']),charge,token))
+            db.execute(f'''UPDATE {ATTEMPTS} SET state='success',basis=?,terminal=?,terminal_sha256=?,reserved_bytes=0,staging_bytes=0,charge=?,witness_start=?,witness_count=? WHERE token=?''',
+                (payload['basis'],payload['terminal'],_hash(payload['terminal']),charge,scope['witness_count'],len(payload['witnesses']),token))
             db.execute(f'''UPDATE {SCOPES} SET history_revision=history_revision+1,certificate_count=certificate_count+?,witness_count=witness_count+?,state='pending' WHERE scope_seq=?''',
                 (len(payload['certificates']),len(payload['witnesses']),scope['scope_seq']))
         with self._memory_lock:
@@ -699,9 +716,358 @@ class HistoryStore:
         pending=self._frozen.get(reservation['token'])
         if pending is None:_fail('history_unknown_ack_no_replay')
         bare={**batch,'nodes':[{k:v for k,v in n.items() if k!='vector'} for n in batch['nodes']]}
-        if bare!=pending['batch']:_fail('history_batch_changed')
+        if _raw(bare,524288)!=pending['batch_raw']:_fail('history_batch_changed')
         payload=self._prepare_success(reservation,batch['nodes'],invocation_id,moss=True)
         return self._append(reservation,payload,current_check,authorize)
+
+
+    def release_attempt(self,token):
+        """Positive terminal acknowledgement only; no replay authority retained."""
+        with self._memory_lock:self._frozen.pop(token,None)
+
+    @staticmethod
+    def _token(scope):
+        from .recording_speaker_history_compare import SnapshotToken
+        return SnapshotToken(scope['scope_id'],POLICY_SHA256,scope['space_id'],scope['history_revision'],
+            scope['authority_revision'],scope['certificate_count'],scope['witness_count'])
+
+    def _build_current(self,db,build):
+        scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(build['scope_seq'],)).fetchone()
+        if (scope is None or scope['build_token']!=build['build_token'] or scope['authority_blocked'] is not None
+                or self._token(scope)!=build['token'] or scope['source_revision']!=build['source_revision']):_fail('history_snapshot_changed')
+        _live(db,scope['session_id'])
+        return scope
+
+    def begin_comparison(self,after_scope=None):
+        """Bounded dirty-header discovery. Does not score or read full evidence."""
+        if not self.enabled:return None
+        with self._database(write=True) as db:
+            cursor=db.execute(f'SELECT compare_cursor FROM {SCOPES} WHERE scope_seq=0').fetchone()[0] if after_scope is None else after_scope
+            predicate="scope_seq>0 AND authority_blocked IS NULL AND state!='none' AND certificate_count>0"
+            scope=db.execute(f'SELECT * FROM {SCOPES} WHERE {predicate} AND scope_seq>? ORDER BY scope_seq LIMIT 1',(cursor,)).fetchone()
+            if scope is None:scope=db.execute(f'SELECT * FROM {SCOPES} WHERE {predicate} AND scope_seq<=? ORDER BY scope_seq LIMIT 1',(cursor,)).fetchone()
+            if scope is None:return None
+            # Restart abandons an incomplete projection, never observations.
+            slot=1-scope['current_slot'] if scope['current_slot'] is not None else 0
+            old=db.execute(f'SELECT charge,certificate_count,complete FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot)).fetchone()
+            abandoned=0 if old is None or old['complete'] else 66560+1920*old['certificate_count']-384-old['charge']
+            if old is not None:
+                db.execute(f'DELETE FROM {ROWS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot))
+                db.execute(f'DELETE FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot))
+                _change_usage(db,scope['scope_seq'],retained=-old['charge'],reserved=-abandoned)
+            token=self._token(scope);build_token=uuid.uuid4().hex
+            maximum=66560+1920*scope['certificate_count']-384
+            current=dict(scope);current['retained_bytes']-=old['charge'] if old is not None else 0
+            current['reserved_bytes']-=abandoned
+            _admit(db,current,maximum)
+            header=_raw({'schema':1,'token':token.document(),'boot_id':BOOT_ID,'state':'building'},65536)
+            # Reserve entire possible projection before the first row is written.
+            _change_usage(db,scope['scope_seq'],retained=len(header)+1024,reserved=maximum-len(header)-1024)
+            db.execute(f'INSERT INTO {DECISIONS}(scope_seq,slot,build_token,history_revision,authority_revision,certificate_count,witness_count,header,charge) VALUES(?,?,?,?,?,?,?,?,?)',
+                (scope['scope_seq'],slot,build_token,scope['history_revision'],scope['authority_revision'],scope['certificate_count'],scope['witness_count'],header,len(header)+1024))
+            db.execute(f'UPDATE {SCOPES} SET building_slot=?,build_token=?,state=\'pending\' WHERE scope_seq=?',(slot,build_token,scope['scope_seq']))
+        return {'token':token,'scope_seq':scope['scope_seq'],'session_id':scope['session_id'],'slot':slot,
+            'build_token':build_token,'maximum':maximum,'deadline':self.clock()+COMPARE_SECONDS,'source_after':'',
+            'source_pages_complete':False,'source_revision':scope['source_revision'],'validated_source_count':0,'all_sources_retired':True,'reserved_remaining':maximum-len(header)-1024}
+
+    def active_source_page(self,build,after=0):
+        cursor='' if after==0 else after
+        with self._database() as db:
+            self._build_current(db,build)
+            values=db.execute(f'''SELECT s.*,o.body AS receipt FROM {SOURCES} s LEFT JOIN {OBJECTS} o
+                ON o.scope_seq=s.scope_seq AND o.kind='receipt' AND o.digest=s.receipt_digest
+                WHERE s.scope_seq=? AND s.version>? ORDER BY s.version LIMIT 33''',(build['scope_seq'],cursor)).fetchall()
+            rows=[dict(x) for x in values[:32]]
+        if sum(len(x['receipt'] or b'')+2048 for x in rows)+2048>PAGE_BYTES:_fail('history_page_capacity')
+        return {'rows':rows,'after':after,'next_after':rows[-1]['version'] if rows else after,'complete':len(values)<=32}
+
+    def revalidate_active_sources(self,build,page,checkpoint=lambda:True):
+        """Bounded owner-thread receipt checks; passive reads never call this."""
+        if page['after']!=build['source_after'] and not (page['after']==0 and build['source_after']==''):_fail('history_source_cursor')
+        from .native_owned_cell_store import Receipt,Budget
+        owner=self._success_owner
+        source=getattr(owner,'cell_source',None)
+        if source is None:_fail('history_source_authority_missing')
+        for row in page['rows']:
+            if not checkpoint():_fail('history_comparison_cancelled')
+            receipt=Receipt.decode(row['receipt'])
+            if receipt.receipt_id!=row['receipt_digest']:_fail('history_proof_changed')
+            if row['state']=='retired':
+                marker=_decode(row['marker'],1024)
+                if marker['version']!=row['version'] or marker['admission_revision']!=row['admission_revision'] or marker['certificate_count']!=row['certificate_count']:
+                    _fail('history_retirement_changed')
+            elif row['state']=='active':
+                budget=Budget();budget.seconds=.25
+                with budget.phase():
+                    if not source.owner.authority.receipt_valid(receipt,budget):_fail('history_source_unknown')
+            else:_fail('history_source_revoked')
+            if not checkpoint():_fail('history_comparison_cancelled')
+            with self._database() as db:
+                self._build_current(db,build)
+                fact=self._source_fact(db,receipt,row['required_end'])
+                if fact['version']!=row['version']:_fail('history_source_changed')
+            if not checkpoint():_fail('history_comparison_cancelled')
+            build['validated_source_count']+=1
+            build['all_sources_retired'] &= row['state']=='retired'
+        build['source_after']=page['next_after'];build['source_pages_complete']=page['complete']
+        return True
+
+    def observation_page(self,build,after=0):
+        from .recording_speaker_history_compare import Observation
+        with self._database() as db:
+            self._build_current(db,build)
+            found=db.execute(f'''SELECT sequence,certificate_id,header,vector,vector_sha256 FROM {CERTIFICATES}
+                WHERE scope_seq=? AND sequence>? ORDER BY sequence LIMIT 32''',(build['scope_seq'],after)).fetchall()
+        rows=[];used=len(encoded({'token':build['token'].document(),'after':after,'complete':False,'count':32}))+4
+        for row in found:
+            h=_decode(row['header'],2048)
+            if _hash(row['vector'])!=row['vector_sha256']:_fail('history_vector_changed')
+            value={k:h[k] for k in ('node_id','origin_kind','source_key','pcm_hash','float_hash','attributions','spans')}
+            value.update(sequence=row['sequence'],certificate_id=row['certificate_id'],vector=row['vector'],refs=((h['ref_kind'],h['ref_key']),))
+            observation=Observation.from_record(value)
+            size=8+len(encoded(observation.metadata()))+len(row['vector'])
+            if used+size>PAGE_BYTES:break
+            used+=size;rows.append(value)
+        next_after=after+len(rows);complete=next_after==build['token'].certificate_count
+        if not rows and not complete:_fail('history_observation_page_missing')
+        return {'rows':rows,'next_after':next_after,'complete':complete}
+
+    def witness_page(self,build,after=0):
+        total=build['token'].witness_count
+        if after==total:return {'rows':[],'next_after':after,'complete':True}
+        with self._database() as db:
+            self._build_current(db,build)
+            attempt=db.execute(f'''SELECT token,basis,witness_start,witness_count FROM {ATTEMPTS}
+                WHERE scope_seq=? AND state='success' AND witness_count>0 AND witness_start<=?
+                ORDER BY witness_start DESC LIMIT 1''',(build['scope_seq'],after)).fetchone()
+            if attempt is None or not attempt['witness_start']<=after<attempt['witness_start']+attempt['witness_count']:_fail('history_witness_missing')
+            basis=_decode(attempt['basis'],512)
+            if basis['kind']=='moss_result':
+                raw=db.execute(f"SELECT body FROM {OBJECTS} WHERE scope_seq=? AND kind='proof' AND digest=?",(build['scope_seq'],basis['proof_digest'])).fetchone()
+                if raw is None:_fail('history_proof_missing')
+                # A separately bounded proof object may exceed a public page.
+                proof=_decode(raw[0],524288)
+                witnesses=proof['witnesses']
+            else:
+                from .recording_primary_provenance import TABLE as PACKETS
+                ref=db.execute(f"SELECT object_key,digest FROM {REFS} WHERE attempt=? AND kind='packet' ORDER BY object_key LIMIT 1",(attempt['token'],)).fetchone()
+                if ref is None or ref['digest']!=basis['packet_digests'][0]:_fail('history_proof_missing')
+                raw=db.execute(f'SELECT body,digest FROM {PACKETS} WHERE sequence=?',(int(ref['object_key']),)).fetchone()
+                if raw is None or _hash(raw[0])!=raw[1]:_fail('history_proof_missing')
+                packet=_decode(raw[0],65536)
+                from .recording_speaker_links import _witnesses
+                from .recording_primary_probe import _namespace
+                turns=[{'label':packet['labels'][t[1]],'original':t[2:4]} for t in packet['turns']]
+                witnesses=_witnesses([(_hash(encoded(_namespace(packet))),turns,0,0)],raw[1])
+        if len(witnesses)!=attempt['witness_count']:_fail('history_witness_changed')
+        offset=after-attempt['witness_start']
+        rows=[{k:x[k] for k in ('native_scope_id','labels','proof_sha256')} for x in witnesses[offset:offset+32]]
+        if len(encoded({'token':build['token'].document(),'after':after,'rows':rows,'complete':False}))+4>PAGE_BYTES:_fail('history_page_capacity')
+        return {'rows':rows,'next_after':after+len(rows),'complete':after+len(rows)==total}
+
+    def write_decision_page(self,build,page):
+        if page['token']!=build['token'] and page['token']!=build['token'].document():_fail('history_snapshot_changed')
+        rows=page['rows']
+        if len(rows)>32 or len(encoded({k:v for k,v in page.items() if k!='token'}))+1024>PAGE_BYTES:_fail('history_page_capacity')
+        with self._database(write=True) as db:
+            self._build_current(db,build)
+            decision=db.execute(f'SELECT row_count,charge FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(build['scope_seq'],build['slot'])).fetchone()
+            charge=0
+            for i,row in enumerate(rows,decision['row_count']+1):
+                if row['ordinal']!=i:_fail('history_decision_cursor')
+                raw=_raw(row['body'],128 if row['kind']=='merge' else 512);amount=len(raw)+256;charge+=amount
+                db.execute(f'INSERT INTO {ROWS} VALUES(?,?,?,?,?,?,?,?)',(build['scope_seq'],build['slot'],i,row['kind'],row['ref_kind'],row['ref_key'],raw,amount))
+            if decision['charge']+charge>build['maximum']:_fail('history_projection_capacity')
+            _change_usage(db,build['scope_seq'],retained=charge,reserved=-charge)
+            db.execute(f'UPDATE {DECISIONS} SET row_count=row_count+?,charge=charge+? WHERE scope_seq=? AND slot=?',(len(rows),charge,build['scope_seq'],build['slot']))
+        build['reserved_remaining']-=charge
+
+    def publish_comparison(self,build,decision_counts):
+        if not build['source_pages_complete']:_fail('history_sources_incomplete')
+        with self._database(write=True) as db:
+            scope=self._build_current(db,build)
+            actual=dict(db.execute(f'SELECT kind,COUNT(*) FROM {ROWS} WHERE scope_seq=? AND slot=? GROUP BY kind',(scope['scope_seq'],build['slot'])).fetchall())
+            if actual.get('annotation',0)!=scope['certificate_count'] or actual.get('merge',0)>max(0,scope['certificate_count']-1) or actual.get('round',0)>scope['certificate_count']:
+                _fail('history_decision_incomplete')
+            expected=decision_counts
+            for kind in ('annotation','merge','round'):
+                target=expected.get(kind,expected.get(kind+'s',0))
+                if target!=actual.get(kind,0):_fail('history_decision_incomplete')
+            if build['validated_source_count']!=scope['source_count']:_fail('history_source_changed')
+            old=db.execute(f'SELECT header,charge FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot'])).fetchone()
+            remaining=build['maximum']-old['charge']
+            header=_raw({'schema':1,'token':build['token'].document(),'boot_id':BOOT_ID,'state':'complete',
+                'all_sources_retired':build['all_sources_retired'],'source_revision':scope['source_revision'],'counts':actual},65536)
+            delta=len(header)-len(old['header'])
+            if delta>remaining:_fail('history_projection_capacity')
+            _change_usage(db,scope['scope_seq'],retained=delta,reserved=-remaining)
+            db.execute(f'UPDATE {DECISIONS} SET complete=1,header=?,charge=charge+? WHERE scope_seq=? AND slot=?',(header,delta,scope['scope_seq'],build['slot']))
+            db.execute(f"UPDATE {SCOPES} SET current_slot=?,building_slot=NULL,build_token=NULL,state='none' WHERE scope_seq=?",(build['slot'],scope['scope_seq']))
+            db.execute(f'UPDATE {SCOPES} SET compare_cursor=? WHERE scope_seq=0',(scope['scope_seq'],))
+        build['reserved_remaining']=0
+        return {'saved':True}
+
+    def finish_comparison(self,build,reason):
+        with self._database(write=True) as db:
+            scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(build['scope_seq'],)).fetchone()
+            if scope is None or scope['build_token']!=build['build_token']:return False
+            decision=db.execute(f'SELECT charge,certificate_count,complete FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot'])).fetchone()
+            if decision is not None:
+                db.execute(f'DELETE FROM {ROWS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot']))
+                db.execute(f'DELETE FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot']))
+                remaining=0 if decision['complete'] else 66560+1920*decision['certificate_count']-384-decision['charge']
+                _change_usage(db,scope['scope_seq'],retained=-decision['charge'],reserved=-remaining)
+            db.execute(f'UPDATE {SCOPES} SET building_slot=NULL,build_token=NULL,state=? WHERE scope_seq=?',(_reason(reason),scope['scope_seq']))
+            db.execute(f'UPDATE {SCOPES} SET compare_cursor=? WHERE scope_seq=0',(scope['scope_seq'],))
+        build['reserved_remaining']=0
+        return True
+
+
+    def prepare_retirement(self,sid,rid,source_version,*,policy_id='explicit-verified-retirement-v1'):
+        """Begin a bounded, explicit retention operation; grants no unlink."""
+        owner=self._success_owner
+        if owner is None or not owner._history_source_quiescent(source_version):_fail('history_source_busy')
+        with self._database() as db:
+            scope=self._scope(db,sid,rid)
+            if scope is None or scope['authority_blocked'] is not None:_fail('history_authority_changed')
+            source=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(scope['scope_seq'],source_version)).fetchone()
+            if source is None or source['state']!='active' or source['certificate_count']==0:_fail('history_retirement_unavailable')
+            raw=db.execute(f"SELECT body FROM {OBJECTS} WHERE scope_seq=? AND kind='receipt' AND digest=?",(scope['scope_seq'],source['receipt_digest'])).fetchone()
+            if raw is None:_fail('history_proof_missing')
+            fact=self._source_fact(db,raw[0],source['required_end'])
+            if fact['version']!=source_version:_fail('history_source_changed')
+            # All path aliases must be this exact version; no shared active unlink.
+            aliases=db.execute(f'''SELECT 1 FROM chunks c LEFT JOIN {SOURCES} s ON s.chunk_id=c.id
+                WHERE c.path=? AND (s.version IS NULL OR s.scope_seq!=? OR s.version!=?) LIMIT 1''',
+                (fact['path'],scope['scope_seq'],source_version)).fetchone()
+            if aliases is not None:_fail('history_active_source_alias')
+        from .native_owned_cell_store import Receipt,Budget
+        with Budget().phase() as budget:
+            if not owner.cell_source.owner.authority.receipt_valid(Receipt.decode(raw[0]),budget):_fail('history_source_unknown')
+        prepared={'token':uuid.uuid4().hex,'scope_seq':scope['scope_seq'],'sid':sid,'rid':rid,'source':dict(source),'fact':fact,
+            'authority_revision':scope['authority_revision'],'source_revision':scope['source_revision'],'policy_id':policy_id,
+            'after_attempt':'','attempt':None,'after_ref':('', ''),'set_hash':hashlib.sha256(),'certificate_count':0,
+            'proof_count':0,'complete':False,'marker':None,'owner':owner}
+        if len(policy_id.encode('utf-8'))>64:_fail('history_retirement_policy')
+        if getattr(self,'_retirement',None) is not None:_fail('history_retirement_busy')
+        self._retirement=prepared
+        return prepared
+
+    def retirement_page(self,prepared):
+        """One bounded basis/certificate or proof-edge checkpoint, never a scan."""
+        if getattr(self,'_retirement',None) is not prepared:_fail('history_retirement_owner')
+        if prepared['complete']:return {'complete':True}
+        if not prepared['owner']._history_source_quiescent(prepared['source']['version']):_fail('history_source_busy')
+        with self._database() as db:
+            source=db.execute(f'''SELECT s.*,h.authority_revision,h.authority_blocked FROM {SOURCES} s JOIN {SCOPES} h ON h.scope_seq=s.scope_seq
+                WHERE s.scope_seq=? AND s.version=?''',(prepared['scope_seq'],prepared['source']['version'])).fetchone()
+            if (source is None or source['state']!='active' or source['authority_blocked'] is not None
+                    or source['authority_revision']!=prepared['authority_revision']
+                    or any(source[k]!=prepared['source'][k] for k in ('admission_revision','certificate_count','required_end'))):_fail('history_retirement_changed')
+            if prepared['attempt'] is None:
+                attempt=db.execute(f'''SELECT a.token,a.basis FROM {DEPENDENCIES} d JOIN {ATTEMPTS} a ON a.token=d.attempt
+                    WHERE d.scope_seq=? AND d.kind='source' AND d.dependency_key=? AND d.attempt>? ORDER BY d.attempt LIMIT 1''',
+                    (prepared['scope_seq'],source['chunk_id'],prepared['after_attempt'])).fetchone()
+                if attempt is None:
+                    if prepared['certificate_count']!=source['certificate_count']:_fail('history_retirement_count')
+                    prepared['complete']=True;return {'complete':True}
+                certs=db.execute(f'SELECT certificate_id,header,vector,vector_sha256 FROM {CERTIFICATES} WHERE scope_seq=? AND attempt=? ORDER BY sequence LIMIT 5',
+                    (prepared['scope_seq'],attempt['token'])).fetchall()
+                if not 1<=len(certs)<=4:_fail('history_basis_certificate_count')
+                _decode(attempt['basis'],512)
+                for cert in certs:
+                    header=_decode(cert['header'],2048)
+                    if _hash(cert['vector'])!=cert['vector_sha256']:_fail('history_vector_changed')
+                    prepared['set_hash'].update(encoded([attempt['token'],cert['certificate_id'],_hash(cert['header']),cert['vector_sha256'],_hash(attempt['basis'])]))
+                prepared['certificate_count']+=len(certs);prepared['attempt']=attempt['token'];prepared['after_ref']=('','')
+            else:
+                ref=db.execute(f'''SELECT kind,object_key,digest FROM {REFS} WHERE attempt=? AND (kind,object_key)>(?,?) ORDER BY kind,object_key LIMIT 1''',
+                    (prepared['attempt'],*prepared['after_ref'])).fetchone()
+                if ref is None:
+                    prepared['after_attempt']=prepared['attempt'];prepared['attempt']=None
+                    return {'complete':False}
+                if ref['kind']=='packet':
+                    from .recording_primary_provenance import TABLE as PACKETS
+                    raw=db.execute(f'SELECT body FROM {PACKETS} WHERE sequence=? AND digest=?',(int(ref['object_key']),ref['digest'])).fetchone()
+                    maximum=65536
+                else:
+                    raw=db.execute(f'SELECT body,refcount FROM {OBJECTS} WHERE scope_seq=? AND kind=? AND digest=?',
+                        (prepared['scope_seq'],ref['kind'],ref['digest'])).fetchone();maximum=1024 if ref['kind']=='receipt' else 524288
+                    count=db.execute(f'SELECT COUNT(*) FROM {REFS} INDEXED BY recording_history_ref_object_v1 WHERE scope_seq=? AND kind=? AND digest=?',
+                        (prepared['scope_seq'],ref['kind'],ref['digest'])).fetchone()[0]
+                    if raw is None or raw['refcount']!=count:_fail('history_refcount_changed')
+                if raw is None or _hash(raw[0])!=ref['digest']:_fail('history_proof_missing')
+                _decode(raw[0],maximum)
+                prepared['set_hash'].update(encoded([prepared['attempt'],ref['kind'],ref['object_key'],ref['digest']]))
+                prepared['proof_count']+=1;prepared['after_ref']=(ref['kind'],ref['object_key'])
+        return {'complete':False}
+
+    def commit_retirement(self,prepared):
+        """Marker-before-unlink CAS. Unknown acknowledgement authorizes no unlink."""
+        if getattr(self,'_retirement',None) is not prepared or not prepared['complete']:_fail('history_retirement_incomplete')
+        owner=prepared['owner'];source=prepared['source'];fact=prepared['fact']
+        if not owner._history_source_quiescent(source['version']):_fail('history_source_busy')
+        from .native_owned_cell_store import Receipt,Budget
+        with Budget().phase() as budget:
+            if not owner.cell_source.owner.authority.receipt_valid(Receipt.decode(fact['receipt']),budget):_fail('history_source_unknown')
+        if prepared['marker'] is None:
+            prepared['marker']=_raw({'schema':1,'token':prepared['token'],'version':source['version'],'receipt':source['receipt_digest'],
+                'path':source['path_digest'],'mapping':source['mapping_digest'],'admission_revision':source['admission_revision'],
+                'certificate_count':source['certificate_count'],'required_end':source['required_end'],'set_digest':prepared['set_hash'].hexdigest(),
+                'validation_digest':_hash(encoded([source['version'],fact['receipt'].hex(),prepared['proof_count']])),
+                'authority_revision':prepared['authority_revision'],'policy':prepared['policy_id']},1024)
+        marker=prepared['marker']
+        # The existing publication guard excludes new source admissions while
+        # quiescence and durable source counters are checked in this transaction.
+        with owner.cell_source.owner._publication_guard, self._database(write=True) as db:
+            if not owner._history_source_quiescent(source['version']):_fail('history_source_busy')
+            scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(prepared['scope_seq'],)).fetchone()
+            row=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(prepared['scope_seq'],source['version'])).fetchone()
+            if row is not None and row['marker_token']==prepared['token'] and row['marker']==marker:
+                return {'acknowledged':True,'token':prepared['token'],'version':source['version'],'scope_seq':prepared['scope_seq']}
+            if (scope is None or row is None or row['state']!='active' or scope['authority_blocked'] is not None
+                    or scope['authority_revision']!=prepared['authority_revision']
+                    or any(row[k]!=source[k] for k in ('admission_revision','certificate_count','required_end'))):_fail('history_retirement_changed')
+            if self._source_fact(db,fact['receipt'],source['required_end'])['version']!=source['version']:_fail('history_source_changed')
+            charge=len(marker)+512
+            # Projection source authority metadata changes without changing any
+            # vector, competitor, alias, witness or exact comparison score.
+            decision=None;new_header=None;delta=0
+            if scope['current_slot'] is not None:
+                decision=db.execute(f'SELECT header FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],scope['current_slot'])).fetchone()
+                if decision is not None:
+                    header=_decode(decision['header'],65536);header['source_revision']=scope['source_revision']+1
+                    header['all_sources_retired']=scope['active_sources']==1;new_header=_raw(header,65536);delta=len(new_header)-len(decision['header'])
+            _admit(db,scope,charge+max(0,delta))
+            db.execute(f"UPDATE {SOURCES} SET state='retired',marker=?,marker_token=?,cleanup='pending',charge=charge+? WHERE scope_seq=? AND version=?",
+                (marker,prepared['token'],charge,prepared['scope_seq'],source['version']))
+            db.execute(f'UPDATE {SCOPES} SET active_sources=active_sources-1,source_revision=source_revision+1 WHERE scope_seq=?',(prepared['scope_seq'],))
+            _change_usage(db,prepared['scope_seq'],retained=charge+delta)
+            if new_header is not None:db.execute(f'UPDATE {DECISIONS} SET header=?,charge=charge+? WHERE scope_seq=? AND slot=?',(new_header,delta,prepared['scope_seq'],scope['current_slot']))
+        self._retirement=None
+        return {'acknowledged':True,'token':prepared['token'],'version':source['version'],'scope_seq':prepared['scope_seq']}
+
+    def read_retirement(self,scope_seq,source_version,token):
+        """Positive exact marker read for a later independently owned cleanup."""
+        with self._database() as db:
+            row=db.execute(f'''SELECT s.*,c.path,o.body AS receipt,h.authority_blocked FROM {SOURCES} s
+                JOIN {SCOPES} h ON h.scope_seq=s.scope_seq JOIN chunks c ON c.id=s.chunk_id
+                JOIN {OBJECTS} o ON o.scope_seq=s.scope_seq AND o.kind='receipt' AND o.digest=s.receipt_digest
+                WHERE s.scope_seq=? AND s.version=? AND s.marker_token=?''',(scope_seq,source_version,token)).fetchone()
+            if row is None or row['state']!='retired' or row['authority_blocked'] is not None:_fail('history_retirement_missing')
+            marker=_decode(row['marker'],1024)
+            if marker['token']!=token or marker['version']!=source_version or _hash(row['path'].encode())!=marker['path']:_fail('history_retirement_changed')
+            return dict(row)
+
+    def record_retirement_cleanup(self,scope_seq,source_version,token,state,reason=None):
+        if state not in ('pending','done','failed','unknown'):_fail('history_cleanup_state')
+        reason=reason if reason in ('io_unavailable','path_changed','storage_unknown','other') else None
+        with self._database(write=True) as db:
+            changed=db.execute(f'''UPDATE {SOURCES} SET cleanup=?,cleanup_reason=?,cleanup_attempts=MIN(2147483647,cleanup_attempts+1)
+                WHERE scope_seq=? AND version=? AND marker_token=? AND state='retired' ''',
+                (state,reason,scope_seq,source_version,token)).rowcount
+            if changed!=1:_fail('history_retirement_changed')
+        return True
 
 
 def primary_identity(saved,node,space_id):
@@ -712,3 +1078,91 @@ def primary_identity(saved,node,space_id):
 def moss_identity(sid,rid,batch):
     return {'sid':sid,'rid':rid,'origin_kind':'moss_result','origin_id':batch['job_id'],
         'result_sha256':batch['result_sha256'],'batch_sha256':batch['batch_sha256'],'space_id':batch['space_id']}
+
+
+def read_session_revision(db,sid):
+    """Passive scalar headers in the caller snapshot, including authority fences."""
+    from . import transcript_contract as contract
+    rows=[tuple(row) for row in db.execute(f'''SELECT scope_id,history_revision,authority_revision,source_revision,
+        authority_blocked,state,current_slot,building_slot FROM {SCOPES} INDEXED BY recording_history_session_v1
+        WHERE session_id=? ORDER BY scope_seq LIMIT ?''',(sid,contract.MAX_BINDINGS+1))]
+    # This is a read-admission ceiling, never a retained-history/scope count cap.
+    # Refuse the whole cursor rather than bind it to a truncated revision set.
+    if len(rows)>contract.MAX_BINDINGS:contract.fail('unresolved_capacity')
+    raw=encoded(rows)
+    if len(raw)>contract.MAX_BINDING_BYTES:contract.fail('unresolved_capacity')
+    return _hash(raw)
+
+
+def read_saved_for_refs(db,sid,rid,refs,*,byte_limit=PAGE_BYTES):
+    """Indexed exact refs only. Incomplete optional reads never return a positive.
+
+    The complete matching stream for each ref participates, including duplicates
+    on later pages. No recovery, filesystem check, comparison or model starts.
+    """
+    scope=db.execute(f'SELECT * FROM {SCOPES} WHERE session_id=? AND recording_id=?',(sid,rid)).fetchone()
+    if scope is None:return None
+    database_path=db.execute('PRAGMA database_list').fetchone()[2]
+    authority_unknown=database_path in _AUTHORITY_UNKNOWN_DATABASES
+    result={'history_policy':True,'scope_id':scope['scope_id'],'state':'links_stale','history_status':'pending',
+        'revision':scope['history_revision'],'decision_revision':-1,'policy_sha256':POLICY_SHA256,
+        'space_id':scope['space_id'],'annotations':[],'authority_revision':scope['authority_revision']}
+    if authority_unknown:
+        result.update(history_status='pending',reason='source_authority_unknown');return result
+    if scope['authority_blocked'] is not None:
+        result.update(history_status='invalid',reason=scope['authority_blocked']);return result
+    if scope['current_slot'] is None:return result
+    decision=db.execute(f'SELECT * FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],scope['current_slot'])).fetchone()
+    if decision is None:return result
+    header=_decode(decision['header'],65536);result['decision_revision']=decision['history_revision']
+    current=(decision['complete']==1 and decision['history_revision']==scope['history_revision'] and
+        decision['authority_revision']==scope['authority_revision'] and header.get('source_revision')==scope['source_revision'])
+    retired=header.get('all_sources_retired') is True and scope['active_sources']==0
+    if not current:return result
+    if header.get('boot_id')!=BOOT_ID and not retired:
+        result.update(history_status='historical',reason='active_source_revalidation_pending');return result
+    result.update(state='source_scoped',history_status='current',
+        validation_semantics='validated_at_admission_source_version_verified_retired' if retired else 'validated_at_decision_revision')
+    used=len(encoded({k:v for k,v in result.items() if k!='annotations'}))+1024
+    annotations=[]
+    for ref_kind,ref_key in dict.fromkeys(refs):
+        after=0
+        while True:
+            lengths=db.execute(f'''SELECT ordinal,length(body) FROM {ROWS} INDEXED BY recording_history_exact_ref_v1
+                WHERE scope_seq=? AND slot=? AND ref_kind=? AND ref_key=? AND ordinal>? ORDER BY ordinal LIMIT 32''',
+                (scope['scope_seq'],scope['current_slot'],ref_kind,ref_key,after)).fetchall()
+            if not lengths:break
+            prospective=sum(x[1]+256 for x in lengths)+256
+            if used+prospective>byte_limit:
+                result.update(state='capacity_exhausted',history_status='pending',reason='saved_decision_bytes',complete=False,annotations=[])
+                return result
+            used+=prospective
+            found=db.execute(f'''SELECT ordinal,body FROM {ROWS} INDEXED BY recording_history_exact_ref_v1
+                WHERE scope_seq=? AND slot=? AND ref_kind=? AND ref_key=? AND ordinal>? ORDER BY ordinal LIMIT 32''',
+                (scope['scope_seq'],scope['current_slot'],ref_kind,ref_key,after)).fetchall()
+            for row in found:
+                item=_decode(row['body'],512)
+                item.update(source_kind='native_primary' if ref_kind=='primary' else 'moss')
+                if ref_kind=='primary':item['primary_source_ref']=ref_key
+                else:
+                    job,result_digest,phrase=json.loads(ref_key)
+                    item.update(job_id=job,result_sha256=result_digest,phrase_index=phrase)
+                annotations.append(item)
+            after=found[-1]['ordinal']
+            if len(found)<32:break
+    result.update(annotations=annotations,complete=True,read_bytes=used)
+    return result
+
+
+_AUTHORITY_UNKNOWN_DATABASES=set()
+
+
+def notify_source_mismatch(store,chunk_ids):
+    """Semantic mismatch only; ordinary owner shutdown never calls this hook."""
+    path=str(store.path.resolve())
+    _AUTHORITY_UNKNOWN_DATABASES.add(path)  # Immediately close positive reads.
+    try:
+        with MossResultStore(store)._database(write=True) as db:invalidate_sources(db,chunk_ids)
+    except BaseException:
+        return False  # Unknown is not a durable revocation claim.
+    return True
