@@ -36,6 +36,25 @@ def cleanup_verified(receipt):
         and receipt.get('remaining_live_owned') == [] and not receipt.get('cleanup_failure'))
 
 
+class ProbeChildFailure(RuntimeError):
+    """A positively observed nonzero child exit, without private output."""
+
+
+def failure_observation(stage, reason, child_dispatch, error=None):
+    """Only fixed observations, never messages, arguments, SQL or input data."""
+    from .recording_speaker_link_store import (FAILURE_SCHEMA, FAILURE_STAGES,
+        FAILURE_REASONS, FAILURE_DISPATCH, FAILURE_ERROR_TYPES, validate_failure)
+    error_type = ('RuntimeError' if type(error) is ProbeChildFailure else
+                  type(error).__name__ if error is not None else 'other')
+    raw = canonical({'schema':FAILURE_SCHEMA,
+        'stage':stage if stage in FAILURE_STAGES else 'unknown',
+        'reason':reason if reason in FAILURE_REASONS else 'other',
+        'child_dispatch':child_dispatch if child_dispatch in FAILURE_DISPATCH else 'unknown',
+        'error_type':error_type if error_type in FAILURE_ERROR_TYPES else 'other'})
+    validate_failure(raw)
+    return raw
+
+
 class ProbeDriver(OwnedDriver):
     """Narrow OwnedDriver specialization; no second background supervisor."""
     def __init__(self, directory, request_sha):
@@ -55,7 +74,7 @@ class ProbeDriver(OwnedDriver):
             if child_rss > 1024**3:raise RuntimeError('Optional probe child RSS cap')
             check_directory(self.directory, self.identity)
             time.sleep(.05)
-        if self.proc.returncode != 0:raise RuntimeError('Optional probe child failed')
+        if self.proc.returncode != 0:raise ProbeChildFailure('Optional probe child failed')
         result = json.loads(read_owned(self.directory, 'probe-result.json', identity=self.identity))
         return result
 
@@ -93,6 +112,12 @@ class ProbeOperation:
         self.cleaned = False
         self.receipt = None
         self.started = False
+        self.failure_json = None
+        self.child_dispatch = 'not_attempted'
+
+    def _observe_failure(self, stage, reason, error=None):
+        if self.failure_json is None:
+            self.failure_json = failure_observation(stage, reason, self.child_dispatch, error)
 
     def _claim_matches(self):
         info = (self.directory / 'owner.json').lstat()
@@ -104,6 +129,7 @@ class ProbeOperation:
         if self.started:raise RuntimeError('Probe inference is never replayed')
         self.started = True
         result = None
+        stage = 'prepare'
         try:
             self.gate.check('before_input')
             self.claim = canonical({'schema':KIND, 'owner':uuid.uuid4().hex,
@@ -117,16 +143,30 @@ class ProbeOperation:
             for index, crop in enumerate(self.crops):
                 write_owned(self.directory, 'probe-%d.pcm' % index, crop, identity=self.identity)
             self.crops = ()
+            stage = 'child_start'
             self.driver = self.factory(self.directory, hashlib.sha256(request).hexdigest())
             self.driver._service_gate = self.gate
+            self.child_dispatch = 'possible'  # start may lose its acknowledgement.
             self.driver.start(cancelled)
+            stage = 'child_wait'
             result = self.driver.wait(cancelled)
             if cancelled.is_set():raise RuntimeError('Probe interrupted')
+            stage = 'return_validation'
             self._validate_return(result)
+            self.child_dispatch = 'returned_validated'
             return result
+        except BaseException as error:
+            reason = ('optional_cancelled' if cancelled.is_set() else
+                'invalid_return' if stage == 'return_validation' else
+                'child_failed' if type(error) is ProbeChildFailure else 'other')
+            self._observe_failure(stage, reason, error)
+            raise
         finally:
             self.crops = ()
-            self.cleanup()
+            try:self.cleanup()
+            except BaseException as error:
+                self._observe_failure('cleanup', 'cleanup_unverified', error)
+                raise
 
     def _validate_return(self, result):
         from .embedding_space import validate_space
@@ -154,13 +194,18 @@ class ProbeOperation:
                        'remaining_live_owned':[]}
         else:
             try:receipt = self.driver.cleanup(True)
-            except BaseException:receipt = {'cleanup_verified':False}
+            except BaseException as error:
+                self._observe_failure('cleanup', 'cleanup_unverified', error)
+                receipt = {'cleanup_verified':False}
         self.receipt = receipt
-        if not cleanup_verified(receipt):return False
+        if not cleanup_verified(receipt):
+            self._observe_failure('cleanup', 'cleanup_unverified')
+            return False
         try:
             if self.claim is not None and self.claim_identity is None:
                 # A write acknowledgement was lost; absence of a child does not
                 # prove the private claim can safely be discarded.
+                self._observe_failure('cleanup', 'cleanup_unverified')
                 return False
             if self.claim_identity is not None:
                 self._claim_matches()
@@ -169,7 +214,9 @@ class ProbeOperation:
                 self.claim = None
             check_directory(self.directory, self.identity)
             for path in self.directory.iterdir():path.unlink()
-        except BaseException:return False
+        except BaseException as error:
+            self._observe_failure('cleanup', 'cleanup_unverified', error)
+            return False
         self.cleaned = True
         return True
 

@@ -27,6 +27,19 @@ MAX_STAGING_BYTES = 8 * 1024**2
 MAX_BATCH_BYTES, MAX_DECISION_BYTES = 512 * 1024, 64 * 1024
 MAX_BATCH_NODES, MAX_VECTOR_DIMENSION = 4, 2048
 SCOPE_BYTES, BATCH_BYTES = 90112, 4096
+MAX_FAILURE_BYTES = 512
+FAILURE_SCHEMA = 'recording-speaker-probe-failure-v1'
+FAILURE_STAGES = ('prepare', 'reservation', 'permit', 'dispatch_validation',
+    'child_start', 'child_wait', 'return_validation', 'cleanup', 'publication', 'unknown')
+FAILURE_REASONS = ('optional_cancelled', 'permit_unavailable', 'source_authority_changed',
+    'child_failed', 'invalid_return', 'storage_unavailable', 'cleanup_unverified', 'other')
+FAILURE_DISPATCH = ('not_attempted', 'possible', 'returned_validated', 'unknown')
+FAILURE_ERROR_TYPES = ('Cancelled', 'Busy', 'AdmissionError', 'RuntimeError',
+    'ValueError', 'TypeError', 'KeyError', 'OSError', 'PermissionError',
+    'FileNotFoundError', 'ProcessLookupError', 'TimeoutError', 'TimeoutExpired',
+    'MemoryError', 'UnicodeError', 'UnicodeDecodeError', 'JSONDecodeError',
+    'AssertionError', 'NoSuchProcess', 'AccessDenied', 'ZombieProcess',
+    'Unavailable', 'ReadError', 'ResourceLimit', 'OperationalError', 'other')
 RESERVATION_BYTES = MAX_BATCH_BYTES + BATCH_BYTES
 MAX_REVISION = (1 << 63) - 1
 STATES = ('source_scoped', 'insufficient_clean_support', 'probe_unavailable',
@@ -92,6 +105,14 @@ SCHEMA = {
 }
 
 
+# SQLite ADD COLUMN inserts immediately before the existing table constraints.
+# Keep the exact old schema as the sole migration source; never rebuild evidence.
+LEGACY_BATCH_SCHEMA = SCHEMA[BATCHES]
+FAILURE_COLUMN = "failure_json BLOB CHECK(failure_json IS NULL OR (typeof(failure_json)='blob' AND length(failure_json) BETWEEN 1 AND 512))"
+SCHEMA[BATCHES] = LEGACY_BATCH_SCHEMA.replace(
+    'PRIMARY KEY(scope_seq,batch_seq)', FAILURE_COLUMN + ', PRIMARY KEY(scope_seq,batch_seq)')
+
+
 def init_schema(db):
     """Additive exact-schema migration in the caller's transaction; no recovery."""
     if not db.in_transaction:
@@ -99,11 +120,23 @@ def init_schema(db):
     present = [db.execute('SELECT sql FROM sqlite_master WHERE name=?', (name,)).fetchone() for name in SCHEMA]
     if any(present) and not all(present):
         raise ValueError('Incomplete recording speaker link schema')
+    normalize = lambda sql: ' '.join(sql.split())
+    # Validate every owned object before any DDL, including the immutable trigger.
+    legacy = False
     for (name, sql), row in zip(SCHEMA.items(), present):
-        if row is None:
-            db.execute(sql)
-        elif ' '.join(row[0].split()) != ' '.join(sql.split()):
+        if row is None:continue
+        if normalize(row[0]) == normalize(sql):continue
+        if name == BATCHES and normalize(row[0]) == normalize(LEGACY_BATCH_SCHEMA):
+            legacy = True
+        else:
             raise ValueError('Incompatible recording speaker link schema: ' + name)
+    if not any(present):
+        for sql in SCHEMA.values():db.execute(sql)
+    elif legacy:
+        db.execute(f'ALTER TABLE {BATCHES} ADD COLUMN ' + FAILURE_COLUMN)
+        actual = db.execute('SELECT sql FROM sqlite_master WHERE name=?', (BATCHES,)).fetchone()[0]
+        if normalize(actual) != normalize(SCHEMA[BATCHES]):
+            raise ValueError('Incompatible recording speaker link migration')
     if not any(present):
         db.execute(f'''INSERT INTO {SCOPES}(scope_seq,scope_id,session_id,recording_id,policy_sha256,space_json,space_id)
             VALUES(0,'','','','',?,'')''', (b'null',))
@@ -138,6 +171,20 @@ def _json(raw, maximum):
             raise ValueError()
     except (ValueError, UnicodeError, RecursionError, TypeError):
         _fail('probe_unavailable', 503)
+    return value
+
+
+def validate_failure(raw):
+    """Nullable canonical fixed enums only; NULL means no known observation."""
+    if raw is None:return None
+    value = _json(raw, MAX_FAILURE_BYTES)
+    fields = {'schema':(FAILURE_SCHEMA,), 'stage':FAILURE_STAGES,
+              'reason':FAILURE_REASONS, 'child_dispatch':FAILURE_DISPATCH,
+              'error_type':FAILURE_ERROR_TYPES}
+    if (type(value) is not dict or set(value) != set(fields)
+            or any(type(value[key]) is not str or value[key] not in allowed
+                   for key, allowed in fields.items())):
+        _fail('invalid_speaker_probe_failure')
     return value
 
 
@@ -251,6 +298,62 @@ def read_saved_for_recording(db, sid, recording_id, *, session_revision=None):
         decision_json,decision_sha256,policy_sha256,space_id,state,inflight_token
         FROM {SCOPES} WHERE session_id=? AND recording_id=?''', (sid, recording_id)).fetchone()
     return _saved(row, revision)
+
+
+def _failure_outcomes(db, scope_seq, saved, stage):
+    """Bounded historical outcomes only; never cache them as decision evidence."""
+    headers = db.execute(f'''SELECT batch_seq,
+        CASE WHEN typeof(job_id)='text' AND length(job_id)=32 THEN job_id END AS job_id,
+        CASE WHEN typeof(result_sha256)='text' AND length(result_sha256)=64 THEN result_sha256 END AS result_sha256,
+        CASE WHEN state IN ({_STATE_SQL}) THEN state END AS state,
+        typeof(failure_json) AS failure_type,length(failure_json) AS failure_bytes
+        FROM {BATCHES} WHERE scope_seq=? ORDER BY batch_seq LIMIT 33''', (scope_seq,)).fetchall()
+    if len(headers)>MAX_SCOPE_BATCHES:_fail('capacity_exhausted',503)
+    terminal = {}
+    for item in headers:
+        if (type(item['job_id']) is not str or _TOKEN.fullmatch(item['job_id']) is None
+                or type(item['result_sha256']) is not str or _HASH.fullmatch(item['result_sha256']) is None
+                or item['state'] not in STATES
+                or not (item['failure_type']=='null' and item['failure_bytes'] is None
+                    or item['failure_type']=='blob' and type(item['failure_bytes']) is int
+                    and 1<=item['failure_bytes']<=MAX_FAILURE_BYTES)):
+            _fail('invalid_speaker_probe_failure')
+        if item['state'] not in ('probe_interrupted','probe_unavailable','capacity_exhausted'):
+            if item['failure_bytes'] is not None:_fail('invalid_speaker_probe_failure')
+            continue
+        key=(item['job_id'],item['result_sha256'])
+        if key in terminal:_fail('invalid_speaker_probe_failure')
+        terminal[key]=item
+    cached=saved.get('probe_outcomes',[])
+    if type(cached) is not list or len(cached)>MAX_SCOPE_BATCHES:
+        _fail('invalid_speaker_probe_failure')
+    seen=set()
+    for item in cached:
+        if type(item) is not dict:_fail('invalid_speaker_probe_failure')
+        key=(item.get('job_id'),item.get('result_sha256'))
+        if (any(type(value) is not str for value in key) or key in seen
+                or key not in terminal or item.get('state')!=terminal[key]['state']):
+            _fail('invalid_speaker_probe_failure')
+        seen.add(key)
+    if not terminal and not cached:return saved
+    # This adds no dependency on staging headroom to ordinary success reads.
+    with stage(MAX_SCOPE_BATCHES*BATCH_BYTES):
+        outcomes=[]
+        for key,item in terminal.items():
+            # Admit every length before materializing even one diagnostic BLOB.
+            raw = None if item['failure_bytes'] is None else db.execute(
+                f'SELECT failure_json FROM {BATCHES} WHERE scope_seq=? AND batch_seq=?',
+                (scope_seq,item['batch_seq'])).fetchone()[0]
+            if raw is not None and item['state']=='capacity_exhausted':
+                _fail('invalid_speaker_probe_failure')
+            outcomes.append({'job_id':key[0],'result_sha256':key[1],
+                'state':item['state'],'failure':validate_failure(raw)})
+        value={**saved,'probe_outcomes':outcomes}
+        value.pop('revision_sha256',None)
+        value['revision_sha256']=hashlib.sha256(encoded(value)).hexdigest()
+        if len(encoded(value))>MAX_DECISION_BYTES+MAX_SCOPE_BATCHES*BATCH_BYTES:
+            _fail('capacity_exhausted',503)
+        return value
 
 
 def read_session_revision(db, sid, *, session_revision=None):
@@ -500,15 +603,18 @@ class RecordingSpeakerLinkStore:
         return raw
 
     @staticmethod
-    def _finish(db, row, raw, nodes, state):
+    def _finish(db, row, raw, nodes, state, failure_json=None):
+        validate_failure(failure_json)
+        if failure_json is not None and state not in ('probe_unavailable','probe_interrupted'):
+            _fail('invalid_speaker_probe_failure')
         _session(db, row['session_id']); _usage(db, row)
         if row['revision'] >= MAX_REVISION: _fail('capacity_exhausted', 429)
         charge = len(raw) + BATCH_BYTES
         db.execute(f'''INSERT INTO {BATCHES}(scope_seq,batch_seq,session_id,job_id,result_sha256,
-            policy_sha256,space_id,reservation_token,node_count,batch_json,batch_sha256,state,charge_bytes)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''', (row['scope_seq'],row['batch_count'],row['session_id'],
+            policy_sha256,space_id,reservation_token,node_count,batch_json,batch_sha256,state,charge_bytes,failure_json)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (row['scope_seq'],row['batch_count'],row['session_id'],
             row['inflight_job_id'],row['inflight_result_sha256'],row['policy_sha256'],row['space_id'],
-            row['inflight_token'],nodes,raw,hashlib.sha256(raw).hexdigest(),state,charge))
+            row['inflight_token'],nodes,raw,hashlib.sha256(raw).hexdigest(),state,charge,failure_json))
         delta = (nodes-row['inflight_nodes'],charge-RESERVATION_BYTES,-MAX_BATCH_BYTES)
         db.execute(f'''UPDATE {SCOPES} SET node_count=node_count+?,retained_bytes=retained_bytes+?,
             staging_bytes=staging_bytes+? WHERE scope_seq=0''', delta)
@@ -517,8 +623,11 @@ class RecordingSpeakerLinkStore:
             inflight_job_id=NULL,inflight_result_sha256=NULL,inflight_nodes=0,inflight_owner=NULL,inflight_batch_json=NULL
             WHERE scope_seq=?''', (delta[0],delta[1],'links_stale' if nodes and state not in ('probe_unavailable','probe_interrupted','capacity_exhausted') else state,row['scope_seq']))
 
-    def commit(self, token, batch, state='source_scoped', *, cancelled=None):
+    def commit(self, token, batch, state='source_scoped', *, cancelled=None, failure_json=None):
         token = self._token(token)
+        validate_failure(failure_json)
+        if failure_json is not None and state not in ('probe_unavailable','probe_interrupted'):
+            _fail('invalid_speaker_probe_failure')
         if state not in STATES: _fail('invalid_speaker_link_state')
         raw = self._validate_batch(batch)
         with self._authority_database(write=True) as (db, boundary):
@@ -527,7 +636,8 @@ class RecordingSpeakerLinkStore:
                 previous = db.execute(f'SELECT * FROM {BATCHES} WHERE reservation_token=?', (token,)).fetchone()
                 if previous is None: _fail('speaker_link_reservation_missing', 404)
                 _session(db, previous['session_id'])
-                if previous['batch_json'] != raw or previous['state'] != state:
+                if (previous['batch_json'] != raw or previous['state'] != state
+                        or previous['failure_json'] != failure_json):
                     _fail('speaker_link_commit_conflict')
                 own = db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?', (previous['scope_seq'],)).fetchone()
                 return {'scope_id': own['scope_id'], 'revision': own['revision'], 'state': own['state']}
@@ -544,18 +654,19 @@ class RecordingSpeakerLinkStore:
                 if original.get('batch_sha256')!=batch.get('batch_sha256'): _fail('speaker_link_commit_conflict')
             if _cancelled(cancelled): _fail('probe_unavailable')
             self._primary_current(db, batch, boundary=boundary)
-            self._finish(db,row,raw,len(batch['nodes']),state)
+            self._finish(db,row,raw,len(batch['nodes']),state,failure_json)
             answer = {'scope_id': row['scope_id'], 'revision': row['revision']+1,
                       'state': 'links_stale' if batch['nodes'] and state not in ('probe_unavailable','probe_interrupted','capacity_exhausted') else state}
         return answer
 
-    def resolve_attempt(self, sid, rid, jid, result_sha256, prepared_batch, *, state='probe_unavailable', token=None):
+    def resolve_attempt(self, sid, rid, jid, result_sha256, prepared_batch, *, state='probe_unavailable', token=None, failure_json=None):
         """Close only this owner's exact uncertain attempt, without model authority.
 
         Retired source authority does not prevent retaining unavailable historical
         evidence. No vectors are accepted and no committed batch is overwritten.
         """
         scope_id=scope_identity(sid,rid)
+        validate_failure(failure_json)
         _hash(result_sha256)
         if type(jid) is not str or _TOKEN.fullmatch(jid) is None: _fail('invalid_speaker_link_identity')
         if state not in ('probe_unavailable','probe_interrupted'): _fail('invalid_speaker_link_state')
@@ -571,11 +682,12 @@ class RecordingSpeakerLinkStore:
             if row is None: return {**answer,'resolved':True,'no_op':True}
             if (row['policy_sha256']!=prepared_batch['policy_sha256']
                     or row['space_id']!=prepared_batch['space_id']): return answer
-            prior=db.execute(f'''SELECT reservation_token,batch_json,state FROM {BATCHES}
+            prior=db.execute(f'''SELECT reservation_token,batch_json,state,failure_json FROM {BATCHES}
                 WHERE scope_seq=? AND job_id=? AND result_sha256=? AND policy_sha256=?''',
                 (row['scope_seq'],jid,result_sha256,prepared_batch['policy_sha256'])).fetchone()
             if prior is not None:
                 if wanted_token is not None and prior['reservation_token']!=wanted_token: return answer
+                if prior['failure_json'] != failure_json: return answer
                 original=_json(prior['batch_json'],MAX_BATCH_BYTES)
                 if original.get('batch_sha256')!=prepared_batch.get('batch_sha256'): return answer
                 original={**original,'nodes':[{k:v for k,v in node.items() if k!='vector'} for node in original['nodes']]}
@@ -586,7 +698,7 @@ class RecordingSpeakerLinkStore:
                     or row['inflight_result_sha256']!=result_sha256
                     or wanted_token is not None and wanted_token!=row['inflight_token']
                     or row['inflight_batch_json']!=raw): return answer
-            self._finish(db,row,raw,len(prepared_batch['nodes']),state)
+            self._finish(db,row,raw,len(prepared_batch['nodes']),state,failure_json)
             answer.update(resolved=True,revision=row['revision']+1)
         return answer
 
@@ -847,5 +959,10 @@ class RecordingSpeakerLinkStore:
         return {'interrupted':interrupted,'reconciled':reconciled,'remaining_work':self.recovery_remaining}
 
     def read_saved(self, sid, recording_id):
+        # Explicit store reads opt in to historical diagnostics. The transcript
+        # getter above retains its exact existing decision read/output envelope.
         with self._database() as db:
-            return read_saved_for_recording(db,sid,recording_id)
+            saved=read_saved_for_recording(db,sid,recording_id)
+            row=db.execute(f'SELECT scope_seq FROM {SCOPES} WHERE session_id=? AND recording_id=?',
+                (sid,recording_id)).fetchone()
+            return saved if row is None else _failure_outcomes(db,row[0],saved,self._stage)

@@ -23,6 +23,7 @@ class SyntheticLinkStore:
     def __init__(self, fixture, failure=None):
         self.f, self.failure = fixture, failure
         self.reservations, self.commits, self.recomputes, self.resolutions = [], [], [], []
+        self.failure_payloads, self.resolution_failures = [], []
 
     def fail(self, phase):
         if self.failure == phase:raise ReadError(503, 'result_storage_unavailable'
@@ -46,12 +47,14 @@ class SyntheticLinkStore:
         self.reservations.append((args, kwargs))
         return {'scope_id':'1'*64, 'token':'2'*32, 'should_probe':True, 'state':'links_stale'}
 
-    def commit(self, admission, batch, state):
+    def commit(self, admission, batch, state, *, failure_json=None):
+        self.failure_payloads.append(failure_json)
         self.fail('commit')
         self.commits.append((deepcopy(batch),state))
         return {'revision':2}
 
-    def resolve_attempt(self, sid, rid, jid, sha, prepared, *, state, token=None):
+    def resolve_attempt(self, sid, rid, jid, sha, prepared, *, state, token=None, failure_json=None):
+        self.resolution_failures.append(failure_json)
         self.resolutions.append((jid,sha,deepcopy(prepared),state,token))
         assert all('vector' not in node for node in prepared['nodes'])
         return {'resolved':True,'state':state,'scope_id':'1'*64}
@@ -87,6 +90,7 @@ def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, 
         def __init__(self,directory,sha):
             self.directory=directory; self.sha=sha; self._service_gate=None
             drivers.append(self)
+            if failure == 'factory':raise ValueError('private constructor detail')
         def start(self,cancelled):
             observations.append('probe_start_after_text')
             assert result_rows(f.store)[0]['state'] == 'committed'
@@ -99,11 +103,15 @@ def setup_probe(f, monkeypatch, failure=None, clean_result=True, preempt=False, 
         def wait(self,cancelled):
             if cancelled.is_set():raise RuntimeError('synthetic interrupted')
             if failure == 'wait':raise RuntimeError('synthetic extraction failure')
+            if failure == 'child_exit':raise runner.ProbeChildFailure('private child exit detail')
+            if failure == 'invalid_return':return {'private':'untrusted raw output'}
             request=json.loads((self.directory/'request.json').read_bytes())
             return {'kind':runner.KIND,'job_id':request['job_id'],'space':runner.expected_space()[0],
                 'space_id':request['space_id'],'compute_attempts':1,
                 'nodes':[{'index':0,'pcm_sha256':request['crops'][0]['pcm_sha256'],'vector':vector(1.)}]}
         def cleanup(self,stop):
+            if failure in ('start','wait','child_exit','invalid_return'):
+                assert f.owner._live['speaker_probe']['operation'].failure_json is not None
             return clean() if clean_result else {'cleanup_verified':False}
     monkeypatch.setattr(links,'capture_candidates_v2',capture)
     f.owner._probe_factory=Driver
@@ -253,10 +261,10 @@ def test_probe_lost_commit_ack_retries_same_bytes_without_inference(automatic_ce
     sidecar,events,drivers,primary=setup_probe(f,monkeypatch)
     original=sidecar.commit
     seen=[]
-    def lost_ack(admission,batch,state):
+    def lost_ack(admission,batch,state,*,failure_json=None):
         seen.append(contract.encoded(batch))
         if len(seen)==1:
-            original(admission,batch,state)
+            original(admission,batch,state,failure_json=failure_json)
             raise ReadError(503,'synthetic_lost_ack')
         assert seen[0]==seen[1]
         return {'revision':2}
@@ -366,7 +374,7 @@ def test_bounded_publication_revocation_resolves_without_native_replay(
     f=automatic_cell_jobs
     sidecar,events,drivers,primary=setup_probe(f,monkeypatch)
     attempts=[]; resolutions=sidecar.resolve_attempt
-    def revoked(admission,batch,state):
+    def revoked(admission,batch,state,*,failure_json=None):
         attempts.append(contract.encoded(batch))
         raise ReadError(409,reason)
     def resolve(*args,**kwargs):
@@ -391,3 +399,102 @@ def test_bounded_publication_revocation_resolves_without_native_replay(
     assert not probe['commit_pending'] and probe['state']=='probe_unavailable'
     assert f.owner._probe_staging_bytes==0 and len(drivers)==1
     assert all('vector' not in node for call in sidecar.resolutions for node in call[2]['nodes'])
+
+
+@pytest.mark.parametrize('failure,stage,reason',[
+    ('factory','child_start','other'),
+    ('start','child_start','other'),
+    ('wait','child_wait','other'),
+    ('child_exit','child_wait','child_failed'),
+    ('invalid_return','return_validation','invalid_return')])
+def test_first_probe_failure_is_sanitized_before_positive_cleanup(
+        automatic_cell_jobs,monkeypatch,failure,stage,reason):
+    f=automatic_cell_jobs
+    sidecar,_,drivers,_=setup_probe(f,monkeypatch,failure=failure)
+    record=f.finish();probe=record['speaker_probe']
+    raw=sidecar.failure_payloads[0];observed=json.loads(raw)
+    assert raw==probe['failure_json']==probe['operation'].failure_json
+    assert observed=={'schema':'recording-speaker-probe-failure-v1',
+        'stage':stage,'reason':reason,
+        'child_dispatch':'not_attempted' if failure=='factory' else 'possible',
+        'error_type':'ValueError' if failure in ('factory','invalid_return') else 'RuntimeError'}
+    assert b'synthetic' not in raw and b'private' not in raw and b'vector' not in raw
+    assert probe['failure_frozen'] and probe['operation'].cleaned and len(drivers)==1
+    assert record['durable_result_available'] and not record['cancelled'].is_set()
+
+
+def test_first_failure_survives_uncertain_cleanup_and_storage_retry(
+        automatic_cell_jobs,monkeypatch):
+    f=automatic_cell_jobs
+    sidecar,_,drivers,_=setup_probe(f,monkeypatch,failure='wait',clean_result=False)
+    record=f.finish();probe=record['speaker_probe'];raw=probe['failure_json']
+    assert json.loads(raw)['stage']=='child_wait'
+    assert not sidecar.failure_payloads and not probe['failure_frozen']
+    assert not f.owner._cleanup_speaker_probe(record)
+    assert probe['failure_json']==raw and len(drivers)==1
+    drivers[0].cleanup=lambda stop:clean();sidecar.failure='commit'
+    assert f.owner._cleanup_speaker_probe(record)
+    assert probe['commit_pending'] and probe['failure_frozen']
+    assert sidecar.failure_payloads==[raw]
+    sidecar.failure=None;assert f.owner.automatic_idle()
+    assert sidecar.failure_payloads==[raw,raw] and len(drivers)==1
+    assert probe['failure_json']==raw and f.owner._probe_staging_bytes==0
+
+
+def test_cleanup_only_observation_does_not_claim_child_failure(automatic_cell_jobs,monkeypatch):
+    f=automatic_cell_jobs
+    sidecar,_,drivers,_=setup_probe(f,monkeypatch,clean_result=False)
+    record=f.finish();probe=record['speaker_probe'];raw=probe['failure_json']
+    assert json.loads(raw)=={'schema':'recording-speaker-probe-failure-v1',
+        'stage':'cleanup','reason':'cleanup_unverified',
+        'child_dispatch':'returned_validated','error_type':'other'}
+    assert not sidecar.failure_payloads and not probe['failure_frozen']
+    drivers[0].cleanup=lambda stop:clean()
+    assert f.owner._cleanup_speaker_probe(record)
+    assert sidecar.failure_payloads==[raw] and len(drivers)==1
+
+
+@pytest.mark.parametrize('phase',['reserve','commit'])
+def test_storage_observation_cannot_retrofit_a_frozen_success(
+        automatic_cell_jobs,monkeypatch,phase):
+    f=automatic_cell_jobs
+    sidecar,_,drivers,_=setup_probe(f,monkeypatch,failure=phase)
+    record=f.finish();probe=record['speaker_probe']
+    assert probe['commit_pending']
+    if phase=='commit':
+        assert probe['failure_frozen'] and probe['failure_json'] is None
+        assert sidecar.failure_payloads==[None]
+    else:
+        assert not probe['failure_frozen'] and not drivers
+        assert json.loads(probe['failure_json'])['stage']=='reservation'
+    first=probe['failure_json'];sidecar.failure=None
+    assert f.owner.automatic_idle()
+    assert probe['failure_frozen'] and probe['failure_json']==first
+    assert sidecar.resolution_failures==([first] if phase=='reserve' else [])
+    assert sidecar.failure_payloads==([None,None] if phase=='commit' else [])
+
+
+def test_permit_refusal_has_no_child_attempt(
+        automatic_cell_jobs,monkeypatch):
+    f=automatic_cell_jobs
+    sidecar,_,drivers,_=setup_probe(f,monkeypatch)
+    monkeypatch.setattr(f.permit,'reserve_optional',
+        lambda *a,**kw:(_ for _ in ()).throw(RuntimeError('private permit detail')))
+    record=f.finish();probe=record['speaker_probe']
+    # The MOSS permit was already admitted before this targeted optional phase.
+    assert json.loads(probe['failure_json'])=={
+        'schema':'recording-speaker-probe-failure-v1','stage':'permit',
+        'reason':'permit_unavailable','child_dispatch':'not_attempted','error_type':'RuntimeError'}
+    assert not drivers and sidecar.failure_payloads==[probe['failure_json']]
+
+
+@pytest.mark.parametrize('error',[ReadError(503,['private']),OSError(5,'/private/audio'),
+    ValueError('private transcript'),type('PrivateExceptionName',(Exception,),{})('private args')])
+def test_failure_observation_contains_only_fixed_enums(error):
+    from audio_backend import recording_speaker_link_store as ledger
+    raw=runner.failure_observation('private stage','private reason','private dispatch',error)
+    observed=ledger.validate_failure(raw)
+    assert observed['stage']=='unknown' and observed['reason']=='other'
+    assert observed['child_dispatch']=='unknown'
+    assert observed['error_type'] in ledger.FAILURE_ERROR_TYPES
+    assert 'private' not in raw.decode().lower()

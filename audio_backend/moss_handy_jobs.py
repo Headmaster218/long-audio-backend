@@ -645,7 +645,8 @@ class MossJobs:
         return {'state':'probe_unavailable', 'cancelled':threading.Event(), 'operation':None,
             'batch':None, 'crops':(), 'charge_bytes':0, 'reservation':None,
             'commit_pending':False, 'commit_retrying':False, 'terminal_state':None,
-            'resolve_only':False, 'attempt_key':None, 'storage_failure':None}
+            'resolve_only':False, 'attempt_key':None, 'storage_failure':None,
+            'failure_json':None, 'failure_frozen':False}
 
     def _stage_speaker_probe(self, record):
         """Capture at most four owned copies while the full CellLease is charged."""
@@ -712,6 +713,7 @@ class MossJobs:
         if probe is None:return
         reserved = False
         phase = 'prepare'
+        failure_stage, failure_reason = 'prepare', 'other'
         batch = probe['batch']
         try:
             snapshot = record.get('history_snapshot')
@@ -729,6 +731,7 @@ class MossJobs:
             probe['resolve_only'] = True  # A lost reserve acknowledgement never authorizes inference.
             probe['terminal_state'] = 'probe_unavailable'
             phase = 'reserve'
+            failure_stage, failure_reason = 'reservation', 'storage_unavailable'
             admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
                 batch['policy_sha256'], probe['space'], max_nodes=len(batch['nodes']), cancelled=probe['cancelled'], batch=batch)
             probe['reservation'] = admission
@@ -737,18 +740,23 @@ class MossJobs:
                 probe['state'] = admission.get('state', 'probe_unavailable')
                 return
             phase = 'probe'
+            failure_stage, failure_reason = 'permit', 'permit_unavailable'
             if probe['crops']:
                 # Fresh ownership/event after the old MOSS permit was released.
                 # Primary preemption only sets the probe event, never record.cancelled.
                 try:
                     self.permit.reserve_optional(probe, probe['cancelled'], probe['cancelled'].set)
                     reserved = True
-                except Exception:
+                except Exception as error:
+                    self._observe_probe_failure(probe, 'permit',
+                        'optional_cancelled' if probe['cancelled'].is_set() else 'permit_unavailable', error)
                     probe['state'] = 'probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable'
                 if reserved:
                     # A current publication generation alone is insufficient:
                     # dispatch independently checks current source authority.
+                    failure_stage, failure_reason = 'dispatch_validation', 'source_authority_changed'
                     self.cell_source.revalidate_dispatch(record['token'])
+                    failure_reason = 'other'
                     from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
                     from .moss_handy_runner import float_bytes, samples_from_pcm
                     # Safe now: copies and retained text no longer depend on MOSS scratch.
@@ -759,6 +767,7 @@ class MossJobs:
                         'crops':[{'index':index, 'pcm_sha256':hashlib.sha256(crop).hexdigest(),
                             'float32_sha256':hashlib.sha256(float_bytes(samples_from_pcm(crop))).hexdigest()}
                             for index,crop in enumerate(probe['crops'])]}
+                    failure_stage = 'child_start'
                     operation = ProbeOperation(self.directory, request, probe['crops'],
                         gate=_SpeakerProbeGate(self, probe), driver_factory=self._probe_factory or ProbeDriver)
                     probe['operation'] = operation
@@ -769,10 +778,16 @@ class MossJobs:
                             for index, node in enumerate(batch['nodes']):
                                 node['vector'] = physical[node.get('probe_index', index)]['vector']
                             probe['state'] = 'source_scoped'
-                        else:probe['state'] = 'probe_interrupted'
+                        else:
+                            probe['state'] = 'probe_interrupted'
+                            if operation.failure_json is None:
+                                self._observe_probe_failure(probe, 'cleanup',
+                                    'optional_cancelled' if probe['cancelled'].is_set() else 'cleanup_unverified')
                     except BaseException:
                         probe['state'] = 'probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable'
                     finally:
+                        if probe['failure_json'] is None and not probe['failure_frozen']:
+                            probe['failure_json'] = operation.failure_json
                         self.permit.release_optional(probe, cleaned=operation.cleaned)
                     if not operation.cleaned:
                         probe['state'] = 'probe_interrupted'
@@ -784,8 +799,11 @@ class MossJobs:
             probe['resolve_only'] = False
             probe['terminal_state'] = probe['state']
             phase = 'publish'
+            failure_stage, failure_reason = 'publication', 'storage_unavailable'
             self._publish_probe_batch(probe)
         except BaseException as exc:
+            self._observe_probe_failure(probe, failure_stage,
+                'optional_cancelled' if probe['cancelled'].is_set() else failure_reason, exc)
             if probe['commit_pending']:self._probe_storage_failure(probe, phase, exc)
             probe['state'] = 'capacity_exhausted' if getattr(exc,'reason',None) == 'capacity_exhausted' else 'probe_unavailable'
         finally:
@@ -793,6 +811,28 @@ class MossJobs:
             clean = operation is None or operation.cleaned
             if reserved:self.permit.release_optional(probe, cleaned=clean)
             if clean and not probe['commit_pending']:self._drop_probe_staging(probe)
+
+    @staticmethod
+    def _observe_probe_failure(probe, stage, reason, error=None):
+        if probe.get('failure_json') is not None or probe.get('failure_frozen'):return
+        from .recording_speaker_probe_runner import failure_observation
+        if reason == 'source_authority_changed':
+            known = ('cell_revoked','cell_binding_changed','session_not_found',
+                'automatic_source_revoked','primary_probe_source_stale')
+            if (type(error) is not ReadError or type(error.reason) is not str
+                    or error.reason not in known):reason = 'other'
+        operation = probe.get('operation')
+        probe['failure_json'] = failure_observation(stage, reason,
+            operation.child_dispatch if operation is not None else 'not_attempted', error)
+
+    @staticmethod
+    def _freeze_probe_failure(probe, state):
+        # A possibly committed submission owns these exact bytes forever. Later
+        # storage observations remain live-only; successful outcomes stay NULL.
+        if not probe.get('failure_frozen'):
+            if state not in ('probe_unavailable','probe_interrupted'):
+                probe['failure_json'] = None
+            probe['failure_frozen'] = True
 
     @staticmethod
     def _probe_storage_failure(probe, phase, error):
@@ -815,7 +855,9 @@ class MossJobs:
     def _publish_probe_batch(self, probe):
         if probe['resolve_only']:
             return self._resolve_probe_attempt(probe)
-        try:self.speaker_links.commit(probe['reservation'], probe['batch'], state=probe['terminal_state'])
+        self._freeze_probe_failure(probe, probe['terminal_state'])
+        try:self.speaker_links.commit(probe['reservation'], probe['batch'], state=probe['terminal_state'],
+            failure_json=probe['failure_json'])
         except ReadError as exc:
             self._probe_storage_failure(probe, 'publish', exc)
             if exc.reason == 'session_not_found':
@@ -848,9 +890,11 @@ class MossJobs:
         # lost acknowledgement never starts inference or promotes old evidence.
         prepared = {**probe['batch'], 'nodes':[{key:value for key,value in node.items()
             if key != 'vector'} for node in probe['batch']['nodes']]}
+        state = 'probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable'
+        self._freeze_probe_failure(probe, state)
         try:
             outcome = self.speaker_links.resolve_attempt(*probe['attempt_key'], prepared,
-                state='probe_interrupted' if probe['cancelled'].is_set() else 'probe_unavailable',
+                state=state, failure_json=probe['failure_json'],
                 token=probe['reservation'].get('token') if probe['reservation'] else None)
         except ReadError as exc:
             if exc.reason != 'session_not_found':raise

@@ -879,6 +879,7 @@ def test_real_manager_consumes_native_packet_after_moss_cleanup_and_publishes_ty
         assert len(events.captures) == len(events.reservations) == len(events.drivers) == 1
         assert events.drivers[0].starts == events.drivers[0].cleanups == 1
         assert record['speaker_probe']['operation'].cleaned
+        assert record['speaker_probe']['failure_frozen'] and record['speaker_probe']['failure_json'] is None
         assert record['speaker_probe']['state'] == 'provisional_linked'
         assert record['durable_result_available'] and not record['cancelled'].is_set()
         assert h.jobs.results.result(h.sid, record['job_id']) == events.committed
@@ -926,6 +927,16 @@ def test_real_manager_refuses_each_genuine_authority_mutation_at_each_dispatch_e
             decisions = db.execute(f'SELECT decision_json FROM {ledger.SCOPES} WHERE session_id=?',
                                    (h.sid,)).fetchall()
             assert all(row[0] is None for row in decisions)
-            batches = db.execute(f'SELECT batch_json FROM {ledger.BATCHES} WHERE session_id=?',
+            batches = db.execute(f'SELECT batch_json,failure_json FROM {ledger.BATCHES} WHERE session_id=?',
                                  (h.sid,)).fetchall()
             assert all('vector' not in node for row in batches for node in json.loads(row[0])['nodes'])
+
+            if boundary == 'pre_probe':
+                assert len(batches)==1
+                outcome=ledger.validate_failure(batches[0]['failure_json'])
+                assert outcome['stage']=='dispatch_validation'
+                assert outcome['reason'] in ('source_authority_changed','other')
+                assert outcome['child_dispatch']=='not_attempted'
+                assert batches[0]['failure_json']==record['speaker_probe']['failure_json']
+            else:
+                assert not batches

@@ -167,7 +167,8 @@ def real_pending_manager(store,value,batch,token,*,resolve):
     probe={'operation':None,'cancelled':threading.Event(),'batch':batch,'crops':(),
         'charge_bytes':524288,'reservation':token,'commit_pending':True,'commit_retrying':False,
         'resolve_only':resolve,'terminal_state':'source_scoped','state':'probe_unavailable',
-        'attempt_key':(SID,RID,batch['job_id'],batch['result_sha256']),'storage_failure':None}
+        'attempt_key':(SID,RID,batch['job_id'],batch['result_sha256']),'storage_failure':None,
+        'failure_json':None,'failure_frozen':False}
     return owner,{'thread':None,'speaker_probe':probe},probe
 
 

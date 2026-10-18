@@ -984,3 +984,236 @@ def test_bounded_mixed_or_tampered_descriptor_never_falls_back(bounded_job,chang
     with pytest.raises(ReadError):f.links.recording_for_job(f.sid,f.jid,f.digest)
     with pytest.raises(ReadError):_finish_bounded(f)
     assert counters(f.store) == before
+
+
+# Fixed outcomes add no evidence, scoring data or decision bytes.
+def failure_bytes(stage='child_wait',reason='child_failed',error_type='RuntimeError'):
+    return history.encoded({'schema':ledger.FAILURE_SCHEMA,'stage':stage,'reason':reason,
+        'child_dispatch':'possible','error_type':error_type})
+
+
+def test_failure_payload_and_batch_headers_fit_existing_charge():
+    fields={'schema':[ledger.FAILURE_SCHEMA], 'stage':ledger.FAILURE_STAGES,
+        'reason':ledger.FAILURE_REASONS, 'child_dispatch':ledger.FAILURE_DISPATCH,
+        'error_type':ledger.FAILURE_ERROR_TYPES}
+    longest={key:max(values,key=lambda value:len(history.encoded(value))) for key,values in fields.items()}
+    raw=history.encoded(longest)
+    assert ledger.validate_failure(raw)==longest
+    assert len(raw)<=ledger.MAX_FAILURE_BYTES==512
+    # Valid writer bounds: ASCII session/job/hash/token/state; space <=256
+    # codepoints (4 UTF-8 bytes each). Four integers use <=8 bytes each.
+    # WITHOUT ROWID has three secondary indexes; charge duplicated key bytes.
+    # Reserve 192 framing bytes per table/index record, well above each <=14
+    # serial-type varints, header length, payload length and cell-pointer bytes.
+    table_scalars=64+32+64+64+256*4+32+64+max(map(len,ledger.STATES))+4*8
+    index_scalars=(32+2*8)+(32+64+64+2*8)+(64+2*8)
+    assert table_scalars+index_scalars+4*192+512<=ledger.BATCH_BYTES==4096
+    assert ledger.RESERVATION_BYTES==ledger.MAX_BATCH_BYTES+4096
+    assert ledger.MAX_DECISION_BYTES==65536 and ledger.SCOPE_BYTES==90112
+
+
+@pytest.mark.parametrize('change',['extra','missing','schema','stage','reason','dispatch','type',
+    'number','noncanonical','oversized','text'])
+def test_failure_payload_rejects_unknown_or_unbounded_bytes(environment,change):
+    store,value,_=environment;batch=prepared(store);token=reserve(value,batch)
+    raw=failure_bytes();payload=json.loads(raw)
+    if change=='extra':payload['private']='sensitive text'
+    elif change=='missing':del payload['reason']
+    elif change=='schema':payload['schema']='future'
+    elif change=='stage':payload['stage']='private stage'
+    elif change=='reason':payload['reason']='private reason'
+    elif change=='dispatch':payload['child_dispatch']='executed_twice'
+    elif change=='type':payload['error_type']='PrivateExceptionName'
+    elif change=='number':payload['error_type']=1
+    if change in ('extra','missing','schema','stage','reason','dispatch','type','number'):
+        raw=history.encoded(payload)
+    elif change=='noncanonical':raw=json.dumps(payload,indent=1).encode()
+    elif change=='oversized':raw=b' '*513
+    elif change=='text':raw=raw.decode()
+    before=counters(store)
+    with pytest.raises(ReadError):value.commit(token,batch,'probe_unavailable',failure_json=raw)
+    assert counters(store)==before and rows(store,f'SELECT COUNT(*) FROM {ledger.BATCHES}')==[(0,)]
+
+
+def test_failure_payload_is_atomic_immutable_and_exact_idempotent(environment):
+    store,value,_=environment;batch=prepared(store);token=reserve(value,batch);raw=failure_bytes()
+    original=history.encoded(batch);before=counters(store)
+    with connection(store.path) as db:
+        db.execute(f"CREATE TRIGGER fail_failure_counters BEFORE UPDATE ON {ledger.SCOPES} "
+            "WHEN OLD.scope_seq=0 BEGIN SELECT RAISE(ABORT,'synthetic'); END")
+    with pytest.raises(ReadError):value.commit(token,batch,'probe_unavailable',failure_json=raw)
+    assert counters(store)==before and rows(store,f'SELECT COUNT(*) FROM {ledger.BATCHES}')==[(0,)]
+    with connection(store.path) as db:db.execute('DROP TRIGGER fail_failure_counters')
+    value.commit(token,batch,'probe_unavailable',failure_json=raw)
+    frozen=rows(store,f'SELECT batch_json,batch_sha256,failure_json,charge_bytes FROM {ledger.BATCHES}')
+    assert frozen==[(original,hashlib.sha256(original).hexdigest(),raw,len(original)+4096)]
+    counted=counters(store);value.commit(token,batch,'probe_unavailable',failure_json=raw)
+    assert counters(store)==counted
+    for changed in (None,failure_bytes(stage='cleanup',reason='cleanup_unverified')):
+        with pytest.raises(ReadError):value.commit(token,batch,'probe_unavailable',failure_json=changed)
+        assert not value.resolve_attempt(SID,RID,batch['job_id'],batch['result_sha256'],batch,
+            token=token,failure_json=changed)['resolved']
+    assert value.resolve_attempt(SID,RID,batch['job_id'],batch['result_sha256'],batch,
+        token=token,failure_json=raw)['already_committed']
+    with connection(store.path) as db:
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute(f'UPDATE {ledger.BATCHES} SET failure_json=NULL')
+    assert rows(store,f'SELECT batch_json,batch_sha256,failure_json,charge_bytes FROM {ledger.BATCHES}')==frozen
+
+
+@pytest.mark.parametrize('route',['commit','resolve'])
+def test_failure_payload_lost_ack_preserves_exact_bytes(environment,route):
+    store,value,_=environment;batch=prepared(store);token=reserve(value,batch);raw=failure_bytes()
+    original=sqlite3.connect
+    class LostAck(sqlite3.Connection):
+        def commit(self):
+            super().commit();raise sqlite3.OperationalError('private lost acknowledgement')
+    def connect(*args,**kwargs):return original(*args,**{**kwargs,'factory':LostAck})
+    def submit():
+        if route=='commit':return value.commit(token,batch,'probe_unavailable',failure_json=raw)
+        return value.resolve_attempt(SID,RID,batch['job_id'],batch['result_sha256'],batch,
+            token=token,failure_json=raw)
+    with patch.object(history.sqlite3,'connect',side_effect=connect):
+        with pytest.raises(ReadError):submit()
+    before=counters(store);submit()
+    assert counters(store)==before
+    assert rows(store,f'SELECT failure_json FROM {ledger.BATCHES}')==[(raw,)]
+
+
+def test_successful_and_restart_unknown_outcomes_remain_null(environment):
+    store,value,lock=environment;batch=prepared(store);token=reserve(value,batch)
+    with pytest.raises(ReadError):value.commit(token,batch,failure_json=failure_bytes())
+    value.commit(token,batch)
+    later=prepared(store,number=2);reserve(value,later)
+    restarted=ledger.RecordingSpeakerLinkStore(store);restarted.bind_recovery(lock)
+    assert restarted.reconcile()['interrupted']==1
+    assert rows(store,f'SELECT failure_json FROM {ledger.BATCHES}')==[(None,),(None,)]
+
+
+def test_exact_legacy_failure_migration_preserves_original_rows(environment):
+    store,value,_=environment;batch=prepared(store);token,embedded=finish(value,batch)
+    original=rows(store,f'SELECT * FROM {ledger.BATCHES}')[0][:-1]
+    counted=counters(store)
+    with connection(store.path) as db:
+        db.execute('DROP TRIGGER recording_probe_immutable')
+        db.execute(f'DROP TABLE {ledger.BATCHES}')
+        db.execute(ledger.LEGACY_BATCH_SCHEMA)
+        db.execute(f"INSERT INTO {ledger.BATCHES} VALUES({','.join('?' for _ in original)})",original)
+        for name in ('recording_probe_session_scope','recording_probe_immutable'):
+            db.execute(ledger.SCHEMA[name])
+    with connection(store.path) as db:
+        db.execute('BEGIN IMMEDIATE');ledger.init_schema(db)
+    assert rows(store,f'SELECT * FROM {ledger.BATCHES}')==[(*original,None)]
+    assert counters(store)==counted
+    with connection(store.path) as db:
+        db.execute('BEGIN IMMEDIATE');ledger.init_schema(db)
+        # The previous binary's exact-schema comparison rejects this new table.
+        actual=db.execute('SELECT sql FROM sqlite_master WHERE name=?',(ledger.BATCHES,)).fetchone()[0]
+        assert ' '.join(actual.split())!=' '.join(ledger.LEGACY_BATCH_SCHEMA.split())
+    assert value.snapshot(token['scope_id'])['batches']==[embedded]
+
+
+@pytest.mark.parametrize('mutation',['extra_column','weak_check','partial'])
+def test_unknown_failure_schema_never_migrates(environment,mutation):
+    store,_,_=environment
+    with connection(store.path) as db:
+        if mutation=='extra_column':db.execute(f'ALTER TABLE {ledger.BATCHES} ADD COLUMN unknown TEXT')
+        elif mutation=='partial':db.execute('DROP INDEX recording_link_inflight_seq')
+        else:
+            db.execute('DROP TRIGGER recording_probe_immutable');db.execute(f'DROP TABLE {ledger.BATCHES}')
+            db.execute(ledger.SCHEMA[ledger.BATCHES].replace('BETWEEN 1 AND 512','BETWEEN 1 AND 513'))
+            for name in ('recording_probe_session_scope','recording_probe_immutable'):db.execute(ledger.SCHEMA[name])
+    before=rows(store,'SELECT name,sql FROM sqlite_master ORDER BY name')
+    with connection(store.path) as db:
+        db.execute('BEGIN IMMEDIATE')
+        with pytest.raises(ValueError):ledger.init_schema(db)
+    assert rows(store,'SELECT name,sql FROM sqlite_master ORDER BY name')==before
+
+
+def test_explicit_failure_read_without_decision_and_default_getter_unchanged(environment):
+    store,value,_=environment;batch=prepared(store);token=reserve(value,batch);raw=failure_bytes()
+    value.commit(token,batch,'probe_unavailable',failure_json=raw)
+    before=rows(store,f'SELECT decision_json,decision_sha256 FROM {ledger.SCOPES} WHERE scope_seq>0')
+    with connection(store.path) as db:
+        statements=[];db.set_trace_callback(statements.append)
+        default=ledger.read_saved_for_recording(db,SID,RID)
+    assert default['probe_outcomes']==[]
+    assert all('failure_json' not in sql for sql in statements)
+    saved=value.read_saved(SID,RID)
+    assert saved['probe_outcomes']==[{'job_id':batch['job_id'],
+        'result_sha256':batch['result_sha256'],'state':'probe_unavailable','failure':json.loads(raw)}]
+    assert saved['annotations']==[] and value._staging==0
+    hashed={k:v for k,v in saved.items() if k!='revision_sha256'}
+    assert saved['revision_sha256']==hashlib.sha256(history.encoded(hashed)).hexdigest()
+    assert saved==value.read_saved(SID,RID)
+    assert before==[(None,None)]==rows(store,
+        f'SELECT decision_json,decision_sha256 FROM {ledger.SCOPES} WHERE scope_seq>0')
+
+
+def test_failure_read_keeps_legacy_null_and_stale_annotations_unknown(environment):
+    store,value,_=environment;first=prepared(store);token,_=finish(value,first)
+    assert value.recompute_scope(token['scope_id'],links.reconcile_batches)['saved']
+    current=value.read_saved(SID,RID);assert current['annotations']
+    second=prepared(store,number=2);admission=reserve(value,second)
+    value.commit(admission,second,'probe_interrupted')
+    decision=rows(store,f'SELECT decision_json FROM {ledger.SCOPES} WHERE scope_seq>0')
+    saved=value.read_saved(SID,RID)
+    assert saved['annotations']==[]
+    assert saved['probe_outcomes']==[{'job_id':second['job_id'],
+        'result_sha256':second['result_sha256'],'state':'probe_interrupted','failure':None}]
+    assert rows(store,f'SELECT decision_json FROM {ledger.SCOPES} WHERE scope_seq>0')==decision
+
+
+def test_failure_read_is_exact_scope_and_rejects_wrong_cached_identity(environment):
+    store,value,_=environment;first=prepared(store);token=reserve(value,first)
+    value.commit(token,first,'probe_unavailable',failure_json=failure_bytes())
+    other_rid='b'*32;second=prepared(store,number=2,rid=other_rid)
+    admission=reserve(value,second,rid=other_rid)
+    value.commit(admission,second,'probe_unavailable')
+    assert [x['job_id'] for x in value.read_saved(SID,RID)['probe_outcomes']]==[first['job_id']]
+    assert [x['job_id'] for x in value.read_saved(SID,other_rid)['probe_outcomes']]==[second['job_id']]
+    wrong=history.encoded({'diagnostics':{'policy_sha256':links.POLICY_SHA256_V2},
+        'annotations':[],'probe_outcomes':[{'job_id':second['job_id'],
+        'result_sha256':second['result_sha256'],'state':'probe_unavailable'}]})
+    with connection(store.path) as db:
+        db.execute(f'UPDATE {ledger.SCOPES} SET decision_json=?,decision_sha256=? WHERE scope_id=?',
+            (wrong,hashlib.sha256(wrong).hexdigest(),token['scope_id']))
+    with pytest.raises(ReadError):value.read_saved(SID,RID)
+    assert value._staging==0
+
+
+@pytest.mark.parametrize('malformed',['oversized','text','unknown_enum','row_overflow'])
+def test_failure_read_rejects_bad_lengths_and_rows_before_blob_decode(environment,monkeypatch,malformed):
+    store,value,_=environment;batch=prepared(store);token=reserve(value,batch)
+    value.commit(token,batch,'probe_unavailable',failure_json=failure_bytes())
+    with connection(store.path) as db:
+        db.execute('DROP TRIGGER recording_probe_immutable')
+        db.execute('PRAGMA ignore_check_constraints=ON')
+        if malformed=='row_overflow':
+            original=list(db.execute(f'SELECT * FROM {ledger.BATCHES}').fetchone())
+            for index in range(2,34):
+                row=list(original);row[1]=index;row[3]=f'{index:032x}';row[7]=f'{index:032x}'
+                db.execute(f"INSERT INTO {ledger.BATCHES} VALUES({','.join('?' for _ in row)})",row)
+        else:
+            raw=b'x'*513 if malformed=='oversized' else 'private text' if malformed=='text' else failure_bytes(stage='future')
+            db.execute(f'UPDATE {ledger.BATCHES} SET failure_json=?',(raw,))
+    decoded=[];original_decode=ledger.validate_failure
+    def decode(raw):decoded.append(raw);return original_decode(raw)
+    monkeypatch.setattr(ledger,'validate_failure',decode)
+    with pytest.raises(ReadError):value.read_saved(SID,RID)
+    assert value._staging==0
+    if malformed!='unknown_enum':assert not decoded
+
+
+def test_failure_read_existing_stage_and_output_caps_release_on_refusal(environment,monkeypatch):
+    store,value,_=environment;batch=prepared(store);token=reserve(value,batch)
+    value.commit(token,batch,'probe_unavailable',failure_json=failure_bytes())
+    with patch.object(ledger,'MAX_STAGING_BYTES',0):
+        with pytest.raises(ReadError):value.read_saved(SID,RID)
+        with connection(store.path) as db:assert ledger.read_saved_for_recording(db,SID,RID)['annotations']==[]
+    assert value._staging==0
+    original=ledger._saved
+    def too_large(*a,**kw):return {**original(*a,**kw),'annotations':['x'*(4*ledger.MAX_DECISION_BYTES)]}
+    monkeypatch.setattr(ledger,'_saved',too_large)
+    with pytest.raises(ReadError):value.read_saved(SID,RID)
+    assert value._staging==0
