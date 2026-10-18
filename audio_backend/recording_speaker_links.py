@@ -61,6 +61,11 @@ _PRIMARY_NODE_FIELDS = frozenset(('primary_source_ref', 'primary_packet_sha256',
 _TYPED_NODE_FIELDS = _PRIMARY_NODE_FIELDS | frozenset(('source_kind',
     'native_attributions', 'probe_index', 'float32le_sha256'))
 _TYPED_BATCH_FIELDS = frozenset(('primary_packets', 'phrase_evidence'))
+_RESERVED_NODE_FIELDS = frozenset(('schema', 'policy_sha256', 'batch_sha256',
+    'primary_packets', 'phrase_evidence'))
+_COMMON_NODE_FIELDS = frozenset(('job_id', 'result_sha256', 'node_id', 'native_label',
+    'native_scope_id', 'start_frame', 'end_frame', 'pcm16le_sha256', 'source_spans',
+    'source_key', 'space_id', 'support_id', 'proof_sha256', 'projection_sha256'))
 
 
 def expected_space(num_threads=2):
@@ -556,6 +561,8 @@ def validate_batch(batch, *, require_vectors=True):
     for node in nodes:
         if type(node) is not dict:
             raise Unavailable('speaker_link_node_shape')
+        if _RESERVED_NODE_FIELDS.intersection(node):
+            raise Unavailable('speaker_link_node_envelope')
         if _TYPED_NODE_FIELDS.intersection(node):
             raise Unavailable('speaker_link_mixed_policy_metadata')
         integer(node.get('phrase_index'), 255)
@@ -729,6 +736,8 @@ def _validate_batch_v2(batch, *, require_vectors):
     for node in nodes:
         if type(node) is not dict or node.get('source_kind') not in ('moss', 'native_primary'):
             raise Unavailable('speaker_link_node_shape')
+        if _RESERVED_NODE_FIELDS.intersection(node):
+            raise Unavailable('speaker_link_node_envelope')
         for key in ('job_id', 'result_sha256', 'support_id', 'proof_sha256', 'projection_sha256', 'space_id'):
             if node.get(key) != batch[key]:
                 raise Unavailable('speaker_link_node_binding')
@@ -765,6 +774,12 @@ def _validate_batch_v2(batch, *, require_vectors):
                 raise Unavailable('speaker_link_primary_source_ref')
             validate_primary_node(node, canonical(doc), packets)
             ref = ('native_primary', canonical(node.get('primary_source_ref')))
+        fields = _COMMON_NODE_FIELDS | frozenset(('source_kind', 'native_attributions',
+            'probe_index', 'float32le_sha256'))
+        fields |= (frozenset(('phrase_index', 'moss_tag')) if node['source_kind'] == 'moss'
+                   else _PRIMARY_NODE_FIELDS)
+        if set(node) - {'vector'} != fields:
+            raise Unavailable('speaker_link_node_fields')
         if ref in refs:
             raise Unavailable('speaker_link_duplicate_source_ref')
         refs.add(ref)

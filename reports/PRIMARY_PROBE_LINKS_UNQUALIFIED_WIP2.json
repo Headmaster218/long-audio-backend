@@ -1,0 +1,30 @@
+{
+  "status": "UNQUALIFIED_SOURCE_ONLY_WIP",
+  "parent_commit": "975fce36ed6d5fa874b273b2ccf88767b55f0ec2",
+  "baseline_tree": "3cc62375a54bd95aaff3ae6bc0afc062fd57ce77",
+  "scope": "Prospective typed native-primary and MOSS recording-local probe consumer",
+  "production_modules": [
+    "recording_primary_probe.py",
+    "recording_speaker_links.py",
+    "recording_speaker_link_store.py",
+    "moss_handy_jobs.py",
+    "transcript_contract.py",
+    "transcript_store.py"
+  ],
+  "qualification": "Source-only unqualified backup after three foundational prospective Worker/owner/commit/live-lease/restart tests and one concrete native-packet ledger positive path passed. The first ledger negative stopped on a fixture path-field KeyError, now source-corrected but unexecuted; all remaining negative, pure, mixed-version, GET and lifecycle coverage remains pending. Includes reserved-envelope hardening, core-cancel fencing and pre-admitted GET decision budget changes. No models or acoustic accuracy claim. Version remains dev46 solely as inherited metadata; this WIP is not a versioned release.",
+  "invariants": "Four typed node admissions; four or fewer exact 64000-byte physical crops; 512 dimensions; 32 recording nodes; 496 pairs; 0.55 threshold; 0.10 margin; existing ownership, cleanup and no-replay limits unchanged. No new table, model, reader, scheduler, thread, provenance writer, backfill or enrollment.",
+  "prior_diagnostic_evidence": [
+    {
+      "stage": "focused1",
+      "source_manifest_sha256": "23c540f8be4a7be1a978d9060dd532842d035b6658563566a0b513004b3ad3bf",
+      "report_sha256": "6bce8139a2f05839e8fde6668466560effc27692b2078e85d1c0d8f84927e565",
+      "result": "3 passed"
+    },
+    {
+      "stage": "ledger1",
+      "source_manifest_sha256": "d16d3d657558f5d8a69caaec2ae14a4e40392aeab129f8aa56dac581a4ad7dd3",
+      "report_sha256": "7dbb330880bcc633f4016b8b1bb92401d4f3e206873c95fc1e2504b586eb2907",
+      "result": "1 passed; 1 fixture KeyError before intended file mutation; stopped at first failure"
+    }
+  ]
+}

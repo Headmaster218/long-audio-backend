@@ -181,3 +181,43 @@ def test_named_slots_are_proof_bounded_and_plain_ordinary_proof_is_ineligible():
     assert probe.named_commits(cell.proof) == tuple(case['commits'])
     ordinary = ordinary_origin(case)['proof']
     assert probe.named_commits(ordinary.encode('ascii')) == ()
+
+
+def test_primary_and_live_query_each_independently_require_contiguous_clean_support():
+    case, cell, packets = synthetic_primary_case()
+    packet = deepcopy(packets[0]['packet'])
+    packet['turns'].append([13, 1, RATE, 17600, 1., 1.1])
+    raw_blocked = [packet_header(packet)]
+    candidates, witnesses, outcomes = probe.primary_candidates(
+        cell.support, cell.pcm, cell.proof, raw_blocked, SPACE)
+    assert candidates == [] and witnesses
+    assert outcomes[0]['status'] == 'insufficient_clean_support'
+    # The retained raw packet is unchanged in this second case. Only the
+    # independently witnessed live query has an intervening competing label.
+    query = deepcopy(case['query'])
+    query['turns'].append({'label': EPOCH + ':speaker_2', 'original': [RATE, 17600]})
+    blocked_cell = final_cell(case, [primary_row(1, 0, 12 * RATE)], query=query)
+    candidates, _, outcomes = probe.primary_candidates(
+        blocked_cell.support, blocked_cell.pcm, blocked_cell.proof, packets, SPACE)
+    assert candidates == [] and outcomes[0]['status'] == 'insufficient_clean_support'
+
+
+def test_combined_packet_body_ceiling_is_not_a_per_packet_allowance():
+    case, cell, packets = synthetic_primary_case()
+    expanded = []
+    for index, commit in enumerate(case['commits']):
+        packet = deepcopy(packets[0]['packet'])
+        packet['commit'] = deepcopy(commit)
+        label, matches, base = ((0, [2, 6], .5), (2, [11], 4.5), (3, [12], 8.5))[index]
+        packet['units'] = [[parent, ordinal, base, base + .125, base, label, matches]
+            for parent in range(128) for ordinal in (7, 8, 9)]
+        packet['rows'] = [[parent, [3 * parent, 3 * parent + 1, 3 * parent + 2]] for parent in range(128)]
+        packet['refs'] = [['p.' + str(10000 * (index + 1) + parent) + '.' + 'a' * 64, None]
+                          for parent in range(128)]
+        expanded.append(packet_header(packet, sequence=index + 1))
+    sizes = [len(provenance.bounded(saved['packet'])) for saved in expanded]
+    assert all(size <= provenance.MAX_BODY for size in sizes)
+    assert sum(sizes[:2]) <= probe.MAX_PACKET_BYTES < sum(sizes)
+    assert probe.validate_packets(cell.proof, expanded[:2]) == expanded[:2]
+    with pytest.raises(cells.Unavailable, match='primary_probe_packet_binding'):
+        probe.validate_packets(cell.proof, expanded)

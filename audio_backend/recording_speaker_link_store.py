@@ -657,7 +657,7 @@ class RecordingSpeakerLinkStore:
         if (type(decision) is not dict or type(decision.get('annotations')) is not list
                 or len(decision['annotations'])>MAX_SCOPE_NODES):
             _fail('invalid_speaker_link_decision')
-        from .recording_speaker_links import POLICY_SHA256, SUPPORTED_POLICIES
+        from .recording_speaker_links import POLICY_SHA256, POLICY_SHA256_V2, SUPPORTED_POLICIES
         policy_sha256=POLICY_SHA256 if policy_sha256 is None else policy_sha256
         if (policy_sha256 not in SUPPORTED_POLICIES or type(decision.get('diagnostics')) is not dict
                 or decision['diagnostics'].get('policy_sha256')!=policy_sha256):
@@ -695,6 +695,13 @@ class RecordingSpeakerLinkStore:
                         for key in ('job_id','result_sha256','phrase_index','space_id','proof_sha256','source_key',
                                     'source_kind','primary_source_ref','primary_packet_sha256'))):
                     _fail('invalid_speaker_link_decision')
+                if policy_sha256 == POLICY_SHA256_V2:
+                    expected = {k:v for k,v in node.items() if k not in
+                                ('vector','source_spans','primary_commit')}
+                    observed = {k:v for k,v in annotation.items() if k not in
+                                ('status','provisional_speaker_id','reason',
+                                 'duplicate_evidence','speaker_identity_valid')}
+                    if observed != expected:_fail('invalid_speaker_link_decision')
                 seen.add(annotation['node_id'])
             # Cancellation of a source chunk is checked independently of callback state.
             cancelled_source=db.execute('''SELECT 1 FROM recording_work w JOIN chunks c ON c.id=w.chunk_id

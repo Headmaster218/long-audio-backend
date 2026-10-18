@@ -473,16 +473,22 @@ class TranscriptStore:
         return candidate, result, meta
 
     def _speaker_annotations(self, db, sid, candidates, intersecting, *,
-                             primary=(), chunks=(), primary_annotations=None):
+                             primary=(), chunks=(), primary_annotations=None,
+                             annotation_read=None):
         """Read bounded saved decisions for current page-local recording roots.
 
         Current chunk and batch session membership is checked even when no MOSS
         job intersects this page. No probe, filesystem proof or model is opened.
         """
         if not self.speaker_links_enabled:return []
-        from .recording_speaker_link_store import read_saved_for_recording
+        from .recording_speaker_link_store import read_saved_for_recording, MAX_DECISION_BYTES
         scopes, by_job, memberships = {}, {}, {}
         remaining = c.MAX_RESULTS_BYTES
+        def capacity_unavailable():
+            if annotation_read is not None:
+                annotation_read.update(complete=False, reason='saved_decision_bytes',
+                    byte_limit=c.MAX_RESULTS_BYTES)
+            return {'state':'capacity_exhausted','reason':'saved_decision_bytes'}
         def recording_for_chunk(cid):
             if cid not in memberships:
                 if len(memberships) >= MAX_CHUNKS:return None
@@ -495,17 +501,32 @@ class TranscriptStore:
         def saved_for_recording(rid):
             nonlocal remaining
             if rid not in scopes:
+                # Reserve the full per-decision bound before the getter can
+                # materialize or decode its BLOB. Failed/stale/malformed reads
+                # consume the same reservation, even if their public result is
+                # tiny. All discovery paths share this cache and allowance.
+                if remaining < MAX_DECISION_BYTES:
+                    scopes[rid] = capacity_unavailable()
+                    return scopes[rid]
+                remaining -= MAX_DECISION_BYTES
                 try:
                     saved = read_saved_for_recording(db, sid, rid)
                     if type(saved) is not dict:raise ValueError()
                     size = len(c.encoded(saved))
-                    if size > remaining:raise ValueError()
-                    remaining -= size
+                    extra = max(0, size - MAX_DECISION_BYTES)
+                    if extra > remaining:
+                        remaining = 0
+                        scopes[rid] = capacity_unavailable()
+                        return scopes[rid]
+                    remaining -= extra
                     scopes[rid] = saved
                 except (ReadError, ValueError, TypeError, AttributeError, KeyError, RecursionError):
                     # An optional malformed decision cannot hide durable text.
                     # Scalar sidecar headers still bind this page's cursor.
                     scopes[rid] = {'state':'probe_unavailable','reason':'saved_links_unavailable'}
+                    if annotation_read is not None:
+                        annotation_read['complete'] = False
+                        annotation_read.setdefault('reason', 'saved_links_unavailable')
             return scopes[rid]
         for row, *_ in intersecting:
             recording_ids = []
@@ -735,8 +756,10 @@ class TranscriptStore:
                         lexical_reason = exc.limit
                         candidates, intersecting = [], []
             primary_annotations = {}
+            annotation_read = {'complete':True, 'scope':'page_recording_decisions'}
             link_scopes = self._speaker_annotations(db, sid, candidates, intersecting,
-                primary=primary, chunks=chunks, primary_annotations=primary_annotations)
+                primary=primary, chunks=chunks, primary_annotations=primary_annotations,
+                annotation_read=annotation_read)
             check()
             value = project(block, primary, candidates, notices,lexical=lexical_inputs,policy_hash=policy_hash)
             if lexical_reason is not None:c.lexical_fallback(value,lexical_reason)
@@ -744,6 +767,7 @@ class TranscriptStore:
             value.update(session_id=sid, revision=revision, policy_sha256=policy_hash,
                 optional_closure=closure,
                 recording_speaker_links={'enabled':self.speaker_links_enabled, 'scopes':link_scopes,
+                    'annotation_read':annotation_read,
                     'authority':'anonymous_provisional_recording_only', 'automatic_gallery_enrollment':False},
                 reading_status='provisional_display_preference', complete_content=False, eos=None,
                 history_scope='automatic_timestamped_recording_only',

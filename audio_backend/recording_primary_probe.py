@@ -80,6 +80,10 @@ def _source_current(source, fence, scope, part, budget):
 
 def _packet_current(db, saved, source, fence, budget):
     packet = saved['packet']
+    state = db.execute('SELECT state FROM native_core_commits WHERE slot=?',
+                       (saved['header']['core_slot'],)).fetchone()
+    budget.projection(128)
+    if state is None or state[0] == 'cancelled':return False
     # Account all text projections before current() materializes them. Packet
     # bodies and owner source reads use this same boundary-local Budget.
     ids = [int(ref[0].split('.')[1]) for ref in packet['refs']]

@@ -10,7 +10,7 @@ from audio_backend import recording_speaker_links as links
 from audio_backend import recording_primary_probe as primary_probe
 from audio_backend.native_owned_cells import float32_digest, sha
 from test_recording_speaker_links import ordinary, projection, vector, matrix, capture
-from test_recording_primary_probe import synthetic_primary_case
+from test_recording_primary_probe import synthetic_primary_case, packet_header
 from test_bounded_core_support import final_cell, primary_row
 
 
@@ -251,6 +251,30 @@ def test_v2_moss_rejects_rehashed_primary_metadata(field, value):
         links.validate_batch(rehash(batch), require_vectors=False)
 
 
+@pytest.mark.parametrize('version', [1, 2])
+@pytest.mark.parametrize('field,value', [('schema', 'forged-schema'),
+    ('policy_sha256', 'f' * 64), ('batch_sha256', 'e' * 64),
+    ('primary_packets', []), ('phrase_evidence', [])])
+def test_reserved_node_envelopes_rejected_after_recomputed_hashes(version, field, value):
+    batch, _ = capture() if version == 1 else capture_v2()
+    node = batch['nodes'][0]
+    node[field] = value
+    original = {k: v for k, v in node.items() if k != 'node_id'}
+    node['node_id'] = sha({'schema': batch['schema'],
+        'policy_sha256': batch['policy_sha256'], **original})
+    batch['outcomes'][0]['node_id'] = node['node_id']
+    batch['batch_sha256'] = links._batch_digest(batch)
+    with pytest.raises(ValueError, match='node_envelope'):
+        links.validate_batch(batch, require_vectors=False)
+
+
+def test_v2_unknown_node_fields_require_a_new_schema():
+    batch, _ = capture_v2()
+    batch['nodes'][0]['unknown_future_observation'] = True
+    with pytest.raises(ValueError, match='node_fields'):
+        links.validate_batch(rehash(batch), require_vectors=False)
+
+
 def test_source_overlap_uses_source_coordinates_and_frames_not_logical_axis():
     one = {'source_spans': [{'source_sha256': 'a' * 64, 'source_frames': 100,
         'source_start': 10, 'source_end': 30, 'logical_start': 1000, 'logical_end': 1020}]}
@@ -318,3 +342,143 @@ def test_unembedded_independent_class_never_supplies_missing_runner_up():
     assert answer['diagnostics']['pair_count'] == 1
     assert answer['diagnostics']['linked_cluster_count'] == 0
     assert answer['diagnostics']['round_reasons']['missing_runner_up'] == 2
+
+
+def test_adjusted_moss_phrase_stays_unprobed_with_valid_primary_evidence():
+    _, cell, packets = synthetic_primary_case()
+    projected = projection(cell.support, '[8] [S01] Adjusted endpoint. [12.01]')
+    before = deepcopy(projected)
+    batch, crops = links.capture_candidates_v2(cell.support, cell.pcm, cell.proof,
+        projected, 'adjusted-primary', '1' * 64, links.expected_space(), primary_packets=packets)
+    assert projected == before
+    assert projected['timestamp_adjusted_phrase_count'] == 1
+    assert [n['source_kind'] for n in batch['nodes']] == ['native_primary']
+    assert len(crops) == 1
+    assert batch['outcomes'][0] == {'phrase_index': 0, 'status': 'timestamp_adjusted_unverified'}
+    assert batch['phrase_evidence'][0]['probe_source_eligible'] is False
+    assert links.validate_batch(batch, require_vectors=False) is batch
+    batch['nodes'][0]['vector'] = vector(1.)
+    answer = links.reconcile_batches([batch])
+    assert len(answer['annotations']) == 1
+    assert answer['annotations'][0]['source_kind'] == 'native_primary'
+    assert 'phrase_index' not in answer['annotations'][0]
+    assert answer['annotations'][0]['speaker_identity_valid'] is False
+
+
+@pytest.mark.parametrize('tag', ['S1', 'S2'])
+@pytest.mark.parametrize('with_primary', [False, True])
+def test_v2_adjusted_occupancy_blocks_moss_even_same_tag_without_erasing_primary(tag, with_primary):
+    if with_primary:
+        _, cell, packets = synthetic_primary_case()
+        source = (cell.support, cell.pcm, cell.proof)
+        candidate, adjusted_end = '[4][S1]Candidate.[8]', '12.01'
+    else:
+        source, packets = ordinary(), ()
+        candidate, adjusted_end = '[1][S1]Candidate.[9]', '10.01'
+    alone, _ = capture_v2(source, candidate, primary_packets=packets)
+    assert any(n['source_kind'] == 'moss' for n in alone['nodes'])
+    batch, crops = capture_v2(source,
+        candidate + f'[0][{tag}]Adjusted occupancy.[{adjusted_end}]', primary_packets=packets)
+    assert not any(n['source_kind'] == 'moss' for n in batch['nodes'])
+    assert len(batch['nodes']) == len(crops) == int(with_primary)
+    assert batch['outcomes'][:2] == [
+        {'phrase_index': 0, 'status': 'insufficient_clean_support'},
+        {'phrase_index': 1, 'status': 'timestamp_adjusted_unverified'}]
+    assert batch['phrase_evidence'][1]['probe_source_eligible'] is False
+    assert links.validate_batch(batch, require_vectors=False) is batch
+
+
+@pytest.mark.parametrize('primary_count,moss_count,expected', [
+    (3, 3, [('native_primary', 0), ('moss', 0), ('native_primary', 1), ('moss', 1)]),
+    (4, 1, [('native_primary', 0), ('moss', 0), ('native_primary', 1), ('native_primary', 2)]),
+    (1, 4, [('native_primary', 0), ('moss', 0), ('moss', 1), ('moss', 2)]),
+    (4, 0, [('native_primary', i) for i in range(4)]),
+    (0, 4, [('moss', i) for i in range(4)])])
+def test_multiple_primary_rows_alternate_then_fill_four_typed_admissions(primary_count, moss_count, expected):
+    _, cell, packets = synthetic_primary_case(unknown=False)
+    refs = ['p.' + str(i + 1) + '.' + sha({'synthetic_row': i}) for i in range(primary_count)]
+    if primary_count:
+        packet = deepcopy(packets[0]['packet'])
+        packet['units'] = [[5 + i, 7 + i, .5 + i / 8, .5625 + i / 8,
+                            .5 + i / 8, 0, [2, 6]] for i in range(primary_count)]
+        packet['rows'] = [[5 + i, [i]] for i in range(primary_count)]
+        packet['refs'] = [[ref, None] for ref in refs]
+        packets = [packet_header(packet)]
+    else:
+        packets = []
+    phrases = ' '.join('[4][S1]Eligible MOSS.[8]' for _ in range(moss_count))
+    batch, crops = capture_v2((cell.support, cell.pcm, cell.proof),
+        phrases or '[0][S1]Too short.[0.5]', primary_packets=packets)
+    actual = [(n['source_kind'], refs.index(n['primary_source_ref'])
+               if n['source_kind'] == 'native_primary' else n['phrase_index']) for n in batch['nodes']]
+    assert actual == expected
+    assert len(batch['nodes']) == 4
+    # These numeric fixtures intentionally share silence. Aliases still use
+    # all four typed admissions and cannot claim additional candidate slots.
+    assert len(crops) == 1 and [n['probe_index'] for n in batch['nodes']] == [0, 0, 0, 0]
+    assert sum(o['status'] == 'candidate' for o in batch['outcomes']) == 4
+    assert sum(o['status'] == 'crop_capacity' for o in batch['outcomes']) == primary_count + moss_count - 4
+    assert links.validate_batch(batch, require_vectors=False) is batch
+
+
+def test_original_primary_witness_alone_rejects_cross_query_label_aliases():
+    case, cell, packets = synthetic_primary_case(unknown=False)
+    original = deepcopy(packets[0]['packet'])
+    # One original native response has overlapping labels 1/2, while the
+    # independent live query assigns the later crop to disjoint query label 3.
+    original['turns'] = [t for t in original['turns'] if t[0] != 11]
+    next(t for t in original['turns'] if t[0] == 9)[3] = 128000
+    next(t for t in original['turns'] if t[0] == 9)[5] = 8.
+    later = deepcopy(original)
+    later['commit'] = deepcopy(case['commits'][1])
+    later['units'] = [[15, 7, 4.5, 4.625, 4.5, 1, [9]]]
+    later['rows'] = [[15, [0]]]
+    later['refs'] = [['p.3.' + 'c' * 64, None]]
+    saved = [packet_header(original), packet_header(later, sequence=2)]
+    batch, crops = capture_v2((cell.support, cell.pcm, cell.proof),
+        '[0][S1]Too short.[0.5]', primary_packets=saved)
+    assert [n['source_kind'] for n in batch['nodes']] == ['native_primary', 'native_primary']
+    first, second = batch['nodes']
+    assert first['native_scope_id'] == second['native_scope_id']
+    raw_pair = sorted([first['native_label'], second['native_label']])
+    query_pair = sorted([first['native_attributions'][1]['native_label'],
+                         second['native_attributions'][1]['native_label']])
+    query_scope = first['native_attributions'][1]['native_scope_id']
+    assert any(w['native_scope_id'] == first['native_scope_id'] and w['labels'] == raw_pair
+               for w in batch['witnesses'])
+    assert not any(w['native_scope_id'] == query_scope and w['labels'] == query_pair
+                   for w in batch['witnesses'])
+    assert first['source_key'] != second['source_key'] and len(crops) == 1
+    for node in batch['nodes']:
+        node['vector'] = vector(1.)
+    with pytest.raises(ValueError, match='duplicate_native_conflict'):
+        links.reconcile_batches([batch])
+
+
+def test_v2_cross_batch_typed_alias_vectors_must_agree():
+    _, cell, packets = synthetic_primary_case()
+    source = (cell.support, cell.pcm, cell.proof)
+    first, _ = capture_v2(source, '[0][S1]Alias.[3]', job='first', primary_packets=packets)
+    second, _ = capture_v2(source, '[0][S1]Alias.[3]', job='second', primary_packets=packets)
+    for batch, components in ((first, (1., 0.)), (second, (1., .01))):
+        for node in batch['nodes']:
+            node['vector'] = vector(*components)
+    with pytest.raises(ValueError, match='duplicate_vector_disagreement'):
+        links.reconcile_batches([first, second])
+
+
+def test_four_distinct_moss_crops_are_materialized_only_after_admission(monkeypatch):
+    original_crop = links._owned_crop
+    allocations = []
+
+    def crop(pcm, support, start, end):
+        allocations.append((start, end))
+        return original_crop(pcm, support, start, end)
+
+    monkeypatch.setattr(links, '_owned_crop', crop)
+    phrases = ' '.join(f'[{2.5 + i / 4}][S1]Distinct crop.[{5.5 + i / 4}]' for i in range(6))
+    batch, crops = capture_v2(ordinary(seed=1, varying=True), phrases)
+    assert len(batch['nodes']) == len(crops) == len(allocations) == 4
+    assert len(set(crops)) == 4
+    assert [n['probe_index'] for n in batch['nodes']] == [0, 1, 2, 3]
+    assert [o['status'] for o in batch['outcomes']] == ['candidate'] * 4 + ['crop_capacity'] * 2

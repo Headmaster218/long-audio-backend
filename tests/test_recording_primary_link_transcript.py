@@ -4,6 +4,7 @@ Run only after review and approval. All databases and source rows are synthetic;
 no audio, model, native extraction, owner worker or filesystem proof is opened.
 """
 from copy import deepcopy
+import hashlib
 import json
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from audio_backend import recording_speaker_link_store as ledger
 from audio_backend import recording_speaker_links as links
 from audio_backend import transcript_contract as c
+from audio_backend import transcript_store as ts
 from audio_backend.native_owned_support_cache import ReadError
 from test_transcript_http import SID, data
 from test_transcript_lexical_projection import LexicalFixture, four_units
@@ -328,3 +330,174 @@ def test_v2_moss_annotation_discloses_revision_bound_validation():
     assert result['validation_semantics'] == 'validated_at_decision_revision'
     assert result['speaker_identity_valid'] is False
     assert result['profile_update_allowed'] is False
+
+
+@pytest.mark.parametrize('include_moss', [False, True])
+@pytest.mark.parametrize('malformed', [False, True])
+def test_many_recordings_admit_before_blob_read_and_share_one_allowance(data, monkeypatch,
+                                                                     include_moss, malformed):
+    count = ts.MAX_CHUNKS
+    with data.db() as db:
+        db.execute('BEGIN')
+        ledger.init_schema(db)
+        db.execute('DELETE FROM segments')
+        db.execute('DELETE FROM recording_work')
+        db.execute('DELETE FROM chunks')
+        for index in range(count):
+            cid, rid = f'chunk-{index:03d}', f'recording-{index:03d}'
+            start = index / 4
+            db.execute('''INSERT INTO chunks(id,session_id,digest,timeline_start,duration,status)
+                VALUES(?,?,?,?,.25,'completed')''', (cid,SID,'d' * 64,start))
+            db.execute('INSERT INTO recording_batches VALUES(?,?,0)', (rid,SID))
+            db.execute('INSERT INTO recording_work VALUES(?,?,?,?,?)',
+                (cid,rid,4000,'e' * 64,index * 4000))
+            db.execute('''INSERT INTO segments(id,chunk_id,start,end,text,raw_text,asr_backend,
+                timestamp_kind,confidence,speaker_local_id,speaker_window_start)
+                VALUES(?,?,?,?,'p','p','synthetic','native',.8,'S1',0.)''',
+                (index + 1,cid,start,start + .25))
+        first = c.primary_evidence(SID, db.execute('SELECT * FROM segments WHERE id=1').fetchone())
+        for index in range(count):
+            # Large ignored padding makes every materialized decision exactly
+            # 64 KiB while its returned public decision is tiny. Charging only
+            # the getter's result would incorrectly admit all 128 recordings.
+            document = {'annotations':saved_primary(first['source_ref'])['annotations'] if index == 0 else [],
+                'jobs':[], 'diagnostics':{'policy_sha256':links.POLICY_SHA256_V2}, 'padding':''}
+            document['padding'] = 'x' * (ledger.MAX_DECISION_BYTES - len(c.encoded(document)))
+            raw = b' ' * ledger.MAX_DECISION_BYTES if malformed else c.encoded(document)
+            assert len(raw) == ledger.MAX_DECISION_BYTES
+            db.execute(f'''INSERT INTO {ledger.SCOPES}(scope_seq,scope_id,session_id,recording_id,
+                policy_sha256,space_json,space_id,revision,decision_revision,decision_session_revision,
+                decision_json,decision_sha256,state) VALUES(?,?,?,?,?,?,?,4,4,0,?,?,?)''',
+                (index + 1,c.digest({'scope':index}),SID,f'recording-{index:03d}',
+                 links.POLICY_SHA256_V2,b'{}','synthetic',raw,hashlib.sha256(raw).hexdigest(),
+                 'provisional_linked' if index == 0 else 'source_scoped'))
+    if include_moss:
+        data.job(1, 0, .25, cid='chunk-000', labels=('S1',), text='p')
+    with data.db() as db:
+        revision = db.execute('SELECT transcript_revision FROM sessions WHERE id=?', (SID,)).fetchone()[0]
+        db.execute(f'UPDATE {ledger.SCOPES} SET decision_session_revision=? WHERE session_id=?', (revision,SID))
+    before = data.page()
+    original_read, original_json = ledger.read_saved_for_recording, ledger._json
+    calls, decoded_bytes = [], []
+    maximum_reads = c.MAX_RESULTS_BYTES // ledger.MAX_DECISION_BYTES
+    def read(db, sid, rid, **kwargs):
+        # This guard is before the getter's SELECT decision_json, so even a
+        # failed or unreturned BLOB materialization would fail the contract.
+        assert len(calls) < maximum_reads
+        calls.append((sid,rid))
+        assert db.execute('PRAGMA query_only').fetchone()[0] == 1
+        return original_read(db,sid,rid,**kwargs)
+    def decode(raw, maximum):
+        if maximum == ledger.MAX_DECISION_BYTES:
+            decoded_bytes.append(len(raw))
+            assert sum(decoded_bytes) <= c.MAX_RESULTS_BYTES
+        return original_json(raw,maximum)
+    monkeypatch.setattr(ledger, 'read_saved_for_recording', read)
+    monkeypatch.setattr(ledger, '_json', decode)
+    data.reader.speaker_links_enabled = True
+    after = data.page()
+    assert len(calls) == len(set(calls)) == maximum_reads
+    assert len(decoded_bytes) == maximum_reads
+    assert sum(decoded_bytes) == c.MAX_RESULTS_BYTES
+    assert calls[0] == (SID,'recording-000')
+    assert after['recording_speaker_links']['annotation_read'] == {
+        'complete':False, 'scope':'page_recording_decisions',
+        'reason':'saved_decision_bytes', 'byte_limit':c.MAX_RESULTS_BYTES}
+    assert sum(item['state'] == 'capacity_exhausted'
+        for item in after['recording_speaker_links']['scopes']) == count - maximum_reads
+    for key in ('reading', 'baseline_reading', 'alternatives', 'selected_runs'):
+        assert without_annotations(after[key]) == before[key]
+    assert (IDENTITY in json.dumps(after['baseline_reading'])) is (not malformed)
+    # Skipped decisions still contribute scalar headers to the cursor digest.
+    with data.db() as db:
+        db.execute(f'UPDATE {ledger.SCOPES} SET decision_sha256=? WHERE recording_id=?',
+            ('9' * 64,f'recording-{count - 1:03d}'))
+    with pytest.raises(ReadError) as exc:
+        data.page(cursor=after['next_cursor'])
+    assert exc.value.reason == 'transcript_revision_changed'
+    assert len(calls) == maximum_reads
+
+
+@pytest.mark.parametrize('projection,policy_hash', [
+    ('whole-primary-v1',c.POLICY_HASH), ('lexical-estimated-v1',c.LEXICAL_POLICY_HASH),
+])
+@pytest.mark.parametrize('decision_policy', [links.POLICY_SHA256, links.POLICY_SHA256_V2])
+def test_upgraded_annotation_contract_rejects_baseline_cursor_without_rehashing_sources(
+        tmp_path, projection, policy_hash, decision_policy):
+    f = LexicalFixture(tmp_path / 'annotation-cursor-upgrade.sqlite3')
+    f.install(1, four_units())
+    job = f.job(1, 1, 3, labels=('S1',))
+    ref = parent_ref(f)
+    lexical_refs = [group['source_ref'] for group in f.groups(1)]
+    source_bytes = {source:f.reader.evidence(SID,source) for source in [ref,*lexical_refs]}
+    moss_annotation = {'job_id':job['jid'], 'result_sha256':job['sha'], 'phrase_index':0,
+        'status':'provisional_linked', 'provisional_speaker_id':IDENTITY,
+        'speaker_identity_valid':False}
+    annotations = [moss_annotation]
+    if decision_policy == links.POLICY_SHA256_V2:
+        moss_annotation['source_kind'] = 'moss'
+        annotations.extend(saved_primary(ref)['annotations'])
+    decision = {'annotations':annotations, 'jobs':[],
+        'diagnostics':{'policy_sha256':decision_policy,
+            'schema':links.SCHEMA if decision_policy == links.POLICY_SHA256 else links.SCHEMA_V2}}
+    raw = c.encoded(decision)
+    with f.db() as db:
+        db.execute('BEGIN')
+        ledger.init_schema(db)
+        session_revision = db.execute('SELECT transcript_revision FROM sessions WHERE id=?', (SID,)).fetchone()[0]
+        db.execute(f'''INSERT INTO {ledger.SCOPES}(scope_seq,scope_id,session_id,recording_id,
+            policy_sha256,space_json,space_id,revision,decision_revision,decision_session_revision,
+            decision_json,decision_sha256,state) VALUES(1,?,?, 'batch',?,?,?,4,4,?,?,?,'provisional_linked')''',
+            (ledger.scope_identity(SID,'batch'),SID,decision_policy,b'{}','synthetic',
+             session_revision,raw,hashlib.sha256(raw).hexdigest()))
+    f.reader.speaker_links_enabled = True
+    with f.reader.snapshot(SID) as (db,session,_):
+        rows = db.execute(f'''SELECT scope_id,revision,decision_revision,decision_session_revision,
+            decision_sha256,state,policy_sha256,space_id FROM {ledger.SCOPES}
+            INDEXED BY recording_link_session_scope WHERE session_id=? ORDER BY scope_seq LIMIT 1025''',
+            (SID,)).fetchall()
+        headers = [tuple(row) for row in rows]
+        # Exact pre-upgrade getter payload, including its singular policy key.
+        # No baseline code is imported, and no DB/source mutation is involved.
+        baseline_links_revision = c.digest({'session_id':SID,
+            'session_revision':session['transcript_revision'],
+            'current_policy_sha256':links.POLICY_SHA256, 'scopes':headers})
+        current_links_revision = ledger.read_session_revision(db,SID)
+        assert current_links_revision == c.digest({'session_id':SID,
+            'session_revision':session['transcript_revision'],
+            'supported_policy_sha256':links.SUPPORTED_POLICIES, 'scopes':headers})
+        assert current_links_revision != baseline_links_revision
+        change = db.execute('''SELECT cursor FROM result_changes INDEXED BY result_changes_session
+            WHERE session_id=? ORDER BY cursor DESC LIMIT 1''', (SID,)).fetchone()
+        baseline_revision = c.digest({'policy':policy_hash, 'session':SID,
+            'primary_change_max':change[0] if change else 0,
+            'transcript_revision':session['transcript_revision'], 'timeline_end':session['timeline_end'],
+            'speaker_links_revision':baseline_links_revision})
+        assert f.reader._revision(db,SID,session,policy_hash=policy_hash) != baseline_revision
+        saved = ledger.read_saved_for_recording(db,SID,'batch')
+        assert saved['state'] == 'provisional_linked'
+        assert saved['annotations'] == annotations
+        assert saved['policy_sha256'] == decision_policy
+    old_cursor = c.cursor(SID,0,baseline_revision,policy_hash=policy_hash)
+    assert c.parse_cursor(old_cursor,SID,policy_hash=policy_hash)['revision'] == baseline_revision
+    with pytest.raises(ReadError) as exc:
+        f.page(cursor=old_cursor,projection=projection)
+    assert exc.value.status_code == 409 and exc.value.reason == 'transcript_revision_changed'
+    page = f.page(projection=projection)
+    assert page['recording_speaker_links']['annotation_read'] == {
+        'complete':True, 'scope':'page_recording_decisions'}
+    moss_rows = [row for row in projected_rows(page) if row['source'] == 'moss']
+    assert moss_rows and all(row['recording_speaker_link']['provisional_speaker_id'] == IDENTITY
+                             for row in moss_rows)
+    if decision_policy == links.POLICY_SHA256:
+        assert all('validation_semantics' not in row['recording_speaker_link'] for row in moss_rows)
+        assert all('recording_speaker_link' not in row for row in projected_rows(page)
+                   if row['source'] in ('primary','primary_lexical'))
+    else:
+        assert all(row['recording_speaker_link']['validation_semantics'] ==
+                   'validated_at_decision_revision' for row in moss_rows)
+        assert all(row['recording_speaker_link']['source_kind'] == 'native_primary'
+                   for row in projected_rows(page) if row['source'] in ('primary','primary_lexical'))
+    assert parent_ref(f) == ref
+    assert [group['source_ref'] for group in f.groups(1)] == lexical_refs
+    assert {source:f.reader.evidence(SID,source) for source in source_bytes} == source_bytes
