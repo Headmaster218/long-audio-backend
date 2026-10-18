@@ -1832,3 +1832,283 @@ def test_manager_records_step_cutoff_separately_from_task_and_cancellation(monke
     assert finished==[(snapshot,'deadline')]
     assert record['driver_active']==(failure=='step_cleanup_unknown')
     assert state['steps']==1 and not {'output','write','publish'} & set(state['events'])
+
+
+def test_primary_moss_coexistence_and_fresh_models_disabled_reopen(primary_history_factory,monkeypatch,tmp_path,record_property):
+    """One bounded core, successful text, then a genuinely new passive process.
+
+    A one-second MOSS phrase cannot supply a two-second crop. Its actual
+    ten-second support does admit one native-primary crop, duplicating the
+    standalone primary observation while retaining authenticated witnesses.
+    """
+    import fcntl
+    import hashlib
+    import httpx
+    from audio_backend import moss_automatic as automatic
+    from audio_backend import moss_result_store as results
+    from audio_backend import recording_primary_provenance as provenance
+
+    tables=('chunks','segments','speaker_turns','events',provenance.TABLE,
+        history.SCOPES,history.ATTEMPTS,history.CERTIFICATES,history.OBJECTS,
+        history.REFS,history.DEPENDENCIES,history.SOURCES,history.DECISIONS,history.ROWS,
+        automatic.TABLE,automatic.USAGE,results.TABLE,results.USAGE)
+    def audit(store):
+        with store.db() as db:
+            return {table:hashlib.sha256(repr(sorted(
+                (tuple(row) for row in db.execute('SELECT * FROM '+table)),key=repr)).encode()).hexdigest()
+                for table in tables}
+
+    with primary_history_factory() as h:
+        selected=[];text_records=[]
+        base_probe=h.jobs._probe_factory
+        class CoexistingProbe(base_probe):
+            def start(self,cancelled):
+                raw=(self.directory/'request.json').read_bytes();request=json.loads(raw)
+                assert hashlib.sha256(raw).hexdigest()==self.digest
+                assert len(request['crops'])==1 and request['crops'][0]['index']==0
+                if h.jobs.permit._optional_kind=='automatic_primary_probe':
+                    return super().start(cancelled)
+                assert h.jobs.permit._optional_kind=='preemptible'
+                assert h.jobs._live['speaker_probe']['invocation_id']==request['job_id']
+                assert h.capture.analyzer is None and not h.jobs._lock._is_owned()
+                assert not any(item.granted or item.entered for item in h.jobs.permit._primary.values())
+                assert not Path(h.store.settings.recording_speaker_model_path).exists()
+                self.starts+=1
+        h.jobs._probe_factory=CoexistingProbe
+        submit_primary=h.jobs.submit_primary;submit_text=h.jobs.submit_automatic
+        def primary_attempt():
+            selected.append('primary');return submit_primary()
+        def text_attempt(intent):
+            selected.append('text')
+            result=submit_text(intent);text_records.append(h.jobs._live);return result
+        monkeypatch.setattr(h.jobs,'submit_primary',primary_attempt)
+        monkeypatch.setattr(h.jobs,'submit_automatic',text_attempt)
+        cid,=ingest_recording(h,frames=10*RATE)
+        assert _cohort(h)==cid and h.store.chunk(cid)['status']=='completed'
+        primary_rows=_primary_rows(h)
+        assert len(primary_rows)==1 and primary_rows[0]['text']=='synthetic'
+        listing=h.client.get(f'/sessions/{h.sid}/moss-automatic')
+        assert listing.status_code==200,listing.text
+        candidate,=listing.json()['candidates']
+        assert candidate['kind']=='ordinary' and candidate['state']=='queued'
+        _turn(h)
+        assert selected==['primary'] and len(h.probes)==1 and not h.drivers
+        _turn(h)
+        assert selected==['primary','text'] and len(text_records)==1
+        record=text_records[0];driver,=h.drivers
+        assert driver.starts==driver.waits==driver.cleanups==1
+        assert record['invocation_possible'] and record['process_cleanup_verified'] and record['cleaned']
+        assert record['durable_result_available'] and not record['storage_pending']
+        assert record['lease'].released and not record['invalidated']
+        assert record['state']=='returned_diagnostic'
+        assert record['lease'].support.end_frame-record['lease'].support.start_frame==10*RATE
+        projection=json.loads(record['history_snapshot'].result_json)
+        assert projection['alternative']['text']=='synthetic' and projection['alternative']['outcome']=='returned'
+        assert projection['schema_errors']==[] and projection['timestamp_adjusted_phrase_count']==0
+        phrase,=projection['diagnostic_phrases']
+        assert (phrase['start'],phrase['end'],phrase['raw_text'])==(0.,1.,'synthetic')
+        outcome=json.loads(record['history_snapshot'].metadata_json)['outcome']
+        assert outcome['state']=='returned_diagnostic' and outcome['process_cleanup_verified']
+        assert outcome['model_closed'] and outcome['session_closed'] and outcome['copied_pin_release_acknowledged']
+        assert outcome['construct_attempts']==outcome['session_attempts']==outcome['run_attempts']==1
+        completed=h.client.get(f'/sessions/{h.sid}/moss-automatic/{candidate["candidate_key"]}')
+        assert completed.status_code==200 and completed.json()['state']=='committed',completed.text
+        assert completed.json()['job_id']==record['job_id']
+        probe=record['speaker_probe']
+        assert probe['history_admitted'] and probe['state']=='links_stale'
+        assert probe['operation'].cleaned and runner.cleanup_verified(probe['operation'].receipt)
+        assert probe['operation'].child_dispatch=='returned_validated' and not probe['commit_pending']
+        assert len(h.probes)==2 and all(item.starts==item.cleanups==1 for item in h.probes)
+        assert h.jobs.permit._optional is None and h.jobs._probe_staging_bytes==0
+        assert _primary_rows(h)==primary_rows
+        comparison=_owned_comparison_process(h.jobs._history_comparison)
+        with h.store.db() as db:
+            attempts=[dict(row) for row in db.execute(f'SELECT * FROM {history.ATTEMPTS} ORDER BY origin_kind')]
+            assert len(attempts)==2 and {row['origin_kind'] for row in attempts}=={'primary_commit','moss_result'}
+            moss=next(row for row in attempts if row['origin_kind']=='moss_result')
+            assert moss['origin_id']==record['job_id'] and moss['state']=='success'
+            assert moss['basis'] and moss['terminal'] and moss['witness_count']>0
+            assert moss['reserved_bytes']==moss['staging_bytes']==0
+            basis=json.loads(moss['basis'])
+            proof=db.execute(f"SELECT body FROM {history.OBJECTS} WHERE kind='proof' AND digest=?",
+                (basis['proof_digest'],)).fetchone()[0]
+            assert hashlib.sha256(proof).hexdigest()==basis['proof_digest']
+            batch=json.loads(proof)
+            node,=batch['nodes']
+            assert node['source_kind']=='native_primary' and node['probe_index']==0
+            support=record['lease'].support
+            assert (node['start_frame']-support.start_frame,node['end_frame']-support.start_frame)==(56000,88000)
+            assert [row['status'] for row in batch['outcomes'] if 'phrase_index' in row]==['insufficient_clean_support']
+            assert len(batch['witnesses'])==moss['witness_count']==basis['witness_count']
+            assert batch['job_id']==record['job_id'] and batch['result_sha256']==record['history_snapshot'].result_sha256
+            assert {'receipt','proof'}<={row[0] for row in db.execute(
+                f'SELECT kind FROM {history.REFS} WHERE attempt=?',(moss['token'],))}
+            scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+            decision=db.execute(f'SELECT * FROM {history.DECISIONS} WHERE scope_seq=? AND slot=?',
+                (scope['scope_seq'],scope['current_slot'])).fetchone()
+            assert decision['complete']==1 and decision['history_revision']==scope['history_revision']
+            assert decision['witness_count']==scope['witness_count']==sum(row['witness_count'] for row in attempts)
+            assert scope['active_sources']==1 and json.loads(decision['header'])['boot_id']==history.BOOT_ID
+            rid=scope['recording_id']
+            refs=[('primary',json.loads(row[0])['ref_key']) for row in db.execute(
+                f'SELECT header FROM {history.CERTIFICATES} ORDER BY sequence')]
+            saved=history.read_saved_for_refs(db,h.sid,rid,refs)
+        assert saved['history_status']=='current' and saved['complete']
+        assert saved['observation_count']==saved['vector_count']==2
+        assert len(saved['annotations'])==2
+        assert all(row['status']=='source_scoped' and row['duplicate_evidence']
+            and row['provisional_speaker_id'] is None for row in saved['annotations'])
+        assert len({row['primary_source_ref'] for row in saved['annotations']})==1
+        page=h.client.get(f'/sessions/{h.sid}/transcript').json()
+        reading=[[row['source_ref'],row['text']] for row in page['baseline_reading']]
+        assert reading==[[saved['annotations'][0]['primary_source_ref'],'synthetic']]
+        annotation=page['baseline_reading'][0]['recording_speaker_link']
+        assert annotation['history_status']=='current' and annotation['speaker_identity_valid'] is False
+        assert annotation['provisional_speaker_id'] is None
+        paths=[f'/sessions/{h.sid}/moss-jobs/history/{record["job_id"]}',
+               f'/sessions/{h.sid}/moss-jobs/history/{record["job_id"]}/result',
+               f'/sessions/{h.sid}/moss-automatic/{candidate["candidate_key"]}']
+        responses={}
+        for path in paths:
+            response=h.client.get(path)
+            assert response.status_code==200,response.text
+            responses[path]=hashlib.sha256(response.content).hexdigest()
+        expected={'tables':tables,'audit':audit(h.store),'paths':responses,'reading':reading,
+            'sid':h.sid,'rid':rid,'boot':history.BOOT_ID,'candidate_key':candidate['candidate_key']}
+        root=Path(h.store.settings.data_dir).resolve()
+    # The first lifespan and the exact retained comparison owner must be closed
+    # before a new interpreter can acquire this same instance lock and registry.
+    assert comparison.cleanup['positive'] and comparison.cleanup['positive_wait']
+    assert comparison.process.returncode is not None and comparison.process.poll() is not None
+    assert comparison.comparison_resources_closed() and h.jobs.stopped
+    assert not h.worker.thread.is_alive() and all(native.closed for native in h.natives)
+    assert h.owner._thread is None or not h.owner._thread.is_alive()
+    assert h.app.state.instance_lock.file is None and audit(h.store)==expected['audit']
+
+    # Fixed, isolated child role: no server, fixture imports, BOOT_ID mutation,
+    # product configuration bypass, model loading, or further child dispatch.
+    source=Path(__file__).resolve().parents[1]
+    tool_root=Path(httpx.__file__).resolve().parents[1]
+    assert tool_root==source.parents[1]/'recording-runtime-dev48-20261018'/'test-tools'
+    expected_path=tmp_path/'passive-reopen-expected.json'
+    expected_path.write_text(json.dumps(expected,sort_keys=True))
+    assert expected_path.stat().st_size<=16384
+    script=r'''# primary-history-passive-reopen-v1
+import hashlib,json,subprocess,sys
+from pathlib import Path
+assert sys.argv[1]=='--primary-history-passive-reopen-v1' and len(sys.argv)==6
+source,tools,root,expected_path=map(Path,sys.argv[2:])
+sys.path[:0]=[str(source),str(tools)]
+import httpx
+from fastapi.testclient import TestClient
+import audio_backend.app as app_module
+from audio_backend.settings import Settings
+from audio_backend.worker import Worker
+from audio_backend.moss_handy_jobs import MossJobs
+from audio_backend.recording_speaker_probe_runner import ProbeOperation
+from audio_backend.recording_speaker_history_process import ComparisonProcess
+from audio_backend import recording_speaker_history as history
+assert Path(app_module.__file__).resolve()==source/'audio_backend'/'app.py'
+assert Path(httpx.__file__).resolve()==tools/'httpx'/'__init__.py'
+assert expected_path.stat().st_size<=16384
+expected=json.loads(expected_path.read_bytes())
+assert history.BOOT_ID!=expected['boot']
+dispatches=[]
+def forbidden(*args,**kwargs):
+    dispatches.append('unexpected_active_dispatch')
+    raise AssertionError('passive reopen attempted active work')
+for cls,names in ((Worker,('start','process','extract_pcm')),
+                  (MossJobs,('submit_primary','submit_automatic','maintain_history_comparison')),
+                  (ProbeOperation,('run',)),(ComparisonProcess,('start',))):
+    for name in names:setattr(cls,name,forbidden)
+subprocess.Popen=forbidden
+settings=Settings(data_dir=root,disk_reserve_bytes=0,start_worker=False,
+    recording_speaker_history_read_enabled=True)
+assert not any((settings.native_owned_support_enabled,settings.native_owned_cells_enabled,
+    settings.native_owned_core_seams_enabled,settings.native_owned_bounded_core_support_enabled,
+    settings.moss_jobs_enabled,settings.moss_automatic_enabled,settings.recording_speaker_links_enabled))
+assert settings.recording_primary_observation_policy=='off'
+assert settings.native_diarization_model is settings.moss_jobs_model_path is settings.recording_speaker_model_path is None
+def audit(store):
+    with store.db() as db:
+        return {table:hashlib.sha256(repr(sorted(
+            (tuple(row) for row in db.execute('SELECT * FROM '+table)),key=repr)).encode()).hexdigest()
+            for table in expected['tables']}
+app=app_module.create_app(settings,analyzer_factory=forbidden)
+with TestClient(app) as client:
+    assert app.state.moss_jobs is None and not app.state.moss_automatic.current()
+    worker=app.state.worker
+    assert worker.native is None and not worker.thread.is_alive()
+    assert audit(app.state.store)==expected['audit']
+    for path,digest in expected['paths'].items():
+        response=client.get(path)
+        assert response.status_code==200,response.text
+        assert hashlib.sha256(response.content).hexdigest()==digest
+        assert 'no-store' in response.headers['cache-control']
+    listing=client.get('/sessions/'+expected['sid']+'/moss-automatic')
+    assert listing.status_code==200,listing.text
+    assert listing.json()['capacity']['enabled'] is False
+    candidate,=listing.json()['candidates']
+    assert candidate['candidate_key']==expected['candidate_key'] and candidate['state']=='committed'
+    response=client.get('/sessions/'+expected['sid']+'/transcript')
+    assert response.status_code==200,response.text
+    page=response.json()
+    assert [[row['source_ref'],row['text']] for row in page['baseline_reading']]==expected['reading']
+    scope,=page['recording_speaker_links']['scopes']
+    assert scope['history_status']=='historical'
+    for row in page['baseline_reading']:
+        annotation=row.get('recording_speaker_link')
+        assert annotation is None or (annotation['status']!='provisional_linked'
+            and annotation.get('provisional_speaker_id') is None
+            and annotation.get('speaker_identity_valid') is not True)
+    with app.state.store.db() as db:
+        saved=history.read_saved_for_refs(db,expected['sid'],expected['rid'],
+            [('primary',ref) for ref,text in expected['reading']])
+    assert saved['history_status']=='historical' and saved['reason']=='active_source_revalidation_pending'
+    assert saved['annotations']==[] and saved['observation_count']==saved['vector_count']==2
+    assert audit(app.state.store)==expected['audit'] and not dispatches
+    assert app.state.moss_response_budget._lease_count==app.state.moss_response_budget._lease_bytes==0
+assert app.state.instance_lock.file is None and not worker.thread.is_alive()
+assert worker.native is None and not dispatches
+assert audit(app.state.store)==expected['audit']
+print(json.dumps({'role':'primary-history-passive-reopen-v1','fresh_boot':True,
+    'history_status':saved['history_status'],'reason':saved['reason'],
+    'exact_audit':True,'exact_primary':True,'exact_moss':True,'dispatches':0,'closed':True},sort_keys=True))
+'''
+    argv=[sys.executable,'-I','-B','-c',script,'--primary-history-passive-reopen-v1',
+        str(source),str(tool_root),str(root),str(expected_path)]
+    output=tmp_path/'passive-reopen.stdout';errors=tmp_path/'passive-reopen.stderr'
+    child=None;stdout=b'';stderr=b'';pipe_bytes=[];waited=False
+    try:
+        child=subprocess.Popen(argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            close_fds=True,cwd=source)
+        deadline=time.monotonic()+20.
+        # Undrained finite kernel pipes bound output while the child runs. An
+        # overproducing child blocks and fails at this same work deadline.
+        pipe_bytes=[fcntl.fcntl(stream.fileno(),fcntl.F_GETPIPE_SZ) for stream in (child.stdout,child.stderr)]
+        assert all(0<size<=65536 for size in pipe_bytes)
+        child.wait(timeout=max(0.,deadline-time.monotonic()));waited=True
+        stdout=child.stdout.read(16385);stderr=child.stderr.read(65537)
+    finally:
+        if child is not None:
+            try:
+                if not waited:
+                    if child.poll() is None:child.terminate()
+                    try:child.wait(timeout=2.)
+                    except subprocess.TimeoutExpired:child.kill();child.wait(timeout=2.)
+                    waited=True
+            finally:
+                if child.stdout is not None:child.stdout.close()
+                if child.stderr is not None:child.stderr.close()
+                record_property('passive_reopen_child',json.dumps({'pid':child.pid,'returncode':child.returncode,
+                    'positive_wait':waited,'pipe_capacity_bytes':pipe_bytes,'work_seconds':20.,
+                    'cleanup_seconds':4.,'stdout_bytes':len(stdout),'stderr_bytes':len(stderr)},sort_keys=True))
+    assert child is not None and waited and child.returncode is not None
+    assert len(stdout)<=16384 and len(stderr)<=65536
+    output.write_bytes(stdout);errors.write_bytes(stderr)
+    assert child.returncode==0,stderr.decode('utf-8',errors='replace')
+    report=json.loads(stdout)
+    assert report=={'role':'primary-history-passive-reopen-v1','fresh_boot':True,
+        'history_status':'historical','reason':'active_source_revalidation_pending',
+        'exact_audit':True,'exact_primary':True,'exact_moss':True,'dispatches':0,'closed':True}
+    assert audit(h.store)==expected['audit']

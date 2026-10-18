@@ -198,7 +198,7 @@ class Observation:
         for attr in self.attributions:
             if type(attr) is not tuple or len(attr) != 2:
                 raise Invalid('attribution')
-            _text(attr[0]); _text(attr[1])
+            _text(attr[0]); _text(attr[1], 128)
         for span in self.spans:
             if type(span) is not tuple or len(span) != 4:
                 raise Invalid('span')
@@ -672,7 +672,7 @@ class ComparisonBuild:
             labels = row['labels']
             if type(labels) not in (tuple, list) or len(labels) != 2 or labels[0] == labels[1]:
                 raise Invalid('witness_labels')
-            _text(labels[0]); _text(labels[1])
+            _text(labels[0], 128); _text(labels[1], 128)
             key = (row['native_scope_id'], tuple(sorted(labels)))
             checked.append(key)
             encoded = canonical(row)

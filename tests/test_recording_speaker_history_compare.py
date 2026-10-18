@@ -356,6 +356,96 @@ def test_snapshot_vector_count_is_independent_and_checked_at_page_boundary():
         subject.SnapshotToken.from_record(dict(good.document(), vector_count=3))
 
 
+@pytest.mark.parametrize('length', [64, 75, 128, 129])
+def test_native_label_bounds_preserve_exact_bytes_and_charges(length):
+    # The ordinary bounded query adds its capture run to epoch:speaker_1.
+    label = 'a' * 32 + ':' + 'b' * 32 + ':speaker_1' if length == 75 else 'l' * length
+    assert len(label) == length
+    row = observation(0, attributions=(('native', label),))
+    witness = {'native_scope_id': 'native', 'labels': (label, 'other'), 'proof_sha256': 'c' * 64}
+    snapshot = token([row], [witness])
+    build = subject.ComparisonBuild(snapshot, admitted_bytes=subject.MAX_MEMORY_BYTES)
+    initial = build._loaded_bytes
+    if length == 129:
+        with pytest.raises(subject.Invalid, match='bounded_text'):
+            build.feed_observations(snapshot, 0, [row], complete=True)
+        with pytest.raises(subject.Invalid, match='bounded_text'):
+            build.feed_witnesses(snapshot, 0, [witness], complete=True)
+        assert build.rows == [] and build.witnesses == set()
+        assert build._loaded_bytes == initial and build._witness_after == 0
+        return
+    checked = subject.Observation.from_record(row)
+    baseline = subject.Observation.from_record(observation(0, attributions=(('native', 'l' * 64),)))
+    metadata = subject.canonical(checked.metadata())
+    assert len(metadata) - len(subject.canonical(baseline.metadata())) == length - 64
+    assert checked.owned_bytes() - baseline.owned_bytes() == length - 64
+    assert len(metadata) <= subject.OBSERVATION_METADATA_BYTES == 3072
+    framing = len(subject.canonical({'token': snapshot.document(), 'after': 0, 'complete': True, 'count': 1})) + 4
+    assert framing + 8 + len(metadata) + len(row['vector']) <= subject.PAGE_BYTES == 128 * 1024
+    build.feed_observations(snapshot, 0, [row], complete=True)
+    assert build.rows[0].attributions == row['attributions']
+    assert build.rows[0].fingerprint() == checked.fingerprint()
+    assert build._loaded_bytes == initial + checked.owned_bytes()
+    encoded_witness = subject.canonical(witness)
+    assert framing + 4 + len(encoded_witness) <= subject.PAGE_BYTES
+    build.feed_witnesses(snapshot, 0, [witness], complete=True)
+    assert build.witnesses == {('native', tuple(sorted((label, 'other'))))}
+    assert build._loaded_bytes == initial + checked.owned_bytes() + 512 + 2 * len(encoded_witness)
+    assert build.required_bytes >= build._loaded_bytes
+    assert finish(build)['state'] == 'ready'
+    assert annotations(build)[0]['body']['status'] == 'source_scoped'
+    assert build.required_bytes <= build.admitted_bytes
+    if length == 128:
+        import sys
+        # Consumer-envelope robustness: upstream native UTF-8 admission can be
+        # stricter. Character count never substitutes for actual byte charges.
+        multibyte = '\u2603' * 128
+        wide_row = dict(row, attributions=(('native', multibyte),))
+        wide_witness = dict(witness, labels=(multibyte, 'other'))
+        wide = subject.Observation.from_record(wide_row)
+        wide_metadata = subject.canonical(wide.metadata())
+        assert len(wide_metadata) - len(metadata) == len(subject.canonical(multibyte)) - len(subject.canonical(label))
+        assert len(wide_metadata) > len(metadata) and len(wide_metadata) <= subject.OBSERVATION_METADATA_BYTES
+        assert wide.owned_bytes() - checked.owned_bytes() == sys.getsizeof(multibyte) - sys.getsizeof(label) > 0
+        wide_snapshot = token([wide_row], [wide_witness])
+        wide_build = subject.ComparisonBuild(wide_snapshot, admitted_bytes=subject.MAX_MEMORY_BYTES)
+        wide_initial = wide_build._loaded_bytes
+        wide_build.feed_observations(wide_snapshot, 0, [wide_row], complete=True)
+        wide_build.feed_witnesses(wide_snapshot, 0, [wide_witness], complete=True)
+        assert wide_build.rows[0].attributions == (('native', multibyte),)
+        assert wide_build.rows[0].fingerprint() == wide.fingerprint() != checked.fingerprint()
+        assert wide_build.witnesses == {('native', tuple(sorted((multibyte, 'other'))))}
+        witness_bytes = len(subject.canonical(wide_witness))
+        assert wide_build._loaded_bytes == wide_initial + wide.owned_bytes() + 512 + 2 * witness_bytes
+        assert framing + 8 + len(wide_metadata) + len(row['vector']) <= subject.PAGE_BYTES
+        assert framing + 4 + witness_bytes <= subject.PAGE_BYTES
+        assert finish(wide_build)['state'] == 'ready'
+        assert wide_build._loaded_bytes <= wide_build.required_bytes <= wide_build.admitted_bytes
+        # Four individually bounded labels can still exceed the unchanged
+        # aggregate canonical-ASCII envelope; reject instead of truncating.
+        oversized = dict(wide_row, attributions=tuple((f'native-{index}', multibyte) for index in range(4)))
+        assert all(len(value) == 128 for scope, value in oversized['attributions'])
+        assert len(subject.canonical({key: value for key, value in oversized.items() if key != 'vector'})) > 3072
+        with pytest.raises(subject.Invalid, match='metadata_bytes'):
+            subject.Observation.from_record(oversized)
+
+
+def test_native_label_bound_does_not_expand_generic_identifiers():
+    fields = ('observation_id', 'node_id', 'source_key', 'pcm_hash', 'float_hash')
+    for field in fields:
+        with pytest.raises(subject.Invalid, match='bounded_text'):
+            subject.Observation.from_record(observation(0, **{field: 'g' * 65}))
+    with pytest.raises(subject.Invalid, match='bounded_text'):
+        subject.Observation.from_record(observation(0, attributions=(('g' * 65, 'l' * 128),)))
+    witness = {'native_scope_id': 'g' * 65, 'labels': ('l' * 128, 'other'), 'proof_sha256': 'c' * 64}
+    snapshot = token([], [witness])
+    build = subject.ComparisonBuild(snapshot, admitted_bytes=subject.MAX_MEMORY_BYTES)
+    initial = build._loaded_bytes
+    with pytest.raises(subject.Invalid, match='bounded_text'):
+        build.feed_witnesses(snapshot, 0, [witness], complete=True)
+    assert build.witnesses == set() and build._witness_after == 0 and build._loaded_bytes == initial
+
+
 def test_transport_envelope_does_not_reduce_immutable_source_header_capacity():
     row = observation(0, origin_kind='moss_result', node_id='n' * 64,
         source_key='s' * 64, pcm_hash='p' * 64, float_hash='f' * 64,
