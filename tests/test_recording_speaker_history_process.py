@@ -622,3 +622,109 @@ def test_comparison_census_deadline_does_not_misclassify_primary_budget(monkeypa
         assert caught.value.reason=='process_sample_budget'
         assert permit.sampling_recovery_pending
         assert permits._authenticated_exhaustion(caught.value)[0] == ('rows' if case=='rows' else 'wall')
+
+
+def test_step_clips_only_its_rpc_without_renewing_task_or_other_operations(monkeypatch):
+    owner=driver(clock=lambda:10.)
+    owner._token=TOKEN;owner._generation=1;owner._deadline=190.
+    requests=[]
+    def request(op,**kwargs):
+        requests.append((op,deepcopy(kwargs)))
+        if op=='output':return {'token':owner._token,'rows':[],'next_after':0,'complete':True,'total_rows':0}
+        if op=='finish':return child_status('cached',task_closed=True)
+        return child_status('ready',decision_counts={'annotation':0,'merge':0,'round':0,
+            'total_rows':0,'independent_observations':0})
+    monkeypatch.setattr(owner,'_request',request)
+    owner.step()
+    owner.feed_witnesses(TOKEN,0,[],complete=True)
+    owner.rebase({**TOKEN,'history_revision':2})
+    owner.output_page()
+    owner.finish_task()
+    assert [op for op,_ in requests]==['step','witnesses','rebase','output','finish']
+    assert requests[0][1]=={'deadline':10.250}
+    assert all('deadline' not in kwargs for _,kwargs in requests[1:])
+    assert owner._deadline==190. and not owner._poisoned
+
+
+@pytest.mark.parametrize('failure',['stall','late_reply','census','task_stall'])
+def test_step_cutoff_retains_original_process_and_full_reservation_until_positive_cleanup(monkeypatch,failure):
+    """Fake scheduling/handles, real driver and permit ownership; no child."""
+    state={'now':10.,'rows':{},'deadlines':[],'sent':None}
+    monkeypatch.setattr(permits,'time',SimpleNamespace(monotonic=lambda:state['now']))
+    settings=SimpleNamespace(data_dir='.',process_memory_limit_bytes=6*1024**3,disk_reserve_bytes=0,
+        native_owned_support_enabled=False)
+    def sample(_):
+        rows={os.getpid():(1.,0,10*mod.MIB),**state['rows']}
+        return permits.ProcessSample(rows,sum(row[2] for row in rows.values()),10*mod.MIB,10*1024**3,10*1024**3)
+    permit=permits.NativeExecutionPermit(settings,sampler=sample)
+    grant,event=object(),threading.Event()
+    permit.reserve_comparison(grant,event,memory_bytes=mod.OWNER_BYTES)
+    proc=Handle()
+    identity=SimpleNamespace(pid=os.getpid(),create_time=lambda:2.,ppid=lambda:os.getpid(),
+        is_running=lambda:proc.returncode is None)
+    monkeypatch.setattr(permits.psutil,'Process',lambda _:identity)
+    monkeypatch.setattr(permits.psutil,'process_iter',lambda attrs:iter([
+        SimpleNamespace(info={'pid':os.getpid(),'ppid':0})]))
+    canonical=permits.service_sample
+    def clipped_sample(settings,**kwargs):return canonical(settings,clock=lambda:state['now'],**kwargs)
+    def observe(process,**kwargs):
+        state['deadlines'].append(kwargs['deadline'])
+        if failure=='census':
+            state['now']=kwargs['deadline']
+            permit._sampler=clipped_sample
+        return permit.observe_comparison_process(grant,process,**kwargs)
+    owner=driver(clock=lambda:state['now'],cancelled=event.is_set,
+        grant_valid=lambda:permit.comparison_grant_valid(grant),observe_child=observe,
+        finish_child=lambda process,**kwargs:permit.finish_comparison_process(grant,process,**kwargs))
+    permit.bind_comparison_owner(grant,owner)
+    owner.process=proc;owner._started=True
+    owner._channel=SimpleNamespace(close=lambda:None)
+    owner._token=TOKEN;owner._generation=1;owner._task_closed=False
+    owner._deadline=10.100 if failure=='task_stall' else 190.
+    assert permit.bind_comparison_process(grant,proc,owner=owner)
+    state['rows'][proc.pid]=(2.,os.getpid(),16*mod.MIB)
+    monkeypatch.setattr(permits,'service_sample',clipped_sample)
+    monkeypatch.setattr(owner,'_signal',lambda signum:False)
+    def send(channel,value,**kwargs):state['sent']=value
+    def receive(channel,**kwargs):
+        state['now']=kwargs['deadline']
+        if failure!='late_reply':raise mod.ProcessError('synthetic_stalled_receive')
+        return {**state['sent'],'payload':child_status('ready',decision_counts={
+            'annotation':0,'merge':0,'round':0,'total_rows':0,'independent_observations':0})}
+    monkeypatch.setattr(mod,'_send',send)
+    monkeypatch.setattr(mod,'_receive',receive)
+    before=deepcopy(owner.status)
+    try:
+        with pytest.raises(mod.ProcessError) as caught:owner.step()
+        if failure=='task_stall':
+            assert type(caught.value) is mod.ProcessError and str(caught.value)=='comparison_deadline'
+            assert owner._deadline==10.100
+        else:
+            assert type(caught.value) is mod.ProcessStepDeadline
+            assert caught.value.reason=='comparison_step_deadline' and owner._deadline==190.
+        if failure in ('stall','task_stall'):
+            assert type(caught.value.__cause__) is mod.ProcessError
+            assert str(caught.value.__cause__)=='synthetic_stalled_receive'
+        if failure=='census':
+            assert type(caught.value.__cause__) is permits.AdmissionError
+            assert caught.value.__cause__._comparison_sample_deadline is permits._COMPARISON_SAMPLE_DEADLINE
+            assert event.is_set() and state['sent'] is None
+        assert all(value==(10.100 if failure=='task_stall' else 10.250) for value in state['deadlines'])
+        assert not permit.sampling_recovery_pending and permit._unavailable is None
+        assert owner.status==before and owner._poisoned and owner.process is proc
+        assert not owner.cleanup['positive'] and not owner.cleanup['positive_wait']
+        assert not permit.release_comparison(grant)
+        assert permit.status()['comparison_reserved_bytes']==mod.OWNER_BYTES
+        assert not owner.close(timeout=.001)['positive']
+        assert not owner.cleanup['positive_wait'] and owner.process is proc
+        assert not permit.release_comparison(grant)
+        assert permit._comparison['child']['proc'] is proc
+        with pytest.raises(mod.ProcessError,match='channel_unavailable'):owner._request('step')
+    finally:
+        permit._sampler=sample
+        proc.returncode=0;state['rows']={}
+        monkeypatch.setattr(permits.psutil,'Process',lambda pid:(_ for _ in ()).throw(permits.psutil.NoSuchProcess(pid)))
+        assert owner.close()['positive'] and owner.cleanup['positive_wait']
+        assert owner.process is proc and proc.waits
+        assert permit.release_comparison(grant)
+        assert permit.status()['comparison_reserved_bytes']==0

@@ -13,6 +13,7 @@ import io
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import subprocess
 import threading
@@ -1110,6 +1111,9 @@ def test_real_store_revocation_or_cancel_fences_compute_and_ready_output(primary
                 assert history.notify_source_mismatch(h.store,[cids[0]]) is True
                 mutation_returned=time.monotonic()
                 assert h.jobs.history.comparison_current(snapshot)=='invalid'
+            # The pending-only continuation is allowed until its 100ms poll.
+            # Hold this existing one-quantum fixture across that boundary.
+            if action=='revoke':time.sleep(.100)
             resume.set();barrier_released=time.monotonic()
             assert _joined_comparison(h) is record
             thread_joined=time.monotonic()
@@ -1220,6 +1224,9 @@ def test_uncertain_authority_waits_without_another_compute_quantum(primary_histo
                 with monkeypatch.context() as fault:
                     fault.setattr(history.MossResultStore,'_database',failed_notification)
                     assert history.notify_source_mismatch(h.store,[cid]) is False
+            # Exercise the due poll without changing the no-extra-quantum
+            # assertion once an uncertain read has actually been observed.
+            time.sleep(.100)
             resume.set()
             assert pending.wait(5.),record['state']
             assert len(steps)==1 and steps[0] in ('pending','ready') and not record['completed'].is_set()
@@ -1517,3 +1524,193 @@ def test_standalone_graph_capacity_refuses_without_truncation():
     with pytest.raises(Exception,match='primary_probe_staging_capacity'):
         primary.copy_standalone_primary(draft,cell.pcm,runner.expected_space()[1])
     assert draft==before and original['packet']['rows']==draft['packet']['rows']
+
+
+def _pending_poll_fixture(monkeypatch):
+    """Deterministic manager boundary only: no DB, thread, child or model."""
+    from audio_backend import moss_handy_jobs as jobs_module
+    state={'now':0.,'enabled':True,'granted':True,'current':'current','reads':[],
+        'events':[],'waits':[],'steps':0,'on_wait':None,'on_step':None}
+    class Event:
+        def __init__(self):self.set_value=False
+        def is_set(self):return self.set_value
+        def set(self):self.set_value=True
+        def wait(self,seconds):
+            state['waits'].append(seconds)
+            assert len(state['waits'])<=4, 'unbounded fake checkpoint wait'
+            state['now']+=seconds
+            if state['on_wait']:state['on_wait']()
+            return self.set_value
+    monkeypatch.setattr(jobs_module,'time',SimpleNamespace(monotonic=lambda:state['now']))
+    manager=jobs_module.MossJobs.__new__(jobs_module.MossJobs)
+    manager._history_comparison_enabled=lambda:state['enabled']
+    def resume(grant):
+        state['events'].append('resume');state['granted']=True
+        return True
+    manager.permit=SimpleNamespace(comparison_grant_valid=lambda grant:state['granted'],
+        resume_comparison=resume,pause_comparison=lambda grant:state['events'].append('pause'))
+    def current(snapshot):
+        state['reads'].append((snapshot,state['now']));state['events'].append('current')
+        value=state['current']
+        return value() if callable(value) else value
+    def feed(*args,**kwargs):state['events'].append('feed')
+    def step():
+        state['steps']+=1;state['events'].append('step')
+        assert state['steps']<=6, 'unbounded fake compute loop'
+        return state['on_step']()
+    def output(**kwargs):
+        state['events'].append('output')
+        return {'rows':[],'complete':True}
+    def write(*args):state['events'].append('write')
+    def publish(*args):state['events'].append('publish');return {'saved':True}
+    driver=SimpleNamespace(step=step,feed_observations=feed,feed_witnesses=feed,
+        output_page=output,decision_counts={},state='ready',cache_binding=None,
+        close=lambda:{'positive':True})
+    manager._history_comparison_driver=lambda record,token:driver
+    manager.history=SimpleNamespace(comparison_current=current,
+        active_source_page=lambda *args,**kwargs:{'complete':True},
+        revalidate_active_sources=lambda *args,checkpoint:checkpoint(),
+        observation_page=lambda *args,**kwargs:{'rows':[],'complete':True},
+        witness_page=lambda *args,**kwargs:{'rows':[],'complete':True},
+        write_decision_page=write,publish_comparison=publish)
+    snapshot={'token':{'fixture':'one'},'scope_seq':1}
+    record={'cancelled':Event(),'completed':Event(),'grant':object(),'deadline':180.,
+        'state':'starting','reason':None,'driver':driver,'driver_active':True,'snapshot':None}
+    return manager,record,snapshot,state
+
+
+def test_pending_currentness_interval_uses_read_start_and_exact_boundary(monkeypatch):
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    allowance={}
+    def slow_current():state['now']+=.040;return 'current'
+    state['current']=slow_current
+    assert manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    assert allowance=={'read_started':0.} and state['now']==.040
+    state['now']=.099999
+    assert manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    assert len(state['reads'])==1
+    state['now']=.100
+    assert manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    assert [stamp for _,stamp in state['reads']]==[0.,.100]
+    assert allowance=={'read_started':.100} and record['deadline']==180.
+
+
+@pytest.mark.parametrize('terminal',['ready','refused','cancelled','paused'])
+@pytest.mark.parametrize('currentness',['stale','invalid'])
+def test_nonpending_result_requires_fresh_authority_inside_poll_window(monkeypatch,terminal,currentness):
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    def step():
+        if state['steps']==1:return {'state':'pending'}
+        state['current']=currentness
+        return {'state':terminal,'reason':'synthetic_terminal'}
+    state['on_step']=step
+    if currentness=='stale':
+        with pytest.raises(ReadError) as caught:manager._compare_history_snapshot(record,snapshot)
+        assert caught.value.reason=='history_snapshot_changed'
+    else:
+        assert manager._compare_history_snapshot(record,snapshot) is None
+        assert record['cancelled'].is_set() and record['reason']=='history_authority_changed'
+    assert state['steps']==2 and len(state['reads'])==9
+    assert state['events'][-3:]==['step','step','current']
+    assert not {'output','write','publish'} & set(state['events'])
+
+
+@pytest.mark.parametrize('stop',['cancel','configuration','deadline','lost_grant','paused_rpc'])
+def test_pending_currentness_checks_local_stop_and_resets_after_resume(monkeypatch,stop):
+    from audio_backend.recording_speaker_history_process import ProcessPending
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    def step():
+        if stop=='cancel':record['cancelled'].set()
+        elif stop=='configuration':state['enabled']=False
+        elif stop=='deadline':state['now']=record['deadline']
+        else:
+            state['current']='invalid'
+            if stop=='lost_grant':state['granted']=False
+            else:raise ProcessPending('comparison_grant_paused')
+        return {'state':'pending'}
+    state['on_step']=step
+    assert manager._compare_history_snapshot(record,snapshot) is None
+    assert state['steps']==1 and not {'output','write','publish'} & set(state['events'])
+    if stop in ('lost_grant','paused_rpc'):
+        assert len(state['reads'])==9 and record['reason']=='history_authority_changed'
+    else:assert len(state['reads'])==8
+    if stop=='configuration':assert record['reason']=='comparison_configuration_changed'
+    if stop=='lost_grant':assert 'resume' in state['events']
+
+
+@pytest.mark.parametrize('failure',['pending','unavailable'])
+def test_uncertain_read_clears_prior_pending_allowance(monkeypatch,failure):
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    allowance={}
+    assert manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    state.update(now=.020,granted=False)
+    if failure=='unavailable':
+        def unavailable():raise ReadError(503,'synthetic_unavailable')
+        state['current']=unavailable
+        with pytest.raises(ReadError):
+            manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+        assert allowance=={}
+        state['current']='invalid'
+    else:
+        state['current']='pending'
+        def waited():
+            assert allowance=={}
+            state['current']='invalid'
+        state['on_wait']=waited
+    assert not manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    assert allowance=={} and state['steps']==0 and len(state['reads'])==3
+    assert state['now']<.100 and record['reason']=='history_authority_changed'
+
+
+def test_pending_allowance_is_reset_for_rebase_and_all_output_edges_are_fresh(monkeypatch):
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    state['on_step']=lambda:{'state':'pending' if state['steps']%2 else 'ready'}
+    for token in ('one','two'):
+        active={**snapshot,'token':{'fixture':token}}
+        start=len(state['events']);reads=len(state['reads'])
+        assert manager._compare_history_snapshot(record,active)=={'saved':True}
+        events=state['events'][start:]
+        assert events[-9:]==['step','step','current','current','output','current','write','current','publish']
+        assert events[events.index('step')-1]=='current'
+        assert len(state['reads'])-reads==12
+        assert all(seen is active for seen,_ in state['reads'][reads:])
+    assert state['steps']==4 and record['deadline']==180.
+
+
+def test_resume_delay_cannot_reuse_allowance_or_expired_original_deadline(monkeypatch):
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    allowance={}
+    assert manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    state['granted']=False
+    def resume(grant):
+        state.update(granted=True,now=record['deadline'])
+        return True
+    manager.permit.resume_comparison=resume
+    assert not manager._comparison_checkpoint(record,snapshot,pending_currentness=allowance)
+    assert allowance=={} and len(state['reads'])==1 and state['steps']==0
+
+
+@pytest.mark.parametrize('failure',['step','step_census_cancelled','step_cleanup_unknown','task'])
+def test_manager_records_step_cutoff_separately_from_task_and_cancellation(monkeypatch,failure):
+    from audio_backend.recording_speaker_history_process import ProcessError,ProcessStepDeadline
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    finished=[]
+    manager.history.begin_comparison=lambda **kwargs:snapshot
+    manager.history.finish_comparison=lambda saved,reason:finished.append((saved,reason))
+    if failure=='step_cleanup_unknown':record['driver'].close=lambda:{'positive':False}
+    def step():
+        if failure=='task':
+            state['now']=record['deadline']
+            raise ProcessError('comparison_deadline')
+        if failure=='step_census_cancelled':record['cancelled'].set()
+        raise ProcessStepDeadline()
+    state['on_step']=step
+    manager._run_history_comparison(record)
+    assert record['completed'].is_set()
+    assert record['state']==('ownership_unknown' if failure=='step_cleanup_unknown' else 'pending')
+    assert record['reason']==('comparison_deadline' if failure=='task' else
+        'comparison_cleanup_unknown' if failure=='step_cleanup_unknown' else 'comparison_step_deadline')
+    assert record.get('process_failure_reason')==(None if failure=='task' else 'comparison_step_deadline')
+    assert finished==[(snapshot,'deadline')]
+    assert record['driver_active']==(failure=='step_cleanup_unknown')
+    assert state['steps']==1 and not {'output','write','publish'} & set(state['events'])

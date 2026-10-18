@@ -54,6 +54,13 @@ class ProcessPending(ProcessError):
     pass
 
 
+class ProcessStepDeadline(ProcessError):
+    """The parent's step-only RPC cutoff expired; cleanup is still unproved."""
+    reason = 'comparison_step_deadline'
+
+    def __init__(self):super().__init__(self.reason)
+
+
 def _require(condition, reason):
     if not condition:
         raise ProcessError(reason)
@@ -582,7 +589,24 @@ class ComparisonProcess:
         return self._feed('witnesses',token,after,rows,complete)
 
     def step(self):
-        return self._accept_status(self._request('step'))
+        # This clips only this RPC (including its resource observations). It
+        # never renews the original task deadline or bounds feed/output/close.
+        deadline = min(self._deadline,self.clock()+.250)
+        def expired(cause=None):
+            if self.clock() < deadline:return
+            self._poisoned = True
+            if deadline < self._deadline:raise ProcessStepDeadline() from cause
+            raise ProcessError('comparison_deadline') from cause
+        expired()
+        try:
+            result = self._request('step',deadline=deadline)
+        except BaseException as exc:
+            # Includes a clipped census failure. Classification uses the
+            # locally owned operation/deadlines/clock, never exception text.
+            expired(exc)
+            raise
+        expired()  # A scheduler-delayed reply cannot revive this channel.
+        return self._accept_status(result)
 
     def output_page(self, after=0, limit=ROWS):
         _integer(after); _require(type(limit) is int and 1 <= limit <= ROWS, 'output_limit')

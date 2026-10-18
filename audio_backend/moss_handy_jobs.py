@@ -834,7 +834,8 @@ class MossJobs:
                                               name='recording-history-compare',daemon=True)
                 self.permit.bind_comparison_thread(record['grant'],thread,completed)
                 record.update(thread=thread,completed=completed,state='starting',
-                              start_attempted=True,finish_pending=None,execution_lane=None,reason=None)
+                              start_attempted=True,finish_pending=None,execution_lane=None,reason=None,
+                              process_failure_reason=None)
                 thread.start()
                 self._history_comparison_pending = False
             return True
@@ -895,19 +896,35 @@ class MossJobs:
         record['reason'] = 'comparison_cleanup_unknown'
         return False
 
-    def _comparison_checkpoint(self, record, snapshot=None):
+    def _comparison_checkpoint(self, record, snapshot=None, *, pending_currentness=None):
+        # Only the pure-compute loop passes this snapshot-local allowance. A
+        # fresh read starts its clock before SQL; no read latency is hidden.
+        def clear():
+            if pending_currentness is not None:pending_currentness.clear()
         while not record['cancelled'].is_set() and time.monotonic() < record['deadline']:
             if not self._history_comparison_enabled():
+                clear()
                 record['cancelled'].set();record['reason'] = 'comparison_configuration_changed'
                 record['state'] = 'cancelled';return False
             granted = self.permit.comparison_grant_valid(record['grant'])
             if not granted:
+                clear()
                 record['state'] = 'paused'
                 try:granted = self.permit.resume_comparison(record['grant'])
                 except Exception:pass
+                # Resume may itself wait. Recheck local cancellation/config,
+                # the original deadline and the poll due-time after that path.
+                if granted:continue
             if granted:
+                now = time.monotonic()
+                if record['cancelled'].is_set() or now >= record['deadline']:
+                    clear();return False
                 if snapshot is None:return True
+                if (pending_currentness is not None and 'read_started' in pending_currentness
+                        and now < pending_currentness['read_started'] + .100):return True
+                clear()  # An unavailable/failed read cannot preserve old authority.
                 # Each bounded scalar read is positively closed before compute.
+                read_started = time.monotonic()
                 current = self.history.comparison_current(snapshot)
                 if not self._history_comparison_enabled():
                     record['cancelled'].set();record['reason'] = 'comparison_configuration_changed'
@@ -920,10 +937,12 @@ class MossJobs:
                         and time.monotonic() < record['deadline']
                         and self.permit.comparison_grant_valid(record['grant'])):
                     record['reason'] = None
+                    if pending_currentness is not None:pending_currentness['read_started'] = read_started
                     return True
                 record['state'] = 'pending'
                 record['reason'] = 'history_currentness_pending'
             record['cancelled'].wait(min(.05,max(0.,record['deadline']-time.monotonic())))
+        clear()
         return False
 
     def _compare_history_snapshot(self, record, snapshot):
@@ -952,15 +971,19 @@ class MossJobs:
                 if page['complete']:break
                 cursor = page['next_after']
         page = None  # Drop the last parent projection before child compute.
+        pending_currentness = {}  # Never shared across snapshots, rebases or tasks.
         while True:
-            if not self._comparison_checkpoint(record,snapshot):return None
+            if not self._comparison_checkpoint(record,snapshot,pending_currentness=pending_currentness):return None
             try:result = driver.step()
             except ProcessPending as exc:
+                pending_currentness.clear()
                 if str(exc) == 'comparison_grant_paused':continue
                 raise
             # Even a negative terminal result belongs only to this exact
             # revision. A late alias/rival cannot inherit the old refusal.
-            if not self._comparison_checkpoint(record,snapshot):return None
+            if result['state'] != 'pending':pending_currentness.clear()
+            if not self._comparison_checkpoint(record,snapshot,
+                    pending_currentness=pending_currentness if result['state'] == 'pending' else None):return None
             record['state'] = result['state']
             if result['state'] == 'ready':break
             if result['state'] in ('refused','cancelled'):return result
@@ -979,6 +1002,7 @@ class MossJobs:
         return self.history.publish_comparison(snapshot,driver.decision_counts)
 
     def _run_history_comparison(self, record):
+        from .recording_speaker_history_process import ProcessStepDeadline
         snapshot = None; reason = 'unavailable'
         try:
             while self._comparison_checkpoint(record):
@@ -1033,13 +1057,17 @@ class MossJobs:
         except BaseException as exc:
             record['state'] = 'pending'
             record['reason'] = getattr(exc,'reason',None) or 'comparison_process_unavailable'
+            if type(exc) is ProcessStepDeadline:
+                # Keep the typed failure even if later cleanup is unresolved.
+                record['process_failure_reason'] = exc.reason
         finally:
             if record['cancelled'].is_set():
                 record['reason'] = record.get('reason') or 'comparison_cancelled'
-            elif time.monotonic() >= record['deadline']:
+            elif time.monotonic() >= record['deadline'] and not record.get('process_failure_reason'):
                 record['state'] = 'pending';record['reason'] = 'comparison_deadline'
             if snapshot is not None and reason != 'complete':
-                if record['cancelled'].is_set():reason = 'cancelled'
+                if record.get('process_failure_reason'):reason = 'deadline'
+                elif record['cancelled'].is_set():reason = 'cancelled'
                 elif time.monotonic() >= record['deadline']:reason = 'deadline'
                 record['finish_pending'] = reason
                 try:
