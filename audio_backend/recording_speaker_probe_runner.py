@@ -47,11 +47,15 @@ def failure_observation(stage, reason, child_dispatch, error=None):
         FAILURE_REASONS, FAILURE_DISPATCH, FAILURE_ERROR_TYPES, validate_failure)
     error_type = ('RuntimeError' if type(error) is ProbeChildFailure else
                   type(error).__name__ if error is not None else 'other')
-    raw = canonical({'schema':FAILURE_SCHEMA,
+    value = {'schema':FAILURE_SCHEMA,
         'stage':stage if stage in FAILURE_STAGES else 'unknown',
         'reason':reason if reason in FAILURE_REASONS else 'other',
         'child_dispatch':child_dispatch if child_dispatch in FAILURE_DISPATCH else 'unknown',
-        'error_type':error_type if error_type in FAILURE_ERROR_TYPES else 'other'})
+        'error_type':error_type if error_type in FAILURE_ERROR_TYPES else 'other'}
+    from .native_execution_permit import optional_sample_failure
+    sampling = optional_sample_failure(error)
+    if sampling is not None:value['sampling'] = sampling
+    raw = canonical(value)
     validate_failure(raw)
     return raw
 

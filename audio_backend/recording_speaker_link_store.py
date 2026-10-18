@@ -40,6 +40,18 @@ FAILURE_ERROR_TYPES = ('Cancelled', 'Busy', 'AdmissionError', 'RuntimeError',
     'MemoryError', 'UnicodeError', 'UnicodeDecodeError', 'JSONDecodeError',
     'AssertionError', 'NoSuchProcess', 'AccessDenied', 'ZombieProcess',
     'Unavailable', 'ReadError', 'ResourceLimit', 'OperationalError', 'other')
+FAILURE_SAMPLING_SUBTYPES = ('busy_flight', 'stale_generation', 'cooldown',
+    'recovery_not_due', 'skipped', 'wall_budget', 'rows_budget', 'census_failure',
+    'resource_limit', 'cancelled', 'deadline', 'ownership_changed',
+    'sampling_pending', 'sticky', 'other')
+FAILURE_SAMPLING_PHASES = ('caller_identity', 'process_enumeration',
+    'remembered_identity', 'family_selection', 'selected_identity', 'selected_rss',
+    'selected_recheck', 'host_memory', 'disk_free', 'bind_identity', 'sample',
+    'family_tracking', 'resident_check', 'original_wait', 'descendant_check')
+FAILURE_SAMPLING_CAUSES = ('AdmissionError', 'NoSuchProcess', 'ZombieProcess',
+    'AccessDenied', 'Error', 'PermissionError', 'FileNotFoundError',
+    'ProcessLookupError', 'OSError', 'KeyError', 'TypeError', 'ValueError',
+    'RuntimeError', 'TimeoutExpired', 'other')
 RESERVATION_BYTES = MAX_BATCH_BYTES + BATCH_BYTES
 MAX_REVISION = (1 << 63) - 1
 STATES = ('source_scoped', 'insufficient_clean_support', 'probe_unavailable',
@@ -185,16 +197,37 @@ def _json(raw, maximum):
 
 
 def validate_failure(raw):
-    """Nullable canonical fixed enums only; NULL means no known observation."""
+    """Fixed scalars only; old five-field bytes and NULL remain unchanged.
+
+    The optional sampling object is diagnostic, never admission authority.
+    Its runtime marker is authenticated by the producer, not by stored JSON.
+    Old binaries reject the enriched shape under the existing schema tag.
+    """
     if raw is None:return None
     value = _json(raw, MAX_FAILURE_BYTES)
     fields = {'schema':(FAILURE_SCHEMA,), 'stage':FAILURE_STAGES,
               'reason':FAILURE_REASONS, 'child_dispatch':FAILURE_DISPATCH,
               'error_type':FAILURE_ERROR_TYPES}
-    if (type(value) is not dict or set(value) != set(fields)
+    if (type(value) is not dict or set(value) not in (set(fields), set(fields) | {'sampling'})
             or any(type(value[key]) is not str or value[key] not in allowed
                    for key, allowed in fields.items())):
         _fail('invalid_speaker_probe_failure')
+    if 'sampling' in value:
+        sample = value['sampling']
+        if (type(sample) is not dict or set(sample) != {
+                'subtype', 'reservation_held', 'sample_age_ms', 'wait_ms',
+                'grace_used', 'phase', 'cause'}
+                or type(sample['subtype']) is not str or sample['subtype'] not in FAILURE_SAMPLING_SUBTYPES
+                or type(sample['reservation_held']) is not bool
+                or type(sample['grace_used']) is not bool
+                or sample['sample_age_ms'] is not None and (
+                    type(sample['sample_age_ms']) is not int or not 0 <= sample['sample_age_ms'] <= 2**31 - 1)
+                or type(sample['wait_ms']) is not int or not 0 <= sample['wait_ms'] <= 250
+                or sample['phase'] is not None and (
+                    type(sample['phase']) is not str or sample['phase'] not in FAILURE_SAMPLING_PHASES)
+                or sample['cause'] is not None and (
+                    type(sample['cause']) is not str or sample['cause'] not in FAILURE_SAMPLING_CAUSES)):
+            _fail('invalid_speaker_probe_failure')
     return value
 
 
