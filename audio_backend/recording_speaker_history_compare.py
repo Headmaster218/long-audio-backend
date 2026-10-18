@@ -24,6 +24,12 @@ import time
 DIMENSION = 512
 TAU, MARGIN = .55, .10
 PAGE_ROWS, PAGE_BYTES = 32, 128 * 1024
+# This is the flattened transport envelope, including immutable row identity
+# and terminal vector provenance. The store's retained source/ref header keeps
+# its separate unchanged 2048-byte ceiling. Three 64-character identifiers,
+# a 32-character invocation, bounded kind/sequence, field names and framing
+# consume less than the extra 1024 bytes; actual page/heap bytes are charged.
+OBSERVATION_METADATA_BYTES = 3072
 MAX_MEMORY_BYTES = 128 * 1024 * 1024
 SCOPE_SECONDS = 180.
 QUANTUM_SECONDS, QUANTUM_DOTS, QUANTUM_UPDATES = .050, 4096, 32768
@@ -90,16 +96,19 @@ class SnapshotToken:
     space_id: str
     history_revision: int
     authority_revision: int
-    certificate_count: int
+    observation_count: int
     witness_count: int
+    vector_count: int = 0
 
     def __post_init__(self):
         _sha(self.scope_id)
         _text(self.policy)
         _text(self.space_id, 256)
         for value in (self.history_revision, self.authority_revision,
-                      self.certificate_count, self.witness_count):
+                      self.observation_count, self.witness_count, self.vector_count):
             _integer(value)
+        if self.vector_count > self.observation_count:
+            raise Invalid('snapshot_vector_count')
 
     def document(self):
         return {name: getattr(self, name) for name in self.__slots__}
@@ -117,13 +126,17 @@ class SnapshotToken:
 @dataclass(frozen=True, slots=True)
 class Observation:
     sequence: int
-    certificate_id: str
+    observation_id: str
+    evidence_kind: str
+    invocation_id: str
+    certificate_id: str | None
     node_id: str
     origin_kind: str
     source_key: str
     pcm_hash: str
     float_hash: str
     vector: bytes | None
+    vector_sha256: str | None
     attributions: tuple
     spans: tuple
     refs: tuple
@@ -158,9 +171,24 @@ class Observation:
         _integer(self.sequence)
         if self.sequence == 0:
             raise Invalid('observation_sequence')
-        for value in (self.certificate_id, self.node_id, self.source_key,
+        for value in (self.observation_id, self.node_id, self.source_key,
                       self.pcm_hash, self.float_hash):
             _text(value)
+        if self.evidence_kind == 'pending':
+            raise Invalid('pending_observation')
+        _text(self.invocation_id, 32)
+        if len(self.invocation_id) != 32:
+            raise Invalid('observation_invocation')
+        if self.evidence_kind == 'candidate_missing':
+            if any(value is not None for value in
+                   (self.vector, self.vector_sha256, self.certificate_id)):
+                raise Invalid('missing_observation_payload')
+        elif self.evidence_kind == 'vector':
+            _sha(self.certificate_id); _sha(self.vector_sha256)
+            if self.vector is None:
+                raise Invalid('vector_observation_payload')
+        else:
+            raise Invalid('evidence_kind')
         if self.origin_kind not in ('primary_commit', 'moss_result', 'primary', 'native_primary', 'moss'):
             raise Invalid('origin_kind')
         if (type(self.attributions) is not tuple or len(self.attributions) > 4
@@ -189,12 +217,14 @@ class Observation:
             _text(key, 192)
             # A genuine MOSS result may carry a primary-attributed certificate.
             # Producer identity is not the reference/annotation stream.
-        if len(canonical(self.metadata())) > 2048:
+        if len(canonical(self.metadata())) > OBSERVATION_METADATA_BYTES:
             raise Invalid('metadata_bytes')
         if self.vector is not None:
             if (sys.byteorder != 'little' or array('d').itemsize != 8
                     or type(self.vector) is not bytes or len(self.vector) != DIMENSION * 4):
                 raise Invalid('vector_bytes_or_host')
+            if hashlib.sha256(self.vector).hexdigest() != self.vector_sha256:
+                raise Invalid('vector_digest')
             values = memoryview(self.vector).cast('f')
             if (any(not math.isfinite(value) for value in values)
                     or abs(math.fsum(value * value for value in values) - 1.) >= 1e-5):
@@ -207,7 +237,9 @@ class Observation:
 
     def owned_bytes(self):
         # Count bounded row-owned objects, conservatively counting shared strings
-        # more than once. Extra space covers row maps and per-row alias/DAG state.
+        # more than once, including every transport field at its actual size.
+        # Extra space covers row maps and per-row alias/DAG state; it is not a
+        # fixed allowance substituting for serialized metadata ownership.
         def size(value):
             return sys.getsizeof(value) + (sum(size(v) for v in value)
                 if type(value) is tuple else 0)
@@ -536,12 +568,13 @@ class ComparisonBuild:
         self._prefix = ScorePrefix(self.token) if prefix is None else prefix
         if (type(self._prefix) is not ScorePrefix
                 or self._prefix.binding != (self.token.scope_id, self.token.policy, self.token.space_id)
-                or self._prefix.row_count > self.token.certificate_count):
+                or self._prefix.row_count > self.token.observation_count):
             raise Invalid('score_prefix_binding')
         self._prefix.repair_incomplete_tail()
         self._old_rows = self._prefix.row_count
         self.rows, self.witnesses = [], set()
-        self._node_ids, self._certificate_ids = set(), set()
+        self._node_ids, self._observation_ids, self._certificate_ids = set(), set(), set()
+        self._loaded_vectors = 0
         self._witness_after = 0
         self._observations_complete = self._witnesses_complete = False
         self._loaded_bytes = _BASE_MEMORY
@@ -575,7 +608,7 @@ class ComparisonBuild:
         if type(rows) not in (tuple, list) or len(rows) > PAGE_ROWS or type(complete) is not bool:
             raise Invalid('page_shape')
         current = self._witness_after if witness else len(self.rows)
-        maximum = self.token.witness_count if witness else self.token.certificate_count
+        maximum = self.token.witness_count if witness else self.token.observation_count
         already = self._witnesses_complete if witness else self._observations_complete
         if type(after) is not int or after != current or already or after + len(rows) > maximum:
             raise Invalid('page_cursor')
@@ -593,24 +626,34 @@ class ComparisonBuild:
         """
         size = self._page_start(token, after, rows, complete)
         checked = []
-        ids, certificates = set(), set()
+        ids, observations, certificates = set(), set(), set()
+        vector_count = self._loaded_vectors
         for offset, record in enumerate(rows):
             row = Observation.from_record(record)
             if row.sequence != after + offset + 1:
                 raise Invalid('observation_sequence')
             if (row.node_id in self._node_ids or row.node_id in ids
-                    or row.certificate_id in self._certificate_ids or row.certificate_id in certificates):
+                    or row.observation_id in self._observation_ids or row.observation_id in observations
+                    or (row.certificate_id is not None and
+                        (row.certificate_id in self._certificate_ids or row.certificate_id in certificates))):
                 raise Invalid('duplicate_observation')
-            ids.add(row.node_id); certificates.add(row.certificate_id)
+            ids.add(row.node_id); observations.add(row.observation_id)
+            if row.certificate_id is not None:
+                certificates.add(row.certificate_id)
+            vector_count += row.vector is not None
             if after + offset < self._old_rows and row.fingerprint() != self._prefix.fingerprints[after + offset]:
                 raise Invalid('score_prefix_row_mismatch')
             size += 8 + len(canonical(row.metadata())) + (len(row.vector) if row.vector is not None else 0)
             checked.append(row)
+        if (vector_count > self.token.vector_count
+                or (complete and vector_count != self.token.vector_count)):
+            raise Invalid('vector_count_mismatch')
         if size > PAGE_BYTES:
             raise Invalid('observation_page_bytes')
         new_bytes = sum(row.owned_bytes() for row in checked)
         self._check_memory(self._loaded_bytes + new_bytes + self._prefix.owned_bytes)
-        self.rows.extend(checked); self._node_ids.update(ids); self._certificate_ids.update(certificates)
+        self.rows.extend(checked); self._node_ids.update(ids); self._observation_ids.update(observations)
+        self._certificate_ids.update(certificates); self._loaded_vectors = vector_count
         self._loaded_bytes += new_bytes
         self._observations_complete = complete
 
@@ -646,7 +689,7 @@ class ComparisonBuild:
     def _status(self):
         return {'state': self.state, 'reason': self.reason, 'counts': dict(self.work.counts),
                 'required_bytes': self.required_bytes, 'loaded_rows': len(self.rows),
-                'loaded_witnesses': self._witness_after}
+                'loaded_vectors': self._loaded_vectors, 'loaded_witnesses': self._witness_after}
 
     def step(self):
         """Advance one cooperative quantum outside all DB/owner/admission locks.
@@ -696,14 +739,16 @@ class ComparisonBuild:
         vectors = []
         # Memory forecast covers all vector-bearing rows, even exact aliases:
         # raw prefix plus two dense linkage triangles, every bit plane, chunk
-        # slack, sorting/DAG/index buffers and bounded publication pages.
+        # slack, sorting/DAG/index buffers and bounded publication pages. The
+        # separate candidate bit planes include missing-vector classes too.
         vector_count = 0
         for row in rows:
             vector_count += row.vector is not None
             if work.tick('admission_scan'):
                 yield None
         pairs = vector_count * (vector_count - 1) // 2
-        self._check_memory(self._loaded_bytes + 25 * pairs + 1024 * len(rows)
+        candidate_pairs = len(rows) * (len(rows) - 1) // 2
+        self._check_memory(self._loaded_bytes + 25 * pairs + 2 * ((candidate_pairs + 7) // 8) + 1024 * len(rows)
                            + 12 * _SCORE_CHUNK * 8 + 4 * PAGE_BYTES)
         for index, row in enumerate(rows):
             if index < self._old_rows:
@@ -767,6 +812,7 @@ class ComparisonBuild:
             if work.tick('alias_class_updates'):
                 yield None
         attrs, spans, vector_slots = [], [], []
+        unknown_rival = False
         for group in classes.values():
             exemplar, attributes, intervals = None, [], []
             first = rows[group[0]]
@@ -799,18 +845,20 @@ class ComparisonBuild:
                         raise Invalid('duplicate_native_conflict')
                     if work.tick('alias_witness_checks'):
                         yield None
-            if exemplar is not None:
-                physical = len(self._physical)
-                self._physical.append(group); attrs.append(attributes); spans.append(intervals)
-                vector_slots.append(prefix.vector_slots[exemplar])
-                for index in group:
-                    self._row_physical[index] = physical
-                    if work.tick('physical_alias_updates'):
-                        yield None
+            # Every genuine candidate survives authenticated alias closure.
+            # Missing vectors are not absent observations and cannot silently
+            # improve the measured groups' runner-up margin.
+            physical = len(self._physical)
+            self._physical.append(group); attrs.append(attributes); spans.append(intervals)
+            vector_slots.append(-1 if exemplar is None else prefix.vector_slots[exemplar])
+            unknown_rival |= exemplar is None
+            for index in group:
+                self._row_physical[index] = physical
+                if work.tick('physical_alias_updates'):
+                    yield None
         matrix = Matrix(len(self._physical))
         for b in range(matrix.n):
             for a in range(b):
-                matrix.scores.append(prefix.scores[pair_index(vector_slots[a], vector_slots[b])])
                 cannot, overlap = False, False
                 for scope, label in attrs[a]:
                     for other_scope, other_label in attrs[b]:
@@ -829,6 +877,17 @@ class ComparisonBuild:
                 if overlap:
                     matrix.overlap.set(pair)
                 if work.tick('matrix_pair_updates'):
+                    yield None
+        # Alias disagreements and all hard-witness/dependency relationships
+        # above are checked before considering a missing candidate resolved.
+        # Only a fully authenticated measured physical alias can supply its
+        # score; an independent unmeasured class blocks the entire projection.
+        if unknown_rival:
+            raise _Refused('unknown_rival')
+        for b in range(matrix.n):
+            for a in range(b):
+                matrix.scores.append(prefix.scores[pair_index(vector_slots[a], vector_slots[b])])
+                if work.tick('matrix_score_updates'):
                     yield None
         operation = cluster(matrix, work)
         matrix = None  # Do not pin the original matrix across later rounds.
@@ -895,7 +954,7 @@ class ComparisonBuild:
     def decision_counts(self):
         """Expected exact publication counts, available only after completion."""
         if self.state != 'ready':
-            raise Pending('comparison_pending')
+            raise Pending(self.reason or 'comparison_pending')
         return {'annotation': len(self.rows), 'merge': len(self._trace.merges),
                 'round': len(self._trace.rounds), 'total_rows': self._total_rows,
                 'independent_observations': len(self._physical)}
@@ -940,7 +999,7 @@ class ComparisonBuild:
         deadline is nevertheless checked here to reject stale task publication.
         """
         if self.state != 'ready':
-            raise Pending('comparison_pending')
+            raise Pending(self.reason or 'comparison_pending')
         try:
             if self.work.check():
                 raise Pending('comparison_grant_paused')
@@ -973,7 +1032,7 @@ class ComparisonBuild:
         """
         self._close_operation()
         self.rows.clear(); self.witnesses.clear()
-        self._node_ids.clear(); self._certificate_ids.clear()
+        self._node_ids.clear(); self._observation_ids.clear(); self._certificate_ids.clear()
         self._physical.clear(); self._row_physical.clear(); self._physical_cluster.clear(); self._identities.clear()
         self._trace = self._prefix = None
         self.state, self.reason = 'discarded', None

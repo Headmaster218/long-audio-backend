@@ -251,6 +251,8 @@ class MossJobs:
         self._pending_record = None
         self.stopped = False
         self._primary_pending = None
+        self._primary_admission = None
+        self._moss_admission = None
         self._history_comparison = None
         self._history_comparison_pending = False
         self._history_compare_after = 0.
@@ -442,7 +444,8 @@ class MossJobs:
             'state':'skip', 'reason':'missed', 'cancelled':threading.Event(),
             'crop':None, 'charge_bytes':0, 'thread':None, 'operation':None,
             'reservation':None, 'admitted':False, 'completed':threading.Event(),
-            'validated_output':None, 'terminal_reason':None, 'thread_start_attempted':False}
+            'validated_output':None, 'terminal_reason':None, 'thread_start_attempted':False,
+            'invocation_id':uuid.uuid4().hex, 'failure_json':None, 'failure_frozen':False}
         due = self.history.primary_due(chunk['session_id'],rid,frame)
         if not due['due']:
             handle['reason'] = due['reason']; return handle
@@ -495,6 +498,22 @@ class MossJobs:
         return standalone_current(db,saved,self.cell_source,probe['fence'],
                                   probe['receipt_bytes'],admitted=probe['admitted'])
 
+    def _primary_admission_matches(self, attempt_id, saved, node, invocation_id):
+        """Only the live, positively acknowledged Worker handoff may add basis."""
+        from .native_owned_cells import sha
+        admission = self._primary_admission
+        if admission is None:return False
+        probe, expected_attempt, expected_invocation, saved_sha, node_sha = admission
+        if (probe is not self._primary_pending or probe.get('owner') is not self
+                or probe.get('state') != 'claim_unknown' or probe['cancelled'].is_set()
+                or probe.get('admitted') or probe.get('operation') is not None
+                or attempt_id != expected_attempt or invocation_id != expected_invocation
+                or probe.get('attempt_id') != attempt_id or probe.get('invocation_id') != invocation_id
+                or probe.get('saved_header') != saved.get('header')
+                or probe.get('saved_packet_bytes') != encoded(saved.get('packet'))
+                or probe.get('node') != node):return False
+        return hashlib.sha256(encoded(saved)).hexdigest() == saved_sha and sha(node) == node_sha
+
     def primary_committed(self, handle):
         """Called solely by Worker after the exact commit_window returned True."""
         if type(handle) is not dict or handle.get('owner') is not self:return False
@@ -528,9 +547,15 @@ class MossJobs:
                 # An exception now is an unknown claim acknowledgement. Freeze
                 # exact identity, discard audio, and allow storage closure only.
                 handle['state'] = 'claim_unknown'
-                reservation = self.history.claim_primary(handle['session_id'],handle['recording_id'],
-                    handle['attempt_id'],saved,handle['node'],handle['receipt_bytes'],
-                    current_check=lambda db:self._primary_current(handle,db),space=handle['space'])
+                self._primary_admission = (handle,handle['attempt_id'],handle['invocation_id'],
+                                           hashlib.sha256(encoded(saved)).hexdigest(),sha(handle['node']))
+                try:
+                    reservation = self.history.claim_primary(handle['session_id'],handle['recording_id'],
+                        handle['attempt_id'],saved,handle['node'],handle['receipt_bytes'],
+                        current_check=lambda db:self._primary_current(handle,db),space=handle['space'],
+                        admission_capability=self._history_success_capability,
+                        invocation_id=handle['invocation_id'])
+                finally:self._primary_admission = None
                 handle['reservation'] = reservation
                 if not reservation.get('should_probe'):
                     handle['crop'] = None
@@ -542,8 +567,15 @@ class MossJobs:
                 handle.pop('draft_bytes',None)
                 handle['state'] = 'pending'
                 return True
-        except BaseException:
+        except BaseException as exc:
             if handle['state'] == 'claim_unknown':handle['crop'] = None
+            elif handle['state'] == 'pending' and handle['admitted']:
+                # The claim returned positively before the enclosing source
+                # fence changed. Keep its owned basis for metadata closure.
+                handle['crop'] = None
+                self._observe_probe_failure(handle,'dispatch_validation','source_authority_changed',exc)
+                handle['terminal_reason'] = 'cancelled' if handle['cancelled'].is_set() else 'unavailable'
+                handle['state'] = 'finish_pending'
             else:self._drop_primary_copy(handle)
             return False
 
@@ -580,7 +612,6 @@ class MossJobs:
                 self.permit.reserve_optional(probe,probe['cancelled'],probe['cancelled'].set,
                                              owner_kind='automatic_primary_probe')
                 reserved = True
-                probe['invocation_id'] = uuid.uuid4().hex
                 probe['state'] = 'running'
                 thread = self._thread_factory(target=self._run_primary,args=(probe,),
                                               name='primary-speaker-probe',daemon=True)
@@ -588,12 +619,14 @@ class MossJobs:
                 probe['thread_start_attempted'] = True
                 thread.start()
             return True
-        except BaseException:
+        except BaseException as exc:
             if probe['thread_start_attempted'] and not probe['completed'].is_set():
                 probe['cancelled'].set(); probe['state'] = 'thread_unknown'
                 if reserved:self.permit.release_optional(probe,cleaned=False)
                 return False
             if reserved:self.permit.release_optional(probe,cleaned=True)
+            self._observe_probe_failure(probe,'permit',
+                'optional_cancelled' if probe['cancelled'].is_set() else 'permit_unavailable',exc)
             probe['terminal_reason'] = probe['terminal_reason'] or 'unavailable'
             probe['state'] = 'finish_pending'
             self._maintain_primary()
@@ -601,6 +634,7 @@ class MossJobs:
 
     def _run_primary(self, probe):
         from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
+        failure_stage, failure_reason = 'dispatch_validation', 'source_authority_changed'
         try:
             with self._primary_guard(probe):
                 if not self.history.dispatch_current(probe['reservation'],
@@ -610,6 +644,7 @@ class MossJobs:
                 'model_path':self.store.settings.recording_speaker_model_path,
                 'crops':[{'index':0,'pcm_sha256':probe['node']['pcm16le_sha256'],
                           'float32_sha256':probe['node']['float32le_sha256']}]}
+            failure_stage, failure_reason = 'child_start', 'other'
             operation = ProbeOperation(self.directory,request,(probe['crop'],),
                 gate=_SpeakerProbeGate(self,probe),driver_factory=self._probe_factory or ProbeDriver)
             probe['operation'] = operation
@@ -626,9 +661,14 @@ class MossJobs:
                     success_capability=self._history_success_capability,
                     current_check=lambda db:self._primary_current(probe,db))
                 probe['state'] = 'terminal'
-            self._kick_history_comparison()
-        except BaseException:
-            if probe['state'] != 'append_unknown':
+        except BaseException as exc:
+            if probe['state'] not in ('append_unknown','terminal'):
+                operation = probe['operation']
+                if (operation is not None and operation.failure_json is not None
+                        and probe['failure_json'] is None and not probe['failure_frozen']):
+                    probe['failure_json'] = operation.failure_json
+                self._observe_probe_failure(probe,failure_stage,
+                    'optional_cancelled' if probe['cancelled'].is_set() else failure_reason,exc)
                 probe['terminal_reason'] = probe['terminal_reason'] or ('cancelled'
                     if probe['cancelled'].is_set() else 'unavailable')
                 probe['state'] = 'finish_pending'
@@ -637,6 +677,7 @@ class MossJobs:
             clean = operation is None or operation.cleaned
             self.permit.release_optional(probe,cleaned=clean)
             if not clean:probe['state'] = 'cleanup_unknown'
+            if probe['state'] == 'terminal':self._kick_history_comparison()
             probe['completed'].set()
 
     def _primary_success_matches(self, reservation, node, vector, invocation_id):
@@ -668,12 +709,18 @@ class MossJobs:
         try:
             state = probe['state']
             if state in ('claim_unknown','append_unknown'):
-                outcome = self.history.resolve_primary(probe['attempt_id'],probe['identity'])
+                outcome = self.history.resolve_primary(probe['attempt_id'],probe['identity'],
+                    failure_json=probe['failure_json'] if probe['failure_frozen'] else None)
                 if not outcome.get('resolved'):return False
                 probe['state'] = 'terminal'
+                self._kick_history_comparison()
             elif state == 'finish_pending':
-                self.history.finish_primary(probe['reservation'],probe['terminal_reason'])
+                self._freeze_probe_failure(probe,'probe_interrupted'
+                    if probe['cancelled'].is_set() else 'probe_unavailable')
+                self.history.finish_primary(probe['reservation'],probe['terminal_reason'],
+                    failure_json=probe['failure_json'])
                 probe['state'] = 'terminal'
+                self._kick_history_comparison()
             if probe['state'] == 'terminal':self._drop_primary_copy(probe)
         except BaseException:return False
         return self._primary_pending is None
@@ -708,7 +755,7 @@ class MossJobs:
                 and (record['thread'] is None or not record['thread'].is_alive()))
 
     def _kick_history_comparison(self):
-        # A durable append marks work, never computes synchronously in its caller.
+        # A durable admission/closure marks work, never computes in its caller.
         self._history_comparison_pending = True
 
     def maintain_history_comparison(self):
@@ -1166,6 +1213,7 @@ class MossJobs:
         if not self.history.uses_history(record['session_id'],rid):return
         probe['history_route'] = True
         probe['history_admitted'] = False
+        probe['invocation_id'] = uuid.uuid4().hex
         probe['recording_id'] = rid
         probe['fence'] = _fence(self.cell_source)
         receipts = []
@@ -1192,6 +1240,37 @@ class MossJobs:
                     admitted=probe['history_admitted']):return False
         return True
 
+    def _moss_admission_matches(self, attempt_id, batch, invocation_id):
+        """The exact durable original MOSS result authenticates all native facts."""
+        admission = self._moss_admission
+        if admission is None:return False
+        record, probe, expected_attempt, expected_invocation, snapshot, batch_sha = admission
+        if (record is not self._live or record.get('speaker_probe') is not probe
+                or not probe.get('history_route') or probe.get('history_admitted')
+                or probe.get('history_attempt_id') != attempt_id or attempt_id != expected_attempt
+                or probe.get('invocation_id') != invocation_id or invocation_id != expected_invocation
+                or probe.get('batch') != batch or hashlib.sha256(encoded(batch)).hexdigest() != batch_sha
+                or probe.get('operation') is not None
+                or record['origin'] != 'durable_cell' or record.get('automatic_key') is None
+                or record['cancelled'].is_set() or probe['cancelled'].is_set()
+                or record['cleaned'] is not True or record['process_cleanup_verified'] is not True
+                or record['durable_result_available'] is not True or record['storage_pending']
+                or record['invalidated'] or record['expired']
+                or record.get('lease') is None or not record['lease'].released
+                or type(snapshot) is not HistorySnapshot or record.get('history_snapshot') is not snapshot
+                or snapshot.identity != record['history_identity']
+                or snapshot.result_json != record['result']
+                or hashlib.sha256(snapshot.result_json).hexdigest() != snapshot.result_sha256
+                or batch.get('session_id') != record['session_id'] or batch.get('job_id') != record['job_id']
+                or batch.get('result_sha256') != snapshot.result_sha256
+                or batch.get('projection_sha256') != snapshot.result_sha256
+                or probe.get('result_sha256') != snapshot.result_sha256
+                or record.get('token') is None or encoded(batch.get('proof')) != record['token'].proof
+                or batch.get('proof_sha256') != record['token'].proof_sha256):return False
+        # Current source binding is separately checked by the store's claim
+        # transaction through _moss_history_current, under the publication guard.
+        return True
+
     def _moss_success_matches(self, reservation, batch, invocation_id):
         from .recording_speaker_probe_runner import ProbeOperation, cleanup_verified
         record = self._live
@@ -1214,12 +1293,16 @@ class MossJobs:
 
     def _publish_moss_history(self, probe):
         if probe['resolve_only']:
-            outcome = self.history.resolve_moss(probe['history_attempt_id'],probe['history_identity'])
+            self._freeze_probe_failure(probe,'probe_interrupted'
+                if probe['cancelled'].is_set() else 'probe_unavailable')
+            outcome = self.history.resolve_moss(probe['history_attempt_id'],probe['history_identity'],
+                failure_json=probe['failure_json'])
             if not outcome.get('resolved'):raise ReadError(503,'speaker_probe_storage_pending')
             probe['state'] = outcome.get('state','probe_unavailable')
             probe['commit_pending'] = False
             self.history.release_attempt(probe['reservation']['token'] if probe.get('reservation') is not None
                                          else probe['history_attempt_id'])
+            self._kick_history_comparison()
             return
         record = self._live
         if record is None or record.get('speaker_probe') is not probe:
@@ -1227,15 +1310,18 @@ class MossJobs:
         self._freeze_probe_failure(probe,probe['terminal_state'])
         if probe['terminal_state'] == 'source_scoped' and probe['batch']['nodes']:
             with self._gate(), self._primary_guard(probe):
+                # An uncertain finalize grants storage closure only. A retry
+                # must not turn an unresolved pending row into a certificate.
+                probe['resolve_only'] = True
                 self.history.append_moss(probe['reservation'],probe['batch'],probe['invocation_id'],
                     success_capability=self._history_success_capability,
                     current_check=lambda db:self._moss_history_current(record,probe,db))
-            self._kick_history_comparison()
         else:
             # The reason is frozen before the first submit, including retries.
             reason = probe.setdefault('history_terminal_reason',
                 'cancelled' if probe['terminal_state'] == 'probe_interrupted' else 'unavailable')
-            self.history.finish_moss(probe['reservation'],reason)
+            self.history.finish_moss(probe['reservation'],reason,failure_json=probe['failure_json'])
+        self._kick_history_comparison()
         probe['commit_pending'] = False
         self.history.release_attempt(probe['reservation']['token'])
         probe['state'] = 'links_stale' if probe['terminal_state'] == 'source_scoped' else probe['terminal_state']
@@ -1298,6 +1384,9 @@ class MossJobs:
                     + sum(map(len,probe.get('receipt_bytes',()))) + MAX_OUTPUT_BYTES > STAGING_BYTES
                     or any(type(crop) is not bytes or len(crop) != 64000 for crop in crops)):
                 raise ValueError('Probe staging capacity')
+            if probe.get('history_route'):
+                from .recording_speaker_history import moss_staging_bound
+                moss_staging_bound(batch,probe['receipt_bytes'])
             self.cell_source.revalidate_dispatch(record['token'])
             if lease.released or lease.cancelled.is_set() or record['cancelled'].is_set():return
             probe.update(batch=batch, crops=crops, result_sha256=result_sha, space=space, space_id=space_id)
@@ -1331,7 +1420,8 @@ class MossJobs:
             if (batch is None or not self._links_enabled() or not record['durable_result_available']
                     or record['storage_pending'] or snapshot is None
                     or snapshot.result_sha256 != probe.get('result_sha256')
-                    or record['cancelled'].is_set() or not record['cleaned']):
+                    or record['cancelled'].is_set() or not record['cleaned']
+                    or not record['process_cleanup_verified']):
                 probe['state'] = 'probe_unavailable'
                 return
             sid, jid = record['session_id'], record['job_id']
@@ -1350,10 +1440,16 @@ class MossJobs:
                     'origin_id':jid,'result_sha256':snapshot.result_sha256,
                     'batch_sha256':batch['batch_sha256'],'space_id':probe['space_id']}
                 probe['history_attempt_id'] = sha(probe['history_identity'])[:32]
-                with self._primary_guard(probe):
-                    admission = self.history.claim_moss(sid,recording_id,probe['history_attempt_id'],
-                        batch,probe['receipt_bytes'],space=probe['space'],
-                        current_check=lambda db:self._moss_history_current(record,probe,db))
+                with self._gate(), self._primary_guard(probe):
+                    self._moss_admission = (record,probe,probe['history_attempt_id'],
+                        probe['invocation_id'],snapshot,hashlib.sha256(encoded(batch)).hexdigest())
+                    try:
+                        admission = self.history.claim_moss(sid,recording_id,probe['history_attempt_id'],
+                            batch,probe['receipt_bytes'],space=probe['space'],
+                            current_check=lambda db:self._moss_history_current(record,probe,db),
+                            admission_capability=self._history_success_capability,
+                            invocation_id=probe['invocation_id'])
+                    finally:self._moss_admission = None
             else:
                 admission = self.speaker_links.reserve(sid, recording_id, jid, snapshot.result_sha256,
                     batch['policy_sha256'], probe['space'], max_nodes=len(batch['nodes']), cancelled=probe['cancelled'], batch=batch)
@@ -1391,8 +1487,9 @@ class MossJobs:
                     # Safe now: copies and retained text no longer depend on MOSS scratch.
                     record['controller'].discard(record['controller_id'])
                     record['controller'] = record['controller_id'] = None
-                    probe['invocation_id'] = uuid.uuid4().hex if probe.get('history_route') else jid
-                    request = {'kind':KIND, 'job_id':probe['invocation_id'], 'space_id':probe['space_id'],
+                    request = {'kind':KIND,
+                        'job_id':probe['invocation_id'] if probe.get('history_route') else jid,
+                        'space_id':probe['space_id'],
                         'model_path':self.store.settings.recording_speaker_model_path,
                         'crops':[{'index':index, 'pcm_sha256':hashlib.sha256(crop).hexdigest(),
                             'float32_sha256':standalone_float_digest(crop)}
@@ -1463,6 +1560,8 @@ class MossJobs:
         if not probe.get('failure_frozen'):
             if state not in ('probe_unavailable','probe_interrupted'):
                 probe['failure_json'] = None
+            from .recording_speaker_link_store import validate_failure
+            validate_failure(probe.get('failure_json'))
             probe['failure_frozen'] = True
 
     @staticmethod

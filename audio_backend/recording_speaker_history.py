@@ -12,6 +12,7 @@ import math
 import os
 import sqlite3
 import struct
+import sys
 import threading
 import time
 import uuid
@@ -28,6 +29,8 @@ BOOT_ID = uuid.uuid4().hex
 MAX_REVISION = (1 << 63) - 1
 RECORDING_BYTES, GLOBAL_BYTES = 64 * 1024**2, 128 * 1024**2
 STAGING_BYTES, PROBE_STAGING_BYTES = 8 * 1024**2, 512 * 1024
+# Fixed process-controller metadata reserve is charged by both shared admission guards.
+CONTROLLER_METADATA_BYTES = 512 * 1024
 SCOPE_CHARGE, ATTEMPT_CHARGE, BASIS_CHARGE = 32768, 1024, 1024
 PAGE_ROWS, PAGE_BYTES = 32, 128 * 1024
 COMPARE_BYTES, COMPARE_SECONDS = 128 * 1024**2, 180.
@@ -41,7 +44,7 @@ SOURCES = 'recording_history_sources_v1'
 DECISIONS = 'recording_history_decisions_v1'
 ROWS = 'recording_history_decision_rows_v1'
 _REASONS = ('none','busy','missed','capacity','source_changed','cancelled','proof_missing',
-    'cleanup_unknown','storage_unknown','probe_failed','pending','deadline','resource_pending','other')
+    'cleanup_unknown','storage_unknown','probe_failed','pending','deadline','resource_pending','unknown_rival','other')
 _STATE_SQL = ','.join(repr(x) for x in _REASONS)
 _INT = "CHECK(typeof({0})='integer' AND {0} BETWEEN 0 AND 9223372036854775807)"
 
@@ -56,7 +59,8 @@ SCOPES: f'''CREATE TABLE {SCOPES} (
     staging_bytes INTEGER NOT NULL DEFAULT 0 CHECK(staging_bytes BETWEEN 0 AND 8388608),
     history_revision INTEGER NOT NULL DEFAULT 0 {_INT.format('history_revision')},
     authority_revision INTEGER NOT NULL DEFAULT 0 {_INT.format('authority_revision')},
-    certificate_count INTEGER NOT NULL DEFAULT 0 {_INT.format('certificate_count')},
+    observation_count INTEGER NOT NULL DEFAULT 0 {_INT.format('observation_count')},
+    vector_count INTEGER NOT NULL DEFAULT 0 CHECK(vector_count BETWEEN 0 AND observation_count),
     witness_count INTEGER NOT NULL DEFAULT 0 {_INT.format('witness_count')},
     source_count INTEGER NOT NULL DEFAULT 0 {_INT.format('source_count')},
     active_sources INTEGER NOT NULL DEFAULT 0 {_INT.format('active_sources')},
@@ -80,7 +84,7 @@ ATTEMPTS: f'''CREATE TABLE {ATTEMPTS} (
     token TEXT PRIMARY KEY CHECK(length(token)=32), scope_seq INTEGER NOT NULL REFERENCES {SCOPES}(scope_seq),
     origin_kind TEXT NOT NULL CHECK(origin_kind IN ('primary_commit','moss_result')),
     origin_id TEXT NOT NULL CHECK(length(origin_id) BETWEEN 1 AND 256), identity_sha256 TEXT NOT NULL CHECK(length(identity_sha256)=64),
-    owner TEXT NOT NULL CHECK(length(owner)=32), state TEXT NOT NULL CHECK(state IN ('reserved','success','failure')),
+    owner TEXT NOT NULL CHECK(length(owner)=32), invocation_id TEXT NOT NULL CHECK(length(invocation_id)=32 AND invocation_id NOT GLOB '*[^0-9a-f]*'), state TEXT NOT NULL CHECK(state IN ('reserved','success','failure')),
     authority_revision INTEGER NOT NULL CHECK(authority_revision>=0),
     reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes BETWEEN 0 AND 1204736),
     staging_bytes INTEGER NOT NULL CHECK(staging_bytes BETWEEN 0 AND 524288),
@@ -90,17 +94,23 @@ ATTEMPTS: f'''CREATE TABLE {ATTEMPTS} (
     terminal BLOB CHECK(terminal IS NULL OR (typeof(terminal)='blob' AND length(terminal) BETWEEN 1 AND 512)),
     terminal_sha256 TEXT CHECK(terminal_sha256 IS NULL OR length(terminal_sha256)=64),
     UNIQUE(scope_seq,origin_kind,origin_id),
-    CHECK((state='reserved' AND basis IS NULL AND terminal IS NULL AND terminal_sha256 IS NULL) OR
+    CHECK((state='reserved' AND terminal IS NULL AND terminal_sha256 IS NULL) OR
       (state='success' AND basis IS NOT NULL AND terminal IS NOT NULL AND terminal_sha256 IS NOT NULL AND reserved_bytes=0 AND staging_bytes=0) OR
-      (state='failure' AND basis IS NULL AND terminal IS NOT NULL AND terminal_sha256 IS NOT NULL AND reserved_bytes=0 AND staging_bytes=0))) WITHOUT ROWID''',
+      (state='failure' AND basis IS NOT NULL AND terminal IS NOT NULL AND terminal_sha256 IS NOT NULL AND reserved_bytes=0 AND staging_bytes=0))) WITHOUT ROWID''',
 CERTIFICATES: f'''CREATE TABLE {CERTIFICATES} (
     scope_seq INTEGER NOT NULL REFERENCES {SCOPES}(scope_seq), sequence INTEGER NOT NULL CHECK(sequence>0),
-    attempt TEXT NOT NULL REFERENCES {ATTEMPTS}(token), certificate_id TEXT NOT NULL UNIQUE CHECK(length(certificate_id)=64),
+    attempt TEXT NOT NULL REFERENCES {ATTEMPTS}(token), observation_id TEXT NOT NULL UNIQUE CHECK(length(observation_id)=64),
+    invocation_id TEXT NOT NULL CHECK(length(invocation_id)=32 AND invocation_id NOT GLOB '*[^0-9a-f]*'),
+    evidence_kind TEXT NOT NULL CHECK(evidence_kind IN ('pending','candidate_missing','vector')),
+    certificate_id TEXT UNIQUE CHECK(certificate_id IS NULL OR length(certificate_id)=64),
     header BLOB NOT NULL CHECK(typeof(header)='blob' AND length(header) BETWEEN 1 AND 2048),
-    vector BLOB NOT NULL CHECK(typeof(vector)='blob' AND length(vector)=2048),
-    vector_sha256 TEXT NOT NULL CHECK(length(vector_sha256)=64),
-    charge INTEGER NOT NULL CHECK(charge=length(header)+3072),
-    PRIMARY KEY(scope_seq,sequence)) WITHOUT ROWID''',
+    vector BLOB, vector_sha256 TEXT, charge INTEGER NOT NULL,
+    PRIMARY KEY(scope_seq,sequence),
+    CHECK((evidence_kind IN ('pending','candidate_missing') AND vector IS NULL AND vector_sha256 IS NULL
+           AND certificate_id IS NULL AND charge=length(header)+1024) OR
+          (evidence_kind='vector' AND typeof(vector)='blob' AND length(vector)=2048
+           AND vector_sha256 IS NOT NULL AND length(vector_sha256)=64 AND certificate_id IS NOT NULL
+           AND charge=length(header)+3072))) WITHOUT ROWID''',
 OBJECTS: f'''CREATE TABLE {OBJECTS} (
     scope_seq INTEGER NOT NULL REFERENCES {SCOPES}(scope_seq), kind TEXT NOT NULL CHECK(kind IN ('receipt','proof')),
     digest TEXT NOT NULL CHECK(length(digest)=64), body BLOB NOT NULL CHECK(typeof(body)='blob'),
@@ -123,11 +133,13 @@ DEPENDENCIES: f'''CREATE TABLE {DEPENDENCIES} (
     PRIMARY KEY(scope_seq,kind,dependency_key,attempt)) WITHOUT ROWID''',
 SOURCES: f'''CREATE TABLE {SOURCES} (
     scope_seq INTEGER NOT NULL REFERENCES {SCOPES}(scope_seq), version TEXT NOT NULL CHECK(length(version)=64),
-    chunk_id TEXT NOT NULL CHECK(length(chunk_id) BETWEEN 1 AND 64), receipt_digest TEXT NOT NULL CHECK(length(receipt_digest)=64),
-    path_digest TEXT NOT NULL CHECK(length(path_digest)=64), mapping_digest TEXT NOT NULL CHECK(length(mapping_digest)=64),
+    chunk_id TEXT NOT NULL CHECK(length(chunk_id) BETWEEN 1 AND 64),
+    receipt_digest BLOB NOT NULL CHECK(typeof(receipt_digest)='blob' AND length(receipt_digest)=32),
+    mapping_digest BLOB NOT NULL CHECK(typeof(mapping_digest)='blob' AND length(mapping_digest)=32),
     state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active','retired','revoked')),
     admission_revision INTEGER NOT NULL DEFAULT 0 {_INT.format('admission_revision')},
-    certificate_count INTEGER NOT NULL DEFAULT 0 {_INT.format('certificate_count')},
+    observation_count INTEGER NOT NULL DEFAULT 0 {_INT.format('observation_count')},
+    vector_count INTEGER NOT NULL DEFAULT 0 CHECK(vector_count BETWEEN 0 AND observation_count),
     required_end INTEGER NOT NULL CHECK(required_end>=0),
     marker BLOB CHECK(marker IS NULL OR (typeof(marker)='blob' AND length(marker) BETWEEN 1 AND 1024)),
     marker_token TEXT UNIQUE CHECK(marker_token IS NULL OR length(marker_token)=32),
@@ -142,7 +154,7 @@ DECISIONS: f'''CREATE TABLE {DECISIONS} (
     scope_seq INTEGER NOT NULL REFERENCES {SCOPES}(scope_seq), slot INTEGER NOT NULL CHECK(slot IN (0,1)),
     build_token TEXT NOT NULL UNIQUE CHECK(length(build_token)=32),
     history_revision INTEGER NOT NULL CHECK(history_revision>=0), authority_revision INTEGER NOT NULL CHECK(authority_revision>=0),
-    certificate_count INTEGER NOT NULL CHECK(certificate_count>=0), witness_count INTEGER NOT NULL CHECK(witness_count>=0),
+    observation_count INTEGER NOT NULL CHECK(observation_count>=0), vector_count INTEGER NOT NULL CHECK(vector_count BETWEEN 0 AND observation_count), witness_count INTEGER NOT NULL CHECK(witness_count>=0),
     header BLOB NOT NULL CHECK(typeof(header)='blob' AND length(header) BETWEEN 1 AND 65536),
     complete INTEGER NOT NULL DEFAULT 0 CHECK(complete IN (0,1)),
     row_count INTEGER NOT NULL DEFAULT 0 CHECK(row_count>=0), charge INTEGER NOT NULL CHECK(charge>=1024),
@@ -157,9 +169,9 @@ ROWS: f'''CREATE TABLE {ROWS} (
     CHECK((kind='annotation' AND ref_kind IS NOT NULL AND ref_key IS NOT NULL) OR
           (kind!='annotation' AND ref_kind IS NULL AND ref_key IS NULL))) WITHOUT ROWID''',
 'recording_history_session_v1': f'CREATE INDEX recording_history_session_v1 ON {SCOPES}(session_id,scope_seq)',
-'recording_history_dirty_v1': f"CREATE INDEX recording_history_dirty_v1 ON {SCOPES}(scope_seq) WHERE scope_seq>0 AND authority_blocked IS NULL AND state!='none'",
+'recording_history_dirty_v1': f"CREATE INDEX recording_history_dirty_v1 ON {SCOPES}(scope_seq) WHERE scope_seq>0 AND authority_blocked IS NULL AND state NOT IN ('none','unknown_rival')",
 'recording_history_attempt_scope_v1': f'CREATE INDEX recording_history_attempt_scope_v1 ON {ATTEMPTS}(scope_seq,state,token)',
-'recording_history_witness_v1': f"CREATE INDEX recording_history_witness_v1 ON {ATTEMPTS}(scope_seq,witness_start,token) WHERE state='success' AND witness_count>0",
+'recording_history_witness_v1': f"CREATE INDEX recording_history_witness_v1 ON {ATTEMPTS}(scope_seq,witness_start,token) WHERE state!='reserved' AND witness_count>0",
 'recording_history_certificate_attempt_v1': f'CREATE INDEX recording_history_certificate_attempt_v1 ON {CERTIFICATES}(scope_seq,attempt,sequence)',
 'recording_history_ref_object_v1': f'CREATE INDEX recording_history_ref_object_v1 ON {REFS}(scope_seq,kind,digest)',
 'recording_history_dependency_fact_v1': f'CREATE INDEX recording_history_dependency_fact_v1 ON {DEPENDENCIES}(kind,dependency_key,scope_seq,attempt)',
@@ -202,9 +214,14 @@ for event in ('UPDATE','DELETE'):
     when=" WHEN OLD.session_id IS NOT NEW.session_id OR OLD.capture_origin_frame IS NOT NEW.capture_origin_frame OR NEW.state IN ('cancelled','aborted')" if event=='UPDATE' else ''
     DDL[name]=f'''CREATE TRIGGER {name} AFTER {event}{' OF session_id,capture_origin_frame,state' if event=='UPDATE' else ''} ON recording_batches{when}
         BEGIN {_fence_sql('recording_id=OLD.id')} END'''
-for table in (CERTIFICATES,REFS,DEPENDENCIES):
+for table in (REFS,DEPENDENCIES):
     name=table+'_immutable'
     DDL[name]=f"CREATE TRIGGER {name} BEFORE UPDATE ON {table} BEGIN SELECT RAISE(ABORT,'Immutable history evidence'); END"
+DDL[CERTIFICATES+'_immutable']=f'''CREATE TRIGGER {CERTIFICATES}_immutable BEFORE UPDATE ON {CERTIFICATES}
+    WHEN OLD.evidence_kind!='pending' OR NEW.evidence_kind NOT IN ('candidate_missing','vector') OR
+    OLD.scope_seq IS NOT NEW.scope_seq OR OLD.sequence IS NOT NEW.sequence OR OLD.attempt IS NOT NEW.attempt OR
+    OLD.observation_id IS NOT NEW.observation_id OR OLD.invocation_id IS NOT NEW.invocation_id OR OLD.header IS NOT NEW.header
+    BEGIN SELECT RAISE(ABORT,'Immutable observation identity or terminal evidence'); END'''
 DDL['recording_history_object_immutable_v1']=f'''CREATE TRIGGER recording_history_object_immutable_v1
     BEFORE UPDATE ON {OBJECTS} WHEN OLD.scope_seq IS NOT NEW.scope_seq OR OLD.kind IS NOT NEW.kind OR
     OLD.digest IS NOT NEW.digest OR OLD.body IS NOT NEW.body OR OLD.charge IS NOT NEW.charge
@@ -212,11 +229,12 @@ DDL['recording_history_object_immutable_v1']=f'''CREATE TRIGGER recording_histor
 DDL['recording_history_terminal_immutable_v1']=f'''CREATE TRIGGER recording_history_terminal_immutable_v1
     BEFORE UPDATE ON {ATTEMPTS} WHEN OLD.state!='reserved' OR OLD.scope_seq IS NOT NEW.scope_seq OR
     OLD.origin_kind IS NOT NEW.origin_kind OR OLD.origin_id IS NOT NEW.origin_id OR OLD.identity_sha256 IS NOT NEW.identity_sha256 OR
-    OLD.owner IS NOT NEW.owner OR OLD.authority_revision IS NOT NEW.authority_revision
+    OLD.owner IS NOT NEW.owner OR OLD.invocation_id IS NOT NEW.invocation_id OR OLD.authority_revision IS NOT NEW.authority_revision OR
+    (OLD.basis IS NOT NULL AND (OLD.basis IS NOT NEW.basis OR OLD.witness_start IS NOT NEW.witness_start OR OLD.witness_count IS NOT NEW.witness_count))
     BEGIN SELECT RAISE(ABORT,'Immutable terminal history attempt'); END'''
 DDL['recording_history_source_immutable_v1']=f'''CREATE TRIGGER recording_history_source_immutable_v1
     BEFORE UPDATE ON {SOURCES} WHEN OLD.version IS NOT NEW.version OR OLD.scope_seq IS NOT NEW.scope_seq OR OLD.chunk_id IS NOT NEW.chunk_id OR
-    OLD.receipt_digest IS NOT NEW.receipt_digest OR OLD.path_digest IS NOT NEW.path_digest OR OLD.mapping_digest IS NOT NEW.mapping_digest OR
+    OLD.receipt_digest IS NOT NEW.receipt_digest OR OLD.mapping_digest IS NOT NEW.mapping_digest OR
     (OLD.marker IS NOT NULL AND (OLD.marker IS NOT NEW.marker OR OLD.marker_token IS NOT NEW.marker_token)) OR
     (OLD.state='retired' AND NEW.state='active') OR (OLD.state='revoked' AND NEW.state!='revoked')
     BEGIN SELECT RAISE(ABORT,'Immutable source version or retirement'); END'''
@@ -259,12 +277,57 @@ def _raw(value,maximum):
 
 def _decode(raw,maximum):
     if type(raw) is not bytes or not 1<=len(raw)<=maximum:_fail('history_proof_missing')
-    value=json.loads(raw)
+    try:value=json.loads(raw)
+    except (ValueError,UnicodeError,RecursionError):_fail('history_proof_changed')
     if encoded(value)!=raw:_fail('history_proof_changed')
     return value
 
 
 def _hash(raw):return hashlib.sha256(raw).hexdigest()
+
+
+def _source_document(row):
+    """Storage uses compact digest references; public opaque versions stay hex.
+
+    The source row's fixed payload is <=256 bytes: two 64-byte keys, two
+    32-byte digests, five 8-byte integers and its bounded state. Path digest is
+    already bound into version and is rederived from exact live facts before
+    retirement, then frozen in the separately charged retirement marker.
+    """
+    value=dict(row)
+    for name in ('receipt_digest','mapping_digest'):
+        if type(value[name]) is not bytes or len(value[name])!=32:_fail('history_proof_changed')
+        value[name]=value[name].hex()
+    return value
+
+
+def moss_staging_bound(batch,receipts,*,crop_bytes=None):
+    """Conservative complete new-route owned peak, never a history-size cap.
+
+    Three graph/wire copies cover live owner, admission decode and serializer.
+    Per receipt/ref allowances cover source facts and dependency/edge tuples;
+    128 KiB covers four vector results, pending headers and fixed control state.
+    The original native lease still owns candidate construction until this passes.
+    """
+    count=0
+    def size(value,depth=0):
+        nonlocal count
+        count+=1
+        if count>8192 or depth>16:_fail('history_staging_capacity',429)
+        amount=sys.getsizeof(value)
+        if type(value) is dict:
+            for key,item in value.items():amount+=size(key,depth+1)+size(item,depth+1)
+        elif type(value) in (list,tuple):
+            for item in value:amount+=size(item,depth+1)
+        elif value is not None and type(value) not in (str,int,float,bool,bytes):_fail('history_staging_capacity',429)
+        return amount
+    graph=size(batch)+size(receipts)
+    wire=len(encoded(batch))+sum(len(raw) for raw in receipts)
+    refs=sum(len(saved['packet']['refs']) for saved in batch.get('primary_packets',[]))
+    crops=64000*len(batch['nodes']) if crop_bytes is None else crop_bytes
+    peak=3*(graph+wire)+crops+131072+4096*len(receipts)+1024*refs
+    if peak>PROBE_STAGING_BYTES:_fail('history_staging_capacity',429)
+    return peak
 
 
 def _reason(value):return value if value in _REASONS else 'other'
@@ -301,7 +364,7 @@ def _admit(db,scope,extra,staging=0):
     old,old_staging=_legacy_usage(db);retained,reserved,staged=aggregate_usage(db)
     own=0 if scope is None else scope['retained_bytes']+scope['reserved_bytes']
     if (extra<0 or old+retained+reserved+extra>GLOBAL_BYTES or own+extra>RECORDING_BYTES
-            or old_staging+staged+staging>STAGING_BYTES):_fail('capacity_exhausted',429)
+            or old_staging+staged+staging+CONTROLLER_METADATA_BYTES>STAGING_BYTES):_fail('capacity_exhausted',429)
 
 
 def invalidate_sources(db,chunk_ids,reason='source_changed'):
@@ -434,52 +497,66 @@ class HistoryStore:
         return {'token':row['token'],'scope_seq':row['scope_seq'],'scope_id':scope['scope_id'],
             'session_id':scope['session_id'],'recording_id':scope['recording_id'],
             'identity':row['identity_sha256'],'origin_kind':row['origin_kind'],'owner':row['owner'],
-            'authority_revision':row['authority_revision'],'should_probe':should_probe,'state':row['state']}
+            'authority_revision':row['authority_revision'],'invocation_id':row['invocation_id'],'should_probe':should_probe,'state':row['state']}
 
-    def _claim(self,db,scope,attempt_id,origin_kind,origin_id,identity,maximum,staging,current_check):
+    def _authorize_admission(self,attempt_id,saved_or_batch,node,invocation,capability,*,moss=False):
+        if capability is not self._capability or self._success_owner is None:_fail('history_admission_required')
+        if type(invocation) is not str or len(invocation)!=32 or any(c not in '0123456789abcdef' for c in invocation):_fail('history_invocation_token')
+        name='_moss_admission_matches' if moss else '_primary_admission_matches'
+        args=(attempt_id,saved_or_batch,invocation) if moss else (attempt_id,saved_or_batch,node,invocation)
+        if getattr(self._success_owner,name)(*args) is not True:_fail('history_admission_unverified')
+
+    def _claim(self,db,scope,attempt_id,origin_kind,origin_id,identity,maximum,staging,current_check,payload):
         if type(attempt_id) is not str or len(attempt_id)!=32:_fail('history_attempt_token')
         existing=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=? OR (scope_seq=? AND origin_kind=? AND origin_id=?)',
             (attempt_id,scope['scope_seq'],origin_kind,origin_id)).fetchone()
         if existing is not None:
-            if existing['identity_sha256']!=identity:_fail('history_attempt_conflict')
+            if existing['identity_sha256']!=identity or existing['invocation_id']!=payload['invocation_id']:_fail('history_attempt_conflict')
             return self._reservation(existing,scope)  # Lookup never grants execution.
         if scope['authority_blocked'] is not None or scope['building_slot'] is not None:_fail('history_pending')
         if current_check(db) is not True:_fail('history_source_changed')
         _admit(db,scope,maximum,staging)
-        db.execute(f'''INSERT INTO {ATTEMPTS}(token,scope_seq,origin_kind,origin_id,identity_sha256,owner,state,authority_revision,reserved_bytes,staging_bytes,charge)
-            VALUES(?,?,?,?,?,?,'reserved',?,?,?,1024)''',
-            (attempt_id,scope['scope_seq'],origin_kind,origin_id,identity,self.owner,scope['authority_revision'],maximum-ATTEMPT_CHARGE,staging))
+        db.execute(f'''INSERT INTO {ATTEMPTS}(token,scope_seq,origin_kind,origin_id,identity_sha256,owner,invocation_id,state,authority_revision,reserved_bytes,staging_bytes,charge)
+            VALUES(?,?,?,?,?,?,?,'reserved',?,?,?,1024)''',
+            (attempt_id,scope['scope_seq'],origin_kind,origin_id,identity,self.owner,payload['invocation_id'],scope['authority_revision'],maximum-ATTEMPT_CHARGE,staging))
         _change_usage(db,scope['scope_seq'],retained=ATTEMPT_CHARGE,reserved=maximum-ATTEMPT_CHARGE,staging=staging)
+        row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+        self._retain_admission(db,row,scope,payload)
         row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
         return self._reservation(row,scope,should_probe=True)
 
-    def claim_primary(self,sid,rid,attempt_id,saved,node,receipt_bytes,*,current_check,space):
+    def claim_primary(self,sid,rid,attempt_id,saved,node,receipt_bytes,*,current_check,space,admission_capability,invocation_id):
         from .recording_primary_probe import validate_standalone_primary_node
         validate_standalone_primary_node(saved,node)
+        self._authorize_admission(attempt_id,saved,node,invocation_id,admission_capability)
         packet=saved['packet'];frame=packet['commit']['part']['logical_start']
         identity=_hash(encoded(primary_identity(saved,node,node['space_id'])))
         with self._database(write=True) as db:
             scope=self._scope(db,sid,rid,space,create=True)
             previous=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
             if previous is not None:
-                if previous['identity_sha256']!=identity:_fail('history_attempt_conflict')
+                if previous['identity_sha256']!=identity or previous['invocation_id']!=invocation_id:_fail('history_attempt_conflict')
                 return self._reservation(previous,scope)
             if not self._due(scope,frame)['due']:_fail('history_not_due')
             fact=self._source_fact(db,receipt_bytes,packet['commit']['part']['source_end'])
             self._source_admissible(db,scope['scope_seq'],fact)
             count=len(packet['refs'])
             if not 1<=count<=128:_fail('history_dependency_capacity')
+            pending={'saved':saved,'node':node,'receipts':(bytes(receipt_bytes),),'sources':(fact,),
+                'identity':identity,'terminal':None,'payload':None,'invocation_id':invocation_id}
+            payload=self._prepare_admission(attempt_id,'primary_commit',pending,[node])
+            # Freeze before first submission; unknown acknowledgement retains only
+            # exact owned metadata until its storage-only resolution is acknowledged.
+            with self._memory_lock:self._frozen[attempt_id]=pending
+            self._authorize_admission(attempt_id,saved,node,invocation_id,admission_capability)
             maximum=10240+512*count+512
-            answer=self._claim(db,scope,attempt_id,'primary_commit',saved['header']['digest'],identity,maximum,PROBE_STAGING_BYTES,current_check)
+            answer=self._claim(db,scope,attempt_id,'primary_commit',saved['header']['digest'],identity,maximum,
+                PROBE_STAGING_BYTES,current_check,payload)
             if answer['should_probe']:
                 bucket=(frame-120*16000)//scope['interval_frames'] if frame>=120*16000 else -1
                 db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_claim_frame=?,last_bucket=MAX(last_bucket,?),
                     bootstrap_count=bootstrap_count+?,state='pending' WHERE scope_seq=?''',
                     (frame,frame,bucket,int(frame<120*16000),scope['scope_seq']))
-        # Acknowledged live basis only. Never reconstructed by resolve_primary.
-        with self._memory_lock:self._frozen[attempt_id]={'saved':saved,
-            'node':node,'receipts':(bytes(receipt_bytes),),'sources':(fact,),
-            'identity':identity,'terminal':None,'payload':None}
         return answer
 
     @staticmethod
@@ -509,9 +586,28 @@ class HistoryStore:
             if current_check(db) is not True:_fail('history_source_changed')
         return True
 
-    def resolve_primary(self,attempt_id,identity=None):
-        # Exact unknown-outcome closure is allowed to discard optional output;
-        # a recovered reservation never becomes fresh execution permission.
+    @staticmethod
+    def _failure_bytes(reason,failure_json=None):
+        if failure_json is not None:
+            from .recording_speaker_link_store import validate_failure
+            validate_failure(failure_json)
+            return bytes(failure_json)
+        return _raw({'schema':1,'outcome':'failure','reason':_reason(reason)},512)
+
+    @staticmethod
+    def _finish_missing(db,row,scope,terminal):
+        if row['basis'] is None:_fail('history_basis_missing')
+        db.execute(f"UPDATE {CERTIFICATES} SET evidence_kind='candidate_missing' WHERE attempt=? AND evidence_kind='pending'",(row['token'],))
+        _change_usage(db,row['scope_seq'],reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
+        db.execute(f"UPDATE {ATTEMPTS} SET state='failure',reserved_bytes=0,staging_bytes=0,terminal=?,terminal_sha256=? WHERE token=?",
+            (terminal,_hash(terminal),row['token']))
+        if scope['history_revision']>=MAX_REVISION:_fail('capacity_exhausted')
+        db.execute(f"UPDATE {SCOPES} SET history_revision=history_revision+1,current_slot=NULL,state='pending' WHERE scope_seq=?",(row['scope_seq'],))
+
+    def resolve_primary(self,attempt_id,identity=None,*,failure_json=None):
+        # Exact unknown-outcome closure never grants inference permission. A
+        # positively committed success is observed, never replaced or replayed.
+        terminal=self._failure_bytes('storage_unknown',failure_json)
         with self._database(write=True) as db:
             row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
             if row is None:return {'found':False,'resolved':True,'should_probe':False}
@@ -519,39 +615,38 @@ class HistoryStore:
             if expected is None or expected!=row['identity_sha256']:_fail('history_attempt_conflict')
             scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(row['scope_seq'],)).fetchone()
             if row['state']=='reserved':
-                terminal=_raw({'schema':1,'outcome':'failure','reason':'storage_unknown'},512)
-                _change_usage(db,row['scope_seq'],reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
-                db.execute(f"UPDATE {ATTEMPTS} SET state='failure',reserved_bytes=0,staging_bytes=0,terminal=?,terminal_sha256=? WHERE token=?",
-                    (terminal,_hash(terminal),attempt_id))
+                self._finish_missing(db,row,scope,terminal)
                 row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+            elif failure_json is not None and (row['state']!='failure' or row['terminal']!=terminal):_fail('history_terminal_conflict')
             return {**self._reservation(row,scope),'found':True,'resolved':True,'terminal_sha256':row['terminal_sha256']}
 
     resolve_moss=resolve_primary
 
-    def finish_primary(self,reservation,reason):
-        token=reservation['token']
+    def finish_primary(self,reservation,reason,*,failure_json=None):
+        token=reservation['token'];candidate=self._failure_bytes(reason,failure_json)
         with self._memory_lock:
             pending=self._frozen.setdefault(token,{'terminal':None,'payload':None})
-            if pending.get('failure_terminal') is None:pending['failure_terminal']=_raw({'schema':1,'outcome':'failure','reason':_reason(reason)},512)
+            if pending.get('failure_terminal') is None:pending['failure_terminal']=candidate
+            elif pending['failure_terminal']!=candidate:_fail('history_terminal_conflict')
             terminal=pending['failure_terminal']
         with self._database(write=True) as db:
             row,scope=self._attempt(db,reservation)
             if row['state']!='reserved':
-                if row['terminal']!=terminal:_fail('history_terminal_conflict')
+                if row['state']!='failure' or row['terminal']!=terminal:_fail('history_terminal_conflict')
                 return self._reservation(row,scope)
-            _change_usage(db,row['scope_seq'],reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
-            db.execute(f'''UPDATE {ATTEMPTS} SET state='failure',reserved_bytes=0,staging_bytes=0,terminal=?,terminal_sha256=? WHERE token=?''',
-                (terminal,_hash(terminal),token))
+            self._finish_missing(db,row,scope,terminal)
         return {'token':token,'state':'failure','should_probe':False}
 
     finish_moss=finish_primary
 
-    def claim_moss(self,sid,rid,attempt_id,batch,receipt_bytes,space,*,current_check):
+    def claim_moss(self,sid,rid,attempt_id,batch,receipt_bytes,space,*,current_check,admission_capability,invocation_id):
         from .recording_speaker_links import validate_batch
         validate_batch(batch,require_vectors=False)
         if any('vector' in n for n in batch['nodes']):_fail('history_fresh_reservation_required')
+        self._authorize_admission(attempt_id,batch,None,invocation_id,admission_capability,moss=True)
         receipts=tuple(receipt_bytes.values()) if type(receipt_bytes) is dict else tuple(receipt_bytes)
         if not 1<=len(receipts)<=128:_fail('history_dependency_capacity')
+        moss_staging_bound(batch,receipts)
         identity=_hash(encoded(moss_identity(sid,rid,batch)))
         packets=batch.get('primary_packets',[])
         if len(packets)>4 or sum(len(encoded(x['packet'])) for x in packets)>65536:_fail('history_packet_capacity')
@@ -569,11 +664,13 @@ class HistoryStore:
             for fact in facts:
                 fact['required_end']=ends[fact['chunk_id']]
                 self._source_admissible(db,scope['scope_seq'],fact)
+            pending={'batch_raw':_raw(batch,524288),'receipts':tuple(bytes(x) for x in receipts),
+                'sources':facts,'identity':identity,'terminal':None,'payload':None,'invocation_id':invocation_id}
+            payload=self._prepare_admission(attempt_id,'moss_result',pending,batch['nodes'])
+            with self._memory_lock:self._frozen[attempt_id]=pending
+            self._authorize_admission(attempt_id,batch,None,invocation_id,admission_capability,moss=True)
             answer=self._claim(db,scope,attempt_id,'moss_result',batch['job_id'],identity,1204736,
-                PROBE_STAGING_BYTES,current_check)
-        if answer['should_probe']:
-            with self._memory_lock:self._frozen[attempt_id]={'batch_raw':_raw(batch,524288),
-                'receipts':tuple(bytes(x) for x in receipts),'sources':facts,'identity':identity,'terminal':None,'payload':None}
+                PROBE_STAGING_BYTES,current_check,payload)
         return answer
 
     def _authorize_success(self,reservation,node,vector,invocation,capability,*,moss=False):
@@ -582,15 +679,11 @@ class HistoryStore:
         args=(reservation,node,invocation) if moss else (reservation,node,vector,invocation)
         if getattr(self._success_owner,name)(*args) is not True:_fail('history_cleanup_unverified')
 
-    def _prepare_success(self,reservation,nodes,invocation,*,moss=False):
-        from .recording_speaker_links import valid_vector,history_node
-        token=reservation['token'];pending=self._frozen.get(token)
-        if pending is None:_fail('history_unknown_ack_no_replay')
-        input_digest=_hash(encoded([nodes,invocation]))
-        if pending['payload'] is not None:
-            if pending.get('success_input_digest')!=input_digest:_fail('history_terminal_conflict')
-            return pending['payload']
-        if not 1<=len(nodes)<= (4 if moss else 1):_fail('history_certificate_capacity')
+    def _prepare_admission(self,token,origin_kind,pending,nodes):
+        """Freeze authenticated native facts before the first claim submission."""
+        from .recording_speaker_links import history_node
+        moss=origin_kind=='moss_result'
+        if not 0<=len(nodes)<=(4 if moss else 1) or not moss and len(nodes)!=1:_fail('history_observation_capacity')
         batch=_decode(pending['batch_raw'],524288) if moss else None
         packets=batch.get('primary_packets',[]) if moss else [pending['saved']]
         packet_refs=[];dependencies=[]
@@ -600,30 +693,24 @@ class HistoryStore:
             for ref,_ in packet['refs']:
                 dependencies.append(('primary',ref.split('.')[1],_raw({'ref':ref},256)))
         objects=[('receipt',_hash(raw),raw) for raw in pending['receipts']]
-        basis={'schema':1,'kind':reservation['origin_kind'],'packet_digests':[p['header']['digest'] for p in packets]}
+        basis={'schema':1,'kind':origin_kind,'packet_digests':[p['header']['digest'] for p in packets]}
         if moss:
             proof_raw=pending['batch_raw']
             basis['proof_digest']=_hash(proof_raw);objects.append(('proof',_hash(proof_raw),proof_raw))
-            witnesses=list(batch.get('witnesses',[]))
+            witnesses=tuple(batch.get('witnesses',[]))
         else:
             packet=pending['saved']['packet']
             from .recording_speaker_links import _witnesses
             from .recording_primary_probe import _namespace
             turns=[{'label':packet['labels'][t[1]],'original':t[2:4]} for t in packet['turns']]
-            witnesses=_witnesses([(_hash(encoded(_namespace(packet))),turns,0,0)],pending['saved']['header']['digest'])
-        # Witnesses are derivable from immutable basis; no extra uncharged ledger.
+            witnesses=tuple(_witnesses([(_hash(encoded(_namespace(packet))),turns,0,0)],pending['saved']['header']['digest']))
+        # Full proof is immutable; witnesses are derived rather than duplicated.
         basis['witness_count']=len(witnesses)
-        basis_raw=_raw(basis,512)
-        certs=[]
+        basis_raw=_raw(basis,512);observations=[]
         for node in nodes:
-            vector=node['vector'];valid_vector(vector)
-            raw_vector=struct.pack('<512f',*vector)
-            if list(struct.unpack('<512f',raw_vector))!=vector:_fail('history_original_float32_required')
-            metadata=history_node(node,origin_kind=reservation['origin_kind'])
-            metadata['invocation_id']=invocation
-            header_raw=_raw(metadata,2048)
-            digest=_hash(encoded([token,_hash(basis_raw),_hash(header_raw),_hash(raw_vector)]))
-            certs.append((digest,header_raw,raw_vector,_hash(raw_vector),len(header_raw)+3072))
+            header_raw=_raw(history_node(node,origin_kind=origin_kind),2048)
+            observation_id=_hash(encoded([token,_hash(basis_raw),_hash(header_raw)]))
+            observations.append((observation_id,pending['invocation_id'],'pending',None,header_raw,None,None,len(header_raw)+1024))
         for fact in pending['sources']:
             dependencies.extend((('source',fact['chunk_id'],_raw({'version':fact['version'],'receipt':fact['receipt_digest']},256)),
                 ('mapping',fact['chunk_id'],_raw({'mapping':fact['mapping_digest']},256))))
@@ -631,11 +718,86 @@ class HistoryStore:
         dependencies=list(dict.fromkeys(dependencies))
         for kind,limit in zip(('source','mapping','primary'),limits):
             if sum(x[0]==kind for x in dependencies)>limit:_fail('history_dependency_capacity')
-        terminal=_raw({'schema':1,'outcome':'success','invocation':invocation,'basis':_hash(basis_raw),
-            'certificates':[x[0] for x in certs]},512)
-        payload={'basis':basis_raw,'terminal':terminal,'certificates':tuple(certs),'objects':tuple(objects),
-            'packets':tuple(packet_refs),'dependencies':tuple(dependencies),'sources':pending['sources'],
-            'witnesses':tuple(witnesses)}
+        payload={'basis':basis_raw,'invocation_id':pending['invocation_id'],'observations':tuple(observations),'objects':tuple(objects),'packets':tuple(packet_refs),
+            'dependencies':tuple(dependencies),'sources':pending['sources'],'witness_count':len(witnesses)}
+        pending['admission']=payload
+        return payload
+
+    @staticmethod
+    def _validate_payload_sources(db,scope,payload):
+        for fact in payload['sources']:
+            fresh=HistoryStore._source_fact(db,fact['receipt'],fact['required_end'])
+            if fresh['version']!=fact['version']:_fail('history_source_changed')
+            HistoryStore._source_admissible(db,scope['scope_seq'],fact)
+        for sequence,digest in payload['packets']:
+            from .recording_primary_provenance import TABLE as PACKETS
+            if not db.execute(f'SELECT 1 FROM {PACKETS} WHERE sequence=? AND digest=?',(int(sequence),digest)).fetchone():
+                _fail('history_proof_missing')
+
+    def _retain_admission(self,db,row,scope,payload):
+        token=row['token'];self._validate_payload_sources(db,scope,payload)
+        charge=ATTEMPT_CHARGE+BASIS_CHARGE+sum(c[-1] for c in payload['observations'])
+        for kind,digest,raw in payload['objects']:
+            existing=db.execute(f'SELECT body,refcount,charge FROM {OBJECTS} WHERE scope_seq=? AND kind=? AND digest=?',(scope['scope_seq'],kind,digest)).fetchone()
+            if existing is not None and existing['body']!=raw:_fail('history_proof_changed')
+            if existing is None:
+                obj_charge=len(raw)+(256 if kind=='receipt' else 512);charge+=obj_charge
+                db.execute(f'INSERT INTO {OBJECTS} VALUES(?,?,?,?,1,?)',(scope['scope_seq'],kind,digest,raw,obj_charge))
+            else:
+                if existing['refcount']>=MAX_REVISION:_fail('capacity_exhausted')
+                db.execute(f'UPDATE {OBJECTS} SET refcount=refcount+1 WHERE scope_seq=? AND kind=? AND digest=?',(scope['scope_seq'],kind,digest))
+            edge_charge=256 if kind=='receipt' else 0;charge+=edge_charge
+            db.execute(f'INSERT INTO {REFS} VALUES(?,?,?,?,?,?)',(token,scope['scope_seq'],kind,digest,digest,edge_charge))
+        for sequence,digest in payload['packets']:
+            charge+=512;db.execute(f'INSERT INTO {REFS} VALUES(?,?,?,?,?,512)',(token,scope['scope_seq'],'packet',sequence,digest))
+        for kind,key,fact in payload['dependencies']:
+            charge+=512;db.execute(f'INSERT INTO {DEPENDENCIES} VALUES(?,?,?,?,?,512)',(scope['scope_seq'],kind,key,token,fact))
+        for fact in payload['sources']:
+            old=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(scope['scope_seq'],fact['version'])).fetchone()
+            if old is None:
+                charge+=512
+                db.execute(f'UPDATE {SCOPES} SET source_count=source_count+1,active_sources=active_sources+1 WHERE scope_seq=?',(scope['scope_seq'],))
+                db.execute(f'''INSERT INTO {SOURCES}(scope_seq,version,chunk_id,receipt_digest,mapping_digest,required_end)
+                    VALUES(?,?,?,?,?,?)''',(scope['scope_seq'],fact['version'],fact['chunk_id'],bytes.fromhex(fact['receipt_digest']),bytes.fromhex(fact['mapping_digest']),fact['required_end']))
+            db.execute(f'''UPDATE {SOURCES} SET admission_revision=admission_revision+1,observation_count=observation_count+?,required_end=MAX(required_end,?)
+                WHERE scope_seq=? AND version=?''',(len(payload['observations']),fact['required_end'],scope['scope_seq'],fact['version']))
+        growth=2048*len(payload['observations'])
+        if charge+growth>row['charge']+row['reserved_bytes']:_fail('history_reservation_exceeded')
+        if scope['history_revision']>=MAX_REVISION:_fail('capacity_exhausted')
+        base=scope['observation_count']
+        for index,observation in enumerate(payload['observations'],1):
+            db.execute(f'INSERT INTO {CERTIFICATES} VALUES(?,?,?,?,?,?,?,?,?,?,?)',(scope['scope_seq'],base+index,token,*observation))
+        _change_usage(db,scope['scope_seq'],retained=charge-row['charge'],reserved=growth-row['reserved_bytes'])
+        # Attempt charge owns only its fixed row and basis; referenced objects,
+        # edges and observations carry their separate exactly-once charges.
+        db.execute(f'''UPDATE {ATTEMPTS} SET basis=?,reserved_bytes=?,charge=?,witness_start=?,witness_count=? WHERE token=?''',
+            (payload['basis'],growth,ATTEMPT_CHARGE+BASIS_CHARGE,scope['witness_count'],payload['witness_count'],token))
+        db.execute(f'''UPDATE {SCOPES} SET history_revision=history_revision+1,observation_count=observation_count+?,
+            witness_count=witness_count+?,state='pending',current_slot=NULL WHERE scope_seq=?''',
+            (len(payload['observations']),payload['witness_count'],scope['scope_seq']))
+
+    def _prepare_success(self,reservation,nodes,invocation,*,moss=False):
+        from .recording_speaker_links import valid_vector,history_node
+        token=reservation['token'];pending=self._frozen.get(token)
+        if pending is None:_fail('history_unknown_ack_no_replay')
+        if invocation!=pending['invocation_id']:_fail('history_terminal_conflict')
+        input_digest=_hash(encoded([nodes,invocation]))
+        if pending['payload'] is not None:
+            if pending.get('success_input_digest')!=input_digest:_fail('history_terminal_conflict')
+            return pending['payload']
+        admission=pending['admission']
+        if not 1<=len(nodes)==len(admission['observations']):_fail('history_observation_capacity')
+        certs=[]
+        for node,observation in zip(nodes,admission['observations']):
+            vector=node['vector'];valid_vector(vector)
+            raw_vector=struct.pack('<512f',*vector)
+            if list(struct.unpack('<512f',raw_vector))!=vector:_fail('history_original_float32_required')
+            if _raw(history_node(node,origin_kind=reservation['origin_kind']),2048)!=observation[4]:_fail('history_node_changed')
+            digest=_hash(raw_vector);certificate_id=_hash(encoded([observation[0],invocation,digest]))
+            certs.append((observation[0],certificate_id,raw_vector,digest))
+        terminal=_raw({'schema':1,'outcome':'success','invocation':invocation,'basis':_hash(admission['basis']),
+            'certificates':[x[1] for x in certs]},512)
+        payload={'admission':admission,'terminal':terminal,'certificates':tuple(certs)}
         pending['terminal']=terminal;pending['payload']=payload;pending['success_input_digest']=input_digest
         return payload
 
@@ -649,53 +811,23 @@ class HistoryStore:
             if scope['authority_blocked'] is not None or row['authority_revision']!=scope['authority_revision']:_fail('history_authority_changed')
             authorize()
             if current_check(db) is not True:_fail('history_source_changed')
-            for fact in payload['sources']:
-                fresh=self._source_fact(db,fact['receipt'],fact['required_end'])
-                if fresh['version']!=fact['version']:_fail('history_source_changed')
-                self._source_admissible(db,scope['scope_seq'],fact)
-            for sequence,digest in payload['packets']:
-                from .recording_primary_provenance import TABLE as PACKETS
-                if not db.execute(f'SELECT 1 FROM {PACKETS} WHERE sequence=? AND digest=?',(int(sequence),digest)).fetchone():
-                    _fail('history_proof_missing')
-            charge=ATTEMPT_CHARGE+BASIS_CHARGE+sum(c[-1] for c in payload['certificates'])
-            for kind,digest,raw in payload['objects']:
-                existing=db.execute(f'SELECT body,refcount,charge FROM {OBJECTS} WHERE scope_seq=? AND kind=? AND digest=?',(scope['scope_seq'],kind,digest)).fetchone()
-                if existing is not None and existing['body']!=raw:_fail('history_proof_changed')
-                if existing is None:
-                    obj_charge=len(raw)+(256 if kind=='receipt' else 512);charge+=obj_charge
-                    db.execute(f'INSERT INTO {OBJECTS} VALUES(?,?,?,?,1,?)',(scope['scope_seq'],kind,digest,raw,obj_charge))
-                else:
-                    if existing['refcount']>=MAX_REVISION:_fail('capacity_exhausted')
-                    db.execute(f'UPDATE {OBJECTS} SET refcount=refcount+1 WHERE scope_seq=? AND kind=? AND digest=?',(scope['scope_seq'],kind,digest))
-                edge_charge=256 if kind=='receipt' else 0
-                charge+=edge_charge
-                db.execute(f'INSERT INTO {REFS} VALUES(?,?,?,?,?,?)',(token,scope['scope_seq'],kind,digest,digest,edge_charge))
-            for sequence,digest in payload['packets']:
-                charge+=512;db.execute(f'INSERT INTO {REFS} VALUES(?,?,?,?,?,512)',(token,scope['scope_seq'],'packet',sequence,digest))
-            for kind,key,fact in payload['dependencies']:
-                charge+=512;db.execute(f'INSERT INTO {DEPENDENCIES} VALUES(?,?,?,?,?,512)',(scope['scope_seq'],kind,key,token,fact))
-            for fact in payload['sources']:
-                old=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(scope['scope_seq'],fact['version'])).fetchone()
-                if old is None:
-                    charge+=512
-                    db.execute(f'UPDATE {SCOPES} SET source_count=source_count+1,active_sources=active_sources+1 WHERE scope_seq=?',(scope['scope_seq'],))
-                    db.execute(f'''INSERT INTO {SOURCES}(scope_seq,version,chunk_id,receipt_digest,path_digest,mapping_digest,required_end)
-                        VALUES(?,?,?,?,?,?,?)''',(scope['scope_seq'],fact['version'],fact['chunk_id'],fact['receipt_digest'],fact['path_digest'],fact['mapping_digest'],fact['required_end']))
-                bound=len(payload['certificates'])
-                db.execute(f'''UPDATE {SOURCES} SET admission_revision=admission_revision+1,certificate_count=certificate_count+?,required_end=MAX(required_end,?)
-                    WHERE scope_seq=? AND version=?''',(bound,fact['required_end'],scope['scope_seq'],fact['version']))
-            if charge>row['charge']+row['reserved_bytes']:_fail('history_reservation_exceeded')
+            self._validate_payload_sources(db,scope,payload['admission'])
+            growth=2048*len(payload['certificates'])
+            if growth!=row['reserved_bytes']:_fail('history_reservation_changed')
+            for observation_id,certificate_id,vector,digest in payload['certificates']:
+                changed=db.execute(f'''UPDATE {CERTIFICATES} SET evidence_kind='vector',certificate_id=?,vector=?,vector_sha256=?,charge=charge+2048
+                    WHERE attempt=? AND observation_id=? AND evidence_kind='pending' ''',
+                    (certificate_id,vector,digest,token,observation_id)).rowcount
+                if changed!=1:_fail('history_observation_changed')
+            _change_usage(db,scope['scope_seq'],retained=growth,reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
+            db.execute(f'''UPDATE {ATTEMPTS} SET state='success',terminal=?,terminal_sha256=?,reserved_bytes=0,staging_bytes=0 WHERE token=?''',
+                (payload['terminal'],_hash(payload['terminal']),token))
+            for fact in payload['admission']['sources']:
+                db.execute(f'UPDATE {SOURCES} SET vector_count=vector_count+? WHERE scope_seq=? AND version=?',
+                    (len(payload['certificates']),scope['scope_seq'],fact['version']))
             if scope['history_revision']>=MAX_REVISION:_fail('capacity_exhausted')
-            base=scope['certificate_count']
-            for index,cert in enumerate(payload['certificates'],1):
-                db.execute(f'INSERT INTO {CERTIFICATES} VALUES(?,?,?,?,?,?,?,?)',(scope['scope_seq'],base+index,token,*cert))
-            _change_usage(db,scope['scope_seq'],retained=charge-row['charge'],reserved=-row['reserved_bytes'],staging=-row['staging_bytes'])
-            db.execute(f'''UPDATE {ATTEMPTS} SET state='success',basis=?,terminal=?,terminal_sha256=?,reserved_bytes=0,staging_bytes=0,charge=?,witness_start=?,witness_count=? WHERE token=?''',
-                (payload['basis'],payload['terminal'],_hash(payload['terminal']),charge,scope['witness_count'],len(payload['witnesses']),token))
-            db.execute(f'''UPDATE {SCOPES} SET history_revision=history_revision+1,certificate_count=certificate_count+?,witness_count=witness_count+?,state='pending' WHERE scope_seq=?''',
-                (len(payload['certificates']),len(payload['witnesses']),scope['scope_seq']))
-        with self._memory_lock:
-            for fact in payload['sources']:self._active_ready[(scope['scope_seq'],fact['version'])]=scope['authority_revision']
+            db.execute(f"UPDATE {SCOPES} SET history_revision=history_revision+1,vector_count=vector_count+?,current_slot=NULL,state='pending' WHERE scope_seq=?",
+                (len(payload['certificates']),scope['scope_seq']))
         return {'token':token,'state':'success','should_probe':False,'history_revision':scope['history_revision']+1}
 
     def append_primary(self,reservation,node,vector,invocation_id,*,success_capability,current_check):
@@ -721,6 +853,49 @@ class HistoryStore:
         return self._append(reservation,payload,current_check,authorize)
 
 
+    def read_attempt(self,sid,rid,token):
+        """Passive exact diagnostic/basis read; never grants execution authority."""
+        if type(token) is not str or len(token)!=32:_fail('history_attempt_token')
+        with self._database() as db:
+            _live(db,sid)
+            row=db.execute(f'''SELECT a.token,a.origin_kind,a.origin_id,a.state,a.invocation_id,a.terminal_sha256,typeof(a.basis) AS basis_type,length(a.basis) AS basis_bytes,
+                    typeof(a.terminal) AS terminal_type,length(a.terminal) AS terminal_bytes,
+                    h.history_revision,h.authority_revision,h.authority_blocked
+                FROM {ATTEMPTS} a JOIN {SCOPES} h ON h.scope_seq=a.scope_seq
+                WHERE a.token=? AND h.session_id=? AND h.recording_id=?''',(token,sid,rid)).fetchone()
+            if row is None:return None
+            if (row['basis_type']!='blob' or type(row['basis_bytes']) is not int or not 1<=row['basis_bytes']<=512
+                    or row['state']=='reserved' and (row['terminal_type']!='null' or row['terminal_bytes'] is not None)
+                    or row['state']!='reserved' and (row['terminal_type']!='blob' or type(row['terminal_bytes']) is not int
+                        or not 1<=row['terminal_bytes']<=512)):_fail('history_terminal_capacity')
+            blobs=db.execute(f'SELECT basis,terminal FROM {ATTEMPTS} WHERE token=?',(token,)).fetchone()
+            basis_raw,terminal_raw=blobs['basis'],blobs['terminal']
+            basis=_decode(basis_raw,512)
+            if type(basis) is not dict:_fail('history_proof_changed')
+            terminal=None;failure=None
+            if row['state']!='reserved':
+                if terminal_raw is None or _hash(terminal_raw)!=row['terminal_sha256']:_fail('history_terminal_changed')
+                terminal=_decode(terminal_raw,512)
+                if type(terminal) is not dict:_fail('history_terminal_changed')
+                if row['state']=='failure':
+                    if terminal.get('schema')==1:
+                        if (set(terminal)!={'schema','outcome','reason'} or terminal['outcome']!='failure'
+                                or terminal['reason'] not in _REASONS):_fail('history_terminal_changed')
+                    else:
+                        from .recording_speaker_link_store import validate_failure
+                        failure=validate_failure(terminal_raw)
+                elif (set(terminal)!={'schema','outcome','invocation','basis','certificates'}
+                        or terminal['schema']!=1 or terminal['outcome']!='success'
+                        or terminal['invocation']!=row['invocation_id'] or terminal['basis']!=_hash(basis_raw)
+                        or type(terminal['certificates']) is not list or not 1<=len(terminal['certificates'])<=4
+                        or any(type(value) is not str or len(value)!=64 for value in terminal['certificates'])):
+                    _fail('history_terminal_changed')
+            return {'token':token,'origin_kind':row['origin_kind'],'origin_id':row['origin_id'],'state':row['state'],
+                'invocation_id':row['invocation_id'],'basis':basis,'terminal':terminal,'terminal_sha256':row['terminal_sha256'],
+                'failure':failure,'terminal_bytes':terminal_raw,'basis_bytes':basis_raw,'execution_authorized':False,
+                'audit_only':True,'history_revision':row['history_revision'],'authority_revision':row['authority_revision'],
+                'authority_blocked':row['authority_blocked']}
+
     def release_attempt(self,token):
         """Positive terminal acknowledgement only; no replay authority retained."""
         with self._memory_lock:self._frozen.pop(token,None)
@@ -729,12 +904,13 @@ class HistoryStore:
     def _token(scope):
         from .recording_speaker_history_compare import SnapshotToken
         return SnapshotToken(scope['scope_id'],POLICY_SHA256,scope['space_id'],scope['history_revision'],
-            scope['authority_revision'],scope['certificate_count'],scope['witness_count'])
+            scope['authority_revision'],scope['observation_count'],scope['witness_count'],scope['vector_count'])
 
     def _build_current(self,db,build):
         scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(build['scope_seq'],)).fetchone()
         if (scope is None or scope['build_token']!=build['build_token'] or scope['authority_blocked'] is not None
                 or self._token(scope)!=build['token'] or scope['source_revision']!=build['source_revision']):_fail('history_snapshot_changed')
+        if db.execute(f"SELECT 1 FROM {ATTEMPTS} WHERE scope_seq=? AND state='reserved' LIMIT 1",(scope['scope_seq'],)).fetchone():_fail('history_pending')
         _live(db,scope['session_id'])
         return scope
 
@@ -743,28 +919,28 @@ class HistoryStore:
         if not self.enabled:return None
         with self._database(write=True) as db:
             cursor=db.execute(f'SELECT compare_cursor FROM {SCOPES} WHERE scope_seq=0').fetchone()[0] if after_scope is None else after_scope
-            predicate="scope_seq>0 AND authority_blocked IS NULL AND state!='none' AND certificate_count>0"
+            predicate=f"scope_seq>0 AND authority_blocked IS NULL AND state NOT IN ('none','unknown_rival') AND observation_count>0 AND NOT EXISTS (SELECT 1 FROM {ATTEMPTS} a WHERE a.scope_seq={SCOPES}.scope_seq AND a.state='reserved')"
             scope=db.execute(f'SELECT * FROM {SCOPES} WHERE {predicate} AND scope_seq>? ORDER BY scope_seq LIMIT 1',(cursor,)).fetchone()
             if scope is None:scope=db.execute(f'SELECT * FROM {SCOPES} WHERE {predicate} AND scope_seq<=? ORDER BY scope_seq LIMIT 1',(cursor,)).fetchone()
             if scope is None:return None
             # Restart abandons an incomplete projection, never observations.
             slot=1-scope['current_slot'] if scope['current_slot'] is not None else 0
-            old=db.execute(f'SELECT charge,certificate_count,complete FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot)).fetchone()
-            abandoned=0 if old is None or old['complete'] else 66560+1920*old['certificate_count']-384-old['charge']
+            old=db.execute(f'SELECT charge,observation_count,complete FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot)).fetchone()
+            abandoned=0 if old is None or old['complete'] else 66560+1920*old['observation_count']-384-old['charge']
             if old is not None:
                 db.execute(f'DELETE FROM {ROWS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot))
                 db.execute(f'DELETE FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],slot))
                 _change_usage(db,scope['scope_seq'],retained=-old['charge'],reserved=-abandoned)
             token=self._token(scope);build_token=uuid.uuid4().hex
-            maximum=66560+1920*scope['certificate_count']-384
+            maximum=66560+1920*scope['observation_count']-384
             current=dict(scope);current['retained_bytes']-=old['charge'] if old is not None else 0
             current['reserved_bytes']-=abandoned
             _admit(db,current,maximum)
             header=_raw({'schema':1,'token':token.document(),'boot_id':BOOT_ID,'state':'building'},65536)
             # Reserve entire possible projection before the first row is written.
             _change_usage(db,scope['scope_seq'],retained=len(header)+1024,reserved=maximum-len(header)-1024)
-            db.execute(f'INSERT INTO {DECISIONS}(scope_seq,slot,build_token,history_revision,authority_revision,certificate_count,witness_count,header,charge) VALUES(?,?,?,?,?,?,?,?,?)',
-                (scope['scope_seq'],slot,build_token,scope['history_revision'],scope['authority_revision'],scope['certificate_count'],scope['witness_count'],header,len(header)+1024))
+            db.execute(f'INSERT INTO {DECISIONS}(scope_seq,slot,build_token,history_revision,authority_revision,observation_count,vector_count,witness_count,header,charge) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                (scope['scope_seq'],slot,build_token,scope['history_revision'],scope['authority_revision'],scope['observation_count'],scope['vector_count'],scope['witness_count'],header,len(header)+1024))
             db.execute(f'UPDATE {SCOPES} SET building_slot=?,build_token=?,state=\'pending\' WHERE scope_seq=?',(slot,build_token,scope['scope_seq']))
         return {'token':token,'scope_seq':scope['scope_seq'],'session_id':scope['session_id'],'slot':slot,
             'build_token':build_token,'maximum':maximum,'deadline':self.clock()+COMPARE_SECONDS,'source_after':'',
@@ -775,9 +951,9 @@ class HistoryStore:
         with self._database() as db:
             self._build_current(db,build)
             values=db.execute(f'''SELECT s.*,o.body AS receipt FROM {SOURCES} s LEFT JOIN {OBJECTS} o
-                ON o.scope_seq=s.scope_seq AND o.kind='receipt' AND o.digest=s.receipt_digest
+                ON o.scope_seq=s.scope_seq AND o.kind='receipt' AND o.digest=lower(hex(s.receipt_digest))
                 WHERE s.scope_seq=? AND s.version>? ORDER BY s.version LIMIT 33''',(build['scope_seq'],cursor)).fetchall()
-            rows=[dict(x) for x in values[:32]]
+            rows=[_source_document(x) for x in values[:32]]
         if sum(len(x['receipt'] or b'')+2048 for x in rows)+2048>PAGE_BYTES:_fail('history_page_capacity')
         return {'rows':rows,'after':after,'next_after':rows[-1]['version'] if rows else after,'complete':len(values)<=32}
 
@@ -794,7 +970,7 @@ class HistoryStore:
             if receipt.receipt_id!=row['receipt_digest']:_fail('history_proof_changed')
             if row['state']=='retired':
                 marker=_decode(row['marker'],1024)
-                if marker['version']!=row['version'] or marker['admission_revision']!=row['admission_revision'] or marker['certificate_count']!=row['certificate_count']:
+                if marker['version']!=row['version'] or marker['admission_revision']!=row['admission_revision'] or marker['observation_count']!=row['observation_count'] or marker['vector_count']!=row['vector_count']:
                     _fail('history_retirement_changed')
             elif row['state']=='active':
                 budget=Budget();budget.seconds=.25
@@ -816,19 +992,31 @@ class HistoryStore:
         from .recording_speaker_history_compare import Observation
         with self._database() as db:
             self._build_current(db,build)
-            found=db.execute(f'''SELECT sequence,certificate_id,header,vector,vector_sha256 FROM {CERTIFICATES}
+            # Admit SQL projection before copying headers/vectors. Scalar length
+            # census plus row/column framing is included, not only vector bytes.
+            lengths=db.execute(f'''SELECT sequence,length(header),COALESCE(length(vector),0) FROM {CERTIFICATES}
                 WHERE scope_seq=? AND sequence>? ORDER BY sequence LIMIT 32''',(build['scope_seq'],after)).fetchall()
+            projected=4096+len(lengths)*256;count=0
+            for _,header_bytes,vector_bytes in lengths:
+                amount=header_bytes+vector_bytes+512
+                if projected+amount>PAGE_BYTES:break
+                projected+=amount;count+=1
+            found=db.execute(f'''SELECT sequence,observation_id,invocation_id,evidence_kind,certificate_id,header,vector,vector_sha256 FROM {CERTIFICATES}
+                WHERE scope_seq=? AND sequence>? ORDER BY sequence LIMIT ?''',(build['scope_seq'],after,count)).fetchall()
         rows=[];used=len(encoded({'token':build['token'].document(),'after':after,'complete':False,'count':32}))+4
         for row in found:
             h=_decode(row['header'],2048)
-            if _hash(row['vector'])!=row['vector_sha256']:_fail('history_vector_changed')
+            if row['evidence_kind']=='pending':_fail('history_pending')
+            if row['evidence_kind']=='vector' and _hash(row['vector'])!=row['vector_sha256']:_fail('history_vector_changed')
             value={k:h[k] for k in ('node_id','origin_kind','source_key','pcm_hash','float_hash','attributions','spans')}
-            value.update(sequence=row['sequence'],certificate_id=row['certificate_id'],vector=row['vector'],refs=((h['ref_kind'],h['ref_key']),))
+            value.update(sequence=row['sequence'],observation_id=row['observation_id'],invocation_id=row['invocation_id'],
+                evidence_kind=row['evidence_kind'],certificate_id=row['certificate_id'],vector=row['vector'],
+                vector_sha256=row['vector_sha256'],refs=((h['ref_kind'],h['ref_key']),))
             observation=Observation.from_record(value)
-            size=8+len(encoded(observation.metadata()))+len(row['vector'])
+            size=8+len(encoded(observation.metadata()))+len(row['vector'] or b'')
             if used+size>PAGE_BYTES:break
             used+=size;rows.append(value)
-        next_after=after+len(rows);complete=next_after==build['token'].certificate_count
+        next_after=after+len(rows);complete=next_after==build['token'].observation_count
         if not rows and not complete:_fail('history_observation_page_missing')
         return {'rows':rows,'next_after':next_after,'complete':complete}
 
@@ -838,7 +1026,7 @@ class HistoryStore:
         with self._database() as db:
             self._build_current(db,build)
             attempt=db.execute(f'''SELECT token,basis,witness_start,witness_count FROM {ATTEMPTS}
-                WHERE scope_seq=? AND state='success' AND witness_count>0 AND witness_start<=?
+                WHERE scope_seq=? AND state!='reserved' AND witness_count>0 AND witness_start<=?
                 ORDER BY witness_start DESC LIMIT 1''',(build['scope_seq'],after)).fetchone()
             if attempt is None or not attempt['witness_start']<=after<attempt['witness_start']+attempt['witness_count']:_fail('history_witness_missing')
             basis=_decode(attempt['basis'],512)
@@ -887,7 +1075,7 @@ class HistoryStore:
         with self._database(write=True) as db:
             scope=self._build_current(db,build)
             actual=dict(db.execute(f'SELECT kind,COUNT(*) FROM {ROWS} WHERE scope_seq=? AND slot=? GROUP BY kind',(scope['scope_seq'],build['slot'])).fetchall())
-            if actual.get('annotation',0)!=scope['certificate_count'] or actual.get('merge',0)>max(0,scope['certificate_count']-1) or actual.get('round',0)>scope['certificate_count']:
+            if actual.get('annotation',0)!=scope['observation_count'] or actual.get('merge',0)>max(0,scope['observation_count']-1) or actual.get('round',0)>scope['observation_count']:
                 _fail('history_decision_incomplete')
             expected=decision_counts
             for kind in ('annotation','merge','round'):
@@ -911,17 +1099,23 @@ class HistoryStore:
         with self._database(write=True) as db:
             scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(build['scope_seq'],)).fetchone()
             if scope is None or scope['build_token']!=build['build_token']:return False
-            decision=db.execute(f'SELECT charge,certificate_count,complete FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot'])).fetchone()
+            decision=db.execute(f'SELECT charge,observation_count,complete FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot'])).fetchone()
             if decision is not None:
                 db.execute(f'DELETE FROM {ROWS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot']))
                 db.execute(f'DELETE FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot']))
-                remaining=0 if decision['complete'] else 66560+1920*decision['certificate_count']-384-decision['charge']
+                remaining=0 if decision['complete'] else 66560+1920*decision['observation_count']-384-decision['charge']
                 _change_usage(db,scope['scope_seq'],retained=-decision['charge'],reserved=-remaining)
             db.execute(f'UPDATE {SCOPES} SET building_slot=NULL,build_token=NULL,state=? WHERE scope_seq=?',(_reason(reason),scope['scope_seq']))
             db.execute(f'UPDATE {SCOPES} SET compare_cursor=? WHERE scope_seq=0',(scope['scope_seq'],))
         build['reserved_remaining']=0
         return True
 
+
+    @staticmethod
+    def _retirement_unreserved(db,scope_seq,chunk_id):
+        if db.execute(f'''SELECT 1 FROM {DEPENDENCIES} d JOIN {ATTEMPTS} a ON a.token=d.attempt
+            WHERE d.scope_seq=? AND d.kind='source' AND d.dependency_key=? AND a.state='reserved' LIMIT 1''',
+            (scope_seq,chunk_id)).fetchone():_fail('history_source_busy')
 
     def prepare_retirement(self,sid,rid,source_version,*,policy_id='explicit-verified-retirement-v1'):
         """Begin a bounded, explicit retention operation; grants no unlink."""
@@ -931,7 +1125,9 @@ class HistoryStore:
             scope=self._scope(db,sid,rid)
             if scope is None or scope['authority_blocked'] is not None:_fail('history_authority_changed')
             source=db.execute(f'SELECT * FROM {SOURCES} WHERE scope_seq=? AND version=?',(scope['scope_seq'],source_version)).fetchone()
-            if source is None or source['state']!='active' or source['certificate_count']==0:_fail('history_retirement_unavailable')
+            if source is None or source['state']!='active' or source['admission_revision']==0:_fail('history_retirement_unavailable')
+            self._retirement_unreserved(db,scope['scope_seq'],source['chunk_id'])
+            source=_source_document(source)
             raw=db.execute(f"SELECT body FROM {OBJECTS} WHERE scope_seq=? AND kind='receipt' AND digest=?",(scope['scope_seq'],source['receipt_digest'])).fetchone()
             if raw is None:_fail('history_proof_missing')
             fact=self._source_fact(db,raw[0],source['required_end'])
@@ -946,7 +1142,7 @@ class HistoryStore:
             if not owner.cell_source.owner.authority.receipt_valid(Receipt.decode(raw[0]),budget):_fail('history_source_unknown')
         prepared={'token':uuid.uuid4().hex,'scope_seq':scope['scope_seq'],'sid':sid,'rid':rid,'source':dict(source),'fact':fact,
             'authority_revision':scope['authority_revision'],'source_revision':scope['source_revision'],'policy_id':policy_id,
-            'after_attempt':'','attempt':None,'after_ref':('', ''),'set_hash':hashlib.sha256(),'certificate_count':0,
+            'after_attempt':'','attempt':None,'after_ref':('', ''),'set_hash':hashlib.sha256(),'observation_count':0,'vector_count':0,'basis_count':0,
             'proof_count':0,'complete':False,'marker':None,'owner':owner}
         if len(policy_id.encode('utf-8'))>64:_fail('history_retirement_policy')
         if getattr(self,'_retirement',None) is not None:_fail('history_retirement_busy')
@@ -963,23 +1159,31 @@ class HistoryStore:
                 WHERE s.scope_seq=? AND s.version=?''',(prepared['scope_seq'],prepared['source']['version'])).fetchone()
             if (source is None or source['state']!='active' or source['authority_blocked'] is not None
                     or source['authority_revision']!=prepared['authority_revision']
-                    or any(source[k]!=prepared['source'][k] for k in ('admission_revision','certificate_count','required_end'))):_fail('history_retirement_changed')
+                    or any(source[k]!=prepared['source'][k] for k in ('admission_revision','observation_count','vector_count','required_end'))):_fail('history_retirement_changed')
+            self._retirement_unreserved(db,prepared['scope_seq'],source['chunk_id'])
             if prepared['attempt'] is None:
-                attempt=db.execute(f'''SELECT a.token,a.basis FROM {DEPENDENCIES} d JOIN {ATTEMPTS} a ON a.token=d.attempt
+                attempt=db.execute(f'''SELECT a.token,a.basis,a.state FROM {DEPENDENCIES} d JOIN {ATTEMPTS} a ON a.token=d.attempt
                     WHERE d.scope_seq=? AND d.kind='source' AND d.dependency_key=? AND d.attempt>? ORDER BY d.attempt LIMIT 1''',
                     (prepared['scope_seq'],source['chunk_id'],prepared['after_attempt'])).fetchone()
                 if attempt is None:
-                    if prepared['certificate_count']!=source['certificate_count']:_fail('history_retirement_count')
+                    if (prepared['observation_count']!=source['observation_count'] or prepared['vector_count']!=source['vector_count']
+                            or prepared['basis_count']!=source['admission_revision']):_fail('history_retirement_count')
                     prepared['complete']=True;return {'complete':True}
-                certs=db.execute(f'SELECT certificate_id,header,vector,vector_sha256 FROM {CERTIFICATES} WHERE scope_seq=? AND attempt=? ORDER BY sequence LIMIT 5',
+                certs=db.execute(f'SELECT observation_id,invocation_id,evidence_kind,certificate_id,header,vector,vector_sha256 FROM {CERTIFICATES} WHERE scope_seq=? AND attempt=? ORDER BY sequence LIMIT 5',
                     (prepared['scope_seq'],attempt['token'])).fetchall()
-                if not 1<=len(certs)<=4:_fail('history_basis_certificate_count')
+                if len(certs)>4 or attempt['state']=='reserved':_fail('history_basis_observation_count')
                 _decode(attempt['basis'],512)
+                prepared['basis_count']+=1
+                prepared['set_hash'].update(encoded([attempt['token'],_hash(attempt['basis'])]))
                 for cert in certs:
                     header=_decode(cert['header'],2048)
-                    if _hash(cert['vector'])!=cert['vector_sha256']:_fail('history_vector_changed')
-                    prepared['set_hash'].update(encoded([attempt['token'],cert['certificate_id'],_hash(cert['header']),cert['vector_sha256'],_hash(attempt['basis'])]))
-                prepared['certificate_count']+=len(certs);prepared['attempt']=attempt['token'];prepared['after_ref']=('','')
+                    if cert['evidence_kind']=='pending':_fail('history_pending')
+                    if cert['evidence_kind']=='vector':
+                        if _hash(cert['vector'])!=cert['vector_sha256']:_fail('history_vector_changed')
+                        prepared['vector_count']+=1
+                    prepared['set_hash'].update(encoded([attempt['token'],cert['observation_id'],cert['invocation_id'],
+                        cert['evidence_kind'],cert['certificate_id'],_hash(cert['header']),cert['vector_sha256']]))
+                prepared['observation_count']+=len(certs);prepared['attempt']=attempt['token'];prepared['after_ref']=('','')
             else:
                 ref=db.execute(f'''SELECT kind,object_key,digest FROM {REFS} WHERE attempt=? AND (kind,object_key)>(?,?) ORDER BY kind,object_key LIMIT 1''',
                     (prepared['attempt'],*prepared['after_ref'])).fetchone()
@@ -1012,8 +1216,8 @@ class HistoryStore:
             if not owner.cell_source.owner.authority.receipt_valid(Receipt.decode(fact['receipt']),budget):_fail('history_source_unknown')
         if prepared['marker'] is None:
             prepared['marker']=_raw({'schema':1,'token':prepared['token'],'version':source['version'],'receipt':source['receipt_digest'],
-                'path':source['path_digest'],'mapping':source['mapping_digest'],'admission_revision':source['admission_revision'],
-                'certificate_count':source['certificate_count'],'required_end':source['required_end'],'set_digest':prepared['set_hash'].hexdigest(),
+                'path':fact['path_digest'],'mapping':source['mapping_digest'],'admission_revision':source['admission_revision'],
+                'observation_count':source['observation_count'],'vector_count':source['vector_count'],'basis_count':source['admission_revision'],'required_end':source['required_end'],'set_digest':prepared['set_hash'].hexdigest(),
                 'validation_digest':_hash(encoded([source['version'],fact['receipt'].hex(),prepared['proof_count']])),
                 'authority_revision':prepared['authority_revision'],'policy':prepared['policy_id']},1024)
         marker=prepared['marker']
@@ -1027,8 +1231,13 @@ class HistoryStore:
                 return {'acknowledged':True,'token':prepared['token'],'version':source['version'],'scope_seq':prepared['scope_seq']}
             if (scope is None or row is None or row['state']!='active' or scope['authority_blocked'] is not None
                     or scope['authority_revision']!=prepared['authority_revision']
-                    or any(row[k]!=source[k] for k in ('admission_revision','certificate_count','required_end'))):_fail('history_retirement_changed')
+                    or any(row[k]!=source[k] for k in ('admission_revision','observation_count','vector_count','required_end'))):_fail('history_retirement_changed')
+            self._retirement_unreserved(db,prepared['scope_seq'],source['chunk_id'])
             if self._source_fact(db,fact['receipt'],source['required_end'])['version']!=source['version']:_fail('history_source_changed')
+            aliases=db.execute(f'''SELECT 1 FROM chunks c LEFT JOIN {SOURCES} s ON s.chunk_id=c.id
+                WHERE c.path=? AND (s.version IS NULL OR s.scope_seq!=? OR s.version!=?) LIMIT 1''',
+                (fact['path'],scope['scope_seq'],source['version'])).fetchone()
+            if aliases is not None:_fail('history_active_source_alias')
             charge=len(marker)+512
             # Projection source authority metadata changes without changing any
             # vector, competitor, alias, witness or exact comparison score.
@@ -1052,12 +1261,17 @@ class HistoryStore:
         with self._database() as db:
             row=db.execute(f'''SELECT s.*,c.path,o.body AS receipt,h.authority_blocked FROM {SOURCES} s
                 JOIN {SCOPES} h ON h.scope_seq=s.scope_seq JOIN chunks c ON c.id=s.chunk_id
-                JOIN {OBJECTS} o ON o.scope_seq=s.scope_seq AND o.kind='receipt' AND o.digest=s.receipt_digest
+                JOIN {OBJECTS} o ON o.scope_seq=s.scope_seq AND o.kind='receipt' AND o.digest=lower(hex(s.receipt_digest))
                 WHERE s.scope_seq=? AND s.version=? AND s.marker_token=?''',(scope_seq,source_version,token)).fetchone()
             if row is None or row['state']!='retired' or row['authority_blocked'] is not None:_fail('history_retirement_missing')
+            self._retirement_unreserved(db,scope_seq,row['chunk_id'])
+            aliases=db.execute(f'''SELECT 1 FROM chunks c LEFT JOIN {SOURCES} s ON s.chunk_id=c.id
+                WHERE c.path=? AND (s.version IS NULL OR s.scope_seq!=? OR s.version!=?) LIMIT 1''',
+                (row['path'],scope_seq,source_version)).fetchone()
+            if aliases is not None:_fail('history_active_source_alias')
             marker=_decode(row['marker'],1024)
             if marker['token']!=token or marker['version']!=source_version or _hash(row['path'].encode())!=marker['path']:_fail('history_retirement_changed')
-            return dict(row)
+            return _source_document(row)
 
     def record_retirement_cleanup(self,scope_seq,source_version,token,state,reason=None):
         if state not in ('pending','done','failed','unknown'):_fail('history_cleanup_state')
@@ -1103,20 +1317,27 @@ def read_saved_for_refs(db,sid,rid,refs,*,byte_limit=PAGE_BYTES):
     scope=db.execute(f'SELECT * FROM {SCOPES} WHERE session_id=? AND recording_id=?',(sid,rid)).fetchone()
     if scope is None:return None
     database_path=db.execute('PRAGMA database_list').fetchone()[2]
-    authority_unknown=database_path in _AUTHORITY_UNKNOWN_DATABASES
+    with _AUTHORITY_UNKNOWN_LOCK:
+        authority_unknown=_AUTHORITY_UNKNOWN_OVERFLOW or bool(_AUTHORITY_UNKNOWN_DATABASES.get(database_path))
     result={'history_policy':True,'scope_id':scope['scope_id'],'state':'links_stale','history_status':'pending',
         'revision':scope['history_revision'],'decision_revision':-1,'policy_sha256':POLICY_SHA256,
-        'space_id':scope['space_id'],'annotations':[],'authority_revision':scope['authority_revision']}
+        'space_id':scope['space_id'],'annotations':[],'authority_revision':scope['authority_revision'],
+        'observation_count':scope['observation_count'],'vector_count':scope['vector_count']}
     if authority_unknown:
         result.update(history_status='pending',reason='source_authority_unknown');return result
     if scope['authority_blocked'] is not None:
         result.update(history_status='invalid',reason=scope['authority_blocked']);return result
+    if scope['state']=='unknown_rival':
+        result.update(reason='unknown_rival');return result
+    if db.execute(f"SELECT 1 FROM {ATTEMPTS} WHERE scope_seq=? AND state='reserved' LIMIT 1",(scope['scope_seq'],)).fetchone():
+        result.update(reason='pending');return result
     if scope['current_slot'] is None:return result
     decision=db.execute(f'SELECT * FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],scope['current_slot'])).fetchone()
     if decision is None:return result
     header=_decode(decision['header'],65536);result['decision_revision']=decision['history_revision']
     current=(decision['complete']==1 and decision['history_revision']==scope['history_revision'] and
-        decision['authority_revision']==scope['authority_revision'] and header.get('source_revision')==scope['source_revision'])
+        decision['authority_revision']==scope['authority_revision'] and decision['observation_count']==scope['observation_count'] and
+        decision['vector_count']==scope['vector_count'] and header.get('source_revision')==scope['source_revision'])
     retired=header.get('all_sources_retired') is True and scope['active_sources']==0
     if not current:return result
     if header.get('boot_id')!=BOOT_ID and not retired:
@@ -1154,15 +1375,47 @@ def read_saved_for_refs(db,sid,rid,refs,*,byte_limit=PAGE_BYTES):
     return result
 
 
-_AUTHORITY_UNKNOWN_DATABASES=set()
+_AUTHORITY_UNKNOWN_DATABASES={}
+_AUTHORITY_UNKNOWN_LOCK=threading.RLock()
+_AUTHORITY_UNKNOWN_BYTES=0
+_AUTHORITY_UNKNOWN_OVERFLOW=False
 
 
 def notify_source_mismatch(store,chunk_ids):
     """Semantic mismatch only; ordinary owner shutdown never calls this hook."""
+    global _AUTHORITY_UNKNOWN_BYTES,_AUTHORITY_UNKNOWN_OVERFLOW
     path=str(store.path.resolve())
-    _AUTHORITY_UNKNOWN_DATABASES.add(path)  # Immediately close positive reads.
+    ids=tuple(dict.fromkeys(chunk_ids))
+    if not ids or len(ids)>128 or any(type(cid) is not str or not 1<=len(cid)<=64 for cid in ids):
+        _fail('history_dependency_capacity')
+    # The newest per-source notification owns the fence. A later precise write
+    # may cover older unknown notifications, but an earlier commit returning
+    # late cannot clear a newer notification, even for the exact same source.
+    token=object()
+    with _AUTHORITY_UNKNOWN_LOCK:
+        pending=_AUTHORITY_UNKNOWN_DATABASES.get(path)
+        new=[cid for cid in ids if pending is None or cid not in pending]
+        # Bounded controller metadata has a fixed 512 KiB reservation in both
+        # shared 8 MiB staging admission guards. Overflow keeps positive reads closed
+        # until restart/revalidation rather than allocating or dropping a fence.
+        extra=(len(path.encode('utf-8'))+512 if pending is None else 0)+sum(len(cid.encode('utf-8'))+256 for cid in new)
+        if _AUTHORITY_UNKNOWN_BYTES+extra>CONTROLLER_METADATA_BYTES:
+            _AUTHORITY_UNKNOWN_OVERFLOW=True
+        else:
+            pending=_AUTHORITY_UNKNOWN_DATABASES.setdefault(path,{})
+            _AUTHORITY_UNKNOWN_BYTES+=extra
+            for cid in ids:pending[cid]=token
     try:
-        with MossResultStore(store)._database(write=True) as db:invalidate_sources(db,chunk_ids)
+        with MossResultStore(store)._database(write=True) as db:invalidate_sources(db,ids)
     except BaseException:
         return False  # Unknown is not a durable revocation claim.
+    with _AUTHORITY_UNKNOWN_LOCK:
+        pending=_AUTHORITY_UNKNOWN_DATABASES.get(path)
+        if pending is not None:
+            for cid in ids:
+                if pending.get(cid) is token:
+                    pending.pop(cid);_AUTHORITY_UNKNOWN_BYTES-=len(cid.encode('utf-8'))+256
+            if not pending:
+                _AUTHORITY_UNKNOWN_DATABASES.pop(path,None)
+                _AUTHORITY_UNKNOWN_BYTES-=len(path.encode('utf-8'))+512
     return True

@@ -150,7 +150,7 @@ def primary_history_factory(automatic_app_factory,monkeypatch):
             h.probes = []
             class Driver:
                 def __init__(self,directory,digest):
-                    self.directory,self.digest=directory,digest;self.starts=0;self.cleanup_ok=True
+                    self.directory,self.digest=directory,digest;self.starts=0;self.cleanups=0;self.cleanup_ok=True
                     h.probes.append(self)
                 def start(self,cancelled):
                     self.starts += 1
@@ -166,7 +166,9 @@ def primary_history_factory(automatic_app_factory,monkeypatch):
                         'space':runner.expected_space()[0],'space_id':request['space_id'],'compute_attempts':1,
                         'nodes':[{'index':0,'pcm_sha256':request['crops'][0]['pcm_sha256'],
                                   'vector':vector(0.,1.) if len(h.probes)==3 else vector(1.,0.)}]}
-                def cleanup(self,stop):return clean() if self.cleanup_ok else {'cleanup_verified':False}
+                def cleanup(self,stop):
+                    self.cleanups += 1
+                    return clean() if self.cleanup_ok else {'cleanup_verified':False}
             h.jobs._probe_factory = Driver
             try:yield h
             finally:
@@ -227,9 +229,68 @@ def _primary_rows(h):
 
 
 def _counts(h):
+    rows=_observations(h)
     with h.store.db() as db:
-        return {name:db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0]
-            for name,table in [('certificates',history.CERTIFICATES),('attempts',history.ATTEMPTS)]}
+        attempts=db.execute(f'SELECT COUNT(*) FROM {history.ATTEMPTS}').fetchone()[0]
+    return {'observations':len(rows),'vectors':sum(row['evidence_kind']=='vector' for row in rows),
+        'pending':sum(row['evidence_kind']=='pending' for row in rows),
+        'candidate_missing':sum(row['evidence_kind']=='candidate_missing' for row in rows),'attempts':attempts}
+
+
+def _observations(h):
+    """Read the bounded real typed rows and their retained admission basis."""
+    with h.store.db() as db:
+        rows=[dict(row) for row in db.execute(f'''SELECT c.*,a.basis,a.state AS attempt_state,
+            a.invocation_id AS attempt_invocation_id FROM {history.CERTIFICATES} c
+            JOIN {history.ATTEMPTS} a ON a.token=c.attempt ORDER BY c.scope_seq,c.sequence''')]
+        assert len(rows)<=3
+        for row in rows:
+            assert len(row['observation_id'])==64 and row['basis'] is not None
+            assert len(row['invocation_id'])==32 and row['invocation_id']==row['attempt_invocation_id']
+            kinds={item[0] for item in db.execute(f'SELECT kind FROM {history.REFS} WHERE attempt=?',(row['attempt'],))}
+            assert kinds=={'receipt','packet'}
+            dependencies={item[0] for item in db.execute(
+                f'SELECT kind FROM {history.DEPENDENCIES} WHERE attempt=?',(row['attempt'],))}
+            assert dependencies=={'source','mapping','primary'}
+            if row['evidence_kind']=='vector':
+                assert row['attempt_state']=='success' and len(row['vector'])==2048
+                assert len(row['certificate_id'])==len(row['vector_sha256'])==64
+            else:
+                assert row['evidence_kind'] in ('pending','candidate_missing')
+                assert row['attempt_state']==('reserved' if row['evidence_kind']=='pending' else 'failure')
+                assert row['certificate_id'] is row['vector'] is row['vector_sha256'] is None
+        for scope in db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0'):
+            owned=[row for row in rows if row['scope_seq']==scope['scope_seq']]
+            assert scope['observation_count']==len(owned)
+            assert scope['vector_count']==sum(row['evidence_kind']=='vector' for row in owned)
+            assert scope['history_revision']==len(owned)+sum(row['evidence_kind']!='pending' for row in owned)
+    return rows
+
+
+def _observation_identity(row):
+    return tuple(row[field] for field in ('scope_seq','sequence','attempt','observation_id','invocation_id','header','basis'))
+
+
+def _passive_without_positive(h,reason):
+    """Pending or unknown-rival saved reads cannot manufacture a positive."""
+    before=_primary_rows(h);probes=len(h.probes);task=h.jobs._history_comparison
+    thread=task['thread'] if task else None
+    response=h.client.get(f'/sessions/{h.sid}/transcript')
+    assert response.status_code==200,response.text
+    page=response.json()
+    assert [row['text'] for row in page['baseline_reading']]==[row['text'] for row in before]
+    for row in page['baseline_reading']:
+        annotation=row.get('recording_speaker_link')
+        assert annotation is None or (annotation['status']!='provisional_linked'
+                                      and annotation.get('provisional_speaker_id') is None)
+    with h.store.db() as db:
+        scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+        headers=[json.loads(row[0]) for row in db.execute(f'SELECT header FROM {history.CERTIFICATES} ORDER BY sequence')]
+        saved=history.read_saved_for_refs(db,h.sid,scope['recording_id'],
+            [(row['ref_kind'],row['ref_key']) for row in headers])
+    assert saved['history_status']=='pending' and saved['reason']==reason and saved['annotations']==[]
+    assert len(h.probes)==probes and _primary_rows(h)==before
+    assert h.jobs._history_comparison is task and (task is None or task['thread'] is thread)
 
 
 def _passive_saved(h):
@@ -250,6 +311,8 @@ def _passive_saved(h):
         refs=[(row['ref_kind'],row['ref_key']) for row in headers]
         saved=history.read_saved_for_refs(db,h.sid,scope['recording_id'],refs)
     assert len(h.probes)==before and saved['history_status']=='current' and saved['complete']
+    counts=_counts(h)
+    assert saved['observation_count']==counts['observations'] and saved['vector_count']==counts['vectors']
     public={row['source_ref']:row.get('recording_speaker_link') for row in page['baseline_reading']}
     expected={row['primary_source_ref']:row for row in saved['annotations']}
     assert len([value for value in public.values() if value is not None])==len(expected)
@@ -265,29 +328,67 @@ def _passive_saved(h):
 def test_three_natural_groups_aab_real_cleanup_and_passive_read(primary_history_factory,monkeypatch):
     with primary_history_factory() as h:
         cids=ingest_recording(h,frames=50*RATE)
-        selected=[]
+        selected=[];comparisons=[];cache=None;prefix=None
         original=h.jobs.submit_primary
+        original_compare=h.jobs._compare_history_snapshot
+        def observe_comparison(record,snapshot):
+            previous=record.get('prefix')
+            result=original_compare(record,snapshot)
+            build=record['build']
+            comparisons.append({'previous':previous,'prefix':build.score_prefix,
+                'old_rows':build._old_rows,'dot_products':build.work.counts.get('dot_products',0),
+                'rows':build.score_prefix.row_count,'scores':len(build.score_prefix.scores)})
+            return result
         def primary_attempt():selected.append('primary');return original()
         def text_refusal(intent):
             selected.append('text');raise ReadError(409,'synthetic_bounded_text_refusal')
         monkeypatch.setattr(h.jobs,'submit_primary',primary_attempt)
         monkeypatch.setattr(h.jobs,'submit_automatic',text_refusal)
-        for cid in cids:
+        monkeypatch.setattr(h.jobs,'_compare_history_snapshot',observe_comparison)
+        for index,cid in enumerate(cids):
             assert _cohort(h)==cid
+            # Finite manually interleaved cohorts prove progress with a retained
+            # cache, not concurrent CPU/GIL throughput or a wall-clock SLO.
+            assert h.store.chunk(cid)['next_offset']==(8. if index==4 else 10.5)
             if h.jobs._primary_pending and h.jobs._primary_pending['state']=='pending':
                 assert len(h.jobs._primary_pending['crop'])==64000
                 assert h.jobs._probe_staging_bytes==runner.STAGING_BYTES
+                rows=_observations(h)
+                assert rows[-1]['evidence_kind']=='pending'
+                assert rows[-1]['invocation_id']==h.jobs._primary_pending['invocation_id']
+                _passive_without_positive(h,'pending')
+            identities=[_observation_identity(row) for row in _observations(h)]
             _turn(h)
+            assert len(h.probes)==(index+2)//2
+            assert [_observation_identity(row) for row in _observations(h)]==identities
+            assert _counts(h)=={'observations':len(h.probes),'vectors':len(h.probes),
+                'pending':0,'candidate_missing':0,'attempts':len(h.probes)}
+            current=h.jobs._history_comparison
+            assert current['state']=='cached' and current['build'] is None
+            if cache is not None:
+                assert current is cache and current['prefix'] is prefix
+            cache,prefix=current,current['prefix']
+            assert prefix.row_count==len(h.probes)
+            assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
         assert selected[:5]==['primary','text','primary','text','primary']
-        assert _counts(h)['certificates']==3
+        assert [row['old_rows'] for row in comparisons]==[0,1,2]
+        assert [row['dot_products'] for row in comparisons]==[0,1,2]
+        assert [row['rows'] for row in comparisons]==[1,2,3]
+        assert [row['scores'] for row in comparisons]==[0,1,3]
+        assert comparisons[0]['previous'] is None
+        assert all(row['prefix'] is prefix for row in comparisons)
+        assert all(row['previous'] is prefix for row in comparisons[1:])
+        assert _counts(h)=={'observations':3,'vectors':3,'pending':0,'candidate_missing':0,'attempts':3}
         assert len(h.probes)==3 and all(item.starts==1 for item in h.probes)
         assert [h.store.chunk(cid)['next_offset'] for cid in cids]==[10.5,10.5,10.5,10.5,8.]
         with h.store.db() as db:
             scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
-            assert scope['certificate_count']==3 and scope['current_slot'] is not None
+            assert scope['observation_count']==scope['vector_count']==3 and scope['history_revision']==6
+            assert scope['current_slot'] is not None
             saved=db.execute(f'SELECT * FROM {history.DECISIONS} WHERE scope_seq=? AND slot=?',
                              (scope['scope_seq'],scope['current_slot'])).fetchone()
             assert saved['complete'] and saved['history_revision']==scope['history_revision']
+            assert saved['observation_count']==saved['vector_count']==3
             headers=[json.loads(row[0]) for row in db.execute(f'SELECT header FROM {history.CERTIFICATES} ORDER BY sequence')]
             assert len({row['pcm_hash'] for row in headers})==3
             assert db.execute(f'SELECT COUNT(*) FROM {history.ROWS} WHERE kind=\'annotation\' AND scope_seq=? AND slot=?',
@@ -310,7 +411,11 @@ def test_two_natural_groups_abstain_without_competitor(primary_history_factory,m
             assert _cohort(h)==cid
             _turn(h)
         assert [h.store.chunk(cid)['next_offset'] for cid in cids]==[10.5,10.5,9.]
-        assert len(h.probes)==2 and _counts(h)['certificates']==2
+        assert len(h.probes)==2
+        assert _counts(h)=={'observations':2,'vectors':2,'pending':0,'candidate_missing':0,'attempts':2}
+        with h.store.db() as db:
+            scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+            assert scope['observation_count']==scope['vector_count']==2 and scope['history_revision']==4
         saved=_passive_saved(h)
         assert len(saved['annotations'])==2
         assert all(row['status']=='source_scoped' and row['provisional_speaker_id'] is None
@@ -336,7 +441,8 @@ def test_optional_abort_and_primary_unknown_ack_never_probe(primary_history_fact
             with pytest.raises(RuntimeError):_cohort(h)
         else:_cohort(h)
         assert h.jobs._primary_pending is None and h.jobs._probe_staging_bytes==0
-        assert not h.probes and _counts(h)['certificates']==0
+        assert not h.probes and _counts(h)=={
+            'observations':0,'vectors':0,'pending':0,'candidate_missing':0,'attempts':0}
         assert h.store.chunk(cid)['next_offset']==(10. if failure in ('optional_copy','commit_unknown') else 0.)
 
 
@@ -351,14 +457,176 @@ def test_lost_history_ack_resolves_storage_without_second_invocation(primary_his
             raise ReadError(503,'synthetic_lost_ack')
         monkeypatch.setattr(h.jobs.history,name,lost)
         _cohort(h)
+        admitted=_observations(h)
+        assert len(admitted)==1 and admitted[0]['evidence_kind']=='pending'
+        assert admitted[0]['invocation_id']==h.jobs._primary_pending['invocation_id']
+        _passive_without_positive(h,'pending')
         if phase=='append':_turn(h)
         else:h.jobs._maintain_primary()
         assert len(calls)==1
         assert len(h.probes)==(1 if phase=='append' else 0)
-        assert _counts(h)['certificates']==(1 if phase=='append' else 0)
+        assert _counts(h)=={'observations':1,'vectors':int(phase=='append'),
+            'pending':0,'candidate_missing':int(phase=='claim'),'attempts':1}
+        assert _observation_identity(_observations(h)[0])==_observation_identity(admitted[0])
         assert h.jobs._primary_pending is None
         for _ in range(2):h.jobs._maintain_primary()
         assert len(calls)==1 and len(h.probes)==(1 if phase=='append' else 0)
+
+
+def test_fresh_probe_cleanup_proof_retains_owner_until_positive_closure(primary_history_factory,monkeypatch):
+    with primary_history_factory() as h:
+        cid=ingest_recording(h,frames=10*RATE)[0];assert _cohort(h)==cid
+        committed=_primary_rows(h);probe=h.jobs._primary_pending
+        admitted=_observations(h)[0]
+        assert admitted['evidence_kind']=='pending' and admitted['invocation_id']==probe['invocation_id']
+        _passive_without_positive(h,'pending')
+        original=h.jobs._probe_factory
+        def unclosed(directory,digest):
+            driver=original(directory,digest);driver.cleanup_ok=False;return driver
+        monkeypatch.setattr(h.jobs,'_probe_factory',unclosed)
+        assert h.jobs.permit.request_automatic_turn()
+        with h.jobs.permit.automatic_turn() as granted:
+            assert granted and h.jobs.submit_primary()
+        probe['thread'].run()
+        operation=probe['operation'];driver=h.probes[0]
+        assert type(operation) is runner.ProbeOperation and operation.started and not operation.cleaned
+        assert probe['state']=='cleanup_unknown' and probe['completed'].is_set()
+        assert h.jobs._primary_pending is probe and h.jobs.permit._optional is probe
+        assert probe['crop'] is not None and h.jobs._probe_staging_bytes==runner.STAGING_BYTES
+        assert operation.claim is not None and (h.jobs.directory/'owner.json').exists()
+        assert not h.jobs._maintain_primary() and not h.jobs.submit_primary()
+        assert not h.jobs._stop_primary()
+        assert h.jobs._primary_pending is probe and h.jobs.permit._optional is probe
+        assert not operation.cleaned and driver.cleanups==2
+        with h.store.db() as db:
+            attempt=db.execute(f'SELECT * FROM {history.ATTEMPTS} WHERE token=?',(probe['attempt_id'],)).fetchone()
+            assert attempt['state']=='reserved' and attempt['staging_bytes']>0
+        assert _counts(h)=={'observations':1,'vectors':0,'pending':1,'candidate_missing':0,'attempts':1}
+        _passive_without_positive(h,'pending')
+        driver.cleanup_ok=True
+        assert h.jobs._stop_primary()
+        assert operation.cleaned and runner.cleanup_verified(operation.receipt)
+        assert driver.cleanups==3 and driver.starts==1 and len(h.probes)==1
+        assert h.jobs._primary_pending is None and h.jobs.permit._optional is None
+        assert probe['crop'] is None and h.jobs._probe_staging_bytes==0
+        assert not tuple(h.jobs.directory.iterdir())
+        assert _counts(h)=={'observations':1,'vectors':0,'pending':0,'candidate_missing':1,'attempts':1}
+        assert _observation_identity(_observations(h)[0])==_observation_identity(admitted)
+        with h.store.db() as db:
+            attempt=db.execute(f'SELECT * FROM {history.ATTEMPTS} WHERE token=?',(probe['attempt_id'],)).fetchone()
+            assert attempt['state']=='failure' and attempt['reserved_bytes']==attempt['staging_bytes']==0
+        assert h.jobs._maintain_primary() and not h.jobs.submit_primary()
+        assert driver.starts==1 and _primary_rows(h)==committed and h.store.chunk(cid)['next_offset']==10.
+        # The retained missing candidate is an unknown rival, never silently
+        # omitted from the real complete comparator or passive HTTP view.
+        h.jobs.maintain_history_comparison()
+        comparison=h.jobs._history_comparison
+        assert comparison is not None and comparison['thread'].is_alive()
+        comparison['thread'].run()
+        assert comparison['build'].state=='refused' and comparison['build'].reason=='unknown_rival'
+        assert h.jobs._stop_history_comparison()
+        _passive_without_positive(h,'unknown_rival')
+        assert driver.starts==1 and len(h.probes)==1
+
+
+def test_manager_staging_refusal_consumes_source_opportunity_after_primary_commit(primary_history_factory,monkeypatch):
+    with primary_history_factory() as h:
+        cid=ingest_recording(h,frames=10*RATE)[0];acknowledged=[];handles=[]
+        original=h.jobs.primary_committed
+        def observe_commit(handle):
+            acknowledged.append(_primary_rows(h));handles.append(handle)
+            return original(handle)
+        monkeypatch.setattr(h.jobs,'primary_committed',observe_commit)
+        # The real manager copies/bounds the normal draft, then refuses its
+        # deliberately tiny staging grant; primary SQL remains untouched.
+        with monkeypatch.context() as capacity:
+            capacity.setattr(runner,'STAGING_BYTES',1)
+            assert _cohort(h)==cid
+        assert len(handles)==len(acknowledged)==1 and acknowledged[0]
+        handle=handles[0]
+        assert handle['state']=='terminal' and handle['reason']=='unavailable'
+        assert handle['crop'] is None and handle['charge_bytes']==0
+        assert h.jobs._primary_pending is None and h.jobs._probe_staging_bytes==0
+        assert _primary_rows(h)==acknowledged[0] and h.store.chunk(cid)['next_offset']==10.
+        assert _counts(h)=={'observations':0,'vectors':0,'pending':0,'candidate_missing':0,'attempts':0} and not h.probes
+        with h.store.db() as db:
+            scope=dict(db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone())
+        assert scope['high_water']==handle['source_start_frame'] and scope['skipped_count']==1
+        for _ in range(2):
+            assert h.jobs.history.primary_due(h.sid,handle['recording_id'],handle['source_start_frame'])=={
+                'due':False,'reason':'missed'}
+            assert h.jobs._maintain_primary() and not h.jobs.submit_primary()
+        assert _primary_rows(h)==acknowledged[0] and not h.probes
+
+
+def test_unknown_primary_thread_start_ack_retains_owner_and_never_replays(primary_history_factory,monkeypatch):
+    with primary_history_factory() as h:
+        cid=ingest_recording(h,frames=10*RATE)[0];assert _cohort(h)==cid
+        committed=_primary_rows(h);probe=h.jobs._primary_pending;starts=[]
+        admitted=_observations(h)[0]
+        assert admitted['evidence_kind']=='pending' and admitted['invocation_id']==probe['invocation_id']
+        original=h.jobs._thread_factory
+        def lose_ack(**kwargs):
+            thread=original(**kwargs)
+            if kwargs['name']=='primary-speaker-probe':
+                start=thread.start
+                def unknown():
+                    starts.append(thread);start();raise RuntimeError('synthetic lost thread-start acknowledgement')
+                thread.start=unknown
+            return thread
+        monkeypatch.setattr(h.jobs,'_thread_factory',lose_ack)
+        assert h.jobs.permit.request_automatic_turn()
+        with h.jobs.permit.automatic_turn() as granted:
+            assert granted and not h.jobs.submit_primary()
+        assert starts==[probe['thread']] and probe['thread'].is_alive()
+        assert probe['state']=='thread_unknown' and not probe['completed'].is_set()
+        assert h.jobs.permit._optional is probe and probe['crop'] is not None
+        assert h.jobs._probe_staging_bytes==runner.STAGING_BYTES
+        assert not h.jobs._maintain_primary() and not h.jobs._stop_primary()
+        assert not h.jobs.submit_primary() and starts==[probe['thread']]
+        assert h.jobs._primary_pending is probe and h.jobs.permit._optional is probe
+        assert _counts(h)=={'observations':1,'vectors':0,'pending':1,'candidate_missing':0,'attempts':1}
+        _passive_without_positive(h,'pending')
+        # Only completion of the original possibly-started thread closes it.
+        # Cancellation is observed before a fresh ProbeOperation is constructed.
+        probe['thread'].run()
+        assert probe['completed'].is_set() and probe['operation'] is None
+        assert h.jobs._maintain_primary()
+        assert h.jobs._primary_pending is None and h.jobs.permit._optional is None
+        assert probe['crop'] is None and h.jobs._probe_staging_bytes==0
+        assert not h.jobs.submit_primary() and starts==[probe['thread']] and not h.probes
+        assert _counts(h)=={'observations':1,'vectors':0,'pending':0,'candidate_missing':1,'attempts':1}
+        assert _observation_identity(_observations(h)[0])==_observation_identity(admitted)
+        with h.store.db() as db:
+            row=db.execute(f'SELECT * FROM {history.ATTEMPTS} WHERE token=?',(probe['attempt_id'],)).fetchone()
+            assert row['state']=='failure' and row['reserved_bytes']==row['staging_bytes']==0
+        assert _primary_rows(h)==committed and h.store.chunk(cid)['next_offset']==10.
+
+
+@pytest.mark.parametrize('action',['configuration_off','stop'])
+def test_pending_crop_configuration_off_or_stop_closes_only_unstarted_owner(primary_history_factory,action):
+    with primary_history_factory() as h:
+        cid=ingest_recording(h,frames=10*RATE)[0];assert _cohort(h)==cid
+        committed=_primary_rows(h);probe=h.jobs._primary_pending
+        admitted=_observations(h)[0]
+        assert admitted['evidence_kind']=='pending' and admitted['invocation_id']==probe['invocation_id']
+        assert probe['state']=='pending' and probe['crop'] is not None
+        assert probe['thread'] is probe['operation'] is None
+        assert h.jobs._probe_staging_bytes==runner.STAGING_BYTES
+        if action=='configuration_off':
+            h.store.settings.recording_speaker_links_enabled=False
+            _turn(h)
+        else:assert h.jobs.stop()
+        assert probe['thread'] is probe['operation'] is None and not h.probes
+        assert h.jobs._primary_pending is None and h.jobs._probe_staging_bytes==0
+        assert probe['crop'] is None and h.jobs.permit._optional is None
+        assert _counts(h)=={'observations':1,'vectors':0,'pending':0,'candidate_missing':1,'attempts':1}
+        assert _observation_identity(_observations(h)[0])==_observation_identity(admitted)
+        with h.store.db() as db:
+            row=db.execute(f'SELECT * FROM {history.ATTEMPTS} WHERE token=?',(probe['attempt_id'],)).fetchone()
+            assert row['state']=='failure' and row['reserved_bytes']==row['staging_bytes']==0
+        assert h.jobs._maintain_primary() and not h.jobs.submit_primary()
+        assert _primary_rows(h)==committed and h.store.chunk(cid)['next_offset']==10.
 
 
 def test_primary_permit_is_thread_bound_and_queued_primary_does_not_preempt(primary_history_factory):
@@ -378,7 +646,7 @@ def test_primary_permit_is_thread_bound_and_queued_primary_does_not_preempt(prim
             assert not probe['cancelled'].is_set()
         finally:waiting.release()
         h.jobs._maintain_primary()
-        assert _counts(h)['certificates']==1
+        assert _counts(h)=={'observations':1,'vectors':1,'pending':0,'candidate_missing':0,'attempts':1}
 
 
 def test_standalone_graph_capacity_refuses_without_truncation():

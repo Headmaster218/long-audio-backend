@@ -575,7 +575,7 @@ class Worker:
                         self.moss_automatic.results._headroom()
                     else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
                     if self.interrupted(chunk['id']): raise InterruptedError()
-                    if not self.store.commit_window(chunk,offset,end,result): return
+                    if self.store.commit_window(chunk,offset,end,result) is not True: return
                     # A positively returned primary acknowledgement alone transfers ownership.
                     if primary_jobs is not None:
                         try:primary_jobs.primary_committed(result.get('_primary_probe_handle'))

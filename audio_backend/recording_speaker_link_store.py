@@ -543,13 +543,13 @@ class RecordingSpeakerLinkStore:
                 # This includes lost admission acknowledgement. Never issue a second permission.
                 return self._reservation(own, state='probe_unavailable')
             total = _usage(db, own)
-            from .recording_speaker_history import aggregate_usage
+            from .recording_speaker_history import aggregate_usage, CONTROLLER_METADATA_BYTES
             history_retained, history_reserved, history_staging = aggregate_usage(db)
             extra = RESERVATION_BYTES + (SCOPE_BYTES if own is None else 0)
             exhausted = (total['node_count'] + max_nodes > MAX_GLOBAL_NODES
                 or total['batch_count'] + 1 > MAX_GLOBAL_BATCHES
                 or total['retained_bytes'] + history_retained + history_reserved + extra > MAX_GLOBAL_BYTES
-                or total['staging_bytes'] + history_staging + MAX_BATCH_BYTES > MAX_STAGING_BYTES
+                or total['staging_bytes'] + history_staging + MAX_BATCH_BYTES + CONTROLLER_METADATA_BYTES > MAX_STAGING_BYTES
                 or own is not None and (own['node_count'] + max_nodes > MAX_SCOPE_NODES
                     or own['batch_count'] + 1 > MAX_SCOPE_BATCHES
                     or own['retained_bytes'] + RESERVATION_BYTES > MAX_SCOPE_BYTES))
