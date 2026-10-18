@@ -371,7 +371,6 @@ class NativeExecutionPermit:
                 raise RuntimeError('Primary participant already active')
             intent = PrimaryIntent(self, kind)
             self._primary[kind] = intent
-            if self._comparison is not None:self._comparison['running'] = False
             self._grant_primary_locked()
             if self._optional is not None and self._optional_kind not in ('automatic_text','automatic_primary_probe'):
                 self._cancel.set()  # Publication invalidation precedes termination.
@@ -483,6 +482,9 @@ class NativeExecutionPermit:
             if (type(current.confirmed_exits) is not int or not 0 <= current.confirmed_exits <= MAX_IDENTITIES
                     or type(current.resampled) is not bool):
                 raise AdmissionError('process_identity_uncertain')
+            if any(type(x) not in (int,float) or not math.isfinite(x) or x < 0
+                   for x in (current.rss,current.caller_rss,current.available,current.disk_free)):
+                raise AdmissionError('process_sample_unavailable')
             with self._condition:
                 # A newer bind/retire/failure/shutdown invalidates this sample.
                 # Neither stale accounting nor a stale successful clear escapes.
@@ -521,6 +523,13 @@ class NativeExecutionPermit:
                 observed = {pid:row[0] for pid,row in current.identities.items()}
                 for key, children in staged.items():self._handles[key]['children'] = children
                 self._observed = observed
+                comparison = self._comparison
+                if (comparison is not None and current.rss + comparison['bytes']
+                        >= self.settings.process_memory_limit_bytes):
+                    # Revoke only comparison work. Primary observation/cleanup
+                    # proceeds normally; its exact cache charge remains owned.
+                    comparison['cancelled'].set()
+                    comparison['running'] = False
                 # Reporting only. A diagnostic clock failure cannot change an
                 # otherwise completed sample or authorize cached accounting.
                 try:
@@ -717,7 +726,6 @@ class NativeExecutionPermit:
                 raise AdmissionError('primary_or_optional_busy')
             if self._unavailable:
                 raise AdmissionError(self._unavailable)
-            if self._comparison is not None:self._comparison['running'] = False
             self._resource_check(reserve=True)
             self._optional, self._cancel, self._cancel_callback = token, cancelled, cancel_callback
             self._optional_kind = owner_kind
@@ -814,23 +822,60 @@ class NativeExecutionPermit:
     def reserve_comparison(self, token, cancelled, *, memory_bytes=128 * 1024**2):
         """One accounted CPU/cache owner, separate from every inference owner.
 
-        Primary arrival immediately revokes its run grant. Primary never waits:
-        the cooperative tail is at most one50ms compute or250ms read phase.
-        Four-lane production coexistence remains explicitly unqualified.
+        Charge the provisional owner before sampling without the condition.
+        This is a time-shared CPU lane, never a native/model execution permit.
         """
         if type(memory_bytes) is not int or not 0 < memory_bytes <= 128 * 1024**2:
             raise AdmissionError('comparison_memory_capacity')
         with self._condition:
             if (self._closed or self._unavailable or self._comparison is not None
-                    or self._primary or self._optional is not None or self._probe
-                    or self._handoff is not None or not self._configuration_current()):
+                    or cancelled.is_set() or not self._configuration_current()):
                 raise AdmissionError('comparison_pending')
-            sample = self._resource_check(reserve=False)
-            if (sample.rss + memory_bytes >= self.settings.process_memory_limit_bytes
-                    or sample.available < HOST_RESERVE + memory_bytes):
-                raise AdmissionError('comparison_memory_capacity')
-            self._comparison = {'token':token, 'bytes':memory_bytes,
-                'cancelled':cancelled, 'running':True, 'thread':None, 'completed':None}
+            record = self._comparison = {'token':token, 'bytes':memory_bytes,
+                'cancelled':cancelled, 'running':False, 'thread':None, 'completed':None,
+                'sampling':None, 'revision':object()}
+        try:
+            if not self._refresh_comparison(record):raise AdmissionError('comparison_pending')
+        except BaseException:
+            # No thread/cache has been bound to this fresh provisional owner.
+            self.release_comparison(token)
+            raise
+
+    def _refresh_comparison(self, record):
+        with self._condition:
+            if (self._comparison is not record or record['cancelled'].is_set()
+                    or self._closed or self._unavailable or not self._configuration_current()
+                    or record['sampling'] is not None):return False
+            flight = record['sampling'] = object()
+            revision, generation = record['revision'], self._sample_generation
+        try:
+            # Neither the manager gate nor this condition may enclose census.
+            sample = self._take_sample()
+            with self._condition:
+                if (self._comparison is not record or record['sampling'] is not flight
+                        or record['revision'] is not revision or self._sample_generation is not generation
+                        or record['cancelled'].is_set() or self._closed or self._unavailable
+                        or not self._configuration_current()):return False
+                if any(type(x) not in (int,float) or not math.isfinite(x) or x < 0
+                       for x in (sample.rss,sample.caller_rss,sample.available,sample.disk_free)):
+                    raise AdmissionError('process_sample_unavailable')
+                # Keep the conservative reservation + observed RSS double charge.
+                service, available = sample.rss, HOST_RESERVE + record['bytes']
+                if self._optional is not None:
+                    # A model reservation may precede its actual allocation.
+                    service = max(service,sample.rss-sample.caller_rss+MOSS_ENVELOPE+WRAPPER_RESERVE)
+                    available += max(0,MOSS_ENVELOPE-sample.caller_rss)+WRAPPER_RESERVE
+                if (service + record['bytes'] >= self.settings.process_memory_limit_bytes
+                        or sample.available < available):
+                    raise AdmissionError('comparison_memory_capacity')
+                if sample.disk_free < max(DISK_RESERVE,self.settings.disk_reserve_bytes):
+                    raise AdmissionError('service_disk_reserve')
+                record['running'] = True
+                return True
+        finally:
+            with self._condition:
+                if record['sampling'] is flight:record['sampling'] = None
+                self._condition.notify_all()
 
     def bind_comparison_thread(self, token, thread, completed):
         with self._condition:
@@ -847,28 +892,26 @@ class NativeExecutionPermit:
             record = self._comparison
             return bool(record is not None and record['token'] is token and record['running']
                 and not record['cancelled'].is_set() and not self._closed and not self._unavailable
-                and not self._primary and self._optional is None and not self._probe)
+                and self._configuration_current())
 
     def pause_comparison(self, token):
         with self._condition:
             if self._comparison is not None and self._comparison['token'] is token:
                 self._comparison['running'] = False
+                self._comparison['revision'] = object()
 
     def resume_comparison(self, token):
         with self._condition:
             record = self._comparison
-            if (record is None or record['token'] is not token or record['cancelled'].is_set()
-                    or self._closed or self._unavailable or self._primary or self._optional is not None
-                    or self._probe or self._handoff is not None):return False
-            self._resource_check(reserve=False)
-            record['running'] = True
-            return True
+            if record is None or record['token'] is not token:return False
+        return self._refresh_comparison(record)
 
     def release_comparison(self, token):
         with self._condition:
             record = self._comparison
             if record is None:return True
             if record['token'] is not token:return False
+            if record['sampling'] is not None:return False
             thread, completed = record['thread'], record['completed']
             if thread is not None and (completed is None or not completed.is_set() or thread.is_alive()):
                 return False
@@ -904,8 +947,9 @@ class NativeExecutionPermit:
                 'automatic_turn_pending': self._handoff is not None,
                 'optional_owner_kind': self._optional_kind,
                 'comparison_reserved_bytes':self._comparison['bytes'] if self._comparison else 0,
+                'comparison_reserved_cpu_lanes':int(self._comparison is not None),
                 'comparison_cpu_lanes':int(bool(self._comparison and self._comparison['running'])),
-                'comparison_preemption_tail':'50ms_compute_or_250ms_read_unqualified_coexistence',
+                'comparison_preemption_tail':'50ms_compute_plus_250ms_read_cooperative_scheduling_overrun',
                 'optional_admission_unavailable': self._unavailable,
                 'primary_sampling_pending': self._sampling_pending,
                 'primary_sampling_exhaustions': self._sampling_exhaustions,

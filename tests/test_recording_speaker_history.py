@@ -1054,6 +1054,133 @@ def test_late_admission_and_failure_each_advance_revision_and_clear_publication(
     assert_accounting(env)
 
 
+def test_clean_published_cadence_skip_does_not_rebuild_or_starve_next_opportunity(history_env):
+    env = history_env; one = primary_fixture(env); success(env, one); publish_one(env, one)
+    published = scope_row(env.store, one.rid); before = snapshot(env.store)
+    saved = saved_read(env, one)
+    assert published['state'] == 'none' and published['building_slot'] is None
+    assert saved['history_status'] == 'current'
+    assert env.value.primary_due(one.sid, one.rid, 5 * RATE) == {'due': False, 'reason': 'missed'}
+    assert env.value.note_primary_skip(one.sid, one.rid, 5 * RATE, 'missed', links.expected_space())
+    skipped = scope_row(env.store, one.rid)
+    assert skipped['high_water'] == 5 * RATE and skipped['skipped_count'] == published['skipped_count'] + 1
+    assert {k: v for k, v in skipped.items() if k not in ('high_water', 'skipped_count')} == {
+        k: v for k, v in published.items() if k not in ('high_water', 'skipped_count')}
+    assert env.value.begin_comparison() is None
+    assert saved_read(env, one) == saved
+    assert env.value.primary_due(one.sid, one.rid, 10 * RATE) == {'due': True, 'reason': 'none'}
+    for table in TABLES[1:]:assert snapshot(env.store)[table] == before[table]
+    # A real later admission still clears this publication; cadence metadata
+    # does not suppress new authenticated evidence or hide its pending rival.
+    two, batch = moss_fixture(env)
+    reservation = claim_moss(env, two, batch)
+    admitted = scope_row(env.store, one.rid)
+    assert admitted['history_revision'] == published['history_revision'] + 1
+    assert admitted['state'] == 'pending' and admitted['current_slot'] is None
+    assert admitted['observation_count'] == 2 and admitted['vector_count'] == 1
+    assert saved_read(env, one)['history_status'] == 'pending'
+    assert env.value.begin_comparison() is None
+    env.value.finish_moss(reservation, 'probe_failed', failure_json=failure_bytes())
+    fresh = env.value.begin_comparison()
+    assert fresh is not None and fresh['token'].history_revision == published['history_revision'] + 2
+    env.value.finish_comparison(fresh, 'cancelled')
+    assert_accounting(env)
+
+
+@pytest.mark.parametrize('state', ['pending', 'invalid'])
+def test_cadence_skip_preserves_pending_or_invalid_authority_state(history_env, state):
+    env = history_env; one = primary_fixture(env)
+    if state == 'pending':claim(env, one)
+    else:
+        success(env, one); publish_one(env, one)
+        with connection(env.store.path) as db:
+            db.execute('UPDATE segments SET text=? WHERE id=?', ('changed', one.number))
+    original = scope_row(env.store, one.rid); before = snapshot(env.store)
+    saved = saved_read(env, one)
+    assert saved['history_status'] == state
+    assert env.value.note_primary_skip(one.sid, one.rid, 5 * RATE, 'capacity', links.expected_space())
+    skipped = scope_row(env.store, one.rid)
+    assert skipped['high_water'] == 5 * RATE and skipped['skipped_count'] == original['skipped_count'] + 1
+    assert {k: v for k, v in skipped.items() if k not in ('high_water', 'skipped_count')} == {
+        k: v for k, v in original.items() if k not in ('high_water', 'skipped_count')}
+    assert saved_read(env, one) == saved and env.value.begin_comparison() is None
+    for table in TABLES[1:]:assert snapshot(env.store)[table] == before[table]
+    assert_accounting(env)
+
+
+@pytest.mark.parametrize('late', ['resolving_alias', 'pending_rival'])
+def test_old_unknown_rival_finish_cannot_latch_newer_admission(history_env, late):
+    from audio_backend.recording_speaker_history_compare import ComparisonBuild
+    env = history_env
+    if late == 'resolving_alias':
+        one, batch = moss_fixture(env); first = claim_moss(env, one, batch)
+        env.value.finish_moss(first, 'probe_failed', failure_json=failure_bytes())
+    else:
+        one = primary_fixture(env); first = claim(env, one)
+        env.value.finish_primary(first, 'probe_failed', failure_json=failure_bytes())
+
+    def compute(pending):
+        sources = env.value.active_source_page(pending)
+        assert sources['complete'] and len(sources['rows']) <= 2
+        env.value.revalidate_active_sources(pending, sources)
+        build = ComparisonBuild(pending['token'], admitted_bytes=history.COMPARE_BYTES, clock=lambda: 0.)
+        observations = env.value.observation_page(pending); witnesses = env.value.witness_page(pending)
+        assert observations['complete'] and witnesses['complete']
+        build.feed_observations(pending['token'], 0, observations['rows'], complete=True)
+        build.feed_witnesses(pending['token'], 0, witnesses['rows'], complete=True)
+        for _ in range(32):
+            result = build.step()
+            if result['state'] not in ('loading', 'pending'):break
+        return build, result
+
+    old = env.value.begin_comparison(); old_build, result = compute(old)
+    assert result['state'] == 'refused' and result['reason'] == 'unknown_rival'
+    retained_first = observation_rows(env.store, first['token'])
+    # The old terminal result exists, but its durable finish has not occurred.
+    # Admit through the real registered owner rather than mutating evidence SQL.
+    if late == 'resolving_alias':
+        second_batch, _ = links.capture_candidates_v3(*one.moss_inputs,
+            '3' * 32, '2' * 64, links.expected_space())
+        one.owned_moss[second_batch['job_id']] = history.encoded(second_batch)
+        second = claim_moss(env, one, second_batch, token='2' * 32)
+        embedded = deepcopy(second_batch); embedded['nodes'][0]['vector'] = vector(1., 0.)
+        env.value.append_moss(second, embedded, invocation_for(second['token']),
+            success_capability=env.capability, current_check=current(one))
+    else:
+        two, second_batch = moss_fixture(env)
+        second = claim_moss(env, two, second_batch, token='2' * 32)
+    newer = scope_row(env.store, one.rid)
+    assert newer['history_revision'] > old['token'].history_revision and newer['state'] == 'pending'
+    assert newer['current_slot'] is None and newer['observation_count'] == 2
+    assert env.value.finish_comparison(old, 'unknown_rival') is True
+    cleared = scope_row(env.store, one.rid)
+    assert cleared['state'] == 'pending' and cleared['building_slot'] is None
+    assert cleared['history_revision'] == newer['history_revision']
+    assert observation_rows(env.store, first['token']) == retained_first
+    assert len(observation_rows(env.store, second['token'])) == 1
+    old_build.discard()
+    assert_accounting(env)
+    if late == 'pending_rival':
+        assert env.value.begin_comparison() is None
+        assert saved_read(env, one)['history_status'] == 'pending'
+        env.value.finish_moss(second, 'probe_failed', failure_json=failure_bytes())
+    fresh = env.value.begin_comparison(); assert fresh is not None
+    build, result = compute(fresh)
+    assert fresh['token'].observation_count == 2
+    if late == 'resolving_alias':
+        assert result['state'] == 'ready'
+        output = build.output_page(); assert output['complete']
+        env.value.write_decision_page(fresh, output)
+        assert env.value.publish_comparison(fresh, build.decision_counts) == {'saved': True}
+        assert scope_row(env.store, one.rid)['state'] == 'none'
+    else:
+        assert result['state'] == 'refused' and result['reason'] == 'unknown_rival'
+        assert env.value.finish_comparison(fresh, 'unknown_rival') is True
+        assert scope_row(env.store, one.rid)['state'] == 'unknown_rival'
+    assert observation_rows(env.store, first['token']) == retained_first
+    assert_accounting(env)
+
+
 def test_unknown_rival_latch_survives_primary_skip_until_actual_new_admission(history_env):
     from audio_backend.recording_speaker_history_compare import ComparisonBuild, Pending
     env = history_env; one = primary_fixture(env); reservation = claim(env, one)

@@ -8,7 +8,9 @@ from contextlib import contextmanager
 from copy import deepcopy
 import io
 import json
+import os
 from pathlib import Path
+import sys
 import threading
 import time
 import wave
@@ -130,7 +132,9 @@ def ingest_recording(h,*,frames):
 @pytest.fixture
 def primary_history_factory(automatic_app_factory,monkeypatch):
     original = Settings.__post_init__
+    roots = []
     def configure(settings):
+        if roots and roots[-1] is not None:settings.data_dir = Path(roots[-1])
         if settings.moss_automatic_enabled:
             settings.asr_backend = 'sensevoice';settings.lexical_evidence_enabled = True
             settings.native_owned_bounded_core_support_enabled = True
@@ -145,9 +149,19 @@ def primary_history_factory(automatic_app_factory,monkeypatch):
     monkeypatch.setattr('test_native_owned_support_api.synthetic_turns',_turns)
     monkeypatch.setattr('test_native_owned_support_api.wav_bytes',_wav)
     @contextmanager
-    def opened():
+    def opened(*,root=None):
+        roots.append(root)
+        try:
+            with _opened() as h:yield h
+        finally:roots.pop()
+    @contextmanager
+    def _opened():
         with automatic_app_factory() as h:
             h.probes = []
+            # ManualThread is intentionally driven on the test caller. Stub
+            # only this new OS edge: it must never renice/pin the caller.
+            h.real_comparison_configure = h.jobs._configure_history_comparison_thread
+            monkeypatch.setattr(h.jobs,'_configure_history_comparison_thread',lambda record:True)
             class Driver:
                 def __init__(self,directory,digest):
                     self.directory,self.digest=directory,digest;self.starts=0;self.cleanups=0;self.cleanup_ok=True
@@ -174,7 +188,9 @@ def primary_history_factory(automatic_app_factory,monkeypatch):
             finally:
                 for item in (h.jobs._primary_pending,h.jobs._history_comparison):
                     if item and item['thread'] and item['thread'].is_alive():
-                        item['cancelled'].set();item['thread'].run()
+                        item['cancelled'].set()
+                        if isinstance(item['thread'],threading.Thread):item['thread'].join(timeout=5.)
+                        else:item['thread'].run()
                 h.jobs._stop_primary();h.jobs._stop_history_comparison()
     return opened
 
@@ -201,7 +217,7 @@ def _cohort(h):
     return chunk['id']
 
 
-def _turn(h):
+def _primary_turn(h):
     original=_primary_rows(h)
     h.automatic.next_attempt=0.
     h.worker._automatic_handoff(request=True)
@@ -215,11 +231,79 @@ def _turn(h):
     live=h.jobs._live
     if live and live['thread'] and live['thread'].is_alive():live['thread'].run()
     h.jobs._maintain_primary()
+    assert _primary_rows(h)==original
+
+
+def _primary_turn_without_comparison(h):
+    """Fixture scheduling: close the fake probe before explicit CPU launch."""
+    maintenance=h.jobs.maintain_history_comparison
+    h.jobs.maintain_history_comparison=lambda:False
+    try:_primary_turn(h)
+    finally:h.jobs.maintain_history_comparison=maintenance
+
+
+def _complete_pending_probe(h):
+    """One explicit existing optional turn, with its ordinary cleanup proof."""
+    probe=h.jobs._primary_pending
+    assert probe is not None and probe['state']=='pending' and probe['admitted']
+    assert h.jobs.permit.request_automatic_turn()
+    with h.jobs.permit.automatic_turn() as granted:
+        assert granted and h.jobs.submit_primary()
+    assert probe['thread'] is not None and not isinstance(probe['thread'],threading.Thread)
+    probe['thread'].run()
+    assert h.jobs._maintain_primary()
+    assert probe['operation'].cleaned and runner.cleanup_verified(probe['operation'].receipt)
+    assert h.jobs.permit._optional is None and h.jobs._primary_pending is None
+
+
+def _turn(h):
+    original=_primary_rows(h)
+    _primary_turn(h)
+    # Concurrent admission can now queue comparison before the optional probe
+    # finishes. Drain that exact manual thread and its one terminal dirty hint.
+    for _ in range(2):
+        h.jobs.maintain_history_comparison()
+        comparison=h.jobs._history_comparison
+        if not comparison or not comparison['thread'] or not comparison['thread'].is_alive():break
+        assert not isinstance(comparison['thread'],threading.Thread)
+        comparison['thread'].run()
     h.jobs.maintain_history_comparison()
     comparison=h.jobs._history_comparison
-    if comparison and comparison['thread'] and comparison['thread'].is_alive():comparison['thread'].run()
-    h.jobs.maintain_history_comparison()
+    assert not comparison or not comparison['thread'] or not comparison['thread'].is_alive()
     assert _primary_rows(h)==original
+
+
+def _real_comparison_threads(h,monkeypatch,*,configure=None):
+    """Real comparison only; the synthetic model driver stays manually run."""
+    manual=h.jobs._thread_factory
+    def factory(**kwargs):
+        return threading.Thread(**kwargs) if kwargs['name']=='recording-history-compare' else manual(**kwargs)
+    monkeypatch.setattr(h.jobs,'_thread_factory',factory)
+    monkeypatch.setattr(h.jobs,'_configure_history_comparison_thread',
+        h.real_comparison_configure if configure is None else configure)
+
+
+def _joined_comparison(h):
+    record=h.jobs._history_comparison
+    assert record is not None and isinstance(record['thread'],threading.Thread)
+    assert record['completed'].wait(5.),record['state']
+    record['thread'].join(timeout=5.)
+    assert not record['thread'].is_alive(),record['state']
+    return record
+
+
+def _two_ready_observations(h,monkeypatch,*,frames=30*RATE):
+    """Two genuine stored vectors; the second dirty comparison is unstarted."""
+    monkeypatch.setattr(h.jobs,'submit_automatic',lambda intent:(_ for _ in ()).throw(
+        ReadError(409,'synthetic_bounded_text_refusal')))
+    cids=ingest_recording(h,frames=frames)
+    assert _cohort(h)==cids[0];_turn(h)
+    for cid in cids[1:3]:
+        assert _cohort(h)==cid
+        _primary_turn_without_comparison(h)
+    assert _counts(h)=={'observations':2,'vectors':2,'pending':0,'candidate_missing':0,'attempts':2}
+    assert h.jobs._history_comparison['state']=='cached'
+    return cids
 
 
 def _primary_rows(h):
@@ -243,7 +327,7 @@ def _observations(h):
         rows=[dict(row) for row in db.execute(f'''SELECT c.*,a.basis,a.state AS attempt_state,
             a.invocation_id AS attempt_invocation_id FROM {history.CERTIFICATES} c
             JOIN {history.ATTEMPTS} a ON a.token=c.attempt ORDER BY c.scope_seq,c.sequence''')]
-        assert len(rows)<=3
+        assert len(rows)<=5
         for row in rows:
             assert len(row['observation_id'])==64 and row['basis'] is not None
             assert len(row['invocation_id'])==32 and row['invocation_id']==row['attempt_invocation_id']
@@ -697,6 +781,548 @@ def test_primary_permit_is_thread_bound_and_queued_primary_does_not_preempt(prim
         finally:waiting.release()
         h.jobs._maintain_primary()
         assert _counts(h)=={'observations':1,'vectors':1,'pending':0,'candidate_missing':0,'attempts':1}
+
+
+def _linux_thread_state():
+    if (sys.platform!='linux' or not all(hasattr(os,name) for name in
+            ('sched_getaffinity','sched_setaffinity','getpriority','setpriority','PRIO_PROCESS'))):
+        pytest.skip('Linux per-native-thread affinity and nice controls required')
+    tid=threading.get_native_id()
+    return tid,os.sched_getaffinity(tid),os.getpriority(os.PRIO_PROCESS,tid)
+
+
+def test_real_comparison_advances_through_queued_worker_cohorts(primary_history_factory,monkeypatch):
+    """Actual scorer/Worker interleaving, not a claim about wall-clock speed."""
+    from audio_backend import recording_speaker_history_compare as comparator
+    caller=_linux_thread_state()
+    process_before=(os.sched_getaffinity(os.getpid()),os.getpriority(os.PRIO_PROCESS,os.getpid()))
+    with primary_history_factory() as h:
+        cids=_two_ready_observations(h,monkeypatch,frames=50*RATE)
+        before=_primary_rows(h);permit=h.jobs.permit
+        waiting=[threading.Event(),threading.Event()]
+        entered=[threading.Event(),threading.Event()]
+        progressed=[threading.Event(),threading.Event()]
+        finished=[threading.Event(),threading.Event()]
+        workers=[];errors=[];primary_states=[];steps=[];phase=[0];comparisons=[]
+        retained_prefix=h.jobs._history_comparison['prefix']
+        original_compare=h.jobs._compare_history_snapshot
+        def compare(record,snapshot):
+            comparisons.append((snapshot['token'],record.get('prefix'),record['deadline']))
+            return original_compare(record,snapshot)
+        original_step=comparator.ComparisonBuild.step
+        original_database=h.jobs.history.sql._database
+        database_local=threading.local()
+        @contextmanager
+        def observed_database(*args,**kwargs):
+            with original_database(*args,**kwargs) as db:
+                database_local.depth=getattr(database_local,'depth',0)+1
+                try:yield db
+                finally:database_local.depth-=1
+        def analyzed(analyzer,path,**kwargs):
+            index=len(primary_states)
+            primary_states.append(_linux_thread_state())
+            intent=permit._primary['worker']
+            assert intent.granted and intent.entered
+            assert permit._optional is None
+            entered[index].set()
+            assert progressed[index].wait(5.),'comparison did not advance during primary inference'
+            return _analyze(analyzer,path,**kwargs)
+        def step(build):
+            index=phase[0]
+            if index<2:
+                waiting[index].set()
+                assert entered[index].wait(5.),'queued Worker never entered inference'
+                assert permit._primary['worker'].entered
+                assert permit.comparison_grant_valid(h.jobs._history_comparison['grant'])
+                assert permit.status()['comparison_cpu_lanes']==1
+                assert permit.status()['comparison_reserved_bytes']==128*1024**2
+            assert getattr(database_local,'depth',0)==0
+            assert not h.jobs._lock._is_owned()
+            result=original_step(build)
+            steps.append((index,dict(build.work.counts),result['state']))
+            # The first cohort observes an actual cooperative update. The next
+            # stays in inference until an exact dot product is computed, still
+            # before its final recording chunk can be committed.
+            if index<2 and (index==0 or build.work.counts.get('dot_products',0)>0):
+                assert result['state']=='pending'
+                assert h.store.chunk(cids[-1])['next_offset']==0.
+                progressed[index].set()
+                assert finished[index].wait(5.),'primary commit/cleanup did not complete'
+                phase[0]+=1
+            return result
+        def process_cohort(index):
+            try:assert _cohort(h)==cids[index+3]
+            except BaseException as exc:errors.append(exc)
+            finally:finished[index].set()
+        monkeypatch.setattr(FakeAnalyzer,'analyze',analyzed)
+        monkeypatch.setattr(h.jobs.history.sql,'_database',observed_database)
+        # Smaller test-only quanta expose the unchanged exact scorer's real
+        # suspension points. They do not enlarge the production 50ms bound.
+        monkeypatch.setattr(comparator,'QUANTUM_UPDATES',1)
+        monkeypatch.setattr(comparator.ComparisonBuild,'step',step)
+        monkeypatch.setattr(h.jobs,'_compare_history_snapshot',compare)
+        _real_comparison_threads(h,monkeypatch)
+        try:
+            assert h.jobs.maintain_history_comparison()
+            record=h.jobs._history_comparison
+            for index in range(2):
+                assert waiting[index].wait(5.),record['state']
+                assert h.store.chunk(cids[index+3])['status']=='queued'
+                worker=threading.Thread(target=process_cohort,args=(index,),name='history-primary-cohort')
+                workers.append(worker);worker.start();worker.join(timeout=5.)
+                assert not worker.is_alive() and not errors,errors
+                assert len(_primary_rows(h))>len(before)
+                assert _primary_rows(h)[:len(before)]==before
+                before=_primary_rows(h)
+                assert h.worker.native is None and h.capture.analyzer is None
+                assert all(native.closed for native in h.natives)
+                pending=h.jobs._primary_pending
+                assert pending is not None and pending['admitted'] and pending['state']=='pending'
+                assert h.jobs.history.comparison_current(record['snapshot'])=='pending'
+                with h.store.db() as db:
+                    scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+                    assert scope['current_slot'] is None and scope['observation_count']==index+3
+                _complete_pending_probe(h)
+            assert _joined_comparison(h) is record
+            assert record['state']=='published'
+            assert record['execution_lane']=={'native_id':record['thread'].native_id,'cpu':max(caller[1]),'nice':19}
+            assert len(steps)>2 and any(counts.get('dot_products',0)>0 and index==1
+                                       for index,counts,_ in steps)
+            assert [token.observation_count for token,_,_ in comparisons]==[2,3,4]
+            assert all(prefix is retained_prefix for _,prefix,_ in comparisons)
+            assert len({deadline for _,_,deadline in comparisons})==1
+            assert record['deadline']==comparisons[0][2]
+            assert record['build'].score_prefix is retained_prefix
+            assert retained_prefix.row_count==4 and len(retained_prefix.scores)==6
+            saved=_passive_saved(h)
+            assert saved['observation_count']==saved['vector_count']==len(saved['annotations'])==4
+            assert len(primary_states)==2
+            assert all(mask==caller[1] and nice==caller[2] for _,mask,nice in primary_states)
+            assert all(tid!=record['thread'].native_id for tid,_,_ in primary_states)
+            assert permit.status()['comparison_reserved_bytes']==128*1024**2
+            assert permit._optional is None and not permit._primary
+            assert _linux_thread_state()==caller
+            assert (os.sched_getaffinity(os.getpid()),os.getpriority(os.PRIO_PROCESS,os.getpid()))==process_before
+        finally:
+            for event in waiting+entered+progressed+finished:event.set()
+            for worker in workers:worker.join(timeout=5.)
+
+
+def test_comparison_lane_rejects_manual_caller_without_os_mutation(primary_history_factory,monkeypatch):
+    before=_linux_thread_state()
+    from audio_backend import moss_handy_jobs as jobs_module
+    with primary_history_factory() as h:
+        record={'thread':h.jobs._thread_factory(target=lambda:None,args=()),'execution_lane':None}
+        calls=[]
+        class NoMutation:
+            def __getattr__(self,name):return getattr(os,name)
+            def sched_setaffinity(self,*args):calls.append(('affinity',args));raise AssertionError('unsafe mutation')
+            def setpriority(self,*args):calls.append(('nice',args));raise AssertionError('unsafe mutation')
+        monkeypatch.setattr(jobs_module,'os',NoMutation())
+        assert h.real_comparison_configure(record) is False
+        assert not calls and _linux_thread_state()==before
+
+
+@pytest.mark.parametrize('failure',['unsupported_platform','single_cpu','affinity_readback','nice_readback'])
+def test_real_comparison_lane_refusal_stays_pending(primary_history_factory,monkeypatch,failure):
+    from audio_backend import moss_handy_jobs as jobs_module
+    from audio_backend import recording_speaker_history_compare as comparator
+    before=_linux_thread_state()
+    with primary_history_factory() as h:
+        ingest_recording(h,frames=10*RATE);_cohort(h);_primary_turn_without_comparison(h)
+        committed=_primary_rows(h);calls=[];steps=[]
+        original_step=comparator.ComparisonBuild.step
+        def step(build):steps.append(build);return original_step(build)
+        class RefusingOS:
+            def __getattr__(self,name):return getattr(os,name)
+            def sched_getaffinity(self,tid):
+                calls.append(('read_affinity',tid))
+                if failure=='single_cpu':return {3}
+                return {3,4} if failure=='affinity_readback' or len(calls)==1 else {4}
+            def sched_setaffinity(self,tid,mask):calls.append(('set_affinity',tid,set(mask)))
+            def getpriority(self,which,tid):calls.append(('read_nice',tid));return 0
+            def setpriority(self,which,tid,value):calls.append(('set_nice',tid,value))
+        with monkeypatch.context() as edge:
+            if failure=='unsupported_platform':
+                # Replace the module's view, not the interpreter-wide sys object.
+                from types import SimpleNamespace
+                edge.setattr(jobs_module,'sys',SimpleNamespace(platform='unsupported'))
+            else:edge.setattr(jobs_module,'os',RefusingOS())
+            edge.setattr(comparator.ComparisonBuild,'step',step)
+            _real_comparison_threads(h,edge)
+            assert h.jobs.maintain_history_comparison()
+            record=_joined_comparison(h)
+        assert record['state']=='pending'
+        assert record.get('reason')=='comparison_execution_lane_unavailable'
+        assert record.get('execution_lane') is None and not steps
+        if failure=='single_cpu':assert [call[0] for call in calls]==['read_affinity']
+        assert record['snapshot'] is None and record['build'] is None
+        assert all(call[1]==record['thread'].native_id for call in calls)
+        assert _primary_rows(h)==committed and _linux_thread_state()==before
+        assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
+        with h.store.db() as db:
+            scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+            assert scope['current_slot'] is None and scope['building_slot'] is None
+        assert h.jobs._stop_history_comparison()
+        assert h.jobs.permit.status()['comparison_reserved_bytes']==0
+
+
+def test_completed_comparison_keeps_token_until_real_thread_death_and_discard(primary_history_factory,monkeypatch):
+    _linux_thread_state()
+    with primary_history_factory() as h:
+        _two_ready_observations(h,monkeypatch)
+        _real_comparison_threads(h,monkeypatch)
+        real_factory=h.jobs._thread_factory;returned=threading.Event();exit_thread=threading.Event()
+        def factory(**kwargs):
+            if kwargs['name']=='recording-history-compare':
+                target=kwargs['target']
+                def held(*args):
+                    target(*args);returned.set()
+                    assert exit_thread.wait(5.),'test did not release completed comparison thread'
+                kwargs={**kwargs,'target':held}
+            return real_factory(**kwargs)
+        monkeypatch.setattr(h.jobs,'_thread_factory',factory)
+        try:
+            assert h.jobs.maintain_history_comparison()
+            record=h.jobs._history_comparison
+            assert returned.wait(5.),record['state']
+            assert record['state']=='published' and record['completed'].is_set()
+            assert record['thread'].is_alive()
+            build=record['build'];prefix=build.score_prefix
+            assert build.state=='ready' and prefix.row_count==2
+            assert not h.jobs.maintain_history_comparison()
+            assert not h.jobs.permit.release_comparison(record['grant'])
+            assert record['build'] is build and build.score_prefix is prefix
+            assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
+            record['cancelled'].set()
+            assert not h.jobs.permit.release_comparison(record['grant'])
+        finally:exit_thread.set()
+        assert _joined_comparison(h) is record
+        assert h.jobs._stop_history_comparison()
+        assert build.state=='discarded' and record['build'] is None and record['prefix'] is None
+        assert h.jobs._history_comparison is None
+        assert h.jobs.permit.status()['comparison_reserved_bytes']==0
+
+
+@pytest.mark.parametrize('action',['cancel','revoke','revoke_ready','links_off','policy_off'])
+def test_real_store_revocation_or_cancel_fences_compute_and_ready_output(primary_history_factory,monkeypatch,action):
+    from audio_backend import recording_speaker_history_compare as comparator
+    _linux_thread_state()
+    with primary_history_factory() as h:
+        cids=_two_ready_observations(h,monkeypatch)
+        committed=_primary_rows(h);at_boundary=threading.Event();resume=threading.Event();steps=[]
+        original_step=comparator.ComparisonBuild.step
+        def step(build):
+            result=original_step(build);steps.append(dict(build.work.counts))
+            if action=='revoke_ready' and result['state']=='pending':return result
+            assert result['state']==('ready' if action=='revoke_ready' else 'pending')
+            at_boundary.set();assert resume.wait(5.)
+            return result
+        if action!='revoke_ready':monkeypatch.setattr(comparator,'QUANTUM_UPDATES',1)
+        monkeypatch.setattr(comparator.ComparisonBuild,'step',step)
+        _real_comparison_threads(h,monkeypatch)
+        try:
+            assert h.jobs.maintain_history_comparison()
+            record=h.jobs._history_comparison
+            assert at_boundary.wait(5.),record['state']
+            deadline=record['deadline'];snapshot=record['snapshot'];build=record['build']
+            assert h.jobs.history.comparison_current(snapshot)=='current'
+            if action=='cancel':record['cancelled'].set()
+            elif action=='links_off':h.store.settings.recording_speaker_links_enabled=False
+            elif action=='policy_off':h.store.settings.recording_primary_observation_policy='off'
+            else:
+                assert history.notify_source_mismatch(h.store,[cids[0]]) is True
+                assert h.jobs.history.comparison_current(snapshot)=='invalid'
+            resume.set();assert _joined_comparison(h) is record
+            assert record['state']!='published'
+            if action=='revoke_ready':assert steps[-1].get('dot_products',0)==1
+            else:assert len(steps)==1
+            assert record['deadline']==deadline and record['build'] is build
+            if action in ('links_off','policy_off'):
+                assert record['cancelled'].is_set() and record['reason']=='comparison_configuration_changed'
+            assert _primary_rows(h)==committed
+            with h.store.db() as db:
+                scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+                assert scope['current_slot'] is None and scope['building_slot'] is None
+                if action in ('revoke','revoke_ready'):assert scope['authority_blocked']=='source_changed'
+                assert not db.execute(f'SELECT 1 FROM {history.DECISIONS} WHERE build_token=? AND complete=1',
+                                      (snapshot['build_token'],)).fetchone()
+            assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
+            assert h.jobs._stop_history_comparison()
+            assert build.state=='discarded' and h.jobs.permit.status()['comparison_reserved_bytes']==0
+        finally:resume.set()
+
+
+def test_real_store_currentness_distinguishes_unknown_unavailable_and_revoked(primary_history_factory,monkeypatch):
+    with primary_history_factory() as h:
+        cid=ingest_recording(h,frames=10*RATE)[0]
+        assert _cohort(h)==cid;_primary_turn_without_comparison(h)
+        snapshot=h.jobs.history.begin_comparison()
+        assert snapshot is not None and h.jobs.history.comparison_current(snapshot)=='current'
+        @contextmanager
+        def unavailable(*args,**kwargs):
+            raise ReadError(503,'synthetic_scalar_read_unavailable')
+            yield
+        with monkeypatch.context() as read:
+            read.setattr(h.jobs.history.sql,'_database',unavailable)
+            assert h.jobs.history.comparison_current(snapshot)=='pending'
+        assert h.jobs.history.comparison_current(snapshot)=='current'
+        original_class=history.MossResultStore._database
+        @contextmanager
+        def failed_notification(instance,*,write=False,**kwargs):
+            if write:raise ReadError(503,'synthetic_notification_ack_unknown')
+            with original_class(instance,write=write,**kwargs) as db:yield db
+        try:
+            with monkeypatch.context() as write:
+                write.setattr(history.MossResultStore,'_database',failed_notification)
+                assert history.notify_source_mismatch(h.store,[cid]) is False
+            assert h.jobs.history.comparison_current(snapshot)=='pending'
+            with h.store.db() as db:
+                scope=db.execute(f'SELECT * FROM {history.SCOPES} WHERE scope_seq>0').fetchone()
+                assert scope['authority_blocked'] is None
+            assert history.notify_source_mismatch(h.store,[cid]) is True
+            assert h.jobs.history.comparison_current(snapshot)=='invalid'
+        finally:
+            # Close this test's genuine unknown-notification fence even if an
+            # assertion failed; no authority registry is manually rewritten.
+            history.notify_source_mismatch(h.store,[cid])
+            h.jobs.history.finish_comparison(snapshot,'cancelled')
+
+
+@pytest.mark.parametrize('failure',['unknown_notification','read_unavailable'])
+def test_uncertain_authority_waits_without_another_compute_quantum(primary_history_factory,monkeypatch,failure):
+    from audio_backend import recording_speaker_history_compare as comparator
+    _linux_thread_state()
+    with primary_history_factory() as h:
+        cid=ingest_recording(h,frames=10*RATE)[0]
+        assert _cohort(h)==cid;_primary_turn_without_comparison(h)
+        boundary=threading.Event();resume=threading.Event();pending=threading.Event();broken=threading.Event()
+        original_step=comparator.ComparisonBuild.step
+        original_current=h.jobs.history.comparison_current
+        original_database=h.jobs.history.sql._database
+        steps=[]
+        def step(build):
+            result=original_step(build);steps.append(result['state'])
+            boundary.set();assert resume.wait(5.)
+            return result
+        def current(snapshot):
+            result=original_current(snapshot)
+            if result=='pending':pending.set()
+            return result
+        @contextmanager
+        def unavailable(*args,**kwargs):
+            if broken.is_set() and not kwargs.get('write',False):
+                raise ReadError(503,'synthetic_scalar_read_unavailable')
+            with original_database(*args,**kwargs) as db:yield db
+        monkeypatch.setattr(comparator,'QUANTUM_UPDATES',1)
+        monkeypatch.setattr(comparator.ComparisonBuild,'step',step)
+        monkeypatch.setattr(h.jobs.history,'comparison_current',current)
+        monkeypatch.setattr(h.jobs.history.sql,'_database',unavailable)
+        _real_comparison_threads(h,monkeypatch)
+        try:
+            assert h.jobs.maintain_history_comparison()
+            record=h.jobs._history_comparison
+            assert boundary.wait(5.),record['state']
+            deadline=record['deadline']
+            if failure=='read_unavailable':broken.set()
+            else:
+                @contextmanager
+                def failed_notification(instance,**kwargs):
+                    raise ReadError(503,'synthetic_notification_ack_unknown')
+                    yield
+                with monkeypatch.context() as fault:
+                    fault.setattr(history.MossResultStore,'_database',failed_notification)
+                    assert history.notify_source_mismatch(h.store,[cid]) is False
+            resume.set()
+            assert pending.wait(5.),record['state']
+            assert steps==['pending'] and not record['completed'].is_set()
+            assert record['deadline']==deadline
+            assert h.jobs.permit.status()['comparison_reserved_bytes']==128*1024**2
+            record['cancelled'].set();broken.clear()
+            assert _joined_comparison(h) is record and record['state']!='published'
+            assert steps==['pending']
+            assert h.jobs._stop_history_comparison()
+            assert h.jobs.permit.status()['comparison_reserved_bytes']==0
+        finally:
+            broken.clear();resume.set()
+            if h.jobs._history_comparison is not None:h.jobs._history_comparison['cancelled'].set()
+            if failure=='unknown_notification':assert history.notify_source_mismatch(h.store,[cid]) is True
+
+
+def test_second_comparison_maintainer_cannot_reset_cached_resume_or_live_build(primary_history_factory,monkeypatch):
+    from audio_backend import recording_speaker_history_compare as comparator
+    from test_native_execution_permit import sample
+    _linux_thread_state()
+    with primary_history_factory() as h:
+        _two_ready_observations(h,monkeypatch)
+        record=h.jobs._history_comparison;prefix=record['prefix'];permit=h.jobs.permit
+        census=threading.Event();continue_census=threading.Event()
+        started=threading.Event();continue_start=threading.Event()
+        compute=threading.Event();continue_compute=threading.Event()
+        results=[];errors=[]
+        def sampler(settings):
+            assert not h.jobs._lock._is_owned()
+            assert not permit._condition._is_owned()
+            census.set();assert continue_census.wait(5.)
+            return sample()
+        original_step=comparator.ComparisonBuild.step
+        def step(build):
+            result=original_step(build)
+            compute.set();assert continue_compute.wait(5.)
+            return result
+        _real_comparison_threads(h,monkeypatch)
+        real_factory=h.jobs._thread_factory
+        def factory(**kwargs):
+            thread=real_factory(**kwargs)
+            if kwargs['name']=='recording-history-compare':
+                original_start=thread.start
+                def start():
+                    original_start();assert compute.wait(5.)
+                    started.set();assert continue_start.wait(5.)
+                thread.start=start
+            return thread
+        def maintain():
+            try:results.append(h.jobs.maintain_history_comparison())
+            except BaseException as exc:errors.append(exc)
+        monkeypatch.setattr(permit,'_sampler',sampler)
+        monkeypatch.setattr(h.jobs,'_thread_factory',factory)
+        monkeypatch.setattr(comparator.ComparisonBuild,'step',step)
+        first=threading.Thread(target=maintain,name='comparison-maintainer')
+        try:
+            first.start();assert census.wait(5.)
+            generation=record['generation'];completed=record['completed'];old_thread=record['thread']
+            assert h.jobs._history_maintenance is not None
+            assert record['state']=='sampling' and not completed.is_set()
+            assert not h.jobs.maintain_history_comparison()
+            assert h.jobs._history_comparison is record and record['prefix'] is prefix
+            assert record['generation'] is generation and record['completed'] is completed
+            assert record['thread'] is old_thread and record['build'] is None
+            continue_census.set();assert started.wait(5.)
+            build=record['build'];live_thread=record['thread'];live_completed=record['completed']
+            assert build is not None and live_thread.is_alive() and not live_completed.is_set()
+            assert not h.jobs.maintain_history_comparison()
+            assert record['build'] is build and build.state!='discarded'
+            assert record['thread'] is live_thread and record['completed'] is live_completed
+            assert record['generation'] is generation and build.score_prefix is prefix
+            continue_start.set();first.join(timeout=5.)
+            assert not first.is_alive() and not errors and results==[True],errors
+            assert h.jobs._history_maintenance is None
+            assert not h.jobs.maintain_history_comparison()
+            assert record['build'] is build and build.state!='discarded'
+            continue_compute.set();assert _joined_comparison(h) is record
+            assert record['state']=='published' and build.score_prefix is prefix
+            assert permit.status()['comparison_reserved_bytes']==128*1024**2
+        finally:
+            continue_census.set();continue_start.set();continue_compute.set()
+            first.join(timeout=5.)
+
+
+def test_primary_validated_sample_cancels_only_overbudget_comparison(primary_history_factory,monkeypatch):
+    from audio_backend import recording_speaker_history_compare as comparator
+    from test_native_execution_permit import sample
+    _linux_thread_state()
+    with primary_history_factory() as h:
+        ingest_recording(h,frames=10*RATE);_cohort(h);_primary_turn_without_comparison(h)
+        permit=h.jobs.permit;boundary=threading.Event();resume=threading.Event()
+        original_step=comparator.ComparisonBuild.step
+        def step(build):
+            result=original_step(build)
+            boundary.set();assert resume.wait(5.)
+            return result
+        monkeypatch.setattr(comparator,'QUANTUM_UPDATES',1)
+        monkeypatch.setattr(comparator.ComparisonBuild,'step',step)
+        _real_comparison_threads(h,monkeypatch)
+        try:
+            assert h.jobs.maintain_history_comparison()
+            record=h.jobs._history_comparison
+            assert boundary.wait(5.),record['state']
+            build=record['build'];charge=128*1024**2
+            pressure=h.store.settings.process_memory_limit_bytes-charge
+            monkeypatch.setattr(permit,'_sampler',lambda settings:sample(rss=pressure))
+            with permit.primary_span('worker') as primary_intent:
+                assert primary_intent.granted and primary_intent.entered
+                assert permit.observe_primary() is None
+                assert primary_intent.granted and primary_intent.entered and not primary_intent.released
+                assert record['cancelled'].is_set() and not permit.comparison_grant_valid(record['grant'])
+                assert permit._unavailable is None and permit._primary_observation_failure is None
+                assert not permit._sampling_pending and permit._sample_flight is None
+                assert record['thread'].is_alive() and not record['completed'].is_set()
+                assert record['build'] is build and build.state!='discarded'
+                assert not permit.release_comparison(record['grant'])
+                assert permit.status()['comparison_reserved_bytes']==charge
+            resume.set();assert _joined_comparison(h) is record
+            assert h.jobs._stop_history_comparison()
+            assert build.state=='discarded' and permit.status()['comparison_reserved_bytes']==0
+            assert permit._unavailable is None and permit._primary_observation_failure is None
+        finally:resume.set()
+
+
+@pytest.mark.parametrize('stage',['cached_cleanup','census'])
+def test_stop_during_claimed_comparison_maintenance_cannot_report_false_cleanup(primary_history_factory,monkeypatch,stage):
+    from test_native_execution_permit import sample
+    with primary_history_factory() as h:
+        _two_ready_observations(h,monkeypatch)
+        record=h.jobs._history_comparison;prefix=record['prefix'];permit=h.jobs.permit
+        reached=threading.Event();resume=threading.Event();starts=[];errors=[];results=[]
+        original_pause=permit.pause_comparison;original_factory=h.jobs._thread_factory
+        def pause(token):
+            if stage=='cached_cleanup' and threading.current_thread().name=='comparison-stop-race':
+                reached.set();assert resume.wait(5.)
+            return original_pause(token)
+        def sampler(settings):
+            assert not h.jobs._lock._is_owned() and not permit._condition._is_owned()
+            if stage=='census':reached.set();assert resume.wait(5.)
+            return sample()
+        def factory(**kwargs):
+            starts.append(kwargs['name']);return original_factory(**kwargs)
+        def maintain():
+            try:results.append(h.jobs.maintain_history_comparison())
+            except BaseException as exc:errors.append(exc)
+        monkeypatch.setattr(permit,'pause_comparison',pause)
+        monkeypatch.setattr(permit,'_sampler',sampler)
+        monkeypatch.setattr(h.jobs,'_thread_factory',factory)
+        first=threading.Thread(target=maintain,name='comparison-stop-race')
+        try:
+            first.start();assert reached.wait(5.)
+            generation=record['generation'];completed=record['completed'];thread=record['thread']
+            assert h.jobs._history_maintenance is not None
+            assert h.jobs._stop_history_comparison() is False
+            assert record['cancelled'].is_set()
+            assert h.jobs._history_comparison is record and record['prefix'] is prefix
+            assert record['generation'] is generation and record['completed'] is completed
+            assert record['thread'] is thread and permit.status()['comparison_reserved_bytes']==128*1024**2
+            resume.set();first.join(timeout=5.)
+            assert not first.is_alive() and not errors and len(results)==1,errors
+            assert not starts,'a stopped maintenance claim launched a replacement comparison'
+            assert h.jobs._history_maintenance is None
+            assert h.jobs._stop_history_comparison() is True
+            assert h.jobs._history_comparison is None and permit.status()['comparison_reserved_bytes']==0
+            assert record['prefix'] is None and record['build'] is None
+        finally:resume.set();first.join(timeout=5.)
+
+
+def test_measured_primary_history_comparison_resources(primary_history_factory,monkeypatch):
+    """Explicit pinned harness opt-in; ordinary test runs do no measurement."""
+    source=os.environ.get('HISTORY_CONCURRENCY_MEASUREMENT')
+    if not source:pytest.skip('explicit pinned resource-measurement gate required')
+    import importlib.util
+    path=Path(source)
+    assert path.is_absolute() and path.is_file()
+    assert os.environ.get('HISTORY_CONCURRENCY_REPORT')
+    spec=importlib.util.spec_from_file_location('history_concurrency_measurement',path)
+    assert spec is not None
+    module=importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    previous=sys.modules.get(spec.name)
+    sys.modules[spec.name]=module
+    try:
+        spec.loader.exec_module(module)
+        module.collect(primary_history_factory,monkeypatch,cohort=_cohort,
+            ingest=ingest_recording,turn=_primary_turn_without_comparison,
+            real_threads=_real_comparison_threads,primary_rows=_primary_rows)
+    finally:
+        if previous is None:sys.modules.pop(spec.name,None)
+        else:sys.modules[spec.name]=previous
 
 
 def test_standalone_graph_capacity_refuses_without_truncation():

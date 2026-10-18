@@ -447,7 +447,6 @@ class HistoryStore:
         if scope is None:return {'due':True,'reason':'none'}
         if scope['authority_blocked'] is not None:return {'due':False,'reason':'source_changed'}
         if frame<=scope['high_water']:return {'due':False,'reason':'missed'}
-        if scope['building_slot'] is not None:return {'due':False,'reason':'pending'}
         if frame<120*16000:
             due=scope['bootstrap_count']<6 and frame-scope['last_claim_frame']>=10*16000
         else:due=(frame-120*16000)//scope['interval_frames']>scope['last_bucket']
@@ -470,8 +469,9 @@ class HistoryStore:
             scope=self._scope(db,sid,rid,space,create=True)
             if source_start_frame<=scope['high_water']:return False
             bucket=(source_start_frame-120*16000)//scope['interval_frames'] if source_start_frame>=120*16000 else -1
-            db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_bucket=MAX(last_bucket,?),skipped_count=MIN(2147483647,skipped_count+1),state=CASE WHEN state='unknown_rival' THEN state ELSE ? END WHERE scope_seq=?''',
-                (source_start_frame,bucket,_reason(reason),scope['scope_seq']))
+            # Cadence diagnostics do not dirty unchanged comparison evidence.
+            db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_bucket=MAX(last_bucket,?),skipped_count=MIN(2147483647,skipped_count+1) WHERE scope_seq=?''',
+                (source_start_frame,bucket,scope['scope_seq']))
         return True
 
     @staticmethod
@@ -513,7 +513,7 @@ class HistoryStore:
         if existing is not None:
             if existing['identity_sha256']!=identity or existing['invocation_id']!=payload['invocation_id']:_fail('history_attempt_conflict')
             return self._reservation(existing,scope)  # Lookup never grants execution.
-        if scope['authority_blocked'] is not None or scope['building_slot'] is not None:_fail('history_pending')
+        if scope['authority_blocked'] is not None:_fail('history_pending')
         if current_check(db) is not True:_fail('history_source_changed')
         _admit(db,scope,maximum,staging)
         db.execute(f'''INSERT INTO {ATTEMPTS}(token,scope_seq,origin_kind,origin_id,identity_sha256,owner,invocation_id,state,authority_revision,reserved_bytes,staging_bytes,charge)
@@ -906,13 +906,52 @@ class HistoryStore:
         return SnapshotToken(scope['scope_id'],POLICY_SHA256,scope['space_id'],scope['history_revision'],
             scope['authority_revision'],scope['observation_count'],scope['witness_count'],scope['vector_count'])
 
+    def _build_scope_matches(self,scope,build):
+        return (scope is not None and scope['build_token']==build['build_token']
+                and scope['authority_blocked'] is None and self._token(scope)==build['token']
+                and scope['source_revision']==build['source_revision'])
+
     def _build_current(self,db,build):
         scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(build['scope_seq'],)).fetchone()
-        if (scope is None or scope['build_token']!=build['build_token'] or scope['authority_blocked'] is not None
-                or self._token(scope)!=build['token'] or scope['source_revision']!=build['source_revision']):_fail('history_snapshot_changed')
+        if not self._build_scope_matches(scope,build):_fail('history_snapshot_changed')
         if db.execute(f"SELECT 1 FROM {ATTEMPTS} WHERE scope_seq=? AND state='reserved' LIMIT 1",(scope['scope_seq'],)).fetchone():_fail('history_pending')
         _live(db,scope['session_id'])
         return scope
+
+    def comparison_current(self,build):
+        """Bounded scalar checkpoint: current/stale/invalid or unknown pending.
+
+        No evidence scan, source validation, or snapshot survives this call.
+        Destructive authority change alone is a confirmed cancellation reason;
+        an append can reuse the existing exact-prefix stale-build path.
+        """
+        path = str(self.sql.path)
+        def unknown():
+            if not _AUTHORITY_UNKNOWN_LOCK.acquire(blocking=False):return True
+            try:return bool(_AUTHORITY_UNKNOWN_OVERFLOW or _AUTHORITY_UNKNOWN_DATABASES.get(path))
+            finally:_AUTHORITY_UNKNOWN_LOCK.release()
+        was_unknown = unknown()
+        try:
+            with self._database() as db:
+                scope = db.execute(f'''SELECT scope_seq,scope_id,session_id,space_id,history_revision,
+                    authority_revision,authority_blocked,observation_count,witness_count,vector_count,
+                    build_token,source_revision FROM {SCOPES} WHERE scope_seq=?''',(build['scope_seq'],)).fetchone()
+                if (scope is None or scope['authority_blocked'] is not None
+                        or scope['authority_revision'] != build['token'].authority_revision):answer = 'invalid'
+                else:
+                    try:_live(db,scope['session_id'])
+                    except ReadError as exc:
+                        if exc.reason != 'session_not_found':raise
+                        answer = 'invalid'
+                    else:
+                        # Admission atomically changes history before it returns;
+                        # let that exact pending rival finish before rebasing.
+                        pending = db.execute(f"SELECT 1 FROM {ATTEMPTS} WHERE scope_seq=? AND state='reserved' LIMIT 1",
+                                             (scope['scope_seq'],)).fetchone()
+                        answer = ('pending' if pending else 'current' if self._build_scope_matches(scope,build) else 'stale')
+            if answer == 'invalid':return answer
+            return 'pending' if was_unknown or unknown() else answer
+        except (ReadError,OSError):return 'pending'
 
     def begin_comparison(self,after_scope=None):
         """Bounded dirty-header discovery. Does not score or read full evidence."""
@@ -1105,7 +1144,12 @@ class HistoryStore:
                 db.execute(f'DELETE FROM {DECISIONS} WHERE scope_seq=? AND slot=?',(scope['scope_seq'],build['slot']))
                 remaining=0 if decision['complete'] else 66560+1920*decision['observation_count']-384-decision['charge']
                 _change_usage(db,scope['scope_seq'],retained=-decision['charge'],reserved=-remaining)
-            db.execute(f'UPDATE {SCOPES} SET building_slot=NULL,build_token=NULL,state=? WHERE scope_seq=?',(_reason(reason),scope['scope_seq']))
+            # Cleanup owns the old projection, never a newer evidence verdict.
+            # In particular an old unknown-rival refusal cannot latch a late
+            # acknowledged revision into permanent dirty-discovery exclusion.
+            state = (scope['authority_blocked'] if scope['authority_blocked'] is not None else
+                     _reason(reason) if self._build_scope_matches(scope,build) else 'pending')
+            db.execute(f'UPDATE {SCOPES} SET building_slot=NULL,build_token=NULL,state=? WHERE scope_seq=?',(state,scope['scope_seq']))
             db.execute(f'UPDATE {SCOPES} SET compare_cursor=? WHERE scope_seq=0',(scope['scope_seq'],))
         build['reserved_remaining']=0
         return True
