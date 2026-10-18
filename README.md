@@ -2,6 +2,18 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev51：独立主行观察与完整历史比较（实验版）
+
+本实验版把前瞻的 clean-primary 观察保留、同录音完整历史比较及被动读取接入既有 Worker / permit / store。primary crop 的证据不依赖 MOSS 返回结果；正常调度与配置仍共享 MOSS automatic/jobs 和 bounded native support，并非关闭全部 MOSS 后的独立运行模式。开关继续默认关闭，不补造历史观察、不删去已接受竞争者，也不把同源或相同 PCM 重复当成独立身份证据。
+
+比较使用一个被计费的纯计算子进程：128 MiB 逻辑上限、192 MiB owner 预留、总服务不超过既有 6 GiB。冷重建 300 秒、具有已确认兼容缓存的增量任务 180 秒，均从原准入时刻固定；重基、取消或缓存丢失不续期。主行 capture 仍限 0.5 秒。完整且 revision-current 的结果才能发布，默认 GET 不重新验证文件或启动模型。新进程关闭模型/producer 后可以读取历史审计；仍有 active source 时显示 historical / active_source_revalidation_pending，不恢复当前正身份。
+
+当前修正源通过七个标签/边界用例和一个真实调度/存储/比较器的合成集成用例：成功 MOSS 文本与 primary-history 共存，随后真正新解释器被动重开且精确保留文本、结果与 durable 状态。该 MOSS 短语没有合格的自身 speaker crop，只产生 typed native-primary 别名，不能据此声称声学身份识别。修正仅把两处 native label consumer 对齐既有 128 字符契约；通用 64 字符限制、原始 namespace、摘要和分数运算保持不变。
+
+此前 53 个选定用例及 2,880 冷观察 + 4 追加的完整测量绑定于修正前 cold-budget02；117 / 32 个较早结果也各自绑定源，不能相加当作本版重新执行的整套结果。完整测量冷耗时 200.649296 秒、追加 27.874125 秒，dense provider / sink 为合成，单独的小真实 SQL scope 仅验证 currentness。其 close_ack_unconfirmed / 子进程 exit 1 保留，原 wait / family / 资源释放确认不等于协议 ACK。真实声学准确性、dense SQL 发布、恶劣多轮、长时吞吐及全部阶段并发仍未获资格。
+
+仅供经审查的隔离实验。初始化即使关闭 producer 也会应用 additive schema 和旧 reader 拒绝；先备份并使用隔离副本，勿直接打开生产库。离线 133 文件包一致性及 installed smoke 状态见[dev51 资格报告](reports/PRIMARY_HISTORY_EXPERIMENTAL_DEV51_QUALIFICATION.json)；模型和固定语料试验另需有限计划。下列历史章节保持原文。
+
 ## 0.2.0rc3.dev50：探针失败回执与有版本的不重叠裁剪
 
 可选探针现在保留有界、固定枚举的终态失败原因；旧行保持 NULL，已有批次证据与哈希不改写。首次观察到的失败在清理和仅存储重试间保留，不确定确认后不替换已冻结的提交。真正无行的拒绝与终态前崩溃仍不能据此诊断。
