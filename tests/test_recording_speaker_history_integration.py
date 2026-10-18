@@ -1387,32 +1387,53 @@ def test_stop_during_claimed_comparison_maintenance_cannot_report_false_cleanup(
 
 
 def test_positive_child_wait_with_unknown_family_closure_keeps_exact_owner(primary_history_factory,monkeypatch):
-    """A truthy negative cleanup receipt cannot release or replace its child owner."""
-    with primary_history_factory() as h:
-        _two_ready_observations(h,monkeypatch)
-        record=h.jobs._history_comparison;driver=_owned_comparison_process(record)
-        process=driver.process;grant=record['grant'];finish=driver._finish_child;attempts=[]
-        def unresolved(original,**kwargs):
-            attempts.append(original)
-            assert original is process and original.returncode is not None
-            return False
-        with monkeypatch.context() as closure:
-            closure.setattr(driver,'_finish_child',unresolved)
-            assert not h.jobs._stop_history_comparison()
-            assert driver.cleanup['positive_wait'] and driver.cleanup['control_channel_closed']
-            assert driver.cleanup['positive'] is False and process.returncode is not None
-            assert record['state']=='ownership_unknown' and h.jobs._history_comparison is record
-            assert h.jobs.permit.status()['comparison_reserved_bytes']==192*1024**2
-            assert not h.jobs.permit.release_comparison(grant)
-            assert not h.jobs.maintain_history_comparison()
-            assert h.jobs._history_comparison is record and record['driver'] is driver
-            assert driver.process is process and attempts and all(item is process for item in attempts)
-        assert driver._finish_child is finish
-        assert h.jobs._stop_history_comparison()
-        assert driver.cleanup['positive'] and driver.cleanup['positive_wait']
-        assert driver.cleanup['control_channel_closed'] and driver.cache_binding is None
-        assert h.jobs._history_comparison is None and h.jobs.permit.status()['comparison_reserved_bytes']==0
-        assert h.jobs._stop_history_comparison()  # Idempotent stop cannot create a successor.
+    """All cleanup paths share exact unknown authority until real recovery."""
+    failure=None
+    try:
+        with primary_history_factory() as h:
+            _two_ready_observations(h,monkeypatch)
+            record=h.jobs._history_comparison;driver=_owned_comparison_process(record)
+            process=driver.process;grant=record['grant'];permit=h.jobs.permit
+            finish=permit.finish_comparison_process;attempts=[]
+            def unresolved(token,original,**kwargs):
+                attempts.append((token,original))
+                assert token is grant and original is process and original.returncode is not None
+                return False
+            try:
+                with monkeypatch.context() as closure:
+                    # Both the driver's late-bound callback and direct permit
+                    # release must see the same unavailable family authority.
+                    closure.setattr(permit,'finish_comparison_process',unresolved)
+                    assert not h.jobs._stop_history_comparison()
+                    assert driver.cleanup['positive_wait'] and driver.cleanup['control_channel_closed']
+                    assert driver.cleanup['positive'] is False and process.returncode is not None
+                    assert record['state']=='ownership_unknown' and h.jobs._history_comparison is record
+                    assert permit.status()['comparison_reserved_bytes']==192*1024**2
+                    assert not permit.release_comparison(grant)
+                    assert not h.jobs.maintain_history_comparison()
+                    assert h.jobs._history_comparison is record and record['driver'] is driver
+                    assert driver.process is process and attempts
+                    assert all(token is grant and original is process for token,original in attempts)
+            except BaseException as exc:
+                failure=exc
+            finally:
+                # Restore real authority before teardown, even when a negative
+                # assertion failed. Never clear latches or invent a release.
+                try:
+                    restored=permit.finish_comparison_process
+                    assert restored.__self__ is finish.__self__ and restored.__func__ is finish.__func__
+                    assert h.jobs._stop_history_comparison()
+                    assert driver.cleanup['positive'] and driver.cleanup['positive_wait']
+                    assert driver.cleanup['control_channel_closed'] and driver.cache_binding is None
+                    assert h.jobs._history_comparison is None and permit.status()['comparison_reserved_bytes']==0
+                    assert h.jobs._stop_history_comparison()
+                except BaseException as exc:
+                    if failure is None:failure=exc
+                    else:failure.add_note(f'Real same-owner cleanup also failed: {exc!r}')
+    except BaseException as exc:
+        if failure is None:raise
+        failure.add_note(f'Fixture lifespan cleanup also failed: {exc!r}')
+    if failure is not None:raise failure
 
 
 @pytest.mark.parametrize('edge',['observations','witnesses','output','cas'])
