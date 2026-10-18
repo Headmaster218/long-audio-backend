@@ -1,0 +1,172 @@
+{
+  "cleanup": {
+    "cache_reservation_after_closure_bytes": 0,
+    "comparison_cleanup_protocol_receipt": null,
+    "forced_kill": false,
+    "namespace_scoped_not_hostwide": true,
+    "original_owned_handles_waited": true,
+    "owner_sigterm_and_completed_pinned_lifespan_verified": true,
+    "remaining_observed_family": 0,
+    "sampling_not_continuous_peak_measurement": true,
+    "service_exit_codes": [
+      -15,
+      -15
+    ]
+  },
+  "date_utc": "2026-10-18",
+  "evidence": {
+    "aggregate_decoded_logical_evidence_bytes": 6938076,
+    "all_observed_response_decoded_bytes_including_repeats": 11008144,
+    "compressed_body_count": 368,
+    "evidence_cap_bytes": 8388608,
+    "observed_response_count": 1181,
+    "sealed_declared_file_bytes": 59893990,
+    "sealed_files": 104,
+    "stored_allocated_evidence_bytes": 4829184
+  },
+  "evidence_scope": "Deterministic gzip retained members, ranges, hashes, contiguous ledgers and terminal counts verified. Stable health retains a representative body plus exact per-observation digest/size, not every volatile body. Post-run owner audit 32,768 allocated bytes is separate; full preserved root 64,897,024 allocated bytes includes preparation/deployment/runtime/audit.",
+  "functional_success": false,
+  "identity": {
+    "correct_links": 0,
+    "false_links": 0,
+    "independent_primary_nodes": 11,
+    "legacy_packet_field_scope": "MOSS-batch-derived; does not count the 48 typed primary packet rows",
+    "legacy_raw_score_primary_packet_count": 0,
+    "linked_pair_error_denominator": 0,
+    "linked_pairs": 0,
+    "no_held_out_real_person_or_wer_claim": true,
+    "same_speaker_policy_testable_independent_pair_opportunities": 3,
+    "scored_cluster_denominator": 0,
+    "unlinked_opportunities": 3,
+    "verdict": "inconclusive",
+    "zero_error_or_precision_claim": false
+  },
+  "independent_terminal_review_sha256": "a6879b8adec57e5c2d5a5ae828b7a5165f1cbe1471f15145376fca649c525e59",
+  "input": {
+    "completed_primary_chunks": 48,
+    "durable_primary_packets": 48,
+    "evaluation": "extended_same_file_exposed_not_held_out",
+    "fixed_sample_unchanged": true,
+    "frames": 8004480,
+    "prior_exposure_seconds": [
+      0,
+      84
+    ],
+    "sample_rate": 16000,
+    "seconds": 500.28
+  },
+  "outer_exit": 1,
+  "plan_sha256": "4825e6b6555bce932c9241c01d31a225ba805f877650bf3ddc1cc855a63c32c4",
+  "preservation": {
+    "actual_root_unchanged": true,
+    "failed_raw_exit_and_score_unchanged": true,
+    "new_execution_by_report": false,
+    "no_input_reselection_threshold_tuning_gold_link_forced_job_or_retry": true,
+    "product_or_helper_changes_by_report": false,
+    "publication_by_report": false,
+    "reference_evaluation_only_after_cleanup_and_seal": true
+  },
+  "primary_history": {
+    "build_pending": false,
+    "current_decision_count": 0,
+    "current_work_pending": false,
+    "decision_revision": -1,
+    "decision_rows": 0,
+    "durable_state": "unknown_rival",
+    "failed_attempts": 6,
+    "failures": [
+      {
+        "child_dispatch": "not_attempted",
+        "count": 4,
+        "error_type": "other",
+        "reason": "other",
+        "stage": "dispatch_validation"
+      },
+      {
+        "child_dispatch": "not_attempted",
+        "count": 1,
+        "error_type": "AdmissionError",
+        "reason": "optional_cancelled",
+        "stage": "prepare"
+      },
+      {
+        "child_dispatch": null,
+        "count": 1,
+        "error_type": null,
+        "reason": "storage_unknown",
+        "stage": null
+      }
+    ],
+    "maximum_claims": 13,
+    "merge_rows": 0,
+    "natural_claims": 11,
+    "physical_dispatch_total": "not_established_by_reservation_count",
+    "public_history_status": "pending",
+    "public_reason_exposed": false,
+    "public_state": "links_stale",
+    "reserved_bytes": 0,
+    "revision": 22,
+    "round_rows": 0,
+    "staging_bytes": 0,
+    "successful_vector_outputs": 5,
+    "terminal_abstention": true,
+    "unique_successful_crop_hashes": 5
+  },
+  "reopen": {
+    "current_decision_missing_before_restart": true,
+    "different_history_boot_id": true,
+    "expected_fresh_boot_historical_branch_reached": false,
+    "fresh_interpreter": true,
+    "live_identity_authority_claimed": false,
+    "models_disabled": true,
+    "passive_history_predicate": false,
+    "reopen_data_loss_demonstrated": false,
+    "stable_table_hashes_equal": 20,
+    "text_evidence_history_results_equal": true
+  },
+  "resource_scope": {
+    "comparison_core_shared_with_service_native": true,
+    "comparison_cpu": 1,
+    "comparison_logical_ceiling_bytes": 134217728,
+    "comparison_reservation_bytes": 201326592,
+    "dedicated_core_latency_claim": false,
+    "global_work_seconds": 1500,
+    "gpu_enabled": false,
+    "historical_conservative_margin_bytes": 805306368,
+    "maximum_cleanup_seconds": 120,
+    "outer_timeout_exercised": false,
+    "post_primary_drain_max_seconds_clipped_inside_global": 720,
+    "secondary_reserve_bytes": 536870912
+  },
+  "resources": {
+    "aggregate_cpu_seconds": "not recorded by this actual helper",
+    "cpu_affinity": [
+      0,
+      1
+    ],
+    "elapsed_total_seconds": 433.8621573689961,
+    "nice": 19,
+    "observed_max_sample_gap": "not recorded; no invented bound",
+    "output_limit_bytes": 134217728,
+    "peak_charged_rss_bytes": 2253402112,
+    "peak_output_bytes": 61632512,
+    "peak_sampled_owned_rss_bytes": 911224832,
+    "rss_limit_bytes": 6442450944
+  },
+  "runtime_worker_exit": 0,
+  "schema": "primary-history-dev51-fixed-trial-report-v1",
+  "scorer_exit": 0,
+  "sole_invocation": true,
+  "source_commit": "9d3fe6fdb9c3ecc9d3bcc0f2e352b296c5f2a7fc",
+  "source_only_diagnosis": {
+    "four_dispatch_validation_actual_causes_proved": false,
+    "mechanism_proves_historical_actual_causes": false,
+    "optional_cancelled_proves_user_cancellation": false,
+    "per_attempt_exception_correlation_available": false,
+    "possible_mechanism": "Source inspection establishes a _ReadDeferred handling gap before primary ProbeOperation: the automatic before_window path handles this read-only BUSY/LOCKED marker, while primary _run_primary can terminalize it through fixed other/other sanitization.",
+    "storage_unknown_resolved": false
+  },
+  "source_tree": "ff622f23a15ef08a7b4b42cc04a82c747eee1b78",
+  "status": "failed_functional_trial_identity_inconclusive",
+  "version": "0.2.0rc3.dev51"
+}
