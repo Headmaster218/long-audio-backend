@@ -1,6 +1,6 @@
 {
   "schema": "primary-probe-reservation-fingerprint-recovery-wip-v1",
-  "status": "NEW_UNQUALIFIED_SOURCE_STATIC_REVIEW_ACCEPTED",
+  "status": "FRESH_FOCUSED_MODEL_FREE_GATE_ACCEPTED_RELEASE_AND_ACOUSTICS_UNQUALIFIED",
   "baseline": {
     "commit": "cd89edba47ad48677db287f387507e4a5396b4df",
     "tree": "7bee84323e1dfbcfd9d77b8e400443b4a03e2508",
@@ -138,5 +138,85 @@
     "Synthetic scheduling counterexamples cannot establish historical causation.",
     "No model, acoustic, production, package or complete-suite qualification is claimed."
   ],
-  "tooling_blocker": "Parent reports pytest absent in both standard interpreters and no cached wheels; official PyPI timed out and escalated preparation failed before execution at sandbox initialization. Existing psutil 7.2.2 is not historical runtime parity. No custom runner or framework substitution."
+  "tooling_blocker": "Parent reports pytest absent in both standard interpreters and no cached wheels; official PyPI timed out and escalated preparation failed before execution at sandbox initialization. Existing psutil 7.2.2 is not historical runtime parity. No custom runner or framework substitution.",
+  "history_note": "The verification and tooling_blocker fields retain the initial source-only, tooling-blocked snapshot. The separately reviewed fresh result is recorded in focused_qualification; earlier evidence is not inherited.",
+  "focused_qualification": {
+    "status": "INDEPENDENTLY_ACCEPTED_53_CANDIDATE_PLUS_2_BASELINE_CONTROLS_ONLY",
+    "tested_commit": "223bea03b41651e20c441c1ab009674f9bff00ff",
+    "tested_tree": "8c376996458b6f7c78545171702aafa1f677d5f9",
+    "tested_source_files": 563,
+    "tested_source_bytes": 10162734,
+    "result": {
+      "unique_tests": 55,
+      "candidate_cases": 53,
+      "authenticated_baseline_controls": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "run_attempts": 1,
+      "exit_code": 0,
+      "original_subprocess_positively_waited": true,
+      "initial_final_762_pins_identical": true,
+      "product_and_test_bytes_unchanged": true
+    },
+    "evidence_sha256": {
+      "independent_terminal_audit": "2de344a4493f27e8cd68fee0f8cddbc869eb7707ad0af3168903f6c509ac3e8c",
+      "execution_receipt": "707d1cd11c125c8e8fe2b830bbf2b2d0389813c4061224b03262f2c112d316ec",
+      "junit": "1288ab5f4f099cd9c11139418c99e4d47003dd384be0f058d9bae92e6cc8e982",
+      "verbose_import_trace": "45ab6c7fc463be2c234bfc993ce348b973d78c6bea182a1b6959da536babd364",
+      "initial_and_final_pins": "45dcf5236ea3b4d44c8eead6763f1dd0dfe68df73ab84101e7b87f197a45ef7d",
+      "toolchain_receipt": "4a9d0d4f5e0c5cd927bf507a20da5b43ddf660db908c758664c0cede92035103"
+    },
+    "runtime": {
+      "python": "3.12.14",
+      "official_hash_verified_wheels": {
+        "pytest": "8.3.5",
+        "iniconfig": "2.1.0",
+        "pluggy": "1.5.0"
+      },
+      "preexisting_packages_origin_unverified": {
+        "psutil": "7.2.2",
+        "packaging": "26.3"
+      },
+      "historical_runtime_parity": false
+    },
+    "temp_advisory": "Pytest 8.3.5 remains subject to CVE-2025-71176 in general. Independent review accepted its installed explicit-basetemp branch only with a fresh absent leaf below an owned 0700 parent and safe ancestors; no shared default /tmp directory was used.",
+    "import_evidence": "Retained verbose output directly identifies isolated pytest, pluggy and iniconfig paths. Pytest capture suppresses some collection-time origin lines. Product and psutil binding is independently reviewed constrained-source evidence using exact cwd, fixed search roots, -S, disabled user-site/plugin autoload and pinned bytes; cleanup names alone do not prove paths. Packaging is pinned inventory, not an observed import. This is not a complete import or syscall trace.",
+    "limits": {
+      "cpu_affinity": [
+        3
+      ],
+      "nice": 19,
+      "child_cpu_s": 35,
+      "collector_cpu_soft_s": 3,
+      "timeout_cpu_soft_s": 1,
+      "work_timeout_s": 45,
+      "outer_watchdog_s": 55,
+      "outer_kill_grace_s": 5,
+      "total_ceiling_s": 60,
+      "child_as_mib": 256,
+      "collector_as_soft_mib": 64,
+      "timeout_as_soft_mib": 32,
+      "conservative_concurrent_as_mib": 352,
+      "rss_budget_mib": 384,
+      "outer_hard_as_mib": 1024,
+      "fresh_artifact_budget_mib": 64
+    },
+    "observations": {
+      "junit_s": 0.271,
+      "work_plus_original_wait_s": 0.6152905219998956,
+      "cleanup_s": 0.05840200400007234,
+      "collector_elapsed_sample_s": 0.7280474019999019,
+      "original_execution_tool_wall_sample_s": 0.661775582,
+      "collector_plus_child_cpu_sample_s": 0.725482,
+      "collector_peak_rss_kib": 13348,
+      "child_peak_rss_kib": 37324,
+      "sum_separate_peak_rss_kib": 50672,
+      "run_artifacts_logical_bytes": 928584,
+      "run_artifacts_allocated_bytes": 978944,
+      "matching_gate_processes_at_terminal_snapshot": 0
+    },
+    "measurement_limits": "CPU and collector elapsed samples omit final receipt/output tail; CPU also omits timeout-wrapper CPU. Separate RSS peaks are not simultaneous RSS, and wrapper RSS uses a 32 MiB AS reserve rather than direct measurement. Tool and collector wall samples differ and are not combined into a full-launch timing claim. Pinned limits and terminal exit support bounded completion; the process snapshot is not universal orphan attribution.",
+    "qualification_limits": "One fresh selected model-free gate only, with zero inherited historical credit. Baseline controls demonstrate constructed scheduling failures, not the historical changed field or acoustic recovery. No new model, audio or DB operation, full-suite, package, production, acoustic identity, or throughput qualification."
+  }
 }
