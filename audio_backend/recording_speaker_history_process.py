@@ -195,7 +195,8 @@ def _encoded_size(value):
 def _encode(value, full=False):
     # Shape preflight precedes json's string/buffer allocations. Max shape plus
     # worst-case escaped strings is covered by the fixed codec workspace.
-    _graph_bytes(value)
+    graph_bytes = _graph_bytes(value)
+    _require(graph_bytes <= CODEC_WORKSPACE_BYTES//2, 'encoded_graph_capacity')
     maximum = FRAME_BYTES if full else CONTROL_BYTES
     _require(_encoded_size(value)+_HEADER.size <= maximum, 'encoded_frame_capacity')
     raw = json.dumps(value, sort_keys=True, separators=(',',':'),
@@ -263,11 +264,19 @@ def _receive(channel, *, deadline, checkpoint, clock=time.monotonic):
     return value
 
 
+def _os_identity_component(value):
+    # POSIX device/inode values may use the unsigned high bit. Keep their exact
+    # representation local to this identity field; generic wire integers remain
+    # signed64. Decimal spelling is generated from a validated OS integer only.
+    _require(type(value) is int and 0 <= value < (1 << 64), 'os_identity_capacity')
+    return str(value)
+
+
 def _binary_identity(path):
     resolved = Path(path).resolve(strict=True)
     value = resolved.stat()
     _require(stat.S_ISREG(value.st_mode), 'executable_not_regular')
-    return [value.st_dev,value.st_ino]
+    return [_os_identity_component(value.st_dev),_os_identity_component(value.st_ino)]
 
 
 def _choose_cpu():
@@ -393,7 +402,8 @@ class ComparisonProcess:
             self._observe(deadline=deadline)
 
     def start(self, deadline):
-        _require(not self._started and self.process is None, 'duplicate_child_start')
+        _require(not self._started and self.process is None and not self.cleanup['positive'],
+                 'duplicate_child_start')
         _require(type(deadline) in (float,int) and math.isfinite(deadline) and deadline > self.clock(),
                  'comparison_deadline')
         self._started = True
@@ -627,7 +637,7 @@ class ComparisonProcess:
             self.status = {'state':'closed','reason':receipt.get('protocol_error'),'required_bytes':0,'counts':{}}
             receipt['control_channel_closed'] = self._channel is self._remote is None
         if self.process is None:
-            receipt.update(positive=True,positive_wait=True)
+            receipt.update(positive=True,no_child=True)
             return dict(receipt)
         # Each stage consumes the same absolute cleanup budget. A missing or
         # reused identity is never guessed to be safe to signal.

@@ -2,7 +2,8 @@
 
 Injected cases do not launch processes or import any model. The explicitly
 named real-child oracle case owns one isolated pure-comparison child, three
-2048-byte vectors, at most 256 cooperative steps and a ten-second work deadline;
+2048-byte vectors, at most 256 cooperative steps per build (one direct and two child builds)
+and a ten-second work deadline per case;
 its cleanup is bounded to five seconds. No ambient database/audio is read.
 """
 from copy import deepcopy
@@ -64,6 +65,19 @@ def test_wire_roundtrip_and_separate_control_ceiling():
             'labels':['a'*64,'b'*64],'proof_sha256':'d'*64}]*16,'complete':True},snapshot=TOKEN)
         mod._send(left,value,full=True,deadline=time.monotonic()+1,checkpoint=lambda:None)
         assert mod._receive(right,deadline=time.monotonic()+1,checkpoint=lambda:None) == value
+        for component in (0,(1 << 63)-1,1 << 63,(1 << 64)-1):
+            identity = [mod._os_identity_component(27),mod._os_identity_component(component)]
+            assert identity == ['27',str(component)]
+            ready = message(payload={'executable_identity':identity})
+            mod._send(left,ready,deadline=time.monotonic()+1,checkpoint=lambda:None)
+            assert mod._receive(right,deadline=time.monotonic()+1,checkpoint=lambda:None) == ready
+        for invalid in (-1,True,1.0,'1',1 << 64):
+            with pytest.raises(mod.ProcessError,match='os_identity_capacity'):
+                mod._os_identity_component(invalid)
+        observed = os.stat(mod.sys.executable)
+        assert mod._binary_identity(mod.sys.executable) == [str(observed.st_dev),str(observed.st_ino)]
+        with pytest.raises(mod.ProcessError,match='decoded_integer_capacity'):
+            mod._encode(message(payload={'unrelated_integer':1 << 63}))
         with pytest.raises(mod.ProcessError,match='encoded_frame_capacity'):
             mod._encode(message(payload={'padding':'x'*8192}))
     finally:left.close();right.close()
@@ -75,7 +89,7 @@ def test_wire_roundtrip_and_separate_control_ceiling():
     b'['+b'0,'*4097+b'0]',
     b'{"x":'+b'1'*33+b'}',
     b'{"x":"unterminated}',
-])
+],ids=['depth','string','nodes','integer','unterminated'])
 def test_lexical_limits_precede_json_allocation(monkeypatch,raw):
     monkeypatch.setattr(mod.json,'loads',lambda *_a,**_k:pytest.fail('decode happened before preflight'))
     with pytest.raises(mod.ProcessError):mod._decode(raw)
@@ -90,7 +104,7 @@ def test_encoding_forecast_precedes_large_json_allocation(monkeypatch):
 @pytest.mark.parametrize('raw',[
     b'{"x":1,"x":2}',b'{"x":NaN}',b'{"x":1e999}',
     b'{"x":[1,]}',b'{"x":9223372036854775808}',
-])
+],ids=['duplicate','nan','nonfinite','syntax','integer_range'])
 def test_malformed_and_duplicate_decoded_values_refuse(raw):
     with pytest.raises(mod.ProcessError):mod._decode(raw)
 
@@ -181,7 +195,7 @@ def test_no_work_ready_identity_failures_are_owned(monkeypatch,case):
         if case == 'bad_ack':answer['pid']=-1
         return answer
     monkeypatch.setattr(mod,'_choose_cpu',lambda:4)
-    monkeypatch.setattr(mod,'_binary_identity',lambda path:[1,3] if case == 'wrong_executable' and path == 'actual' else [1,2])
+    monkeypatch.setattr(mod,'_binary_identity',lambda path:['1','3'] if case == 'wrong_executable' and path == 'actual' else ['1','2'])
     monkeypatch.setattr(mod.psutil,'Process',process)
     monkeypatch.setattr(mod.subprocess,'Popen',popen)
     monkeypatch.setattr(mod.ComparisonProcess,'_request',request)
@@ -265,6 +279,12 @@ def test_output_page_exact_coverage_is_checked(monkeypatch,bad):
 
 
 def test_close_ack_loss_releases_only_after_positive_original_and_family(monkeypatch):
+    unopened = driver()
+    no_child = unopened.close()
+    assert no_child['positive'] is True and no_child['no_child'] is True
+    assert no_child['positive_wait'] is False and unopened.process is None
+    with pytest.raises(mod.ProcessError,match='duplicate_child_start'):
+        unopened.start(time.monotonic()+1.)
     proc=Handle();proc.returncode=0
     finished=[]
     owner=driver(finish_child=lambda p,**kw:finished.append(p) or True)
