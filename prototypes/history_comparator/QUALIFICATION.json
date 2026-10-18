@@ -1,0 +1,212 @@
+{
+  "approved_run_limits": {
+    "address_space_per_process": 1073741824,
+    "artifact_bytes": 33554432,
+    "cpu": [
+      3
+    ],
+    "free_disk_floor_bytes": 5905580032,
+    "nice": 19,
+    "rss_bytes": 268435456,
+    "sample_seconds": 0.1,
+    "shared_secondary_reservation_bytes": 536870912,
+    "wall_seconds": 1200
+  },
+  "baseline_commit": "49cd724dda5595aee29eaf1d7da2f41739b43d08",
+  "benchmark": {
+    "append_rows": 4,
+    "cold_clusters": 2880,
+    "cold_rows": 2880,
+    "data": "dense Random.uniform(-1,1), binary64 normalization once, original float32 cast",
+    "dimension": 512,
+    "elapsed_seconds": 166.261989300001,
+    "final_clusters": 2884,
+    "final_pair_count": 4157286,
+    "generator_seconds": 0.684657387999323,
+    "input_vector_sha256": "cbf4604cfedf349acfbb5957be66cbc833dd4aa3479bba07dd5d2a54ff3d9253",
+    "not_measured": [
+      "4096 rows",
+      "adversarial large multi-round completion",
+      "ongoing-arrival convergence",
+      "production SQLite latency",
+      "primary audio delay",
+      "model inference or acoustic accuracy"
+    ],
+    "old_old_prefix_preserved": true,
+    "paging": {
+      "annotation": {
+        "max_encoded_page_bytes": 5531,
+        "minority_stream_rows": 29,
+        "pages": 91,
+        "pages_sha256": "77cefcb1ae4c9569b75f214aee170824dabe7c8b371031a431f225e878f5a9da",
+        "rows": 2884,
+        "seconds": 0.058144835998973576
+      },
+      "decision": {
+        "max_encoded_page_bytes": 1841,
+        "minority_stream_rows": 0,
+        "pages": 91,
+        "pages_sha256": "b61595e7ddeb8c25a4fce1b8abd6a9c4b30b05235bb7fb1e705ad4d47908b8ce",
+        "rows": 2885,
+        "seconds": 0.03398359099810477
+      }
+    },
+    "raw_storage_bytes": {
+      "score_cache": 33258288,
+      "two_dependency_bitsets": 1039322,
+      "vectors": 5906432
+    },
+    "schema": "bounded-history-prototype-benchmark-v1",
+    "seed": 271828,
+    "self_maxrss_bytes": 91516928,
+    "stages": {
+      "cold_exact_scores": {
+        "counters": {
+          "appended_observations": 2880,
+          "checkpoints": 64821,
+          "dot_products": 4145760
+        },
+        "max_observed_quantum_seconds": 0.16069771899856278,
+        "seconds": 145.64095276100124,
+        "subphase_seconds": {}
+      },
+      "cold_full_comparison": {
+        "counters": {
+          "alias_key_checks": 5760,
+          "alias_witness_checks": 2880,
+          "checkpoints": 4051,
+          "clustering_rounds": 1,
+          "cross_witness_checks": 4145760,
+          "matrix_pairs": 4145760,
+          "observation_pages": 90,
+          "proposal_checks": 2880,
+          "ranking_pairs": 4145760,
+          "source_span_checks": 4145760
+        },
+        "max_observed_quantum_seconds": 0.19450105099895154,
+        "seconds": 9.627565541999502,
+        "subphase_seconds": {
+          "clustering": 2.924144476000947,
+          "matrix_dependencies": 6.498085526000068,
+          "publication_projection": 0.002076054999633925,
+          "scan_alias_validation": 0.20234016699760105
+        }
+      },
+      "incremental_exact_scores": {
+        "counters": {
+          "appended_observations": 4,
+          "checkpoints": 180,
+          "dot_products": 11526
+        },
+        "max_observed_quantum_seconds": 0.004456419999769423,
+        "seconds": 0.4144198289977794,
+        "subphase_seconds": {}
+      },
+      "post_append_full_comparison": {
+        "counters": {
+          "alias_key_checks": 5768,
+          "alias_witness_checks": 2884,
+          "checkpoints": 4062,
+          "clustering_rounds": 1,
+          "cross_witness_checks": 4157286,
+          "matrix_pairs": 4157286,
+          "observation_pages": 91,
+          "proposal_checks": 2884,
+          "ranking_pairs": 4157286,
+          "source_span_checks": 4157286
+        },
+        "max_observed_quantum_seconds": 0.20958570900256746,
+        "seconds": 9.759435012001632,
+        "subphase_seconds": {
+          "clustering": 2.8592277569987345,
+          "matrix_dependencies": 6.6791706289986905,
+          "publication_projection": 0.0024008609980228357,
+          "scan_alias_validation": 0.2174701570002071
+        }
+      }
+    },
+    "status": "complete"
+  },
+  "interpretation": [
+    "One fixed dense no-merge geometry only; both large comparisons take one round.",
+    "Four-row extension scored only new-old/new-new pairs; final full reconciliation was separately recomputed.",
+    "Sub-60-second full comparison is measured for this geometry, not a sustainable arrival or worst-case guarantee.",
+    "No production bound, schema, durable authority, models, real audio, actual trial, or external publication was changed by this run."
+  ],
+  "local_evidence_sha256": {
+    "benchmark": "5ec6e5932e0f924f70ca20359ad0bdca6979b05c2135ca77c1b5b75bcaae6904",
+    "independent_terminal_review": "fe30bdc5b3a2e278a8f259789b238bd2ae0e34c892f59d87d5f40092b1c496b0",
+    "junit": "359a5a0449be230f6baa070406bba6bb3ed829edf898aa18ca66068067e65316",
+    "terminal_resources": "0f4c49ed41fb35aca765e3f580e93127e97d44a7f2fe76edfae2b86154da2c75"
+  },
+  "publication_sanitization": [
+    "Only the three named Python modules preserve tested bytes.",
+    "README is a separate portable summary, not the local tested README.",
+    "Qualification extracts bounded factual values; private machine paths, control scripts and raw manifests are excluded."
+  ],
+  "resource_interpretation": {
+    "benchmark_self_maxrss_bytes": 91516928,
+    "different_measurements": "The latter includes terminal artifacts produced after the sampled peak.",
+    "owned_process_rss_is_sampled": true,
+    "positive_child_reaps": true,
+    "raw_numeric_storage_is_not_total_rss": true,
+    "sample_seconds": 0.1,
+    "sampled_peak_artifact_bytes": 110592,
+    "temporary_linkage_matrix_is_additional_to_cache": true,
+    "terminal_directory_inclusive_bytes_before_publication_packaging": 118784
+  },
+  "resources": {
+    "cleanup_errors": [],
+    "elapsed_seconds": 167.544376318001,
+    "error": null,
+    "peak_artifact_bytes": 110592,
+    "peak_owned_rss_bytes": 123113472,
+    "prototype_unchanged": true,
+    "source_unchanged": true,
+    "status": "complete",
+    "tools_unchanged": true
+  },
+  "schema": "exact-history-comparator-research-wip-qualification-v1",
+  "status": "finite_model_free_prototype_only",
+  "tested_source": {
+    "benchmark_history.py": {
+      "bytes": 5528,
+      "publication_bytes_unchanged": true,
+      "sha256": "67022e060d76c7e5ff7c61258fcbcde39f7eaa4fc0335bdb7a34b268c71f98f3"
+    },
+    "compact_history.py": {
+      "bytes": 24926,
+      "publication_bytes_unchanged": true,
+      "sha256": "1695330e437c49339e6093c2a290b1559e76207eb659b3fe89fedccc1a89776b"
+    },
+    "test_compact_history.py": {
+      "bytes": 11486,
+      "publication_bytes_unchanged": true,
+      "sha256": "bea381bc204e598e41bdfd2a9855fd8eb9c38184b3ed3b2fe67596961b784438"
+    }
+  },
+  "tests": {
+    "exact_scope": [
+      "Selected <=32-node cluster_scores groups and full traces",
+      "Original float32 validation and binary64 fsum score bytes"
+    ],
+    "excluded": [
+      "Complete reconcile_batches equivalence",
+      "Production proof/job/outcome envelopes",
+      "Full production annotation schema"
+    ],
+    "failed": 0,
+    "passed": 56,
+    "pytest_seconds": 0.28,
+    "pytest_version": "8.4.2",
+    "reduced_assertions": [
+      "Late/historical competitors",
+      "Metadata-only aliases and hard witnesses",
+      "Bounded pages and minority-stream retention",
+      "Pause/resume, incomplete scan, stale revision and space tokens"
+    ],
+    "skipped": 0,
+    "unique": 56
+  },
+  "wip_parent_commit": "5905aa03cf8bf09076b59457203326e1e09262c9"
+}
