@@ -2,6 +2,20 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev52：主行历史修复与有界诊断（实验候选版）
+
+本候选版保留 dev51 与后续修复历史，仅将经过分别核对的三项修复整理为新的隔离实验版本：派发前只读争用的同尝试等待、原成功结果的仅存储精确确认，以及经过现有私有 accessor 认证的可选采样失败诊断。默认开关、模型、比较策略、阈值与数值运算不变；不能重放子进程、补造旧观察或反推历史失败原因。
+
+派发前的两个读取共享最多 250 ms 争用宽限，原十秒工作时钟从首次合格提交开始且不续期；只有已明确关闭的只读 BUSY/LOCKED 标记可以等待。原始 owner、reservation、输入与截止时间保持绑定。已完成正向清理的 live frozen success 只允许一次精确确认读取及至多一次仍受新鲜性与原截止时间约束的追加；未解决的存储轮次至少间隔一秒，不重新获取模型 permit。已提交但丢失确认时，durable 额度已经释放，live manager staging 保留至确认；精确只读确认不重复扣费或增加 revision。原 storage_unknown、缺失 live payload 或不确定清理不据此重建成功。
+
+新失败诊断仅增加一个有七个固定标量字段的可选 sampling 对象，不记录异常原文、私有路径或任意属性。最大规范编码 376 字节，原 512 字节上限不变。新 reader 原样读取旧五字段字节与 NULL；旧 dev51 的严格五字段 reader 拒绝同一 failure-v1 标签下的新增六字段记录，不能宣称可安全降级。初始化即使关闭 producer 也有 additive schema 与旧 reader 拒绝边界，必须先备份并使用隔离副本，勿打开生产库。
+
+三批模型无关证据分别绑定其实际执行源码：派发前修复 34 项、存储修复 27 项、诊断修复 14 项。27 包含一项先前 34 的重复负向回归；14 包含一项历史成功守恒回归。它们没有在最终版本上作为整套重新执行，也不能相加声称 75 个独立最终树通过。较早 117 / 32 / 53 / 8 项及 full03 的 2,880 + 4 合成观察测量保留原来源范围；full03 的 close_ack_unconfirmed / compute exit 1 不因正向 OS wait 与资源清理而消失。
+
+原 dev51 固定实际试验仍为 exit 1、功能失败、身份结论不确定：48 个主行 chunk、11 个自然 claim、5 个成功向量、6 次失败、零链接。四个 dispatch_validation/other 的实际原因未证实，原 storage_unknown 不重分类或重放，optional_cancelled 也不证明用户取消。本候选版没有新模型或实际录音运行，不具有声学成功、生产可用性或吞吐资格。
+
+133 个包文件的离线 source / wheel / fresh-install 核对，以及有限 installed runtime/profile、三行到四行比较器和被动 app smoke，仍是单独待验步骤。当前仅完成发布源码准备，未据此声称包验证通过；后续准确状态以[dev52 资格报告](reports/PRIMARY_HISTORY_EXPERIMENTAL_DEV52_QUALIFICATION.json)与[当前状态](docs/PRIMARY_HISTORY_WIP_STATUS.md)为准。README 在构建前冻结；现有项目元数据未声明 README 为 wheel long description。下列历史章节保持原文。
+
 ## 0.2.0rc3.dev51：独立主行观察与完整历史比较（实验版）
 
 本实验版把前瞻的 clean-primary 观察保留、同录音完整历史比较及被动读取接入既有 Worker / permit / store。primary crop 的证据不依赖 MOSS 返回结果；正常调度与配置仍共享 MOSS automatic/jobs 和 bounded native support，并非关闭全部 MOSS 后的独立运行模式。开关继续默认关闭，不补造历史观察、不删去已接受竞争者，也不把同源或相同 PCM 重复当成独立身份证据。

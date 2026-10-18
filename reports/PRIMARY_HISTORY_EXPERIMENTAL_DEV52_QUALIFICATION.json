@@ -1,0 +1,422 @@
+{
+  "schema": "primary-history-experimental-dev52-qualification-v1",
+  "version": "0.2.0rc3.dev52",
+  "status": "selected_source_and_offline_package_qualified_experimental_only",
+  "deployment": "isolated_experimental_evaluation_only",
+  "publication": {
+    "status": "publication_payload_prepared_not_published_by_this_step",
+    "intended_branch": "development/rc3-dev52-primary-history-repairs-experimental",
+    "required_parent_commit": "3f00613c17bff2157a55337f6bb07b0bcc3adca9",
+    "required_parent_tree": "99db6fe2fd34ec91bd82f652dbedafe2d6fa2990",
+    "parent_parent_commit": "40f84bb1f4271c57221c723f70bc5f244b459d31",
+    "parent_files": 559,
+    "parent_raw_bytes": 10094062,
+    "closure_basis": "Coordinator-confirmed sole-publisher immutable full-tree readback; preparation performs local byte/tree verification only.",
+    "parent_handoff": {
+      "receipt": "WIP16_HANDOFF.json",
+      "bytes": 14611,
+      "sha256": "8654fcceba53ba7385e795bfe16344a0283aa60667819ded9e0b1cc6ace810f2"
+    },
+    "parent_tree_manifest": {
+      "receipt": "WIP16_TREE_MANIFEST.json",
+      "bytes": 233274,
+      "sha256": "58ebd1aed134230ddc96de8ac406c7f87027d61b0b28d5f455b3e6fc7b87ff87"
+    },
+    "parent_payload_review": {
+      "receipt": "primary-history-wip16-payload-review.json",
+      "bytes": 5872,
+      "sha256": "b502cdf914e29ca1581f4d2eb79a589776221e06389837c2734ab39cea7f0fa4"
+    }
+  },
+  "release_overlay": {
+    "changed_paths": [
+      "pyproject.toml",
+      "audio_backend/__init__.py",
+      "README.md",
+      "docs/RECORDING_SPEAKER_LINKS.md",
+      "docs/PRIMARY_HISTORY_WIP_STATUS.md",
+      "docs/PRIMARY_HISTORY_SUBPROCESS.md",
+      "reports/PRIMARY_HISTORY_EXPERIMENTAL_DEV52_QUALIFICATION.json"
+    ],
+    "new_paths": [
+      "reports/PRIMARY_HISTORY_EXPERIMENTAL_DEV52_QUALIFICATION.json"
+    ],
+    "version_literals_only_in_project_and_init": true,
+    "runtime_dependency_declarations_unchanged": true,
+    "all_tests_unchanged_from_wip16": true,
+    "both_fixed_trial_reports_preserved": true,
+    "readme_frozen_before_build": true,
+    "readme_pin": {
+      "bytes": 78948,
+      "sha256": "7c50822b00bddd94dce6e6a7ed29493b597c2a197d6a6dc4372b9a9a882f5d7a"
+    },
+    "readme_declared_as_wheel_long_description": false,
+    "post_build_updates_permitted_only_in_status_docs_and_this_report": true,
+    "post_build_factual_updates": [
+      "docs/PRIMARY_HISTORY_WIP_STATUS.md",
+      "docs/PRIMARY_HISTORY_SUBPROCESS.md",
+      "reports/PRIMARY_HISTORY_EXPERIMENTAL_DEV52_QUALIFICATION.json"
+    ],
+    "prebuild_docs_scope": "README and RECORDING_SPEAKER_LINKS remain exact pre-build bytes; their package-pending wording records the source freeze. This report and the two status documents carry the subsequent package result."
+  },
+  "defaults_and_behavior": {
+    "defaults_unchanged": true,
+    "primary_observation_policy_default": "off",
+    "history_passive_read_default": false,
+    "supported_primary_producer_requires_shared_moss_jobs_automatic": true,
+    "models_comparison_policy_thresholds_and_math_unchanged": true,
+    "no_child_replay_or_historical_observation_backfill": true
+  },
+  "repairs": {
+    "pre_dispatch_read_deferral": {
+      "original_work_seconds": 10,
+      "shared_contention_grace_ms": 250,
+      "stop_aware_wait_quantum_ms_max": 10,
+      "same_attempt_owner_reservation_and_original_deadline": true,
+      "eligible_marker": "Exact private, positively closed read-only begin/body numeric BUSY/LOCKED only.",
+      "not_hard_process_kill_deadline": true,
+      "settled_unknown_rival": "abstained, links_stale, no annotations; authority and unsettled ownership fences retain precedence"
+    },
+    "storage_reconciliation": {
+      "requires": "Original live frozen success, exact owner/reservation/node/invocation/operation/input/output/payload bindings and positive original cleanup.",
+      "per_turn_ack_reads_max": 1,
+      "per_turn_guarded_appends_max": 1,
+      "unresolved_retry_floor_seconds": 1,
+      "before_commit": "Still-reserved durable reservation/staging charges and live manager staging remain.",
+      "committed_lost_ack": "Durable charges already released; live manager staging remains until exact acknowledgement.",
+      "exact_committed_ack": "Read-only; no new debit or revision. May close after cancellation, expiry or source/configuration change.",
+      "new_append": "Fresh authority/configuration/cancellation guards and unchanged original deadline remain required.",
+      "no_permit_reacquisition_crop_reconstruction_or_child_replay": true,
+      "missing_restarted_payload_claim_unknown_uncertain_cleanup_archived_terminals": "Existing conservative paths remain; no success reconstruction."
+    },
+    "optional_sample_diagnostic": {
+      "source": "Existing private authenticated optional_sample_failure accessor only.",
+      "schema_tag": "recording-speaker-probe-failure-v1",
+      "nested_fields": [
+        "subtype",
+        "reservation_held",
+        "sample_age_ms",
+        "wait_ms",
+        "grace_used",
+        "phase",
+        "cause"
+      ],
+      "fixed_enums_exact_scalar_types_bounds_canonical_encoding": true,
+      "raw_exception_text_paths_sql_credentials_arbitrary_attributes_included": false,
+      "maximum_canonical_bytes": 376,
+      "unchanged_failure_cap_bytes": 512,
+      "persisted_json_is_runtime_admission_authority": false,
+      "exact_old_five_field_bytes_and_null_preserved": true,
+      "old_dev51_reader_accepts_enriched_six_field_records": false,
+      "old_reader_test_scope": "Portable strict five-key contract assertion; no old-binary execution.",
+      "database_schema_and_attempt_basis_charges_unchanged": true
+    }
+  },
+  "source_evidence": {
+    "diagnostic14": {
+      "source": "primary-diagnostics01",
+      "manifest": {
+        "receipt": "primary-diagnostics01-manifest.json",
+        "bytes": 89094,
+        "sha256": "4307eb67907ce42777f915306f89c1867d502bf7d21f57ffe60071b1b57adfd2"
+      },
+      "files": 557,
+      "raw_bytes": 10060568,
+      "selected_passes": 14,
+      "new_scalar_cases": 9,
+      "new_primary_moss_durability_cases": 4,
+      "historical_success_cases": 1,
+      "historical_success_node": "tests/test_recording_speaker_history.py::test_primary_exact_reservation_success_charge_and_immutable_bytes",
+      "terminal_review": {
+        "receipt": "primary-history-diagnostics01-terminal-review.json",
+        "bytes": 13639,
+        "sha256": "d45defb8590a41cdecda1e4a899bc041f4f07a5231f4086a2294dfb9762cc32e"
+      },
+      "junit": {
+        "receipt": "diagnostics.xml",
+        "bytes": 2366,
+        "sha256": "8ef19764ba635a03e6a8c5105d242e82854bcd9b2c99436a1948c3149ff5efb0"
+      },
+      "exit_code": 0,
+      "positive_original_wait_and_observed_family_closure": true,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "wall_seconds": 4.457333682999888,
+      "aggregate_cpu_seconds": 4.354365000000001,
+      "peak_sampled_owned_tree_rss_bytes": 113344512,
+      "maximum_observed_live_sample_gap_seconds": 0.10486764200322796,
+      "synthetic_fixtures_no_model_run": true
+    },
+    "storage27": {
+      "source": "primary-storage01",
+      "manifest": {
+        "receipt": "primary-storage01-manifest.json",
+        "bytes": 88760,
+        "sha256": "b3de9aa9aa1629d9963a9cd05e361ff83165c40403ad20544f8653e4f18330a4"
+      },
+      "selected_passes": 27,
+      "new_cases": 26,
+      "repeated_prior_deferred_negative_cases": 1,
+      "overlapping_node": "tests/test_primary_probe_read_defer.py::test_after_dispatch_read_refusal_stays_storage_unknown_and_never_replays",
+      "terminal_review": {
+        "receipt": "primary-history-storage01-terminal-review.json",
+        "bytes": 17196,
+        "sha256": "0f8d5a75dbb3f2c40af3a27b7e841885540e564db50389d08b6038246f3cdf5c"
+      },
+      "prior_deferred_suite_repeated": false,
+      "current_diagnostic_source_credit": 0
+    },
+    "deferred34": {
+      "source": "primary-deferred01",
+      "manifest": {
+        "receipt": "primary-deferred01-manifest.json",
+        "bytes": 88561,
+        "sha256": "1040491f2cec863c3e824567afde65d52add55a70c43e9afe7933e5701235e22"
+      },
+      "selected_passes": 34,
+      "first_invocation_unit_passes": 31,
+      "continuation_integration_passes": 3,
+      "terminal_review": {
+        "receipt": "primary-history-deferred02-terminal-review.json",
+        "bytes": 41712,
+        "sha256": "e15538b16520a04f12470b7c6b40cb6e659343cbbd021b6a93c4edeb794c528c"
+      },
+      "first_invocation_exit": 1,
+      "first_failure_preserved": "FileNotFoundError followed by independent lstat finding a path present; exact filename and lifecycle cause not retained.",
+      "interrupted_integration_credit": 0,
+      "current_diagnostic_source_credit": 0
+    },
+    "counts_not_additive_or_transferred": true,
+    "seventy_five_unique_final_tree_passes_claimed": false,
+    "current_release_broad_suite_executed": false,
+    "observer_checks_separate_from_product_coverage": 55,
+    "sampled_peaks_are_continuous_maxima": false
+  },
+  "prior_results": {
+    "subprocess_selected": 117,
+    "polling_selected": 32,
+    "cold_budget_selected": 53,
+    "coexistence_selected": 8,
+    "scope": "Each result remains bound to its original source; no transfer into diagnostic14 or final release suite coverage.",
+    "dev51_package": "Ancestor-only qualification, not dev52 package evidence."
+  },
+  "full03": {
+    "source": "cold-budget02",
+    "dense_provider_and_sink": "synthetic",
+    "currentness_store": "separate_small_real_scope",
+    "cold_observations": 2880,
+    "append_observations": 4,
+    "cold_wall_seconds": 200.64929593099805,
+    "append_wall_seconds": 27.874124989997654,
+    "protocol_close_error": "close_ack_unconfirmed",
+    "compute_exit_code": 1,
+    "positive_original_os_wait_and_resource_cleanup": true,
+    "ranking_clustering_overlap_observed": false,
+    "terminal_review_sha256": "d1d1d19c7bc3ffef402aa47fcd15b7a8dd2cae161022d5c9020bf3a9c37a54f9"
+  },
+  "preserved_actual_dev51_trial": {
+    "report": "reports/PRIMARY_HISTORY_DEV51_FIXED_TRIAL.json",
+    "bytes": 6364,
+    "sha256": "52027319e4afa7661e797e358ec30b50f696ecfc78ebe691e2d0e2229f032075",
+    "status": "failed_functional_trial_identity_inconclusive",
+    "outer_exit": 1,
+    "completed_primary_chunks": 48,
+    "natural_claims": 11,
+    "successful_vector_outputs": 5,
+    "failed_attempts": 6,
+    "linked_pairs": 0,
+    "four_dispatch_validation_other_causes_proved": false,
+    "optional_cancelled_proves_user_cancellation": false,
+    "archived_storage_unknown_reclassified_resolved_or_replayed": false,
+    "new_actual_model_run": false
+  },
+  "package_qualification": {
+    "status": "accepted_offline_package_and_installed_smoke",
+    "package_file_count": 133,
+    "package_raw_bytes": 3094247,
+    "source_package_census_sha256": "51a754f6d5ac225a0cd51b4ab3d677ea6bec13b76a9498160a75cf60515db96f",
+    "census_encoding": "UTF-8 compact sorted-key JSON mapping repository-relative path to bytes, sha256 and integer mode.",
+    "other_132_package_files_equal_diagnostic_source": true,
+    "init_version_only_change": true,
+    "project_pin": {
+      "bytes": 905,
+      "sha256": "c01be19f779cd8c12792014a1955aab3b176c93f52db302b7ece506f741db1f0"
+    },
+    "init_pin": {
+      "bytes": 108,
+      "sha256": "f26a423e81e2ac13fa05a8b360fd57c9dee5ba2909705784c7abe0af910f16d1"
+    },
+    "source_wheel_installed_parity": true,
+    "wheel": {
+      "filename": "long_audio_backend-0.2.0rc3.dev52-py3-none-any.whl",
+      "bytes": 830716,
+      "sha256": "becda7e6644cd2947bf03093bcf261e48d7c92eb41cfb6550afb0153f52175cc"
+    },
+    "metadata": {
+      "bytes": 792,
+      "sha256": "af9bbcf04bef29ab74cd6869a1c51a371588ea493c1188df0cbf02f4031e7806"
+    },
+    "runtime_profile_and_installed_origin_validation": {
+      "qualified_external_runtime_profile_passed": true,
+      "receipt": {
+        "receipt": "installed-profile.json",
+        "bytes": 2426,
+        "sha256": "ac044d20da1e759a206b4c60c95dea00eac167eda0ce938d253170d543c18bcc"
+      },
+      "observed_installed_module_count": 57,
+      "all_observed_module_and_comparison_child_origins_in_fresh_installed_target": true,
+      "no_model_runtime_import_or_inference": true
+    },
+    "tiny_comparison_3_to_4_with_direct_oracle_and_positive_cleanup": {
+      "receipt": {
+        "receipt": "installed-process.json",
+        "bytes": 1873,
+        "sha256": "7826d0ccc988308861423b5c9dceacf80888bab17c37cccc60cf51ae1fc57e1a"
+      },
+      "rows": [
+        3,
+        4
+      ],
+      "direct_process_output_parity": true,
+      "incremental_old_rows": 3,
+      "original_handle_retained": true,
+      "cleanup": {
+        "positive": true,
+        "positive_wait": true,
+        "control_channel_closed": true,
+        "close_ack": true,
+        "returncode": 0
+      },
+      "scope": "One tiny installed synthetic smoke, not a new feature/acoustic or full-scale case."
+    },
+    "models_disabled_app_smoke": {
+      "receipt": {
+        "receipt": "installed-app.json",
+        "bytes": 602,
+        "sha256": "203712bc1c0adfb29ed4bc910a25b8ea432cbe9679e680ca4518d9815f2f56a8"
+      },
+      "normal_lifespan_closed": true,
+      "models_disabled": true,
+      "worker_started": false,
+      "response_statuses": {
+        "/health": 200,
+        "/openapi.json": 200,
+        "/docs": 200
+      }
+    },
+    "independent_terminal_review": {
+      "receipt": "dev52-package01-terminal-review.json",
+      "bytes": 18674,
+      "sha256": "c4088733c446b2cb617a6005027c137e4bc66423f3b55e718a3c7a0e3eb87b87"
+    },
+    "approved_envelope": {
+      "work_seconds": 30,
+      "total_wall_seconds": 40,
+      "aggregate_cpu_seconds": 25
+    },
+    "package_smoke_adds_unique_feature_coverage": false,
+    "mode_parity": true,
+    "executed_release_source_manifest": {
+      "receipt": "dev52-release-source-manifest.json",
+      "bytes": 119622,
+      "sha256": "6deeb7e4b2f94df5a1d55e0091f31517542ee39d5fdc9307d70b07851da008d6"
+    },
+    "package_receipt": {
+      "receipt": "package-parity.json",
+      "bytes": 44634,
+      "sha256": "ac8765c96f76476edb5b04ffa0b5bc4cc787d41e4df0127bc9f1ce8cea940c8a"
+    },
+    "resource_receipt": {
+      "receipt": "resources.json",
+      "bytes": 22228,
+      "sha256": "80d74815ff492794b22973b091db7bbbc79a96ccecdf7d20e6a2537839315750"
+    },
+    "requirements_check": {
+      "receipt": {
+        "receipt": "requirements-parser.json",
+        "bytes": 4384,
+        "sha256": "e5cae7bfda60681e2890027cf35f51f81843ae4a1a40be4fae96eff326f51d5b"
+      },
+      "parser_version": "26.3",
+      "finite_checks_passed": 12,
+      "comparison": "Multiplicity-preserving parsed Requirement equality with standard name/extra/specifier normalization. No dependency installation/resolution."
+    },
+    "observer_checks": {
+      "finite_checks_passed": 55,
+      "separate_from_product_feature_cases": true
+    },
+    "original_outer_completion": {
+      "basis": "Coordinator-confirmed positive completion of the original sole execution handle.",
+      "exit_code": 0
+    },
+    "stage_completion": {
+      "ordered_stages": [
+        "prepare",
+        "wheel",
+        "install",
+        "verify"
+      ],
+      "all_four_original_waits_positive": true,
+      "all_four_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_observed_children_absent": true,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "authenticated_build_hook_children": 2,
+      "authenticated_installed_comparator_children": 1
+    },
+    "resource_observations": {
+      "wall_seconds": 10.165121029996953,
+      "aggregate_cpu_seconds": 11.607045,
+      "peak_sampled_owned_tree_rss_bytes": 112906240,
+      "peak_sampled_fresh_artifact_bytes": 32313344,
+      "maximum_observed_live_sample_gap_seconds": 0.20178483999916352,
+      "sampled_peaks_are_continuous_maxima": false,
+      "retained_baseline_bytes": 263512064,
+      "retained_baseline_entries": 3410,
+      "terminal_fresh_bytes": 32313344,
+      "terminal_fresh_entries": 1505,
+      "terminal_combined_bytes": 295825408,
+      "new_publication_and_audit_artifacts_not_in_run_terminal_census": true
+    },
+    "source_build_tools_and_prerequisites_unchanged": true,
+    "sole_package_invocation": true,
+    "rebuild_reinstall_or_feature_suite_repeat": false,
+    "scope": "One offline build/install and finite parity/runtime/profile/tiny-comparison/passive-app checks. No model, actual-recording replay, feature-suite rerun or dependency resolution.",
+    "preservation": {
+      "map_receipt": "dev52-package01-preserved.json",
+      "map_pin": {
+        "bytes": 330865,
+        "sha256": "1882e959374e1ac72784103cd3ca66a80c1977d7dba99fce80a95696f9b7cf35"
+      },
+      "current_entries": 1500,
+      "current_allocated_bytes": 32251904,
+      "external_input_entries": 6,
+      "external_input_allocated_bytes": 86016,
+      "retained_baseline_entries": 3410,
+      "retained_baseline_allocated_bytes": 263512064,
+      "combined_retained_and_fresh_bytes_before_new_map_audit_and_publication": 295849984,
+      "new_map_audit_and_publication_artifacts_separately_chargeable": true
+    }
+  },
+  "unqualified": [
+    "acoustic_identity_accuracy",
+    "production_readiness_or_deployment",
+    "dense_production_sql_throughput",
+    "long_duration_or_adverse_multi_round_behavior",
+    "all_stage_concurrency",
+    "two_shared_cpu_latency_or_slo",
+    "repository_wide_final_tree_suite"
+  ],
+  "isolation_and_downgrade": {
+    "backup_and_isolated_copy_required": true,
+    "production_database_opening_approved": false,
+    "additive_schema_and_old_reader_refusal_apply_even_with_producers_off": true,
+    "enriched_diagnostic_downgrade_limit_explicit": true
+  },
+  "privacy": "Only bounded counts, source/report names and receipt basenames with hashes. No raw private diagnostics, database, audio, text/vector payloads, credentials, process identifiers or workspace paths."
+}
