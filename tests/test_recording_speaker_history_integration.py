@@ -464,6 +464,8 @@ def test_three_natural_groups_aab_real_cleanup_and_passive_read(primary_history_
             result=original_compare(record,snapshot)
             active=record['driver'];status=active.status
             comparisons.append({'previous':previous,'driver':active,'process':active.process,
+                'budget_class':record['budget_class'],'admission_start':record['admission_start'],
+                'deadline':record['deadline'],
                 'cache_nonce':active.cache_binding['cache_nonce'],'old_rows':status['old_rows'],
                 'dot_products':status['counts'].get('dot_products',0),
                 'rows':status['prefix_rows'],'scores':status['prefix_scores']})
@@ -556,6 +558,9 @@ def test_three_natural_groups_aab_real_cleanup_and_passive_read(primary_history_
         assert [row['dot_products'] for row in comparisons]==[0,1,2]
         assert [row['rows'] for row in comparisons]==[1,2,3]
         assert [row['scores'] for row in comparisons]==[0,1,3]
+        assert [row['budget_class'] for row in comparisons]==['cold','incremental','incremental']
+        assert all(row['deadline']==row['admission_start']+(300. if row['budget_class']=='cold' else 180.)
+            for row in comparisons)
         assert comparisons[0]['previous'] is None
         assert all(row['driver'] is driver and row['process'] is driver.process for row in comparisons)
         assert all(row['cache_nonce']==cache_nonce for row in comparisons)
@@ -1575,8 +1580,121 @@ def _pending_poll_fixture(monkeypatch):
         write_decision_page=write,publish_comparison=publish)
     snapshot={'token':{'fixture':'one'},'scope_seq':1}
     record={'cancelled':Event(),'completed':Event(),'grant':object(),'deadline':180.,
+        'admission_start':0.,'budget_class':'incremental','budget_cache_binding':None,
         'state':'starting','reason':None,'driver':driver,'driver_active':True,'snapshot':None}
     return manager,record,snapshot,state
+
+
+@pytest.mark.parametrize('case',['cold_delay','incremental_delay','incremental_expired','cold_expired'])
+def test_admission_anchor_precedes_census_and_first_snapshot(monkeypatch,case):
+    """Real manager admission/selection, fake clock/thread/store; no child."""
+    manager,old,snapshot,state=_pending_poll_fixture(monkeypatch)
+    state['now']=10.
+    retained=case.startswith('incremental')
+    selected='incremental' if retained else 'cold'
+    cached={'fixture':'positively_closed'}
+    old['driver'].cache_binding=cached
+    old['driver'].closed_cache_binding=lambda:dict(cached)
+    old['driver'].select_budget=lambda token:('incremental',dict(cached))
+    old['driver'].finish_task=lambda **kwargs:state['events'].append('finish')
+    old.update(thread=None,finish_pending=None,task_sequence=1,driver_active=False)
+    old['completed'].set()
+    manager._history_comparison=old if retained else None
+    manager._history_comparison_pending=True;manager._history_compare_after=0.
+    manager._lock=threading.RLock();manager._gate=lambda:manager._lock
+    def census(*args,**kwargs):
+        record=manager._history_comparison
+        assert record['admission_start']==10. and record['deadline']==310.
+        assert record['budget_class']=='unselected'
+        state['now']+=40.
+        return True
+    manager.permit.reserve_comparison=census;manager.permit.resume_comparison=census
+    manager.permit.bind_comparison_thread=lambda *args:None
+    class Deferred:
+        def __init__(self,**kwargs):self.kwargs=kwargs
+        def start(self):state['events'].append('admitted')
+        def is_alive(self):return False
+    manager._thread_factory=Deferred
+    assert manager._maintain_history_comparison_owned()
+    record=manager._history_comparison
+    assert state['now']==50. and record['admission_start']==10.
+    def discover(**kwargs):
+        state['events'].append('snapshot')
+        state['now']+=300. if case=='cold_expired' else 180. if case=='incremental_expired' else 20.
+        return snapshot
+    manager.history.begin_comparison=discover
+    finished=[]
+    manager.history.finish_comparison=lambda saved,reason:finished.append((saved,reason))
+    def close():
+        assert record['driver'] is old['driver'] and not record['completed'].is_set()
+        state['events'].append('close')
+        return {'positive':True}
+    old['driver'].close=close
+    def compare(active,saved):
+        assert state['events'][-1]=='snapshot'
+        assert active['budget_class']==selected
+        assert active['deadline']==10.+(180. if retained else 300.)
+        state['events'].append('compare')
+        if active['driver'] is None:active['driver']=old['driver']
+        return {'saved':True}
+    manager._compare_history_snapshot=compare
+    manager._run_history_comparison(record)
+    assert record['admission_start']==10. and record['budget_class']==selected
+    assert record['deadline']==(190. if retained else 310.)
+    assert record['completed'].is_set()
+    if case.endswith('expired'):
+        assert 'compare' not in state['events'] and 'finish' not in state['events']
+        assert not {'step','feed','output','write','publish'} & set(state['events'])
+        assert state['events'].count('close')==(1 if retained else 0)
+        assert record['reason']=='comparison_deadline' and finished==[(snapshot,'deadline')]
+    else:
+        assert record['state']=='published' and state['events'].count('compare')==1
+        assert state['events'].count('finish')==1 and not finished
+        original=(record['budget_class'],record['admission_start'],record['deadline'])
+        record['driver'].select_budget=lambda token:pytest.fail('rebase reclassified task')
+        manager._select_history_comparison_budget(record,{'fixture':'different_scope_and_counts'})
+        assert (record['budget_class'],record['admission_start'],record['deadline'])==original
+
+
+def test_exited_cached_owner_retries_exact_cleanup_without_successor(monkeypatch):
+    """Two maintenance turns, one fake original child; no OS child or model."""
+    from test_recording_speaker_history_process import authenticated_driver, acknowledge_cache
+    manager,record,snapshot,state=_pending_poll_fixture(monkeypatch)
+    owner=authenticated_driver(clock=lambda:state['now'])
+    acknowledge_cache(owner,monkeypatch)
+    process=owner.process;process.returncode=0
+    record.update(driver=owner,driver_active=False,thread=None,finish_pending=None)
+    record['completed'].set()
+    manager._history_comparison=record;manager._history_comparison_pending=True
+    manager._history_compare_after=0.;manager._lock=threading.RLock()
+    state.update(family_closed=False,reserved_bytes=192*1024**2)
+    family_checks=[];releases=[]
+    def finish(process_arg,**kwargs):
+        assert process_arg is process and owner.cleanup['positive_wait']
+        assert process.waits and owner.comparison_resources_closed()
+        family_checks.append(process_arg)
+        return state['family_closed']
+    owner._finish_child=finish
+    def release(grant):
+        assert grant is record['grant'] and owner.process is process
+        assert owner.cleanup['positive'] and owner.cleanup['positive_wait'] and state['family_closed']
+        releases.append(grant);state['reserved_bytes']=0
+        return True
+    manager.permit.release_comparison=release
+    def forbidden(*args,**kwargs):pytest.fail('cleanup admitted a successor')
+    manager.permit.reserve_comparison=manager.permit.resume_comparison=forbidden
+    manager._thread_factory=forbidden
+    assert not manager._maintain_history_comparison_owned()
+    assert manager._history_comparison is record and record['driver'] is owner and owner.process is process
+    assert record['cancelled'].is_set() and record['state']=='ownership_unknown'
+    assert record['reason']=='comparison_cleanup_unknown'
+    assert not releases and state['reserved_bytes']==192*1024**2
+    assert owner.cleanup['positive_wait'] and not owner.cleanup['positive'] and owner.cache_binding is None
+    state['family_closed']=True
+    assert manager._maintain_history_comparison_owned()
+    assert manager._history_comparison is None and owner.process is process
+    assert releases==[record['grant']] and state['reserved_bytes']==0
+    assert family_checks==[process,process] and len(process.waits)==2
 
 
 def test_pending_currentness_interval_uses_read_start_and_exact_boundary(monkeypatch):

@@ -789,6 +789,14 @@ class MossJobs:
                 record['finish_pending'] = None
             driver = record.get('driver')
             self.permit.pause_comparison(record['grant'])
+            if driver is not None and driver.cache_binding is not None:
+                try:driver.closed_cache_binding()
+                except BaseException:
+                    # An exited or uncertain cached child still owns its charge.
+                    # Reuse the exact-owner stop path, including positive retry;
+                    # this cancelled claim may close but cannot admit a successor.
+                    record['cancelled'].set()
+                    record['state'] = 'ownership_unknown';record['reason'] = 'comparison_task_closure_unknown'
             if (record['cancelled'].is_set() or not self._history_comparison_enabled()
                     or driver is None or driver.cache_binding is None):
                 cancelled = record['cancelled'].is_set()
@@ -807,7 +815,7 @@ class MossJobs:
         if fresh:
             record = {'grant':object(),'generation':object(),'cancelled':threading.Event(),
                 'completed':threading.Event(),'thread':None,'driver':None,'snapshot':None,
-                'state':'starting','deadline':now + 180.,'session_id':None,'start_attempted':False,
+                'state':'starting','deadline':now + 300.,'session_id':None,'start_attempted':False,
                 'task_sequence':0,'driver_active':False,'finish_pending':None}
         try:
             with self._gate():
@@ -818,7 +826,8 @@ class MossJobs:
                 # Publish the exact pending owner before census. Other callers
                 # see an incomplete task, but primary never waits on census.
                 record.update(completed=threading.Event(),state='sampling',start_attempted=False,
-                              generation=object(),deadline=now + 180.)
+                              generation=object(),admission_start=now,budget_class='unselected',
+                              budget_cache_binding=None,deadline=now + 300.)
                 generation = record['generation']
             if fresh:
                 self.permit.reserve_comparison(record['grant'],record['cancelled'],memory_bytes=192 * 1024**2)
@@ -850,6 +859,19 @@ class MossJobs:
                         if self._history_comparison is record:self._history_comparison = None
             return False
 
+    def _select_history_comparison_budget(self, record, token):
+        from .recording_speaker_history_process import COLD_SECONDS, INCREMENTAL_SECONDS, ProcessError
+        if record['budget_class'] != 'unselected':return
+        if record['driver_active']:raise ProcessError('task_not_closed')
+        driver = record['driver']
+        selected,cached = ('cold',None) if driver is None else driver.select_budget(token)
+        duration = INCREMENTAL_SECONDS if selected == 'incremental' else COLD_SECONDS
+        # Discovery and census are already charged. Selection can shorten the
+        # provisional ceiling, never start a new clock or be repeated on rebase.
+        record.update(budget_class=selected,budget_cache_binding=cached,
+                      deadline=record['admission_start']+duration)
+        if time.monotonic() >= record['deadline']:raise ProcessError('comparison_deadline')
+
     def _history_comparison_driver(self, record, token):
         """Start only the separately accounted pure-compute owner.
 
@@ -858,7 +880,8 @@ class MossJobs:
         keep one prefix after a positively acknowledged task closure; no score
         matrix or cross-snapshot authority cache is retained in this process.
         """
-        from .recording_speaker_history_process import ComparisonProcess
+        from .recording_speaker_history_process import ComparisonProcess, ProcessError
+        if record['budget_class'] not in ('cold','incremental'):raise ProcessError('task_budget_unselected')
         driver = record['driver']
         if driver is None:
             driver = ComparisonProcess(owner_nonce=uuid.uuid4().hex,
@@ -878,7 +901,9 @@ class MossJobs:
             driver.rebase(token)  # Same task, prefix, and original deadline.
         else:
             record['task_sequence'] += 1
-            driver.begin(token,generation=record['task_sequence'],deadline=record['deadline'])
+            driver.begin(token,generation=record['task_sequence'],deadline=record['deadline'],
+                admission_start=record['admission_start'],budget_class=record['budget_class'],
+                cache_binding=record['budget_cache_binding'])
             record['driver_active'] = True
         return driver
 
@@ -1009,7 +1034,7 @@ class MossJobs:
                 if reason == 'stale' and record['snapshot'] is not None:
                     # A revocation can land between the last checkpoint and
                     # publication. Do not confuse its absent dirty scope with
-                    # an append awaiting terminal evidence for 180 seconds.
+                    # an append awaiting terminal evidence for the task budget.
                     current = self.history.comparison_current(record['snapshot'])
                     if current == 'invalid':
                         record['cancelled'].set();record['state'] = 'cancelled'
@@ -1032,6 +1057,7 @@ class MossJobs:
                     return
                 record['snapshot'] = snapshot
                 record['session_id'] = snapshot.get('session_id')
+                self._select_history_comparison_budget(record,snapshot['token'])
                 try:result = self._compare_history_snapshot(record,snapshot)
                 except ReadError as exc:
                     if exc.reason not in ('history_snapshot_changed','history_pending'):raise

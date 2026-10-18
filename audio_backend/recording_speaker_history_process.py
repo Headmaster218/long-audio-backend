@@ -31,6 +31,7 @@ MIB = 1024 * 1024
 FRAME_BYTES, CONTROL_BYTES, ROWS = 128 * 1024, 8 * 1024, 16
 BUILD_BYTES, STARTUP_BYTES, CHILD_BYTES, PARENT_BYTES = 128*MIB, 32*MIB, 160*MIB, 32*MIB
 OWNER_BYTES = 192*MIB
+COLD_SECONDS, INCREMENTAL_SECONDS = 300., 180.
 # Includes the independently bounded 512 KiB proof/64 KiB packet decode,
 # validation graph and source-page overlap. Codec allowance includes both raw
 # frames, JSON strings/graphs, base64/raw-vector copies and bounded output pages.
@@ -88,6 +89,52 @@ def _token(value):
         _integer(value[name])
     _require(value['vector_count'] <= value['observation_count'], 'snapshot_vector_count')
     return dict(value)
+
+
+def _cache_binding(value):
+    if value is None:return None
+    _require(type(value) is dict and set(value) == {'scope_id','policy','space_id','cache_nonce',
+        'row_count','vector_count','score_count'}, 'cache_binding_fields')
+    _hex(value['scope_id'],64); _hex(value['cache_nonce'])
+    for name,limit in (('policy',64),('space_id',256)):
+        _require(type(value[name]) is str and 1 <= len(value[name]) <= limit, 'cache_binding_text')
+    for name in ('row_count','vector_count','score_count'):_integer(value[name])
+    _require(value['vector_count'] <= value['row_count'], 'cache_vector_count')
+    return dict(value)
+
+
+def _cache_matches(token, cached):
+    return (cached is not None and cached['row_count'] > 0
+        and all(cached[name] == token[name] for name in ('scope_id','policy','space_id'))
+        and cached['row_count'] <= token['observation_count']
+        and cached['vector_count'] <= token['vector_count']
+        and token['vector_count']-cached['vector_count'] <= token['observation_count']-cached['row_count'])
+
+
+def _complete_cache(value):
+    cached = _cache_binding(value)
+    if cached is not None:
+        vectors = cached['vector_count']
+        _require(cached['score_count'] == vectors*(vectors-1)//2, 'cache_prefix_incomplete')
+    return cached
+
+
+def _task_budget(token, payload, cached, *, now):
+    """Both endpoints verify the same bounded, once-selected begin contract."""
+    _require(type(payload) is dict and set(payload) == {
+        'budget_class','admission_start','deadline','cache_binding'}, 'begin_fields')
+    cached = _complete_cache(cached)
+    expected = _complete_cache(payload['cache_binding'])
+    _require(expected == cached, 'task_cache_binding')
+    selected = 'incremental' if _cache_matches(token,cached) else 'cold'
+    _require(payload['budget_class'] == selected, 'task_budget_class')
+    start,deadline = payload['admission_start'],payload['deadline']
+    _require(type(start) in (int,float) and math.isfinite(start) and 0 <= start <= now,
+             'task_admission_start')
+    duration = INCREMENTAL_SECONDS if selected == 'incremental' else COLD_SECONDS
+    _require(type(deadline) in (int,float) and math.isfinite(deadline)
+        and deadline == start+duration and now < deadline, 'comparison_deadline')
+    return selected,float(start),float(deadline)
 
 
 def _graph_bytes(value, *, allow_bytes=False):
@@ -332,6 +379,8 @@ class ComparisonProcess:
         self._request_lock = threading.Lock()
         self.status = {'state':'new','reason':None,'required_bytes':0,'counts':{}}
         self.cache_binding = None
+        self._authenticated_owner = self._closed_cache = None
+        self._budget_class = self._admission_start = None
         self.cleanup = {'positive':False,'positive_wait':False,'control_channel_closed':False}
         self.execution_lane = None
 
@@ -462,6 +511,7 @@ class ComparisonProcess:
             _validate_lane(process,ready,cpu)
             self.execution_lane = {'pid':self.process.pid,'cpu':cpu,'nice':19}
             self._task_closed = True
+            self._authenticated_owner = self._owner_signature()
             self.status = {'state':'idle','reason':None,'required_bytes':0,'counts':{}}
             return dict(ready)
         except BaseException:
@@ -518,14 +568,7 @@ class ComparisonProcess:
         _require(type(counts) is dict and len(counts) <= 64, 'status_counts')
         for key,value in counts.items():
             _require(type(key) is str and len(key) <= 64, 'status_count_name'); _integer(value)
-        cached = status['cache_binding']
-        if cached is not None:
-            _require(type(cached) is dict and set(cached) == {'scope_id','policy','space_id','cache_nonce',
-                'row_count','vector_count','score_count'}, 'cache_binding_fields')
-            _hex(cached['scope_id'],64); _hex(cached['cache_nonce'])
-            _require(type(cached['policy']) is str and len(cached['policy']) <= 64
-                and type(cached['space_id']) is str and len(cached['space_id']) <= 256, 'cache_binding_text')
-            for key in ('row_count','vector_count','score_count'):_integer(cached[key])
+        _cache_binding(status['cache_binding'])
         if 'decision_counts' in status:
             counts = status['decision_counts']
             _require(type(counts) is dict and set(counts) == {'annotation','merge','round',
@@ -535,16 +578,44 @@ class ComparisonProcess:
         self.cache_binding = status.get('cache_binding')
         return dict(status)
 
-    def begin(self, token, *, generation, deadline):
+    def _owner_signature(self):
+        identity = self.identity
+        _require(self._started and self.process is not None and type(identity) is dict
+            and self.process.pid == identity.get('pid'), 'task_owner_identity')
+        return (self.owner_nonce,self.process,identity['pid'],identity['create_time'],
+            identity['parent_pid'],identity['uid'],tuple(identity['argv']),
+            tuple(identity['executable_identity']))
+
+    def closed_cache_binding(self):
+        # Public status is not evidence of task closure. This private snapshot
+        # originates only from authenticated ready or a valid finish reply.
+        _require(self._task_closed and self._token is None and not self._poisoned
+            and not self._outstanding and not self.cleanup['positive'], 'task_not_closed')
+        _require(self._authenticated_owner is not None
+            and self._owner_signature() == self._authenticated_owner
+            and self.process.poll() is None, 'task_owner_identity')
+        _require(self.state == ('idle' if self._closed_cache is None else 'cached')
+            and self.cache_binding == self._closed_cache, 'task_cache_binding')
+        return _complete_cache(self._closed_cache)
+
+    def select_budget(self, token):
+        token = _token(token)
+        cached = self.closed_cache_binding()
+        return ('incremental' if _cache_matches(token,cached) else 'cold'),cached
+
+    def begin(self, token, *, generation, deadline, admission_start, budget_class, cache_binding):
         token = _token(token)
         _integer(generation)
         _require(self._task_closed and self._token is None and generation > self._generation, 'task_not_closed')
-        _require(type(deadline) in (float,int) and math.isfinite(deadline)
-            and self.clock() < deadline <= self.clock()+180., 'comparison_deadline')
+        payload = {'deadline':deadline,'admission_start':admission_start,
+            'budget_class':budget_class,'cache_binding':cache_binding}
+        selected,start,deadline = _task_budget(token,payload,self.closed_cache_binding(),now=self.clock())
         result = self._request('begin',token=token,generation=generation,deadline=deadline,
-                               payload={'deadline':float(deadline)})
+                               payload=payload)
         self._token,self._generation,self._deadline = token,generation,float(deadline)
+        self._budget_class,self._admission_start = selected,start
         self._task_closed = False
+        self._closed_cache = None
         return self._accept_status(result)
 
     def rebase(self, token):
@@ -627,9 +698,21 @@ class ComparisonProcess:
         _require(type(retain_prefix) is bool and self._token is not None, 'finish_task_state')
         result = self._request('finish',payload={'retain_prefix':retain_prefix})
         _require(result.get('task_closed') is True, 'task_closure_unconfirmed')
+        accepted = self._accept_status(result)
+        cached = _complete_cache(self.cache_binding)
+        _require(self.state == ('cached' if cached is not None else 'idle')
+            and result['old_rows'] == 0
+            and result['prefix_rows'] == (0 if cached is None else cached['row_count'])
+            and result['prefix_scores'] == (0 if cached is None else cached['score_count']), 'task_closure_binding')
+        _require((cached is None and not retain_prefix) or cached is not None and retain_prefix
+            and all(cached[name] == self._token[name] for name in ('scope_id','policy','space_id'))
+            and cached['row_count'] == self._token['observation_count']
+            and cached['vector_count'] == self._token['vector_count'], 'task_closure_prefix')
+        _require(self._owner_signature() == self._authenticated_owner, 'task_owner_identity')
+        self._closed_cache = cached  # Independent of the mutable status graph.
         self._token,self._task_closed = None,True
         self._page_bytes = 0
-        return self._accept_status(result)
+        return accepted
 
     def close(self, *, timeout=5.):
         """Retry the same original wait/family closure; never create a successor.
@@ -658,6 +741,7 @@ class ComparisonProcess:
                     finally:setattr(self,name,None)
             self._buffer_bytes = self._page_bytes = self._socket_bytes = 0
             self.cache_binding = None
+            self._closed_cache = None
             self.status = {'state':'closed','reason':receipt.get('protocol_error'),'required_bytes':0,'counts':{}}
             receipt['control_channel_closed'] = self._channel is self._remote is None
         if self.process is None:
@@ -708,6 +792,7 @@ def _child_main(fd, owner, parent_pid, parent_birth, cpu):
     signal.signal(signal.SIGUSR2,lambda *_:flags.update(paused=True))
     sequence = generation = 0
     token = deadline = build = prefix = comparator = cache_nonce = None
+    budget_class = admission_start = None
     ready_seen = False
     output_after = 0
     baseline = process.memory_info().rss
@@ -796,11 +881,9 @@ def _child_main(fd, owner, parent_pid, parent_birth, cpu):
                     'startup_rss':baseline}
             elif op in ('begin','rebase'):
                 if op == 'begin':
-                    _require(set(payload) == {'deadline'}, 'begin_fields')
-                    new_deadline = payload['deadline']
-                    _require(type(new_deadline) in (int,float) and math.isfinite(new_deadline)
-                        and time.monotonic() < new_deadline <= time.monotonic()+180., 'task_deadline')
-                    deadline,generation = float(new_deadline),command['generation']
+                    budget_class,admission_start,deadline = _task_budget(
+                        new_token,payload,binding(),now=time.monotonic())
+                    generation = command['generation']
                 else:
                     _require(set(payload) == {'previous_snapshot'}, 'rebase_fields')
                     drop_build(True)  # Do not reset the original task clock.
@@ -809,8 +892,7 @@ def _child_main(fd, owner, parent_pid, parent_birth, cpu):
                 if comparator is None:
                     comparator = _load_comparator()
                     baseline = max(baseline,process.memory_info().rss)
-                expected = (token['scope_id'],token['policy'],token['space_id'])
-                if prefix is not None and (prefix.binding != expected or prefix.row_count > token['observation_count']):
+                if prefix is not None and not _cache_matches(token,binding()):
                     prefix = None; cache_nonce = None
                 if prefix is None:cache_nonce = uuid.uuid4().hex
                 flags['paused'] = False

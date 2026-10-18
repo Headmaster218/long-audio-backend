@@ -1,8 +1,8 @@
 """Finite protocol/owner tests. SOURCE ONLY until a separate execution gate.
 
 Injected cases do not launch processes or import any model. The explicitly
-named real-child oracle case owns one isolated pure-comparison child, three
-2048-byte vectors, at most 256 cooperative steps per build (one direct and two child builds)
+named real-child oracle case owns one isolated pure-comparison child, at most four
+2048-byte vectors, at most 256 cooperative steps per build (two direct and three child builds)
 and a ten-second work deadline per case;
 its cleanup is bounded to five seconds. No ambient database/audio is read.
 """
@@ -56,6 +56,32 @@ class Handle:
         self.waits.append(timeout)
         if self.returncode is None:raise subprocess.TimeoutExpired('fixed-fixture',timeout)
         return self.returncode
+
+
+def authenticated_driver(**kwargs):
+    """Fake no-work ready receipt, with independent original-owner identity."""
+    owner=driver(**kwargs)
+    owner.process=Handle();owner._started=True;owner._task_closed=True
+    owner.identity={'pid':owner.process.pid,'create_time':2.,'parent_pid':os.getpid(),
+        'uid':os.geteuid(),'argv':['fixed-child'],'executable_identity':['1','2']}
+    owner._authenticated_owner=owner._owner_signature()
+    owner.status=child_status('idle')
+    return owner
+
+
+def cached_binding():
+    return {'scope_id':TOKEN['scope_id'],'policy':TOKEN['policy'],'space_id':TOKEN['space_id'],
+        'cache_nonce':'c'*32,'row_count':3,'vector_count':3,'score_count':3}
+
+
+def acknowledge_cache(owner, monkeypatch, token=TOKEN):
+    owner._token=token;owner._task_closed=False
+    cached={**cached_binding(),'row_count':token['observation_count'],'vector_count':token['vector_count'],
+        'score_count':token['vector_count']*(token['vector_count']-1)//2}
+    monkeypatch.setattr(owner,'_request',lambda *a,**kw:child_status('cached',task_closed=True,
+        cache_binding=cached,prefix_rows=cached['row_count'],prefix_scores=cached['score_count']))
+    owner.finish_task()
+    return cached
 
 
 def test_wire_roundtrip_and_separate_control_ceiling():
@@ -216,25 +242,120 @@ def test_no_work_ready_identity_failures_are_owned(monkeypatch,case):
 
 
 def test_begin_rebase_and_idle_generation_never_rebase_deadline(monkeypatch):
-    owner = driver(clock=lambda:1.)
-    owner._task_closed=True
+    clock=[1.]
+    owner = authenticated_driver(clock=lambda:clock[0])
     requests=[]
     def request(op,**kwargs):
         requests.append((op,deepcopy(kwargs)))
-        if op == 'finish':return child_status('cached',task_closed=True)
+        if op == 'finish':return child_status('idle',task_closed=True)
         return child_status()
     monkeypatch.setattr(owner,'_request',request)
-    owner.begin(TOKEN,generation=1,deadline=20.)
+    owner.begin(TOKEN,generation=1,deadline=301.,admission_start=1.,budget_class='cold',cache_binding=None)
     original = owner._deadline
     appended = {**TOKEN,'history_revision':2,'observation_count':4,'vector_count':4}
     owner.rebase(appended)
     assert owner._deadline == original and requests[-1][1]['payload'] == {'previous_snapshot':TOKEN}
     with pytest.raises(mod.ProcessError,match='task_not_closed'):
-        owner.begin(appended,generation=2,deadline=30.)
-    owner.finish_task()
+        owner.begin(appended,generation=2,deadline=302.,admission_start=2.,budget_class='cold',cache_binding=None)
+    owner.finish_task(retain_prefix=False)
     assert owner._token is None and owner._task_closed
-    owner.begin(appended,generation=2,deadline=30.)
-    assert owner._deadline == 30. and owner._generation == 2
+    clock[0]=2.
+    owner.begin(appended,generation=2,deadline=302.,admission_start=2.,budget_class='cold',cache_binding=None)
+    assert owner._deadline == 302. and owner._generation == 2
+
+
+@pytest.mark.parametrize('case',['fresh','empty_cache','matching','scope','policy','space','rows','vectors',
+    'new_vectors','pending','owner','nonce','incomplete'])
+def test_budget_selection_requires_exact_closed_prefix(monkeypatch,case):
+    owner=authenticated_driver(clock=lambda:10.)
+    token={**TOKEN,'observation_count':4,'vector_count':4}
+    prior=({**TOKEN,'vector_count':2} if case=='new_vectors' else
+        {**TOKEN,'observation_count':0,'vector_count':0} if case=='empty_cache' else TOKEN)
+    if case!='fresh':acknowledge_cache(owner,monkeypatch,prior)
+    if case=='scope':token['scope_id']='d'*64
+    if case=='policy':token['policy']='other'
+    if case=='space':token['space_id']='other'
+    if case=='rows':token.update(observation_count=2,vector_count=2)
+    if case=='vectors':token['vector_count']=2
+    if case=='new_vectors':
+        token.update(observation_count=3,vector_count=3)
+    if case=='pending':
+        owner._task_closed=False;owner._token=TOKEN
+        owner._accept_status(child_status('pending',cache_binding=cached_binding(),prefix_rows=3,prefix_scores=3))
+    if case=='owner':owner.identity['argv'].append('changed')
+    if case=='nonce':owner.cache_binding['cache_nonce']='d'*32
+    if case=='incomplete':owner._closed_cache['score_count']=2;owner.cache_binding=deepcopy(owner._closed_cache)
+    if case in ('pending','owner','nonce','incomplete'):
+        with pytest.raises(mod.ProcessError):owner.select_budget(token)
+    else:
+        selected,binding=owner.select_budget(token)
+        assert selected==('incremental' if case=='matching' else 'cold')
+        assert binding==(None if case=='fresh' else owner._closed_cache)
+        payload={'budget_class':selected,'admission_start':1.,
+            'deadline':181. if selected=='incremental' else 301.,'cache_binding':binding}
+        assert mod._task_budget(token,payload,owner._closed_cache,now=10.)==(selected,1.,payload['deadline'])
+        if binding is not None:
+            binding['cache_nonce']='e'*32
+            assert owner._closed_cache['cache_nonce']=='c'*32
+    if case=='nonce':assert owner._closed_cache['cache_nonce']=='c'*32
+
+
+@pytest.mark.parametrize('case',['false_cold','false_incremental','nonce','future_start',
+    'extended_deadline','short_deadline','expired_incremental','unknown_class'])
+def test_begin_and_child_validator_refuse_class_anchor_or_cache_conflicts(monkeypatch,case):
+    owner=authenticated_driver(clock=lambda:200. if case=='expired_incremental' else 10.)
+    if case!='false_incremental':acknowledge_cache(owner,monkeypatch)
+    cached=owner.closed_cache_binding()
+    payload={'budget_class':'incremental','admission_start':1.,'deadline':181.,'cache_binding':cached}
+    if case=='false_cold':payload.update(budget_class='cold',deadline=301.)
+    if case=='nonce':payload['cache_binding']={**cached,'cache_nonce':'d'*32}
+    if case=='future_start':payload.update(admission_start=11.,deadline=191.)
+    if case=='extended_deadline':payload['deadline']=182.
+    if case=='short_deadline':payload['deadline']=180.
+    if case=='unknown_class':payload['budget_class']='unselected'
+    monkeypatch.setattr(owner,'_request',lambda *a,**kw:pytest.fail('invalid begin reached child'))
+    # This is also the child begin validator, invoked against its own binding.
+    with pytest.raises(mod.ProcessError):mod._task_budget(TOKEN,payload,cached,now=owner.clock())
+    with pytest.raises(mod.ProcessError):owner.begin(TOKEN,generation=1,**payload)
+    assert owner._task_closed and owner._token is None and owner._deadline is None
+
+
+@pytest.mark.parametrize('case',['lost_ack','pending_ack','changed_owner'])
+def test_finish_requires_positive_original_closed_receipt(monkeypatch,case):
+    owner=authenticated_driver(clock=lambda:10.)
+    owner._token=TOKEN;owner._task_closed=False
+    cached=cached_binding()
+    result=child_status('pending' if case=='pending_ack' else 'cached',
+        task_closed=case!='lost_ack',cache_binding=cached,prefix_rows=3,prefix_scores=3)
+    if case=='changed_owner':owner.owner_nonce='e'*32
+    monkeypatch.setattr(owner,'_request',lambda *a,**kw:result)
+    with pytest.raises(mod.ProcessError):owner.finish_task()
+    with pytest.raises(mod.ProcessError):owner.select_budget(TOKEN)
+    assert not owner._task_closed and owner._token==TOKEN and owner._closed_cache is None
+
+
+def test_rebased_prefix_fingerprint_conflict_keeps_incremental_deadline(monkeypatch):
+    owner=authenticated_driver(clock=lambda:10.)
+    acknowledge_cache(owner,monkeypatch)
+    monkeypatch.setattr(owner,'_request',lambda *a,**kw:child_status())
+    owner.begin(TOKEN,generation=1,admission_start=1.,deadline=181.,
+        budget_class='incremental',cache_binding=cached_binding())
+    original=(owner._budget_class,owner._admission_start,owner._deadline)
+    for token in (dict(TOKEN,scope_id='d'*64),dict(TOKEN,observation_count=2,vector_count=2)):
+        owner.rebase(token)
+        assert (owner._budget_class,owner._admission_start,owner._deadline)==original
+    rows=[observation(1,vector(1.,0.))]
+    token={**TOKEN,'observation_count':1,'vector_count':1}
+    prefix=pure.ScorePrefix(pure.SnapshotToken.from_record(token))
+    prefix.fingerprints=[pure.Observation.from_record(rows[0]).fingerprint()]
+    prefix.vector_slots=[0];prefix.vector_count=1
+    build=pure.ComparisonBuild(token,admitted_bytes=mod.BUILD_BYTES,deadline=time.monotonic()+1.,prefix=prefix)
+    try:
+        changed=deepcopy(rows);changed[0]['refs']=[['primary','changed']]
+        with pytest.raises(pure.Invalid,match='score_prefix_row_mismatch'):
+            build.feed_observations(token,0,changed,complete=True)
+        assert build._old_rows==1 and (owner._budget_class,owner._admission_start,owner._deadline)==original
+    finally:build.discard()
 
 
 def test_source_page_repartition_keeps_all_rows_and_cursors(monkeypatch):
@@ -412,11 +533,14 @@ def test_real_child_matches_unchanged_direct_oracle_and_cache(count):
     """Separately gated exec test; bounded tiny evidence, no model or DB."""
     rows=[observation(1,vector(1.,0.)),observation(2,vector(.8,.6)),observation(3,vector(0.,1.))][:count]
     token={**TOKEN,'observation_count':count,'vector_count':count}
-    deadline=time.monotonic()+10.
+    admission_start=time.monotonic();deadline=admission_start+10.
+    cold_deadline=admission_start+mod.COLD_SECONDS
+    appended_direct=None
     direct=pure.ComparisonBuild(token,admitted_bytes=mod.BUILD_BYTES,deadline=deadline)
     direct.feed_observations(token,0,rows,complete=True)
     direct.feed_witnesses(token,0,[],complete=True)
     for _ in range(256):
+        assert time.monotonic()<deadline
         if direct.step()['state']=='ready':break
     assert direct.state=='ready'
     expected=direct.output_page(limit=16)
@@ -424,14 +548,16 @@ def test_real_child_matches_unchanged_direct_oracle_and_cache(count):
     def observe(proc,**kwargs):
         observed=mod.psutil.Process(proc.pid)
         return {'rss':observed.memory_info().rss,'parent_bytes':owner.comparison_parent_bytes(),'family_size':1}
-    owner=driver(observe_child=observe,
+    owner=driver(observe_child=observe,cancelled=lambda:time.monotonic()>=deadline,
         finish_child=lambda proc,**kwargs:proc.wait(timeout=0) is not None and owner.comparison_resources_closed())
     try:
-        owner.start(deadline)
-        owner.begin(token,generation=1,deadline=deadline)
+        owner.start(cold_deadline)
+        owner.begin(token,generation=1,deadline=cold_deadline,admission_start=admission_start,
+            budget_class='cold',cache_binding=None)
         owner.feed_observations(token,0,rows,complete=True)
         owner.feed_witnesses(token,0,[],complete=True)
         for _ in range(256):
+            assert time.monotonic()<deadline
             if owner.step()['state']=='ready':break
         assert owner.state=='ready'
         assert owner.decision_counts==direct.decision_counts
@@ -440,31 +566,62 @@ def test_real_child_matches_unchanged_direct_oracle_and_cache(count):
         assert owner.status['counts']['dot_products']==count*(count-1)//2
         owner.finish_task()
         assert owner._token is None and owner.cache_binding['cache_nonce']==cache_nonce
-        owner.begin(token,generation=2,deadline=deadline)
+        new_start=time.monotonic();incremental_deadline=new_start+mod.INCREMENTAL_SECONDS
+        selected,cached=owner.select_budget(token)
+        assert selected=='incremental'
+        owner.begin(token,generation=2,deadline=incremental_deadline,admission_start=new_start,
+            budget_class=selected,cache_binding=cached)
         owner.feed_observations(token,0,rows,complete=True)
         owner.feed_witnesses(token,0,[],complete=True)
         for _ in range(256):
+            assert time.monotonic()<deadline
             if owner.step()['state']=='ready':break
         assert owner.output_page(limit=16)==expected
         assert owner.status['counts'].get('dot_products',0)==0
         assert owner.status['old_rows']==count and owner.cache_binding['cache_nonce']==cache_nonce
+        appended={**token,'history_revision':2,'observation_count':count+1,'vector_count':count+1}
+        appended_rows=rows+[observation(count+1,vector(0.,-1.))]
+        appended_direct=pure.ComparisonBuild(appended,admitted_bytes=mod.BUILD_BYTES,deadline=deadline)
+        appended_direct.feed_observations(appended,0,appended_rows,complete=True)
+        appended_direct.feed_witnesses(appended,0,[],complete=True)
+        for _ in range(256):
+            assert time.monotonic()<deadline
+            if appended_direct.step()['state']=='ready':break
+        assert appended_direct.state=='ready'
+        owner.rebase(appended)
+        owner.feed_observations(appended,0,appended_rows,complete=True)
+        owner.feed_witnesses(appended,0,[],complete=True)
+        for _ in range(256):
+            assert time.monotonic()<deadline
+            if owner.step()['state']=='ready':break
+        assert owner.decision_counts==appended_direct.decision_counts
+        assert owner.output_page(limit=16)==appended_direct.output_page(limit=16)
+        assert owner.status['old_rows']==count and owner.status['counts']['dot_products']==count
+        assert owner.cache_binding['cache_nonce']==cache_nonce
+        owner.rebase({**appended,'space_id':'other','observation_count':1,'vector_count':1})
+        assert owner.status['old_rows']==0 and owner.cache_binding['cache_nonce']!=cache_nonce
+        assert (owner._budget_class,owner._admission_start,owner._deadline)==('incremental',new_start,incremental_deadline)
     finally:
         direct.discard()
+        if appended_direct is not None:appended_direct.discard()
         receipt=owner.close()
         assert receipt['positive_wait'] and receipt['positive']
         assert owner.process.returncode is not None
 
 
 def test_cached_new_task_after_old_deadline_uses_only_new_admission_deadline(monkeypatch):
-    owner=driver(clock=lambda:10.)
+    owner=authenticated_driver(clock=lambda:10.)
+    acknowledge_cache(owner,monkeypatch)
+    monkeypatch.undo()
     owner._channel=object();owner._task_closed=True;owner._generation=1;owner._deadline=2.
     observed=[];command={}
     monkeypatch.setattr(owner,'_observe',lambda **kw:observed.append(kw['deadline']))
     monkeypatch.setattr(mod,'_send',lambda channel,value,**kw:command.update(value))
     monkeypatch.setattr(mod,'_receive',lambda channel,**kw:{**command,'payload':child_status()})
     try:
-        owner.begin(TOKEN,generation=2,deadline=20.)
-        assert observed == [20.,20.] and owner._deadline==20.
+        owner.begin(TOKEN,generation=2,deadline=190.,admission_start=10.,
+            budget_class='incremental',cache_binding=cached_binding())
+        assert observed == [190.,190.] and owner._deadline==190.
         assert owner._generation==2 and not owner._task_closed
     finally:owner._channel=None
 
@@ -625,13 +782,13 @@ def test_comparison_census_deadline_does_not_misclassify_primary_budget(monkeypa
 
 
 def test_step_clips_only_its_rpc_without_renewing_task_or_other_operations(monkeypatch):
-    owner=driver(clock=lambda:10.)
-    owner._token=TOKEN;owner._generation=1;owner._deadline=190.
+    owner=authenticated_driver(clock=lambda:10.)
+    owner._token=TOKEN;owner._generation=1;owner._deadline=190.;owner._task_closed=False
     requests=[]
     def request(op,**kwargs):
         requests.append((op,deepcopy(kwargs)))
         if op=='output':return {'token':owner._token,'rows':[],'next_after':0,'complete':True,'total_rows':0}
-        if op=='finish':return child_status('cached',task_closed=True)
+        if op=='finish':return child_status('idle',task_closed=True)
         return child_status('ready',decision_counts={'annotation':0,'merge':0,'round':0,
             'total_rows':0,'independent_observations':0})
     monkeypatch.setattr(owner,'_request',request)
@@ -639,7 +796,7 @@ def test_step_clips_only_its_rpc_without_renewing_task_or_other_operations(monke
     owner.feed_witnesses(TOKEN,0,[],complete=True)
     owner.rebase({**TOKEN,'history_revision':2})
     owner.output_page()
-    owner.finish_task()
+    owner.finish_task(retain_prefix=False)
     assert [op for op,_ in requests]==['step','witnesses','rebase','output','finish']
     assert requests[0][1]=={'deadline':10.250}
     assert all('deadline' not in kwargs for _,kwargs in requests[1:])
