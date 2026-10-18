@@ -840,6 +840,32 @@ class HistoryStore:
         payload=self._prepare_success(reservation,[dict(node,vector=vector)],invocation_id)
         return self._append(reservation,payload,current_check,authorize)
 
+    def acknowledge_primary_append(self,reservation,node,vector,invocation_id,*,success_capability):
+        """Read-only exact acknowledgement of an already frozen live success.
+
+        This never builds a payload, promotes a missing candidate or grants a
+        current identity. A reserved result still requires ordinary append
+        authority and the producer's original deadline in its caller.
+        """
+        if success_capability is not self._capability or self._success_owner is None:
+            _fail('history_fresh_success_required')
+        if self._success_owner._primary_append_ack_matches(reservation,node,vector,invocation_id) is not True:
+            _fail('history_cleanup_unverified')
+        pending=self._frozen.get(reservation['token'])
+        if pending is None:return {'resolved':False,'state':'unavailable','should_probe':False}
+        if pending.get('node')!=node:_fail('history_node_changed')
+        if pending.get('invocation_id')!=invocation_id:_fail('history_terminal_conflict')
+        payload=pending.get('payload')
+        if payload is None:return {'resolved':False,'state':'unavailable','should_probe':False}
+        if (pending.get('success_input_digest')!=_hash(encoded([[dict(node,vector=vector)],invocation_id]))
+                or pending.get('terminal')!=payload['terminal']):_fail('history_terminal_conflict')
+        with self._database() as db:
+            row,scope=self._attempt(db,reservation)
+            if row['state']=='reserved':return {'resolved':False,'state':'reserved','should_probe':False}
+            if (row['state']!='success' or row['terminal']!=payload['terminal']
+                    or row['terminal_sha256']!=_hash(payload['terminal'])):_fail('history_terminal_conflict')
+            return {'resolved':True,'state':'success','should_probe':False,'existing':True}
+
     def append_moss(self,reservation,batch,invocation_id,*,success_capability,current_check):
         def authorize():self._authorize_success(reservation,batch,None,invocation_id,success_capability,moss=True)
         authorize()

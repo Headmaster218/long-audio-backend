@@ -456,6 +456,7 @@ class MossJobs:
             'reservation':None, 'admitted':False, 'completed':threading.Event(),
             'validated_output':None, 'terminal_reason':None, 'thread_start_attempted':False,
             'work_deadline':None, 'read_defer_deadline':None, 'dispatch_binding':None,
+            'append_binding':None, 'storage_retry_after':0.,
             'invocation_id':uuid.uuid4().hex, 'failure_json':None, 'failure_frozen':False}
         due = self.history.primary_due(chunk['session_id'],rid,frame)
         if not due['due']:
@@ -495,6 +496,7 @@ class MossJobs:
         with self._lock:
             probe['crop'] = None
             probe['dispatch_binding'] = None
+            probe['append_binding'] = None
             if probe.get('charge_bytes'):
                 self._probe_staging_bytes -= probe['charge_bytes']; probe['charge_bytes'] = 0
             if self._primary_pending is probe:self._primary_pending = None
@@ -740,6 +742,9 @@ class MossJobs:
             probe['crop'] = None
             probe['dispatch_binding'] = None
             with self._gate(), self._primary_guard(probe):
+                probe['append_binding'] = (probe['reservation'],probe['node'],operation,
+                    probe['validated_output'],probe['invocation_id'],hashlib.sha256(encoded([
+                        probe['reservation'],probe['node'],probe['validated_output'],probe['invocation_id']])).hexdigest())
                 if time.monotonic() >= probe['work_deadline']:
                     raise ReadError(409,'primary_probe_deadline')
                 probe['state'] = 'append_unknown'
@@ -768,11 +773,16 @@ class MossJobs:
             probe['completed'].set()
 
     def _primary_success_matches(self, reservation, node, vector, invocation_id):
+        return self._primary_result_matches(reservation,node,vector,invocation_id,
+                                            allow_cancelled=False)
+
+    def _primary_result_matches(self, reservation, node, vector, invocation_id, *, allow_cancelled):
         from .recording_speaker_probe_runner import ProbeOperation, cleanup_verified
         probe = self._primary_pending
-        if (probe is None or probe['reservation'] != reservation or probe['node'] != node
+        if (probe is None or probe.get('owner') is not self
+                or probe['reservation'] != reservation or probe['node'] != node
                 or probe.get('invocation_id') != invocation_id or not probe['admitted']
-                or probe['cancelled'].is_set()):return False
+                or not allow_cancelled and probe['cancelled'].is_set()):return False
         operation = probe['operation']; output = probe['validated_output']
         if (type(operation) is not ProbeOperation or not operation.started or not operation.cleaned
                 or operation.child_dispatch != 'returned_validated' or not cleanup_verified(operation.receipt)
@@ -783,6 +793,70 @@ class MossJobs:
                                                  'float32_sha256':node['float32le_sha256']}]):return False
         operation._validate_return(output)
         return True
+
+    def _primary_append_ack_matches(self, reservation, node, vector, invocation_id):
+        """A closed live producer may acknowledge bytes, never renew inference."""
+        probe = self._primary_pending
+        if (probe is None or probe.get('owner') is not self or probe['state'] != 'append_unknown'
+                or not probe['completed'].is_set()
+                or probe['thread'] is not None and probe['thread'].is_alive()):return False
+        binding = probe.get('append_binding')
+        if (binding is None or probe['reservation'] is not binding[0]
+                or probe['node'] is not binding[1] or probe['operation'] is not binding[2]
+                or probe['validated_output'] is not binding[3]
+                or probe['invocation_id'] != binding[4]
+                or hashlib.sha256(encoded([probe['reservation'],probe['node'],
+                    probe['validated_output'],probe['invocation_id']])).hexdigest() != binding[5]):return False
+        return self._primary_result_matches(reservation,node,vector,invocation_id,
+                                            allow_cancelled=True)
+
+    def _maintain_primary_append(self, probe):
+        """One exact storage turn; a cleaned model permit is never reacquired."""
+        with self._gate():
+            if (probe is not self._primary_pending or probe.get('owner') is not self
+                    or probe['state'] != 'append_unknown'
+                    or not probe['completed'].is_set()
+                    or probe['thread'] is not None and probe['thread'].is_alive()
+                    or probe['operation'] is None or not probe['operation'].cleaned):return False
+            now = time.monotonic()
+            if now < probe['storage_retry_after']:return False
+            try:
+                output = probe['validated_output']
+                outcome = self.history.acknowledge_primary_append(probe['reservation'],probe['node'],
+                    output['nodes'][0]['vector'],probe['invocation_id'],
+                    success_capability=self._history_success_capability)
+                if not outcome['resolved']:
+                    if (outcome['state'] == 'unavailable' or probe['cancelled'].is_set()
+                            or not self._history_enabled() or time.monotonic() >= probe['work_deadline']):
+                        # No fresh success after cancellation/expiry, nor from
+                        # absent frozen bytes. Existing failure/ack closure only.
+                        outcome = self.history.resolve_primary(probe['attempt_id'],probe['identity'],
+                            failure_json=probe['failure_json'] if probe['failure_frozen'] else None)
+                        if not outcome.get('resolved'):return False
+                    else:
+                        assert outcome['state'] == 'reserved'
+                        with self._primary_guard(probe):
+                            if (probe is not self._primary_pending
+                                    or not self._primary_append_ack_matches(probe['reservation'],probe['node'],
+                                        output['nodes'][0]['vector'],probe['invocation_id'])):
+                                raise ReadError(409,'history_cleanup_unverified')
+                            # Includes time spent in the acknowledgement read
+                            # and publication-lock acquisition. Never reset it.
+                            if time.monotonic() >= probe['work_deadline']:
+                                raise ReadError(409,'primary_probe_deadline')
+                            self.history.append_primary(probe['reservation'],probe['node'],
+                                output['nodes'][0]['vector'],probe['invocation_id'],
+                                success_capability=self._history_success_capability,
+                                current_check=lambda db:self._primary_current(probe,db))
+                probe['state'] = 'terminal'
+                self._kick_history_comparison()
+                self._drop_primary_copy(probe)
+                return True
+            finally:
+                # A failed read/write/ack retains the same owner and all storage
+                # charges. Direct maintenance calls share the normal 1 s floor.
+                if probe is self._primary_pending and probe['state'] == 'append_unknown':
+                    probe['storage_retry_after'] = time.monotonic() + 1.
 
     def _maintain_primary(self):
         probe = self._primary_pending
@@ -795,7 +869,9 @@ class MossJobs:
         if operation is not None and not operation.cleaned:return False
         try:
             state = probe['state']
-            if state in ('claim_unknown','append_unknown'):
+            if state == 'append_unknown':
+                return self._maintain_primary_append(probe)
+            if state == 'claim_unknown':
                 outcome = self.history.resolve_primary(probe['attempt_id'],probe['identity'],
                     failure_json=probe['failure_json'] if probe['failure_frozen'] else None)
                 if not outcome.get('resolved'):return False
