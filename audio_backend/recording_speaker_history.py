@@ -979,6 +979,21 @@ class HistoryStore:
             return 'pending' if was_unknown or unknown() else answer
         except (ReadError,OSError):return 'pending'
 
+    def comparison_work_available(self):
+        """Read-only scalar hint; close positively before returning any answer.
+
+        The ordinary SQL context supplies the existing time/VM bounds. No
+        snapshot, build token, reservation or source authority comes from this.
+        """
+        with self._database() as db:
+            available = db.execute(f"""SELECT 1 FROM {SCOPES}
+                WHERE scope_seq>0 AND authority_blocked IS NULL
+                  AND state NOT IN ('none','unknown_rival') AND observation_count>0
+                  AND NOT EXISTS (SELECT 1 FROM {ATTEMPTS} a
+                    WHERE a.scope_seq={SCOPES}.scope_seq AND a.state='reserved')
+                LIMIT 1""").fetchone() is not None
+        return available
+
     def begin_comparison(self,after_scope=None):
         """Bounded dirty-header discovery. Does not score or read full evidence."""
         if not self.enabled:return None

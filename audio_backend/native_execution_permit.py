@@ -365,6 +365,7 @@ class NativeExecutionPermit:
         self._sample_clock = time.monotonic
         self._sample_flight = None
         self._sample_generation = object()
+        self._pending_noncomparison_generation = object()
         self._sampling_pending = False
         self._sampling_retry_after = 0.
         self._sampling_failure = None
@@ -662,6 +663,7 @@ class NativeExecutionPermit:
     def mark_unavailable(self, reason='primary_ownership_uncertain'):
         with self._condition:
             self._sample_generation = object()
+            self._pending_noncomparison_generation = object()
             self._unavailable = reason
 
     def _record_primary_failure(self, operation, phase, error, *, sample_budget=None):
@@ -670,6 +672,7 @@ class NativeExecutionPermit:
             if sample_budget is not None:
                 # Only _take_sample authenticates the actual sampler boundary.
                 self._sample_generation = object()
+                self._pending_noncomparison_generation = object()
                 self._sampling_exhaustions = min(2**31 - 1, self._sampling_exhaustions + 1)
                 if self._sampling_failure is None:
                     detail = getattr(error, '_sample_observation', {})
@@ -723,6 +726,7 @@ class NativeExecutionPermit:
                     raise AdmissionError('primary_identity_budget')
                 created = psutil.Process(proc.pid).create_time()
                 self._sample_generation = object()
+                self._pending_noncomparison_generation = object()
                 self._handles[id(proc)] = {'proc': proc, 'pid': proc.pid, 'created': created,
                     'resident': resident, 'children': {}, 'idle': False}
             self.observe_primary()
@@ -763,6 +767,7 @@ class NativeExecutionPermit:
                         pass
                 del self._handles[id(proc)]
                 self._sample_generation = object()
+                self._pending_noncomparison_generation = object()
         except Exception as error:
             self._record_primary_failure('finish_primary', phase, error)
 
@@ -868,18 +873,41 @@ class NativeExecutionPermit:
         return (self._primary_probe_admission is not None or
             self._optional is not None and self._optional_kind == 'automatic_primary_probe')
 
+    def _pending_optional_state_locked(self, *, allow_queued=False):
+        # A scheduling refusal carries no census/execution authority. Ignore
+        # comparison-only transitions, but preserve every native/global fence.
+        identities, values = self._optional_state_locked(allow_queued=allow_queued)
+        return (self._pending_noncomparison_generation, *identities[1:8]), values
+
     def primary_probe_admission_pending(self, error, token, *, work_deadline):
-        """Authenticate only a resource-free, unexecuted admission refusal."""
+        """Consume exact proof of a resource-free, unexecuted refusal once."""
         if type(error) is not AdmissionError or error.reason != 'comparison_start_pending':return False
-        marker = getattr(error, '_optional_admission_pending', None)
         with self._condition:
-            return (type(marker) is tuple and len(marker) == 8
-                and marker[0] is _OPTIONAL_ADMISSION_PENDING and marker[1] is self
-                and marker[2] is token and marker[4] == work_deadline
-                and self._optional is None and not marker[3].is_set()
-                and (type(token) is not dict or token.get('cancelled') is marker[3])
-                and self._comparison is not None and self._comparison['start_claim'] is marker[7]
-                and self._optional_state_unchanged_locked(marker[5],allow_queued=marker[6]))
+            marker = getattr(error, '_optional_admission_pending', None)
+            if (type(marker) is not tuple or len(marker) != 8
+                    or marker[0] is not _OPTIONAL_ADMISSION_PENDING or marker[1] is not self
+                    or marker[2] is not token or marker[4] != work_deadline
+                    or type(work_deadline) not in (int,float) or not math.isfinite(work_deadline)
+                    or self._optional is not None or self._primary_probe_admission is not None
+                    or self._closed or self._unavailable or not self._configuration_current()
+                    or time.monotonic() >= work_deadline):return False
+            blocker = marker[7]
+            if (type(blocker) is not tuple or len(blocker) != 5 or blocker[0] is not error
+                    or type(blocker[1]) is not dict or blocker[2] is None
+                    or not (blocker[3] is None or blocker[4] is not None)
+                    or type(marker[6]) is not bool
+                    or type(marker[5]) is not tuple or len(marker[5]) != 2
+                    or type(marker[5][0]) is not tuple or len(marker[5][0]) != 8):return False
+            if (type(token) is dict and (token.get('cancelled') is not marker[3]
+                    or token.get('work_deadline') != work_deadline)
+                    or not isinstance(marker[3], threading.Event) or marker[3].is_set()):return False
+            identities, values = self._pending_optional_state_locked(allow_queued=marker[6])
+            if (not all(old is new for old, new in zip(marker[5][0], identities))
+                    or marker[5][1] != values):return False
+            # Bind to the emitted exception, not a copy of its private tuple.
+            # Consume under the same condition as all ownership checks.
+            del error._optional_admission_pending
+            return True
 
 
     def reserve_optional(self, token, cancelled, cancel_callback, *, owner_kind='preemptible', work_deadline=None):
@@ -902,16 +930,17 @@ class NativeExecutionPermit:
             with self._condition:
                 current()
                 if owner_kind == 'automatic_primary_probe':
+                    if self._primary_probe_admission is not None:raise AdmissionError('primary_or_optional_busy')
                     comparison = self._comparison
-                    if comparison is not None and comparison['start_claim'] is not None:
+                    if comparison is not None and (comparison['owner'] is None or comparison['start_claim'] is not None):
                         error = AdmissionError('comparison_start_pending')
                         allow_queued = self._turn is not None and getattr(self._local, 'turn', None) is self._turn
                         error._optional_admission_pending = (_OPTIONAL_ADMISSION_PENDING,
                             self, token, cancelled, work_deadline,
-                            self._optional_state_locked(allow_queued=allow_queued),
-                            allow_queued, comparison['start_claim'])
+                            self._pending_optional_state_locked(allow_queued=allow_queued),
+                            allow_queued, (error, comparison, comparison['revision'],
+                                           comparison['owner'], comparison['start_claim']))
                         raise error
-                    if self._primary_probe_admission is not None:raise AdmissionError('primary_or_optional_busy')
                     admission = self._primary_probe_admission = object()
                 allow_queued = (owner_kind in ('automatic_text','automatic_primary_probe')
                     and self._turn is not None and getattr(self._local, 'turn', None) is self._turn)
@@ -1472,6 +1501,7 @@ class NativeExecutionPermit:
                 self._comparison['running'] = False
                 self._comparison['cancelled'].set()
             self._sample_generation = object()
+            self._pending_noncomparison_generation = object()
             if self._turn is None:self._handoff = None
             self._grant_primary_locked()
             if self._cancel is not None:

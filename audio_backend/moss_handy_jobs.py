@@ -261,6 +261,7 @@ class MossJobs:
         self._primary_admission = None
         self._moss_admission = None
         self._history_comparison = None
+        self._history_discovery = None
         self._history_maintenance = None
         self._history_comparison_pending = False
         self._history_compare_after = 0.
@@ -972,7 +973,7 @@ class MossJobs:
 
     def _kick_history_comparison(self):
         # A durable admission/closure marks work, never computes in its caller.
-        self._history_comparison_pending = True
+        with self._lock:self._history_comparison_pending = True
 
     def maintain_history_comparison(self):
         """One task/cache: no reservation is released while bytes remain owned."""
@@ -989,6 +990,15 @@ class MossJobs:
     def _maintain_history_comparison_owned(self):
         # The short manager claim excludes a second cleanup/restart caller.
         # Its lifetime carries no lock through cleanup, census, or thread join.
+        discovery = self._history_discovery
+        if discovery is not None:
+            thread = discovery['thread']
+            if not discovery['completed'].is_set() or thread is not None and thread.is_alive():return False
+            if thread is not None:thread.join(timeout=0)
+            with self._lock:
+                if self._history_discovery is not discovery:return False
+                self._history_discovery = None
+            if discovery['cancelled'].is_set():return True
         record = self._history_comparison
         if record is not None:
             thread = record['thread']
@@ -1022,27 +1032,16 @@ class MossJobs:
         now = time.monotonic()
         if not self._history_comparison_pending and now < self._history_compare_after:return True
         self._history_compare_after = now + 1.
-        fresh = record is None
-        if fresh:
-            record = {'grant':object(),'generation':object(),'cancelled':threading.Event(),
-                'completed':threading.Event(),'thread':None,'driver':None,'snapshot':None,
-                'state':'starting','deadline':now + 300.,'session_id':None,'start_attempted':False,
-                'task_sequence':0,'driver_active':False,'finish_pending':None}
+        if record is None:return self._launch_history_discovery(now)
+        # Cached prefixes retain their existing charged admission/cleanup path.
         try:
             with self._gate():
-                if fresh:
-                    if self._history_comparison is not None:return False
-                    self._history_comparison = record
-                elif self._history_comparison is not record:return False
-                # Publish the exact pending owner before census. Other callers
-                # see an incomplete task, but primary never waits on census.
+                if self._history_comparison is not record or self._history_discovery is not None:return False
                 record.update(completed=threading.Event(),state='sampling',start_attempted=False,
                               generation=object(),admission_start=now,budget_class='unselected',
                               budget_cache_binding=None,deadline=now + 300.)
                 generation = record['generation']
-            if fresh:
-                self.permit.reserve_comparison(record['grant'],record['cancelled'],memory_bytes=192 * 1024**2)
-            elif not self.permit.resume_comparison(record['grant']):
+            if not self.permit.resume_comparison(record['grant']):
                 raise AdmissionError('comparison_pending')
             with self._gate():
                 if (self._history_comparison is not record or record['generation'] is not generation
@@ -1056,19 +1055,102 @@ class MossJobs:
                 record.update(thread=thread,completed=completed,state='starting',
                               start_attempted=True,finish_pending=None,execution_lane=None,reason=None,
                               process_failure_reason=None)
-                thread.start()
                 self._history_comparison_pending = False
+                thread.start()
             return True
         except BaseException:
+            with self._lock:self._history_comparison_pending = True
             if record['start_attempted'] and not record['completed'].is_set():
                 record['cancelled'].set(); record['state'] = 'ownership_unknown';return False
             self.permit.pause_comparison(record['grant'])
             record['state'] = 'pending';record['completed'].set()
-            if fresh:
-                if self.permit.release_comparison(record['grant']):
-                    with self._lock:
-                        if self._history_comparison is record:self._history_comparison = None
             return False
+
+    def _launch_history_discovery(self, now):
+        # One scalar read uses the same original coordinator, token and clock
+        # as any later charged work. No comparison permit exists yet.
+        record = {'grant':object(),'generation':object(),'cancelled':threading.Event(),
+            'completed':threading.Event(),'thread':None,'driver':None,'snapshot':None,
+            'state':'discovering','deadline':now + 300.,'session_id':None,'start_attempted':False,
+            'task_sequence':0,'driver_active':False,'finish_pending':None,
+            'admission_start':now,'budget_class':'unselected','budget_cache_binding':None,
+            'execution_lane':None,'reason':None,'process_failure_reason':None}
+        try:
+            with self._gate():
+                if (self._history_comparison is not None or self._history_discovery is not None
+                        or not self._history_comparison_enabled()):return False
+                self._history_discovery = record
+                thread = self._thread_factory(target=self._run_history_discovery,args=(record,),
+                                              name='recording-history-compare',daemon=True)
+                record.update(thread=thread,start_attempted=True)
+                # Kicks use this same lock. Consume before launch so a kick
+                # during the read/start window cannot be overwritten afterward.
+                self._history_comparison_pending = False
+                thread.start()
+            return True
+        except BaseException:
+            with self._lock:self._history_comparison_pending = True
+            record['cancelled'].set()
+            if record['start_attempted']:
+                # start() can raise after taking ownership. Retain its exact
+                # handle and require completion/death/join before clearing it.
+                record['state'] = 'ownership_unknown'
+            else:
+                record['state'] = 'pending';record['completed'].set()
+            return False
+
+    def _run_history_discovery(self, record):
+        generation = record['generation'];promoted = handed_off = False
+        try:
+            with self._gate():
+                if (self._history_discovery is not record or record['generation'] is not generation
+                        or self._history_comparison is not None or record['cancelled'].is_set()
+                        or not self._history_comparison_enabled()
+                        or time.monotonic() >= record['deadline']):return
+            # The read and positive close are outside manager/permit locks and
+            # consume the original task budget. True remains only a hint.
+            if not self.history.comparison_work_available():
+                record['state'] = 'idle';return
+            with self._gate():
+                if (self._history_discovery is not record or record['generation'] is not generation
+                        or self._history_comparison is not None or record['cancelled'].is_set()
+                        or not self._history_comparison_enabled()
+                        or time.monotonic() >= record['deadline']):return
+                self._history_discovery = None
+                self._history_comparison = record
+                promoted = True;record['state'] = 'sampling'
+            while True:
+                if (record['cancelled'].is_set() or not self._history_comparison_enabled()
+                        or time.monotonic() >= record['deadline']):return
+                try:
+                    self.permit.reserve_comparison(record['grant'],record['cancelled'],memory_bytes=192 * 1024**2)
+                    break
+                except AdmissionError as exc:
+                    if not self.permit.comparison_start_pending(exc,record['grant']):raise
+                    record['state'] = 'start_pending'
+                    record['cancelled'].wait(min(.05,max(0.,record['deadline']-time.monotonic())))
+            # Even cancellation after reserve must bind this original running
+            # thread before cleanup can consider releasing the exact grant.
+            self.permit.bind_comparison_thread(record['grant'],record['thread'],record['completed'])
+            if (record['cancelled'].is_set() or not self._history_comparison_enabled()
+                    or time.monotonic() >= record['deadline']):return
+            record['state'] = 'starting'
+            handed_off = True
+            self._run_history_comparison(record)
+        except BaseException as exc:
+            if handed_off:raise  # Existing cleanup must positively complete.
+            record['state'] = 'pending'
+            record['reason'] = getattr(exc,'reason',None) or 'comparison_discovery_unavailable'
+        finally:
+            # Once handed off, preserve the existing runner's typed failure,
+            # cleanup and positive-completion semantics without a second pass.
+            if not handed_off:
+                if record['cancelled'].is_set():
+                    record['reason'] = record.get('reason') or 'comparison_cancelled'
+                elif time.monotonic() >= record['deadline']:
+                    record['state'] = 'pending';record['reason'] = 'comparison_deadline'
+                if promoted:self.permit.pause_comparison(record['grant'])
+                record['completed'].set()
 
     def _select_history_comparison_budget(self, record, token):
         from .recording_speaker_history_process import COLD_SECONDS, INCREMENTAL_SECONDS, ProcessError
@@ -1365,17 +1447,19 @@ class MossJobs:
     def _stop_history_comparison(self, sid=None):
         try:
             with self._gate():
-                record = self._history_comparison
-                if record is not None:
-                    if sid is not None and record['session_id'] not in (None,sid):return True
-                    record['cancelled'].set()
+                records = tuple(record for record in (self._history_discovery,self._history_comparison)
+                    if record is not None and (sid is None or record['session_id'] in (None,sid)))
+                for record in records:record['cancelled'].set()
                 # Even the pre-publication maintenance window is unresolved.
                 # Stop cannot report success and then let that claim restart.
                 if self._history_maintenance is not None:return False
-                if record is None:return True
+                if not records:return True
                 claim = self._history_maintenance = object()
         except ReadError:return False
-        try:return self._stop_history_comparison_owned(record)
+        try:
+            for record in records:
+                if not self._stop_history_comparison_owned(record):return False
+            return True
         finally:
             with self._lock:
                 if self._history_maintenance is claim:self._history_maintenance = None
@@ -1388,6 +1472,11 @@ class MossJobs:
         thread = record['thread']
         if thread is not None and thread.is_alive():thread.join(timeout=5.)
         if thread is not None and thread.is_alive() or not record['completed'].is_set():return False
+        if thread is not None:thread.join(timeout=0)
+        with self._lock:
+            if self._history_discovery is record:
+                self._history_discovery = None
+                return True
         if record.get('finish_pending') is not None:
             try:self.history.finish_comparison(record['snapshot'],record['finish_pending'])
             except BaseException:return False
@@ -2625,11 +2714,13 @@ class MossJobs:
         return primary_pending or comparison_pending
 
     def close_admission(self):
-        with self._lock:self._closed = True
+        with self._lock:
+            self._closed = True
+            for record in (self._history_discovery,self._history_comparison):
+                if record is not None:record['cancelled'].set()
         self.permit.close_admission()
         if self._live is not None:self._cancel_record(self._live)
         if self._primary_pending is not None:self._primary_pending['cancelled'].set()
-        if self._history_comparison is not None:self._history_comparison['cancelled'].set()
         if self.cell_source is not None:self.cell_source.close_admission()
 
     def stop(self):
