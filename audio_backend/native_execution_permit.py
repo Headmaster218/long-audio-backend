@@ -814,9 +814,9 @@ class NativeExecutionPermit:
 
     def _optional_state_locked(self, *, allow_queued=False, primary_probe_running=False):
         # Keep object references, not reusable numeric ids or caller equality.
-        # Once this primary probe owns its exact reservation, before_input and
-        # running checks ignore caller-turn and queue scheduling hints.
-        # Admission and every other owner/phase retain their full fingerprint.
+        # Once this primary probe owns its exact reservation, its four execution
+        # gates ignore caller-turn and queue scheduling hints.
+        # Reservation admission and every other owner/phase keep their full fingerprint.
         comparison = self._comparison
         identities = (self._sample_generation, self._optional, self._cancel,
             self._cancel_callback, None if primary_probe_running else self._turn,
@@ -879,7 +879,7 @@ class NativeExecutionPermit:
             allow_queued = self._optional_kind in ('automatic_text','automatic_primary_probe')
             primary_probe_running = (self._optional is token
                 and self._optional_kind == 'automatic_primary_probe'
-                and phase in ('before_input', 'running'))
+                and phase in ('before_input', 'before_spawn', 'before_admission', 'running'))
             state = self._optional_state_locked(allow_queued=allow_queued,
                 primary_probe_running=primary_probe_running)
         began = grace_ended = None

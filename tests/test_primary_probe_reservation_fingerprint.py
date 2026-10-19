@@ -214,7 +214,6 @@ def test_each_irrelevant_hint_can_change_without_cancelling_exact_reservation(hi
     ('preemptible', 'running'), ('automatic_text', 'running'),
     ('preemptible', 'before_input'), ('automatic_text', 'before_input'),
     ('automatic_primary_probe', 'reserved'),
-    ('automatic_primary_probe', 'before_spawn'), ('automatic_primary_probe', 'before_admission'),
     ('automatic_primary_probe', 'wait'),
 ])
 def test_other_kinds_and_phases_keep_strict_hint_fingerprint(kind, phase):

@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev57：主探针两个启动边界指纹修复（隔离实验版）
+
+本版只将已持有精确 reservation-token 的 automatic_primary_probe 调度提示排除，扩展至真实继承启动路径的 before_spawn 与 before_admission；原 before_input / running 保持。原 reservation 准入、真实 token / event / callback、generation / comparison、配置、已授予主任务、资源与截止时间检查不变，不新增等待、重试或模型调用。
+
+独立审查的 22 项模型无关候选 gate 通过；其中四项重新认证原 dev56 拒绝并验证候选存活，四项真实 Worker / manager / permit / ProbeOperation / SQLite 集成穿过实际启动与清理路径，只使用等待 stdin 的无害标准库子进程，结果向量仍为合成边界。随后只改两个新测试的输入可移植性，八项受影响检查通过；其余十四项没有在此新测试树重跑，不能相加声称最终发布树全套通过。两轮共六个子进程均由原句柄等待回收；后轮权限拒绝子进程为 -9、零准入字节、清理验证通过，只有外层 supervisor 的 forced_kill=false，未留存独立逐信号日志。
+
+离线 133 文件 source / wheel / fresh-install 一致性、真实当前 SQLite profile、极小 process comparator 与被动 app 检查采用独立 gate；准确状态见[dev57 发布资格报告](reports/PRIMARY_PROBE_START_PHASES_DEV57_QUALIFICATION.json)。README、包和测试源码在构建前冻结；后续只更新该新报告预声明的包结果。所有父版本报告保持原字节。已保存 child_start / child_wait 失败的确切 guard phase / 写入方仍未知，本修复不解释或重分类历史 child_wait，也不扩展诊断字段。没有新实际模型、语料试验、声学身份、长时吞吐或生产部署资格。迁移前停止旧 worker、备份并使用隔离副本。以下历史章节保留原文。
+
 ## 0.2.0rc3.dev56：主探针输入前指纹修复（隔离实验版）
 
 本版只将既有 automatic_primary_probe 的精确 reservation-token 调度提示排除，从 running 扩展至 before_input。已准入且仍持有原 reservation 时，turn、caller turn、handoff 与未授予的 queue-probe 提示变化不再单独取消该尝试。准入、其他 owner / phase、真实权限、generation、comparison、shutdown、资源与原截止时间检查不变；不新增等待、重试、模型调用或历史成功重建。
