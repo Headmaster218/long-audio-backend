@@ -1,0 +1,611 @@
+{
+  "schema": "primary-cache-retirement-dev55-release-qualification-v1",
+  "version": "0.2.0rc3.dev55",
+  "date_utc": "2026-10-19",
+  "status": "experimental_source_qualification_with_separate_package_gate",
+  "release_base": {
+    "tree": "f5dac6d0c330cae166ab559aae49caa0efbafb19",
+    "source_files": 578,
+    "source_bytes": 10488002,
+    "source_manifest_sha256": "1a2504d8851ad6921acce81b28a6807cbb2145fb7f09e00b7e8029489d7c9236",
+    "commit": "685b6e7684f961e144bf2abb250f727a766ed478"
+  },
+  "release_only_overlay": {
+    "paths": [
+      "pyproject.toml",
+      "audio_backend/__init__.py",
+      "README.md",
+      "reports/PRIMARY_CACHE_RETIREMENT_DEV55_QUALIFICATION.json"
+    ],
+    "added_paths": [
+      "reports/PRIMARY_CACHE_RETIREMENT_DEV55_QUALIFICATION.json"
+    ],
+    "source_files": 579,
+    "expected_package_files": 133,
+    "expected_package_bytes": 3152556,
+    "behavior_changes": "Only the two dev54-to-dev55 version literals change in existing metadata/package files; all operational and test code is exact to the qualified base.",
+    "preservation": "All29 existing protected report/status files, including both separate integration/qualification overlays, retain exact bytes and modes. Historical README sections are unchanged.",
+    "README_not_wheel_long_description": true
+  },
+  "primary_only_coordinator": {
+    "unique_qualified_nodes": 48,
+    "qualification": "Separately source-attributed historical coordinator evidence; not rerun by retirement qualification and not combined into a 145-case final-tree claim.",
+    "status_reference": "docs/PRIMARY_ONLY_OBSERVATION_WIP_STATUS.md",
+    "status_sha256": "2cf4e47b731572a60202638798e3d5f145d709eb8c9728e49c53066c1c454477",
+    "scope": "Exact opt-in primary-only startup with native/lexical/history prerequisites, both MOSS flags off and no MOSS model path; defaults remain off."
+  },
+  "retirement_source_qualification": {
+    "unique_qualified_nodes": 93,
+    "attempts": 10,
+    "failed_attempts": 7,
+    "completed_successful_attempts": 3,
+    "selected_attempt_slots": 254,
+    "complete_passed_test_calls_including_repeats": 105,
+    "complete_failed_test_calls": 6,
+    "deadline_attempts_without_pass_credit": 1,
+    "final_tested_implementation_tree": "1676fac0690b0f9ed195d5add4b8c93f68702a6f",
+    "attribution": "Per-node reviewed source-bound union; only the final two cases ran on the final implementation tree. Neither full-suite nor single-final-tree 93-node execution is claimed.",
+    "source_status_reference": "docs/PRIMARY_CACHE_RETIREMENT_QUALIFICATION_STATUS.md",
+    "source_status_sha256": "fd21d3ef41efe8865d14ee021ec51eef1987666f5912021164fe736299e3baec",
+    "evidence_summary_sha256": "1b303ded903a6461f4c6df20633eba6d5bba26ca9a72e7d0d942646b77b557ca",
+    "independent_source_attribution_sha256": "633f0fdad6e614cc31d4720d02f2a0fa15e7562765d8d84ae238cd4377965e76",
+    "retained_attempts": [
+      {
+        "receipt": "gate-a/execution-receipt.json",
+        "receipt_sha256": "b4cd46306aaf7c26cd8aa332b6f3427e4d2d08fbef282d687e020f4c826ad31a",
+        "source_tree": "afd87f9adb015681e0a6aac976ee86514cad8e1f",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 0,
+        "failed_nodes": [
+          "tests/test_primary_cache_retirement.py::test_A1_exact_migration_and_old_usage_reader_refusal"
+        ],
+        "no_terminal_test_reports": false,
+        "work_seconds": 5.666500827999698,
+        "total_seconds": 6.259003885999846,
+        "charged_cpu_seconds": 7.24252
+      },
+      {
+        "receipt": "gate-a-recheck/execution-receipt.json",
+        "receipt_sha256": "102decc68f3090c298e40d774b9b5c673734fce9482dd9bfea51d32958b5c194",
+        "source_tree": "63e688cc9792b82b76b1c638605aade0227f489c",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 1,
+        "failed_nodes": [
+          "tests/test_primary_cache_retirement_pipeline.py::test_A3_production_initial_all_gap_release_then_first_durable_binding"
+        ],
+        "no_terminal_test_reports": false,
+        "work_seconds": 7.21948107299977,
+        "total_seconds": 7.968469498999184,
+        "charged_cpu_seconds": 8.878522999999998
+      },
+      {
+        "receipt": "gate-a-continuation/execution-receipt.json",
+        "receipt_sha256": "d86d72927654d0995d1ac1e73dba404eb88d57682b9d1495fd3626ee370382de",
+        "source_tree": "5c3a64d02fe21eb0d220af715da85ed982a014fa",
+        "status": "completed_controlled_observation",
+        "passed_calls_with_three_successful_stages": 43,
+        "failed_nodes": [],
+        "no_terminal_test_reports": false,
+        "work_seconds": 30.72727573800148,
+        "total_seconds": 31.37470985500113,
+        "charged_cpu_seconds": 30.616205
+      },
+      {
+        "receipt": "gate-b-current/execution-receipt.json",
+        "receipt_sha256": "54ca93c9ee90bafcc0d292003a7db9a110fb4d8449e5f8f8f026a60d82517195",
+        "source_tree": "5c3a64d02fe21eb0d220af715da85ed982a014fa",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 2,
+        "failed_nodes": [
+          "tests/test_primary_cache_retirement.py::test_B4_every_held_primary_state_roots_both_caches_until_drop[provisional]"
+        ],
+        "no_terminal_test_reports": false,
+        "work_seconds": 10.01206985400131,
+        "total_seconds": 10.694812618003198,
+        "charged_cpu_seconds": 11.43865
+      },
+      {
+        "receipt": "gate-b-scope-continuation/execution-receipt.json",
+        "receipt_sha256": "a6f4c3bb28466d6c34b8a9a4ba8308b57b399affc246db30074e347e03935fb1",
+        "source_tree": "ee37160f4acd392416ef268e79ef8f43d0f0e57a",
+        "status": "completed_controlled_observation",
+        "passed_calls_with_three_successful_stages": 34,
+        "failed_nodes": [],
+        "no_terminal_test_reports": false,
+        "work_seconds": 39.148745045000396,
+        "total_seconds": 39.8607063519994,
+        "charged_cpu_seconds": 39.347346
+      },
+      {
+        "receipt": "gate-c-current/execution-receipt.json",
+        "receipt_sha256": "0e185af1fd7afe0d30e6dd4437dec7bb20e0894f7528a953aa273d6a3289c81f",
+        "source_tree": "ee37160f4acd392416ef268e79ef8f43d0f0e57a",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 11,
+        "failed_nodes": [
+          "tests/test_primary_cache_retirement_pipeline.py::test_C2_unknown_rival_certificates_survive_collection_and_reads_abstain"
+        ],
+        "no_terminal_test_reports": false,
+        "work_seconds": 18.317739514001005,
+        "total_seconds": 19.038026268000976,
+        "charged_cpu_seconds": 19.356649
+      },
+      {
+        "receipt": "gate-c-continuation/execution-receipt.json",
+        "receipt_sha256": "4b39b1011c6b9c45dbceee7bce3b1b9b5863f1c412056a04d492c08f883d173c",
+        "source_tree": "c85e72898e0fa18b03f92bb30b14dbc32bdbdb49",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 0,
+        "failed_nodes": [],
+        "no_terminal_test_reports": true,
+        "work_seconds": 131.684159309003,
+        "total_seconds": 132.4453046080016,
+        "charged_cpu_seconds": 50.43338
+      },
+      {
+        "receipt": "gate-c-handoff/execution-receipt.json",
+        "receipt_sha256": "0e3f84ece81aa3ed09fd3a38c5e7f5f3010bdfe4d7740968478fd87cf5957e85",
+        "source_tree": "2ad8bdba4afde9ff117ee1d7451795966e0485d6",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 1,
+        "failed_nodes": [
+          "tests/test_primary_cache_retirement_pipeline.py::test_C3_retired_caches_do_not_turn_revoked_evidence_current[cancellation]"
+        ],
+        "no_terminal_test_reports": false,
+        "work_seconds": 14.01869330900081,
+        "total_seconds": 14.83027968299939,
+        "charged_cpu_seconds": 15.600787
+      },
+      {
+        "receipt": "gate-c-history/execution-receipt.json",
+        "receipt_sha256": "898c3de9640b1fee005e559df14304b1b1108d4aeb7c9738bc239f8f619e4bd3",
+        "source_tree": "eccb7b784178b423fda11f5d712559719dfd54df",
+        "status": "failed",
+        "passed_calls_with_three_successful_stages": 11,
+        "failed_nodes": [
+          "tests/test_native_owned_cell_store.py::StoreFixture::test_late_deletion_after_sidecar_commit_never_returns_durable"
+        ],
+        "no_terminal_test_reports": false,
+        "work_seconds": 20.712120022999443,
+        "total_seconds": 21.503202799001883,
+        "charged_cpu_seconds": 22.079933
+      },
+      {
+        "receipt": "gate-c-legacy-final/execution-receipt.json",
+        "receipt_sha256": "25ec1a2ea70babe21acbc5080068ab54b9a7d17ceac87fbc87a7b8c788be0392",
+        "source_tree": "1676fac0690b0f9ed195d5add4b8c93f68702a6f",
+        "status": "completed_controlled_observation",
+        "passed_calls_with_three_successful_stages": 2,
+        "failed_nodes": [],
+        "no_terminal_test_reports": false,
+        "work_seconds": 2.3876548539992655,
+        "total_seconds": 3.153818939001212,
+        "charged_cpu_seconds": 4.136139
+      }
+    ],
+    "dense_collector_correction": "The historical dense held-root case reached 150100 against 150000 VM steps and failed. Both collectors now reuse the existing list_read_scope connection context, retaining fresh per-read BEGIN/ROLLBACK and all source/epoch/root/budget checks. No historical connection count was measured.",
+    "prospective_dense_metrics": {
+      "collector_operations": 452,
+      "compact_operations": 258,
+      "receipt_operations": 194,
+      "maximum_authority_connections_per_operation": 1,
+      "compact_maxima": {
+        "fresh_snapshots": 64,
+        "total_vm_steps": 88100,
+        "authority_vm_steps": 6000,
+        "projected_bytes": 139753
+      },
+      "receipt_maxima": {
+        "fresh_snapshots": 32,
+        "total_vm_steps": 41400,
+        "authority_vm_steps": 3900,
+        "projected_bytes": 68142
+      },
+      "all_snapshots_balanced_and_connections_closed_once": true,
+      "interpretation": "Prospective synthetic-fixture observations, not a production speedup claim."
+    },
+    "resource_accounting": {
+      "cumulative_work_seconds": 279.89444,
+      "cumulative_total_seconds": 287.128335,
+      "cumulative_cpu_seconds": 209.130132,
+      "peak_sampled_family_rss_bytes": 251404288,
+      "peak_sampled_allocated_bytes": 138567680,
+      "deadline_boundary": "One C14 attempt reached its cooperative work deadline and was TERM-stopped with positive original wait; its bounds_observed excludes work time and is not an all-limits pass. No completed node or pass credit was assigned.",
+      "observations_are_sampled_not_continuous_caps": true
+    }
+  },
+  "retirement_contract": {
+    "activation": "Fresh exclusive primary-only recording, both native_owned_compact_gc_enabled and native_owned_receipt_gc_enabled, complete exact schema and current owner bindings.",
+    "marker": "Immutable primary-cache-retirement-v1; first verified durable page binds the exact CellStore key. Initial all-gap publication can remain unbound until later verified binding.",
+    "accounting": "512 logical bytes per marked recording under unchanged provenance quotas, including zero-packet recordings; at most 64 marked batches /32768 global logical marker bytes.",
+    "optional_refusal": "Known optional marker quota/headroom refusal before initial INSERT preserves primary creation but leaves the recording permanently unmarked. Schema/accounting corruption, baseline failure and uncertain writes remain hard boundaries.",
+    "legacy_and_mixed": "Existing, mixed and unmarked recordings are not adopted; marked ownership prevents later MOSS mixing across restart and supported/direct write paths.",
+    "capacity": {
+      "compact_limit": 2056,
+      "receipt_limit": 4096,
+      "tested_replenishment_waves_per_cap": 4,
+      "minimum_retired_and_replenished_per_test": 16,
+      "cap_test_interpretation": "Bounded synthetic metadata fills each actual cap; real eligible fixture sources refill every freed slot. Cumulative admission exceeds each original cap while occupancy returns to the unchanged cap. Unrelated cold rows remain exact; not an hours-long audio measurement."
+    },
+    "retention": "All actual held primary copies, including cancelled/terminal/unknown-ACK states, root both caches until exact release. Uncertain lock/shape/owner authority defers.",
+    "collector_bounds": "Existing eight-candidate batches and time /150000-step /256 KiB projection ceilings remain. Verified gap-prefix continuity does not grant receipt durability or deletion proof.",
+    "deletion_scope": "Only qualified native_core_commits and CellStore sources cache rows; packets, transcript refs, admitted history receipts/certificates, unknown rivals, source mappings, recording-work receipts and audio are conserved.",
+    "live_vs_durable": "A dropped producer cannot regain live admission from a retained receipt or admitted=True. Genuine held producers keep their roots. Durable HistoryStore begin/page/revalidate/finish uses retained receipt bytes and actual source facts after cache retirement; owner generation fences live authority separately from durable history.",
+    "source_changes": "Cancellation, revision and digest changes invalidate genuine history authority; physical replacement fails receipt validation. Unknown rivals remain conservative.",
+    "migration": "Transactional additive exact-schema migration and genuine predecessor Store startup refusal were tested on populated synthetic data. Stop old workers, back up and use an isolated copy; startup refusal cannot eject an already-running old process."
+  },
+  "package_gate": {
+    "status": "passed",
+    "specification": {
+      "expected_package_files": 133,
+      "expected_package_bytes": 3152556,
+      "required_source_wheel_fresh_install_parity": [
+        "file_names",
+        "bytes",
+        "sha256",
+        "modes"
+      ],
+      "requirement_entries": 12,
+      "requires_python": ">=3.12",
+      "selected_nodes": [
+        "tests/test_native_owned_cell_store.py::AdmissionTests::test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread",
+        "tests/test_native_owned_cell_store.py::AdmissionTests::test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off",
+        "tests/test_recording_speaker_history_process.py::test_real_child_matches_unchanged_direct_oracle_and_cache[3]",
+        "tests/test_primary_only_configuration.py::test_configuration_modes_are_valid_at_construction[primary]",
+        "tests/test_primary_only_configuration.py::test_cli_explicit_primary_flags_agree_with_settings",
+        "tests/test_primary_only_configuration.py::test_primary_http_moss_routes_stay_disabled",
+        "tests/test_primary_only_configuration.py::test_passive_lifecycle_never_constructs_a_coordinator"
+      ],
+      "selection_sha256": "20aa8ad5f4d10dcb6f2530618f7ee884d6a3c48e2fc8fbddbb4b28c81757c01f",
+      "fixture_closure_sha256": "08f19964625e1c4ed444f95ae75669474934f70b367b20ecff33a4e0241cd4e1",
+      "fixture_files": 27,
+      "fixture_logical_bytes": 1075269,
+      "fixture_copy_is_separate_from_wheel_payload": true,
+      "stages": [
+        "offline_wheel_build",
+        "fresh_no_dependency_install",
+        "parity_metadata_genuine_profile_default_passive_app",
+        "seven_exact_installed_pytest_cases"
+      ],
+      "genuine_profile": "Use the unchanged current interpreter/SQLite/filesystem verifier and two genuine-profile admission/restart checks; no profile patch or new registry entry.",
+      "process": "Existing tiny 3-to-4-row isolated comparator checks direct parity and cache reuse with positive original wait; no additional close-ACK or zero-exit assertion.",
+      "app": "Default-off real TestClient health/OpenAPI/docs and normal shutdown. Four existing primary configuration/CLI/HTTP-denial/passive-lifecycle nodes use a simulated owner qualification and synthetic producer seams, separate from the genuine profile checks; selected bodies ingest no audio or start inference.",
+      "envelope": {
+        "work_seconds": 30,
+        "cleanup_reserve_seconds": 10,
+        "total_seconds": 40,
+        "aggregate_cpu_seconds_including_outer_allowance": 25,
+        "sampled_family_RSS_bytes": 402653184,
+        "fresh_package_root_allocated_bytes": 67108864,
+        "per_log_bytes": 8388608,
+        "supervisor_AS_bytes": 67108864,
+        "outer_AS_allowance_bytes": 33554432,
+        "maximum_build_topology_AS_bytes": 905969664,
+        "maximum_pytest_topology_AS_bytes": 1442840576,
+        "maximum_any_stage_topology_AS_bytes": 1442840576,
+        "affinity": {
+          "supervisor_build_install_verify": [
+            3
+          ],
+          "pytest": [
+            3,
+            4
+          ],
+          "comparator_child": [
+            4
+          ]
+        },
+        "nice": 19,
+        "resource_scope": "Sampled family/resource limits are not continuous kernel aggregate caps. No more than the explicit stage-specific descendants. Prior retained evidence is immutable and must be included in the overall allocation baseline separately."
+      },
+      "failure_policy": "Stop at the first failed stage/test, retain raw results and original waits; no automatic retries.",
+      "process_topology": {
+        "wheel": "One parent and at most two authenticated build-backend descendants, each capped at 256 MiB AS.",
+        "install_and_verifier": "No child processes permitted; each stage parent capped at 256 MiB AS.",
+        "pytest": "Parent capped at 1 GiB AS and at most one installed comparator child capped at 256 MiB AS; no other child.",
+        "supervision": "Supervisor 64 MiB AS plus outer 32 MiB allowance; maximum declared topology 1376 MiB AS, sampled family RSS 384 MiB."
+      }
+    },
+    "results": {
+      "executed_source_tree": "1fd0225f41d8b71aae5c87a2ae30be628e1c5640",
+      "executed_source_manifest_sha256": "f4e2b25229030339e96a5129726f7a125c3249a71775c0e55b9033f5908b2bf5",
+      "frozen_controls_sha256": "0b96f6320f1e1d03e63ea800ada18b0a7b195f5ad66b52602dfab82ed47d1674",
+      "wheel_filename": "long_audio_backend-0.2.0rc3.dev55-py3-none-any.whl",
+      "wheel_bytes": 843315,
+      "wheel_sha256": "591c394f82a87a3f732de2d4b6245cb06832749251faeefe0652cdf6f1d31fd7",
+      "metadata_bytes": 792,
+      "metadata_sha256": "caede7ed656d121d18de5ce97316afcce1eb0c8fab842f2f76f089bee6b5ab14",
+      "source_wheel_fresh_install_names_bytes_modes_match": true,
+      "package_files": 133,
+      "package_bytes": 3152556,
+      "version_and_requires_python_match": true,
+      "parsed_requirement_entries_matched": 12,
+      "genuine_current_runtime_verifier_passed": true,
+      "runtime_profile_unchanged": true,
+      "observed_runtime_profile": {
+        "sqlite_source_id": "2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9",
+        "sqlite_version": "3.53.1",
+        "compile_options_sha256": "600e922c0614cd07a1640976eb2e283b43072322af46cbeb0df7a998990095cb",
+        "platform": "linux",
+        "vfs": "unix",
+        "filesystem_device": 27,
+        "sector_bytes_max": 65536,
+        "journal_headers_max": 1,
+        "allocation_slack_bytes_max": 2097152,
+        "evidence_sha256": "6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e",
+        "interpreter_bytes": 30894944,
+        "interpreter_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+        "interpreter_realpath_sha256": "65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b",
+        "sqlite3_package_sha256": "7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1",
+        "sqlite3_binding": "observed-built-in-no-separate-sqlite-mapping-v1",
+        "sqlite3_extension_sha256": null,
+        "sqlite3_library_sha256": null,
+        "sqlite3_library_realpath_sha256": null
+      },
+      "observed_dependency_versions": {
+        "fastapi": "0.143.0",
+        "starlette": "1.7.0",
+        "pydantic": "2.13.5",
+        "pydantic-core": "2.46.5",
+        "anyio": "4.15.1",
+        "psutil": "7.2.2",
+        "httpx": "0.28.1",
+        "pydantic-settings": "2.15.0",
+        "uvicorn": "0.54.0",
+        "python-multipart": "0.0.32",
+        "packaging": "26.3"
+      },
+      "installed_product_module_origins_sha256": "82da404097558a4428d572a1ac3c2f1c0729aa2c8dc418fe7f9963b02ef41487",
+      "installed_fixture_pins_match": true,
+      "pytest_passed": 7,
+      "pytest_failed": 0,
+      "pytest_errors": 0,
+      "pytest_skipped": 0,
+      "pytest_selected_ids_match": true,
+      "default_passive_app_statuses": {
+        "/health": {
+          "status": 200,
+          "bytes": 1437
+        },
+        "/openapi.json": {
+          "status": 200,
+          "bytes": 47260
+        },
+        "/docs": {
+          "status": 200,
+          "bytes": 1031
+        }
+      },
+      "default_passive_worker_started": false,
+      "default_passive_normal_lifespan_closed": true,
+      "primary_configuration_cli_checks_passed": true,
+      "primary_http_denial_checks_passed": true,
+      "passive_no_coordinator_check_passed": true,
+      "comparator_positive_original_wait": true,
+      "comparator_additional_close_ack_or_exit_zero_assertion": false,
+      "stage_returncodes": [
+        {
+          "attempt": "original",
+          "name": "wheel",
+          "returncode": 0
+        },
+        {
+          "attempt": "original",
+          "name": "install",
+          "returncode": 0
+        },
+        {
+          "attempt": "original",
+          "name": "verify",
+          "returncode": -15
+        },
+        {
+          "attempt": "continuation01",
+          "name": "verify",
+          "returncode": 0
+        },
+        {
+          "attempt": "continuation01",
+          "name": "pytest",
+          "returncode": 0
+        }
+      ],
+      "all_original_waits_positive": true,
+      "all_observed_descendants_absent": true,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "all_source_input_prior_evidence_pins_match": true,
+      "stage_specific_topology_verified": true,
+      "models_or_network_or_dependency_downloads": false,
+      "work_seconds": 10.832400228999177,
+      "total_seconds": 12.679501933998836,
+      "aggregate_cpu_seconds_with_outer_allowance": 15.23652,
+      "peak_sampled_family_rss_bytes": 180568064,
+      "peak_sampled_fresh_allocated_bytes": 44539904,
+      "maximum_sample_gap_seconds": 0.9415684239975235,
+      "bounds_observed": true,
+      "execution_receipt_sha256": "d8ce0f41b7017ab006363f698f4c4bc17da8ca8fd9f173206b5c4c9b560eceef",
+      "installed_verification_sha256": "9d2c57ecf54b6ab5aebff99a99d82b83a66037f13b2cc52e61fbb0da15f9c653",
+      "junit_sha256": "49d4bf5411ea14cbf1df83678f94674d29ac3331e30143b1e9ce30cbcf80eabf",
+      "installed_test_origins_sha256": "82da404097558a4428d572a1ac3c2f1c0729aa2c8dc418fe7f9963b02ef41487",
+      "independent_result_review_sha256": "61e27cb63537e24ab2d00177ce624a784ab66a2e363a026d28cac9f0850fe43c",
+      "attempt_count": 2,
+      "retained_attempts": [
+        {
+          "attempt": "original",
+          "status": "failed",
+          "executed_source_tree": "1fd0225f41d8b71aae5c87a2ae30be628e1c5640",
+          "execution_receipt_sha256": "c2e5893cf5599bd54de971ba635818a4af2018784cecbe4441ccc78545860172",
+          "frozen_controls_sha256": "d6bbcb85e00f028eeb66f51e6981a1331edc84ae0775ba35c2ab2d17ea1ec371",
+          "stages": [
+            {
+              "name": "wheel",
+              "returncode": 0,
+              "positive_original_wait": true
+            },
+            {
+              "name": "install",
+              "returncode": 0,
+              "positive_original_wait": true
+            },
+            {
+              "name": "verify",
+              "returncode": -15,
+              "positive_original_wait": true
+            }
+          ],
+          "work_seconds": 3.76063452499875,
+          "total_seconds": 4.572738467999443,
+          "cpu_seconds_including_outer_allowance": 5.5410260000000005,
+          "peak_sampled_family_rss_bytes": 124112896,
+          "peak_sampled_fresh_allocated_bytes": 36126720,
+          "maximum_sample_gap_seconds": 0.8204126540003926,
+          "maximum_complete_allocation_sample_age_seconds": 0.07933962500101188,
+          "incomplete_allocation_samples": 0,
+          "all_original_waits_positive": true,
+          "forced_kill": false,
+          "cleanup_errors": [],
+          "observed_survivors": false,
+          "source_input_prior_evidence_pins_matched": true,
+          "failure": "missing protected census entry",
+          "exact_missing_path_recorded": false,
+          "interpretation": "Wheel build and fresh install exited zero. The supervisor stopped the verifier with TERM and positively waited returncode -15; no completed verifier report or pytest launch, so no verifier/test credit.",
+          "diagnostic_boundary": "Source review found disposable app data under passive-data outside the declared transient roots. The exact vanished path was not recorded; no claim that a particular WAL, journal or other filename vanished.",
+          "independent_failed_attempt_review_sha256": "1b29a2b146db6555ea6ab80294fcc4831002d83d19e1b48990fef7a42a1042f0"
+        },
+        {
+          "attempt": "continuation01",
+          "status": "passed",
+          "executed_source_tree": "1fd0225f41d8b71aae5c87a2ae30be628e1c5640",
+          "execution_receipt_sha256": "d8ce0f41b7017ab006363f698f4c4bc17da8ca8fd9f173206b5c4c9b560eceef",
+          "frozen_controls_sha256": "0b96f6320f1e1d03e63ea800ada18b0a7b195f5ad66b52602dfab82ed47d1674",
+          "stages": [
+            {
+              "name": "verify",
+              "returncode": 0,
+              "positive_original_wait": true
+            },
+            {
+              "name": "pytest",
+              "returncode": 0,
+              "positive_original_wait": true
+            }
+          ],
+          "work_seconds": 7.071765704000427,
+          "total_seconds": 8.106763465999393,
+          "cpu_seconds_including_outer_allowance": 9.695494,
+          "peak_sampled_family_rss_bytes": 180568064,
+          "peak_sampled_fresh_allocated_bytes": 44539904,
+          "maximum_sample_gap_seconds": 0.9415684239975235,
+          "maximum_complete_allocation_sample_age_seconds": 0.08031666399983806,
+          "incomplete_allocation_samples": 0,
+          "all_original_waits_positive": true,
+          "forced_kill": false,
+          "cleanup_errors": [],
+          "observed_survivors": false,
+          "source_input_prior_evidence_pins_matched": true,
+          "interpretation": "A separately reviewed continuation reused the exact original wheel and installed package. Only verifier-owned transient app data moved into the new attempt tmp/passive-data. Verifier and seven selected cases passed; no build/install/test replay occurred.",
+          "original_package_pins_matched": true,
+          "case_phases": {
+            "setup": 7,
+            "call": 7,
+            "teardown": 7
+          },
+          "comparator": {
+            "launches": 1,
+            "positive_original_wait": true,
+            "observed_original_wait_returncodes": [
+              0,
+              0
+            ],
+            "observed_returncode": 0,
+            "additional_close_ack_or_exit_zero_assertion": false,
+            "launch_argv_kwargs_and_installed_sibling_authenticated": true,
+            "installed_module_sha256": "e426ba25c8f0d11917641d111ecef64c274939785723b2401b303290807204cc",
+            "python_threads_at_launch": 1,
+            "os_tasks_at_launch": 1,
+            "AS_cap_from_exec_bytes": 268435456,
+            "affinity_boundary": "The census sampled inherited startup CPUs 3/4. The exact argv requested CPU 4 and the unchanged authenticated READY validation passed; no later CPU 4-only sample is claimed."
+          },
+          "origin_hash_scope": "installed_product_module_origins_sha256 identifies the complete installed-test-origins report containing the product/helper origins, not a separately emitted map.",
+          "dependency_boundary": "Observed installed dependency versions are recorded, without claiming historical runtime-lock equivalence.",
+          "post_gate_freeze_boundary": "README retains pre-build pending wording. Only the 55 predeclared report status/result leaves are eligible for this update after independent terminal review."
+        }
+      ]
+    }
+  },
+  "post_package_result_update_contract": {
+    "rule": "Only after a separately reviewed terminal package result may the following predeclared leaves change. No source attribution, old evidence, release specification, README, package/test/build byte or historical report is changed. Further fields or a retry require a revised approval.",
+    "allowed_json_pointers": [
+      "/package_gate/status",
+      "/package_gate/results/executed_source_tree",
+      "/package_gate/results/executed_source_manifest_sha256",
+      "/package_gate/results/frozen_controls_sha256",
+      "/package_gate/results/wheel_filename",
+      "/package_gate/results/wheel_bytes",
+      "/package_gate/results/wheel_sha256",
+      "/package_gate/results/metadata_bytes",
+      "/package_gate/results/metadata_sha256",
+      "/package_gate/results/source_wheel_fresh_install_names_bytes_modes_match",
+      "/package_gate/results/package_files",
+      "/package_gate/results/package_bytes",
+      "/package_gate/results/version_and_requires_python_match",
+      "/package_gate/results/parsed_requirement_entries_matched",
+      "/package_gate/results/genuine_current_runtime_verifier_passed",
+      "/package_gate/results/runtime_profile_unchanged",
+      "/package_gate/results/observed_runtime_profile",
+      "/package_gate/results/observed_dependency_versions",
+      "/package_gate/results/installed_product_module_origins_sha256",
+      "/package_gate/results/installed_fixture_pins_match",
+      "/package_gate/results/pytest_passed",
+      "/package_gate/results/pytest_failed",
+      "/package_gate/results/pytest_errors",
+      "/package_gate/results/pytest_skipped",
+      "/package_gate/results/pytest_selected_ids_match",
+      "/package_gate/results/default_passive_app_statuses",
+      "/package_gate/results/default_passive_worker_started",
+      "/package_gate/results/default_passive_normal_lifespan_closed",
+      "/package_gate/results/primary_configuration_cli_checks_passed",
+      "/package_gate/results/primary_http_denial_checks_passed",
+      "/package_gate/results/passive_no_coordinator_check_passed",
+      "/package_gate/results/comparator_positive_original_wait",
+      "/package_gate/results/comparator_additional_close_ack_or_exit_zero_assertion",
+      "/package_gate/results/stage_returncodes",
+      "/package_gate/results/all_original_waits_positive",
+      "/package_gate/results/all_observed_descendants_absent",
+      "/package_gate/results/forced_kill",
+      "/package_gate/results/cleanup_errors",
+      "/package_gate/results/all_source_input_prior_evidence_pins_match",
+      "/package_gate/results/stage_specific_topology_verified",
+      "/package_gate/results/models_or_network_or_dependency_downloads",
+      "/package_gate/results/work_seconds",
+      "/package_gate/results/total_seconds",
+      "/package_gate/results/aggregate_cpu_seconds_with_outer_allowance",
+      "/package_gate/results/peak_sampled_family_rss_bytes",
+      "/package_gate/results/peak_sampled_fresh_allocated_bytes",
+      "/package_gate/results/maximum_sample_gap_seconds",
+      "/package_gate/results/bounds_observed",
+      "/package_gate/results/execution_receipt_sha256",
+      "/package_gate/results/installed_verification_sha256",
+      "/package_gate/results/junit_sha256",
+      "/package_gate/results/installed_test_origins_sha256",
+      "/package_gate/results/independent_result_review_sha256",
+      "/package_gate/results/attempt_count",
+      "/package_gate/results/retained_attempts"
+    ],
+    "package_status_values": [
+      "pending_not_executed",
+      "passed",
+      "failed"
+    ],
+    "result_interpretation": "Fill results only from retained frozen-source receipts and independent review, preserve failures in retained_attempts, and distinguish sampled observations from continuous guarantees."
+  },
+  "limits": [
+    "All source qualification remains separately attributed. Packaging does not transfer 93 retirement or 48 coordinator cases into a final-version full-suite pass.",
+    "Seven installed nodes and a passive verifier do not rerun actual-cap rollover, predecessor-reader child, all fault/crash cases, full allocation proof or the independent audio retirement protocol.",
+    "Original-audio/derived-PCM, page, provenance and history quotas remain and may bind before these cache mechanisms. Legacy or unqualified saturation still refuses optional evidence conservatively.",
+    "No new model/audio-corpus inference, acoustic identity accuracy, dense production throughput, sustained 12-to-48-hour behavior, arbitrary runtime/filesystem qualification or deployment readiness is established.",
+    "Prior actual-trial failures and identity-inconclusive outcomes, historical close_ack_unconfirmed/exit 1 outcomes and previous package failures remain unchanged; none is reclassified by this release.",
+    "No dependency, model, threshold, profile registry, default setting or identity-policy change is made by this four-path release overlay."
+  ]
+}
