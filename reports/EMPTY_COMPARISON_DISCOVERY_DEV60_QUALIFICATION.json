@@ -1,0 +1,481 @@
+{
+  "schema": "empty-comparison-discovery-dev60-qualification-v1",
+  "version": "0.2.0rc3.dev60",
+  "date_utc": "2026-10-19",
+  "status": "experimental_exact_source_qualification_with_separate_package_gate",
+  "release_base": {
+    "commit": "009c46908e8ffab53e48b12587caf1f33ced7331",
+    "tree": "4693893d4e7eebe7bf4e85adfe5cd829ed087c32",
+    "source_files": 599,
+    "source_bytes": 10821134
+  },
+  "release_delta": {
+    "paths": [
+      "README.md",
+      "audio_backend/__init__.py",
+      "pyproject.toml",
+      "reports/EMPTY_COMPARISON_DISCOVERY_DEV60_QUALIFICATION.json",
+      "tests/test_automatic_discovery_integration.py",
+      "tests/test_empty_comparison_availability_candidate.py",
+      "tests/test_empty_comparison_discovery_candidate.py",
+      "tests/test_empty_comparison_pending_candidate.py",
+      "tests/test_primary_only_pipeline.py"
+    ],
+    "added_paths": [
+      "reports/EMPTY_COMPARISON_DISCOVERY_DEV60_QUALIFICATION.json",
+      "tests/test_empty_comparison_availability_candidate.py",
+      "tests/test_empty_comparison_discovery_candidate.py",
+      "tests/test_empty_comparison_pending_candidate.py",
+      "tests/test_automatic_discovery_integration.py"
+    ],
+    "deleted_paths": [],
+    "expected_source_files": 604,
+    "expected_package_files": 133,
+    "production_logic_changes_over_WIP": false,
+    "preserved_WIP_product_pins": {
+      "audio_backend/native_execution_permit.py": {
+        "mode": 420,
+        "bytes": 89709,
+        "sha256": "2d821d8e20c526ea609e61d77e638dde1d937748f517ec4bf696d826f54d0530",
+        "blob": "d4111eb2272c6cd07ea76f6e3d6a70f1c55e2e50"
+      },
+      "audio_backend/moss_handy_jobs.py": {
+        "mode": 420,
+        "bytes": 164341,
+        "sha256": "bd0818ff1e52539acd791cfaeefa2622668f7a92a2a1a7e981d29700058fc3ba",
+        "blob": "4a8d306e26d7b5cf3e4118828118b1303448820e"
+      },
+      "audio_backend/recording_speaker_history.py": {
+        "mode": 420,
+        "bytes": 109522,
+        "sha256": "308eb539c1d797eddaedc510b1f8aa39df4258119a6333ab1982097d8dde9580",
+        "blob": "090f97f9f2a03b934d98fc4dde67e69fb212207d"
+      }
+    },
+    "version_only_paths": [
+      "audio_backend/__init__.py",
+      "pyproject.toml"
+    ],
+    "all_172_parent_docs_reports_preserved": true,
+    "historical_README_suffix_unchanged": true,
+    "historical_WIP_status_is_a_preserved_source_only_snapshot": true
+  },
+  "focused_85_case_evidence": {
+    "status": "passed_independently_accepted",
+    "source_tree": "ba9960d3300f44ffe437a70fc74bab69860ad917",
+    "source_files": 602,
+    "new_cases": 80,
+    "unchanged_controls": 5,
+    "junit_tests": 85,
+    "junit_failures": 0,
+    "junit_errors": 0,
+    "setup_call_teardown_reports": 255,
+    "original_pytest_exit": 0,
+    "original_outer_exit": 0,
+    "source_manifest": {
+      "bytes": 142195,
+      "sha256": "cf21f2556f3310a2cf8963d066c10245eea7d57c2c3d7faca82b34ada2c2e94a"
+    },
+    "independent_terminal_review": {
+      "bytes": 7316,
+      "sha256": "15f987b7a2a0978d765f92433813fc3483060d87a5e315b86566e48004a31da5"
+    },
+    "evidence": {
+      "selected-nodes.json": {
+        "bytes": 18368,
+        "sha256": "33ddb6af231de8e8c04a38d7bf36a23a7c2b30627661073af80732fa1042de79"
+      },
+      "gate-output/junit.xml": {
+        "bytes": 18849,
+        "sha256": "9e94fcf9fb961de54a7fd098e766a2ff88dd287f077008d0e69e543293c21955"
+      },
+      "gate-output/test-origins.json": {
+        "bytes": 140950,
+        "sha256": "18f665b72c9b5d71937fbfc254ab3c0d13adf627dc620784514f2e2d36249114"
+      },
+      "gate-output/execution-receipt.json": {
+        "bytes": 42070,
+        "sha256": "4342df3a8c6b6328a08de440a194c1b34c03e667de27e33c47f7b8df6c3f773b"
+      },
+      "terminal-handoff.json": {
+        "bytes": 3758,
+        "sha256": "27df06ca81f52337a192d9857628196b3f7911a0ddb8c08c59e09f45fb3639ef"
+      }
+    },
+    "scope": "Finite synthetic coordination, Worker, permit and isolated SQLite assertions on their exact earlier 602-file source. No full Automatic path, OS comparator, model/audio or installation qualification in this batch.",
+    "all_85_rerun_on_dev60_source": false
+  },
+  "separate_automatic_integration_evidence": {
+    "status": "three_scoped_functional_cases_accepted_with_failed_terminal_recorder",
+    "source_tree": "6d17b93fdcd48d0ea1d1eceff98c18bd4bb79850",
+    "source_files": 603,
+    "junit_tests": 3,
+    "junit_failures": 0,
+    "junit_errors": 0,
+    "junit_skipped": 0,
+    "raw_gate_status": "failed",
+    "raw_gate_exit_code": 1,
+    "raw_pytest_exit_code": 1,
+    "retry_performed": false,
+    "outcomes": [
+      {
+        "node": "test_auto_discovery_pending_preserves_attempt_once[success]",
+        "seconds": 6.156,
+        "empty_discovery_cycles": 2,
+        "real_coordinator_threads": 1,
+        "same_attempt_retried": true,
+        "pending_census_delta": 0,
+        "original_work_seconds": 10.0,
+        "begin_none_count": 1,
+        "probe_driver_starts": 1,
+        "append_calls": 1,
+        "counts": {
+          "observations": 2,
+          "attempts": 2,
+          "vectors": 1,
+          "pending": 0,
+          "candidate_missing": 1
+        }
+      },
+      {
+        "node": "test_auto_discovery_pending_preserves_attempt_once[source_revoked]",
+        "seconds": 5.96,
+        "empty_discovery_cycles": 2,
+        "real_coordinator_threads": 1,
+        "same_attempt_retried": true,
+        "pending_census_delta": 0,
+        "original_work_seconds": 10.0,
+        "begin_none_count": 1,
+        "probe_driver_starts": 0,
+        "append_calls": 0,
+        "counts": {
+          "observations": 2,
+          "attempts": 2,
+          "vectors": 0,
+          "pending": 0,
+          "candidate_missing": 2
+        }
+      },
+      {
+        "node": "test_primary_unknown_commit_ack_never_dispatches",
+        "seconds": 1.567,
+        "control_body_unchanged": true,
+        "shared_fixture_adaptation_explicit": true
+      }
+    ],
+    "completed_assertion_scope": [
+      "Real Worker handoff, Automatic.step and submit_primary reached authenticated resource-free pending admission with exact attempt/crop/reservation/node/invocation/event/binding continuity.",
+      "Original discovery thread, grant and deadline survived promotion; real comparison begin found the reserved rival and returned None; original coordinator was positively joined before exact grant release.",
+      "The normal one-second retry floor stayed within the unchanged original ten-second work deadline. Success invoked one real ProbeOperation with one synthetic driver and one durable append; source revocation refused before any probe driver and terminalized the reserved attempt.",
+      "Each test's finally and app context completed their targeted coordinator/native-owner/worker cleanup assertions. Comparator-construction tripwires remained clear.",
+      "Registered pytest_runtest_call wrapper completed after each test: SQL_LIVE was empty, memory_opens equalled 2, and opens equalled positive_closes. A wrapper failure would have made that call fail; intact JUnit records no failure/error. Thus the per-case assertions and enforced admission caps are retained evidence even though their detailed counter arrays were never exported."
+    ],
+    "source_manifest": {
+      "bytes": 142398,
+      "sha256": "389b37652ee6e47c0a55d92842f006f62c19f3bbe1650bc03cd61ddfa399f365"
+    },
+    "independent_terminal_review": {
+      "bytes": 9624,
+      "sha256": "9b378310afe3d0294c5bcbf22c8a97febd584548d77e7d4e4bf41e19ad5eed9c"
+    },
+    "terminal_handoff": {
+      "bytes": 6978,
+      "sha256": "74cec3d4dc73d39290cc0dbc1088714d191ec57e1fd86cab2b867d99eeb1b223"
+    },
+    "retained_module_pin_supplement": {
+      "bytes": 33091,
+      "sha256": "da931618ec34312f3817c0b6496175ed41f69223e31d9e0170dd08284e97ec37"
+    },
+    "origin_failure": {
+      "phase": "pytest_sessionfinish",
+      "exception": "AssertionError: unpinned_module opentelemetry.context.context",
+      "cause": "A preexisting dependency was omitted from the narrowed current input manifest.",
+      "verified_prior_dependency": {
+        "package": "opentelemetry-api",
+        "version": "1.45.1",
+        "selected_files": 49,
+        "selected_bytes": 196642,
+        "all_prior_and_current_hashes_sizes_modes_match": true
+      },
+      "missing_and_not_reconstructed": [
+        "Complete observed module list",
+        "Exact SQLite per-case peak/open/close event arrays",
+        "Exported session-wide original_test_threads_joined result",
+        "Complete raw per-phase report array"
+      ],
+      "not_completed": [
+        "The remaining observed-module origin loop",
+        "The complete required_module_origins equality loop",
+        "Runtime dependency-version comparison",
+        "The session-wide surviving-thread-set check",
+        "Writing test-origins.json"
+      ],
+      "scope": "The supplement resolves this particular provenance omission only. It is not a complete observed-origin record, proof of no further omissions, or a gate-pass reclassification."
+    },
+    "per_case_SQL_close_assertions_retained": true,
+    "full_runtime_origin_and_exact_SQL_event_exports_available": false,
+    "session_wide_thread_set_check_completed": false,
+    "identity_publication_success_claimed": false
+  },
+  "synthetic_success_boundary": {
+    "same_attempt_crop_reservation_and_original_deadline_preserved": true,
+    "successful_synthetic_append_vectors": 1,
+    "revoked_source_probe_driver_starts": 0,
+    "revoked_source_vectors": 0,
+    "first_unknown_rival_preserved": true,
+    "model_stub_only": true,
+    "identity_publication_or_acoustic_success_claimed": false
+  },
+  "source_evidence_boundary": "The 85-case passed focused gate and three scoped JUnit integration outcomes are separate exact-source observations. The integration gate remains failed. This is not 88 final-source passes or a full-suite pass.",
+  "historical_fixture_exclusions": [
+    {
+      "path": "tests/test_primary_probe_reservation_fingerprint.py",
+      "node": "test_before_input_dispatch_keeps_comparison_generation_failure",
+      "reason": "Late comparison reserve/bind during held primary is intentionally disallowed. The current candidate uses a permitted positively closed comparison release to retain genuine generation refusal; do not alter historical fixture or claim it passes unchanged."
+    },
+    {
+      "path": "tests/test_primary_probe_start_phase_integration.py",
+      "node": "test_real_worker_start_boundary[before_admission-comparison_owner_bind]",
+      "reason": "Historical late-owner-bind setup is now forbidden. No claim-only fixture repair. Other bodies are retained, but none are included in this package gate."
+    },
+    {
+      "path": "tests/test_redundant_comparison_pause_candidate.py",
+      "node": "Historical paired baseline/candidate module fixture",
+      "reason": "It authenticates exact dev58 and reconstructs dev57 by removing only the pause guard. Preserve its pinned hashes and historical evidence; the new product cannot claim this reconstruction or broad-suite compatibility."
+    }
+  ],
+  "historical_limits": [
+    "All previous qualification reports, actual trial reports and WIP status documents remain exact immutable parent bytes.",
+    "No historical cause or competing-caller attribution, actual-run improvement, model/audio/reference evaluation, identity-publication success, acoustic quality, long-term throughput or production deployment claim.",
+    "The accepted shared helper adaptation does not qualify every other test that imports it; broad-suite compatibility remains unclaimed.",
+    "No new dependency, behavior, default, threshold, model, schema, inference or network changes. Existing pinned OpenTelemetry closure is included prospectively in this package input manifest."
+  ],
+  "package_gate": {
+    "status": "passed_independently_accepted",
+    "results": {
+      "tested_source_tree": "4a3bb0cabb7e884dce74bce45b9ced0d93b9557e",
+      "source_files": 604,
+      "source_bytes": 10911575,
+      "version": "0.2.0rc3.dev60",
+      "package_files": 133,
+      "package_bytes": 3177198,
+      "source_wheel_fresh_install_bytes_modes_match": true,
+      "wheel": {
+        "filename": "long_audio_backend-0.2.0rc3.dev60-py3-none-any.whl",
+        "bytes": 847310,
+        "sha256": "e551d0f85097eb9c78f449b56dd6174b1833dbe40ac3b0b634c84b789d1029f1",
+        "mode": 420
+      },
+      "metadata": {
+        "bytes": 792,
+        "sha256": "49766cc7dc19113136ffd97448fd753810ac89f4cc75dc611c134366b445b2cf"
+      },
+      "parsed_requirement_multiplicity_checks": 12,
+      "genuine_current_runtime_profile_passed": true,
+      "runtime_profile_changed": false,
+      "runtime_profile_identity": {
+        "runtime_fingerprints": {
+          "interpreter_bytes": 30894944,
+          "interpreter_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+          "interpreter_realpath_sha256": "65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b",
+          "sqlite3_package_sha256": "7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1",
+          "sqlite3_binding": "observed-built-in-no-separate-sqlite-mapping-v1",
+          "sqlite3_extension_sha256": null,
+          "sqlite3_library_sha256": null,
+          "sqlite3_library_realpath_sha256": null
+        }
+      },
+      "passive_app": {
+        "statuses": {
+          "/health": {
+            "status": 200,
+            "bytes": 1437
+          },
+          "/openapi.json": {
+            "status": 200,
+            "bytes": 47260
+          },
+          "/docs": {
+            "status": 200,
+            "bytes": 1031
+          }
+        },
+        "worker_started": false,
+        "normal_lifespan_closed": true,
+        "model_directory_absent": true
+      },
+      "separate_installed_test_evidence": {
+        "passed": 7,
+        "setup_call_teardown_reports": 21,
+        "original_pytest_exit": 0,
+        "fixture_files": 27,
+        "fixture_bytes": 1075875,
+        "same_27_helper_membership": true,
+        "seven_selected_test_bodies_and_assertions_unchanged": true,
+        "helper_delta": "The accepted 316-byte discovery cleanup and manual/real thread adaptation in test_primary_only_pipeline.py is pinned. Other 26 helper files are unchanged."
+      },
+      "observed_origin_scope": {
+        "installed_product_module_count_passive_verifier": 55,
+        "installed_product_module_count_pytest": 67,
+        "installed_test_helper_module_count_pytest": 24,
+        "all_product_and_test_origins_under_fresh_install_and_pins_checked": true,
+        "complete_external_runtime_import_census_claimed": false,
+        "prospective_existing_OpenTelemetry_pins": 49,
+        "new_dependency_installed": false
+      },
+      "original_process_waits": {
+        "outer_exit": 0,
+        "all_four_stage_exit_codes": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "all_four_positive_original_waits": true,
+        "comparator_count": 1,
+        "comparator_original_wait_exit": 0,
+        "comparator_positive_original_wait": true,
+        "observed_descendants_absent": true
+      },
+      "comparator_affinity_evidence": {
+        "saved_startup_sample": [
+          3,
+          4
+        ],
+        "source_and_authenticated_ready_protocol_requires_CPU4_before_work": true,
+        "separate_sampled_CPU4_observation_claimed": false,
+        "explanation": "Saved process observation captures inherited startup affinity {3,4}. Unchanged source and authenticated ready exchange require CPU4 before comparator work; no separate sampled CPU4 event is asserted."
+      },
+      "comparator_scope": "One tiny installed existing oracle case only; no stronger clean-ACK or real-Popen cancellation-race qualification.",
+      "measured": {
+        "work_seconds": 9.292091451992746,
+        "total_seconds": 10.447277162995306,
+        "aggregate_accounted_cpu_seconds": 11.153654,
+        "aggregate_cpu_with_timeout_allowance_seconds": 12.153654,
+        "peak_sampled_combined_rss_bytes": 184553472,
+        "peak_sampled_fresh_allocated_bytes": 43872256,
+        "maximum_sample_gap_seconds": 1.1763370309927268,
+        "complete_allocation_samples": 130,
+        "maximum_complete_allocation_sample_age_seconds": 0.08265836798818782,
+        "bounds_observed": true
+      },
+      "allocation_observations": {
+        "single_complete_retry_events": 3,
+        "incomplete_after_retry": 0,
+        "meaning": "Only existing authorized disposable-allocation census retries; not tests or protected evidence."
+      },
+      "measurement_caveat": "Sampled RSS/topology/allocation are not continuous kernel aggregate maxima. Maximum sample gap includes initial preflight; complete-allocation sample age is separate. CPU includes the one-second outer allowance.",
+      "final_package_root_allocated_bytes": 44208128,
+      "sampled_peak_package_root_allocated_bytes": 43872256,
+      "final_pin_checks": {
+        "frozen-controls.json": 23,
+        "gate-input-manifest.json": 6129,
+        "prior-evidence-pins.json": 8740,
+        "release-source-manifest.json": 604,
+        "source_inputs_prior_and_inventory_verified": true
+      },
+      "warnings": [
+        "One existing Starlette/httpx TestClient deprecation warning; no dependency changes."
+      ],
+      "independent_source_argv_review": {
+        "bytes": 29697,
+        "sha256": "3f159bd905ed1d03d3c74fd2baeb613e3d4da37adb8736ed2a1792abb5208fb1"
+      },
+      "independent_terminal_review": {
+        "bytes": 30060,
+        "sha256": "4488c16bee2a248bec1a1d495b5a02b431501674954a8ad8e61c5e083a51c06e"
+      },
+      "evidence": {
+        "release-source-manifest.json": {
+          "bytes": 142932,
+          "sha256": "dc8064882170f9eeaf6b01399e33b60c9c9b24bbb84c0c8c2b68c70158fd2b4a"
+        },
+        "execution-receipt.json": {
+          "bytes": 12118,
+          "sha256": "871da264ab7313b18637259546159d8d85bfa610e2b319bf1203a9fe398719d9"
+        },
+        "outer-process-receipt.json": {
+          "bytes": 1628,
+          "sha256": "334b8d33a5a3dfaf704c4de6db79e8f3278ccd3f7406e74b3b2da5c12df4e3b1"
+        },
+        "terminal-handoff.json": {
+          "bytes": 9042,
+          "sha256": "e2ddb5d65453658df49e2880773b213c994f01510c8077977d60a89b0bf99403"
+        },
+        "terminal-artifact-manifest.json": {
+          "bytes": 299359,
+          "sha256": "6becbe920bfccc55f365d65e77b3ecbfadc1280e3653f0a76e7af300ef12adff"
+        },
+        "installed-verification.json": {
+          "bytes": 10880,
+          "sha256": "b885cfc1986b6308c74ec5bbcd8d925e39c19f1fc4ffda159d5ae13b9cfd6753"
+        },
+        "installed-test-origins.json": {
+          "bytes": 20042,
+          "sha256": "9d8d0d68a66d289d6211e7cea2c9d704f1e551c136ae770f2df53e0420173db3"
+        },
+        "junit.xml": {
+          "bytes": 1240,
+          "sha256": "ebcbc2628f2333b6a15813229e5451529d473bfa0d58af9246ab7af8ef7a4a22"
+        }
+      },
+      "scope": "This separate four-stage gate adds seven installed results only. Earlier focused 85-case pass and three scoped integration JUnit outcomes remain distinct exact-source evidence; the integration raw recorder/gate exit1 and missing full origin/SQL-event exports are preserved. No 88-case final-source pass, full-suite, model/audio, actual-run improvement, acoustic quality, identity-publication or historical-cause claim."
+    },
+    "planned_stages": [
+      "offline no-dependency wheel build",
+      "fresh no-dependency install",
+      "133-file source/wheel/install byte and mode parity, genuine current SQLite profile, passive app",
+      "seven unchanged installed safety test bodies including one bounded existing comparator process"
+    ],
+    "selected_nodes": [
+      "tests/test_native_owned_cell_store.py::AdmissionTests::test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread",
+      "tests/test_native_owned_cell_store.py::AdmissionTests::test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off",
+      "tests/test_recording_speaker_history_process.py::test_real_child_matches_unchanged_direct_oracle_and_cache[3]",
+      "tests/test_primary_only_configuration.py::test_configuration_modes_are_valid_at_construction[primary]",
+      "tests/test_primary_only_configuration.py::test_cli_explicit_primary_flags_agree_with_settings",
+      "tests/test_primary_only_configuration.py::test_primary_http_moss_routes_stay_disabled",
+      "tests/test_primary_only_configuration.py::test_passive_lifecycle_never_constructs_a_coordinator"
+    ],
+    "envelope": {
+      "work_seconds": 30,
+      "cleanup_reserve_seconds": 10,
+      "total_seconds": 40,
+      "aggregate_cpu_seconds_including_outer_allowance": 25,
+      "sampled_family_RSS_bytes": 402653184,
+      "fresh_package_root_allocated_bytes": 67108864,
+      "per_log_bytes": 8388608,
+      "supervisor_AS_bytes": 134217728,
+      "outer_AS_allowance_bytes": 33554432,
+      "maximum_build_topology_AS_bytes": 973078528,
+      "maximum_pytest_topology_AS_bytes": 1509949440,
+      "maximum_any_stage_topology_AS_bytes": 1509949440,
+      "affinity": {
+        "supervisor_build_install_verify": [
+          3
+        ],
+        "pytest": [
+          3,
+          4
+        ],
+        "comparator_child": [
+          4
+        ]
+      },
+      "nice": 19,
+      "resource_scope": "Sampled family/resource limits are not continuous kernel aggregate caps. No more than the explicit stage-specific descendants. Prior retained evidence is immutable and must be included in the overall allocation baseline separately.",
+      "AS_interpretation": "No process exceeds1GiB AS. Explicit maximum topology reservation is1440MiB; sampled aggregate RSS remains384MiB. Supervisor128MiB provides margin for JSON pin maps and complete filesystem inventories."
+    },
+    "fixture_scope": {
+      "same_27_helper_membership": true,
+      "accepted_shared_fixture_path": "tests/test_primary_only_pipeline.py",
+      "shared_fixture_delta_bytes": 316,
+      "seven_selected_test_bodies_and_assertions_unchanged": true
+    },
+    "postbuild_only_mutable_leaves": [
+      "package_gate.status",
+      "package_gate.results"
+    ],
+    "README_product_and_tests_frozen": true
+  },
+  "release_caution": "Stop old workers, back up, and use an isolated copy before migration. No model files, private paths, credentials or raw runtime payloads are part of this report."
+}

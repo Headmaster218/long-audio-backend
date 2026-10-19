@@ -141,9 +141,13 @@ def primary_app_factory(tmp_path, monkeypatch):
                 assert not getattr(h,'forbidden_calls',[])
             finally:
                 if jobs is not None:
-                    for item in (jobs._primary_pending,jobs._history_comparison):
+                    for item in (jobs._primary_pending,jobs._history_discovery,jobs._history_comparison):
                         if item and item['thread'] and item['thread'].is_alive():
-                            item['cancelled'].set();item['thread'].run()
+                            item['cancelled'].set()
+                            if isinstance(item['thread'],ManualThread):item['thread'].run()
+                            else:
+                                item['thread'].join(timeout=5.)
+                                assert not item['thread'].is_alive()
                     for probe in h.probes:probe.cleanup_ok=True
                     jobs._stop_primary();jobs._stop_history_comparison()
         assert not worker.thread.is_alive() and all(native.closed for native in h.natives)
@@ -183,8 +187,8 @@ def _handoff(h, *, compare=True):
     if compare:
         # Production maintenance is reached by the handoff before/after the
         # turn. It may have queued a comparison before the fake probe returned.
-        task=h.jobs._history_comparison
-        if task and task['thread'] and task['thread'].is_alive():task['thread'].run()
+        task=h.jobs._history_discovery or h.jobs._history_comparison
+        if task and isinstance(task['thread'],ManualThread) and task['thread'].is_alive():task['thread'].run()
 
 
 def _idle_until(h, predicate, *, seconds=7., compare=True):
