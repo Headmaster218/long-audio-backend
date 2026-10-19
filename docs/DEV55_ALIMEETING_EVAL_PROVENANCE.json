@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "checkpoint_date": "2026-10-19",
+  "corpus": "AliMeeting",
+  "split": "Eval",
+  "condition": "far-field",
+  "language": "Mandarin Chinese",
+  "purpose": "New Mandarin/overlap evaluation input; acquisition and exact channel preparation only",
+  "exposure": "The meeting identifier and source/mono assets are now exposed to this evaluation workflow; reference text was not interpreted",
+  "official_sources": {
+    "catalog": "https://www.openslr.org/119/",
+    "metadata": "https://www.openslr.org/resources/119/info.txt",
+    "archive": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Eval_Ali.tar.gz",
+    "owner_data_preparation": "https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/alimeeting_data_prep.sh",
+    "owner_reference_matching": "https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/alimeeting_process_overlap_force.py"
+  },
+  "license": {
+    "dataset": "CC BY-SA 4.0, as declared by OpenSLR 119",
+    "terms": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "code_license_qualification": "The owner repository's Apache-2.0 code license does not replace the dataset license",
+    "checkpoint_payload": "Metadata and a qualification report only; no corpus audio, labels or transcript content"
+  },
+  "archive": {
+    "name": "Eval_Ali.tar.gz",
+    "http_status": 200,
+    "bytes": 3673718355,
+    "sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+    "declared_content_length_matched": true,
+    "complete_streaming_scans": 2,
+    "emitted_tar_bytes_per_scan": 5385922560,
+    "tar_members_including_directories": 73,
+    "gzip_crc_single_stream_and_complete_eof": "passed on both scans",
+    "strict_tar_structure_and_safe_member_checks": "passed on both scans",
+    "official_digest_qualification": "No official digest was found. These fresh hashes establish the acquired bytes, not historical corpus equality or independent authenticity."
+  },
+  "selection": {
+    "rule_frozen_before_transfer": "First bytewise-sorted structurally complete meeting key with exactly one matching TextGrid; first bytewise source member if multiple sources share that key",
+    "owner_documented_reference_key": "First two underscore-separated WAV-stem components; exact match to TextGrid stem",
+    "meeting_key": "R8001_M8004",
+    "source_archive_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8001_M8004_MS801.wav",
+    "reference_archive_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8001_M8004.TextGrid",
+    "eligible_source_members_for_selected_key": 1,
+    "missing_file_exclusions": [],
+    "selection_used_audio_or_reference_content": false,
+    "replacement_meeting_selected_after_format_stop": false
+  },
+  "source_audio": {
+    "file_bytes": 402905680,
+    "file_sha256": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1",
+    "pcm_bytes": 402905600,
+    "pcm_sha256": "3db69a940b7808bda45d7eba87e6a6ac673e2e302ab5cc6ddc947ee3f28f768a",
+    "container": "RIFF/WAVE_FORMAT_EXTENSIBLE with exact PCM subtype",
+    "format_tag": 65534,
+    "fmt_bytes": 40,
+    "extension_bytes": 22,
+    "channels": 8,
+    "sample_rate_hz": 16000,
+    "container_bits_per_sample": 16,
+    "valid_bits_per_sample": 16,
+    "byte_rate": 256000,
+    "block_align": 16,
+    "channel_mask": 1599,
+    "pcm_subtype_guid": "00000001-0000-0010-8000-00aa00389b71",
+    "fact_bytes": 4,
+    "fact_frames": 25181600,
+    "data_offset_bytes": 80,
+    "frames": 25181600,
+    "duration_seconds": 1573.85,
+    "riff_data_fact_framecount_and_exact_eof": "reconciled"
+  },
+  "mono_audio": {
+    "logical_filename": "channel1.wav",
+    "operation": "Physical channel 1, zero-based index 0; every channel-1 sample retained exactly; no cropping, resampling or downmixing",
+    "container": "Canonical 44-byte RIFF PCM16 mono header",
+    "file_bytes": 50363244,
+    "file_sha256": "7312be8c5c34e2cfc5b53812010449023a8c5648565e1908080d481216710c9e",
+    "pcm_bytes": 50363200,
+    "pcm_sha256": "9557fb6c4289d5884209a1036ed4f1d4bf91ac4d42702a261d023bb22969981e",
+    "channels": 1,
+    "sample_rate_hz": 16000,
+    "bits_per_sample": 16,
+    "frames": 25181600,
+    "duration_seconds": 1573.85,
+    "independent_exact_channel_sample_matches": 25181600
+  },
+  "reference": {
+    "format": "TextGrid",
+    "file_bytes": 76496,
+    "file_sha256": "e5fe941174fe4140bb5923b7caf2cbdd68d8d2a86086e4f00c68afc90d09dbad",
+    "handling": "Opaque bytes hashed for provenance; labels and transcript content were not interpreted or published"
+  },
+  "accepted_result": "Official archive acquired and validated; selected source identity and exact mono derivation independently verified",
+  "evaluation_results": {
+    "audio_inference_performed": false,
+    "asr_or_diarization_result": false,
+    "acoustic_accuracy_result": false,
+    "speaker_identity_result": false,
+    "historical_corpus_identity_established": false
+  }
+}
