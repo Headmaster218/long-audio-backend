@@ -1,0 +1,103 @@
+{
+  "schema": "transcript-read-contention-dev54-qualification-v1",
+  "status": "accepted_finite_model_free_source_qualification",
+  "version": "0.2.0rc3.dev54",
+  "base_commit": "a3e8740d09119d671295df81ff1bcfd5e34edf0b",
+  "base_tree": "ce2822eeb97f0c01c2a162dfa1486ef5db455ad0",
+  "executed_source_tree": "73dd13e91de3a79c83b98b4232fafb70e04415fd",
+  "change_scope": {
+    "product_changes": 0,
+    "existing_files_changed": 0,
+    "added_test": "tests/test_transcript_read_contention.py",
+    "added_report": "reports/TRANSCRIPT_READ_CONTENTION_DEV54_QUALIFICATION.json",
+    "version_changed": false,
+    "post_test_change": "This factual report only; the executed test bytes are unchanged."
+  },
+  "gate": {
+    "runner": "One ordinary pytest invocation with six explicit nodes; no rerun.",
+    "passed": 6,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "pytest_returncode": 0,
+    "original_launch_returncode": 0,
+    "new_test_sha256": "476d2289dda244573e7fb2bebc48cca59afae8e3f323c30849ea0459136c46cf",
+    "warning": "Existing Starlette/httpx TestClient deprecation; no dependency change.",
+    "pytest_phase_reports": 18
+  },
+  "normal_wal_case": {
+    "node": "test_wal_primary_write_preserves_snapshot_and_invalidates_cursor",
+    "passed": true,
+    "http_gets": 5,
+    "writer": "A separate real SQLite connection updates one synthetic primary table row in BEGIN IMMEDIATE; this does not invoke Worker or Store.commit_window.",
+    "uncommitted_get": "200 with complete baseline bytes and old revision.",
+    "commit_during_established_snapshot": "The writer COMMIT is acknowledged after the snapshot session SELECT and before the original revision read proceeds; the completed GET returns 200 with complete old response bytes.",
+    "fresh_get": "200 with exact committed text/raw_text, changed source_ref and computed new revision.",
+    "old_cursor_get": "409 transcript_revision_changed.",
+    "commit_ack_wait_limit_seconds": 0.25,
+    "product_read_seconds": 0.75,
+    "product_vm_steps": 250000,
+    "product_clock_or_limits_changed": false
+  },
+  "artificial_storage_refusal_case": {
+    "node": "test_exclusive_storage_refusal_releases_resources_and_recovers",
+    "passed": true,
+    "http_gets": 3,
+    "setup": "Separate fresh synthetic database deliberately switched to DELETE journal mode and held in BEGIN EXCLUSIVE.",
+    "direct_read_error": {
+      "sqlite_code": 5,
+      "sqlite_name": "SQLITE_BUSY"
+    },
+    "blocked_get": "503 transcript_storage_unavailable.",
+    "after_rollback_get": "200 with original baseline bytes.",
+    "interpretation": "Expected artificial storage refusal and recovery, not a normal-WAL writer bug."
+  },
+  "unchanged_control_nodes": [
+    "tests/test_transcript_http.py::test_models_disabled_real_app_registration_and_auth",
+    "tests/test_transcript_http.py::test_one_read_only_snapshot_length_first_no_change_replay",
+    "tests/test_transcript_http.py::test_exhausted_shared_response_pool_and_closed_handoff",
+    "tests/test_transcript_http.py::test_snapshot_time_budget_and_database_replacement"
+  ],
+  "cleanup": {
+    "observed_read_connections_closed": true,
+    "owned_writer_connection_closed_and_thread_joined": true,
+    "response_lease_count_and_bytes_zero_after_each_new_case_get": true,
+    "positive_original_pytest_wait": true,
+    "forced_kill": false,
+    "cleanup_errors": [],
+    "observed_process_survivors": false,
+    "census_retries": 0,
+    "existing_source_and_input_pins_unchanged": true
+  },
+  "resource_observations": {
+    "total_seconds": 3.0374851930009754,
+    "aggregate_cpu_with_wrapper_allowance_seconds": 3.9876989999999997,
+    "peak_sampled_combined_rss_bytes": 158547968,
+    "peak_sampled_fresh_allocated_bytes": 13815808,
+    "maximum_sampling_gap_seconds": 0.27174798699888925,
+    "sampled_not_continuous_or_kernel_aggregate_caps": true,
+    "cpu_affinity": [
+      3
+    ],
+    "nice": 19
+  },
+  "retained_evidence_sha256": {
+    "execution-receipt.json": "c3befb50b65db1fe67009f75d9832d165fd550380c0525e57a5a2467c024b1db",
+    "junit.xml": "dc95599bb131d5663c9a223577b8f3229ad554f57455d647646debe61e334927",
+    "test-origins.json": "91bc6fcfc2af21c98ce40eee41de51c236fde243ddc0381ba5eb6f9540d4c226",
+    "pytest.stdout": "5147d9d0f1f140d51ae6cecf0dfdacdc406a4db6af2d7efe121bd1d4fd0a011e",
+    "frozen-controls.json": "bbe7e97561b1859c9c849e06afdcef17b5f79821344a1cff16f5082ed927cfad",
+    "gate-input-manifest.json": "e310d09de2985a9983cefe937b1f1faf8bb69be6409a7df1c8dc46e5b2d22ba4"
+  },
+  "independent_review_sha256": {
+    "preexecution": "06fbe6316a3cd1078ee2fcb3b0138e149106ed07cb563b06d30a2322795e9aad",
+    "terminal": "8ff280451f3ec2a8599ba817bfd78d2d4ddf76d90c9e59750b87e694d870304c"
+  },
+  "limits": [
+    "This finite gate uses direct synthetic primary-table writes; it does not itself qualify the real Worker/commit_window producer path.",
+    "No model inference, audio input, network access, dependency installation, package rebuild, full suite or sustained-concurrency qualification.",
+    "The 568-file dev54 parent, including its final report, is preserved unchanged; this checkpoint adds only the test and this report.",
+    "Historical dev52 live transcript 503 remains unclassified. This controlled SQLITE_BUSY result does not establish its cause.",
+    "The transcript exception path still maps multiple SQLite/OS failures to one public storage-unavailable reason; no retry or diagnostic product change is included."
+  ]
+}
