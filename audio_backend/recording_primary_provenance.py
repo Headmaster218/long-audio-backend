@@ -294,11 +294,54 @@ USAGE: f'''CREATE TABLE {USAGE} (
 }
 
 
+CACHE_SCOPE_CHARGE = 512
+CACHE_USAGE_COLUMN = ("INTEGER NOT NULL DEFAULT 0 CHECK(typeof(cache_scope_charge)='integer' "
+    "AND cache_scope_charge>=0 AND cache_scope_charge%512=0 "
+    "AND cache_scope_charge<=CASE WHEN scope='' THEN 32768 ELSE 512 END "
+    "AND charge>=cache_scope_charge)")
+CACHE_USAGE_DDL = DDL[USAGE][:-1] + ', cache_scope_charge ' + CACHE_USAGE_COLUMN + ')'
+
+
+def primary_cache_usage(db, rid=None):
+    """Marker accounting is real charge, including zero-packet recordings."""
+    rows = db.execute("SELECT id FROM recording_batches WHERE primary_cache_policy IS NOT NULL LIMIT 65").fetchall()
+    if len(rows) > 64:raise ValueError('Primary cache marker accounting mismatch')
+    marked = {row[0] for row in rows}
+    expected = len(marked) * CACHE_SCOPE_CHARGE
+    scopes = ('',) if rid is None else ('', rid)
+    result = {}
+    for scope in scopes:
+        row = db.execute(f'SELECT packets,charge,cache_scope_charge FROM {USAGE} WHERE scope=?', (scope,)).fetchone()
+        if row is None:
+            if scope == '' or scope in marked:raise ValueError('Missing primary cache accounting')
+            result[scope] = (0, 0, 0); continue
+        values = tuple(row)
+        if (any(type(value) is not int or not 0 <= value <= MAX_COUNTER for value in values)
+                or values[1] < values[2]
+                or values[2] != (expected if scope == '' else CACHE_SCOPE_CHARGE if scope in marked else 0)):
+            raise ValueError('Primary cache marker accounting mismatch')
+        result[scope] = values
+    return result
+
+
+def primary_cache_admission(store, db, rid):
+    """Only known optional pre-write refusals may leave a fresh batch unmarked."""
+    _id(rid)
+    usage = primary_cache_usage(db, rid)
+    if usage[rid] != (0, 0, 0):raise ValueError('Fresh primary cache scope already has accounting')
+    for scope, limit, reason in (('', store.settings.recording_primary_provenance_global_bytes, 'global_quota'),
+            (rid, store.settings.recording_primary_provenance_recording_bytes, 'recording_quota')):
+        if usage[scope][1] + CACHE_SCOPE_CHARGE > limit:raise Refused(reason)
+    if usage[''][2] + CACHE_SCOPE_CHARGE > 32768:raise Refused('capacity')
+    headroom(store, CACHE_SCOPE_CHARGE)
+
+
 def init_schema(db):
     names = tuple(DDL)
     rows = db.execute('SELECT name,sql FROM sqlite_master WHERE name IN (' + ','.join('?' for _ in names) + ')', names).fetchall()
     if rows:
-        if len(rows) != len(names) or any(row['sql'] != DDL[row['name']] for row in rows):
+        if len(rows) != len(names) or any(row['sql'] not in ((DDL[USAGE], CACHE_USAGE_DDL)
+                if row['name'] == USAGE else (DDL[row['name']],)) for row in rows):
             raise ValueError('Unknown primary provenance schema; migration is not supported')
         return
     for sql in DDL.values():db.execute(sql)

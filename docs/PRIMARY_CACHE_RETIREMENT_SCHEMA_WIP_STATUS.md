@@ -1,0 +1,19 @@
+# Primary cache retirement: unexecuted schema and authority checkpoint
+
+This is an incremental source-only backup, not a deployable or tested feature.
+
+Parent: `5deca15f9b37eb28fcb912a7fabc0163812942c7`, tree `9931b72ad2cab809b9fa7338c5f6c44059360b72` (573 files, 10,323,544 bytes). Every prior report is preserved. No version, package, dependency, model or audio content changes are included.
+
+Scope in this checkpoint: three existing product modules only: `recording_overlap.py`, `recording_primary_provenance.py`, and `storage.py`. The separately approved five-module collector/capture integration and focused acceptance tests are deliberately not included in this early backup. Until those pieces are integrated and qualified, the unchanged collectors do not gain the new exclusive-primary retirement branch.
+
+The source adds a fresh-only exclusive-primary marker, immutable verified CellStore-key binding, exact known-schema validation with schema-cookie invalidation, atomic 512-byte logical marker accounting within unchanged provenance quota ceilings, an old-reader usage-DDL compatibility fence, direct anti-MOSS write guards, primary claim/commit mode checks, and a qualified completed-gap prefix option. The packet body schema and existing packet insert/delete triggers remain unchanged. Optional marker quota/headroom refusal is decided before the first batch INSERT and creates a permanently unmarked batch; baseline/accounting/schema/uncertain-write failures remain hard. A marked publication keeps exact pre/post metadata snapshots for unknown-acknowledgement reread, without success attribution from absence alone.
+
+Migration is additive and transactional after provenance initialization. Complete known core/bounded-automatic prerequisites must already exist and validate. An installed retirement contract is validated even with flags off; a partial/unknown contract is rejected. Existing recordings and evidence are never adopted. Old workers must be stopped before migration: startup refusal cannot eject an already-running old binary.
+
+Static inspection found and corrected two integration issues before this snapshot: SQLite CHECK expressions must explicitly reject a non-NULL key with a NULL policy; and the production CellJobsSource adapter must bind to Capture's owner/store, rather than comparing the adapter object with Capture. The existing Settings/CLI permits primary-only mode with both existing GC flags without a MOSS dependency.
+
+This supersedes the first unexecuted schema snapshot: its expected-DDL helper incorrectly placed ADD COLUMN fields after table-level constraints. This snapshot represents SQLite's actual placement before CHECK/UNIQUE constraints, confirmed by raw bytes in a retained prior synthetic database without opening a SQLite engine. Actual migration behavior still awaits the first finite schema gate.
+
+Verification: source files were parsed with Python's standard-library AST only. No application imports, pytest collection, tests, model loading, synthetic pipeline execution, audio access, network calls or publication were performed for this checkpoint. Exact focused test selection, cumulative resource ceilings, independent source/argv review and serial release are still required before execution. Static review cannot establish SQLite migration correctness or production behavior.
+
+Limits and next work: finish the qualified collectors, held-root and publication guards; independently review them; execute only the approved finite model-free tests, including actual 2,056-compact and 4,096-receipt boundaries and replenishment. Nothing here establishes 12–48-hour real acoustics, audio-retention capacity, identity accuracy, long-running operation, or readiness to deploy. Prior synthetic primary-only qualification remains limited to its own unchanged source and evidence.

@@ -58,6 +58,296 @@ def init_bounded_columns(db):
         db.execute(f'ALTER TABLE recording_batches ADD COLUMN {name} {definition}')
 
 
+PRIMARY_CACHE_CORE_SCHEMA = {'native_core_commits': 'CREATE TABLE native_core_commits (\n'
+                        '        slot TEXT PRIMARY KEY, sid TEXT NOT NULL, cid TEXT NOT NULL REFERENCES '
+                        'chunks(id) ON DELETE CASCADE,\n'
+                        '        scope_key TEXT NOT NULL, logical_end INTEGER NOT NULL,\n'
+                        "        body BLOB NOT NULL CHECK(typeof(body)='blob' AND length(body) BETWEEN 1 AND "
+                        '2048),\n'
+                        "        pending BLOB CHECK(pending IS NULL OR (typeof(pending)='blob' AND "
+                        'length(pending) BETWEEN 1 AND 131072)),\n'
+                        '        state TEXT NOT NULL CHECK(state IN '
+                        "('none','pending','published','gap','cancelled')),\n"
+                        '        reason TEXT NOT NULL CHECK(length(reason)<=80))',
+ 'native_core_adjacent': 'CREATE INDEX native_core_adjacent ON '
+                         'native_core_commits(sid,scope_key,logical_end)',
+ 'native_core_pending': 'CREATE INDEX native_core_pending ON native_core_commits(state,slot)',
+ 'native_core_cancel': 'CREATE TRIGGER native_core_cancel AFTER UPDATE OF status ON chunks\n'
+                       "        WHEN NEW.status='cancelled' BEGIN\n"
+                       '          UPDATE native_core_commits SET '
+                       "state='cancelled',pending=NULL,reason='primary_cancelled'\n"
+                       "          WHERE sid=NEW.session_id AND state='pending'; END",
+ 'native_core_delete': 'CREATE TRIGGER native_core_delete AFTER UPDATE OF deleted ON sessions\n'
+                       '        WHEN NEW.deleted=1 BEGIN DELETE FROM native_core_commits WHERE sid=NEW.id; '
+                       'END'}
+PRIMARY_CACHE_BATCH_SCHEMA = ('CREATE TABLE recording_batches (\n'
+ '        id TEXT PRIMARY KEY, session_id TEXT NOT NULL UNIQUE REFERENCES sessions(id),\n'
+ '        capture_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,\n'
+ "        state TEXT NOT NULL DEFAULT 'open', finish_key TEXT, finish_request TEXT,\n"
+ '        capture_origin_frame INTEGER, capture_end_frame INTEGER,\n'
+ "        manifest TEXT, blockers TEXT NOT NULL DEFAULT '[]', created REAL NOT NULL, mode TEXT NOT NULL "
+ "DEFAULT 'legacy', eos INTEGER NOT NULL DEFAULT 0,\n"
+ '        UNIQUE(session_id,capture_id))')
+
+# Fresh exclusive-primary boundary. This changes the usage-table contract so
+# older binaries fail their existing exact DDL check before accepting work.
+PRIMARY_CACHE_POLICY = 'primary-cache-retirement-v1'
+PRIMARY_CACHE_COLUMNS = {
+    'primary_cache_policy': "TEXT CHECK(primary_cache_policy IS NULL OR primary_cache_policy='primary-cache-retirement-v1')",
+    'primary_cache_store_key': "TEXT CHECK(primary_cache_store_key IS NULL OR (primary_cache_policy IS 'primary-cache-retirement-v1' AND typeof(primary_cache_store_key)='text' AND length(primary_cache_store_key)=64 AND primary_cache_store_key NOT GLOB '*[^0-9a-f]*'))",
+}
+
+
+def _cache_sql(sql):return ''.join(sql.split())
+
+
+def _cache_add_columns(sql, columns):
+    # SQLite places ADD COLUMN before existing table-level constraints.
+    constraint=re.search(r',\s*(?:CHECK|UNIQUE)\s*\(',sql)
+    at=constraint.start() if constraint is not None else len(sql)-1
+    return sql[:at] + ', ' + ', '.join(name+' '+definition for name,definition in columns.items()) + sql[at:]
+
+
+def _cache_marked_session(expression):
+    return f"EXISTS(SELECT 1 FROM recording_batches b WHERE b.session_id={expression} AND b.primary_cache_policy IS NOT NULL)"
+
+
+def _cache_marked_cid(expression):
+    return (f"EXISTS(SELECT 1 FROM chunks c JOIN recording_batches b ON b.session_id=c.session_id "
+        f"WHERE c.id={expression} AND b.primary_cache_policy IS NOT NULL)")
+
+
+def _cache_marked_slot(expression):
+    return (f"EXISTS(SELECT 1 FROM native_core_commits n LEFT JOIN chunks c ON c.id=n.cid "
+        f"JOIN recording_batches b ON b.session_id=n.sid OR b.session_id=c.session_id "
+        f"WHERE n.slot={expression} AND b.primary_cache_policy IS NOT NULL)")
+
+
+def _cache_guard_ddl():
+    from .recording_primary_provenance import USAGE
+    from .moss_automatic import TABLE, DEPENDENCIES
+    result = {
+        'primary_cache_batch_insert': f'''CREATE TRIGGER primary_cache_batch_insert BEFORE INSERT ON recording_batches
+            WHEN NEW.primary_cache_policy IS NOT NULL BEGIN
+            SELECT CASE WHEN NEW.mode!='sealed_pages' OR NEW.primary_cache_store_key IS NOT NULL
+                OR NEW.native_core_ordinal IS NOT NULL OR NEW.retention_store_key IS NOT NULL
+                OR EXISTS(SELECT 1 FROM chunks WHERE session_id=NEW.session_id LIMIT 1)
+                OR EXISTS(SELECT 1 FROM {TABLE} INDEXED BY auto_session_seq WHERE sid=NEW.session_id LIMIT 1)
+                OR EXISTS(SELECT 1 FROM native_core_commits INDEXED BY native_core_adjacent WHERE sid=NEW.session_id LIMIT 1)
+                THEN RAISE(ABORT,'Primary cache requires fresh exclusive session') END; END''',
+        'primary_cache_batch_update': '''CREATE TRIGGER primary_cache_batch_update BEFORE UPDATE ON recording_batches
+            WHEN NEW.primary_cache_policy IS NOT OLD.primary_cache_policy
+                OR (OLD.primary_cache_policy IS NOT NULL AND (
+                    NEW.id IS NOT OLD.id OR NEW.session_id IS NOT OLD.session_id OR NEW.mode IS NOT OLD.mode
+                    OR NEW.native_core_ordinal IS NOT NULL OR NEW.retention_store_key IS NOT NULL
+                    OR (OLD.primary_cache_store_key IS NOT NULL AND NEW.primary_cache_store_key IS NOT OLD.primary_cache_store_key)))
+            BEGIN SELECT RAISE(ABORT,'Immutable primary cache scope'); END''',
+        'primary_cache_charge_insert': f'''CREATE TRIGGER primary_cache_charge_insert AFTER INSERT ON recording_batches
+            WHEN NEW.primary_cache_policy IS NOT NULL BEGIN
+            SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM {USAGE} WHERE scope='' AND cache_scope_charge<=32256)
+                OR EXISTS(SELECT 1 FROM {USAGE} WHERE scope=NEW.id)
+                THEN RAISE(ABORT,'Primary cache accounting mismatch') END;
+            UPDATE {USAGE} SET charge=charge+512,cache_scope_charge=cache_scope_charge+512 WHERE scope='';
+            INSERT INTO {USAGE}(scope,packets,charge,cache_scope_charge) VALUES(NEW.id,0,512,512); END''',
+        'primary_cache_charge_delete': f'''CREATE TRIGGER primary_cache_charge_delete AFTER DELETE ON recording_batches
+            WHEN OLD.primary_cache_policy IS NOT NULL BEGIN
+            SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM {USAGE} WHERE scope='' AND charge>=512 AND cache_scope_charge>=512)
+                OR NOT EXISTS(SELECT 1 FROM {USAGE} WHERE scope=OLD.id AND charge>=512 AND cache_scope_charge=512)
+                THEN RAISE(ABORT,'Primary cache accounting mismatch') END;
+            UPDATE {USAGE} SET charge=charge-512,cache_scope_charge=cache_scope_charge-512 WHERE scope IN ('',OLD.id);
+            DELETE FROM {USAGE} WHERE scope=OLD.id AND packets=0 AND charge=0; END''',
+    }
+    intent = ' OR '.join((_cache_marked_session('NEW.sid'),
+        "EXISTS(SELECT 1 FROM recording_batches b WHERE b.id=NEW.plan_batch_id AND b.primary_cache_policy IS NOT NULL)",
+        *(_cache_marked_cid('NEW.'+name) for name in ('cid1','cid2')),
+        *(_cache_marked_slot('NEW.'+name) for name in ('slot1','slot2'))))
+    dependency = ' OR '.join((_cache_marked_cid('NEW.cid'), _cache_marked_slot('NEW.slot')))
+    core = '('+' OR '.join((_cache_marked_session('NEW.sid'),_cache_marked_cid('NEW.cid')))+')'
+    invalid = "(NEW.pending IS NOT NULL OR NEW.state IN ('pending','published') OR NEW.recording_batch_id IS NOT NULL OR NEW.commit_ordinal IS NOT NULL OR NEW.retention_store_key IS NOT NULL)"
+    for operation in ('INSERT','UPDATE'):
+        lower=operation.lower()
+        for kind,table,predicate in (('intent',TABLE,intent), ('dependency',DEPENDENCIES,dependency),
+                ('core','native_core_commits',core+' AND '+invalid)):
+            name='primary_cache_'+kind+'_'+lower
+            result[name]=f'''CREATE TRIGGER {name} BEFORE {operation} ON {table} WHEN {predicate}
+                BEGIN SELECT RAISE(ABORT,'Exclusive primary cache forbids MOSS ownership'); END'''
+    return result
+
+
+def _cache_read_sql(db, name, expected, budget=None):
+    row=db.execute('SELECT length(CAST(sql AS BLOB)) FROM sqlite_master WHERE name=?',(name,)).fetchone()
+    if row is None or type(row[0]) is not int or not 1<=row[0]<=max(4096,2*len(expected.encode('utf-8'))):
+        raise ValueError('Missing or oversized primary cache schema: '+name)
+    if budget is not None:budget.projection(row[0]+128)
+    actual=db.execute('SELECT sql FROM sqlite_master WHERE name=? AND length(CAST(sql AS BLOB))=?',
+        (name,row[0])).fetchone()
+    if actual is None:raise ValueError('Primary cache schema changed')
+    return actual[0]
+
+
+def _cache_prerequisites(db, budget=None):
+    """Validate existing contracts; never install missing prerequisite tables."""
+    from .moss_automatic import SCHEMA, V2_SCHEMA, V2_COLUMNS, COMPACT_V2_COLUMNS
+    objects = dict(SCHEMA)
+    from .moss_automatic import TABLE
+    objects[TABLE]=_cache_add_columns(objects[TABLE],V2_COLUMNS)
+    objects.update(V2_SCHEMA)
+    objects.update(PRIMARY_CACHE_CORE_SCHEMA)
+    objects['native_core_commits']=_cache_add_columns(objects['native_core_commits'],COMPACT_V2_COLUMNS)
+    for name,expected in objects.items():
+        actual=_cache_read_sql(db,name,expected,budget)
+        if _cache_sql(actual) != _cache_sql(expected):
+            raise ValueError('Incompatible primary cache prerequisite: '+name)
+
+
+def primary_cache_schema(db, store=None, budget=None):
+    """Schema-cookie invalidation makes removed/changed guards lose authority."""
+    version=db.execute('PRAGMA schema_version').fetchone()[0]
+    if budget is not None:budget.projection(16)
+    saved=getattr(store,'_primary_cache_schema_token',None) if store is not None else None
+    if saved is not None and saved[0]==version:return saved[1]
+    from .recording_primary_provenance import USAGE, CACHE_USAGE_DDL, DDL
+    guards=_cache_guard_ddl()
+    fields=db.execute("SELECT name FROM pragma_table_info('recording_batches') LIMIT 33").fetchall()
+    if len(fields)>32:raise ValueError('Unknown primary cache batch schema')
+    if budget is not None:budget.projection(128*len(fields))
+    fields={row[0] for row in fields}
+    usage=_cache_read_sql(db,USAGE,CACHE_USAGE_DDL,budget)
+    names=db.execute("SELECT name FROM sqlite_master WHERE name GLOB 'primary_cache_*' LIMIT ?",
+        (len(guards)+1,)).fetchall()
+    if budget is not None:budget.projection(128*len(names))
+    names={row[0] for row in names}
+    flags=[name in fields for name in PRIMARY_CACHE_COLUMNS]+[usage==CACHE_USAGE_DDL]+[bool(names)]
+    if not any(flags):
+        if usage!=DDL[USAGE]:raise ValueError('Unknown primary cache usage schema')
+        installed=False
+    else:
+        if not all(flags) or names!=set(guards):raise ValueError('Incomplete primary cache retirement schema')
+        _cache_prerequisites(db,budget)
+        for name,expected in DDL.items():
+            expected=CACHE_USAGE_DDL if name==USAGE else expected
+            if _cache_read_sql(db,name,expected,budget)!=expected:
+                raise ValueError('Incompatible primary cache provenance schema')
+        expected=_cache_add_columns(_cache_add_columns(PRIMARY_CACHE_BATCH_SCHEMA,BOUNDED_COLUMNS),PRIMARY_CACHE_COLUMNS)
+        if _cache_sql(_cache_read_sql(db,'recording_batches',expected,budget))!=_cache_sql(expected):
+            raise ValueError('Incompatible primary cache batch schema')
+        for name,expected in guards.items():
+            if _cache_sql(_cache_read_sql(db,name,expected,budget))!=_cache_sql(expected):
+                raise ValueError('Incompatible primary cache retirement guard')
+        installed=True
+    if db.execute('PRAGMA schema_version').fetchone()[0]!=version:
+        raise ValueError('Primary cache schema changed during validation')
+    if store is not None:store._primary_cache_schema_token=(version,installed)
+    return installed
+
+
+def init_primary_cache_schema(db, *, enable=False):
+    from .recording_primary_provenance import USAGE, CACHE_USAGE_COLUMN, primary_cache_usage
+    if not db.in_transaction:raise ValueError('Primary cache migration requires transaction')
+    if primary_cache_schema(db):
+        primary_cache_usage(db)
+        return
+    if not enable:return
+    _cache_prerequisites(db)
+    batch=db.execute("SELECT sql FROM sqlite_master WHERE name='recording_batches'").fetchone()
+    if batch is None or _cache_sql(batch[0])!=_cache_sql(_cache_add_columns(PRIMARY_CACHE_BATCH_SCHEMA,BOUNDED_COLUMNS)):
+        raise ValueError('Incompatible primary cache batch prerequisite')
+    for name,definition in PRIMARY_CACHE_COLUMNS.items():
+        db.execute(f'ALTER TABLE recording_batches ADD COLUMN {name} {definition}')
+    db.execute(f'ALTER TABLE {USAGE} ADD COLUMN cache_scope_charge {CACHE_USAGE_COLUMN}')
+    for sql in _cache_guard_ddl().values():db.execute(sql)
+    if not primary_cache_schema(db):raise ValueError('Missing primary cache retirement contract')
+    primary_cache_usage(db)
+
+
+def primary_cache_capable(store):
+    from .settings import primary_only_enabled
+    from .moss_automatic import Automatic
+    from .moss_handy_jobs import MossJobs
+    from .native_owned_cell_jobs import CellJobsSource
+    automatic=getattr(store,'moss_automatic',None)
+    if (not primary_only_enabled(store.settings) or type(automatic) is not Automatic
+            or automatic.store is not store or not automatic.primary_only or not automatic.coordinator_current()):return False
+    capture=automatic.capture;jobs=automatic.jobs
+    return (type(jobs) is MossJobs and jobs.store is store and jobs.automatic is automatic
+        and type(jobs.cell_source) is CellJobsSource and jobs.cell_source.owner is capture.owner
+        and jobs.cell_source.store is store and capture.authority.store is store
+        and capture.owner.authority is capture.authority and capture.authority.owner is capture.owner
+        and jobs._coordinator_enabled())
+
+
+def primary_cache_marked(db, sid, cid=None, *, store=None, budget=None):
+    if not primary_cache_schema(db,store,budget):return False
+    if budget is not None:budget.projection(32)
+    row=db.execute('SELECT primary_cache_policy FROM recording_batches WHERE session_id=?',(sid,)).fetchone()
+    if row is not None and row[0] is not None:return True
+    if cid is None:return False
+    return db.execute('''SELECT 1 FROM chunks c JOIN recording_batches b ON b.session_id=c.session_id
+        WHERE c.id=? AND b.primary_cache_policy IS NOT NULL''',(cid,)).fetchone() is not None
+
+
+def primary_cache_qualified(store, db, sid, cid, store_key, budget=None):
+    """Positive per-candidate authority; malformed/missing mapping is protected."""
+    if budget is not None:budget.check()
+    if (not primary_cache_schema(db,store,budget) or not primary_cache_capable(store)
+            or not getattr(store.settings,'native_owned_compact_gc_enabled',False)
+            or not getattr(store.settings,'native_owned_receipt_gc_enabled',False)
+            or type(store_key) is not str or re.fullmatch('[0-9a-f]{64}',store_key) is None):return None
+    row=db.execute('''SELECT b.id AS batch_id,b.session_id,b.primary_cache_store_key AS store_key,
+        w.chunk_id AS cid,w.position,w.capture_start_frame,w.frames,b.capture_origin_frame AS origin,
+        b.capture_end_frame,w.receipt_state,w.receipt_id,
+        CASE WHEN typeof(w.native_receipt)='blob' AND length(w.native_receipt) BETWEEN 1 AND 1024
+          THEN w.native_receipt ELSE NULL END AS native_receipt,c.digest,c.timeline_start,
+        c.status='completed' AND c.next_offset=c.duration AND c.duration=w.frames/16000.0
+          AND c.timeline_start=(w.capture_start_frame-b.capture_origin_frame)/16000.0
+          AND c.session_id=b.session_id AND s.deleted=0 AND s.processing_mode='legacy'
+          AND b.mode='sealed_pages' AND b.state!='aborted'
+          AND b.primary_cache_policy=? AND b.primary_cache_store_key=?
+          AND b.native_core_ordinal IS NULL AND b.retention_store_key IS NULL
+          AND p.batch_id=b.id AND p.released=1 AND p.state='published'
+          AND p.start_frame<=w.capture_start_frame AND w.capture_start_frame+w.frames<=p.end_frame
+          AND sc.session_id=c.session_id AND sc.stream_id='recording.'||b.id AND sc.position=w.position
+          AND ti.session_id=c.session_id AND ti.stream_id=sc.stream_id AND ti.position=sc.position
+          AND ti.timeline_start=c.timeline_start AND ti.timeline_end=c.timeline_start+c.duration AS same
+        FROM recording_work w JOIN recording_batches b ON b.id=w.batch_id
+        JOIN recording_pages p ON p.id=w.page_id JOIN chunks c ON c.id=w.chunk_id
+        JOIN sessions s ON s.id=c.session_id JOIN stream_chunks sc ON sc.chunk_id=c.id
+        JOIN stream_time_index ti ON ti.chunk_id=c.id
+        WHERE w.chunk_id=? AND b.session_id=?''',(PRIMARY_CACHE_POLICY,store_key,cid,sid)).fetchone()
+    if budget is not None:budget.projection(2048)
+    if row is None or not row['same'] or row['receipt_state']!='durable':return None
+    if (type(row['origin']) is not int or type(row['capture_end_frame']) is not int
+            or type(row['capture_start_frame']) is not int or type(row['frames']) is not int
+            or not 0<=row['origin']<=row['capture_start_frame']<row['capture_start_frame']+row['frames']<=row['capture_end_frame']<=MAX_COORDINATE):return None
+    from .native_owned_cell_store import Receipt
+    try:receipt=Receipt.decode(row['native_receipt'])
+    except (ValueError,TypeError,Unavailable):return None
+    if (receipt.session_id,receipt.chunk_id,receipt.receipt_id,receipt.digest,receipt.frames,
+            receipt.timeline_start,receipt.stream_id)!=(sid,cid,row['receipt_id'],row['digest'],row['frames'],
+                row['timeline_start'],'recording.'+row['batch_id']):return None
+    from .recording_primary_provenance import primary_cache_usage
+    primary_cache_usage(db,row['batch_id'])
+    from .moss_automatic import TABLE,DEPENDENCIES
+    # Every query has an existing indexed session/cid/batch access path.
+    if db.execute(f'SELECT 1 FROM {TABLE} INDEXED BY auto_session_seq WHERE sid=? LIMIT 1',(sid,)).fetchone():return None
+    for field,index in (('cid1','auto_cid1'),('cid2','auto_cid2')):
+        if db.execute(f'SELECT 1 FROM {TABLE} INDEXED BY {index} WHERE {field}=? LIMIT 1',(cid,)).fetchone():return None
+    if db.execute(f'SELECT 1 FROM {TABLE} INDEXED BY auto_v2_wait_range WHERE plan_batch_id=? LIMIT 1',(row['batch_id'],)).fetchone():return None
+    if db.execute(f'SELECT 1 FROM {DEPENDENCIES} INDEXED BY auto_v2_dependency_cid WHERE cid=? LIMIT 1',(cid,)).fetchone():return None
+    if db.execute(f'''SELECT 1 FROM native_core_commits n INDEXED BY native_core_v2_cid WHERE n.cid=? AND (
+        EXISTS(SELECT 1 FROM {TABLE} INDEXED BY auto_slot1 WHERE slot1=n.slot)
+        OR EXISTS(SELECT 1 FROM {TABLE} INDEXED BY auto_slot2 WHERE slot2=n.slot)
+        OR EXISTS(SELECT 1 FROM {DEPENDENCIES} INDEXED BY auto_v2_dependency_slot WHERE slot=n.slot)) LIMIT 1''',
+            (cid,)).fetchone():return None
+    if db.execute('''SELECT 1 FROM native_core_commits INDEXED BY native_core_v2_cid WHERE cid=?
+        AND (pending IS NOT NULL OR state IN ('pending','published') OR recording_batch_id IS NOT NULL
+          OR commit_ordinal IS NOT NULL OR retention_store_key IS NOT NULL) LIMIT 1''',(cid,)).fetchone():return None
+    version=db.execute('PRAGMA schema_version').fetchone()[0]
+    if version!=store._primary_cache_schema_token[0]:raise Unavailable('primary_cache_schema_changed')
+    if budget is not None:budget.projection(256);budget.check()
+    return {name:row[name] for name in ('batch_id','session_id','cid','store_key','position','capture_start_frame','frames','origin')} | {'schema_version':version}
+
+
 class RecordingStorageCapacityError(RuntimeError):
     """Retained recording copies need explicit storage capacity before retry."""
 
@@ -259,6 +549,7 @@ class RecordingOverlap:
         self.uploads = (self.settings.data_dir / 'uploads').resolve()
         self._maintenance_lock = threading.Lock()
         self._flight = None
+        self._primary_cache_publish_unknown = None
         self._next_tick = 0.0
         self._reservation_lock = threading.RLock()
         self._reservations = {}
@@ -739,7 +1030,47 @@ class RecordingOverlap:
         except Exception as exc:
             raise ValueError('Recording canonical receipt payload changed') from exc
 
+    def _cache_publication_snapshot(self, db, bid, pid):
+        from .recording_primary_provenance import primary_cache_usage
+        if not primary_cache_schema(db,self.store):raise ValueError('Primary cache publication schema changed')
+        batch=db.execute('''SELECT id,session_id,mode,primary_cache_policy,primary_cache_store_key,
+            capture_end_frame,eos,state,revision FROM recording_batches WHERE id=?''',(bid,)).fetchone()
+        page=db.execute('SELECT id,batch_id,released,state FROM recording_pages WHERE id=?',(pid,)).fetchone()
+        if batch is None or page is None:raise ValueError('Primary cache publication disappeared')
+        usage=primary_cache_usage(db,bid)
+        rows=db.execute('''SELECT w.chunk_id,c.status,w.receipt_state,w.receipt_id,w.native_receipt
+            FROM recording_work w JOIN chunks c ON c.id=w.chunk_id WHERE w.page_id=?
+            ORDER BY w.position LIMIT 29''',(pid,)).fetchall()
+        if len(rows)>MAX_PAGE_CHUNKS:raise ValueError('Primary cache publication work changed')
+        return (tuple(batch),tuple(page),tuple(usage[bid]),tuple(tuple(row) for row in rows))
+
+    def _reconcile_primary_cache_publication(self):
+        saved=self._primary_cache_publish_unknown
+        if saved is None:return
+        bid,pid,before,after=saved
+        with self.store.db() as db:
+            db.execute('PRAGMA busy_timeout=5');db.execute('BEGIN IMMEDIATE')
+            current=self._cache_publication_snapshot(db,bid,pid)
+            if current!=before and current!=after:
+                raise ValueError('Primary cache publication unknown outcome changed')
+        # Exact reread resolves uncertainty, without attributing publication.
+        self._primary_cache_publish_unknown=None
+
     def _publish_pending(self, bid, cells):
+        if self._primary_cache_publish_unknown is not None:
+            self._reconcile_primary_cache_publication()
+            return False
+        try:
+            result=self._publish_pending_transaction(bid,cells)
+        except BaseException:
+            if self._primary_cache_publish_unknown is not None:
+                try:self._reconcile_primary_cache_publication()
+                except Exception:pass  # Keep the unresolved exact snapshots.
+            raise
+        self._primary_cache_publish_unknown=None
+        return result
+
+    def _publish_pending_transaction(self, bid, cells):
         """Only a complete terminal receipt set may release this batch's work."""
         with self.store.db() as db:
             db.execute('PRAGMA busy_timeout=5')  # Bounded maintenance admission, primary DB only.
@@ -779,6 +1110,35 @@ class RecordingOverlap:
                     for row in rows if row['receipt_state'] == 'gap' and row['native_receipt_status'] != 'disabled']
             from .boundary_store import publish_staged_stream_chunks
             if batch['mode'] == 'sealed_pages':
+                if batch.get('primary_cache_policy') is not None:
+                    from .recording_primary_provenance import primary_cache_usage
+                    if not primary_cache_schema(db,self.store) or not primary_cache_capable(self.store):
+                        raise ValueError('Primary cache coordinator unavailable for publication')
+                    primary_cache_usage(db,bid)
+                    page=db.execute("SELECT id FROM recording_pages WHERE batch_id=? AND released=0",(bid,)).fetchone()
+                    if page is None:raise ValueError('Primary cache publication page missing')
+                    before=self._cache_publication_snapshot(db,bid,page[0])
+                    self._primary_cache_publish_unknown=(bid,page[0],before,None)
+                    if owner is not None:
+                        key=owner.retention_store_key
+                        if (self.store.moss_automatic.capture is not cells or cells.owner is not owner
+                                or owner._epoch is not epoch or not owner.health()['ready']
+                                or type(key) is not str or re.fullmatch('[0-9a-f]{64}',key) is None):
+                            raise ValueError('Primary cache binding owner changed')
+                        prior=batch['primary_cache_store_key']
+                        if prior is not None and prior!=key:
+                            raise ValueError('Primary cache store binding changed')
+                        if prior is None and db.execute('''UPDATE recording_batches SET primary_cache_store_key=?
+                            WHERE id=? AND primary_cache_policy=? AND primary_cache_store_key IS NULL''',
+                                (key,bid,PRIMARY_CACHE_POLICY)).rowcount!=1:
+                            raise ValueError('Primary cache binding write changed')
+                    released=self._release_page(db,batch,rows,gaps)
+                    after=self._cache_publication_snapshot(db,bid,page[0])
+                    self._primary_cache_publish_unknown=(bid,page[0],before,after)
+                    if owner is not None and (cells.owner is not owner or owner._epoch is not epoch
+                            or owner.retention_store_key!=key or not owner.health()['ready']):
+                        raise ValueError('Primary cache binding owner changed before publication commit')
+                    return released
                 return self._release_page(db, batch, rows, gaps)
             publish_staged_stream_chunks(db, [row['id'] for row in rows])
             db.execute("UPDATE recording_batches SET state='queued',blockers=? WHERE id=?", (_json(gaps), bid))
@@ -815,6 +1175,9 @@ class RecordingOverlap:
         bid = None
         try:
             self._next_tick = time.monotonic() + 1.0
+            if self._primary_cache_publish_unknown is not None:
+                self._reconcile_primary_cache_publication()
+                return False
             if self._flight is not None:
                 flight = self._flight
                 if not flight['operation'].slot_released.is_set():
@@ -1092,10 +1455,30 @@ class RecordingOverlap:
                     raise ValueError('Only the next page after a released page can be created')
             token = self.reserve_page_bytes(batch, None, 0, new_page=True, new_batch=new_batch)
             self.release_reservation(token)
+            cache_schema=primary_cache_schema(db,self.store)
             if new_batch:
-                db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,mode,
-                    capture_origin_frame,capture_end_frame) VALUES(?,?,?,?,?,?,?)''',
-                    (batch['id'], sid, capture_id, time.time(), 'sealed_pages', capture_origin_frame, capture_origin_frame))
+                marker=None
+                if (cache_schema and primary_cache_capable(self.store)
+                        and self.settings.native_owned_compact_gc_enabled and self.settings.native_owned_receipt_gc_enabled):
+                    from .moss_automatic import TABLE
+                    if (db.execute(f'SELECT 1 FROM {TABLE} INDEXED BY auto_session_seq WHERE sid=? LIMIT 1',(sid,)).fetchone()
+                            or db.execute('SELECT 1 FROM native_core_commits INDEXED BY native_core_adjacent WHERE sid=? LIMIT 1',(sid,)).fetchone()):
+                        raise ValueError('Primary cache requires fresh exclusive session')
+                    from .recording_primary_provenance import primary_cache_admission,Refused
+                    try:primary_cache_admission(self.store,db,batch['id'])
+                    except Refused:pass  # Only positively known pre-write optional refusal.
+                    else:marker=PRIMARY_CACHE_POLICY
+                if cache_schema:
+                    db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,mode,
+                        capture_origin_frame,capture_end_frame,primary_cache_policy) VALUES(?,?,?,?,?,?,?,?)''',
+                        (batch['id'],sid,capture_id,time.time(),'sealed_pages',capture_origin_frame,capture_origin_frame,marker))
+                else:
+                    db.execute('''INSERT INTO recording_batches(id,session_id,capture_id,created,mode,
+                        capture_origin_frame,capture_end_frame) VALUES(?,?,?,?,?,?,?)''',
+                        (batch['id'],sid,capture_id,time.time(),'sealed_pages',capture_origin_frame,capture_origin_frame))
+            elif batch.get('primary_cache_policy') is not None:
+                from .recording_primary_provenance import primary_cache_usage
+                primary_cache_usage(db,batch['id'])
             batch = self._batch(db, sid, capture_id)
             db.execute('INSERT INTO recording_pages(id,batch_id,page_number,start_frame,created) VALUES(?,?,?,?,?)',
                 (uuid.uuid4().hex, batch['id'], page_number, batch['capture_end_frame'], time.time()))
@@ -1548,7 +1931,7 @@ def receipt_gc_source(db, receipt, budget):
     return dict(row)
 
 
-def receipt_gc_prefix(db, sid, source, previous, budget, remaining):
+def receipt_gc_prefix(db, sid, source, previous, budget, remaining, *, qualified_primary=False):
     """Prove at most one complete page within the attempt's shared row budget.
 
     The memo is process/owner-epoch local and capped by the caller. Completed
@@ -1560,9 +1943,11 @@ def receipt_gc_prefix(db, sid, source, previous, budget, remaining):
     empty-queue inference can manufacture a frontier.
     """
     bid=source['batch_id'];origin=source['origin'];stream='recording.'+bid
-    initial={'page_number':0,'position':0,'frame':origin,'origin':origin,'anchor':None}
+    initial={'page_number':0,'position':0,'frame':origin,'origin':origin,'anchor':None,
+        'qualified_primary':bool(qualified_primary)}
     prior=initial if previous is None else previous
-    if prior['origin'] != origin:raise Unavailable('receipt_gc_prefix_changed')
+    if (prior['origin'] != origin or prior.get('qualified_primary',False)!=bool(qualified_primary)):
+        raise Unavailable('receipt_gc_prefix_changed')
     if prior['anchor'] is not None:
         # Exact bounded anchor check detects loss/replacement of the memo's edge.
         row=db.execute('''SELECT w.chunk_id,w.position,w.capture_start_frame,w.frames,p.id,p.end_frame
@@ -1590,14 +1975,14 @@ def receipt_gc_prefix(db, sid, source, previous, budget, remaining):
     rows=db.execute('''SELECT w.chunk_id,w.position,w.capture_start_frame,w.frames,
         c.status='completed' AND c.next_offset=c.duration AND c.duration=w.frames/16000.0
           AND c.timeline_start=(w.capture_start_frame-?)/16000.0 AND c.session_id=?
-          AND w.batch_id=? AND w.receipt_state='durable'
+          AND w.batch_id=? AND (w.receipt_state='durable' OR (?=1 AND w.receipt_state='gap'))
           AND sc.session_id=c.session_id AND sc.stream_id=? AND sc.position=w.position
           AND ti.session_id=c.session_id AND ti.stream_id=sc.stream_id AND ti.position=sc.position
           AND ti.timeline_start=c.timeline_start AND ti.timeline_end=c.timeline_start+c.duration AS same
         FROM recording_work w LEFT JOIN chunks c ON c.id=w.chunk_id
         LEFT JOIN stream_chunks sc ON sc.chunk_id=w.chunk_id LEFT JOIN stream_time_index ti ON ti.chunk_id=w.chunk_id
         WHERE w.page_id=? ORDER BY w.position LIMIT ?''',
-        (origin,sid,bid,stream,page['id'],expected)).fetchall()
+        (origin,sid,bid,int(qualified_primary),stream,page['id'],expected)).fetchall()
     budget.projection(len(rows)*256)
     # An exact end-position probe catches an extra row without projecting it.
     extra=db.execute('SELECT 1 FROM recording_work WHERE page_id=? AND position>=? LIMIT 1',
@@ -1612,7 +1997,7 @@ def receipt_gc_prefix(db, sid, source, previous, budget, remaining):
     if frame != b:return prior,len(rows)
     last=rows[-1]
     return {'page_number':prior['page_number']+1,'position':prior['position']+expected,
-        'frame':b,'origin':origin,'anchor':(last['chunk_id'],last['position'],last['capture_start_frame'],
+        'frame':b,'origin':origin,'qualified_primary':bool(qualified_primary),'anchor':(last['chunk_id'],last['position'],last['capture_start_frame'],
             last['frames'],page['id'],b)},len(rows)
 
 

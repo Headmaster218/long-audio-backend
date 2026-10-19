@@ -207,8 +207,14 @@ class Store:
             init_bounded_revision(db)
             from .recording_primary_provenance import init_schema as init_primary_provenance
             init_primary_provenance(db)
+            from .recording_overlap import init_primary_cache_schema
+            from .settings import primary_only_enabled
+            init_primary_cache_schema(db, enable=bool(primary_only_enabled(settings)
+                and settings.native_owned_compact_gc_enabled and settings.native_owned_receipt_gc_enabled))
             from .recording_speaker_history import init_schema as init_history
             init_history(db)
+            from .recording_overlap import primary_cache_schema
+            primary_cache_schema(db,self)
         from .recording_primary_provenance import database_identity, enabled as primary_provenance_enabled
         self._primary_provenance_identity = database_identity(self.path) if primary_provenance_enabled(settings) else None
 
@@ -420,12 +426,16 @@ class Store:
             after=getattr(self,'_automatic_claim_after',None) if automatic else None
             page=" AND (c.created>? OR (c.created=? AND c.id>?))" if after is not None else ''
             args=(after[0],after[0],after[1]) if after is not None else ()
+            from .recording_overlap import primary_cache_schema,primary_cache_capable
+            exclusive=''
+            if primary_cache_schema(db,self) and not primary_cache_capable(self):
+                exclusive=" AND NOT EXISTS(SELECT 1 FROM recording_batches b WHERE b.session_id=c.session_id AND b.primary_cache_policy IS NOT NULL)"
             rows=db.execute(f"""SELECT c.id,c.session_id,c.created FROM chunks c JOIN sessions s ON s.id=c.session_id
                 WHERE c.status='queued' AND s.processing_mode='legacy' AND {PUBLISHED_CHUNK_SQL}
                 AND NOT EXISTS (SELECT 1 FROM stream_chunks sc JOIN stream_chunks prior
                   ON prior.session_id=sc.session_id AND prior.stream_id=sc.stream_id AND prior.position=sc.position-1
                   JOIN chunks pc ON pc.id=prior.chunk_id WHERE sc.chunk_id=c.id AND pc.status!='completed')
-                {page} ORDER BY c.created,c.id LIMIT {16 if automatic else 1}""",args).fetchall()
+                {exclusive}{page} ORDER BY c.created,c.id LIMIT {16 if automatic else 1}""",args).fetchall()
             if not rows:
                 if automatic:self._automatic_claim_after=None
                 return None
@@ -615,6 +625,10 @@ class Store:
             current=db.execute('SELECT * FROM chunks WHERE id=?',(chunk['id'],)).fetchone()
             if not current or current['status'] not in ('running','paused'): return False
             if abs(current['next_offset']-offset)>1e-5: return False
+            from .recording_overlap import primary_cache_marked,primary_cache_capable
+            if primary_cache_marked(db,current['session_id'],current['id'],store=self,
+                    budget=bounded_handoff['budget'] if isinstance(bounded_handoff,dict) else None) and not primary_cache_capable(self):
+                raise ValueError('Primary cache coordinator unavailable for commit')
             from .moss_automatic import enabled,recording,bounded_enabled
             automatic=(enabled(self.settings) and not getattr(getattr(self,'moss_automatic',None),'primary_only',False)
                 and recording(db,chunk['id']))
