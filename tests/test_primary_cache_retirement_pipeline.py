@@ -111,6 +111,7 @@ def append_page(h, *, count=1, number=1, gap=False, finish=False):
 
 
 def complete(h, cids, *, fail_at=None):
+    failed = None
     for index, cid in enumerate(cids):
         before = h.store.chunk(cid)
         assert before['status'] == 'queued' and before['next_offset'] == 0.
@@ -119,10 +120,41 @@ def complete(h, cids, *, fail_at=None):
         after = h.store.chunk(cid)
         assert before['next_offset'] < after['next_offset'] == after['duration']
         assert after['status'] == 'completed'
-        if h.jobs._primary_pending is not None:
-            if index == fail_at:assert h.jobs._stop_primary()
-            else:_complete_pending_probe(h)
+        if index == fail_at:
+            pending = h.jobs._primary_pending
+            assert pending is not None and pending['owner'] is h.jobs
+            assert pending['chunk_id'] == cid and pending['session_id'] == h.sid
+            assert pending['state'] == 'pending' and pending['admitted']
+            assert pending['reservation']['token'] == pending['attempt_id']
+            attempt = (pending['attempt_id'], 'primary_commit',
+                pending['saved_header']['digest'], pending['invocation_id'], 'reserved')
+            with h.store.db() as db:
+                assert tuple(db.execute(f'''SELECT token,origin_kind,origin_id,invocation_id,state
+                    FROM {history.ATTEMPTS} WHERE token=?''', (attempt[0],)).fetchone()) == attempt
+                rows = db.execute(f'SELECT * FROM {history.CERTIFICATES} WHERE attempt=? LIMIT 2',
+                    (attempt[0],)).fetchall()
+            assert len(rows) == 1
+            certificate = dict(rows[0])
+            assert certificate['attempt'] == attempt[0]
+            assert certificate['invocation_id'] == pending['invocation_id']
+            assert certificate['evidence_kind'] == 'pending'
+            assert h.jobs._primary_pending is pending and h.jobs._stop_primary()
+            assert pending['state'] == 'terminal' and pending['cancelled'].is_set()
+            failed = (dict(certificate, evidence_kind='candidate_missing'), attempt[:4] + ('failure',))
+            # The acknowledged cancellation closes the copy, while Worker's
+            # already requested scheduling opportunity still needs its turn.
+            permit = h.jobs.permit
+            assert h.jobs._primary_pending is None
+            assert permit._optional is None and permit._turn is None
+            assert permit._handoff is not None
+            h.worker._automatic_handoff(request=False)
+            assert h.jobs._primary_pending is None
+            assert permit._optional is None and permit._turn is None
+            assert permit._handoff is None
+        elif h.jobs._primary_pending is not None:
+            _complete_pending_probe(h)
         assert h.jobs._primary_pending is None
+    return failed
 
 
 def gap_tail(h, count=28):
@@ -306,21 +338,37 @@ def test_C1_packets_history_refs_and_audio_survive_both_collections_and_restart(
 
 def test_C2_unknown_rival_certificates_survive_collection_and_reads_abstain(retirement_app_factory):
     with retirement_app_factory() as h:
-        # 60-second cadence makes the seventh 10.5-second core genuinely due.
+        # The second core is an admitted bootstrap claim. History uses stream-
+        # relative frames: the seventh starts at 63 s, below the 120 s cadence
+        # boundary after the six bootstrap claims have already been admitted.
         # Each fresh WAV remains below the existing 50-second fixture bound.
-        first = append_page(h, count=3); complete(h, first)
+        first = append_page(h, count=3)
+        certificate, attempt = complete(h, first, fail_at=1)
         second = append_page(h, count=3, number=2); complete(h, second)
-        last = append_page(h, count=2, number=3); complete(h, last, fail_at=0)
+        last = append_page(h, count=2, number=3); complete(h, last)
         cids = first + second + last; gap_tail(h)
+        key = (certificate['scope_seq'], certificate['sequence'])
         with h.store.db() as db:
-            assert db.execute(f"SELECT COUNT(*) FROM {history.CERTIFICATES} WHERE evidence_kind='candidate_missing'").fetchone()[0] >= 1
+            assert dict(db.execute(f'''SELECT * FROM {history.CERTIFICATES}
+                WHERE scope_seq=? AND sequence=?''', key).fetchone()) == certificate
+            assert tuple(db.execute(f'''SELECT token,origin_kind,origin_id,invocation_id,state
+                FROM {history.ATTEMPTS} WHERE token=?''', (attempt[0],)).fetchone()) == attempt
         before = snapshot(h)
         assert any(r['retired'] for r in collect(h, 'compact'))
         assert any(r['retired'] for r in collect(h, 'receipt'))
+        assert h.owner.receipt(first[1]) is None
+        with h.store.db() as db:
+            assert db.execute('SELECT 1 FROM native_core_commits WHERE cid=? LIMIT 1',
+                (first[1],)).fetchone() is None
         response = h.client.get(f'/sessions/{h.sid}/transcript'); assert response.status_code == 200
         for row in response.json()['baseline_reading']:
             link = row.get('recording_speaker_link')
             assert link is None or link.get('provisional_speaker_id') is None
+        with h.store.db() as db:
+            assert dict(db.execute(f'''SELECT * FROM {history.CERTIFICATES}
+                WHERE scope_seq=? AND sequence=?''', key).fetchone()) == certificate
+            assert tuple(db.execute(f'''SELECT token,origin_kind,origin_id,invocation_id,state
+                FROM {history.ATTEMPTS} WHERE token=?''', (attempt[0],)).fetchone()) == attempt
         assert snapshot(h) == before
 
 
@@ -331,28 +379,84 @@ def test_C3_retired_caches_do_not_turn_revoked_evidence_current(retirement_app_f
         cid = cids[0]; saved = saved_packet(h, cid); assert saved is not None
         receipt = h.owner.receipt(cid); assert receipt is not None
         fence = probe._fence(h.jobs.cell_source)
-        collect(h, 'compact'); collect(h, 'receipt')
-        assert h.owner.receipt(cid) is None
-        with h.store.db() as db:
-            db.execute('BEGIN')
-            assert probe.standalone_current(db, saved, h.jobs.cell_source, fence, receipt.encoded, admitted=True)
-            assert not probe.standalone_current(db, saved, h.jobs.cell_source, fence, receipt.encoded, admitted=False)
-        if mutation == 'generation':h.owner.revoked()
-        elif mutation == 'source_replacement':
-            with h.store.db() as db:path = Path(db.execute('SELECT path FROM chunks WHERE id=?', (cid,)).fetchone()[0])
-            with path.open('r+b') as target:target.seek(44); target.write(b'\x7f\x00')
-        else:
+        probes = tuple(h.probes); retained = (pp.TABLE, pp.USAGE, history.CERTIFICATES,
+            history.OBJECTS, history.REFS, history.DEPENDENCIES, history.ATTEMPTS)
+        with h.store.db() as db:evidence = rows_hash(db, retained)
+        before = snapshot(h); durable = h.jobs.history
+        build = durable.begin_comparison(); assert build is not None
+        try:
+            page = durable.active_source_page(build)
+            assert page['complete'] and 1 <= len(page['rows']) <= 3
+            target, = [row for row in page['rows'] if row['chunk_id'] == cid]
+            assert target['receipt'] == receipt.encoded and target['state'] == 'active'
             with h.store.db() as db:
-                if mutation == 'cancellation':db.execute("UPDATE chunks SET status='cancelled' WHERE id=?", (cid,))
-                elif mutation == 'revision':db.execute("UPDATE segments SET text='changed' WHERE chunk_id=?", (cid,))
-                else:db.execute('UPDATE chunks SET digest=? WHERE id=?', ('f' * 64, cid))
+                db.execute('BEGIN')
+                fact = durable._source_fact(db, target['receipt'], target['required_end'])
+            assert fact['version'] == target['version']
+            assert durable.comparison_current(build) == 'current'
+            collect(h, 'compact'); collect(h, 'receipt')
+            assert h.owner.receipt(cid) is None
+            with h.store.db() as db:
+                db.execute('BEGIN')
+                assert db.execute('SELECT 1 FROM native_core_commits WHERE cid=? LIMIT 1',
+                    (cid,)).fetchone() is None
+                assert durable._source_fact(db, target['receipt'], target['required_end']) == fact
+            assert snapshot(h) == before
+            assert durable.comparison_current(build) == 'current'
+            assert durable.active_source_page(build) == page
+            assert durable.revalidate_active_sources(build, page)
+            assert build['source_pages_complete'] and build['validated_source_count'] == len(page['rows'])
+        finally:
+            assert durable.finish_comparison(build, 'cancelled')
+        # Retained history is still evidence. It is not a fresh producer claim.
         with h.store.db() as db:
             db.execute('BEGIN')
-            try:current = probe.standalone_current(db, saved, h.jobs.cell_source, fence, receipt.encoded, admitted=True)
+            assert not probe.standalone_current(db, saved, h.jobs.cell_source, fence, receipt.encoded, admitted=False)
+        # A fresh real build supplies an untouched source-validation cursor.
+        build = durable.begin_comparison(); assert build is not None
+        try:
+            page = durable.active_source_page(build)
+            assert page['complete'] and 1 <= len(page['rows']) <= 3
+            target, = [row for row in page['rows'] if row['chunk_id'] == cid]
+            assert target['receipt'] == receipt.encoded and target['version'] == fact['version']
+            assert durable.comparison_current(build) == 'current'
+            if mutation == 'generation':
+                generation = h.owner._epoch
+                h.owner.revoked()
+                assert h.owner._epoch is not generation
+                with pytest.raises(cells.Unavailable, match='primary_probe_authority_changed'):
+                    probe._check_fence(h.jobs.cell_source, fence)
+                # A provider generation change does not revoke durable history.
+                assert durable.comparison_current(build) == 'current'
+                assert durable.revalidate_active_sources(build, page)
+            else:
+                if mutation == 'source_replacement':
+                    with h.store.db() as db:path = Path(db.execute('SELECT path FROM chunks WHERE id=?', (cid,)).fetchone()[0])
+                    with path.open('r+b') as source:source.seek(44); source.write(b'\x7f\x00')
+                else:
+                    with h.store.db() as db:
+                        if mutation == 'cancellation':db.execute("UPDATE chunks SET status='cancelled' WHERE id=?", (cid,))
+                        elif mutation == 'revision':db.execute("UPDATE segments SET text='changed' WHERE chunk_id=?", (cid,))
+                        else:db.execute('UPDATE chunks SET digest=? WHERE id=?', ('f' * 64, cid))
+                expected = 'current' if mutation == 'source_replacement' else 'invalid'
+                assert durable.comparison_current(build) == expected
+                with pytest.raises(ReadError) as refused:
+                    durable.revalidate_active_sources(build, page)
+                reasons = ('history_source_unknown',) if mutation == 'source_replacement' else (
+                    ('history_source_unknown', 'history_snapshot_changed') if mutation == 'digest'
+                    else ('history_snapshot_changed',))
+                assert refused.value.reason in reasons
+        finally:
+            assert durable.finish_comparison(build, 'cancelled')
+        with h.store.db() as db:
+            db.execute('BEGIN')
+            try:current = probe.standalone_current(db, saved, h.jobs.cell_source, fence, receipt.encoded, admitted=False)
             except (cells.Unavailable, ReadError):current = False
             assert current is False
+            assert rows_hash(db, retained) == evidence
         assert saved_packet(h, cid) == saved
-        assert len(h.probes) <= 3
+        assert tuple(h.probes) == probes and len(h.probes) <= 3
+        assert h.jobs._primary_pending is None
 
 
 @pytest.mark.parametrize('phase', ['before_commit', 'after_commit'])

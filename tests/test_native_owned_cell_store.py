@@ -314,13 +314,17 @@ class StoreFixture(unittest.TestCase):
             self.owner._open()
 
     def test_late_deletion_after_sidecar_commit_never_returns_durable(self):
-        original = self.authority.cell_valid; calls = []
+        original = self.authority.cell_valid; calls = []; store = object()
         def invalidate(doc, budget, *, publishing):
             calls.append(publishing)
             if len(calls) == 3:self.authority.valid = False
             return original(doc, budget, publishing=publishing)
-        with patch.object(self.authority, 'cell_valid', side_effect=invalidate):
+        with patch.object(self.authority, 'cell_valid', side_effect=invalidate), patch.object(
+                self.authority, 'store', store, create=True), patch(
+                'audio_backend.recording_speaker_history.notify_source_mismatch', return_value=True) as notify:
             result = self.operation('publish', (synthetic_cell(),))
+            notify.assert_called_once_with(store, ['chunk'])
+        self.assertEqual(calls[:3], [True, True, True])
         self.assertNotEqual(result['status'], 'durable')
         self.assertEqual(result['reason'], 'source_changed_after_publication_commit')
 

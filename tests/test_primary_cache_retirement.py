@@ -77,6 +77,92 @@ def rows_hash(db, names):
     return digest.hexdigest()
 
 
+@contextmanager
+def tracked_authority_reads(f, monkeypatch, *, after=None):
+    """Real connections; measure callbacks without replacing reads or budgets."""
+    original = sqlite3.connect; records = []
+    uri = f.authority.path.as_uri() + '?mode=ro'
+    class Tracked(sqlite3.Connection):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.record = dict(begin=0, rollback=0, closes=0,
+                vm_callbacks=0, vm_steps=0, closed_in_transaction=False)
+            records.append(self.record); assert len(records) <= 128
+        def execute(self, sql, parameters=()):
+            result = super().execute(sql, parameters)
+            statement = sql.strip().upper()
+            if statement == 'BEGIN':self.record['begin'] += 1
+            elif statement == 'ROLLBACK':self.record['rollback'] += 1
+            if after is not None:after(self, statement)
+            return result
+        def set_progress_handler(self, callback, amount):
+            if callback is None:return super().set_progress_handler(None, amount)
+            assert amount == 100
+            def counted():
+                self.record['vm_callbacks'] += 1; self.record['vm_steps'] += amount
+                return callback()
+            return super().set_progress_handler(counted, amount)
+        def close(self):
+            active = self.in_transaction
+            super().close()
+            self.record['closes'] += 1
+            self.record['closed_in_transaction'] = active
+    def connect(database, *args, **kwargs):
+        if str(database) != uri:return original(database, *args, **kwargs)
+        assert 'factory' not in kwargs
+        return original(database, *args, factory=Tracked, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(sqlite3, 'connect', connect)
+        yield records
+    assert all(record['closes'] == 1 for record in records)
+
+
+@pytest.fixture
+def dense_scope_metrics(primary_cache, monkeypatch, record_property):
+    f = primary_cache; operations = []
+    with tracked_authority_reads(f, monkeypatch) as records:
+        def measured(kind, call):
+            def run(*args, **kwargs):
+                first = len(records); first_budget = len(f.budgets)
+                result = None; succeeded = False
+                try:
+                    result = call(*args, **kwargs)
+                    current = records[first:]
+                    assert len(current) <= 1
+                    assert all(r['begin'] == r['rollback'] and r['closes'] == 1
+                        and not r['closed_in_transaction'] for r in current)
+                    assert getattr(f.authority._list_reads, 'current', None) is None
+                    succeeded = True
+                    return result
+                finally:
+                    # Preserve the original failure while retaining its actual
+                    # connection/snapshot/VM counts, including a strict cap failure.
+                    current = records[first:]
+                    budget = f.budgets[-1] if len(f.budgets) > first_budget else None
+                    operations.append(dict(kind=kind,
+                        status=result['status'] if succeeded else 'raised',
+                        scanned=result['scanned'] if succeeded else -1,
+                        retired=result['retired'] if succeeded else -1,
+                        connections=len(current), snapshots=sum(r['begin'] for r in current),
+                        rollbacks=sum(r['rollback'] for r in current),
+                        closes=sum(r['closes'] for r in current),
+                        authority_vm_callbacks=sum(r['vm_callbacks'] for r in current),
+                        authority_vm_steps=sum(r['vm_steps'] for r in current),
+                        total_vm_steps=budget.steps if budget is not None else -1,
+                        sql_bytes=budget.sql_bytes if budget is not None else -1))
+            return run
+        monkeypatch.setattr(f, 'collect', measured('compact', f.collect))
+        monkeypatch.setattr(f, 'collect_receipts', measured('receipt', f.collect_receipts))
+        try:yield operations
+        finally:
+            columns = tuple(operations[0]) if operations else ()
+            payload = json.dumps({'columns': columns,
+                'operations': [[row[key] for key in columns] for row in operations]}, separators=(',', ':'))
+            xml_bytes = payload.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;').encode()
+            assert len(xml_bytes) <= 16 * 1024  # Eight held states: <=128 KiB total.
+            record_property('dense_authority_connection_snapshots_vm', payload)
+
+
 def primary_settings(root, **changes):
     options = dict(data_dir=root, disk_reserve_bytes=0,
         recording_disk_reserve_bytes=0, start_worker=True, window_seconds=10.5,
@@ -722,7 +808,7 @@ def test_B1_B2_actual_caps_roll_and_replenish_without_raising_limits(primary_cac
 
 
 @pytest.mark.parametrize('state', HELD_STATES)
-def test_B4_every_held_primary_state_roots_both_caches_until_drop(primary_cache, state):
+def test_B4_every_held_primary_state_roots_both_caches_until_drop(primary_cache, state, dense_scope_metrics):
     f = primary_cache; ids = f.recording(compacts=True); cid = ids[0]
     handle = dict(owner=f.jobs, session_id=f.sid, recording_id=f.bid, chunk_id=cid,
         state=state, cancelled=threading.Event(), crop=b'SYNTHETIC held copy',
@@ -752,6 +838,70 @@ def test_B4_every_held_primary_state_roots_both_caches_until_drop(primary_cache,
             with pytest.raises(cells.Unavailable):f.jobs.primary_retention_roots()
             assert f.collect()['retired'] == f.collect_receipts()['retired'] == 0
         finally:f.jobs._primary_pending = None
+
+
+@pytest.mark.parametrize('kind', ['compact', 'receipt'])
+def test_B7_collector_scope_exception_and_nested_cleanup(primary_cache, monkeypatch, kind):
+    f = primary_cache; f.recording(compacts=kind == 'compact')
+    collect = f.collect if kind == 'compact' else f.collect_receipts
+    compact_before = f.compact_rows(); receipt_before = f.source_rows(); preserved = f.preserved()
+    injected = []
+    def fail_in_snapshot(db, statement):
+        if statement.startswith('SELECT LENGTH(PATH)') and not injected:
+            assert db.in_transaction
+            injected.append(1)
+            raise RuntimeError('SYNTHETIC authority snapshot failure')
+    with tracked_authority_reads(f, monkeypatch, after=fail_in_snapshot) as records:
+        result = collect()
+    assert injected == [1] and result['status'] == 'deferred' and result['retired'] == 0
+    assert len(records) == 1 and records[0]['closes'] == 1
+    assert records[0]['begin'] == records[0]['rollback'] + 1
+    assert records[0]['closed_in_transaction']
+    assert getattr(f.authority._list_reads, 'current', None) is None
+    assert f.owner._slot is None
+    assert f.compact_rows() == compact_before and f.source_rows() == receipt_before
+    assert f.preserved() == preserved
+    outer_budget = cells.Budget.for_owner()
+    with tracked_authority_reads(f, monkeypatch) as records:
+        with f.authority.list_read_scope(outer_budget):
+            assert f.authority.session_valid(f.sid, outer_budget)
+            scope = f.authority._list_reads.current; connection = scope['db']
+            assert not connection.in_transaction
+            result = collect()
+            assert result['status'] == 'deferred' and result['retired'] == 0
+            assert f.authority._list_reads.current is scope and scope['db'] is connection
+            assert records[0]['closes'] == 0 and not connection.in_transaction
+            assert f.authority.session_valid(f.sid, outer_budget)
+        assert len(records) == 1 and records[0]['begin'] == records[0]['rollback'] == 2
+        assert records[0]['closes'] == 1 and not records[0]['closed_in_transaction']
+    assert getattr(f.authority._list_reads, 'current', None) is None
+    assert f.compact_rows() == compact_before and f.source_rows() == receipt_before
+    assert f.preserved() == preserved
+
+
+def test_B7_scoped_authority_observes_external_commit_between_snapshots(primary_cache, monkeypatch):
+    f = primary_cache; cid, = f.recording(1); receipt = f.receipts[cid]
+    budget = cells.Budget.for_owner()
+    with tracked_authority_reads(f, monkeypatch) as records:
+        with f.authority.list_read_scope(budget):
+            assert f.authority.receipt_valid(receipt, budget)
+            connection = f.authority._list_reads.current['db']
+            assert not connection.in_transaction
+            # Two simultaneously open connections, with a real committed writer
+            # between authority snapshots. This is outside GC's write fence.
+            writer = sqlite3.connect(f.store.path, isolation_level=None, timeout=0.)
+            try:
+                writer.execute('BEGIN IMMEDIATE')
+                writer.execute('UPDATE chunks SET digest=? WHERE id=?', ('f' * 64, cid))
+                writer.execute('COMMIT'); assert not writer.in_transaction
+                assert not f.authority.receipt_valid(receipt, budget)
+                assert f.authority._list_reads.current['db'] is connection
+                assert not connection.in_transaction
+            finally:writer.close()
+        assert len(records) == 1 and records[0]['begin'] == records[0]['rollback'] == 3
+        assert records[0]['closes'] == 1 and not records[0]['closed_in_transaction']
+    assert getattr(f.authority._list_reads, 'current', None) is None
+    assert budget.steps <= 150000 and budget.sql_bytes <= cells.SQL_PROJECTION_BYTES
 
 
 @pytest.mark.parametrize('root', ['cell', 'pin', 'cancelled_pin', 'tail'])

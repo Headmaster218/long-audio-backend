@@ -8,7 +8,7 @@ checkpoint or fsync. There is no publication retry queue. Default remains OFF.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, asdict
 import hashlib
 import json
@@ -718,7 +718,9 @@ class CellStore:
                 if self._admission_closed or not self._ready.is_set() or op.cancelled.is_set():
                     raise Unavailable('compact_gc_admission_closed')
                 self._db.set_progress_handler(budget.progress, 100); self._scan(budget)
-                result = collect_compacts(self, op, budget, result=result)
+                scope = getattr(self.authority, 'list_read_scope', None)
+                with scope(budget) if scope is not None else nullcontext():
+                    result = collect_compacts(self, op, budget, result=result)
                 self._scan(budget); budget.check(); self._generation(op)
                 if self._admission_closed or op.cancelled.is_set():raise Unavailable('compact_gc_admission_closed')
         except Exception as exc:
@@ -784,7 +786,9 @@ class CellStore:
                 if self._admission_closed or not self._ready.is_set() or op.cancelled.is_set():
                     raise Unavailable('receipt_gc_admission_closed')
                 self._db.set_progress_handler(budget.progress, 100); self._scan(budget)
-                result = collect_receipts(self, op, budget, result=result)
+                scope = getattr(self.authority, 'list_read_scope', None)
+                with scope(budget) if scope is not None else nullcontext():
+                    result = collect_receipts(self, op, budget, result=result)
                 self._scan(budget); budget.check(); self._generation(op)
                 if self._admission_closed or op.cancelled.is_set():raise Unavailable('receipt_gc_admission_closed')
         except Exception as exc:
