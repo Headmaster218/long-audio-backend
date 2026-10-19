@@ -1,5 +1,11 @@
 # Provisional recording-local speaker links
 
+## dev53: one-module primary-probe fingerprint repair; package verification pending
+
+This isolated experimental candidate preserves the exact published recovery and focused-test evidence. Only an already-reserved automatic_primary_probe running fingerprint excludes caller-turn, handoff and nonexecuting queue-probe scheduling hints. Admission and genuine owner, token, cancellation, granted/entered primary work, configuration, source-currentness, resource and original-deadline guards stay unchanged. No wait, regrant, replay or inference is added.
+
+A fresh standard-pytest gate accepted 53 candidate cases and two authenticated dev52 controls. It does not inherit the lost 42-case run, combine historical counts, establish a historical trial's exact cause, or qualify acoustic identity. All default-off, database/downgrade and isolated-copy requirements continue. Package, current exact SQLite runtime/profile, tiny synthetic process and passive-app verification remain pending in the [dev53 qualification report](../reports/PRIMARY_PROBE_FINGERPRINT_DEV53_QUALIFICATION.json). The sections below preserve their historical bytes and scope.
+
 ## dev52: experimental repair release candidate; package verification pending
 
 This candidate descends from the published diagnostic WIP16 and preserves dev51 and the repair history. It packages the already source-qualified pre-dispatch read deferral, same-attempt frozen-success storage acknowledgement and bounded optional-sample diagnostics. Release preparation changes only version literals and release documentation/reporting. No producer default, model, comparison policy, threshold, arithmetic or runtime/dependency declaration changes.

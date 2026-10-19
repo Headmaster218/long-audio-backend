@@ -1,0 +1,277 @@
+{
+  "schema": "primary-probe-fingerprint-experimental-dev53-qualification-v1",
+  "version": "0.2.0rc3.dev53",
+  "status": "focused_source_and_offline_package_qualified_isolated_experimental_only",
+  "deployment": "isolated_experimental_evaluation_only",
+  "baseline": {
+    "commit": "370da5e2a9414826d9b05577de1ecd1ef5f0c8a2",
+    "tree": "a1f9ef8f033daf03b289bc30270f23bf5d0c8124",
+    "files": 563,
+    "bytes": 10167310,
+    "association": "Parent-confirmed durable commit; exact local working-tree bytes independently recomputed."
+  },
+  "release_overlay": {
+    "changed_paths": [
+      "pyproject.toml",
+      "audio_backend/__init__.py",
+      "README.md",
+      "docs/RECORDING_SPEAKER_LINKS.md",
+      "docs/PRIMARY_HISTORY_WIP_STATUS.md",
+      "reports/PRIMARY_PROBE_FINGERPRINT_DEV53_QUALIFICATION.json"
+    ],
+    "new_paths": [
+      "reports/PRIMARY_PROBE_FINGERPRINT_DEV53_QUALIFICATION.json"
+    ],
+    "version_literals_only": true,
+    "all_other_package_and_test_bytes_preserved": true,
+    "dependencies_profiles_defaults_models_comparator_thresholds_unchanged": true,
+    "readme_frozen_before_build": true,
+    "post_build_factual_updates_only": [
+      "docs/PRIMARY_HISTORY_WIP_STATUS.md",
+      "reports/PRIMARY_PROBE_FINGERPRINT_DEV53_QUALIFICATION.json"
+    ]
+  },
+  "source_evidence": {
+    "candidate_cases": 53,
+    "authenticated_baseline_controls": 2,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "inherited_lost_run_credit": 0,
+    "candidate_permit_sha256": "6e177b86ff535f4fa972b1c78b4f2ace628fe811ff077b36a8da2a6dd7665998",
+    "focused_tests_sha256": "ed8a5d0d2aa657c72c8a86ed8452e4038dc0d35ea887f33f25c05c999020e2b1",
+    "independent_terminal_acceptance_sha256": "2de344a4493f27e8cd68fee0f8cddbc869eb7707ad0af3168903f6c509ac3e8c",
+    "source_scope": "One already-reserved automatic_primary_probe running fingerprint; all actual authority/resource/cancellation/currentness/deadline guards remain.",
+    "details": "PRIMARY_PROBE_RESERVATION_FINGERPRINT_RECOVERY_WIP.json"
+  },
+  "package_qualification": {
+    "status": "accepted_offline_parity_current_profile_and_passive_smoke_after_reviewed_continuation",
+    "new_dependency_installs": 0,
+    "existing_build_tools": {
+      "pip": "26.2.1",
+      "setuptools": "84.0.0",
+      "wheel": "0.48.0",
+      "packaging": "26.3"
+    },
+    "tool_origin": "Pre-existing replacement-environment distributions; versions inventoried, publisher wheel parity not newly established.",
+    "retained_runtime_lock_equivalence_claimed": false,
+    "models_or_external_native_runtime_required": false,
+    "runtime_profile_change_planned": false,
+    "execution_envelope": {
+      "work_seconds": 30,
+      "cleanup_seconds": 10,
+      "aggregate_cpu_seconds": 25,
+      "cpu_affinity": [
+        3,
+        4
+      ],
+      "nice": 19,
+      "combined_sampled_rss_bytes": 402653184,
+      "address_space_bytes": 1073741824,
+      "fresh_allocated_bytes": 67108864
+    },
+    "broad_suite_or_new_feature_coverage_claimed": false,
+    "executed_source_tree": "fc9f3e7a2ca1fb0016d514890ff3cbf0f92c0a1f",
+    "executed_source_manifest": {
+      "receipt": "release-source-manifest.json",
+      "bytes": 132676,
+      "sha256": "4fe668b10b3e7d9e04e167d3a6d03540b251372c0b129c2febefa907b4326ccf"
+    },
+    "package_files": 133,
+    "package_bytes": 3095045,
+    "source_wheel_fresh_install_byte_mode_parity": true,
+    "wheel": {
+      "filename": "long_audio_backend-0.2.0rc3.dev53-py3-none-any.whl",
+      "bytes": 830862,
+      "sha256": "4af80cdf5058b66b173a7b58a8401c1015cfe516ba5cc78b200c32d37853270a"
+    },
+    "metadata": {
+      "bytes": 792,
+      "sha256": "4719f5df4480b7d67d5d1ce6ae62a43fa905cdf2246882850e7c3c5c2c37e2fe"
+    },
+    "requirements": {
+      "entries": 12,
+      "comparison": "One multiplicity-preserving Counter equality using standard packaging.Requirement objects; not twelve separate tests."
+    },
+    "runtime_profile": {
+      "status": "current_exact_tuple_passed_unchanged_registry_and_real_verifier",
+      "registry_evidence_sha256": "6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e",
+      "new_profile_entry_or_guard_change": false,
+      "genuine_admission_restart_cases": 2,
+      "synthetic_pcm_bytes": [
+        32,
+        64
+      ],
+      "old_raw_physical_profile_evidence_locally_available": false,
+      "scope": "Current installed admission and tiny retention/restart/OFF/mismatch checks only; no repeat of the historical full-allocation/process-crash proof and no new power-loss guarantee."
+    },
+    "tiny_comparator": {
+      "selected_cases": 1,
+      "rows": [
+        3,
+        4
+      ],
+      "direct_output_and_cached_append_parity": true,
+      "positive_original_child_wait": true,
+      "child_close_ack_or_zero_exit_separately_asserted": false,
+      "scope": "Existing unchanged tiny model-free standard-pytest case, including cached repeat; no dense SQL, model, acoustic or scale claim."
+    },
+    "standard_pytest": {
+      "passed": 3,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "selected_nodes": [
+        "tests/test_native_owned_cell_store.py::AdmissionTests::test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread",
+        "tests/test_native_owned_cell_store.py::AdmissionTests::test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off",
+        "tests/test_recording_speaker_history_process.py::test_real_child_matches_unchanged_direct_oracle_and_cache[3]"
+      ],
+      "test_helpers_copied_unchanged": 5,
+      "helper_ast_reads_from_installed_package": true,
+      "broader_fingerprint_or_feature_suite_repeated": false
+    },
+    "passive_app": {
+      "statuses": {
+        "/health": {
+          "status": 200,
+          "bytes": 1437
+        },
+        "/openapi.json": {
+          "status": 200,
+          "bytes": 47260
+        },
+        "/docs": {
+          "status": 200,
+          "bytes": 1031
+        }
+      },
+      "worker_started": false,
+      "normal_lifespan_closed": true,
+      "model_directory_absent": true
+    },
+    "installed_origins": {
+      "verifier_module_count": 55,
+      "test_module_count": 21,
+      "unique_observed_product_modules": 61,
+      "all_observed_product_modules_in_fresh_target": true,
+      "actual_comparison_child_argv_observed_at_installed_sibling": true,
+      "native_model_runtimes_not_imported_by_verifier_or_pytest": true
+    },
+    "observed_runtime_dependencies": {
+      "fastapi": "0.141.1",
+      "starlette": "1.6.0",
+      "pydantic": "2.13.4",
+      "pydantic-core": "2.46.4",
+      "anyio": "4.14.2",
+      "psutil": "7.2.2",
+      "httpx": "0.28.1",
+      "pydantic-settings": "2.15.0",
+      "uvicorn": "0.52.1",
+      "python-multipart": "0.0.32",
+      "packaging": "26.3"
+    },
+    "attempts": {
+      "wheel_build_attempts": 1,
+      "install_attempts": 2,
+      "verify_attempts": 1,
+      "pytest_attempts": 1,
+      "first_attempt": {
+        "status": "failed_preserved",
+        "cause": "Fresh artifact census lstat raced disappearance of a transient pip INSTALLER temporary entry; FileNotFoundError stopped the observer.",
+        "wheel_exit": 0,
+        "installer_exit": -15,
+        "installer_stopped_by_observer_TERM": true,
+        "original_stage_and_outer_waits_positive": true,
+        "forced_kill": false,
+        "observed_survivors": false,
+        "verification_or_tests_run": false,
+        "source_and_input_pins_preserved": true,
+        "receipt": {
+          "receipt": "execution-receipt.json",
+          "bytes": 5435,
+          "sha256": "6e87a91e434cb6eb4443c264f4116d4da7b69e5ff740bf3fc9e88786a187c624"
+        }
+      },
+      "continuation": {
+        "status": "passed",
+        "same_wheel_reused_without_rebuild": true,
+        "distinct_fresh_install_target": true,
+        "correction": "One complete allocation-census retry only for confirmed disappearance under owned disposable pip/fixture roots, including the install target only while its exact installer is alive; protected source, prior evidence and final installed bytes remain strict.",
+        "census_retries_observed": 0,
+        "stage_exits": [
+          0,
+          0,
+          0
+        ],
+        "original_stage_and_outer_waits_positive": true,
+        "forced_kill": false,
+        "cleanup_errors": [],
+        "observed_family_absent": true,
+        "receipt": {
+          "receipt": "execution-receipt.json",
+          "bytes": 7413,
+          "sha256": "39a7051373cb1165370e681fbdb2767ff9a108848a3ad29413391d982c8f1168"
+        }
+      }
+    },
+    "resource_observations": {
+      "cumulative_supervisor_wall_seconds": 4.687635494999995,
+      "cumulative_accounted_cpu_seconds": 5.080539,
+      "cumulative_cpu_with_two_one_second_outer_timeout_allowances": 7.080539,
+      "peak_sampled_owned_rss_plus_32MiB_outer_timeout_AS_allowance_bytes": 118304768,
+      "peak_sampled_cumulative_fresh_allocated_bytes": 38400000,
+      "maximum_live_sample_gap_seconds": 0.21220384900016143,
+      "sampled_peaks_not_continuous_caps": true,
+      "observed_family_not_complete_transient_process_census": true,
+      "wall_scope": "Supervisor receipt timing; outer wrapper startup/final tails are not directly measured and bounded by ordinary timeout guards.",
+      "final_publication_overlay_and_independent_review_bytes_separately_chargeable": true
+    },
+    "receipts": {
+      "installed_verification": {
+        "receipt": "installed-verification.json",
+        "bytes": 11159,
+        "sha256": "349b98bf9e3941689fffaa67843675b43405564a361192def23d116a485baba3"
+      },
+      "installed_test_origins": {
+        "receipt": "installed-test-origins.json",
+        "bytes": 4132,
+        "sha256": "e86e35ba85c769c82a7d37ba1e545c949fe8d7eeb1b7269cc68b9bf1639896a6"
+      },
+      "junit": {
+        "receipt": "junit.xml",
+        "bytes": 702,
+        "sha256": "5263385c53225f6c8df54fb6b65d34389abb11377e97b1d0ad30d56af23add79"
+      },
+      "independent_terminal_review": {
+        "receipt": "dev53-package-terminal-review.json",
+        "bytes": 5585,
+        "sha256": "0193210585042bd236a4b1b2ef87bbeefddd2b26f3d3f98f94be65478b18937e"
+      }
+    },
+    "old_raw_profile_package_and_acoustic_evidence_not_restored": true,
+    "actual_model_or_corpus_execution": false
+  },
+  "historical_evidence": {
+    "preserved_byte_identically": true,
+    "raw_artifacts_models_and_prior_packages_lost_at_reset": true,
+    "historical_actual_cause_established": false,
+    "acoustic_identity": "inconclusive",
+    "no_historical_trial_reclassification_or_replay": true
+  },
+  "unqualified": [
+    "actual_model_or_corpus_execution",
+    "acoustic_identity_accuracy",
+    "throughput_or_latency_SLO",
+    "full_repository_suite",
+    "long_duration_or_all_stage_concurrency",
+    "production_deployment"
+  ],
+  "privacy": "Only bounded source identities, counts and receipt hashes; no private payloads, paths, databases, audio, vectors, host identifiers or credentials.",
+  "publication": {
+    "status": "source_only_payload_prepared_not_published_by_this_step",
+    "intended_branch": "development/rc3-dev53-primary-probe-fingerprint-experimental",
+    "required_parent_commit": "370da5e2a9414826d9b05577de1ecd1ef5f0c8a2",
+    "required_parent_tree": "a1f9ef8f033daf03b289bc30270f23bf5d0c8124",
+    "preserve_existing_dev52_and_recovery_branches": true
+  }
+}
