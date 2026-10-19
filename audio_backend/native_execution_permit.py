@@ -1241,6 +1241,8 @@ class NativeExecutionPermit:
     def pause_comparison(self, token):
         with self._condition:
             if self._comparison is not None and self._comparison['token'] is token:
+                if (self._comparison['running'] is False
+                        and self._comparison['sampling'] is None):return
                 self._comparison['running'] = False
                 self._comparison['revision'] = object()
 

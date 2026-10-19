@@ -1,0 +1,473 @@
+{
+  "schema": "redundant-comparison-pause-dev58-release-qualification-v1",
+  "version": "0.2.0rc3.dev58",
+  "date_utc": "2026-10-19",
+  "status": "experimental_source_qualification_with_separate_package_gate",
+  "release_base": {
+    "commit": "b9fa5731f3068601a4d02135f6673dacbcbc7bda",
+    "tree": "b7dc0c994c9369c895cfb59529261438b6ad306c",
+    "source_files": 591,
+    "source_bytes": 10655698
+  },
+  "release_delta": {
+    "paths": [
+      "README.md",
+      "audio_backend/__init__.py",
+      "audio_backend/native_execution_permit.py",
+      "pyproject.toml",
+      "reports/REDUNDANT_COMPARISON_PAUSE_DEV58_QUALIFICATION.json",
+      "tests/test_primary_probe_start_phase_candidate.py",
+      "tests/test_redundant_comparison_pause_candidate.py"
+    ],
+    "added_paths": [
+      "reports/REDUNDANT_COMPARISON_PAUSE_DEV58_QUALIFICATION.json",
+      "tests/test_redundant_comparison_pause_candidate.py"
+    ],
+    "deleted_paths": [],
+    "expected_package_files": 133,
+    "production_change": "Only two guard lines inside the existing condition lock and exact-token branch: return when comparison running is False and sampling is None.",
+    "no_op_boundary": "This locked conjunction denotes an already-paused comparison with no pending refresh or observation flight. Any true running transition or pending sampling still rotates revision.",
+    "comparison_fingerprint_fields_unchanged": true,
+    "unchanged": [
+      "reservation and true authority checks",
+      "token/event/callback identity",
+      "sample generation",
+      "comparison owner, record and genuine revision changes",
+      "accounting and retained-cache resources",
+      "configuration and active primary grants",
+      "original work and cleanup deadlines",
+      "diagnostic schema",
+      "defaults, dependencies and comparator behavior"
+    ],
+    "all_parent_reports_preserved": true,
+    "historical_README_suffix_unchanged": true
+  },
+  "unchanged_product_reproduction": {
+    "status": "passed_independently_accepted",
+    "node_count": 4,
+    "setup_call_teardown_reports": 12,
+    "original_outer_exit": 0,
+    "original_pytest_exit": 0,
+    "source_binding": {
+      "frozen_base_source_tree": "22464893306141e655fc23cd371311572e175d0a",
+      "release_tree_rerun": false,
+      "product_sha256": "e780fe60621c0df26d74e4f0d4b60b71f15043a884372f7909b03219891c7597",
+      "overlay_test_sha256": "f7ebcafecbb111e822189132aa2dfb6541d859ba77adca715774ef8e94a41d1f"
+    },
+    "measured": {
+      "total_seconds": 1.6051988670005812,
+      "aggregate_cpu_with_timeout_allowance_seconds": 2.643107,
+      "peak_sampled_combined_rss_bytes": 95232000,
+      "peak_sampled_fresh_allocated_bytes": 1191936,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "all_observed_descendants_absent": true,
+      "bounds_observed": true
+    },
+    "independent_terminal_review": {
+      "bytes": 9043,
+      "sha256": "a5c56a10e1b006eecd19824a165d99ee4ba1185c8d8a0d74df7b745541923b8f"
+    },
+    "evidence": {
+      "selected-nodes.json": {
+        "bytes": 425,
+        "sha256": "b687ec6466764d6be027cc4ddc02c03d09e408b32d09b4730bcfe9a0ed488df6"
+      },
+      "junit.xml": {
+        "bytes": 790,
+        "sha256": "d7aceed94dbc4b539275d71a26fbd95de505a7facd5d146d793364a4ed1258e1"
+      },
+      "test-origins.json": {
+        "bytes": 42525,
+        "sha256": "610dc6205633ee6dc7142d1187bdb53b80e84dc961cb1428e589ef47ec8ba5c9"
+      },
+      "execution-receipt.json": {
+        "bytes": 4673,
+        "sha256": "7e7a2d7428f7a9e24221ccdd1c132c171f3fb2d0c9f1c532b63e33d5089c4e37"
+      },
+      "outer-process-receipt.json": {
+        "bytes": 609,
+        "sha256": "91c8320b15e0c3a4754ccd8f7dddd7dd2379f1a40ea2c11b49d6c9e88e56a3f1"
+      },
+      "terminal-summary.json": {
+        "bytes": 3070,
+        "sha256": "c15649307eaf47c2d1d5916f940252a402fdebb68a78a50cc0ed5f8fd44e353a"
+      },
+      "terminal-inventory.json": {
+        "bytes": 4335,
+        "sha256": "7df6e320359a170c1848e80ecfb436c7753935cce1da16021e5b5b5c6c65fd2e"
+      }
+    },
+    "findings": [
+      "Ordinary actual Worker automatic handoff calls manager maintenance twice; exact-token already-paused/no-sampling comparison revision changes and a held running probe refuses with ownership_changed.",
+      "Exact owner, retained synthetic process handle, completed cached-driver state and 192 MiB comparison charge remain unchanged.",
+      "Running-to-paused, pending refresh and pending observation are separate invalidation controls."
+    ]
+  },
+  "candidate_eight_node_gate": {
+    "status": "passed_independently_accepted",
+    "node_count": 8,
+    "setup_call_teardown_reports": 24,
+    "original_outer_exit": 0,
+    "original_pytest_exit": 0,
+    "source_binding": {
+      "frozen_base_source_tree": "22464893306141e655fc23cd371311572e175d0a",
+      "release_tree_rerun": false,
+      "canonical_product_sha256": "08fae6fd05e9e0f269318e52cb4acac4bf2edc3e13d169b59107c8ccc9b6e278",
+      "authenticated_reconstructed_baseline_sha256": "e780fe60621c0df26d74e4f0d4b60b71f15043a884372f7909b03219891c7597",
+      "portable_overlay_test_sha256": "42338c4a1718fc9fa13707b617c49209b4e849b43218866a40cbf71478aac050"
+    },
+    "measured": {
+      "total_seconds": 1.945743489995948,
+      "aggregate_cpu_with_timeout_allowance_seconds": 2.9526709999999996,
+      "peak_sampled_combined_rss_bytes": 95555584,
+      "peak_sampled_fresh_allocated_bytes": 1425408,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "all_observed_descendants_absent": true,
+      "bounds_observed": true
+    },
+    "independent_terminal_review": {
+      "bytes": 7924,
+      "sha256": "1b11929f6f7e580b5903061fdd6fa427e13cd7333fc18ea2bdeb614f62bdbd3e"
+    },
+    "evidence": {
+      "selected-nodes.json": {
+        "bytes": 887,
+        "sha256": "669b04c4aea60f5d32ffab5b3657fc9b911f9aa1db2e715e25093cdcde78c645"
+      },
+      "junit.xml": {
+        "bytes": 1392,
+        "sha256": "5723a8b53f686d5ed02c14a2eff5d72ffeb971a173bc67c66e1211f2a0a2fc65"
+      },
+      "test-origins.json": {
+        "bytes": 47064,
+        "sha256": "02b998910a4c4139a56adb66bb7a3fd7de136b2f543828fa4e1a8ef245c612bc"
+      },
+      "execution-receipt.json": {
+        "bytes": 5825,
+        "sha256": "9229b6a8477d7fe72341f538eb39646750fbf99b24df2f606fbc2805fce706e5"
+      },
+      "outer-process-receipt.json": {
+        "bytes": 572,
+        "sha256": "26f5f04f97c45a38cc0b76f8527ba143c88237a2db31604e5996b389f563c8d8"
+      },
+      "terminal-summary.json": {
+        "bytes": 2908,
+        "sha256": "348cff7ba221fc8cc82b7a80dce43884ca1642c871f7d4876d50ef21f1165691"
+      },
+      "terminal-inventory.json": {
+        "bytes": 5913,
+        "sha256": "f5c8cd30638924d981d275052db5fbcb92fff015ece91c3a6a00369c795c6657"
+      }
+    },
+    "findings": [
+      "Authenticated baseline still refuses the running probe during the actual Worker double redundant pause; zero wait, no grace, exact optional reservation retained.",
+      "Canonical candidate survives that identical ordinary Worker path: comparison revision and all fingerprint fields stay identical, exact owners/cache/192 MiB charge/scalar and peak accounting/generation/deadlines remain conserved, and no work dispatches.",
+      "Running-to-paused still rotates revision and invalidates the concurrent running probe.",
+      "Paused pending refresh refuses concurrent refresh/release, then pause invalidates the held refresh without granting or cancelling either owner.",
+      "Paused pending observation refuses concurrent refresh/release, then pause invalidates the held observation with comparison_pending and comparison-only revocation.",
+      "Existing generation, comparison_record and comparison_revision authority-change assertions all still refuse under the canonical candidate."
+    ],
+    "ordinary_worker_conservation": [
+      "exact optional and comparison tokens",
+      "owner and retained synthetic handle",
+      "completed manager record and cache binding",
+      "192 MiB comparison charge",
+      "current and peak accounting",
+      "sample generation",
+      "absolute future deadlines",
+      "every comparison fingerprint field",
+      "no work dispatch"
+    ]
+  },
+  "existing_start_phase_compatibility_five_node_gate": {
+    "status": "passed_independently_accepted",
+    "node_count": 5,
+    "setup_call_teardown_reports": 15,
+    "original_outer_exit": 0,
+    "original_pytest_exit": 0,
+    "source_binding": {
+      "frozen_base_source_tree": "22464893306141e655fc23cd371311572e175d0a",
+      "release_tree_rerun": false,
+      "canonical_product_sha256": "08fae6fd05e9e0f269318e52cb4acac4bf2edc3e13d169b59107c8ccc9b6e278",
+      "updated_existing_test_sha256": "c1555f0cdb4e8b14ffd70ef91aaee61430dfe1575a670b7442226ba7d169b898",
+      "authenticated_reconstructed_dev56_sha256": "01730cb55980193d9079dde6a71d786d1987d94f51f61e829a4f1b734de06904"
+    },
+    "measured": {
+      "total_seconds": 1.9107608370031812,
+      "aggregate_cpu_with_timeout_allowance_seconds": 2.993003,
+      "peak_sampled_combined_rss_bytes": 129519616,
+      "peak_sampled_fresh_allocated_bytes": 2342912,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "all_observed_descendants_absent": true,
+      "bounds_observed": true
+    },
+    "independent_terminal_review": {
+      "bytes": 6720,
+      "sha256": "16e2a3317372a2d92094e584055fc54cafa2a10fce1408f7db0aad0792859aeb"
+    },
+    "evidence": {
+      "selected-nodes.json": {
+        "bytes": 664,
+        "sha256": "36f4b2dbdccf7366b743d549df87dbd693c3374da23d64c1fed609eefbb29caf"
+      },
+      "junit.xml": {
+        "bytes": 1064,
+        "sha256": "792887cdb9f20e9f59e6e859842ae599ccfba24fe17715693726516c78bf74dc"
+      },
+      "test-origins.json": {
+        "bytes": 43270,
+        "sha256": "1ffd0372da572e4be89347563308838a5d75d6a9bd89bae4bdc799bba118a388"
+      },
+      "execution-receipt.json": {
+        "bytes": 5377,
+        "sha256": "80941cf5c9e3b568b64d1a3af56f41c0139476da21d68b7c30a36e48a6d493e9"
+      },
+      "outer-process-receipt.json": {
+        "bytes": 526,
+        "sha256": "fb28bcdd106803b7580e177ac558981b1b44db3163cd054d97bb1d8076ad7008"
+      },
+      "terminal-summary.json": {
+        "bytes": 2451,
+        "sha256": "f0daa4e968366c9475b0e10570feda17e1a0e7ae292757787d1678f1d3a975bd"
+      },
+      "terminal-inventory.json": {
+        "bytes": 40880,
+        "sha256": "849dac41e6b6cde179a1bd02c5e90646384281f7c301c1e9ea364d595dd2f448"
+      }
+    },
+    "findings": [
+      "All existing SOURCE-relative permit/controller/jobs/runner and reservation-helper origins and hashes passed with normal overlay imports.",
+      "All 47 original assertion statements are unchanged; only current permit hash and unique pause-guard inverse were normalized.",
+      "All four paired before_spawn/before_admission by turn_exit/queue_demand cases retained authenticated old dev56 refusal and candidate survival, including zero-wait/no-grace baseline attribution and exact token/generation/callback/deadline assertions.",
+      "Four independently reconstructed original dev56 modules retained full authenticated hash and fixture teardown removed the temporary module identity."
+    ],
+    "all_47_original_assertions_unchanged": true
+  },
+  "separate_source_evidence_boundary": "The 4, 8 and 5 selected nodes are separate source/overlay-bound observations, not a combined final release-tree full-suite result. The new portable regression uses normal candidate imports and reconstructs the authenticated dev57 baseline locally; compatibility retains the exact original dev56 reconstruction.",
+  "combined_candidate_and_compatibility_accounting": {
+    "candidate_and_compatibility_total_seconds": 3.8565043269991293,
+    "candidate_and_compatibility_cpu_with_wrapper_allowances_seconds": 5.9456739999999995,
+    "candidate_allocated_bytes": 1454080,
+    "compatibility_peak_fresh_allocated_bytes": 2342912,
+    "combined_gate_peak_fresh_allocated_bytes": 3796992,
+    "approved_total_seconds": 30,
+    "approved_cpu_seconds": 20,
+    "approved_fresh_bytes": 8388608
+  },
+  "historical_limits": [
+    "The actual historical dev56 comparison writer is unknown.",
+    "This reproducible mechanism does not identify or reclassify historical child_wait failures.",
+    "The retained comparison handle and census in the source gates are synthetic; Handle.wait does not establish an operating-system child reap.",
+    "No actual model, audio or acoustic retry was run, and no speaker-identity accuracy or quality is qualified.",
+    "No full-suite, long-duration throughput, production safety or deployment qualification."
+  ],
+  "package_gate": {
+    "status": "passed_independently_accepted",
+    "results": {
+      "tested_source_tree": "6316a0d3b279350d18779bc3c76d2b0c72e57785",
+      "source_files": 593,
+      "source_bytes": 10690762,
+      "version": "0.2.0rc3.dev58",
+      "package_files": 133,
+      "package_bytes": 3152754,
+      "source_wheel_fresh_install_bytes_modes_match": true,
+      "wheel": {
+        "filename": "long_audio_backend-0.2.0rc3.dev58-py3-none-any.whl",
+        "bytes": 843365,
+        "sha256": "af0af7bd0060b54701d36de92f601d09174403317023c73c0fa5ed3fdb1139a9",
+        "mode": 420
+      },
+      "metadata": {
+        "bytes": 792,
+        "sha256": "6503d4755d9efdde98f7bed546415246479e1e35c49b61cfdea8eb6c7752891e"
+      },
+      "parsed_requirement_multiplicity_checks": 12,
+      "genuine_current_runtime_profile_passed": true,
+      "runtime_profile_changed": false,
+      "runtime_profile_identity": {
+        "sqlite_source_id": "2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9",
+        "sqlite_version": "3.53.1",
+        "compile_options_sha256": "600e922c0614cd07a1640976eb2e283b43072322af46cbeb0df7a998990095cb",
+        "platform": "linux",
+        "vfs": "unix",
+        "filesystem_device": 27,
+        "sector_bytes_max": 65536,
+        "journal_headers_max": 1,
+        "allocation_slack_bytes_max": 2097152,
+        "evidence_sha256": "6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e",
+        "interpreter_bytes": 30894944,
+        "interpreter_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+        "interpreter_realpath_sha256": "65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b",
+        "sqlite3_package_sha256": "7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1",
+        "sqlite3_binding": "observed-built-in-no-separate-sqlite-mapping-v1",
+        "sqlite3_extension_sha256": null,
+        "sqlite3_library_sha256": null,
+        "sqlite3_library_realpath_sha256": null
+      },
+      "passive_app": {
+        "statuses": {
+          "/health": {
+            "status": 200,
+            "bytes": 1437
+          },
+          "/openapi.json": {
+            "status": 200,
+            "bytes": 47260
+          },
+          "/docs": {
+            "status": 200,
+            "bytes": 1031
+          }
+        },
+        "worker_started": false,
+        "normal_lifespan_closed": true,
+        "model_directory_absent": true
+      },
+      "separate_installed_test_evidence": {
+        "passed": 7,
+        "setup_call_teardown_reports": 21,
+        "original_pytest_exit": 0,
+        "fixture_files": 27,
+        "fixture_bytes": 1075269,
+        "unmodified_fixture_closure": true
+      },
+      "original_process_waits": {
+        "outer_exit": 0,
+        "all_four_stage_exit_codes": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "all_four_positive_original_waits": true,
+        "comparator_count": 1,
+        "comparator_original_wait_exit": 0,
+        "comparator_positive_original_wait": true,
+        "observed_descendants_absent": true
+      },
+      "comparator_affinity_evidence": {
+        "saved_startup_sample": [
+          3,
+          4
+        ],
+        "source_and_authenticated_ready_protocol_requires_cpu4_before_work": true,
+        "separate_sampled_cpu4_observation_claimed": false,
+        "explanation": "Saved process observation captures inherited startup affinity {3,4}. The unchanged source and authenticated ready exchange require CPU4 before comparator work; no separate sampled CPU4 event is asserted."
+      },
+      "measured": {
+        "work_seconds": 9.993929447002301,
+        "total_seconds": 10.642820550005126,
+        "aggregate_accounted_cpu_seconds": 11.462842,
+        "aggregate_cpu_with_timeout_allowance_seconds": 12.462842,
+        "peak_sampled_combined_rss_bytes": 177942528,
+        "peak_sampled_fresh_allocated_bytes": 40407040,
+        "maximum_sample_gap_seconds": 0.7712114780006232,
+        "complete_allocation_samples": 142,
+        "maximum_complete_allocation_sample_age_seconds": 0.09359260199562414,
+        "incomplete_allocation_samples": [],
+        "forced_kill": false,
+        "cleanup_errors": [],
+        "all_observed_descendants_absent": true,
+        "bounds_observed": true,
+        "transient_census_complete_retry_count": 4,
+        "transient_census_complete_retry_summary": "Four corroborated disposable SQLite journal/WAL changes required a complete recensus; raw fixture paths remain only in the hash-bound private execution receipt."
+      },
+      "final_package_root_allocated_bytes": 40734720,
+      "final_pin_checks": {
+        "source_files": 593,
+        "input_files": 4852,
+        "prior_files": 2984,
+        "prior_symlinks": 113,
+        "source_inputs_prior_and_inventory_verified": true
+      },
+      "warnings": [
+        "One existing Starlette/httpx TestClient deprecation warning; no dependency changes."
+      ],
+      "independent_source_argv_review": {
+        "bytes": 22235,
+        "sha256": "2f0497c154afa3339705a4dfac44fed6b7432b367bfe45da2801143eb9e156b6"
+      },
+      "independent_terminal_review": {
+        "bytes": 12770,
+        "sha256": "eb5cb8d34294f1db5546c4e80e0c2b8519e795e2a90d6483ab0b15d57f4d27a7"
+      },
+      "evidence": {
+        "release-source-manifest.json": {
+          "bytes": 140097,
+          "sha256": "f15f170aa7ebd75b5ed9fca2eb5568cf24cf42827caa8eb9f97a9b4b4a5ae98f"
+        },
+        "execution-receipt.json": {
+          "bytes": 12300,
+          "sha256": "50690b67fb67bd12129a879a9c3ae9badf67b4e1c8a80d014223b595724c4b0a"
+        },
+        "outer-process-receipt.json": {
+          "bytes": 737,
+          "sha256": "05bd0054b692d4cb64e43548728856fb250f1b368ebb8a59d31aa9abcc3f8c54"
+        },
+        "terminal-summary.json": {
+          "bytes": 5544,
+          "sha256": "90a2e5bc6d8090218602605ccc3bcdaaf7d7e0e4524d9b58f234c4e2ba648274"
+        },
+        "terminal-inventory.json": {
+          "bytes": 291142,
+          "sha256": "34429505a387fe4d6bd814033c13f922901728191b03836d436e7e8eaf6400dc"
+        },
+        "installed-verification.json": {
+          "bytes": 10880,
+          "sha256": "12b8f66c9896294e819aeb82f602e86bd3c37e5283863d01cc6646f53d81eac7"
+        },
+        "installed-test-origins.json": {
+          "bytes": 20048,
+          "sha256": "fa7c3260bcd78ad58d89fcf62a0d9dfde199e32b9f63cbb247bdac19a4204ddb"
+        },
+        "junit.xml": {
+          "bytes": 1240,
+          "sha256": "607bea341bde6e18ee55759660641d4f6b1eb0b1ba50f6eebf685af504ef5398"
+        }
+      },
+      "scope": "This independent four-stage package gate adds seven installed test results only. The 4-node unchanged-product reproduction, 8-node candidate and 5-node compatibility source gates remain separate evidence. No full-suite, actual model/audio/acoustic retry or historical writer attribution."
+    },
+    "planned_stages": [
+      "offline no-dependency wheel build",
+      "fresh no-dependency install",
+      "133-file source/wheel/install byte and mode parity, genuine current SQLite profile, passive app",
+      "seven unchanged installed tests including one bounded existing comparator process"
+    ],
+    "selected_nodes": [
+      "tests/test_native_owned_cell_store.py::AdmissionTests::test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread",
+      "tests/test_native_owned_cell_store.py::AdmissionTests::test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off",
+      "tests/test_recording_speaker_history_process.py::test_real_child_matches_unchanged_direct_oracle_and_cache[3]",
+      "tests/test_primary_only_configuration.py::test_configuration_modes_are_valid_at_construction[primary]",
+      "tests/test_primary_only_configuration.py::test_cli_explicit_primary_flags_agree_with_settings",
+      "tests/test_primary_only_configuration.py::test_primary_http_moss_routes_stay_disabled",
+      "tests/test_primary_only_configuration.py::test_passive_lifecycle_never_constructs_a_coordinator"
+    ],
+    "envelope": {
+      "work_seconds": 30,
+      "total_including_cleanup_seconds": 40,
+      "aggregate_cpu_including_outer_allowance_seconds": 25,
+      "sampled_aggregate_rss_bytes": 402653184,
+      "fresh_allocated_bytes": 67108864,
+      "supervisor_build_install_verify_cpu": [
+        3
+      ],
+      "pytest_cpu": [
+        3,
+        4
+      ],
+      "comparator_after_ready_cpu": [
+        4
+      ],
+      "nice": 19
+    },
+    "postbuild_only_mutable_leaves": [
+      "package_gate.status",
+      "package_gate.results"
+    ],
+    "unchanged_frozen_README_product_tests": true
+  },
+  "release_caution": "Stop old workers, back up and use an isolated copy before migration. No model files, private absolute paths, credentials or raw runtime payloads are part of this report."
+}

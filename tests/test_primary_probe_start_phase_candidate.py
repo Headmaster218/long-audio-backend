@@ -28,7 +28,7 @@ from test_primary_probe_reservation_fingerprint import reservation, sample, clos
 
 SOURCE = Path(__file__).resolve().parents[1]
 PINS = {
-    'native_execution_permit.py': 'e780fe60621c0df26d74e4f0d4b60b71f15043a884372f7909b03219891c7597',
+    'native_execution_permit.py': '08fae6fd05e9e0f269318e52cb4acac4bf2edc3e13d169b59107c8ccc9b6e278',
     'moss_handy_controller.py': 'e34f3df60b6241a7e7dd98081dde960e5ebe018ba3f8bb376e84b3a6062e38eb',
     'moss_handy_jobs.py': 'ddc4b7316809292d2e3644efbb887d1b13779ecf16f8466f2612e02f7b341920',
     'recording_speaker_probe_runner.py': '39f78574f3b08f1e8cdb3d175954f816cfaae43f58571340af3932153acbaae7',
@@ -120,6 +120,8 @@ def baseline_permit(tmp_path):
     raw = Path(permit_module.__file__).read_bytes()
     assert hashlib.sha256(raw).hexdigest() == PINS['native_execution_permit.py']
     replacements = (
+        (b"                if (self._comparison['running'] is False\n"
+         b"                        and self._comparison['sampling'] is None):return\n", b""),
         (b"        # Once this primary probe owns its exact reservation, its four execution\n"
          b"        # gates ignore caller-turn and queue scheduling hints.\n"
          b"        # Reservation admission and every other owner/phase keep their full fingerprint.\n",

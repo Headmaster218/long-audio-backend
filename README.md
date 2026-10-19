@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev58：已暂停比较器的重复暂停守恒（隔离实验版）
+
+本版只在现有 condition 锁及精确 comparison-token 分支内，为 running 明确为 False 且 sampling 为 None 的重复 pause 增加无操作返回。普通 Worker 的两次维护若遇到已完成、缓存且尚未到期的比较器，不再仅因重复暂停而旋转 revision。真实 running→paused、待完成 refresh 或 observation 仍旋转 revision；所有 comparison 指纹字段、owner、缓存、计费、generation、资源与原截止时间检查保留，不新增等待、重试、派发或模型调用。
+
+四项未改产品复现、八项候选对照及五项既有启动边界兼容检查分别通过并独立审查。真实 Worker / manager / permit 路径使用保留的合成 handle 与安全合成 census；候选保存原 192 MiB 额度及所有权，三个真实状态转换控制仍拒绝，三个既有 authority 负向控制仍严格。兼容检查仅更新当前源码 hash 及逆向还原步骤，全部 47 条原断言和完整原 dev56 hash 保持。三轮绑定各自执行源码及 overlay，不能相加声称最终发布树全套通过；合成 handle.wait 也不是 OS 子进程回收证明。
+
+独立离线 133 文件 source / wheel / fresh-install 一致性、真实当前 SQLite profile、极小 process comparator 与被动 app 检查采用既有四阶段 gate，准确状态见[dev58 发布资格报告](reports/REDUNDANT_COMPARISON_PAUSE_DEV58_QUALIFICATION.json)。README、包与测试源码在构建前冻结；随后只更新新报告预声明的包结果。所有父版本报告保持原字节。此机制不确定历史 dev56 写入方或旧 child_wait 的原因，也没有实际声学重试、身份质量、长期吞吐或生产部署资格。迁移前停止旧 worker、备份并使用隔离副本。以下历史章节保留原文。
+
 ## 0.2.0rc3.dev57：主探针两个启动边界指纹修复（隔离实验版）
 
 本版只将已持有精确 reservation-token 的 automatic_primary_probe 调度提示排除，扩展至真实继承启动路径的 before_spawn 与 before_admission；原 before_input / running 保持。原 reservation 准入、真实 token / event / callback、generation / comparison、配置、已授予主任务、资源与截止时间检查不变，不新增等待、重试或模型调用。
