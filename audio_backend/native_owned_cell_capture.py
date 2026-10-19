@@ -620,7 +620,12 @@ class PrimaryAuthority:
         from .native_owned_core_seams import is_core, current as core_current
         if is_core(doc):return core_current(self, doc, budget)
         from .native_owned_seam_cells import is_composite
-        if is_composite(doc):return self.seam_valid(doc, budget)
+        if is_composite(doc):
+            # Publication reuses only a connection; every authority phase still
+            # ends its read snapshot before later source/commit/epoch checks.
+            if publishing and getattr(self._list_reads, 'current', None) is None:
+                with self.list_read_scope(budget):return self.seam_valid(doc, budget)
+            return self.seam_valid(doc, budget)
         dependencies = doc.get('dependencies')
         if type(dependencies) is not list or not 1 <= len(dependencies) <= MAX_PARTS:
             raise Unavailable('source_dependencies_capacity')

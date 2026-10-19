@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev54：发布期连接复用与主探针集成回归（隔离实验版）
+
+本版只增加一项小范围生产修复：composite cell 的发布验证在没有现有 scope 时复用同一只读 SQLite 连接；每个 authority 阶段仍重新 BEGIN 并结束快照，来源、回执、commit、epoch 与线程 / budget 检查全部保留。非发布读取不变，不缓存授权结果，也不放宽 0.5 秒、150000 VM-step 或 256 KiB 投影上限。
+
+原用例在当前运行时先以 150100 / 150000 steps 新鲜复现失败；原断言未改的候选及相邻检查共 33 项通过。独立测量 fixture 的三次发布使用 3 个连接、90 个新鲜且已结束的快照、11700 个预算计费 steps 和 49320 投影字节，不据此声称生产加速比。另有 6 项真实 Worker / manager / permit / SQLite 的合成集成回归通过（3 项候选、3 项认证的旧版本负向对照）；首次 6 项新测试的 fixture 断言失败保留，修正仅验证合法的 deferred comparison owner 与最终清理。这两批绑定各自的执行树，没有在最终发布树上合并重跑，不是全套通过。
+
+离线 133 文件 source / wheel / fresh-install 一致性、既有真实 SQLite profile、极小 process comparator 与被动 app 检查采用独立 gate；准确结果和失败沿革见[dev54 资格报告](reports/CAPTURE_VM_AND_PRIMARY_INTEGRATION_DEV54_QUALIFICATION.json)。README 在构建前冻结。默认开关、模型、阈值与身份策略不变；本次没有模型推理或固定音频试验，历史 live transcript 503 的原因仍未分类。声学身份质量、长期负载与生产部署仍未获资格。先备份并使用隔离副本；以下历史段落保留其当时状态。
+
 ## 0.2.0rc3.dev53：主探针运行指纹修复（隔离实验候选版）
 
 本候选版仅整理新启动环境中重新构建并独立核对的一项生产修复：已准入且仍持有原 reservation 的 automatic_primary_probe，在运行期间不再把 caller turn、handoff 与未实际执行的 queue-probe 调度提示纳入取消指纹。准入仍严格检查这些提示；真实 owner、token、取消、已授予或进入的 primary 工作、配置、资源、来源与原截止时间保护均保留，不新增等待、重试、重放或模型调用。
