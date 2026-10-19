@@ -458,10 +458,12 @@ def permit_fixture(monkeypatch):
     proc=Handle()
     owner=SimpleNamespace(comparison_parent_bytes=lambda:0 if state['closed'] else state['parent_bytes'],
         comparison_resources_closed=lambda:state['closed'])
-    permit.bind_comparison_owner(grant,owner)
+    claim=permit.begin_comparison_start(grant)
+    permit.bind_comparison_owner(grant,owner,claim=claim)
     identity=SimpleNamespace(create_time=lambda:2.,ppid=lambda:os.getpid(),is_running=lambda:proc.returncode is None)
     monkeypatch.setattr(permits.psutil,'Process',lambda _:identity)
-    assert permit.bind_comparison_process(grant,proc,owner=owner)
+    assert permit.bind_comparison_process(grant,proc,owner=owner,claim=claim)
+    assert permit.end_comparison_start(grant,claim,'started',owner=owner)
     state['rows'][proc.pid]=(2.,os.getpid(),16*mod.MIB)
     return permit,grant,event,proc,owner,state
 
@@ -833,12 +835,14 @@ def test_step_cutoff_retains_original_process_and_full_reservation_until_positiv
     owner=driver(clock=lambda:state['now'],cancelled=event.is_set,
         grant_valid=lambda:permit.comparison_grant_valid(grant),observe_child=observe,
         finish_child=lambda process,**kwargs:permit.finish_comparison_process(grant,process,**kwargs))
-    permit.bind_comparison_owner(grant,owner)
+    claim=permit.begin_comparison_start(grant)
+    permit.bind_comparison_owner(grant,owner,claim=claim)
     owner.process=proc;owner._started=True
     owner._channel=SimpleNamespace(close=lambda:None)
     owner._token=TOKEN;owner._generation=1;owner._task_closed=False
     owner._deadline=10.100 if failure=='task_stall' else 190.
-    assert permit.bind_comparison_process(grant,proc,owner=owner)
+    assert permit.bind_comparison_process(grant,proc,owner=owner,claim=claim)
+    assert permit.end_comparison_start(grant,claim,'started',owner=owner)
     state['rows'][proc.pid]=(2.,os.getpid(),16*mod.MIB)
     monkeypatch.setattr(permits,'service_sample',clipped_sample)
     monkeypatch.setattr(owner,'_signal',lambda signum:False)

@@ -1,0 +1,568 @@
+{
+  "schema": "primary-probe-census-coordination-dev59-release-qualification-v1",
+  "version": "0.2.0rc3.dev59",
+  "date_utc": "2026-10-19",
+  "status": "experimental_source_qualification_with_separate_package_gate",
+  "release_base": {
+    "commit": "79b841878f92b6318731e3efe20ff067ba018621",
+    "tree": "ca64fea54b2644f0a11c99ad9a66abd5999a5531",
+    "source_files": 595,
+    "source_bytes": 10722227
+  },
+  "release_delta": {
+    "paths": [
+      "README.md",
+      "audio_backend/__init__.py",
+      "pyproject.toml",
+      "reports/PRIMARY_PROBE_CENSUS_COORDINATION_DEV59_QUALIFICATION.json",
+      "tests/test_primary_probe_census_coordination_candidate.py",
+      "tests/test_recording_speaker_history_process.py"
+    ],
+    "added_paths": [
+      "reports/PRIMARY_PROBE_CENSUS_COORDINATION_DEV59_QUALIFICATION.json",
+      "tests/test_primary_probe_census_coordination_candidate.py"
+    ],
+    "deleted_paths": [],
+    "expected_source_files": 597,
+    "expected_package_files": 133,
+    "production_logic_changes_over_parent": false,
+    "preserved_product_pins": {
+      "audio_backend/native_execution_permit.py": {
+        "bytes": 87554,
+        "sha256": "78c8226979b0a389a7d6d51c8267780d7f02d1d805b0a8f83a99c52dd843960c"
+      },
+      "audio_backend/moss_handy_jobs.py": {
+        "bytes": 158904,
+        "sha256": "018dcc688ff0e2cebe35398c1493617dace9afcaa0d25a9c9088252c4f4377fe"
+      }
+    },
+    "version_only_product_path": "audio_backend/__init__.py",
+    "all_parent_reports_and_docs_preserved": true,
+    "historical_README_suffix_unchanged": true,
+    "historical_WIP_status_is_an_unexecuted_snapshot": true
+  },
+  "design_and_WIP": {
+    "design": {
+      "bytes": 23087,
+      "sha256": "24f15b9c67d60dc08e995046067fb7c23d733304ce0543ceeacc290f1ddc7e2e"
+    },
+    "design_handoff": {
+      "bytes": 617,
+      "sha256": "92f315e9768a9f3832b70171ff9fae6e9ee916299be74287932e1abc4c242645"
+    },
+    "independent_design_review": {
+      "bytes": 11181,
+      "sha256": "43dbba2592924f8fe49604b4b75e2db4c65767b8089e19bd558c14d841f77cf8"
+    },
+    "WIP_manifest": {
+      "bytes": 2390,
+      "sha256": "3adcd609a78e3d93542a1598dd93d829ad1a9fff81707ff676c06d01e6b3596f"
+    },
+    "independent_source_only_WIP_review": {
+      "bytes": 8934,
+      "sha256": "e70fa026db3f40a46945be9796ac13162f7813c52e7f9e9bbe3809f8f2c12bf2"
+    },
+    "WIP_commit": "79b841878f92b6318731e3efe20ff067ba018621",
+    "scope": "Only native_execution_permit.py and moss_handy_jobs.py carry the previously approved product logic. No Worker, adapter, schema, dependency or diagnostic changes."
+  },
+  "synthetic_138_case_gate": {
+    "status": "passed_independently_accepted",
+    "node_count": 138,
+    "setup_call_teardown_reports": 414,
+    "original_outer_exit": 0,
+    "original_pytest_exit": 0,
+    "source_binding": {
+      "source_manifest": {
+        "bytes": 195637,
+        "sha256": "7692c7304030ace541587b4f649265bc38ade445eb0576a7700c326e25a258ab"
+      },
+      "exact_product_sha256": {
+        "audio_backend/native_execution_permit.py": "78c8226979b0a389a7d6d51c8267780d7f02d1d805b0a8f83a99c52dd843960c",
+        "audio_backend/moss_handy_jobs.py": "018dcc688ff0e2cebe35398c1493617dace9afcaa0d25a9c9088252c4f4377fe"
+      },
+      "release_tree_rerun": false,
+      "local_source_boundary": "Test source used the earlier package-stage dev58 report and lacked the later actual-report document. The executable/test bytes were pinned. Release assembly separately reconstructs the complete immutable published parent."
+    },
+    "measured": {
+      "total_seconds": 7.95415504599805,
+      "aggregate_cpu_with_timeout_allowance_seconds": 8.759052,
+      "peak_sampled_combined_rss_bytes": 137494528,
+      "peak_sampled_fresh_allocated_bytes": 16957440,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "all_observed_descendants_absent": true,
+      "bounds_observed": true
+    },
+    "independent_source_argv_review": {
+      "bytes": 19375,
+      "sha256": "05a877bfd9070394583afbdc75acb392ec63842c24e2a211414923a4526060a0"
+    },
+    "independent_terminal_review": {
+      "bytes": 14872,
+      "sha256": "5a356a3975e4c4b2668a7b912c29cbc22ee6a2ffb223e01adb8be42d0d37475a"
+    },
+    "evidence": {
+      "selected-nodes.json": {
+        "bytes": 18661,
+        "sha256": "7bab447e9a3eabd3aaa28e9727f8d1fefecf6f95429748a601267c43ba1da423"
+      },
+      "junit.xml": {
+        "bytes": 23718,
+        "sha256": "39713a168ed000103164ed7e15728aef5dec563bb21be912c6fa647f3821d690"
+      },
+      "test-origins.json": {
+        "bytes": 176974,
+        "sha256": "c3f6692d2b0a7dc36ab0883ca3da25eda24782cd33b75af465503448b0945e31"
+      },
+      "execution-receipt.json": {
+        "bytes": 43067,
+        "sha256": "bc212b3c7a2a1d88cbf3e58891af9b56117b1ca719818b65838a096d88be054b"
+      },
+      "outer-process-receipt.json": {
+        "bytes": 1055,
+        "sha256": "f6ad3a57e0558a46ebe63a575bd695d0363bffdf3aa815c54bfe4b28c055b2e2"
+      },
+      "terminal-handoff.json": {
+        "bytes": 4650,
+        "sha256": "42e87b867287d05540f83ad6e19bc206eff5ea79f37cddad5c18085b18a7954a"
+      },
+      "terminal-artifact-manifest.json": {
+        "bytes": 3977,
+        "sha256": "488a9bf5bbab3f83495886ab18657423afb493fcc4487472e155faf46adca7db"
+      }
+    },
+    "new_candidate_cases": 90,
+    "unchanged_controls": 48,
+    "candidate_test": {
+      "bytes": 52972,
+      "sha256": "a9c56be68aa4494708a847fdbd8126150f0cb0f2124f701353fde4d6bb625ab7"
+    },
+    "synthetic_handles_only": true,
+    "findings": [
+      "Atomic probe admission versus comparison startup interlock; native transcription does not wait.",
+      "Pending primary stays in the same authenticated unexecuted attempt and original deadline, including post-yield source and authority fences.",
+      "Pending comparison stays in the same local checkpoint, task, snapshot and deadline.",
+      "Four held probe phases serialize a busy census and take a separate fresh sample under the original deadline and 250 ms grace.",
+      "Exact event/configuration/token/claim identity, genuine generation and resource refusals, cleanup and retained full charge remain covered.",
+      "Caller deadline clipping is separately authenticated; canonical shared sampler exhaustion remains sticky.",
+      "Possible dispatch, arbitrary errors and storage uncertainty do not authorize replay."
+    ]
+  },
+  "lifecycle_21_case_gate": {
+    "status": "passed_independently_accepted",
+    "node_count": 21,
+    "setup_call_teardown_reports": 63,
+    "original_outer_exit": 0,
+    "original_pytest_exit": 0,
+    "source_binding": {
+      "source_manifest": {
+        "bytes": 205497,
+        "sha256": "969e2ffe652a95dbb9cdf8196a75f9d79609a5192abf28d7f9e884afddc6c896"
+      },
+      "exact_product_sha256": {
+        "audio_backend/native_execution_permit.py": "78c8226979b0a389a7d6d51c8267780d7f02d1d805b0a8f83a99c52dd843960c",
+        "audio_backend/moss_handy_jobs.py": "018dcc688ff0e2cebe35398c1493617dace9afcaa0d25a9c9088252c4f4377fe"
+      },
+      "release_tree_rerun": false,
+      "local_source_boundary": "Test source used the earlier package-stage dev58 report and lacked the later actual-report document. The executable/test bytes were pinned. Release assembly separately reconstructs the complete immutable published parent."
+    },
+    "measured": {
+      "total_seconds": 18.093511038001452,
+      "aggregate_cpu_with_timeout_allowance_seconds": 15.607000000000001,
+      "peak_sampled_combined_rss_bytes": 186298368,
+      "peak_sampled_fresh_allocated_bytes": 38424576,
+      "forced_kill": false,
+      "cleanup_errors": [],
+      "all_observed_descendants_absent": true,
+      "bounds_observed": true
+    },
+    "independent_source_argv_review": {
+      "bytes": 21933,
+      "sha256": "8488f043a081019022f5c760d255e5a8344cc36f95082dea7f3fa19998419c8d"
+    },
+    "independent_terminal_review": {
+      "bytes": 22437,
+      "sha256": "14d09faa3dc114d471587c4f51e3e6b3e4518f2870ca22e80472062b154bc6cd"
+    },
+    "evidence": {
+      "selected-nodes.json": {
+        "bytes": 2650,
+        "sha256": "b0bbbbe0ee1acea6ff66417b34782b98dd62bcf59c62a84ade1521850042149a"
+      },
+      "junit.xml": {
+        "bytes": 3612,
+        "sha256": "ecb406c1a2a1fe78c3afd68db0dcceb3d5e7cdee214352a80e3a7dca841afb4f"
+      },
+      "test-origins.json": {
+        "bytes": 114647,
+        "sha256": "8402812da48856b374cce9f17bf2a7f9ddb0457c7b6cd19ab0c306473b3e5fe8"
+      },
+      "execution-receipt.json": {
+        "bytes": 14415,
+        "sha256": "01e656cbea42ecfeb6e220ec72c15c232b88675a0cae3c2bf0cdce7c5faa6f59"
+      },
+      "outer-process-receipt.json": {
+        "bytes": 1226,
+        "sha256": "d46f1e0bf46fec0749d0632f96d26ec24a14672c1ac9d38177eda7d7cdd0b0b6"
+      },
+      "terminal-handoff.json": {
+        "bytes": 9180,
+        "sha256": "b1aff6a19a01b358a9dbeed2decaaf92a1c9ab3853e9a90812637c10330612a8"
+      },
+      "terminal-artifact-manifest.json": {
+        "bytes": 106161,
+        "sha256": "dbcec7ad2f34073574d854be7e64ee4af2214e819032505ad660700010d3ce3a"
+      }
+    },
+    "synthetic_controls": 18,
+    "unchanged_real_child_cases": 3,
+    "fixture_setup_change": {
+      "path": "tests/test_recording_speaker_history_process.py",
+      "bytes": 46725,
+      "sha256": "7aadae9c76ee5f967c05d2b49183b033b7759cb510bea4a41908d4e149b33c7b",
+      "only_two_claim_setup_blocks": true,
+      "all_prior_assertions_unchanged": true,
+      "setup_diff": {
+        "bytes": 2060,
+        "sha256": "e06da635a5dfbef99584ba01bc99e6ef67107514c6f604de500521aaa8ac4322"
+      }
+    },
+    "warnings": {
+      "count": 1,
+      "description": "Existing FastAPI/Starlette TestClient httpx deprecation; preserved in pytest.stdout."
+    },
+    "real_child_scope": [
+      "ordinary startup and child-only lane configuration",
+      "post-bind affinity-readback refusal with comparison_execution_lane_unverified",
+      "positive original wait with unknown family closure retains exact owner until recovery"
+    ],
+    "original_child_receipts": [
+      {
+        "nodeid": "tests/test_recording_speaker_history_integration.py::test_comparison_lane_configures_only_exec_child_without_caller_os_mutation",
+        "constructor_returned": true,
+        "constructor_exception": null,
+        "positive_original_wait": true,
+        "returncode": 1,
+        "waits": [
+          {
+            "timeout": 0.25,
+            "elapsed_seconds": 0.01549153700034367,
+            "returncode": 1
+          },
+          {
+            "timeout": 0,
+            "elapsed_seconds": 3.715998900588602e-06,
+            "returncode": 1
+          }
+        ]
+      },
+      {
+        "nodeid": "tests/test_recording_speaker_history_integration.py::test_real_comparison_lane_refusal_stays_pending[affinity_readback]",
+        "constructor_returned": true,
+        "constructor_exception": null,
+        "positive_original_wait": true,
+        "returncode": 1,
+        "waits": [
+          {
+            "timeout": 0.25,
+            "elapsed_seconds": 0.015980553995177615,
+            "returncode": 1
+          },
+          {
+            "timeout": 0,
+            "elapsed_seconds": 1.382002665195614e-06,
+            "returncode": 1
+          }
+        ]
+      },
+      {
+        "nodeid": "tests/test_recording_speaker_history_integration.py::test_positive_child_wait_with_unknown_family_closure_keeps_exact_owner",
+        "constructor_returned": true,
+        "constructor_exception": null,
+        "positive_original_wait": true,
+        "returncode": 1,
+        "waits": [
+          {
+            "timeout": 0.25,
+            "elapsed_seconds": 0.016170821007108316,
+            "returncode": 1
+          },
+          {
+            "timeout": 0.25,
+            "elapsed_seconds": 1.4129982446320355e-06,
+            "returncode": 1
+          },
+          {
+            "timeout": 0.25,
+            "elapsed_seconds": 5.609981599263847e-07,
+            "returncode": 1
+          },
+          {
+            "timeout": 0,
+            "elapsed_seconds": 1.1619995348155499e-06,
+            "returncode": 1
+          }
+        ]
+      }
+    ],
+    "three_original_child_returncodes": [
+      1,
+      1,
+      1
+    ],
+    "positive_close_assertions_passed": true,
+    "clean_protocol_exit_or_exit_zero_claimed": false,
+    "child_exception_evidence": "Exact child exceptions were not recorded because stderr was DEVNULL. Cancellation/EOF is a source-compatible possibility, not observed causal evidence.",
+    "real_Popen_cancellation_race_qualified": false,
+    "synthetic_fixture_inputs": {
+      "fresh_application_DBs": 3,
+      "WAV_files": 3,
+      "total_WAV_bytes": 1600132,
+      "durations_seconds": [
+        10,
+        10,
+        30
+      ],
+      "actual_recordings_used": false
+    }
+  },
+  "separate_source_evidence_boundary": "The 138 and 21 cases are separate exact-source observations totaling 159 selected cases, not a 159-case final release-tree run or broad-suite compatibility claim. Both product modules are the exact WIP bytes; lifecycle source changes only the two permitted fixture setup blocks.",
+  "historical_fixture_exclusions": [
+    {
+      "path": "tests/test_primary_probe_reservation_fingerprint.py",
+      "node": "test_before_input_dispatch_keeps_comparison_generation_failure",
+      "reason": "Late comparison reserve/bind during held primary is intentionally disallowed. The current candidate uses a permitted positively closed comparison release to retain genuine generation refusal; do not alter historical fixture or claim it passes unchanged."
+    },
+    {
+      "path": "tests/test_primary_probe_start_phase_integration.py",
+      "node": "test_real_worker_start_boundary[before_admission-comparison_owner_bind]",
+      "reason": "Historical late-owner-bind setup is now forbidden. No claim-only fixture repair. Other bodies are retained, but none are included in this package gate."
+    },
+    {
+      "path": "tests/test_redundant_comparison_pause_candidate.py",
+      "node": "Historical paired baseline/candidate module fixture",
+      "reason": "It authenticates exact dev58 and reconstructs dev57 by removing only the pause guard. Preserve its pinned hashes and historical evidence; the new product cannot claim this reconstruction or broad-suite compatibility."
+    }
+  ],
+  "historical_limits": [
+    "All previous factual reports, including the complete actual 150-row trial, remain exact immutable parent bytes.",
+    "Historical competing caller identity remains unknown; no attribution or historical failure reclassification is made.",
+    "No actual model rerun, acoustic identity-quality conclusion, long-duration throughput, production safety or deployment qualification.",
+    "Synthetic race tests do not qualify a real-Popen cancellation race. The three real-child lifecycle tests require positive original wait and ownership/close assertions, not clean protocol exit.",
+    "No broader test-suite compatibility is claimed; incompatible historical late-bind and paired-pause fixtures are preserved and explicitly excluded."
+  ],
+  "package_gate": {
+    "status": "passed_independently_accepted",
+    "results": {
+      "tested_source_tree": "dac3e48169d5859bf426c897c927561c21d00668",
+      "source_files": 597,
+      "source_bytes": 10795350,
+      "version": "0.2.0rc3.dev59",
+      "package_files": 133,
+      "package_bytes": 3168852,
+      "source_wheel_fresh_install_bytes_modes_match": true,
+      "wheel": {
+        "filename": "long_audio_backend-0.2.0rc3.dev59-py3-none-any.whl",
+        "bytes": 845898,
+        "sha256": "d46e41ec4885988f8891336111e20b79ccfdbf954674ea78219ab256430bdf7b",
+        "mode": 420
+      },
+      "metadata": {
+        "bytes": 792,
+        "sha256": "bd53f5751a1808b37d55eab73961379ef88971b77a36518edfd5d2aec937492c"
+      },
+      "parsed_requirement_multiplicity_checks": 12,
+      "genuine_current_runtime_profile_passed": true,
+      "runtime_profile_changed": false,
+      "runtime_profile_identity": {
+        "runtime_fingerprints": {
+          "interpreter_bytes": 30894944,
+          "interpreter_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+          "interpreter_realpath_sha256": "65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b",
+          "sqlite3_package_sha256": "7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1",
+          "sqlite3_binding": "observed-built-in-no-separate-sqlite-mapping-v1",
+          "sqlite3_extension_sha256": null,
+          "sqlite3_library_sha256": null,
+          "sqlite3_library_realpath_sha256": null
+        }
+      },
+      "passive_app": {
+        "statuses": {
+          "/health": {
+            "status": 200,
+            "bytes": 1437
+          },
+          "/openapi.json": {
+            "status": 200,
+            "bytes": 47260
+          },
+          "/docs": {
+            "status": 200,
+            "bytes": 1031
+          }
+        },
+        "worker_started": false,
+        "normal_lifespan_closed": true,
+        "model_directory_absent": true
+      },
+      "separate_installed_test_evidence": {
+        "passed": 7,
+        "setup_call_teardown_reports": 21,
+        "original_pytest_exit": 0,
+        "fixture_files": 27,
+        "fixture_bytes": 1075559,
+        "same_27_helper_membership": true,
+        "seven_selected_test_bodies_and_assertions_unchanged": true,
+        "helper_delta": "Only the two previously qualified claim setup blocks in test_recording_speaker_history_process.py; 290 bytes total. The selected real-child oracle body is unchanged."
+      },
+      "original_process_waits": {
+        "outer_exit": 0,
+        "all_four_stage_exit_codes": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "all_four_positive_original_waits": true,
+        "comparator_count": 1,
+        "comparator_original_wait_exit": 0,
+        "comparator_positive_original_wait": true,
+        "observed_descendants_absent": true
+      },
+      "comparator_affinity_evidence": {
+        "saved_startup_sample": [
+          3,
+          4
+        ],
+        "source_and_authenticated_ready_protocol_requires_cpu4_before_work": true,
+        "separate_sampled_cpu4_observation_claimed": false,
+        "explanation": "Saved process observation captures inherited startup affinity {3,4}. The unchanged source and authenticated ready exchange require CPU4 before comparator work; no separate sampled CPU4 event is asserted."
+      },
+      "prior_lifecycle_child_exit_distinction": "The separate installed comparator returned 0. The three earlier lifecycle children each returned 1 with positive original waits and existing ownership/close assertions; their exact exceptions were unrecorded. Neither observation adds real-Popen cancellation-race qualification or a stronger clean protocol acknowledgement assertion.",
+      "measured": {
+        "work_seconds": 11.570847651004442,
+        "total_seconds": 12.679871935004485,
+        "aggregate_accounted_cpu_seconds": 13.753210000000001,
+        "aggregate_cpu_with_timeout_allowance_seconds": 14.753210000000001,
+        "peak_sampled_combined_rss_bytes": 179015680,
+        "peak_sampled_fresh_allocated_bytes": 42082304,
+        "maximum_sample_gap_seconds": 1.1473063500015996,
+        "complete_allocation_samples": 156,
+        "maximum_complete_allocation_sample_age_seconds": 0.09956442600378068,
+        "bounds_observed": true
+      },
+      "allocation_observations": {
+        "single_complete_retry_events": 1,
+        "incomplete_after_retry": 0,
+        "meaning": "Existing approved complete census retry for a disappearing regular disposable temporary path only; not a test retry or protected source relaxation."
+      },
+      "measurement_caveat": "Sampled RSS/topology are not continuous kernel aggregate caps. Maximum sample gap includes initial preflight; complete allocation sample age is separately recorded. CPU includes the one-second outer allowance.",
+      "final_package_root_allocated_bytes": 42414080,
+      "sampled_peak_package_root_allocated_bytes": 42082304,
+      "final_pin_checks": {
+        "source_files": 597,
+        "input_files": 5463,
+        "prior_files": 5858,
+        "prior_symlinks": 120,
+        "frozen_controls": 22,
+        "source_inputs_prior_and_inventory_verified": true
+      },
+      "warnings": [
+        "One existing Starlette/httpx TestClient deprecation warning; no dependency changes."
+      ],
+      "independent_source_argv_review": {
+        "bytes": 22688,
+        "sha256": "03decddb445971d19c6c15e7d54b3c91cdbd249fd0d31a1a27d70479eb11179b"
+      },
+      "independent_terminal_review": {
+        "bytes": 17236,
+        "sha256": "eba4c4f1a05fdde0921c439dab8c7e916a75c0bbde3ff8694cf19cb113592e84"
+      },
+      "evidence": {
+        "release-source-manifest.json": {
+          "bytes": 141064,
+          "sha256": "1cc49b5eeaa8e4890675defad8cbf0ebf0457687a69d54243629a413bf337425"
+        },
+        "execution-receipt.json": {
+          "bytes": 11784,
+          "sha256": "6bcc308a9b67b0e9edf44bdd66befc981a3d73b2cc8650cba59b90133681f961"
+        },
+        "outer-process-receipt.json": {
+          "bytes": 1257,
+          "sha256": "97ed97e27fc1ec1a6a427a7296169dead75fbf4a9e212e9a1d19f8bf61ed7f81"
+        },
+        "terminal-handoff.json": {
+          "bytes": 9034,
+          "sha256": "c56287917b5bd14705e6c075ecf7a1ce3e0795c3142b57aa4197d65ef6891a7c"
+        },
+        "terminal-artifact-manifest.json": {
+          "bytes": 296421,
+          "sha256": "8072b789b24b2d392915084d08aea83d111d415c7cde35caf0199df41b580cac"
+        },
+        "installed-verification.json": {
+          "bytes": 10880,
+          "sha256": "25b7bb8c609fa534a8e72f12fd59f273a43e5ee883bfdcf49a6ca411abc22aa2"
+        },
+        "installed-test-origins.json": {
+          "bytes": 20047,
+          "sha256": "244f7fb1f8cb34221a2076bcdab2c7493fdf91f504a6b50357056b271b0b9c42"
+        },
+        "junit.xml": {
+          "bytes": 1240,
+          "sha256": "696cafc4c3a72e1fdb5f372632da644a79379e47fcafe04aa6d54f9b74a77689"
+        }
+      },
+      "scope": "This separate four-stage package gate adds seven installed results only. The 138-case synthetic and 21-case lifecycle source gates remain separate exact-source evidence, not a combined final-tree or full-suite run. No actual model/audio rerun, acoustic claim or historical competing-caller attribution."
+    },
+    "planned_stages": [
+      "offline no-dependency wheel build",
+      "fresh no-dependency install",
+      "133-file source/wheel/install byte and mode parity, genuine current SQLite profile, passive app",
+      "seven unchanged installed tests including one bounded existing comparator process"
+    ],
+    "selected_nodes": [
+      "tests/test_native_owned_cell_store.py::AdmissionTests::test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread",
+      "tests/test_native_owned_cell_store.py::AdmissionTests::test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off",
+      "tests/test_recording_speaker_history_process.py::test_real_child_matches_unchanged_direct_oracle_and_cache[3]",
+      "tests/test_primary_only_configuration.py::test_configuration_modes_are_valid_at_construction[primary]",
+      "tests/test_primary_only_configuration.py::test_cli_explicit_primary_flags_agree_with_settings",
+      "tests/test_primary_only_configuration.py::test_primary_http_moss_routes_stay_disabled",
+      "tests/test_primary_only_configuration.py::test_passive_lifecycle_never_constructs_a_coordinator"
+    ],
+    "envelope": {
+      "work_seconds": 30,
+      "cleanup_reserve_seconds": 10,
+      "total_seconds": 40,
+      "aggregate_cpu_seconds_including_outer_allowance": 25,
+      "sampled_family_RSS_bytes": 402653184,
+      "fresh_package_root_allocated_bytes": 67108864,
+      "per_log_bytes": 8388608,
+      "supervisor_AS_bytes": 134217728,
+      "outer_AS_allowance_bytes": 33554432,
+      "maximum_build_topology_AS_bytes": 973078528,
+      "maximum_pytest_topology_AS_bytes": 1509949440,
+      "maximum_any_stage_topology_AS_bytes": 1509949440,
+      "affinity": {
+        "supervisor_build_install_verify": [
+          3
+        ],
+        "pytest": [
+          3,
+          4
+        ],
+        "comparator_child": [
+          4
+        ]
+      },
+      "nice": 19,
+      "resource_scope": "Sampled family/resource limits are not continuous kernel aggregate caps. No more than the explicit stage-specific descendants. Prior retained evidence is immutable and must be included in the overall allocation baseline separately.",
+      "AS_interpretation": "No process exceeds1GiB AS. Explicit maximum topology reservation is1440MiB; sampled aggregate RSS remains384MiB. Supervisor128MiB provides margin for JSON pin maps and complete filesystem inventories."
+    },
+    "postbuild_only_mutable_leaves": [
+      "package_gate.status",
+      "package_gate.results"
+    ],
+    "unchanged_frozen_README_product_tests": true
+  },
+  "release_caution": "Stop old workers, back up and use an isolated copy before migration. No model files, private absolute paths, credentials or raw runtime payloads are part of this report."
+}
