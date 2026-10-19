@@ -302,23 +302,36 @@ CACHE_USAGE_COLUMN = ("INTEGER NOT NULL DEFAULT 0 CHECK(typeof(cache_scope_charg
 CACHE_USAGE_DDL = DDL[USAGE][:-1] + ', cache_scope_charge ' + CACHE_USAGE_COLUMN + ')'
 
 
-def primary_cache_usage(db, rid=None):
+def primary_cache_usage(db, rid=None, budget=None):
     """Marker accounting is real charge, including zero-packet recordings."""
-    rows = db.execute("SELECT id FROM recording_batches WHERE primary_cache_policy IS NOT NULL LIMIT 65").fetchall()
-    if len(rows) > 64:raise ValueError('Primary cache marker accounting mismatch')
-    marked = {row[0] for row in rows}
-    expected = len(marked) * CACHE_SCOPE_CHARGE
+    # Count bounded rows without projecting unconstrained batch IDs. Collector
+    # callers account every small result in their existing operation budget.
+    if budget is not None:budget.projection(16)
+    count = db.execute('''SELECT COUNT(*) FROM (SELECT 1 FROM recording_batches
+        WHERE primary_cache_policy IS NOT NULL LIMIT 65)''').fetchone()[0]
+    if count > 64:raise ValueError('Primary cache marker accounting mismatch')
+    marked = False
+    if rid is not None:
+        if budget is not None:budget.projection(16)
+        marked = db.execute('''SELECT 1 FROM recording_batches WHERE id=?
+            AND primary_cache_policy IS NOT NULL''',(rid,)).fetchone() is not None
+    expected = count * CACHE_SCOPE_CHARGE
     scopes = ('',) if rid is None else ('', rid)
     result = {}
     for scope in scopes:
-        row = db.execute(f'SELECT packets,charge,cache_scope_charge FROM {USAGE} WHERE scope=?', (scope,)).fetchone()
+        if budget is not None:budget.projection(32)
+        row = db.execute(f'''SELECT
+            CASE WHEN typeof(packets)='integer' THEN packets ELSE NULL END,
+            CASE WHEN typeof(charge)='integer' THEN charge ELSE NULL END,
+            CASE WHEN typeof(cache_scope_charge)='integer' THEN cache_scope_charge ELSE NULL END
+            FROM {USAGE} WHERE scope=?''', (scope,)).fetchone()
         if row is None:
-            if scope == '' or scope in marked:raise ValueError('Missing primary cache accounting')
+            if scope == '' or marked:raise ValueError('Missing primary cache accounting')
             result[scope] = (0, 0, 0); continue
         values = tuple(row)
         if (any(type(value) is not int or not 0 <= value <= MAX_COUNTER for value in values)
                 or values[1] < values[2]
-                or values[2] != (expected if scope == '' else CACHE_SCOPE_CHARGE if scope in marked else 0)):
+                or values[2] != (expected if scope == '' else CACHE_SCOPE_CHARGE if marked else 0)):
             raise ValueError('Primary cache marker accounting mismatch')
         result[scope] = values
     return result

@@ -689,6 +689,7 @@ class CellStore:
             'last_protected': last['protected'], 'last_body_bytes': last['body_bytes'],
             'uncertain_ids': len(self._compact_gc_unknown or ()), 'max_batch': COMPACT_GC_BATCH,
             'body_projection_limit': COMPACT_GC_BODY_BYTES, 'scope': 'completed_stream_sources_only',
+            'primary_cache_qualification': 'exact_current_candidate_only',
             'source_receipt_limit': MAX_RECEIPTS, 'cell_limit': MAX_CELLS}
 
     def _schedule_compact_gc(self):
@@ -725,6 +726,7 @@ class CellStore:
             allowed = ('compact_gc_disabled', 'compact_gc_slot_unavailable', 'compact_gc_admission_closed',
                 'compact_gc_binding_unavailable', 'compact_gc_producer_active', 'compact_gc_pending_proof',
                 'compact_gc_producer_roots_pending', 'compact_gc_generation_changed',
+                'compact_gc_primary_roots_busy', 'compact_gc_primary_roots_invalid',
                 'compact_gc_primary_changed', 'compact_gc_roots_changed', 'compact_gc_unknown_changed',
                 'cooperative_deadline', 'operation_work_capacity')
             result.update(status='unknown' if self._compact_gc_unknown is not None else 'deferred',
@@ -752,6 +754,7 @@ class CellStore:
             'prefix_stream_limit': RECEIPT_GC_PREFIX_STREAMS,
             'uncertain_ids': len(self._receipt_gc_unknown or ()), 'max_batch': 8,
             'scope': 'orphan_completed_sealed_page_receipts_only',
+            'primary_cache_qualification': 'exact_current_candidate_only',
             'source_receipt_limit': MAX_RECEIPTS, 'cell_limit': MAX_CELLS}
 
     def _schedule_receipt_gc(self):
@@ -791,6 +794,7 @@ class CellStore:
                 'receipt_gc_roots_changed', 'receipt_gc_unknown_changed', 'receipt_gc_compact_pending',
                 'compact_gc_binding_unavailable', 'compact_gc_producer_active', 'compact_gc_pending_proof',
                 'compact_gc_producer_roots_pending', 'compact_gc_generation_changed',
+                'compact_gc_primary_roots_busy', 'compact_gc_primary_roots_invalid',
                 'compact_gc_primary_changed', 'compact_gc_admission_closed',
                 'publication_generation_revoked', 'cooperative_deadline', 'operation_work_capacity')
             result.update(status='unknown' if self._receipt_gc_unknown is not None else 'deferred',
@@ -840,7 +844,8 @@ class CellStore:
         Each database is observed separately. Direct source dependencies and
         pending compact holders are lower bounds: the left proof side, retained
         results, outboxes and producer tails/replay may add roots. All remaining
-        rows stay unknown/protected until a future complete root/frontier API.
+        rows stay unknown/protected in this sample; deletion requires the
+        collector's separate per-candidate authority and root/frontier checks.
         """
         from .native_owned_core_seams import MAX_COMPACTS
         from .native_owned_retention import row_counts
@@ -872,6 +877,11 @@ class CellStore:
                     result['compacts'] = row_counts('compacts', primary['occupied'], MAX_COMPACTS,
                                                    primary['pending'], primary['pending'],bounded_protection=self.bounded_core_enabled)
                     result['pending_proof_bytes'] = primary.get('pending_bytes')
+                # These aggregate samples grant no deletion authority. The
+                # marked-primary route qualifies each candidate independently;
+                # it does not turn all bounded rows into known orphans.
+                for kind in ('sources', 'compacts'):
+                    result[kind]['primary_cache_qualification'] = 'not_sampled_candidate_only'
                 result['storage'] = {'page_count': pages, 'freelist_pages': free,
                     'reusable_bytes': free * PAGE_SIZE, 'last_observed_allocated_bytes': self._charge}
                 result.update(status='observed', reason='retention_root_closure_unknown')
@@ -1286,6 +1296,11 @@ class CellStore:
 
     def _cell_current(self,op,cell,budget):
         doc=json.loads(cell.proof)
+        # The same bounded primary authority veto is used at preflight and
+        # inside _insert_cell's final transaction, including retention-only
+        # normalized dependencies outside the acoustic cell parts.
+        cids=tuple(sorted({value[0] for value in self._dependency_values(doc,cell.parts)}))
+        if self.authority.primary_cache_marked(cell.session_id,budget,cids=cids):return False
         if op.kind=='publish_auto':
             from .moss_automatic import authority_valid
             return authority_valid(self.authority,op.payload[0],doc,budget)

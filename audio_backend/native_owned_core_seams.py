@@ -1139,7 +1139,7 @@ def read_commit(db, slot_id, budget, *, reserve=False):
     return commit
 
 
-def _gc_guard(owner, op, db, budget):
+def _gc_guard(owner, op, db, budget, *, pending=None):
     """Primary BEGIN IMMEDIATE is the supported Worker.loop claim fence.
 
     A claim that won first leaves a running row before current_chunk is set.
@@ -1158,8 +1158,8 @@ def _gc_guard(owner, op, db, budget):
     roots = set(capture.retention_roots())
     if db.execute("SELECT 1 FROM chunks INDEXED BY chunk_queue WHERE status='running' LIMIT 1").fetchone():
         raise Unavailable('compact_gc_producer_active')
-    counts = retention_counts(db, budget)
-    if counts['pending']:raise Unavailable('compact_gc_pending_proof')
+    if pending is None:pending = retention_counts(db, budget)['pending']
+    else:integer(pending, MAX_PENDING)
     # Cancelled/unreleased copied pins are still roots until exact drainage.
     for pin in tuple(owner._pins.values()):
         dependencies = pin.document.get('dependencies')
@@ -1169,7 +1169,10 @@ def _gc_guard(owner, op, db, budget):
         if pin.document.get('schema') == BOUNDED_SCHEMA:
             for dependency in pin.document['dependency_roots']:roots.add(text(dependency['cid']))
     budget.projection(64); budget.check()
-    return frozenset(roots)
+    # Global occupancy always counts every row. Pending-proof refusal belongs
+    # to each candidate's authority branch; an exclusive-primary domain may
+    # prove its own absence without draining unrelated legacy work.
+    return frozenset(roots), pending
 
 
 def _gc_outbox_root(db, cid, budget):
@@ -1232,8 +1235,77 @@ def _gc_receipt(owner, commit):
                 == p['logical_start'] - p['source_start'])
 
 
-def _gc_store_eligible(owner, db, slot_id, budget, *, cid=None):
+def _gc_primary_affected_domains(db, budget):
+    """One capped dirty-domain census, independent of candidate count.
+
+    A compact's declared SID is not canonical authority. Protect both it and
+    its chunk's actual marked session, including a wrong-SID pending proof on
+    another source in the candidate's recording. The compact cap bounds the
+    outer scan; indexed chunk/batch lookups and the marked-batch cap bound the
+    joins and distinct projection. Never project compact/proof bodies here.
+    """
+    from .recording_overlap import MAX_BATCHES
+    budget.check()
+    # The exact-validated batch DDL declares id PRIMARY KEY first and
+    # session_id UNIQUE second. Force that session index and a two-key IN
+    # probe: never multiply the compact scan by all retained batches. If the
+    # required index is unavailable, SQLite refuses rather than scanning.
+    rows = db.execute('''SELECT DISTINCT CASE
+        WHEN typeof(b.session_id)='text' AND length(CAST(b.session_id AS BLOB)) BETWEEN 1 AND 128
+          THEN b.session_id ELSE NULL END AS sid
+        FROM native_core_commits n LEFT JOIN chunks c ON c.id=n.cid
+        CROSS JOIN recording_batches b INDEXED BY sqlite_autoindex_recording_batches_2
+        WHERE (n.pending IS NOT NULL OR n.state IN ('pending','published')
+          OR n.recording_batch_id IS NOT NULL OR n.commit_ordinal IS NOT NULL
+          OR n.retention_store_key IS NOT NULL)
+          AND b.primary_cache_policy IS NOT NULL
+          AND b.session_id IN (n.sid,c.session_id)
+        LIMIT ?''', (MAX_BATCHES + 1,)).fetchall()
+    budget.projection(len(rows) * 128)
+    if len(rows) > MAX_BATCHES:raise Unavailable('compact_gc_roots_changed')
+    return frozenset(text(row[0]) for row in rows)
+
+
+def _gc_primary_domains_current(db, domains, budget):
+    if not domains:return True
+    affected = _gc_primary_affected_domains(db, budget)
+    return affected == domains['affected'] and not affected.intersection(domains['qualified'])
+
+
+def _gc_primary_authority(owner, db, sid, cid, budget, domains):
+    """Positive marked authority plus exact outbox and live source identity."""
+    from .recording_overlap import primary_cache_qualified, receipt_gc_source
+    primary = primary_cache_qualified(owner.authority.store, db, sid, cid,
+                                      owner.retention_store_key, budget)
+    if primary is None:return None
+    if not domains:
+        domains.update(affected=_gc_primary_affected_domains(db, budget), qualified=set())
+    if sid in domains['affected']:return None
+    if sid not in domains['qualified']:
+        if len(domains['qualified']) >= COMPACT_GC_BATCH:raise Unavailable('operation_work_capacity')
+        domains['qualified'].add(sid)
+    receipt = owner.receipt(cid)
+    if receipt is None or receipt.session_id != sid or receipt.chunk_id != cid:return None
+    source = receipt_gc_source(db, receipt, budget)
+    if source is None or source['batch_id'] != primary['batch_id']:return None
+    # A replaced/revised file is revocation, never ordinary cache absence.
+    # receipt_valid checks descriptor/path continuity and rereads its mapping.
+    if not owner.authority.receipt_valid(receipt, budget):return None
+    return primary
+
+
+def _gc_store_eligible(owner, db, slot_id, budget, *, sid, cid, primary=None,
+                       pending=0, receipts=False):
     from .moss_automatic import retention_eligible, has_bounded_schema
+    from .recording_overlap import primary_cache_marked
+    if primary is not None:
+        # primary_cache_qualified already checked the complete versioned guard
+        # contract and indexed relevant-domain MOSS/pending absence. Callers
+        # freeze its exact result and repeat that lookup before deletion.
+        return True
+    if primary_cache_marked(db, sid, cid, store=owner.authority.store, budget=budget):return False
+    if pending:return False
+    if receipts and owner._retention_capture.core_seams.work_pending:return False
     if not getattr(owner, 'bounded_core_enabled', False) and not has_bounded_schema(db):return True
     budget.projection(384)
     eligible = retention_eligible(db, owner.retention_store_key, slot=slot_id, cid=cid)
@@ -1253,14 +1325,18 @@ def collect_compacts(owner, op, budget, result=None):
     result.update(status='no_eligible_compacts', reason='compact_gc_page_protected')
     if _identity(owner.authority.path) != owner.authority.identity:
         raise Unavailable('compact_gc_primary_changed')
-    cursor = owner._compact_gc_cursor; plans = []
+    cursor = owner._compact_gc_cursor; plans = []; domains = {}
     # Store.db owns rollback/close. Override its ordinary 15-second connection
     # busy timeout BEFORE any transaction or SQL work; never retry this write.
     with owner.authority.store.db() as db:
         db.execute('PRAGMA busy_timeout=5'); db.set_progress_handler(budget.progress, 100)
         try:
             budget.check(); db.execute('BEGIN IMMEDIATE')
-            roots = _gc_guard(owner, op, db, budget)
+            guard = _gc_guard(owner, op, db, budget); roots, pending = guard
+            # The primary write fence excludes all competing claims/writers.
+            # Reuse this operation's one complete occupancy census: our only
+            # primary mutation deletes exact nonpending rows. Later guards
+            # still resample held roots, generation, binding and active work.
             if owner._compact_gc_unknown is not None:
                 absent = 0
                 for slot_id, raw in owner._compact_gc_unknown:
@@ -1268,7 +1344,7 @@ def collect_compacts(owner, op, budget, result=None):
                     budget.projection(16)
                     if row is None:absent += 1
                     elif not row[0]:raise Unavailable('compact_gc_unknown_changed')
-                _gc_guard(owner, op, db, budget); budget.check()
+                _gc_guard(owner, op, db, budget, pending=pending); budget.check()
                 db.execute('ROLLBACK')
                 result.update(status='reconciled', reason='absent_after_unknown_commit' if absent
                               else 'present_after_unknown_commit')
@@ -1285,12 +1361,18 @@ def collect_compacts(owner, op, budget, result=None):
                 result['scanned'] += 1; cursor = slot_id
                 p = commit['part']; cid = p['chunk_id']
                 eligible = _gc_exact_row(db, slot_id, commit, raw, budget)
-                if not _gc_store_eligible(owner, db, slot_id, budget):eligible = False
                 if cid in roots:eligible = False
                 if owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1', (cid,)).fetchone():
                     eligible = False
-                budget.projection(16)
+                if owner._db.execute('SELECT 1 FROM cells WHERE cid=? LIMIT 1', (cid,)).fetchone():
+                    eligible = False
+                budget.projection(32)
                 if not _gc_receipt(owner, commit):eligible = False
+                if not eligible:
+                    result['protected'] += 1; continue
+                primary = _gc_primary_authority(owner, db, p['session_id'], cid, budget, domains)
+                if not _gc_store_eligible(owner, db, slot_id, budget, sid=p['session_id'],
+                        cid=cid, primary=primary, pending=pending):eligible = False
                 position = _gc_stream_source(db, commit, budget) if eligible else None
                 if position is None:
                     result['protected'] += 1; continue
@@ -1315,30 +1397,45 @@ def collect_compacts(owner, op, budget, result=None):
                         or fp['logical_end'] <= p['logical_end']
                         or not _gc_exact_row(db, frontier_id, frontier, frontier_raw, budget)):
                     result['protected'] += 1; continue
-                plans.append((slot_id, raw, commit, frontier_id, frontier_raw, frontier))
-            if _gc_guard(owner, op, db, budget) != roots:
+                frontier_primary = (_gc_primary_authority(owner, db, fp['session_id'], fp['chunk_id'], budget, domains)
+                                    if primary is not None else None)
+                if primary is not None and (frontier_primary is None or any(
+                        primary[k] != frontier_primary[k]
+                        for k in ('batch_id', 'session_id', 'store_key', 'schema_version'))):
+                    result['protected'] += 1; continue
+                plans.append((slot_id, raw, commit, frontier_id, frontier_raw, frontier,
+                              primary, frontier_primary))
+            if _gc_guard(owner, op, db, budget, pending=pending) != guard:
                 raise Unavailable('compact_gc_roots_changed')
             # No proof bytes cross the boundary again. Every exact body/frontier
             # and root predicate is rechecked under the same claim/owner fence.
-            for slot_id, raw, commit, frontier_id, frontier_raw, frontier in plans:
+            for slot_id, raw, commit, frontier_id, frontier_raw, frontier, primary, frontier_primary in plans:
                 cid = commit['part']['chunk_id']
                 if (not _gc_exact_row(db, slot_id, commit, raw, budget)
-                        or not _gc_store_eligible(owner, db, slot_id, budget)
+                        or not _gc_store_eligible(owner, db, slot_id, budget,
+                            sid=commit['part']['session_id'], cid=cid, primary=primary, pending=pending)
+                        or primary is not None and (
+                            _gc_primary_authority(owner, db, commit['part']['session_id'], cid, budget, domains) != primary
+                            or _gc_primary_authority(owner, db, frontier['part']['session_id'],
+                                frontier['part']['chunk_id'], budget, domains) != frontier_primary)
                         or not _gc_exact_row(db, frontier_id, frontier, frontier_raw, budget)
                         or _gc_stream_source(db, commit, budget) is None
                         or _gc_stream_source(db, frontier, budget) is None
                         or not _gc_receipt(owner, commit) or not _gc_receipt(owner, frontier)
                         or cid in roots or _gc_outbox_root(db, cid, budget)
-                        or owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1', (cid,)).fetchone()):
+                        or owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1', (cid,)).fetchone()
+                        or owner._db.execute('SELECT 1 FROM cells WHERE cid=? LIMIT 1', (cid,)).fetchone()):
                     raise Unavailable('compact_gc_roots_changed')
-                budget.projection(16)
+                budget.projection(32)
             if plans:
+                if not _gc_primary_domains_current(db, domains, budget):
+                    raise Unavailable('compact_gc_roots_changed')
                 owner.retention_changed()
                 for slot_id, raw, *_ in plans:
                     if db.execute('DELETE FROM native_core_commits WHERE slot=? AND body=? AND pending IS NULL',
                                   (slot_id, raw)).rowcount != 1:
                         raise Unavailable('compact_gc_roots_changed')
-                if _gc_guard(owner, op, db, budget) != roots:
+                if _gc_guard(owner, op, db, budget, pending=pending) != guard:
                     raise Unavailable('compact_gc_roots_changed')
                 budget.check()
                 owner._compact_gc_unknown = tuple((item[0], item[1]) for item in plans)
@@ -1693,16 +1790,18 @@ def collect_receipts(owner, op, budget, result=None):
     if owner._compact_gc_unknown is not None:raise Unavailable('receipt_gc_compact_pending')
     if owner._receipt_gc_prefix_generation is not owner._epoch:
         owner._receipt_gc_prefixes.clear();owner._receipt_gc_prefix_generation=owner._epoch
-    cursor=owner._receipt_gc_cursor;plans=[]
+    cursor=owner._receipt_gc_cursor;plans=[];domains={}
     with owner.authority.store.db() as db:
         db.execute('PRAGMA busy_timeout=5');db.set_progress_handler(budget.progress,100)
         try:
             budget.check();db.execute('BEGIN IMMEDIATE')
-            roots=_gc_guard(owner,op,db,budget)
+            guard=_gc_guard(owner,op,db,budget);roots,pending=guard
+            # This primary BEGIN IMMEDIATE owns a stable occupancy census;
+            # receipt retirement mutates only the separately fenced sidecar.
             capture=owner._retention_capture
             if (not owner.receipt_gc_enabled or not capture._retention_worker.settings.native_owned_receipt_gc_enabled):
                 raise Unavailable('receipt_gc_binding_unavailable')
-            if capture.core_seams.work_pending or capture.witness.pending is not None:
+            if capture.witness.pending is not None:
                 raise Unavailable('compact_gc_pending_proof')
             if owner._receipt_gc_unknown is not None:
                 # No cache authority or successful-deletion attribution until
@@ -1715,7 +1814,7 @@ def collect_receipts(owner, op, budget, result=None):
                     budget.projection(16)
                     if row is not None and not row[0]:raise Unavailable('receipt_gc_unknown_changed')
                     observed.append((cid,receipt if row is not None else None))
-                if _gc_guard(owner,op,db,budget) != roots:raise Unavailable('receipt_gc_roots_changed')
+                if _gc_guard(owner,op,db,budget,pending=pending) != guard:raise Unavailable('receipt_gc_roots_changed')
                 budget.check();db.execute('ROLLBACK')
                 for cid,receipt in observed:
                     if receipt is None:owner._receipts.pop(cid,None)
@@ -1751,14 +1850,20 @@ def collect_receipts(owner, op, budget, result=None):
                 source=receipt_gc_source(db,receipt,budget)
                 if source is None:
                     result['protected']+=1;continue
-                if not _gc_store_eligible(owner,db,None,budget,cid=cid):
+                primary=_gc_primary_authority(owner,db,receipt.session_id,cid,budget,domains)
+                if not _gc_store_eligible(owner,db,None,budget,sid=receipt.session_id,
+                        cid=cid,primary=primary,pending=pending,receipts=True):
                     result['protected']+=1;continue
                 key=(receipt.session_id,source['batch_id'])
                 if key not in seen:
                     pending_roots[key]=receipt_gc_pending_roots(db,source['batch_id'],cids,budget)
                     prior=owner._receipt_gc_prefixes.get(key)
+                    fence=(None if primary is None else tuple(primary[k]
+                        for k in ('batch_id','session_id','store_key','schema_version')))
+                    if prior is not None and prior.get('_primary_cache_fence')!=fence:prior=None
                     prefix,count=receipt_gc_prefix(db,receipt.session_id,source,prior,budget,
-                        RECEIPT_GC_PREFIX_ROWS-result['prefix_rows'])
+                        RECEIPT_GC_PREFIX_ROWS-result['prefix_rows'],qualified_primary=primary is not None)
+                    prefix={**prefix,'_primary_cache_fence':fence}
                     result['prefix_rows']+=count
                     if key not in owner._receipt_gc_prefixes and len(owner._receipt_gc_prefixes)>=RECEIPT_GC_PREFIX_STREAMS:
                         owner._receipt_gc_prefixes.pop(next(iter(owner._receipt_gc_prefixes)))
@@ -1782,14 +1887,19 @@ def collect_receipts(owner, op, budget, result=None):
                 budget.projection(32)
                 if not eligible:
                     result['protected']+=1;continue
-                plans.append((cid,raw,receipt,source,protected_start,future))
-            if _gc_guard(owner,op,db,budget)!=roots:raise Unavailable('receipt_gc_roots_changed')
+                plans.append((cid,raw,receipt,source,protected_start,future,primary))
+            if _gc_guard(owner,op,db,budget,pending=pending)!=guard:raise Unavailable('receipt_gc_roots_changed')
             if plans:
                 owner.retention_changed()
                 with owner._transaction(budget):
-                    for cid,raw,receipt,source,start,future in plans:
+                    if not _gc_primary_domains_current(db,domains,budget):
+                        raise Unavailable('receipt_gc_roots_changed')
+                    for cid,raw,receipt,source,start,future,primary in plans:
                         if (receipt_gc_source(db,receipt,budget)!=source
-                                or not _gc_store_eligible(owner,db,None,budget,cid=cid)
+                                or not _gc_store_eligible(owner,db,None,budget,sid=receipt.session_id,
+                                    cid=cid,primary=primary,pending=pending,receipts=True)
+                                or primary is not None and _gc_primary_authority(
+                                    owner,db,receipt.session_id,cid,budget,domains)!=primary
                                 or capture.receipt_retention_start(receipt.session_id,receipt.stream_id,future)!=start
                                 or cid in roots or _gc_outbox_root(db,cid,budget)
                                 or owner._db.execute('SELECT 1 FROM dependencies WHERE cid=? LIMIT 1',(cid,)).fetchone()
@@ -1799,7 +1909,8 @@ def collect_receipts(owner, op, budget, result=None):
                         if owner._db.execute('DELETE FROM sources WHERE cid=? AND sid=? AND digest=? AND receipt=?',
                             (cid,receipt.session_id,receipt.digest,raw)).rowcount!=1:
                             raise Unavailable('receipt_gc_roots_changed')
-                    if _gc_guard(owner,op,db,budget)!=roots:raise Unavailable('receipt_gc_roots_changed')
+                    if _gc_guard(owner,op,db,budget,pending=pending)!=guard:
+                        raise Unavailable('receipt_gc_roots_changed')
                     budget.check()
                     # Install suppression BEFORE the possibly successful COMMIT.
                     # _transaction never retries writes and owns rollback.

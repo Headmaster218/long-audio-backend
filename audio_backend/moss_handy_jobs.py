@@ -606,6 +606,37 @@ class MossJobs:
             return bool(probe and probe['state'] == 'pending' and probe['admitted']
                 and not probe['cancelled'].is_set() and probe['crop'] is not None)
 
+    def primary_retention_roots(self):
+        """Return owned source roots, never inference or maintenance authority.
+
+        Ownership lasts until _drop_primary_copy clears the exact handle. In
+        particular cancellation, terminal state, a discarded crop and unknown
+        claim/append acknowledgements do not shorten that lifetime.
+        """
+        from .native_owned_cells import Unavailable, text
+        if not self._lock.acquire(timeout=LOCK_SECONDS):
+            raise Unavailable('compact_gc_primary_roots_busy')
+        try:
+            probe = self._primary_pending
+            if probe is None:
+                if self._primary_admission is not None:
+                    raise Unavailable('compact_gc_primary_roots_invalid')
+                return frozenset()
+            if (type(probe) is not dict or probe.get('owner') is not self
+                    or self.cell_source is None or self.cell_source.store is not self.store
+                    or self.cell_source.owner.authority.store is not self.store):
+                raise Unavailable('compact_gc_primary_roots_invalid')
+            # Validate only the bounded ownership shape. No state grants an
+            # exception, including provisional/terminal and future states.
+            try:
+                cid = text(probe['chunk_id'])
+                text(probe['session_id']); text(probe['recording_id'])
+                text(probe['state'], 80)
+            except (KeyError, TypeError, Unavailable) as exc:
+                raise Unavailable('compact_gc_primary_roots_invalid') from exc
+            return frozenset((cid,))
+        finally:self._lock.release()
+
     def primary_maintenance_hint(self):
         with self._gate():
             probe = self._primary_pending
@@ -1438,6 +1469,14 @@ class MossJobs:
                     raise ReadError(409,'automatic_admission_closed')
             recovered = self.results.lookup_key(sid, self.jobs_epoch, key, digest)
             if recovered is not None:return 200, recovered
+            # Historical reads above stay passive. New admission must consult
+            # the durable exclusivity guard before either kind of dispatch
+            # lease, even after restarting with MOSS settings enabled.
+            from .recording_overlap import primary_cache_marked
+            from .native_owned_cell_store import Budget
+            with Budget().phase() as guard_budget, self.results._database() as db:
+                if primary_cache_marked(db, sid, store=self.store, budget=guard_budget):
+                    raise ReadError(409, 'primary_cache_exclusive_recording')
             if not self._enabled():raise ReadError(409, 'feature_disabled')
             self.results.preflight(sid)
             if self._live is not None and self._live['storage_pending']:

@@ -1338,12 +1338,24 @@ class Automatic:
             and self.jobs._coordinator_enabled())
 
     def before_window(self,chunk):
-        if getattr(self, 'primary_only', False) or not enabled(self.store.settings):return True
         from .moss_result_store import _ReadDeferred
+        from .native_owned_cell_store import Budget
+        from .recording_overlap import primary_cache_marked, primary_cache_capable
         budget=None
         try:
+            # Check persisted ownership before the old settings-only return.
+            # Restarting with MOSS or disabled settings cannot adopt a marked
+            # recording; the primary transaction rechecks this independently.
+            with Budget().phase() as guard_budget:
+                with self._bounded_database(guard_budget) as db:
+                    marked=primary_cache_marked(db,chunk['session_id'],chunk['id'],
+                        store=self.store,budget=guard_budget)
+            if marked:
+                if getattr(self.store,'moss_automatic',None) is not self or not primary_cache_capable(self.store):
+                    self.last_reason='primary_cache_coordinator_unavailable';return False
+                return True
+            if getattr(self, 'primary_only', False) or not enabled(self.store.settings):return True
             if bounded_enabled(self.store.settings):
-                from .native_owned_cell_store import Budget
                 with Budget().phase() as budget:
                     with self._bounded_database(budget,write=True) as db:
                         release_wait_pressure(db,chunk['session_id'],budget)

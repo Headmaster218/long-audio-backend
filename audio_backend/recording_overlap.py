@@ -98,7 +98,10 @@ PRIMARY_CACHE_COLUMNS = {
 }
 
 
-def _cache_sql(sql):return ''.join(sql.split())
+def _cache_sql(sql):
+    # Ignore formatting only; whitespace inside SQL literals is semantic.
+    return re.sub(r"'(?:''|[^'])*'|\s+",
+        lambda match:match.group(0) if match.group(0).startswith("'") else '',sql)
 
 
 def _cache_add_columns(sql, columns):
@@ -208,14 +211,17 @@ def primary_cache_schema(db, store=None, budget=None):
     if saved is not None and saved[0]==version:return saved[1]
     from .recording_primary_provenance import USAGE, CACHE_USAGE_DDL, DDL
     guards=_cache_guard_ddl()
-    fields=db.execute("SELECT name FROM pragma_table_info('recording_batches') LIMIT 33").fetchall()
-    if len(fields)>32:raise ValueError('Unknown primary cache batch schema')
-    if budget is not None:budget.projection(128*len(fields))
+    if budget is not None:budget.projection(33*128)
+    fields=db.execute("""SELECT CASE WHEN length(CAST(name AS BLOB)) BETWEEN 1 AND 128
+        THEN name ELSE NULL END FROM pragma_table_info('recording_batches') LIMIT 33""").fetchall()
+    if len(fields)>32 or any(row[0] is None for row in fields):raise ValueError('Unknown primary cache batch schema')
     fields={row[0] for row in fields}
     usage=_cache_read_sql(db,USAGE,CACHE_USAGE_DDL,budget)
-    names=db.execute("SELECT name FROM sqlite_master WHERE name GLOB 'primary_cache_*' LIMIT ?",
+    if budget is not None:budget.projection(128*(len(guards)+1))
+    names=db.execute("""SELECT CASE WHEN length(CAST(name AS BLOB)) BETWEEN 1 AND 128
+        THEN name ELSE NULL END FROM sqlite_master WHERE name GLOB 'primary_cache_*' LIMIT ?""",
         (len(guards)+1,)).fetchall()
-    if budget is not None:budget.projection(128*len(names))
+    if any(row[0] is None for row in names):raise ValueError('Unknown primary cache guard name')
     names={row[0] for row in names}
     flags=[name in fields for name in PRIMARY_CACHE_COLUMNS]+[usage==CACHE_USAGE_DDL]+[bool(names)]
     if not any(flags):
@@ -279,8 +285,8 @@ def primary_cache_capable(store):
 def primary_cache_marked(db, sid, cid=None, *, store=None, budget=None):
     if not primary_cache_schema(db,store,budget):return False
     if budget is not None:budget.projection(32)
-    row=db.execute('SELECT primary_cache_policy FROM recording_batches WHERE session_id=?',(sid,)).fetchone()
-    if row is not None and row[0] is not None:return True
+    row=db.execute('SELECT primary_cache_policy IS NOT NULL FROM recording_batches WHERE session_id=?',(sid,)).fetchone()
+    if row is not None and row[0]:return True
     if cid is None:return False
     return db.execute('''SELECT 1 FROM chunks c JOIN recording_batches b ON b.session_id=c.session_id
         WHERE c.id=? AND b.primary_cache_policy IS NOT NULL''',(cid,)).fetchone() is not None
@@ -293,6 +299,7 @@ def primary_cache_qualified(store, db, sid, cid, store_key, budget=None):
             or not getattr(store.settings,'native_owned_compact_gc_enabled',False)
             or not getattr(store.settings,'native_owned_receipt_gc_enabled',False)
             or type(store_key) is not str or re.fullmatch('[0-9a-f]{64}',store_key) is None):return None
+    if budget is not None:budget.projection(2048)
     row=db.execute('''SELECT b.id AS batch_id,b.session_id,b.primary_cache_store_key AS store_key,
         w.chunk_id AS cid,w.position,w.capture_start_frame,w.frames,b.capture_origin_frame AS origin,
         b.capture_end_frame,w.receipt_state,w.receipt_id,
@@ -313,8 +320,17 @@ def primary_cache_qualified(store, db, sid, cid, store_key, budget=None):
         JOIN recording_pages p ON p.id=w.page_id JOIN chunks c ON c.id=w.chunk_id
         JOIN sessions s ON s.id=c.session_id JOIN stream_chunks sc ON sc.chunk_id=c.id
         JOIN stream_time_index ti ON ti.chunk_id=c.id
-        WHERE w.chunk_id=? AND b.session_id=?''',(PRIMARY_CACHE_POLICY,store_key,cid,sid)).fetchone()
-    if budget is not None:budget.projection(2048)
+        WHERE w.chunk_id=? AND b.session_id=?
+          AND typeof(b.id)='text' AND length(CAST(b.id AS BLOB)) BETWEEN 1 AND 64
+          AND typeof(b.session_id)='text' AND length(CAST(b.session_id AS BLOB)) BETWEEN 1 AND 64
+          AND typeof(w.chunk_id)='text' AND length(CAST(w.chunk_id AS BLOB)) BETWEEN 1 AND 64
+          AND typeof(w.receipt_id)='text' AND length(CAST(w.receipt_id AS BLOB)) BETWEEN 1 AND 64
+          AND typeof(c.digest)='text' AND length(CAST(c.digest AS BLOB))=64
+          AND w.receipt_state='durable' AND typeof(w.position)='integer'
+          AND typeof(w.capture_start_frame)='integer' AND typeof(w.frames)='integer'
+          AND typeof(b.capture_origin_frame)='integer' AND typeof(b.capture_end_frame)='integer'
+          AND typeof(c.timeline_start) IN ('integer','real')''',
+            (PRIMARY_CACHE_POLICY,store_key,cid,sid)).fetchone()
     if row is None or not row['same'] or row['receipt_state']!='durable':return None
     if (type(row['origin']) is not int or type(row['capture_end_frame']) is not int
             or type(row['capture_start_frame']) is not int or type(row['frames']) is not int
@@ -326,7 +342,7 @@ def primary_cache_qualified(store, db, sid, cid, store_key, budget=None):
             receipt.timeline_start,receipt.stream_id)!=(sid,cid,row['receipt_id'],row['digest'],row['frames'],
                 row['timeline_start'],'recording.'+row['batch_id']):return None
     from .recording_primary_provenance import primary_cache_usage
-    primary_cache_usage(db,row['batch_id'])
+    primary_cache_usage(db,row['batch_id'],budget)
     from .moss_automatic import TABLE,DEPENDENCIES
     # Every query has an existing indexed session/cid/batch access path.
     if db.execute(f'SELECT 1 FROM {TABLE} INDEXED BY auto_session_seq WHERE sid=? LIMIT 1',(sid,)).fetchone():return None
@@ -1033,16 +1049,16 @@ class RecordingOverlap:
     def _cache_publication_snapshot(self, db, bid, pid):
         from .recording_primary_provenance import primary_cache_usage
         if not primary_cache_schema(db,self.store):raise ValueError('Primary cache publication schema changed')
-        batch=db.execute('''SELECT id,session_id,mode,primary_cache_policy,primary_cache_store_key,
-            capture_end_frame,eos,state,revision FROM recording_batches WHERE id=?''',(bid,)).fetchone()
+        batch=db.execute('''SELECT id,session_id,mode,primary_cache_policy,primary_cache_store_key
+            FROM recording_batches WHERE id=?''',(bid,)).fetchone()
         page=db.execute('SELECT id,batch_id,released,state FROM recording_pages WHERE id=?',(pid,)).fetchone()
         if batch is None or page is None:raise ValueError('Primary cache publication disappeared')
         usage=primary_cache_usage(db,bid)
-        rows=db.execute('''SELECT w.chunk_id,c.status,w.receipt_state,w.receipt_id,w.native_receipt
+        rows=db.execute('''SELECT w.chunk_id,w.receipt_state,w.receipt_id,w.native_receipt
             FROM recording_work w JOIN chunks c ON c.id=w.chunk_id WHERE w.page_id=?
             ORDER BY w.position LIMIT 29''',(pid,)).fetchall()
         if len(rows)>MAX_PAGE_CHUNKS:raise ValueError('Primary cache publication work changed')
-        return (tuple(batch),tuple(page),tuple(usage[bid]),tuple(tuple(row) for row in rows))
+        return (tuple(batch),tuple(page),usage[bid][2],tuple(tuple(row) for row in rows))
 
     def _reconcile_primary_cache_publication(self):
         saved=self._primary_cache_publish_unknown
@@ -1445,6 +1461,10 @@ class RecordingOverlap:
                     raise ValueError('Existing capture cannot be upgraded or replaced by pages')
                 if capture_origin_frame is not None and capture_origin_frame != batch['capture_origin_frame']:
                     raise ValueError('Capture origin is immutable')
+                if batch.get('primary_cache_policy') is not None:
+                    from .recording_primary_provenance import primary_cache_usage
+                    if not primary_cache_schema(db,self.store):raise ValueError('Primary cache schema changed')
+                    primary_cache_usage(db,batch['id'])
                 prior = db.execute('SELECT * FROM recording_pages WHERE batch_id=? AND page_number=?', (batch['id'], page_number)).fetchone()
                 if prior:
                     return self._page_detail(db, batch, dict(prior))
@@ -1900,6 +1920,7 @@ def receipt_gc_source(db, receipt, budget):
     that optional source metadata remains retained forever. The outbox payload,
     recording mapping, original files and primary outputs are never rewritten.
     """
+    budget.projection(256)
     row = db.execute('''SELECT w.batch_id,w.position,w.capture_start_frame,w.frames,
         b.capture_origin_frame AS origin,b.capture_end_frame,b.state AS batch_state,
         p.page_number,p.start_frame,p.end_frame,
@@ -1915,10 +1936,15 @@ def receipt_gc_source(db, receipt, budget):
         FROM recording_work w JOIN recording_batches b ON b.id=w.batch_id
         JOIN recording_pages p ON p.id=w.page_id JOIN chunks c ON c.id=w.chunk_id
         JOIN sessions s ON s.id=c.session_id JOIN stream_chunks sc ON sc.chunk_id=c.id
-        JOIN stream_time_index ti ON ti.chunk_id=c.id WHERE w.chunk_id=?''',
+        JOIN stream_time_index ti ON ti.chunk_id=c.id WHERE w.chunk_id=?
+          AND typeof(w.batch_id)='text' AND length(CAST(w.batch_id AS BLOB)) BETWEEN 1 AND 64
+          AND typeof(b.state)='text' AND length(CAST(b.state AS BLOB)) BETWEEN 1 AND 64
+          AND typeof(w.position)='integer' AND typeof(w.capture_start_frame)='integer'
+          AND typeof(w.frames)='integer' AND typeof(b.capture_origin_frame)='integer'
+          AND typeof(b.capture_end_frame)='integer' AND typeof(p.page_number)='integer'
+          AND typeof(p.start_frame)='integer' AND typeof(p.end_frame)='integer' ''',
         (receipt.session_id,receipt.digest,receipt.frames/RATE,receipt.timeline_start,
          receipt.receipt_id,receipt.encoded,receipt.stream_id,receipt.chunk_id)).fetchone()
-    budget.projection(256)
     if row is None or not row['same'] or receipt.stream_id != 'recording.' + row['batch_id']:return None
     origin = row['origin']
     if (type(origin) is not int or not 0 <= origin <= MAX_COORDINATE

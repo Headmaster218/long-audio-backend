@@ -562,6 +562,22 @@ class PrimaryAuthority:
         from .native_owned_core_seams import retention_counts
         return self._read(budget, 'retention', lambda db: retention_counts(db, budget))
 
+    def primary_cache_marked(self, sid, budget, *, cids=()):
+        """Bounded durable publication veto, independent of feature flags."""
+        from .recording_overlap import primary_cache_marked
+        text(sid)
+        if type(cids) not in (tuple, list) or len(cids) > MAX_PARTS:
+            raise Unavailable('primary_cache_publication_capacity')
+        for cid in cids:text(cid)
+        def read(db):
+            budget.projection(16 * (len(cids) + 1))
+            if primary_cache_marked(db, sid, store=self.store, budget=budget):return True
+            for cid in cids:
+                budget.check()
+                if primary_cache_marked(db, sid, cid, store=self.store, budget=budget):return True
+            return False
+        return self._read(budget, 'retention', read)
+
     def bounded_inventory_current(self, snapshot, budget):
         from .native_owned_core_seams import lexical_snapshot, validate_inventory
         validate_inventory(snapshot)
@@ -892,9 +908,32 @@ class Capture:
         if self.core_seams.flight is not None:raise Unavailable('compact_gc_pending_proof')
         if self.active or self._seam_provisional is not None:
             raise Unavailable('compact_gc_producer_roots_pending')
+        roots = set(() if self._seam_tail is None else (self._seam_tail.part.chunk_id,))
+        automatic = getattr(worker, 'moss_automatic', None)
+        support = getattr(worker, 'native_owned_support_cache', None)
+        if automatic is not getattr(self.authority.store, 'moss_automatic', None):
+            raise Unavailable('compact_gc_primary_roots_invalid')
+        jobs = getattr(automatic, 'jobs', None)
+        if jobs is not None:
+            from .moss_automatic import Automatic
+            from .moss_handy_jobs import MossJobs
+            from .native_owned_cell_jobs import CellJobsSource
+            if (type(automatic) is not Automatic or type(jobs) is not MossJobs
+                    or automatic is not getattr(self.authority.store, 'moss_automatic', None)
+                    or automatic.store is not self.authority.store or automatic.capture is not self
+                    or jobs.store is not self.authority.store or jobs.automatic is not automatic
+                    or type(jobs.cell_source) is not CellJobsSource or jobs.cell_source.owner is not owner
+                    or jobs.cell_source.store is not self.authority.store
+                    or jobs.cache is not support or getattr(support, 'jobs_owner', None) is not jobs):
+                raise Unavailable('compact_gc_primary_roots_invalid')
+            roots.update(jobs.primary_retention_roots())
+        elif getattr(support, 'jobs_owner', None) is not None:
+            # App startup binds the Worker before it attaches its coordinator.
+            # Once a jobs owner exists, an absent/replaced link is never idle.
+            raise Unavailable('compact_gc_primary_roots_invalid')
         # Source GC additionally proves a completed-prefix replay frontier.
         # Core preparation's exact previous compact is protected in SQL.
-        return frozenset(() if self._seam_tail is None else (self._seam_tail.part.chunk_id,))
+        return frozenset(roots)
 
     def receipt_retention_start(self, sid, stream, future_frame):
         """Future reset replay plus context; an empty queue is never a proof."""

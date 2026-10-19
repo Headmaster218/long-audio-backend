@@ -55,6 +55,10 @@ class SyntheticAuthority:
     def receipt_valid(self, receipt, budget):budget.check(); self.calls.append(threading.get_ident()); return self.valid
     def cell_valid(self, doc, budget, *, publishing):budget.check(); return self.valid
     def session_valid(self, sid, budget):budget.check(); return self.valid
+    def primary_cache_marked(self, sid, budget, *, cids=()):
+        # This isolated synthetic authority has no primary recording database.
+        budget.check()
+        return False
 
 
 def wait_operation(test, result):
