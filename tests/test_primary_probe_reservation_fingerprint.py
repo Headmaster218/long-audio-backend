@@ -10,6 +10,7 @@ imports from other suites (including NumPy) are neither rejected nor removed.
 from contextlib import contextmanager, nullcontext
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import sys
@@ -27,6 +28,8 @@ import test_current_census_resample as census
 
 BASELINE_SHA256 = '4e6593570126e6f24634ab8db34ecb55446255c0593ebc08a29299c6ddca95d2'
 BASELINE_PATH = os.environ.get('PRIMARY_PROBE_FINGERPRINT_BASELINE')
+BEFORE_INPUT_BASELINE_SHA256 = '6e177b86ff535f4fa972b1c78b4f2ace628fe811ff077b36a8da2a6dd7665998'
+BEFORE_INPUT_BASELINE_PATH = os.environ.get('PRIMARY_PROBE_BEFORE_INPUT_BASELINE')
 
 
 @pytest.fixture(params=['candidate'] + (['baseline'] if BASELINE_PATH else []))
@@ -44,6 +47,27 @@ def implementation(request):
     sys.modules[name] = baseline
     try:
         # Execute only the authenticated bytes, without writing baseline pyc.
+        exec(compile(source, str(path), 'exec'), baseline.__dict__)
+        yield baseline, True
+    finally:
+        sys.modules.pop(name, None)
+
+
+@pytest.fixture(params=['candidate'] + (['baseline'] if BEFORE_INPUT_BASELINE_PATH else []))
+def before_input_implementation(request):
+    """Authenticate the unchanged dev55 product, not the historical dev52 file."""
+    if request.param == 'candidate':
+        yield mod, False
+        return
+    path = Path(BEFORE_INPUT_BASELINE_PATH).resolve(strict=True)
+    source = path.read_bytes()
+    assert hashlib.sha256(source).hexdigest() == BEFORE_INPUT_BASELINE_SHA256
+    name = '_primary_probe_before_input_authenticated_dev55'
+    assert name not in sys.modules
+    spec = importlib.util.spec_from_file_location(name, path)
+    baseline = importlib.util.module_from_spec(spec)
+    sys.modules[name] = baseline
+    try:
         exec(compile(source, str(path), 'exec'), baseline.__dict__)
         yield baseline, True
     finally:
@@ -188,7 +212,8 @@ def test_each_irrelevant_hint_can_change_without_cancelling_exact_reservation(hi
 
 @pytest.mark.parametrize('kind,phase', [
     ('preemptible', 'running'), ('automatic_text', 'running'),
-    ('automatic_primary_probe', 'reserved'), ('automatic_primary_probe', 'before_input'),
+    ('preemptible', 'before_input'), ('automatic_text', 'before_input'),
+    ('automatic_primary_probe', 'reserved'),
     ('automatic_primary_probe', 'before_spawn'), ('automatic_primary_probe', 'before_admission'),
     ('automatic_primary_probe', 'wait'),
 ])
@@ -426,3 +451,143 @@ def test_existing_dispatch_source_currentness_refusal_remains_authoritative():
                 owner._primary_dispatch_current(probe, reserved=True)
         assert reads == [probe['reservation']] and case.permit._optional is probe
         assert probe['work_deadline'] == 11.
+
+
+@pytest.mark.parametrize('hint', ['turn', 'caller_turn', 'handoff', 'queue_probe'])
+def test_before_input_excludes_only_scheduling_hint(before_input_implementation, hint, record_property):
+    module, baseline = before_input_implementation
+    with reservation(module) as case:
+        permit, calls, snapshots = case.permit, [], []
+        generation, deadline = permit._sample_generation, 11.
+        case.token['work_deadline'] = deadline
+        def controlled(_):
+            calls.append(1)
+            before = permit._optional_state_locked(allow_queued=True)
+            if hint == 'turn':permit._turn = object()
+            elif hint == 'caller_turn':permit._local.turn = object()
+            elif hint == 'handoff':permit._handoff = object()
+            else:permit._probe = True
+            after = permit._optional_state_locked(allow_queued=True)
+            snapshots.extend((before, after))
+            return sample(module)
+        permit._sampler = controlled
+        error = None
+        with patch.object(permit._condition, 'wait', side_effect=AssertionError('unexpected permit wait')):
+            try:permit.check_optional(case.token, 'before_input')
+            except module.AdmissionError as caught:error = caught
+        assert calls == [1] and len(snapshots) == 2
+        before, after = snapshots
+        identities = [index for index, (old, new) in enumerate(zip(before[0], after[0])) if old is not new]
+        values = [index for index, (old, new) in enumerate(zip(before[1], after[1])) if old != new]
+        assert identities == ([] if hint == 'queue_probe' else [{'turn': 4, 'caller_turn': 5, 'handoff': 6}[hint]])
+        assert values == ([2] if hint == 'queue_probe' else [])
+        assert permit._optional is case.token and permit._sample_generation is generation
+        assert permit._cancel is case.event and permit._cancel_callback is case.callback
+        assert not case.callbacks and permit._sample_flight is None
+        assert case.token['work_deadline'] == deadline and permit._completed_sample_retries == 0
+        if baseline:
+            assert type(error) is module.AdmissionError and error.reason == 'optional_ownership_changed'
+            detail = module.optional_sample_failure(error)
+            assert detail['subtype'] == 'ownership_changed' and detail['reservation_held'] is True
+            assert detail['wait_ms'] == 0 and detail['grace_used'] is False
+            assert case.event.is_set()
+        else:
+            assert error is None and not case.event.is_set()
+            assert permit._state == 'OPTIONAL_RUNNING'
+        record_property('before_input_hint_result', json.dumps({'hint': hint, 'baseline': baseline,
+            'identity_indexes_changed': identities, 'value_indexes_changed': values,
+            'sampler_calls': len(calls), 'cancelled': case.event.is_set(),
+            'exact_reservation': permit._optional is case.token, 'same_generation': permit._sample_generation is generation,
+            'deadline': deadline, 'reason': None if error is None else error.reason}, sort_keys=True))
+
+
+@pytest.mark.parametrize('change', ['callback', 'generation', 'shutdown'])
+def test_before_input_keeps_real_authority_failure(change, record_property):
+    with reservation() as case:
+        permit, calls = case.permit, []
+        case.token['work_deadline'] = deadline = 11.
+        def controlled(_):
+            calls.append(1)
+            if change == 'callback':permit._cancel_callback = lambda: None
+            elif change == 'generation':permit._sample_generation = object()
+            else:permit.close_admission()
+            return sample()
+        permit._sampler = controlled
+        with patch.object(permit._condition, 'wait', side_effect=AssertionError('unexpected permit wait')):
+            with pytest.raises(mod.AdmissionError) as caught:permit.check_optional(case.token, 'before_input')
+        expected = 'optional_ownership_changed' if change == 'callback' else 'process_sample_unavailable'
+        assert caught.value.reason == expected and calls == [1]
+        detail = mod.optional_sample_failure(caught.value)
+        assert detail['subtype'] == ('ownership_changed' if change == 'callback' else 'stale_generation')
+        assert detail['reservation_held'] and detail['wait_ms'] == 0 and not detail['grace_used']
+        assert permit._optional is case.token and permit._cancel is case.event and case.event.is_set()
+        assert permit._sample_flight is None and permit._completed_sample_retries == 0
+        assert case.callbacks == ([True] if change == 'shutdown' else [])
+        assert case.token['work_deadline'] == deadline
+        record_property('before_input_authority_failure', json.dumps({'change': change, 'sampling': detail}, sort_keys=True))
+
+
+@pytest.mark.parametrize('when', ['before', 'during'])
+def test_before_input_speaker_gate_keeps_original_deadline(when):
+    with reservation() as case:
+        now, calls = [10.], []
+        case.token['work_deadline'] = deadline = 11.
+        owner = SimpleNamespace(permit=case.permit, _links_enabled=lambda: True)
+        gate = jobs._SpeakerProbeGate(owner, case.token)
+        def controlled(_):
+            calls.append(1)
+            if when == 'during':now[0] = deadline
+            return sample()
+        case.permit._sampler = controlled
+        if when == 'before':now[0] = deadline
+        with patch.object(jobs, 'time', SimpleNamespace(monotonic=lambda: now[0])):
+            with pytest.raises(ReadError, match='primary_probe_deadline'):gate.check('before_input')
+        assert calls == [1] and case.token['work_deadline'] == deadline
+        assert case.permit._optional is case.token and not case.event.is_set()
+        assert not case.callbacks and case.permit._sample_flight is None
+
+
+def test_before_input_unchanged_state_keeps_exact_reservation():
+    with reservation() as case:
+        calls = []
+        case.token['work_deadline'] = 11.
+        def controlled(_):
+            calls.append(1)
+            return sample()
+        case.permit._sampler = controlled
+        case.permit.check_optional(case.token, 'before_input')
+        assert calls == [1] and case.permit._optional is case.token and not case.event.is_set()
+        assert case.token['work_deadline'] == 11. and not case.callbacks
+
+
+def test_before_input_dispatch_keeps_comparison_generation_failure(record_property):
+    with reservation() as case:
+        owner, probe = dispatch_case(case)
+        reads, calls = [], []
+        def history_read(*args, **kwargs):
+            reads.append(True)
+            raise AssertionError('unexpected history/DB read')
+        owner.history = SimpleNamespace(dispatch_current=history_read)
+        comparison_token = object()
+        comparison_owner = SimpleNamespace(comparison_parent_bytes=lambda: 0,
+            comparison_resources_closed=lambda: True)
+        case.permit.reserve_comparison(comparison_token, threading.Event())
+        observed = dict(case.permit._observed)
+        def controlled(_):
+            calls.append(1)
+            case.permit.bind_comparison_owner(comparison_token, comparison_owner)
+            return sample()
+        case.permit._sampler = controlled
+        try:
+            with patch.object(jobs, 'time', SimpleNamespace(monotonic=lambda: 10.)):
+                with pytest.raises(mod.AdmissionError, match='process_sample_unavailable') as caught:
+                    owner._primary_dispatch_current(probe, reserved=True)
+            detail = mod.optional_sample_failure(caught.value)
+            assert detail['subtype'] == 'stale_generation' and detail['reservation_held']
+            assert detail['wait_ms'] == 0 and detail['grace_used'] is False
+            assert calls == [1] and not reads and probe['operation'] is None
+            assert case.permit._observed == observed and case.permit._optional is probe
+            assert case.event.is_set() and not case.callbacks and probe['work_deadline'] == 11.
+            assert case.permit._sample_flight is None and case.permit._completed_sample_retries == 0
+            record_property('before_input_comparison_failure', json.dumps(detail, sort_keys=True))
+        finally:assert case.permit.release_comparison(comparison_token)

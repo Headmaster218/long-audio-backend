@@ -2,6 +2,14 @@
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
 
+## 0.2.0rc3.dev56：主探针输入前指纹修复（隔离实验版）
+
+本版只将既有 automatic_primary_probe 的精确 reservation-token 调度提示排除，从 running 扩展至 before_input。已准入且仍持有原 reservation 时，turn、caller turn、handoff 与未授予的 queue-probe 提示变化不再单独取消该尝试。准入、其他 owner / phase、真实权限、generation、comparison、shutdown、资源与原截止时间检查不变；不新增等待、重试、模型调用或历史成功重建。
+
+独立审查的 32 项模型无关候选 gate 全部通过，原 pytest exit 0，并保留完整 633 项模块来源；其中真实 Worker / manager / permit / SQLite 的合成集成对照验证 turn 结束和排队需求变化，并保留 callback 替换等真实权限拒绝。较早十项复现断言的 JUnit 为通过，但记录器在序列化 bytes 时失败，原 exit 1 且完整模块来源缺失；该失败保留，未重跑、未计作成功 gate。这些证据绑定各自执行树，不能合并声称最终发布树全套通过。
+
+离线 133 文件 source / wheel / fresh-install 一致性、真实当前 SQLite profile、极小 process comparator 与被动 app 检查采用独立 gate；准确状态见[dev56 发布资格报告](reports/PRIMARY_PROBE_BEFORE_INPUT_DEV56_QUALIFICATION.json)。README、包和测试源码在构建前冻结；后续只更新该新报告预声明的包结果。所有四份较新语料 / 部分试验报告及既有资格保持原字节。历史 AliMeeting 拒绝的实际 fingerprint 写入方仍不确定，本修复不反推或重分类旧结果；没有新实际模型、音频、声学身份、长时吞吐或生产部署资格。迁移前停止旧 worker、备份并使用隔离副本。以下历史章节保留原文。
+
 ## 0.2.0rc3.dev55：独立主行观察与缓存回收（隔离实验版）
 
 本版整理先前的 primary-only 协调模式及新的独占主行缓存回收。默认开关不变；正确构造的 primary-only 配置不启用 MOSS 作业或自动 MOSS。只有新建、独占且同时启用两项既有 GC 开关的录音能获得不可变标记，并在实际持久发布时绑定当前 CellStore。每个标记录音占用既有额度中的 512 逻辑字节，最多 64 个；已存在、混合或因可选额度拒绝而未标记的录音不会被事后接管。

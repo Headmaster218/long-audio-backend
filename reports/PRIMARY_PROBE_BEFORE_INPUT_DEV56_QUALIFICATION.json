@@ -1,0 +1,395 @@
+{
+  "schema": "primary-probe-before-input-dev56-release-qualification-v1",
+  "version": "0.2.0rc3.dev56",
+  "date_utc": "2026-10-19",
+  "status": "experimental_source_qualification_with_separate_package_gate",
+  "release_base": {
+    "commit": "bc9c4eb406eb3589c671c1a2fc2e56964455e525",
+    "tree": "65a90d0c6b1ca5d1a0db419359161666cccb65d8",
+    "source_files": 583,
+    "source_bytes": 10542493
+  },
+  "release_delta": {
+    "paths": [
+      "README.md",
+      "audio_backend/__init__.py",
+      "audio_backend/native_execution_permit.py",
+      "pyproject.toml",
+      "reports/PRIMARY_PROBE_BEFORE_INPUT_DEV56_QUALIFICATION.json",
+      "tests/test_primary_probe_before_input_integration.py",
+      "tests/test_primary_probe_reservation_fingerprint.py"
+    ],
+    "added_paths": [
+      "reports/PRIMARY_PROBE_BEFORE_INPUT_DEV56_QUALIFICATION.json",
+      "tests/test_primary_probe_before_input_integration.py"
+    ],
+    "preserved_parent_paths": 578,
+    "deleted_paths": [],
+    "expected_package_files": 133,
+    "production_change": "Extend the existing exact-token automatic_primary_probe scheduling-hint fingerprint exclusion from running to before_input and running only.",
+    "unchanged": [
+      "admission",
+      "other owners and phases",
+      "real authority",
+      "generation",
+      "comparison",
+      "shutdown",
+      "resource limits",
+      "original deadlines",
+      "defaults",
+      "dependencies",
+      "models",
+      "identity policy"
+    ],
+    "historical_README_suffix_unchanged": true,
+    "four_newer_parent_reports_preserved": true
+  },
+  "candidate_source_qualification": {
+    "source_tree": "b4d6cd390bf2769ce28a34fae4bbd57a2cccc747",
+    "selected_nodes": 32,
+    "passed": 32,
+    "raw_pytest_exit": 0,
+    "loaded_module_origins": 633,
+    "setup_call_teardown_reports": 96,
+    "product_sha256": "01730cb55980193d9079dde6a71d786d1987d94f51f61e829a4f1b734de06904",
+    "modified_test_sha256": "140423d5ee1e8f2a9d174c311a3abe2a2813df8b853cbe5894ee02e0695fd8eb",
+    "added_integration_test_sha256": "9292d63e1e465c30321528b7221e9eb024f583294f2082bbe9715fa14a555c71",
+    "measured": {
+      "total_seconds": 19.716486712000915,
+      "aggregate_accounted_cpu_seconds": 14.369493,
+      "aggregate_cpu_with_timeout_allowance_seconds": 15.369493,
+      "peak_sampled_combined_rss_bytes": 189657088,
+      "peak_sampled_fresh_allocated_bytes": 24403968,
+      "peak_sampled_pytest_threads": 5,
+      "maximum_sample_gap_seconds": 0.3153124070013291
+    },
+    "cleanup": {
+      "positive_original_wait": true,
+      "all_observed_descendants_absent": true,
+      "forced_kill": false,
+      "errors": []
+    },
+    "findings": [
+      "All four scheduling hints independently reproduce before_input ownership_changed on authenticated dev55 and survive only in the narrowly corrected candidate.",
+      "Real Worker turn-exit and queue-demand candidates preserve one reservation/attempt/deadline and complete one synthetic probe/vector each; authenticated dev55 controls refuse at dispatch_validation before ProbeOperation or driver construction.",
+      "Real callback replacement refuses in both integration implementations; direct generation, comparison bind and shutdown changes still refuse.",
+      "Original before_input deadlines, wrong token, admission and other owner/phase strict checks remain effective; existing running controls survive."
+    ],
+    "evidence": {
+      "execution-receipt.json": {
+        "bytes": 13008,
+        "sha256": "1582b560ead56c0f04db46fa77dc7490694bb998d029e17b8d631c9f840853d1"
+      },
+      "test-origins.json": {
+        "bytes": 119032,
+        "sha256": "1eab2aa34597ec9afc38188ecb6fb56688dd8d22cf86a8379fe45060bc0d03a2"
+      },
+      "junit.xml": {
+        "bytes": 10586,
+        "sha256": "84612ac0a7cfd0ac5464e3c80e0308424c42e8ae0fab0a807917007ede3be734"
+      },
+      "source-manifest.json": {
+        "bytes": 103247,
+        "sha256": "786138c009d75310974571ade492c2eaba0bcf22dfeb1c5cbe3d605705031913"
+      }
+    },
+    "independent_terminal_review": {
+      "status": "accepted_controlled_candidate_qualification",
+      "artifact_sha256": "f49104f4dc045b66041fe6a83798647784094cb0893577179181912082881ce9",
+      "independent_read_only_SQLite_audit": "Two exact synthetic vectors and four pre-dispatch failures; one attempt and observation per case, zero remaining charges and empty owned slots."
+    },
+    "limitations": [
+      "Synthetic scalar censuses, PCM, native/ASR and probe outputs; no actual model inference or acoustic measurement.",
+      "No comparator child in the source gate.",
+      "The32-node source gate was not run on the release tree and will not be rerun by the package gate."
+    ]
+  },
+  "retained_initial_reproduction": {
+    "selected_assertions": 10,
+    "junit_passed": 10,
+    "raw_pytest_exit": 1,
+    "status": "failed_recorder_with_retained_substantive_assertion_evidence",
+    "failure": "The session-finish recorder could not JSON-serialize bytes-valued properties; its full loaded-module origin file was not written.",
+    "not_a_successful_gate": true,
+    "complete_module_origins_available": false,
+    "rerun": false,
+    "independent_terminal_review_sha256": "3dc37e13a050050af1797003775a2d26d62904c6ee043c7b7c58cc64f8be36b2"
+  },
+  "package_gate": {
+    "status": "passed",
+    "scope": [
+      "One offline wheel build",
+      "One fresh no-dependency install",
+      "133-file source/wheel/install bytes and modes plus module origins",
+      "Genuine unchanged current SQLite/runtime profile",
+      "Existing seven installed admission, process comparator and passive/primary-only checks"
+    ],
+    "results": {
+      "attempt_count": 1,
+      "executed_source_tree": "39aa25ad4930fa48002579935398da499faa1163",
+      "executed_source_manifest_sha256": "2a6134af1328f339b102c6f2e37c25cf4fe0c1c9241bb261e0ae52f9dbaa953d",
+      "frozen_controls_sha256": "1787d7193410433f303d28412e4336fda23bf3b4e58088c6c69f078d122556c9",
+      "stage_results": [
+        {
+          "name": "wheel",
+          "returncode": 0,
+          "positive_original_wait": true
+        },
+        {
+          "name": "install",
+          "returncode": 0,
+          "positive_original_wait": true
+        },
+        {
+          "name": "verify",
+          "returncode": 0,
+          "positive_original_wait": true
+        },
+        {
+          "name": "pytest",
+          "returncode": 0,
+          "positive_original_wait": true
+        }
+      ],
+      "outer_returncode": 0,
+      "original_outer_handle_positive_wait": true,
+      "source_wheel_fresh_install_byte_mode_parity": true,
+      "package_files": 133,
+      "package_bytes": 3152585,
+      "wheel": {
+        "filename": "long_audio_backend-0.2.0rc3.dev56-py3-none-any.whl",
+        "bytes": 843331,
+        "sha256": "ea4fc9562a10a56907181833c3e1ffcdd03d5358aa981e1b6e3b9bfccef571c2",
+        "mode": 420
+      },
+      "metadata": {
+        "bytes": 792,
+        "sha256": "5fcd442602c7cd15c444479ac146c057f5cc0ccec637a1d757cb3fecde30411e"
+      },
+      "parsed_requirement_multiplicity_checks": 12,
+      "version": "0.2.0rc3.dev56",
+      "fixture_files": 27,
+      "fixture_bytes": 1075269,
+      "genuine_current_runtime_verifier_passed": true,
+      "runtime_profile_changed": false,
+      "runtime_profile": {
+        "sqlite_source_id": "2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9",
+        "sqlite_version": "3.53.1",
+        "compile_options_sha256": "600e922c0614cd07a1640976eb2e283b43072322af46cbeb0df7a998990095cb",
+        "platform": "linux",
+        "vfs": "unix",
+        "filesystem_device": 27,
+        "sector_bytes_max": 65536,
+        "journal_headers_max": 1,
+        "allocation_slack_bytes_max": 2097152,
+        "evidence_sha256": "6d47a4b5c71260d1e67d08a854ffee0ad01533fe308038a897ae96226b86a94e",
+        "interpreter_bytes": 30894944,
+        "interpreter_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+        "interpreter_realpath_sha256": "65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b",
+        "sqlite3_package_sha256": "7beabacb2d5049a5a494aa8eae9d7ef902365e4e4a774550c355b4c101a970d1",
+        "sqlite3_binding": "observed-built-in-no-separate-sqlite-mapping-v1",
+        "sqlite3_extension_sha256": null,
+        "sqlite3_library_sha256": null,
+        "sqlite3_library_realpath_sha256": null
+      },
+      "observed_dependency_versions": {
+        "fastapi": "0.143.0",
+        "starlette": "1.7.0",
+        "pydantic": "2.13.5",
+        "pydantic-core": "2.46.5",
+        "anyio": "4.15.1",
+        "psutil": "7.2.2",
+        "httpx": "0.28.1",
+        "pydantic-settings": "2.15.0",
+        "uvicorn": "0.54.0",
+        "python-multipart": "0.0.32",
+        "packaging": "26.3"
+      },
+      "historical_runtime_lock_equivalence_claimed": false,
+      "module_origin_counts": {
+        "verifier_product": 55,
+        "pytest_product": 67,
+        "pytest_helpers": 24
+      },
+      "all_reported_module_origins_independently_bound_to_installed_source": true,
+      "pytest": {
+        "selected_nodes": [
+          "tests/test_native_owned_cell_store.py::AdmissionTests::test_off_absent_and_enabled_unqualified_do_not_create_sql_or_thread",
+          "tests/test_native_owned_cell_store.py::AdmissionTests::test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off",
+          "tests/test_recording_speaker_history_process.py::test_real_child_matches_unchanged_direct_oracle_and_cache[3]",
+          "tests/test_primary_only_configuration.py::test_configuration_modes_are_valid_at_construction[primary]",
+          "tests/test_primary_only_configuration.py::test_cli_explicit_primary_flags_agree_with_settings",
+          "tests/test_primary_only_configuration.py::test_primary_http_moss_routes_stay_disabled",
+          "tests/test_primary_only_configuration.py::test_passive_lifecycle_never_constructs_a_coordinator"
+        ],
+        "passed": 7,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "setup_call_teardown_reports": 21,
+        "all_phases_passed": true,
+        "junit_seconds": 4.476
+      },
+      "passive_app": {
+        "statuses": {
+          "/health": {
+            "status": 200,
+            "bytes": 1437
+          },
+          "/openapi.json": {
+            "status": 200,
+            "bytes": 47260
+          },
+          "/docs": {
+            "status": 200,
+            "bytes": 1031
+          }
+        },
+        "worker_started": false,
+        "normal_lifespan_closed": true,
+        "model_directory_absent": true
+      },
+      "primary_configuration_cli_http_denial_and_no_coordinator_checks_passed": true,
+      "comparator": {
+        "authenticated_launches": 1,
+        "exact_installed_argv_kwargs_hash_authenticated": true,
+        "module_sha256": "e426ba25c8f0d11917641d111ecef64c274939785723b2401b303290807204cc",
+        "python_threads_at_launch": 1,
+        "kernel_tasks_at_launch": 1,
+        "AS_cap_from_exec_bytes": 268435456,
+        "positive_original_wait": true,
+        "actual_waits": [
+          {
+            "timeout": 0.25,
+            "elapsed_seconds": 0.015406902995891869,
+            "returncode": 0
+          },
+          {
+            "timeout": 0,
+            "elapsed_seconds": 3.335000656079501e-06,
+            "returncode": 0
+          }
+        ],
+        "observed_returncode": 0,
+        "additional_close_ack_or_exit_zero_assertion": false,
+        "affinity_boundary": "Inherited startup CPUs 3/4 were sampled. Existing authenticated ready validation requires CPU4 before work; no continuous-affinity claim."
+      },
+      "measured_bounds": {
+        "work_seconds": 9.24773602100322,
+        "total_seconds": 9.646526078002353,
+        "aggregate_accounted_cpu_seconds": 10.532825,
+        "aggregate_cpu_with_timeout_allowance_seconds": 11.532825,
+        "peak_sampled_combined_rss_bytes": 173973504,
+        "peak_sampled_fresh_allocated_bytes": 40648704,
+        "maximum_sample_gap_seconds": 0.4658722640015185,
+        "complete_allocation_samples": 135,
+        "maximum_complete_allocation_sample_age_seconds": 0.15352195699961158
+      },
+      "limits": {
+        "work_seconds": 30.0,
+        "total_seconds": 40.0,
+        "aggregate_cpu_seconds": 25.0,
+        "sampled_combined_rss_bytes": 402653184,
+        "fresh_allocated_bytes": 67108864,
+        "supervisor_as_bytes": 134217728,
+        "stage_as_bytes": {
+          "wheel": 268435456,
+          "install": 268435456,
+          "verify": 268435456,
+          "pytest": 1073741824
+        },
+        "each_child_as_bytes": 268435456,
+        "maximum_stage_descendants": {
+          "wheel": 2,
+          "install": 0,
+          "verify": 0,
+          "pytest": 1
+        },
+        "maximum_topology_as_bytes": 1509949440,
+        "outer_timeout_as_allowance_bytes": 33554432,
+        "outer_timeout_cpu_allowance_seconds": 1,
+        "supervisor_cpu_affinity": [
+          3
+        ],
+        "stage_cpu_affinity": {
+          "wheel": [
+            3
+          ],
+          "install": [
+            3
+          ],
+          "verify": [
+            3
+          ],
+          "pytest": [
+            3,
+            4
+          ]
+        },
+        "comparator_child_cpu_affinity": [
+          4
+        ],
+        "comparator_startup_affinity_exception": "Inherited subset of {3,4} before unchanged authenticated ready exchange; once sampled on CPU4 it must remain CPU4",
+        "nice": 19
+      },
+      "bounds_observed": true,
+      "allocation_census": {
+        "complete_census_retries_attempted": 4,
+        "incomplete_samples": 1,
+        "maximum_complete_sample_age_seconds": 0.15352195699961158,
+        "complete_sample_age_limit_seconds": 1,
+        "scope": "Only current disposable SQLite WAL/journal entries disappeared. Four complete recounts were attempted; one repeated disappearance produced the allowed active-stage incomplete sample. Strict initial/final source, input and prior-evidence checks passed. No test or package-stage retry."
+      },
+      "cleanup": {
+        "all_original_stage_waits_positive": true,
+        "all_observed_descendants_absent": true,
+        "forced_kill": false,
+        "errors": []
+      },
+      "final_source_input_prior_evidence_pins_match": true,
+      "models_inference_real_audio_network_or_dependency_downloads": false,
+      "sampled_limits_are_not_continuous_kernel_aggregate_guarantees": true,
+      "warning": "Existing non-failing Starlette/httpx deprecation warning; dependencies unchanged.",
+      "evidence": {
+        "execution-receipt.json": {
+          "bytes": 12588,
+          "sha256": "4b3ab100a76c1663750926948fccb789fa0177d1ba905ec47884a68124f67242"
+        },
+        "outer-process-receipt.json": {
+          "bytes": 737,
+          "sha256": "bf104d33a201788894f76479fad61a7c23df085c2927e8cbf9505c5af22fc87e"
+        },
+        "installed-verification.json": {
+          "bytes": 10880,
+          "sha256": "5d1fc9edc8be9f39a6ee382e4cdd26c9b74a8d38a2db0b45f997dca0cb9daf03"
+        },
+        "installed-test-origins.json": {
+          "bytes": 20049,
+          "sha256": "e31230617306032f24c768bbbb3cbda0e0a2ec1cd14a065e79e29bf5168f5830"
+        },
+        "junit.xml": {
+          "bytes": 1240,
+          "sha256": "efd1c1bc804a35c599e3f12fea05f87e884272b3d47f7872af5599de8d52640d"
+        },
+        "independent-terminal-review.json": {
+          "bytes": 16695,
+          "sha256": "1f0999536fe88a69cf9c03ae4bee7e5868385d9f8b001c927ec584ad1204fcd6"
+        }
+      },
+      "qualification_boundary": "This one package gate and its seven installed smoke cases remain separate from the accepted32-node candidate source gate and the initial10-assertion failed-recorder reproduction. No combined final-tree full-suite, acoustic or deployment qualification."
+    },
+    "post_gate_edit_allowlist": [
+      "package_gate.status",
+      "package_gate.results"
+    ],
+    "no_source_or_README_edits_after_build": true
+  },
+  "historical_limits": [
+    "The historical AliMeeting fingerprint writers remain unknown; no old failure is reclassified or replayed.",
+    "The published partial trial remains partial, with actual failed invocations and unrun acoustic metrics preserved.",
+    "Earlier coordinator, retirement, package and source qualifications remain separately attributed, not added to a final-tree pass total.",
+    "No full-suite, long-duration, dense throughput, acoustic identity or production deployment qualification.",
+    "Stop old workers, back up and use isolated data copies before additive migration; old-reader refusal cannot evict existing workers.",
+    "Sampled RSS/process/resource observations are not continuous kernel aggregate guarantees."
+  ]
+}
