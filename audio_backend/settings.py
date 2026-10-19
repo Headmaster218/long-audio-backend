@@ -22,6 +22,52 @@ def validate_framemn_options(enabled, checkpoint_path, profile):
         raise ValueError('FrameMN requires an explicit absolute local checkpoint path')
 
 
+# One exact opt-in capability. This predicate is also used at runtime; a policy
+# string alone never opens the shared native/probe coordinator.
+PRIMARY_ONLY_FIELDS = (
+    'recording_primary_observation_policy', 'recording_primary_observation_interval_seconds',
+    'recording_speaker_links_enabled', 'recording_speaker_model_path',
+    'moss_jobs_enabled', 'moss_automatic_enabled', 'moss_jobs_model_path',
+    'native_owned_support_enabled', 'native_owned_cells_enabled',
+    'native_owned_core_seams_enabled', 'native_owned_bounded_core_support_enabled',
+    'native_owned_seam_cells_enabled', 'native_owned_compact_gc_enabled',
+    'native_owned_receipt_gc_enabled', 'native_owned_bounded_core_support_seconds',
+    'lexical_evidence_enabled',
+    'asr_backend', 'diarization_backend', 'inference_device', 'overlap_backend',
+    'start_worker', 'native_diarization_model', 'native_diarization_library', 'model_dir',
+)
+
+
+def primary_only_configuration(settings):
+    return tuple(getattr(settings, name, None) for name in PRIMARY_ONLY_FIELDS)
+
+
+def primary_only_enabled(settings):
+    path = getattr(settings, 'recording_speaker_model_path', None)
+    return (getattr(settings, 'recording_primary_observation_policy', 'off') == 'primary-clean-history-v1'
+        and type(getattr(settings, 'recording_primary_observation_interval_seconds', None)) is int
+        and settings.recording_primary_observation_interval_seconds == 60
+        and all(getattr(settings, name, None) is True for name in (
+            'recording_speaker_links_enabled', 'native_owned_support_enabled',
+            'native_owned_cells_enabled', 'native_owned_core_seams_enabled',
+            'native_owned_bounded_core_support_enabled', 'lexical_evidence_enabled', 'start_worker'))
+        and all(getattr(settings, name, None) is False for name in (
+            'moss_jobs_enabled', 'moss_automatic_enabled', 'native_owned_seam_cells_enabled'))
+        and getattr(settings, 'moss_jobs_model_path', None) is None
+        and getattr(settings, 'asr_backend', None) == 'sensevoice'
+        and getattr(settings, 'diarization_backend', None) == 'nemotron'
+        and getattr(settings, 'inference_device', None) == 'cpu'
+        and getattr(settings, 'overlap_backend', None) == 'none'
+        and bool(getattr(settings, 'native_diarization_model', None))
+        and bool(getattr(settings, 'native_diarization_library', None))
+        and type(path) is str and bool(path) and len(path.encode('utf-8')) <= 4096
+        and '\x00' not in path and Path(path).is_absolute())
+
+
+def coordinator_enabled(settings):
+    return bool(getattr(settings, 'moss_jobs_enabled', False)) or primary_only_enabled(settings)
+
+
 @dataclass
 class Settings:
     data_dir: Path = field(default_factory=lambda: Path(os.getenv('AUDIO_DATA_DIR', './audio-data')).resolve())
@@ -135,11 +181,12 @@ class Settings:
         if (type(bounded_seconds) not in (int, float) or not math.isfinite(bounded_seconds)
                 or not .5 <= bounded_seconds <= 1.):
             raise ValueError('native_owned_bounded_core_support_seconds must be finite between 0.5 and 1.0')
-        if self.native_owned_bounded_core_support_enabled and not (
+        primary_only = primary_only_enabled(self)
+        if self.native_owned_bounded_core_support_enabled and not (primary_only or (
                 self.moss_automatic_enabled and self.native_owned_core_seams_enabled
                 and self.native_owned_cells_enabled and self.native_owned_support_enabled
-                and self.lexical_evidence_enabled):
-            raise ValueError('Bounded core support requires automatic MOSS, native-owned support, cells, core seams and lexical retention')
+                and self.lexical_evidence_enabled)):
+            raise ValueError('Bounded core support requires automatic MOSS or exact primary-only mode, native-owned support, cells, core seams and lexical retention')
         self.data_dir = Path(self.data_dir).resolve()
         self.model_dir = Path(self.model_dir).resolve()
         validate_framemn_options(self.framemn_enabled, self.framemn_checkpoint_path, self.framemn_profile)
@@ -190,8 +237,8 @@ class Settings:
         if self.recording_speaker_model_path is not None and not self.recording_speaker_links_enabled:
             raise ValueError('Recording speaker model requires explicit enablement')
         if self.recording_speaker_links_enabled:
-            if not self.moss_automatic_enabled:
-                raise ValueError('Recording speaker links require automatic recording MOSS')
+            if not self.moss_automatic_enabled and not primary_only:
+                raise ValueError('Recording speaker links require automatic recording MOSS or exact primary-only mode')
             path = self.recording_speaker_model_path
             if (type(path) is not str or not path or len(path.encode('utf-8')) > 4096
                     or '\x00' in path or not Path(path).is_absolute()):

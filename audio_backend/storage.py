@@ -400,16 +400,20 @@ class Store:
 
     def claim(self, *, probe=False):
         from .moss_automatic import enabled,recording,capacity,bounded_enabled,release_wait_pressure
-        automatic=enabled(self.settings)
+        automatic=enabled(self.settings) and not getattr(getattr(self,'moss_automatic',None),'primary_only',False)
+        from .settings import primary_only_enabled
+        cooperative=(automatic or primary_only_enabled(self.settings)
+            or getattr(getattr(self,'moss_automatic',None),'primary_only',False))
         from .native_owned_cell_store import Budget
-        wait_budget=Budget() if automatic and bounded_enabled(self.settings) else None
+        wait_budget=Budget() if cooperative and (bounded_enabled(self.settings)
+            or getattr(getattr(self,'moss_automatic',None),'primary_only',False)) else None
         with self._claim_database(wait_budget) as db:
-            if automatic:db.execute('PRAGMA busy_timeout=0')
+            if cooperative:db.execute('PRAGMA busy_timeout=0')
             try:
                 db.execute('BEGIN IMMEDIATE')
             except sqlite3.OperationalError as exc:
                 code=getattr(exc,'sqlite_errorcode',None)
-                if (automatic and not db.in_transaction and type(code) is int
+                if (cooperative and not db.in_transaction and type(code) is int
                         and (code & 0xff) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED)):
                     raise _ClaimDeferred() from None
                 raise
@@ -612,9 +616,13 @@ class Store:
             if not current or current['status'] not in ('running','paused'): return False
             if abs(current['next_offset']-offset)>1e-5: return False
             from .moss_automatic import enabled,recording,bounded_enabled
-            automatic=enabled(self.settings) and recording(db,chunk['id'])
+            automatic=(enabled(self.settings) and not getattr(getattr(self,'moss_automatic',None),'primary_only',False)
+                and recording(db,chunk['id']))
             bounded=automatic and bounded_enabled(self.settings)
-            retain_primary_provenance = retain_primary_provenance and bounded
+            primary_recording = (retain_primary_provenance
+                and getattr(getattr(self,'moss_automatic',None),'primary_only',False)
+                and recording(db,chunk['id']))
+            retain_primary_provenance = retain_primary_provenance and (bounded or primary_recording)
             if bounded and bounded_handoff and (bounded_handoff.get('batch') or {}).get('ordinal')==1:
                 from .moss_automatic import batch_context
                 if batch_context(db,chunk,bounded_handoff['store_key'],bounded_handoff['budget'])!=bounded_handoff['batch']:
@@ -730,7 +738,7 @@ class Store:
             provenance=update_provenance(current['provenance'],metadata,offset)
             if getattr(self.settings, 'native_owned_core_seams_enabled', False):
                 from .native_owned_core_seams import transaction as commit_core_seam
-                if bounded and result.get('_native_core_seam') is not None:
+                if (bounded or primary_recording) and result.get('_native_core_seam') is not None:
                     result['_native_core_seam']['_bounded_budget']=bounded_handoff['budget'] if bounded_handoff else None
                 optional_reason = (commit_core_seam(db, chunk, offset, end, result, strict=not bounded, automatic=True)
                     if automatic else commit_core_seam(db, chunk, offset, end, result))

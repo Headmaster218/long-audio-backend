@@ -167,8 +167,10 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     settings=settings or Settings()
     from .moss_handy_jobs import ownership_fence
     ownership_fence(settings.data_dir)  # Early diagnostic only; repeated under lock.
-    if settings.moss_jobs_enabled and fragment_provider_factory is not None:
-        raise ValueError('MOSS jobs does not support fragment provider coexistence')
+    from .settings import coordinator_enabled, primary_only_enabled, primary_only_configuration
+    primary_only = primary_only_enabled(settings)
+    if coordinator_enabled(settings) and fragment_provider_factory is not None:
+        raise ValueError('Native job coordinator does not support fragment provider coexistence')
     for folder in ('uploads','tmp'):
         (settings.data_dir/folder).mkdir(parents=True,exist_ok=True)
     store=Store(settings.data_dir/'jobs.sqlite3',settings)
@@ -236,7 +238,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     if worker.native_owned_cells is not None:worker.native_owned_cells.owner.start()
                 except Exception:
                     app.state.native_owned_cells_status='registration_unavailable'
-            if settings.moss_jobs_enabled:
+            if coordinator_enabled(settings):
                 from .native_execution_permit import NativeExecutionPermit
                 from .moss_handy_jobs import MossJobs
                 if worker.native_owned_support_cache is None:
@@ -246,6 +248,21 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                     and settings.moss_jobs_enabled and settings.native_owned_support_enabled
                     and settings.diarization_backend=='nemotron' and settings.inference_device=='cpu'
                     and settings.overlap_backend=='none' and settings.start_worker)
+                if primary_only:
+                    startup_configuration=primary_only_configuration(settings)
+                    support_owner=worker.native_owned_support_cache
+                    startup_capture=registered_cells
+                    startup_owner=registered_cells.owner if registered_cells is not None else None
+                    startup_authority=registered_cells.authority if registered_cells is not None else None
+                    permit._configuration_current=lambda: (primary_only_enabled(settings)
+                        and primary_only_configuration(settings)==startup_configuration
+                        and fragment_provider_factory is None and fragments.factory is None
+                        and settings._native_execution_permit is permit
+                        and worker.native_owned_support_cache is support_owner
+                        and worker.native_owned_cells is startup_capture
+                        and startup_capture is not None and startup_capture.owner is startup_owner
+                        and startup_capture.authority is startup_authority
+                        and startup_authority.owner is startup_owner)
                 settings._native_execution_permit=permit
                 cell_source=None
                 if settings.native_owned_cells_enabled and registered_cells is not None:
@@ -256,7 +273,9 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                             settings.native_owned_cells_enabled
                             and worker.native_owned_cells is registered_cells
                             and registered_cells.owner is cell_owner
+                            and (not primary_only or permit._configuration_current())
                             and registered_cells.authority.owner is cell_owner
+                            and (not primary_only or cell_source is not None and cell_source.owner is cell_owner)
                             and permit._configuration_current())
                     except Exception:
                         # Durable cell unavailability does not disable rolling
@@ -265,7 +284,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 jobs=MossJobs(store,worker.native_owned_support_cache,permit,cell_source=cell_source,result_store=results,speaker_links=speaker_links)
                 app.state.moss_jobs=jobs
                 automatic.capture=registered_cells; automatic.jobs=jobs; jobs.automatic=automatic
-                if settings.moss_automatic_enabled and (registered_cells is None or cell_source is None):
+                if (settings.moss_automatic_enabled or primary_only) and (registered_cells is None or cell_source is None):
                     raise RuntimeError('Automatic MOSS requires qualified durable cells')
             from .data_paths import verify_owned_data_paths
             verify_owned_data_paths(store)
@@ -880,7 +899,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     from .moss_handy_http import register_routes
     app.state.moss_result_store=results
     app.state.moss_response_budget=response_budget
-    register_routes(app, lambda:jobs, _assign_native_read_lease, result_store=results, get_response_budget=history_budget, automatic=automatic)
+    register_routes(app, lambda:None if primary_only else jobs, _assign_native_read_lease, result_store=results, get_response_budget=history_budget, automatic=automatic)
     from .transcript_http import register_routes as register_transcript_routes
     register_transcript_routes(app, store, _assign_native_read_lease, history_budget)
     app.add_middleware(_NativeSupportReadLifetime)

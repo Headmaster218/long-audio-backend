@@ -832,6 +832,8 @@ class UploadObservation:
 class Capture:
     def __init__(self, owner, authority):
         self.owner = owner; self.authority = authority
+        from .settings import primary_only_enabled
+        self.primary_only = primary_only_enabled(getattr(getattr(authority, 'store', None), 'settings', None))
         self.witness = RollingWitness(); self.scope = None; self.scope_start = 0.
         self.origin_frame = 0; self.budget = Budget(); self.active = False
         self.analyzer = None; self.analyzer_start = 0; self.last_reason = 'not_observed'
@@ -1379,13 +1381,13 @@ class Capture:
                     from .recording_primary_provenance import freeze
                     freeze(self, chunk, native, offset, end, result, parts, evidence, original)
                 commit_hash = sha(evidence)
-                cells = make_cells(witness=self.witness, native=native, scope_start=self.scope_start,
+                cells = () if self.primary_only else make_cells(witness=self.witness, native=native, scope_start=self.scope_start,
                     origin_frame=self.origin_frame, core_start=a, core_end=b,
                     analyzer_start=self.analyzer_start, analyzer_pcm=self.analyzer, mapping=parts,
                     chunk_id=chunk['id'], commit_start=start_local, commit_end=end_local,
                     commit_sha256=commit_hash, commit_evidence=evidence)
                 self.last_reason = 'validated_selected' if cells else 'no_native_overlap'
-                if self.seam_enabled:
+                if self.seam_enabled and not self.primary_only:
                     try:self.prepare_seam(chunk, native, parts, evidence, cells, a, b)
                     except Exception as exc:
                         _diagnostic_failure('seam_prepare', exc)
@@ -1405,7 +1407,7 @@ class Capture:
             return cells
         except Exception as exc:
             self._failure(exc)
-            if required:raise
+            if required or self.primary_only and isinstance(exc, sqlite3.Error):raise
             return ()
         finally:self.analyzer = None
 
@@ -1650,11 +1652,12 @@ class Capture:
 def configuration_reason(settings, fragment_provider_factory=None):
     bounded = getattr(settings, 'native_owned_bounded_core_support_enabled', False)
     if type(bounded) is not bool:return 'bounded_configuration_required'
-    if bounded and not (getattr(settings, 'moss_automatic_enabled', False)
+    from .settings import primary_only_enabled
+    if bounded and not (primary_only_enabled(settings) or (getattr(settings, 'moss_automatic_enabled', False)
             and getattr(settings, 'native_owned_core_seams_enabled', False)
             and getattr(settings, 'native_owned_cells_enabled', False)
             and getattr(settings, 'native_owned_support_enabled', False)
-            and getattr(settings, 'lexical_evidence_enabled', False)):
+            and getattr(settings, 'lexical_evidence_enabled', False))):
         return 'bounded_configuration_required'
     if not getattr(settings, 'native_owned_cells_enabled', False):return None
     if (settings.diarization_backend != 'nemotron' or settings.inference_device != 'cpu'

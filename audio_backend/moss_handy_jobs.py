@@ -236,6 +236,8 @@ class MossJobs:
                  _driver_factory=OwnedDriver, _thread_factory=threading.Thread, cell_source=None, result_store=None,
                  speaker_links=None, _probe_factory=None):
         self.store, self.cache, self.permit, self.clock = store, cache, permit, clock
+        from .settings import primary_only_enabled
+        self._primary_only = primary_only_enabled(store.settings)
         self.jobs_epoch = uuid.uuid4().hex
         self.results = result_store if result_store is not None else MossResultStore(store)
         self.directory = create_namespace(store.settings.data_dir)
@@ -279,6 +281,11 @@ class MossJobs:
     def _enabled(self):
         return (not self._closed and bool(getattr(self.store.settings, 'moss_jobs_enabled', False))
                 and self.permit._configuration_current())
+
+    def _coordinator_enabled(self):
+        from .settings import primary_only_enabled
+        return self._enabled() or (getattr(self, '_primary_only', False) and not self._closed
+            and primary_only_enabled(self.store.settings) and self.permit._configuration_current())
 
     def _epoch(self, value):
         if value != self.jobs_epoch:
@@ -1393,7 +1400,8 @@ class MossJobs:
                 and (thread is None or not thread.is_alive()) and self._pending_record is None)
 
     def submit_automatic(self,intent):
-        if self.automatic is None:raise ReadError(409,'automatic_configuration_unavailable')
+        if not self._enabled():raise ReadError(409,'feature_disabled')
+        if self.automatic is None or not self.automatic.current():raise ReadError(409,'automatic_configuration_unavailable')
         sid,key=intent['sid'],intent['candidate_key']
         detail=self.cell_source.detail(sid,intent['cell_id'])
         if not detail['pcm_retained']:raise ReadError(409,'cell_pcm_not_retained')
@@ -1550,7 +1558,8 @@ class MossJobs:
 
     def _links_enabled(self):
         return (self.speaker_links is not None and not self._closed
-            and bool(getattr(self.store.settings, 'recording_speaker_links_enabled', False)))
+            and bool(getattr(self.store.settings, 'recording_speaker_links_enabled', False))
+            and (not getattr(self, '_primary_only', False) or self._coordinator_enabled()))
 
     @staticmethod
     def _empty_speaker_probe():

@@ -93,7 +93,8 @@ def _segment_hash(segment):
 
 
 def enabled(settings):
-    return bool(getattr(settings, 'recording_speaker_links_enabled', False)
+    from .settings import primary_only_enabled
+    return primary_only_enabled(settings) or bool(getattr(settings, 'recording_speaker_links_enabled', False)
         and getattr(settings, 'moss_automatic_enabled', False)
         and getattr(settings, 'native_owned_bounded_core_support_enabled', False)
         and getattr(settings, 'asr_backend', None) == 'sensevoice'

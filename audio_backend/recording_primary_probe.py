@@ -89,7 +89,7 @@ def _fence(source):
     if (type(source) is not CellJobsSource or type(source.owner.authority) is not PrimaryAuthority
             or source.owner.authority.store is not source.store):
         raise Unavailable('primary_probe_authority_unavailable')
-    source._current()
+    source.primary_authority_current()
     owner = source.owner
     return owner, owner.authority, owner._epoch, owner.authority.identity
 
@@ -97,7 +97,7 @@ def _fence(source):
 def _check_fence(source, fence):
     owner, authority, generation, identity = fence
     from .native_owned_support_cache import ReadError
-    try:source._current()
+    try:source.primary_authority_current()
     except ReadError as exc:
         raise Unavailable('primary_probe_authority_changed') from exc
     if (source.owner is not owner or owner.authority is not authority

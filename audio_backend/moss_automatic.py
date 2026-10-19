@@ -1246,6 +1246,8 @@ def authority_valid(authority,key,doc,budget):
 class Automatic:
     def __init__(self,store,results,*,capture=None,jobs=None):
         self.store,self.results,self.capture,self.jobs=store,results,capture,jobs
+        from .settings import primary_only_enabled
+        self.primary_only=primary_only_enabled(store.settings)
         self.flight=None; self.next_attempt=0.; self.last_reason='not_started'
         self._round={};self._sessions=deque()
         self._identity_next='primary'
@@ -1270,7 +1272,7 @@ class Automatic:
 
     def maintain_bounded_waiters(self,*,stop=lambda:False):
         """One indexed metadata-only turn, with no owner or model lease."""
-        if stop() or not bounded_enabled(self.store.settings):return False
+        if stop() or getattr(self, 'primary_only', False) or not bounded_enabled(self.store.settings):return False
         from .native_owned_cell_store import Budget
         now=time.time();mono=time.monotonic()
         with Budget().phase() as budget:
@@ -1330,8 +1332,13 @@ class Automatic:
         return (not self.closed and enabled(self.store.settings) and self.capture is not None
                 and self.jobs is not None and self.jobs._enabled())
 
+    def coordinator_current(self):
+        return self.current() or (getattr(self, 'primary_only', False) and not self.closed
+            and self.capture is not None and self.jobs is not None
+            and self.jobs._coordinator_enabled())
+
     def before_window(self,chunk):
-        if not enabled(self.store.settings):return True
+        if getattr(self, 'primary_only', False) or not enabled(self.store.settings):return True
         from .moss_result_store import _ReadDeferred
         budget=None
         try:
@@ -1373,6 +1380,7 @@ class Automatic:
         return True
 
     def read_candidate(self,key,*,proof=False):
+        if getattr(self, 'primary_only', False):raise ReadError(409,'automatic_configuration_unavailable')
         with self.results._database() as db:
             version=',target_key' if has_bounded_schema(db) else ',NULL'
             length=db.execute(f'SELECT length(binding),length(proof)'+version+f' FROM {TABLE} WHERE candidate_key=?',(key,)).fetchone()
@@ -1403,6 +1411,7 @@ class Automatic:
         return True
 
     def _snapshot(self):
+        if getattr(self, 'primary_only', False):return False
         if self._sessions:return True
         with self.results._database() as db:
             rows=[]
@@ -1419,6 +1428,7 @@ class Automatic:
         return bool(self._sessions)
 
     def _select_key(self):
+        if getattr(self, 'primary_only', False):return None
         if not self._snapshot():return None
         sid=self._sessions.popleft();group=self._round[sid]
         _,key=group.popleft()
@@ -1430,13 +1440,19 @@ class Automatic:
         # Retained text ownership deliberately prevents a new automatic turn.
         # Its exact metadata-only acknowledgement must be reachable first.
         if self.jobs is None or stop() or time.monotonic() < self.next_attempt:return False
-        try:return self.jobs.maintain_automatic_text_storage(self, stop=stop)
+        try:
+            if getattr(self, 'primary_only', False):
+                # Exact ACK/cleanup maintenance survives configuration closure;
+                # no automatic turn or new inference is granted by this path.
+                if not self.coordinator_current():return self.jobs._stop_primary()
+                return self.jobs._maintain_primary()
+            return self.jobs.maintain_automatic_text_storage(self, stop=stop)
         except Exception:return False  # Ownership and the frozen payload remain.
 
     def primary_yield_due(self):
         """Bounded metadata hint; no proof/PCM, admission or storage retry."""
         try:
-            if not self.current() or time.monotonic()<self.next_attempt:return False
+            if not self.coordinator_current() or time.monotonic()<self.next_attempt:return False
             permit=self.jobs.permit
             state=permit.status()
             if state['admission_closed'] or state['optional_admission_unavailable'] or permit._optional is not None:return False
@@ -1445,6 +1461,7 @@ class Automatic:
             if self.jobs.automatic_maintenance_hint():return True
             if not self.jobs.automatic_ready_hint():return False
             if self.jobs.primary_ready_hint():return True
+            if not self.current():return False
             if self.flight is not None:return self.flight[1].slot_released.is_set()
             if self.capture.owner._slot is not None:return False
             return self._snapshot()
@@ -1457,6 +1474,7 @@ class Automatic:
         except ReadError as exc:self.note(key,exc.reason)
 
     def _finish_flight(self,stop):
+        if getattr(self, 'primary_only', False):return
         key,op,cell_id=self.flight
         # The existing owner deadline includes queue time. No new budget, no
         # second publication operation, and no wait on unknown model attempts.
@@ -1478,17 +1496,18 @@ class Automatic:
         self.note(key,'automatic_publication_unacknowledged');self.flight=None
 
     def step(self, *, stop=lambda:False):
-        if not self.current() or time.monotonic()<self.next_attempt or stop():return
+        if not self.coordinator_current() or time.monotonic()<self.next_attempt or stop():return
         self.next_attempt=time.monotonic()+1.
         try:
             if not self.jobs.automatic_idle():self.last_reason='automatic_job_slot_occupied';return
             primary_ready=self.jobs.primary_ready_hint()
-            text_ready=self.flight is not None or self._snapshot()
+            text_ready=self.current() and (self.flight is not None or self._snapshot())
             if primary_ready and (not text_ready or self._identity_next=='primary'):
                 # Advance even when the bounded selected attempt refuses.
                 self._identity_next='text'
                 self.last_reason='automatic_primary_probe_attempt'
                 self.jobs.submit_primary();return
+            if not self.current():return
             if text_ready:self._identity_next='primary'
             if self.flight is not None:
                 self._finish_flight(stop);return

@@ -54,6 +54,8 @@ def main(argv=None):
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
     parser.add_argument('--native-owned-core-seams',action='store_true',help='Candidate default-OFF same-epoch and strictly validated reset-replay adjacent-core alternatives; requires --native-owned-cells and fresh optional store')
+    parser.add_argument('--native-owned-bounded-core-support', action='store_true', help='Default-off bounded capture; requires automatic MOSS or exact clean-primary mode, native-owned support/cells/core-seams and lexical evidence')
+    parser.add_argument('--lexical-evidence', action='store_true', help='Default-off exact lexical retention for bounded native provenance')
     parser.add_argument('--native-owned-compact-gc',action='store_true',help='Candidate default-OFF orphan compact reclamation for completed stream sources; keeps all source receipts/cells/results; requires --native-owned-cells and --native-owned-core-seams')
     parser.add_argument('--native-owned-receipt-gc',action='store_true',help='Candidate default-OFF orphan receipt reclamation for completed sealed recording pages; requires --native-owned-compact-gc; keeps all cells, audio and results')
     parser.add_argument('--native-owned-seam-cells',action='store_true',help='UNQUALIFIED default-OFF two-commit seam alternatives; requires --native-owned-cells; explicit overlapping diagnostics only')
@@ -65,7 +67,7 @@ def main(argv=None):
     parser.add_argument('--moss-jobs',action='store_true',help='Explicit single MOSS job service with durable structured history; requires native-owned support, CPU and no overlap/fragment provider')
     parser.add_argument('--moss-jobs-model',type=Path,help='Explicit local fixed-profile MOSS model; does not enable jobs implicitly')
     parser.add_argument('--moss-automatic',action='store_true',help='Candidate default-OFF automatic timestamped recording MOSS dispatch; requires MOSS jobs, native-owned support/cells/core-seams and the ordinary Worker; excludes legacy seam-cells')
-    parser.add_argument('--recording-speaker-links', action='store_true', help='EXPERIMENTAL default-off recording-scoped anonymous speaker links; 32-node cap; requires automatic MOSS')
+    parser.add_argument('--recording-speaker-links', action='store_true', help='EXPERIMENTAL default-off recording-scoped anonymous speaker links; 32-node cap; requires automatic MOSS or exact clean-primary mode')
     parser.add_argument('--recording-primary-observation-policy', choices=('off','primary-clean-history-v1'), default='off', help='EXPERIMENTAL clean-primary immutable history; no model qualification')
     parser.add_argument('--recording-primary-observation-interval-seconds', type=int, default=60)
     parser.add_argument('--recording-speaker-history-read', action='store_true', help='Passive saved history projection; does not enable models')
@@ -93,8 +95,8 @@ def main(argv=None):
         parser.error('--native-owned-compact-gc requires --native-owned-cells and --native-owned-core-seams')
     if args.native_owned_seam_cells and not args.native_owned_cells:
         parser.error('--native-owned-seam-cells requires --native-owned-cells')
-    if args.recording_speaker_links and (not args.moss_automatic or not args.recording_speaker_model):
-        parser.error('--recording-speaker-links requires --moss-automatic and --recording-speaker-model')
+    if args.recording_speaker_links and not args.recording_speaker_model:
+        parser.error('--recording-speaker-links requires --recording-speaker-model; mode prerequisites are validated by Settings')
     if args.recording_speaker_model and not args.recording_speaker_links:
         parser.error('--recording-speaker-model requires --recording-speaker-links')
     if args.moss_jobs_model and not args.moss_jobs:
@@ -244,6 +246,8 @@ def main(argv=None):
                         native_owned_cells_enabled=args.native_owned_cells,
                         native_owned_seam_cells_enabled=args.native_owned_seam_cells,
                         native_owned_core_seams_enabled=args.native_owned_core_seams,
+                        native_owned_bounded_core_support_enabled=args.native_owned_bounded_core_support,
+                        lexical_evidence_enabled=args.lexical_evidence,
                         native_owned_compact_gc_enabled=args.native_owned_compact_gc,
                         native_owned_receipt_gc_enabled=args.native_owned_receipt_gc,
                         moss_result_max_rows=args.moss_result_max_rows,

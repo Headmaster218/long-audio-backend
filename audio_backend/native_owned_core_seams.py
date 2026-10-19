@@ -1504,6 +1504,10 @@ class CoreSeams:
                 # This receipt is staged even if no overlap/seam is selected.
                 packet = {'commit': commit, 'proof': None, 'reason': 'core_first_or_unavailable_left'}
                 result['_native_core_seam'] = packet
+                if getattr(c, 'primary_only', False):
+                    packet['reason'] = 'primary_observation_compact'
+                    self.last_reason = packet['reason']
+                    return
                 def previous(db):
                     rows = db.execute('SELECT slot FROM native_core_commits WHERE sid=? AND scope_key=? AND logical_end=? LIMIT 2',
                         (chunk['session_id'], scope_key(scope), a)).fetchall()

@@ -173,7 +173,8 @@ class Worker:
                 # Bounded model-free outbox maintenance; pending recording work
                 # stays staged while unrelated ordinary jobs remain claimable.
                 self.recordings.advance(self.native_owned_cells)
-            self._cell_call('drain_core_seams')
+            if not (self.moss_automatic is not None and getattr(self.moss_automatic, 'primary_only', False)):
+                self._cell_call('drain_core_seams')
             watermark=None
             if getattr(self.settings,'native_owned_support_enabled',False) and self.native_owned_support_cache is not None:
                 try:
@@ -183,7 +184,8 @@ class Worker:
                     # Optional observation never takes authority over primary work.
                     pass
             from .moss_automatic import enabled
-            fair=permit is not None and self.moss_automatic is not None and enabled(self.settings)
+            fair=permit is not None and self.moss_automatic is not None and (
+                enabled(self.settings) or getattr(self.moss_automatic, 'primary_only', False))
             intent=None;chunk=None
             try:
                 if permit is None:
@@ -446,9 +448,14 @@ class Worker:
         while offset<chunk['duration']-1e-5:
             if self.interrupted(chunk['id']): raise InterruptedError()
             automatic=False
+            primary_only=self.moss_automatic is not None and getattr(self.moss_automatic, 'primary_only', False)
+            primary_recording=False
             if self.moss_automatic is not None:
                 from .moss_automatic import enabled,recording
-                with self.store.db() as db:automatic=enabled(self.settings) and recording(db,chunk['id'])
+                with self.store.db() as db:
+                    is_recording=(enabled(self.settings) or primary_only) and recording(db,chunk['id'])
+                    automatic=not primary_only and enabled(self.settings) and is_recording
+                    primary_recording=primary_only and is_recording
                 preflight=self.moss_automatic.before_window(chunk) if automatic else True
                 if preflight is _WINDOW_READ_DEFERRED or not preflight:
                     # Yield before native preparation. The unchanged offset is
@@ -518,7 +525,7 @@ class Worker:
                     if options is not None:arguments['analysis_options']=options
                     result=process.analyze(wav,tmp/'result.json',lambda:self.interrupted(chunk['id']),**arguments)
                 from .recording_primary_provenance import enabled as primary_provenance_enabled, observe, validate_observation
-                primary_snapshot = observe(result, native) if automatic and primary_provenance_enabled(self.settings) else None
+                primary_snapshot = observe(result, native) if (automatic or primary_recording) and primary_provenance_enabled(self.settings) else None
                 result=validate_result(result,extract_end-extract_start)
                 if primary_snapshot is not None:validate_observation(result, primary_snapshot)
                 primary_snapshot = None
@@ -566,13 +573,20 @@ class Worker:
                             # The result packet is the sole handoff owner; bounded
                             # preparation releases ordinary PCM after freezing origins.
                             selected_cells=()
-                    else:selected_cells=self._cell_call('prepare',chunk,native,offset,end,result)
+                    else:
+                        if primary_recording:self._cell_call('start_bounded',result)
+                        selected_cells=(self.native_owned_cells.prepare(chunk,native,offset,end,result)
+                            if primary_recording and self.native_owned_cells is not None
+                            else self._cell_call('prepare',chunk,native,offset,end,result))
                     if automatic:
                         self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
                             lambda:self.interrupted(chunk['id']),required=True)
                         # Disk headroom includes the same primary DB/WAL and existing
                         # write/scratch allowance immediately before enqueue.
                         self.moss_automatic.results._headroom()
+                    elif primary_recording and self.native_owned_cells is not None:
+                        self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
+                            lambda:self.interrupted(chunk['id']))
                     else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
                     if self.interrupted(chunk['id']): raise InterruptedError()
                     if self.store.commit_window(chunk,offset,end,result) is not True: return
@@ -581,7 +595,7 @@ class Worker:
                         try:primary_jobs.primary_committed(result.get('_primary_probe_handle'))
                         except Exception:pass
                     self._publish_native_support(native,offset,end)
-                    if not automatic:
+                    if not automatic and not primary_only:
                         self._cell_call('committed',selected_cells)
                         self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
                 finally:

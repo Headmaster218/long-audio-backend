@@ -90,16 +90,27 @@ class CellJobsSource:
         self._pending = None
         self._closed = False
 
-    def _current(self):
+    def _authority_current(self):
         if (self._closed or not self._configuration_allowed()
-                or not getattr(self.store.settings, 'native_owned_cells_enabled', False)
-                or not getattr(self.store.settings, 'moss_jobs_enabled', False)):
+                or not getattr(self.store.settings, 'native_owned_cells_enabled', False)):
             raise ReadError(409, 'feature_disabled')
         if (self.owner.authority.owner is not self.owner
                 or self.owner.authority.identity != self._identity):
             raise ReadError(409, 'cell_revoked')
         if self.owner.qualification is None or not self.owner.health()['ready']:
             raise ReadError(503, 'cell_owner_unavailable')
+
+    def _current(self):
+        if not getattr(self.store.settings, 'moss_jobs_enabled', False):
+            raise ReadError(409, 'feature_disabled')
+        self._authority_current()
+
+    def primary_authority_current(self):
+        from .settings import primary_only_enabled
+        if not (getattr(self.store.settings, 'moss_jobs_enabled', False)
+                or primary_only_enabled(self.store.settings)):
+            raise ReadError(409, 'feature_disabled')
+        self._authority_current()
 
     @staticmethod
     def _error(result):
