@@ -32,6 +32,8 @@ _SAMPLE_BUDGET = object()
 _COMPARISON_SAMPLE_DEADLINE = object()
 SAMPLING_RETRY_SECONDS = 1.
 _OPTIONAL_SAMPLE = object()
+_OPTIONAL_ADMISSION_PENDING = object()
+_COMPARISON_START_PENDING = object()
 OPTIONAL_BUSY_GRACE = .250
 _OBSERVATION_PHASES = frozenset(('caller_identity', 'process_enumeration',
     'remembered_identity', 'family_selection', 'selected_identity', 'selected_rss',
@@ -105,6 +107,13 @@ def _authenticated_exhaustion(error):
     return None
 
 
+def _authenticated_probe_deadline(error):
+    marker = getattr(error, '_optional_sample_deadline', None)
+    return (type(error) is AdmissionError and error.reason == 'optional_cancelled'
+        and type(marker) is tuple and len(marker) == 2 and marker[0] is _OPTIONAL_SAMPLE
+        and type(marker[1]) is str and marker[1] == 'automatic_primary_probe')
+
+
 def _observation_class(error):
     classes = ((AdmissionError, 'AdmissionError'), (psutil.NoSuchProcess, 'NoSuchProcess'),
         (psutil.ZombieProcess, 'ZombieProcess'), (psutil.AccessDenied, 'AccessDenied'),
@@ -141,7 +150,8 @@ class ProcessSample:
     resampled: bool = False
 
 
-def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, comparison_deadline=False):
+def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, comparison_deadline=False,
+                   primary_probe_deadline=False):
     """Bounded current accounting; a discarded census never proves an exit.
 
     One fresh census may replace an indeterminate non-caller identity read.
@@ -152,6 +162,7 @@ def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, c
     budget_deadline = started + SAMPLE_SECONDS
     deadline = min(budget_deadline, deadline) if deadline is not None else budget_deadline
     clipped_comparison = comparison_deadline and deadline < budget_deadline
+    clipped_probe = primary_probe_deadline and deadline < budget_deadline
     enumerated = 0
     def time_exhausted():
         nonlocal last_clock
@@ -164,6 +175,11 @@ def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, c
         if kind == 'wall' and clipped_comparison and last_clock < budget_deadline:
             error = AdmissionError('comparison_deadline')
             error._comparison_sample_deadline = _COMPARISON_SAMPLE_DEADLINE
+            return error
+        if kind == 'wall' and clipped_probe and last_clock < budget_deadline:
+            error = AdmissionError('optional_cancelled')
+            error._optional_sample_deadline = (_OPTIONAL_SAMPLE, 'automatic_primary_probe')
+            error._optional_execution_deadline = True
             return error
         return _sample_exhausted(kind, last_clock - started, enumerated)
     phase = 'caller_identity'
@@ -333,6 +349,8 @@ class NativeExecutionPermit:
         self._probe = False
         self._optional = None
         self._optional_kind = None
+        self._optional_work_deadline = None
+        self._primary_probe_admission = None
         self._comparison = None
         self._handoff = self._turn = None
         self._cancel = self._cancel_callback = None
@@ -514,11 +532,16 @@ class NativeExecutionPermit:
         except Exception:return False
         with self._condition:return not self._sampling_pending and not self._unavailable
 
-    def _take_sample(self, *, observe=False, recovery_only=False, sample_deadline=None, comparison_deadline=False):
+    def _take_sample(self, *, observe=False, recovery_only=False, sample_deadline=None, comparison_deadline=False,
+                     primary_probe_deadline=False, sample_wait=None):
         token = None
         phase = 'sample'
         try:
             with self._condition:
+                # Only an already-owned probe supplies this bounded waiter.
+                # It returns with this same condition held, so the free check
+                # and the fresh flight claim below have no reclaim gap.
+                if sample_wait is not None:sample_wait()
                 pending = self._sampling_pending
                 if self._sample_flight is not None:raise _SampleBusy()
                 if recovery_only and not self.sampling_recovery_pending:raise _SampleSkipped('recovery_not_due')
@@ -532,7 +555,8 @@ class NativeExecutionPermit:
                 generation = self._sample_generation
                 token = self._sample_flight = object()
             current = (service_sample(self.settings, known=known, deadline=sample_deadline,
-                           comparison_deadline=comparison_deadline and not observe) if self._sampler is service_sample
+                           comparison_deadline=comparison_deadline and not observe,
+                           primary_probe_deadline=primary_probe_deadline and not observe) if self._sampler is service_sample
                        else self._sampler(self.settings))
             if len(current.identities) > MAX_IDENTITIES:
                 raise AdmissionError('process_identity_budget')
@@ -623,7 +647,9 @@ class NativeExecutionPermit:
             caller_expired = (comparison_deadline and not observe and self._sampler is service_sample
                 and type(error) is AdmissionError and error.reason == 'comparison_deadline'
                 and getattr(error, '_comparison_sample_deadline', None) is _COMPARISON_SAMPLE_DEADLINE)
-            if not caller_expired and (observe or budget is not None):
+            probe_expired = (primary_probe_deadline and not observe and self._sampler is service_sample
+                and _authenticated_probe_deadline(error))
+            if not caller_expired and not probe_expired and (observe or budget is not None):
                 self._record_primary_failure('observe_primary' if observe else 'other', phase, error,
                                              sample_budget=budget)
             raise
@@ -746,11 +772,12 @@ class NativeExecutionPermit:
         for proc in processes:
             self.finish_primary(proc, normal=normal)
 
-    def _resource_check(self, *, reserve, sample_deadline=None):
+    def _resource_check(self, *, reserve, sample_deadline=None, primary_probe_deadline=False, sample_wait=None):
         # Callers must not hold the condition across the bounded census or any
         # original-handle/resident predicate. Recheck before using accounting.
         with self._condition:generation = self._sample_generation
-        try:sample = self._take_sample(sample_deadline=sample_deadline)
+        try:sample = self._take_sample(sample_deadline=sample_deadline,
+            primary_probe_deadline=primary_probe_deadline, sample_wait=sample_wait)
         except _SampleSkipped as skipped:
             error = AdmissionError('process_sample_unavailable')
             error._optional_sample_skip = (_OPTIONAL_SAMPLE,
@@ -823,7 +850,8 @@ class NativeExecutionPermit:
             None if primary_probe_running else getattr(self._local, 'turn', None),
             None if primary_probe_running else self._handoff, self._configuration_current, comparison,
             comparison['revision'] if comparison is not None else None)
-        values = (self._optional_kind, None if self._cancel is None else self._cancel.is_set(),
+        values = (self._optional_kind, self._optional_work_deadline,
+            None if self._cancel is None else self._cancel.is_set(),
             None if primary_probe_running else self._probe,
             self._closed, self._unavailable, bool(self._configuration_current()),
             tuple((kind, intent, intent.granted, intent.entered, intent.released)
@@ -836,8 +864,29 @@ class NativeExecutionPermit:
             primary_probe_running=primary_probe_running)
         return all(old is new for old, new in zip(state[0], identities)) and state[1] == values
 
-    def reserve_optional(self, token, cancelled, cancel_callback, *, owner_kind='preemptible'):
+    def _primary_probe_active_locked(self):
+        return (self._primary_probe_admission is not None or
+            self._optional is not None and self._optional_kind == 'automatic_primary_probe')
+
+    def primary_probe_admission_pending(self, error, token, *, work_deadline):
+        """Authenticate only a resource-free, unexecuted admission refusal."""
+        if type(error) is not AdmissionError or error.reason != 'comparison_start_pending':return False
+        marker = getattr(error, '_optional_admission_pending', None)
+        with self._condition:
+            return (type(marker) is tuple and len(marker) == 8
+                and marker[0] is _OPTIONAL_ADMISSION_PENDING and marker[1] is self
+                and marker[2] is token and marker[4] == work_deadline
+                and self._optional is None and not marker[3].is_set()
+                and (type(token) is not dict or token.get('cancelled') is marker[3])
+                and self._comparison is not None and self._comparison['start_claim'] is marker[7]
+                and self._optional_state_unchanged_locked(marker[5],allow_queued=marker[6]))
+
+
+    def reserve_optional(self, token, cancelled, cancel_callback, *, owner_kind='preemptible', work_deadline=None):
         if owner_kind not in ('preemptible', 'automatic_text', 'automatic_primary_probe'):raise ValueError('Unknown optional owner')
+        if work_deadline is not None and (owner_kind != 'automatic_primary_probe'
+                or type(work_deadline) not in (int,float) or not math.isfinite(work_deadline)):
+            raise ValueError('Invalid primary probe deadline')
         def current():
             if self._closed or not self._configuration_current():
                 raise AdmissionError('jobs_configuration_unavailable')
@@ -848,18 +897,40 @@ class NativeExecutionPermit:
                 raise AdmissionError('primary_or_optional_busy')
             if self._unavailable:raise AdmissionError(self._unavailable)
             if cancelled.is_set():raise AdmissionError('optional_cancelled')
-        with self._condition:
-            current()
-            allow_queued = (owner_kind in ('automatic_text','automatic_primary_probe')
-                and self._turn is not None and getattr(self._local, 'turn', None) is self._turn)
-            state = self._optional_state_locked(allow_queued=allow_queued)
-        self._resource_check(reserve=True)
-        with self._condition:
-            current()
-            if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
-            self._optional, self._cancel, self._cancel_callback = token, cancelled, cancel_callback
-            self._optional_kind = owner_kind
-            self._state = 'OPTIONAL_RESERVED'
+        admission = None
+        try:
+            with self._condition:
+                current()
+                if owner_kind == 'automatic_primary_probe':
+                    comparison = self._comparison
+                    if comparison is not None and comparison['start_claim'] is not None:
+                        error = AdmissionError('comparison_start_pending')
+                        allow_queued = self._turn is not None and getattr(self._local, 'turn', None) is self._turn
+                        error._optional_admission_pending = (_OPTIONAL_ADMISSION_PENDING,
+                            self, token, cancelled, work_deadline,
+                            self._optional_state_locked(allow_queued=allow_queued),
+                            allow_queued, comparison['start_claim'])
+                        raise error
+                    if self._primary_probe_admission is not None:raise AdmissionError('primary_or_optional_busy')
+                    admission = self._primary_probe_admission = object()
+                allow_queued = (owner_kind in ('automatic_text','automatic_primary_probe')
+                    and self._turn is not None and getattr(self._local, 'turn', None) is self._turn)
+                state = self._optional_state_locked(allow_queued=allow_queued)
+            self._resource_check(reserve=True)
+            with self._condition:
+                current()
+                if (admission is not None and self._primary_probe_admission is not admission
+                        or not self._optional_state_unchanged_locked(state, allow_queued=allow_queued)):
+                    raise AdmissionError('optional_ownership_changed')
+                self._optional, self._cancel, self._cancel_callback = token, cancelled, cancel_callback
+                self._optional_kind = owner_kind
+                self._optional_work_deadline = work_deadline
+                self._state = 'OPTIONAL_RESERVED'
+        finally:
+            if admission is not None:
+                with self._condition:
+                    if self._primary_probe_admission is admission:self._primary_probe_admission = None
+                    self._condition.notify_all()
 
     def check_optional(self, token, phase='running', *, running_remaining=None, running_cancelled=None):
         # One absolute busy-flight grace, then one fresh census clipped to the
@@ -867,6 +938,10 @@ class NativeExecutionPermit:
         with self._condition:
             automatic = self._optional_kind == 'automatic_text' and phase == 'running'
             eligible = automatic and running_remaining is not None and running_cancelled is not None
+            probe_deadline = self._optional_work_deadline
+            probe_eligible = (self._optional is token and self._optional_kind == 'automatic_primary_probe'
+                and phase in ('before_input', 'before_spawn', 'before_admission', 'running')
+                and probe_deadline is not None)
             def current():
                 if self._optional is not token:raise AdmissionError('optional_ownership_changed')
                 primary = (any(x.granted or x.entered for x in self._primary.values())
@@ -875,6 +950,14 @@ class NativeExecutionPermit:
                         or not self._configuration_current() or self._unavailable
                         or eligible and (self._optional_kind != 'automatic_text' or running_cancelled())):
                     raise AdmissionError('optional_cancelled')
+                if probe_eligible:
+                    if (self._optional_work_deadline != probe_deadline
+                            or type(token) is dict and token.get('work_deadline') != probe_deadline):
+                        raise AdmissionError('optional_ownership_changed')
+                    if time.monotonic() >= probe_deadline:
+                        error = AdmissionError('optional_cancelled')
+                        error._optional_execution_deadline = True
+                        raise error
                 return running_remaining() if eligible else None
             allow_queued = self._optional_kind in ('automatic_text','automatic_primary_probe')
             primary_probe_running = (self._optional is token
@@ -886,27 +969,48 @@ class NativeExecutionPermit:
         try:
             with self._condition:remaining = current()
             try:
-                self._resource_check(reserve=phase in ('reserved','before_spawn'))
+                self._resource_check(reserve=phase in ('reserved','before_spawn'),
+                    sample_deadline=probe_deadline if probe_eligible else None,
+                    primary_probe_deadline=probe_eligible)
             except AdmissionError as error:
-                if (not eligible or type(error) is not AdmissionError or
+                if (not (eligible or probe_eligible) or type(error) is not AdmissionError or
                         getattr(error,'_optional_sample_skip',None) != (_OPTIONAL_SAMPLE,'busy_flight')):raise
                 began = time.monotonic()
-                until = began + OPTIONAL_BUSY_GRACE
-                while True:
-                    with self._condition:
-                        remaining = current()
-                        if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
-                        now = time.monotonic()
-                        if now >= until:raise error
-                        if self._sample_flight is None:
-                            grace_ended = now
-                            break
-                        self._condition.wait(min(.05, until-now, remaining))
-                with self._condition:remaining = current()
-                try:self._resource_check(reserve=False, sample_deadline=time.monotonic()+remaining)
-                except Exception:
-                    running_remaining()  # Preserve the original expired deadline cause.
-                    raise
+                until = min(probe_deadline, began + OPTIONAL_BUSY_GRACE) if probe_eligible else began + OPTIONAL_BUSY_GRACE
+                if probe_eligible:
+                    def wait_for_probe_sample():
+                        nonlocal grace_ended
+                        while True:
+                            current()
+                            if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued,
+                                    primary_probe_running=True):raise AdmissionError('optional_ownership_changed')
+                            now = time.monotonic()
+                            if now >= until:raise error
+                            if self._sample_flight is None:
+                                grace_ended = now
+                                return
+                            self._condition.wait(min(.05, until-now))
+                    # The waiter and _take_sample's claim run under one condition
+                    # acquisition. Sampling runs only after that lock is released.
+                    self._resource_check(reserve=phase in ('reserved','before_spawn'),
+                        sample_deadline=probe_deadline, primary_probe_deadline=True,
+                        sample_wait=wait_for_probe_sample)
+                else:
+                    while True:
+                        with self._condition:
+                            remaining = current()
+                            if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued):raise AdmissionError('optional_ownership_changed')
+                            now = time.monotonic()
+                            if now >= until:raise error
+                            if self._sample_flight is None:
+                                grace_ended = now
+                                break
+                            self._condition.wait(min(.05, until-now, remaining))
+                    with self._condition:remaining = current()
+                    try:self._resource_check(reserve=False, sample_deadline=time.monotonic()+remaining)
+                    except Exception:
+                        running_remaining()  # Preserve the original expired deadline cause.
+                        raise
             with self._condition:
                 current()
                 if not self._optional_state_unchanged_locked(state, allow_queued=allow_queued,
@@ -954,6 +1058,7 @@ class NativeExecutionPermit:
                 return
             self._optional = self._cancel = self._cancel_callback = None
             self._optional_kind = None
+            self._optional_work_deadline = None
             self._state = 'IDLE'
             self._grant_primary_locked()
             self._condition.notify_all()
@@ -970,10 +1075,15 @@ class NativeExecutionPermit:
             if (self._closed or self._unavailable or self._comparison is not None
                     or cancelled.is_set() or not self._configuration_current()):
                 raise AdmissionError('comparison_pending')
+            if self._primary_probe_active_locked():
+                error = AdmissionError('comparison_pending')
+                error._comparison_start_pending = (_COMPARISON_START_PENDING, self, token)
+                raise error
             record = self._comparison = {'token':token, 'bytes':memory_bytes,
                 'cancelled':cancelled, 'running':False, 'thread':None, 'completed':None,
                 'sampling':None, 'revision':object(), 'child':None, 'owner':None,
-                'failure':None, 'parent_bytes':0, 'parent_bytes_peak':0}
+                'failure':None, 'parent_bytes':0, 'parent_bytes_peak':0,
+                'start_claim':None, 'start_owner':None}
             self._sample_generation = object()
         try:
             if not self._refresh_comparison(record):raise AdmissionError('comparison_pending')
@@ -1041,7 +1151,73 @@ class NativeExecutionPermit:
                 if record['sampling'] is flight:record['sampling'] = None
                 self._condition.notify_all()
 
-    def bind_comparison_owner(self, token, owner):
+    def comparison_start_blocked(self, token):
+        """Scalar scheduling hint only; begin_comparison_start is authoritative."""
+        with self._condition:
+            record = self._comparison
+            return bool(record is not None and record['token'] is token
+                and (self._primary_probe_active_locked() or record['start_claim'] is not None))
+
+    def comparison_start_pending(self, error, token):
+        marker = getattr(error, '_comparison_start_pending', None)
+        return (type(error) is AdmissionError and error.reason == 'comparison_pending'
+            and type(marker) is tuple and len(marker) == 3
+            and marker[0] is _COMPARISON_START_PENDING and marker[1] is self and marker[2] is token)
+
+    def begin_comparison_start(self, token):
+        with self._condition:
+            record = self._comparison
+            if (record is None or record['token'] is not token or record['owner'] is not None
+                    or record['cancelled'].is_set() or not record['running']
+                    or self._closed or self._unavailable or not self._configuration_current()):
+                raise AdmissionError('comparison_ownership_changed')
+            if self._primary_probe_active_locked() or record['start_claim'] is not None:
+                error = AdmissionError('comparison_pending')
+                error._comparison_start_pending = (_COMPARISON_START_PENDING, self, token)
+                raise error
+            claim = record['start_claim'] = object()
+            return claim
+
+    def comparison_start_valid(self, token, claim, owner):
+        with self._condition:
+            record = self._comparison
+            return bool(record is not None and record['token'] is token and claim is not None
+                and record['start_claim'] is claim and record['owner'] is owner
+                and record['start_owner'] is owner and not record['cancelled'].is_set()
+                and record['running'] and not self._closed and not self._unavailable
+                and self._configuration_current() and not self._primary_probe_active_locked())
+
+    def end_comparison_start(self, token, claim, outcome, *, owner=None):
+        """Settle the exact start, never infer resource closure from scheduling."""
+        with self._condition:
+            record = self._comparison
+            if (record is None or record['token'] is not token or claim is None
+                    or record['start_claim'] is not claim or record['owner'] is not owner
+                    or record['start_owner'] is not owner):return False
+            child = record['child']
+            if outcome == 'resource_free':
+                if owner is not None or child is not None:return False
+            elif outcome == 'started':
+                if (owner is None or child is None or child['owner'] is not owner
+                        or not child['verified'] or child['closed'] or record['cancelled'].is_set()
+                        or self._closed or self._unavailable or not self._configuration_current()):return False
+            elif outcome == 'closed':
+                if owner is None or child is not None and (not child['closed']
+                        or type(child['original_returncode']) is not int):return False
+            else:return False
+        if outcome == 'closed':
+            try:
+                if owner.comparison_resources_closed() is not True or self._comparison_parent_usage(owner) != 0:return False
+            except Exception:return False
+        with self._condition:
+            if (self._comparison is not record or record['token'] is not token
+                    or record['start_claim'] is not claim or record['owner'] is not owner
+                    or record['start_owner'] is not owner or record['child'] is not child):return False
+            record['start_claim'] = record['start_owner'] = None
+            self._condition.notify_all()
+            return True
+
+    def bind_comparison_owner(self, token, owner, *, claim=None):
         """Bind scalar driver before socket creation, including pre-spawn errors."""
         if (not callable(getattr(owner, 'comparison_parent_bytes', None))
                 or not callable(getattr(owner, 'comparison_resources_closed', None))):
@@ -1051,12 +1227,19 @@ class NativeExecutionPermit:
             if (record is None or record['token'] is not token
                     or record['owner'] is not None and record['owner'] is not owner):
                 raise AdmissionError('comparison_ownership_changed')
-            if record['owner'] is owner:return
-            record['owner'] = owner
+            if record['owner'] is owner:
+                if claim is not None and record['start_claim'] is not claim:
+                    raise AdmissionError('comparison_ownership_changed')
+                return
+            if (claim is None or record['start_claim'] is not claim
+                    or self._primary_probe_active_locked() or record['cancelled'].is_set()
+                    or self._closed or self._unavailable or not self._configuration_current()):
+                raise AdmissionError('comparison_ownership_changed')
+            record['owner'] = record['start_owner'] = owner
             record['revision'] = object()
             self._sample_generation = object()
 
-    def bind_comparison_process(self, token, process, *, owner):
+    def bind_comparison_process(self, token, process, *, owner, claim=None):
         """Retain the original handle before any fallible identity observation.
 
         Driver startup additionally authenticates argv, executable and UID. This
@@ -1067,12 +1250,12 @@ class NativeExecutionPermit:
             record = self._comparison
             if record is None or record['token'] is not token:
                 raise AdmissionError('comparison_ownership_changed')
-            if record['owner'] is not None and record['owner'] is not owner:
+            if record['owner'] is not owner:
                 raise AdmissionError('comparison_ownership_changed')
-            record['owner'] = owner
             old = record['child']
             if old is not None:
-                if old['proc'] is not process or old['owner'] is not owner:
+                if (old['proc'] is not process or old['owner'] is not owner
+                        or claim is not None and record['start_claim'] is not claim):
                     raise AdmissionError('comparison_ownership_changed')
                 return bool(old['verified'] and not old['closed'] and not record['cancelled'].is_set())
             child = record['child'] = {'proc':process, 'owner':owner, 'pid':process.pid,
@@ -1084,6 +1267,10 @@ class NativeExecutionPermit:
             conflicts = {value['pid'] for value in self._handles.values()}
             conflicts.update(pid for value in self._handles.values() for pid in value['children'])
         try:
+            # Popen already happened. Missing/stale startup authority refuses
+            # work only AFTER the exact original handle has been retained.
+            if claim is None or record['start_claim'] is not claim or record['start_owner'] is not owner:
+                raise AdmissionError('comparison_ownership_changed')
             if (type(child['pid']) is not int or child['pid'] <= 0 or child['pid'] == os.getpid()
                     or child['pid'] in conflicts or not callable(getattr(owner, 'comparison_parent_bytes', None))
                     or not callable(getattr(owner, 'comparison_resources_closed', None))):
@@ -1111,7 +1298,8 @@ class NativeExecutionPermit:
                 # OS ownership remains classified even if work was cancelled
                 # while identity reads ran; cancellation cannot erase a family.
                 child['verified'] = True
-                if (record['cancelled'].is_set() or self._closed or self._unavailable
+                if (record['start_claim'] is not claim or record['start_owner'] is not owner
+                        or record['cancelled'].is_set() or self._closed or self._unavailable
                         or not self._configuration_current()):
                     raise AdmissionError('comparison_ownership_changed')
                 record['parent_bytes'] = parent_bytes
@@ -1256,7 +1444,8 @@ class NativeExecutionPermit:
         with self._condition:
             record = self._comparison
             if record is None:return True
-            if record['token'] is not token or record['sampling'] is not None:return False
+            if (record['token'] is not token or record['sampling'] is not None
+                    or record['start_claim'] is not None):return False
             thread, completed, child = record['thread'], record['completed'], record['child']
             owner = record['owner']
         try:
@@ -1267,7 +1456,7 @@ class NativeExecutionPermit:
         if child is not None and not child['closed'] and not self.finish_comparison_process(token, child['proc']):return False
         with self._condition:
             if (self._comparison is not record or record['sampling'] is not None
-                    or record['thread'] is not thread or record['completed'] is not completed
+                    or record['start_claim'] is not None or record['thread'] is not thread or record['completed'] is not completed
                     or record['owner'] is not owner or record['child'] is not child
                     or child is not None and (not child['closed']
                         or type(child['original_returncode']) is not int)):return False

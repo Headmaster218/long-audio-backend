@@ -730,19 +730,34 @@ class MossJobs:
                         tuple(sorted(probe['reservation'].items())))
                 if self._live is not None:self._retire(self._live)
             self._primary_dispatch_current(probe,reserved=False)
+            deferred = False
             with self._gate(), self._primary_guard(probe):
                 self._primary_dispatch_local(probe,reserved=False)
-                self.permit.reserve_optional(probe,probe['cancelled'],probe['cancelled'].set,
-                                             owner_kind='automatic_primary_probe')
-                reserved = True
-                self._primary_dispatch_local(probe,reserved=False)
-                probe['state'] = 'running'
-                thread = self._thread_factory(target=self._run_primary,args=(probe,),
-                                              name='primary-speaker-probe',daemon=True)
-                probe['thread'] = thread
-                probe['thread_start_attempted'] = True
-                thread.start()
-            return True
+                binding, deadline = probe['dispatch_binding'], probe['work_deadline']
+                try:
+                    self.permit.reserve_optional(probe,probe['cancelled'],probe['cancelled'].set,
+                        owner_kind='automatic_primary_probe',work_deadline=deadline)
+                except AdmissionError as error:
+                    if not self.permit.primary_probe_admission_pending(error,probe,work_deadline=deadline):raise
+                    # Only this authenticated pre-census refusal is retry-safe.
+                    # Stay INSIDE the source guard: its normal post-yield fence
+                    # must still succeed before returning scheduling-pending.
+                    self._primary_dispatch_local(probe,reserved=False)
+                    if (probe['dispatch_binding'] is not binding or probe['work_deadline'] != deadline
+                            or probe['thread'] is not None or probe['thread_start_attempted']
+                            or probe['operation'] is not None or reserved):
+                        raise ReadError(409,'primary_probe_source_stale')
+                    deferred = True
+                if not deferred:
+                    reserved = True
+                    self._primary_dispatch_local(probe,reserved=False)
+                    probe['state'] = 'running'
+                    thread = self._thread_factory(target=self._run_primary,args=(probe,),
+                                                  name='primary-speaker-probe',daemon=True)
+                    probe['thread'] = thread
+                    probe['thread_start_attempted'] = True
+                    thread.start()
+            return not deferred
         except BaseException as exc:
             if probe['thread_start_attempted'] and not probe['completed'].is_set():
                 probe['cancelled'].set(); probe['state'] = 'thread_unknown'
@@ -1080,19 +1095,45 @@ class MossJobs:
         if record['budget_class'] not in ('cold','incremental'):raise ProcessError('task_budget_unselected')
         driver = record['driver']
         if driver is None:
-            driver = ComparisonProcess(owner_nonce=uuid.uuid4().hex,
-                cancelled=record['cancelled'].is_set,
-                grant_valid=lambda:self.permit.comparison_grant_valid(record['grant']),
-                bind_child=lambda proc:self.permit.bind_comparison_process(
-                    record['grant'],proc,owner=record['driver']),
-                observe_child=lambda proc, startup=False, deadline=None:self.permit.observe_comparison_process(
-                    record['grant'],proc,startup=startup,deadline=deadline),
-                finish_child=lambda proc, deadline=None:self.permit.finish_comparison_process(
-                    record['grant'],proc,deadline=deadline))
-            # Retain the original owner before any spawn/bind can fail.
-            record['driver'] = driver
-            self.permit.bind_comparison_owner(record['grant'],driver)
-            driver.start(record['deadline'])
+            while True:
+                if not self._comparison_checkpoint(record,record['snapshot'],starting=True):return None
+                try:claim = self.permit.begin_comparison_start(record['grant'])
+                except AdmissionError as error:
+                    if self.permit.comparison_start_pending(error,record['grant']):continue
+                    raise
+                break
+            record['driver_start_claim'] = claim
+            record['driver_start_bound'] = False
+            try:
+                driver = ComparisonProcess(owner_nonce=uuid.uuid4().hex,
+                    cancelled=record['cancelled'].is_set,
+                    grant_valid=lambda:self.permit.comparison_grant_valid(record['grant']),
+                    bind_child=lambda proc:self.permit.bind_comparison_process(
+                        record['grant'],proc,owner=record['driver'],claim=claim),
+                    observe_child=lambda proc, startup=False, deadline=None:self.permit.observe_comparison_process(
+                        record['grant'],proc,startup=startup,deadline=deadline),
+                    finish_child=lambda proc, deadline=None:self.permit.finish_comparison_process(
+                        record['grant'],proc,deadline=deadline))
+                # The pre-spawn claim excludes probe admission; retaining the
+                # original driver still precedes every fallible bind/start edge.
+                record['driver'] = driver
+                self.permit.bind_comparison_owner(record['grant'],driver,claim=claim)
+                record['driver_start_bound'] = True
+                if (record['cancelled'].is_set() or not self._history_comparison_enabled()
+                        or time.monotonic() >= record['deadline']
+                        or not self.permit.comparison_start_valid(record['grant'],claim,driver)):
+                    raise ProcessError('comparison_cancelled')
+                driver.start(record['deadline'])
+                if not self.permit.end_comparison_start(record['grant'],claim,'started',owner=driver):
+                    raise ProcessError('comparison_ownership_changed')
+                record['driver_start_claim'] = None
+            except BaseException:
+                # Only constructor failure has no driver/resources to close.
+                # Every possibly started owner keeps its exact claim and charge
+                # until the existing close path supplies positive closure.
+                if driver is None and self.permit.end_comparison_start(record['grant'],claim,'resource_free'):
+                    record['driver_start_claim'] = None
+                raise
         if record['driver_active']:
             driver.rebase(token)  # Same task, prefix, and original deadline.
         else:
@@ -1105,10 +1146,21 @@ class MossJobs:
 
     def _close_history_comparison_driver(self, record):
         driver = record['driver']
-        if driver is None:return True
+        claim = record.get('driver_start_claim')
+        if driver is None:
+            if claim is None:return True
+            if not self.permit.end_comparison_start(record['grant'],claim,'resource_free'):return False
+            record['driver_start_claim'] = None
+            return True
         try:
             receipt = driver.close()
             if type(receipt) is dict and receipt.get('positive') is True:
+                if claim is not None:
+                    bound = record.get('driver_start_bound',False)
+                    if not self.permit.end_comparison_start(record['grant'],claim,
+                            'closed' if bound else 'resource_free',owner=driver if bound else None):
+                        raise AdmissionError('comparison_ownership_changed')
+                    record['driver_start_claim'] = None
                 record['driver_active'] = False
                 return True
         except BaseException:
@@ -1117,7 +1169,7 @@ class MossJobs:
         record['reason'] = 'comparison_cleanup_unknown'
         return False
 
-    def _comparison_checkpoint(self, record, snapshot=None, *, pending_currentness=None):
+    def _comparison_checkpoint(self, record, snapshot=None, *, pending_currentness=None, starting=False):
         # Only the pure-compute loop passes this snapshot-local allowance. A
         # fresh read starts its clock before SQL; no read latency is hidden.
         def clear():
@@ -1127,6 +1179,11 @@ class MossJobs:
                 clear()
                 record['cancelled'].set();record['reason'] = 'comparison_configuration_changed'
                 record['state'] = 'cancelled';return False
+            if starting and self.permit.comparison_start_blocked(record['grant']):
+                clear()
+                record['state'] = 'start_pending'
+                record['cancelled'].wait(min(.05,max(0.,record['deadline']-time.monotonic())))
+                continue  # Same snapshot/task/deadline, no resume census poll.
             granted = self.permit.comparison_grant_valid(record['grant'])
             if not granted:
                 clear()
@@ -1181,6 +1238,7 @@ class MossJobs:
             cursor = page['next_after']
         # No source read or database connection remains open across this edge.
         driver = self._history_comparison_driver(record,token)
+        if driver is None:return None  # Terminal checkpoint exit only.
         for reader, feeder in ((self.history.observation_page,driver.feed_observations),
                                (self.history.witness_page,driver.feed_witnesses)):
             cursor = 0
