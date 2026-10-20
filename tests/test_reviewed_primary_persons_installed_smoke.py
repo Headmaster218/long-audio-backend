@@ -18,7 +18,7 @@ from reviewed_person_bridge_fixtures import GROUP, activation_request, env
 def test_installed_two_recording_review_navigation_restart_and_source_deletion(env, monkeypatch):
     install_root = Path(os.environ['BRIDGE_INSTALL_ROOT']).resolve()
     assert Path(audio_backend.__file__).resolve().is_relative_to(install_root)
-    assert audio_backend.__version__ == '0.2.0rc3.dev61'
+    assert audio_backend.__version__ == '0.2.0rc3.dev62'
     assert env.settings.start_worker is False
     first, second = env.observe(), env.observe()
     prefix = f'/identity-groups/{GROUP}'

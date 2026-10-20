@@ -471,8 +471,12 @@ def suggestion(store,sid,rid,observation_id):
             AND observation_id=? ORDER BY id DESC LIMIT 1''',(sid,rid,observation_id)).fetchone()
         if job is None:return {'status':'unavailable','authority':'automatic_suggestion','person_id':None}
         policy=bank.group_policy(db,job['identity_group'])
+        # This endpoint is query-only. generation() is a creating writer even
+        # when the bank already exists, so read the retained generation directly.
+        generation=db.execute('SELECT generation FROM speaker_identity_generations WHERE identity_group=?',
+            (job['identity_group'],)).fetchone()
         if (not bound['review_eligible'] or policy is None or policy['revision']!=job['profile_revision']
-                or policy['availability']!=job['availability'] or support.generation(db,job['identity_group'])!=job['generation']):
+                or policy['availability']!=job['availability'] or generation is None or generation[0]!=job['generation']):
             return {'status':'stale','authority':'automatic_suggestion','person_id':None}
         if job['state']=='pending':return {'status':'pending','authority':'automatic_suggestion','person_id':None}
         outcome=bridge._decode(job['outcome'],8192)

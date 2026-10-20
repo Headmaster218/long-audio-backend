@@ -1,0 +1,108 @@
+{
+  "version": "0.2.0rc3.dev62",
+  "qualification": "FINITE_SYNTHETIC_SOFTWARE_AND_INSTALLED_API_CHECKPOINT_ONLY",
+  "durable_parent": "c90da9da5ac4a81ef09f0c22e8e329d37bd88c59",
+  "parent_tree": "51096da0862a88c856cf507fa41f2df7050c8f56",
+  "scope": [
+    "explicit reviewed exact primary-crop acoustic reference enrollment",
+    "original certificate vector/hash/space and retained audio validation",
+    "shared typed primary and legacy capacity, acoustic conflict keys and canonical reservations",
+    "durable optional future crop suggestions after primary cleanup",
+    "correction/retraction/source erasure/generation lifecycle fencing"
+  ],
+  "runs": [
+    {
+      "name": "runtime01",
+      "passed": 1,
+      "failed": 1,
+      "status": "failed",
+      "wall_seconds": 1.5881641490123002,
+      "cpu_seconds": 1.439299,
+      "sampled_rss_bytes": 69361664,
+      "sampled_output_or_directory_bytes": 2469888,
+      "source_manifest_sha256": "752983a802321a477fd8e8c01e7b53b2613f3819553182e569481f3156468bf4",
+      "runner_sha256": "3de369e7351298f6e97b3a84bbf79acfd508dfb0e09b714af599bf34f5ad7470",
+      "note": "Fixture missing explicit transaction for direct metadata helper; stopped at first failure. Test-only correction; original evidence preserved."
+    },
+    {
+      "name": "runtime02",
+      "passed": 138,
+      "failed": 19,
+      "status": "failed",
+      "wall_seconds": 50.46961626099073,
+      "cpu_seconds": 40.686032,
+      "sampled_rss_bytes": 84824064,
+      "sampled_output_or_directory_bytes": 175132672,
+      "source_manifest_sha256": "34346efa33cb0eb25b7c2047d57bc42470ef5ff13f1cad0c4cba20c2a44860bd",
+      "runner_sha256": "22a95243e9c6318584cb458db52b0b2e26baf2cfb8edb0e50cb868c287059762",
+      "note": "Production suggestion GET called creating generation helper in query-only transaction. Fixed with indexed non-creating SELECT."
+    },
+    {
+      "name": "runtime03",
+      "passed": 23,
+      "failed": 0,
+      "status": "passed",
+      "wall_seconds": 8.883397787998547,
+      "cpu_seconds": 7.767075,
+      "sampled_rss_bytes": 79200256,
+      "sampled_output_or_directory_bytes": 29704192,
+      "source_manifest_sha256": "12ce988c697974522670eb5e8ae7080c604511d0fbb37c68d7d54b0fec502026",
+      "runner_sha256": "8949ac765b580421cac0f465cfd80f2ba1f605ef5b659629790406696f512342",
+      "note": "Exact19 previous failures plus4 pending/completed/missing/replaced generation controls; unaffected138 not rerun."
+    },
+    {
+      "name": "package01",
+      "passed": 1,
+      "failed": 1,
+      "status": "failed",
+      "wall_seconds": 4.716416303010192,
+      "cpu_seconds": 4.47182,
+      "sampled_rss_bytes": 171237376,
+      "sampled_output_or_directory_bytes": 37535744,
+      "source_manifest_sha256": "d42cec59ad7ebd86e66eaabb2a309a389958864fcfe954fb81e1d870d306a766",
+      "runner_sha256": "95e507d38e9a42d207ec76b797773abd10466e91b4fef317a17ff5c97d4b32ff",
+      "note": "Build/install/payload equality passed. Olddev61 refusal passed; API assertion wrongly required unchanged revision bytes after explicit bank mutation."
+    },
+    {
+      "name": "installed_smoke02",
+      "passed": 1,
+      "failed": 0,
+      "status": "passed",
+      "wall_seconds": 2.6232746379973833,
+      "cpu_seconds": 2.437145,
+      "sampled_rss_bytes": 98095104,
+      "sampled_output_or_directory_bytes": 1454080,
+      "source_manifest_sha256": "f2a13575f34eb12eb88273e3967f3952b5a92fb041954b668d9027c6e88a3e40",
+      "runner_sha256": "15f592633227e446915005eaa69bde0105ab7855c5783ce7ab9ac63f90851a6c",
+      "note": "Only affected API smoke rerun. Full content equality retained; exact causal revision derivation asserted. Product/wheel/install unchanged."
+    }
+  ],
+  "package": {
+    "version": "0.2.0rc3.dev62",
+    "wheel_sha256": "8a1bd3abf1e8813bb66cf357d5c4d5def636eb69649250bfd12fbd684df9a551",
+    "source_wheel_installed_payload_files": 136,
+    "payload_equality": true,
+    "build_and_install_passed": true,
+    "original_combined_smoke_stage": "FAILED: one API assertion failed; one unmodified dev61 refusal test passed",
+    "old_dev61_refusal": "PASSED: exact pinned installed dev61 rejected synthetic dev62 schema; all logical rows/schema/selected pragmas unchanged",
+    "installed_api_successor": "PASSED: one affected API lifecycle test against unchanged byte-verified installed dev62 package, no rebuild or old-binary rerun"
+  },
+  "transcript_contract": {
+    "expected_mutation": [
+      "top-level revision only"
+    ],
+    "unchanged": "Every other JSON field equal, including text, timing, anonymous speaker content and next_cursor=null. Default-group source transcript remains byte-identical.",
+    "cause": "Existing feed_identity_bank emits result_changes for explicit bank sessions; transcript revision hashes include the latest session change cursor. New correction/reference enrollment legitimately invalidate that cursor.",
+    "evidence": "Successor test records full synthetic before/after JSON, exact revision bases, causal feed records and current bank revision/availability; both correction and final source-erasure phases pass."
+  },
+  "limitations": [
+    "No actual models/inference/network/live listener in these checks. Synthetic PCM is not acoustic accuracy evidence.",
+    "No fresh combined161-node run: runtime02 138 unaffected passes plus runtime03 23 focused passes belong to their exact source snapshots.",
+    "Current original native crop is two seconds; longer enrollment/query minimum policies abstain rather than being relaxed.",
+    "Query ceiling is64 total active positive references, including incompatible-space entries. Maximum4096 durable suggestion records.",
+    "Packet-wide overlap witnesses cause conservative abstention, potentially rejecting otherwise clean selected crops. No witness does not prove purity.",
+    "No automatic enrollment from predictions, no transcript identity relabel, no model substitution or threshold tuning.",
+    "Passive app/Store reopen is not OS crash/reboot qualification. Sampled resource values are not whole-machine or long-audio memory/throughput proof.",
+    "Preserve prior remote reports; package source subset is not authority to remove unrelated repository files."
+  ]
+}

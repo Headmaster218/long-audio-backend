@@ -1,16 +1,20 @@
-"""Finite synthetic metadata fixtures for the reviewed-person bridge.
+"""Finite synthetic fixtures for the reviewed-person bridge.
 
-These helpers own a fresh real Store. They never create or read audio, load a
-model, invoke a worker, start a server, or reference an ambient database. Native
-admission is represented by an exact, fixture-owned metadata capability; this is
-not evidence of real acoustic correctness. Bridge reads use no such capability.
+These helpers own a fresh real Store. Defaults remain metadata-only and never
+create or read audio. Explicit pcm=True creates one four-second synthetic
+PCM16 WAV only when a test executes. No helper loads a model, invokes a worker,
+starts a server, or references an ambient database. Native admission uses an
+exact fixture-owned capability, not evidence of acoustic correctness. Bridge
+reads use no such capability. Each Fixture is bounded to six observations.
 """
 from copy import deepcopy
 import hashlib
 import json
+import struct
 import threading
 from types import SimpleNamespace
 import uuid
+import wave
 
 import pytest
 
@@ -162,23 +166,55 @@ class Fixture:
             self.store, group, self.fence(group=group), previous=event["event_id"])
 
     def observe(self, *, parent=(.5, .625), physical=None, pending=False,
-                vector=False, space=None):
-        """At most six 4-second metadata observations, normally one per recording.
+                vector=False, space=None, pcm=False, vector_values=None, group=None,
+                packet_overlap=False):
+        """At most six 4-second synthetic observations, one per recording.
 
-        Source paths deliberately do not exist. Hashes describe synthetic fixture
-        facts; no PCM is generated. The real history admission and finalization
-        methods create immutable observations, receipts and indexed dependencies.
+        Unless pcm=True, source paths deliberately do not exist and hashes
+        describe metadata-only fixture facts. PCM opt-in writes at most 128,044
+        bytes per observation and binds real stat, file and exact-crop hashes.
+        vector_values supplies an explicit synthetic original float32 vector.
+        group opt-in requires an already activated verified bank; it never
+        silently converts a legacy/default session. Real history admission and
+        finalization create immutable certificates and indexed dependencies.
+        packet_overlap adds one later, known overlapping label pair while the
+        chosen two-second crop remains outside that pair's overlap.
         """
         assert len(self.made) < 6
+        assert type(pcm) is bool
+        assert vector_values is None or vector
         number = len(self.made) + 1
-        sid = self.store.create_session(f"Synthetic source {number}")["id"]
+        session_args = {}
+        if group is not None:
+            with self.store.db() as db:
+                policy = verified_identity.group_policy(db, group)
+                assert policy and policy["mode"] == verified_identity.MODE
+                assert policy["primary_associations_enabled"]
+            session_args = {"identity_group": group, "identity_mode": verified_identity.MODE}
+        sid = self.store.create_session(f"Synthetic source {number}", **session_args)["id"]
         rid, cid = f"{number:032x}", f"synthetic-source-{number}"
         stream = f"synthetic-stream-{number}"
         source_digest = sha(physical or f"source-{number}")
-        receipt = Receipt(sid, cid, source_digest, FRAMES, 44, 2 * FRAMES + 44,
-                          (1, number, 2 * FRAMES + 44, 3, 4), 0., stream)
-        path = self.root / "uploads" / f"absent-{number}.audio"
+        path = self.root / "uploads" / f"{'synthetic' if pcm else 'absent'}-{number}.audio"
         assert not path.exists()
+        owned_pcm = None
+        if pcm:
+            from audio_backend.native_owned_cell_capture import signature
+            seed = int(sha(physical or f"source-{number}")[:8], 16)
+            owned_pcm = b"".join(
+                struct.pack("<h", (frame * 17 + seed) % 65536 - 32768)
+                for frame in range(FRAMES))
+            with wave.open(str(path), "wb") as out:
+                out.setnchannels(1)
+                out.setsampwidth(2)
+                out.setframerate(RATE)
+                out.writeframes(owned_pcm)
+            source_digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            file_signature = signature(path.stat())
+        else:
+            file_signature = (1, number, 2 * FRAMES + 44, 3, 4)
+        receipt = Receipt(sid, cid, source_digest, FRAMES, 44, 2 * FRAMES + 44,
+                          file_signature, 0., stream)
         epoch = "a" * 32
         label = epoch + ":speaker_1"
         with self.store.db() as db:
@@ -220,11 +256,17 @@ class Fixture:
         packet = {
             "schema": provenance.SCHEMA, "commit": commit,
             "query": [0, FRAMES, 0, FRAMES, FRAMES, 9, True],
-            "owned_pcm16le_sha256": source_digest, "labels": [label],
+            "owned_pcm16le_sha256": (
+                hashlib.sha256(owned_pcm).hexdigest() if pcm else source_digest),
+            "labels": [label],
             "turns": [[0, 0, 0, FRAMES, 0., 4.]],
             "units": [[0, 0, parent[0], parent[1], parent[0], 0, [0]]],
             "rows": [[0, [0]]], "refs": [[parent_ref, None]],
         }
+        if packet_overlap:
+            assert parent[0] < 3.095
+            packet["labels"].append(epoch + ":speaker_2")
+            packet["turns"].append([1, 1, 50000, 60000, 3.125, 3.75])
         raw = provenance.bounded(packet)
         digest, slot = hashlib.sha256(raw).hexdigest(), core.slot(commit)
         header = dict(sequence=number, sid=sid, rid=rid, cid=cid, core_start=0,
@@ -237,8 +279,16 @@ class Fixture:
         saved = {"header": header, "packet": packet}
         space = deepcopy(space or links.expected_space())
         node = primary.standalone_primary_metadata(saved, embedding_space.validate_space(space))
-        node.update(pcm16le_sha256=sha(physical or f"crop-{number}"),
-                    float32le_sha256=sha("float-" + (physical or f"crop-{number}")))
+        crop = None
+        if pcm:
+            span = node["source_spans"][0]
+            crop = owned_pcm[2 * span["source_start"]:2 * span["source_end"]]
+            assert len(crop) == 64000
+            node.update(pcm16le_sha256=hashlib.sha256(crop).hexdigest(),
+                        float32le_sha256=primary.standalone_float_digest(crop))
+        else:
+            node.update(pcm16le_sha256=sha(physical or f"crop-{number}"),
+                        float32le_sha256=sha("float-" + (physical or f"crop-{number}")))
         token, invocation = f"{number:032x}", f"{number + 100:032x}"
         self.admissions[token] = (history.encoded([saved, node]), invocation)
         old_policy = self.settings.recording_primary_observation_policy
@@ -252,7 +302,9 @@ class Fixture:
                 admission_capability=self.capability, invocation_id=invocation)
             if vector:
                 self.history.append_primary(
-                    reservation, node, [1.] + [0.] * 511, invocation,
+                    reservation, node,
+                    [1.] + [0.] * 511 if vector_values is None else vector_values,
+                    invocation,
                     success_capability=self.capability, current_check=lambda db: True)
             elif not pending:
                 self.history.finish_primary(reservation, "probe_failed")
@@ -267,6 +319,7 @@ class Fixture:
             sid=sid, rid=rid, cid=cid, path=path, receipt=receipt, saved=saved, node=node,
             observation_id=cert["observation_id"], certificate=cert, source=source,
             segment_id=segment_id, parent_ref=parent_ref, reservation=reservation,
+            pcm=owned_pcm, crop=crop,
         )
         self.made.append(item)
         return item
