@@ -654,6 +654,37 @@ def read_exact(db, *, cid, start, end):
     return None if row is None else _read_packet(db, row)
 
 
+def _metadata_preflight(db,source,where,args,specs,*,order=None,limit=1):
+    """Project only bounded booleans before materializing selected DB scalars.
+
+    SQL fragments/specifications are internal literals, never request strings.
+    Text maxima preserve UTF-8 expansion of existing character-count capacities.
+    A malformed row is refused rather than filtered from an apparently complete
+    page. Both statements run in the caller's one transaction/snapshot.
+    """
+    if not db.in_transaction or type(limit) is not int or not 1<=limit<=132:
+        raise ValueError('Invalid metadata preflight')
+    checks=[]
+    for column,kind,maximum,nullable in specs:
+        if kind in ('text','blob','text_empty'):
+            scalar_type='text' if kind=='text_empty' else kind
+            minimum=0 if kind=='text_empty' else 1
+            check=f"typeof({column})='{scalar_type}' AND length(CAST({column} AS BLOB)) BETWEEN {minimum} AND {maximum}"
+        elif kind=='hex':
+            check=f"typeof({column})='text' AND length(CAST({column} AS BLOB))={maximum} AND {column} NOT GLOB '*[^0-9a-f]*' AND instr({column},char(0))=0"
+        elif kind=='integer':check=f"typeof({column})='integer'"
+        elif kind=='number':check=f"typeof({column}) IN ('integer','real')"
+        else:raise ValueError('Invalid metadata preflight type')
+        checks.append(f"({column} IS NULL OR ({check}))" if nullable else f"({check})")
+    sql='SELECT CASE WHEN '+' AND '.join(checks)+' THEN 1 ELSE 0 END FROM '+source+' WHERE '+where
+    if order is not None:sql+=' ORDER BY '+order
+    flags=db.execute(sql+' LIMIT ?',(*args,limit)).fetchall()
+    if any(row[0]!=1 for row in flags):
+        from .native_owned_support_cache import ReadError
+        raise ReadError(503,'primary_metadata_invalid')
+    return bool(flags)
+
+
 def read_metadata_binding(db, *, sid, rid, sequence, packet_sha256, parent_ref, row_index):
     """Bounded exact retained packet/parent lookup, without live source authority.
 
@@ -671,6 +702,12 @@ def read_metadata_binding(db, *, sid, rid, sequence, packet_sha256, parent_ref, 
             or type(parent_ref) is not str or not 1 <= len(parent_ref) <= 90
             or type(row_index) is not int or not 0 <= row_index < 128):
         raise ValueError('Invalid primary metadata selector')
+    _metadata_preflight(db,TABLE,'sequence=? AND sid=? AND rid=? AND digest=?',
+        (sequence,sid,rid,packet_sha256),
+        [(k,'text',256,False) for k in ('sid','rid','cid')]
+        +[(k,'hex',64,False) for k in ('core_slot','digest')]
+        +[(k,'integer',None,False) for k in ('sequence','core_start','core_end','charge')]
+        +[('body','blob',MAX_BODY,False)])
     h = db.execute(f"""SELECT sequence,sid,rid,cid,core_start,core_end,core_slot,digest,
         charge,length(body) AS n FROM {TABLE} WHERE sequence=? AND sid=? AND rid=? AND digest=?""",
         (sequence,sid,rid,packet_sha256)).fetchone()
@@ -678,6 +715,13 @@ def read_metadata_binding(db, *, sid, rid, sequence, packet_sha256, parent_ref, 
     saved = _read_packet(db,h); packet = saved['packet']; part = packet['commit']['part']
     if row_index >= len(packet['refs']) or packet['refs'][row_index][0] != parent_ref:
         raise ValueError('Invalid retained primary parent binding')
+    live_from="""sessions s JOIN recording_batches b ON b.session_id=s.id
+        JOIN recording_work w ON w.batch_id=b.id JOIN chunks c ON c.id=w.chunk_id"""
+    live_where='s.id=? AND s.deleted=0 AND b.id=? AND w.chunk_id=?'
+    _metadata_preflight(db,live_from,live_where,(sid,rid,part['chunk_id']),
+        [('b.state','text',128,False),('c.session_id','text',256,False),
+         ('c.digest','hex',64,False),('c.status','text',128,False)]
+        +[(k,'number',None,False) for k in ('c.duration','c.timeline_start','c.next_offset')])
     live = db.execute("""SELECT b.state,c.session_id,c.digest,c.duration,c.timeline_start,
         c.next_offset,c.status FROM sessions s JOIN recording_batches b ON b.session_id=s.id
         JOIN recording_work w ON w.batch_id=b.id JOIN chunks c ON c.id=w.chunk_id
@@ -701,6 +745,11 @@ def read_metadata_binding(db, *, sid, rid, sequence, packet_sha256, parent_ref, 
         + '+512 FROM segments WHERE id=?',(ident,)).fetchone()
     parent_current = False
     if size is not None and type(size[0]) is int and 512 <= size[0] <= MAX_BODY:
+        _metadata_preflight(db,'segments','id=?',(ident,),
+            [('id','integer',None,False),('chunk_id','text',256,False),('text','text_empty',MAX_BODY,False)]
+            +[(k,'text_empty',MAX_BODY,True) for k in ('raw_text','asr_backend','timestamp_kind','speaker_local_id')]
+            +[(k,'number',None,False) for k in ('start','end')]
+            +[(k,'number',None,True) for k in ('confidence','speaker_window_start')])
         row = db.execute('SELECT '+','.join(contract.PRIMARY_FIELDS)+' FROM segments WHERE id=?',(ident,)).fetchone()
         parent_current = bool(row is not None and _row_binding(packet,row_index,row)
             and contract.primary_evidence(sid,row)['source_ref'] == parent_ref)

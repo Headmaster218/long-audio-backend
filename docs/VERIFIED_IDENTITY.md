@@ -6,6 +6,15 @@ or a long-recording quality acceptance result. Legacy identity behavior remains
 the default. The original legacy enrollment, merge and example APIs keep their
 existing behavior in legacy groups.
 
+## Separate manual primary-observation associations
+
+The opt-in [reviewed primary person bridge](REVIEWED_PRIMARY_PERSONS.md) supports
+explicit crop-only claims and cross-recording navigation without acoustic
+reference enrollment. It can retain a zero-exemplar person bank with models off.
+It does not weaken the full-support review requirements below, train a model,
+assign unreviewed text, or make future recognition automatic. Enabling it changes
+the recognized database schema; read its migration/downgrade instructions first.
+
 ## Enable a new group
 
 Start the normal local service with both:

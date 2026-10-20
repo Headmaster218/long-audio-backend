@@ -67,14 +67,25 @@ def register_routes(app,store,assign_lease,get_response_budget):
             def execute():
                 cancel_token=core.CONTEXT.set(done)
                 operation_token=core.OPERATION.set(operation)
+                result=None
                 try:
                     result=fn(store,*args,**query)
                     if done is not None and done.is_set():core.fail('response_closed',503)
-                    return core._encode(result,core.PAGE_BYTES)
+                    outcome=(core._encode(result,core.PAGE_BYTES),200)
+                except (core.BridgeError,ReadError) as exc:
+                    outcome=(core._encode({'detail':exc.reason}),exc.status_code)
+                    # Do not let an executor Future retain a traceback owning a
+                    # materialized canonical map after its lease was released.
+                    exc.__traceback__=None;exc.__context__=None;exc.__cause__=None
+                except Exception as exc:
+                    outcome=(core._encode({'detail':'reviewed_person_unavailable'}),503)
+                    exc.__traceback__=None;exc.__context__=None;exc.__cause__=None
                 finally:
+                    result=None
                     core.OPERATION.reset(operation_token)
                     core.CONTEXT.reset(cancel_token)
                     operation.release()
+                return outcome
             # Shield the submitted future, not the request. Request cancellation
             # may return immediately, but cannot cancel a queued/running worker
             # or release its reservation before actual serialization completes.
@@ -83,8 +94,8 @@ def register_routes(app,store,assign_lease,get_response_budget):
             def consume_completion(completed):
                 if not completed.cancelled():completed.exception()
             future.add_done_callback(consume_completion)
-            encoded=await asyncio.shield(future)
-            return Response(encoded,media_type='application/json',headers=PRIVATE)
+            encoded,status=await asyncio.shield(future)
+            return Response(encoded,status_code=status,media_type='application/json',headers=PRIVATE)
         except (core.BridgeError,ReadError) as exc:
             if lease is not None:lease.release()
             return JSONResponse({'detail':exc.reason},status_code=exc.status_code,headers=PRIVATE)

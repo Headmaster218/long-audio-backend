@@ -65,6 +65,11 @@ def cleanup_pending(store, delete_file=None, sid=None):
 def _retained_person_banks(db, sid, group):
     """Bounded disclosure before source-indexed links are irreversibly erased."""
     from .verified_identity import MAX_GROUPS
+    if db.execute('''SELECT 1 FROM identity_group_policy p JOIN speaker_identity_generations g
+        ON g.identity_group=p.identity_group WHERE p.primary_associations_enabled=1 AND (
+        typeof(p.identity_group)!='text' OR length(CAST(p.identity_group AS BLOB)) NOT BETWEEN 1 AND 100
+        OR typeof(g.generation)!='text' OR length(CAST(g.generation AS BLOB))!=32) LIMIT 1''').fetchone():
+        raise ValueError('reviewed_person_bank_integrity')
     rows = db.execute('''SELECT p.identity_group,g.generation
         FROM identity_group_policy p JOIN speaker_identity_generations g
         ON g.identity_group=p.identity_group

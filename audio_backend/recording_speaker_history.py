@@ -268,8 +268,10 @@ BRIDGE_SOURCE_GUARD: f"""CREATE TRIGGER {BRIDGE_SOURCE_GUARD}
     AFTER UPDATE OF authority_revision,source_revision ON {SCOPES}
     WHEN OLD.authority_revision IS NOT NEW.authority_revision OR OLD.source_revision IS NOT NEW.source_revision
     BEGIN UPDATE identity_group_policy SET
-        revision=CASE WHEN revision<{MAX_REVISION} THEN revision+1 ELSE RAISE(ABORT,'Reviewed revision exhausted') END,
-        availability=CASE WHEN availability<{MAX_REVISION} THEN availability+1 ELSE RAISE(ABORT,'Reviewed availability exhausted') END,
+        revision=CASE WHEN typeof(revision)='integer' AND revision BETWEEN 0 AND {MAX_REVISION-1}
+            THEN revision+1 ELSE RAISE(ABORT,'Reviewed revision exhausted') END,
+        availability=CASE WHEN typeof(availability)='integer' AND availability BETWEEN 0 AND {MAX_REVISION-1}
+            THEN availability+1 ELSE RAISE(ABORT,'Reviewed availability exhausted') END,
         change_reason='primary_source_changed'
         WHERE primary_associations_enabled=1 AND identity_group IN
             (SELECT a.identity_group FROM identity_primary_associations_v1 a INDEXED BY primary_associations_scope
@@ -1589,10 +1591,27 @@ def _metadata_id(value):
     return _identifier(value)
 
 
+def _metadata_preflight(db,source,where,args,specs,*,order=None,limit=1):
+    from .recording_primary_provenance import _metadata_preflight as preflight
+    try:return preflight(db,source,where,args,specs,order=order,limit=limit)
+    except ValueError:_fail('history_metadata_invalid',503)
+
+
+def _scope_metadata_preflight(db,sid,rid):
+    _metadata_preflight(db,SCOPES,'session_id=? AND recording_id=?',(sid,rid),
+        [(k,'text',256,False) for k in ('session_id','recording_id')]
+        +[('scope_id','hex',64,False),('policy','text',1024,False),('space_id','hex',64,False),
+          ('authority_blocked','text',128,True)]
+        +[(k,'integer',None,False) for k in ('scope_seq','history_revision','authority_revision','source_revision')])
+
+
 def read_source_revision(db,sid,rid):
     """Current durable CAS fields; separate from the immutable crop digest."""
     if not db.in_transaction:raise ValueError('Observation metadata requires transaction')
-    _metadata_id(sid);_metadata_id(rid);_live(db,sid)
+    _metadata_id(sid);_metadata_id(rid)
+    _metadata_preflight(db,'sessions','id=?',(sid,),[('deleted','integer',None,False)])
+    _live(db,sid)
+    _scope_metadata_preflight(db,sid,rid)
     if db.execute('SELECT 1 FROM recording_batches WHERE id=? AND session_id=?',(rid,sid)).fetchone() is None:
         _fail('recording_not_found',404)
     row=db.execute(f'''SELECT scope_id,history_revision,authority_revision,source_revision,authority_blocked
@@ -1606,6 +1625,9 @@ def _metadata_source(db,scope,attempt,packet,header):
     """Read only bounded retained receipt/dependency metadata, never its file."""
     from .native_owned_cell_store import Receipt
     seq=scope['scope_seq'];token=attempt['token'];part=packet['commit']['part']
+    _metadata_preflight(db,DEPENDENCIES+' INDEXED BY recording_history_dependency_attempt_v1',
+        'attempt=?',(token,),[('kind','text',32,False),('dependency_key','text',768,False),
+            ('fact','blob',256,False)],order='kind,dependency_key',limit=131)
     sizes=db.execute(f'''SELECT kind,dependency_key,length(fact) AS n FROM {DEPENDENCIES}
         INDEXED BY recording_history_dependency_attempt_v1 WHERE attempt=?
         ORDER BY kind,dependency_key LIMIT 131''',(token,)).fetchall()
@@ -1627,6 +1649,11 @@ def _metadata_source(db,scope,attempt,packet,header):
     expected={('source',part['chunk_id']):source_fact,('mapping',part['chunk_id']):mapping_fact}
     expected.update({('primary',ref.split('.')[1]):{'ref':ref} for ref,_ in packet['refs']})
     if dependencies!=expected:_fail('history_proof_changed')
+    _metadata_preflight(db,SOURCES,'scope_seq=? AND version=?',(seq,source_fact['version']),
+        [('version','hex',64,False),('chunk_id','text',256,False),('state','text',32,False),
+         ('receipt_digest','blob',32,False),('mapping_digest','blob',32,False),
+         ('marker','blob',1024,True),('marker_token','hex',32,True),('cleanup','text',32,True)]
+        +[(k,'integer',None,False) for k in ('admission_revision','observation_count','vector_count','required_end')])
     n=db.execute(f'''SELECT length(marker),typeof(marker) FROM {SOURCES}
         WHERE scope_seq=? AND version=?''',(seq,source_fact['version'])).fetchone()
     if n is None:_fail('history_proof_missing')
@@ -1638,6 +1665,8 @@ def _metadata_source(db,scope,attempt,packet,header):
     if (source['chunk_id']!=part['chunk_id'] or source['receipt_digest']!=source_fact['receipt']
             or source['mapping_digest']!=mapping_fact['mapping'] or source['required_end']<part['source_end']
             or source['admission_revision']<1 or source['observation_count']<1):_fail('history_proof_changed')
+    _metadata_preflight(db,REFS,'attempt=?',(token,),[('kind','text',32,False),
+        ('object_key','text',768,False),('digest','hex',64,False)],order='kind,object_key',limit=3)
     edges=db.execute(f'''SELECT kind,object_key,digest FROM {REFS} WHERE attempt=?
         ORDER BY kind,object_key LIMIT 3''',(token,)).fetchall()
     if (len(edges)!=2 or edges[0]['kind']!='packet' or edges[1]['kind']!='receipt'
@@ -1666,6 +1695,14 @@ def _metadata_source(db,scope,attempt,packet,header):
         (part['chunk_id'],)).fetchone()
     current=False;fact=None
     if bounds is not None and type(bounds[0]) is int and 1<=bounds[0]<=4096:
+        _metadata_preflight(db,'''chunks c JOIN recording_work w ON w.chunk_id=c.id
+            LEFT JOIN stream_chunks sc ON sc.chunk_id=c.id''','c.id=?',(part['chunk_id'],),
+            [(k,'text',256,False) for k in ('c.id','c.session_id','w.batch_id')]
+            +[('c.digest','hex',64,False)]
+            +[('c.path','text',4096,False),('sc.session_id','text',256,True),('sc.stream_id','text',512,True)]
+            +[(k,'number',None,False) for k in ('c.duration','c.timeline_start')]
+            +[(k,'integer',None,False) for k in ('w.position','w.frames','w.capture_start_frame')]
+            +[('sc.position','integer',None,True)])
         try:
             fact=HistoryStore._source_fact(db,receipt,source['required_end'])
             current=(fact['version']==source['version'] and fact['mapping_digest']==source['mapping_digest'])
@@ -1719,6 +1756,8 @@ def _bound_primary_metadata(db,sid,rid,observation_id,scope,row):
     if (row['attempt_scope']!=scope['scope_seq'] or row['origin_id']!=header['packet']
             or row['attempt_invocation']!=row['invocation_id']
             or observation_id!=_hash(encoded([row['attempt'],_hash(blobs['basis']),_hash(blobs['header'])]))):_fail('history_proof_changed')
+    _metadata_preflight(db,REFS,"attempt=? AND kind='packet'",(row['attempt'],),
+        [('object_key','text',768,False),('digest','hex',64,False)],order='object_key',limit=2)
     packet_ref=db.execute(f'''SELECT object_key,digest FROM {REFS} WHERE attempt=? AND kind='packet'
         ORDER BY object_key LIMIT 2''',(row['attempt'],)).fetchall()
     if (len(packet_ref)!=1 or packet_ref[0]['digest']!=header['packet'] or
@@ -1737,6 +1776,8 @@ def _bound_primary_metadata(db,sid,rid,observation_id,scope,row):
     node.update(pcm16le_sha256=header['pcm_hash'],float32le_sha256=header['float_hash'])
     if encoded(history_node(node,origin_kind='primary_commit'))!=blobs['header']:_fail('history_proof_changed')
     if row['identity_sha256']!=_hash(encoded(primary_identity(saved,node,scope['space_id']))):_fail('history_proof_changed')
+    _metadata_preflight(db,CERTIFICATES,'scope_seq=? AND attempt=?',(scope['scope_seq'],row['attempt']),
+        [('sequence','integer',None,False)],limit=2)
     if len(db.execute(f'SELECT sequence FROM {CERTIFICATES} WHERE scope_seq=? AND attempt=? LIMIT 2',
             (scope['scope_seq'],row['attempt'])).fetchall())!=1:_fail('history_proof_changed')
     turns=[{'label':packet['labels'][t[1]],'original':t[2:4]} for t in packet['turns']]
@@ -1823,6 +1864,14 @@ def binding(db,sid,rid,observation_id):
     scope=db.execute(f'''SELECT scope_seq,scope_id,session_id,recording_id,policy,space_id,
         history_revision,authority_revision,source_revision,authority_blocked FROM {SCOPES}
         WHERE session_id=? AND recording_id=?''',(sid,rid)).fetchone()
+    _metadata_preflight(db,f'{CERTIFICATES} c JOIN {ATTEMPTS} a ON a.token=c.attempt',
+        'c.scope_seq=? AND c.observation_id=?',(scope['scope_seq'],observation_id),
+        [(k,'hex',64,False) for k in ('c.observation_id','a.identity_sha256')]
+        +[(k,'hex',32,False) for k in ('c.attempt','c.invocation_id','a.token','a.invocation_id')]
+        +[('c.evidence_kind','text',128,False),('a.origin_kind','text',64,False),
+          ('a.origin_id','text',1024,False),('a.state','text',32,False)]
+        +[(k,'hex',64,True) for k in ('c.certificate_id','c.vector_sha256','a.terminal_sha256')]
+        +[(k,'integer',None,False) for k in ('c.sequence','a.scope_seq','a.authority_revision','a.witness_count')])
     row=db.execute(f'''SELECT c.sequence,c.attempt,c.observation_id,c.invocation_id,c.evidence_kind,
         c.certificate_id,c.vector_sha256,a.token,a.scope_seq AS attempt_scope,a.origin_kind,a.origin_id,
         a.identity_sha256,a.state AS attempt_state,a.authority_revision,a.invocation_id AS attempt_invocation,
@@ -1836,6 +1885,7 @@ def binding(db,sid,rid,observation_id):
         'acoustic_support_certified':False,'enrollment_allowed':False}
     try:result.update(_bound_primary_metadata(db,sid,rid,observation_id,scope,row))
     except (ReadError,ValueError,TypeError,KeyError,OverflowError,UnicodeError,RecursionError) as exc:
+        if isinstance(exc,ReadError) and exc.status_code==503:raise
         reason=exc.reason if isinstance(exc,ReadError) else 'history_proof_changed'
         result.update(binding=None,binding_sha256=None,physical_crop_key=None,source_state='binding_stale',
             review_eligible=False,reason=reason,audio_availability='not_checked',vector_available=False)
@@ -1865,6 +1915,9 @@ def read_primary_observations(db,sid,rid,after=None,limit=32):
             last=cursor['after']
         except (ValueError,ReadError,UnicodeError):_fail('stale_observation_cursor',409)
     seq=db.execute(f'SELECT scope_seq FROM {SCOPES} WHERE scope_id=?',(revision['scope_id'],)).fetchone()[0]
+    _metadata_preflight(db,f'{CERTIFICATES} c JOIN {ATTEMPTS} a ON a.token=c.attempt',
+        "c.scope_seq=? AND c.sequence>? AND a.origin_kind='primary_commit'",(seq,last),
+        [('c.sequence','integer',None,False),('c.observation_id','hex',64,False)],order='c.sequence',limit=limit+1)
     rows=db.execute(f'''SELECT c.sequence,c.observation_id FROM {CERTIFICATES} c
         JOIN {ATTEMPTS} a ON a.token=c.attempt WHERE c.scope_seq=? AND c.sequence>?
         AND a.origin_kind='primary_commit' ORDER BY c.sequence LIMIT ?''',(seq,last,limit+1)).fetchall()

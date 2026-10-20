@@ -192,8 +192,11 @@ def group_context(db, group, *, require_primary=False):
 
 
 def _invalidate(db, group, reason):
-    db.execute('''UPDATE identity_group_policy SET revision=revision+1,availability=availability+1,
-        change_reason=? WHERE identity_group=?''', (reason,group))
+    changed=db.execute('''UPDATE identity_group_policy SET revision=revision+1,availability=availability+1,
+        change_reason=? WHERE identity_group=? AND typeof(revision)='integer' AND typeof(availability)='integer'
+        AND revision BETWEEN 0 AND 9223372036854775806 AND availability BETWEEN 0 AND 9223372036854775806''',
+        (reason,group)).rowcount
+    if changed!=1:raise ValueError('identity_revision_unavailable')
 
 
 def project_result(row, policy, canonical=None):
@@ -386,7 +389,8 @@ def reset(db, group):
     db.execute('DELETE FROM identity_active_reviews WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_review_events WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_decisions WHERE identity_group=?', (group,))
-    db.execute("UPDATE identity_group_policy SET space_id=NULL,revision=revision+1,availability=availability+1,change_reason='identity_reset' WHERE identity_group=?", (group,))
+    db.execute('UPDATE identity_group_policy SET space_id=NULL WHERE identity_group=?', (group,))
+    if group_policy(db,group) is not None:_invalidate(db,group,'identity_reset')
     for table in ('segments','speaker_turns'):
         db.execute(f'''UPDATE {table} SET identity_decision_id=NULL,identity_profile_revision=NULL,identity_state=NULL,
             speaker_id=NULL,speaker_match_score=NULL,speaker_status='identity_reset' WHERE identity_decision_id IS NOT NULL AND chunk_id IN

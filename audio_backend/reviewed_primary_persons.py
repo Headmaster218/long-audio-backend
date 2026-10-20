@@ -95,14 +95,29 @@ def _operation(fn):
         try:lease=owner.reserve_bridge_operation()
         except ReadError as exc:raise BridgeError(exc.reason,exc.status_code) from None
         token=OPERATION.set(lease)
+        result=None;failure=None
         try:
             result=fn(store,*args,**kwargs)
             _encode(result,PAGE_BYTES)
-            return result
+        except (BridgeError,ReadError) as exc:
+            failure=(exc.reason,exc.status_code)
+            exc.__traceback__=None;exc.__context__=None;exc.__cause__=None
+        except Exception as exc:
+            failure=('reviewed_person_unavailable',503)
+            exc.__traceback__=None;exc.__context__=None;exc.__cause__=None
         finally:
+            if failure is not None:result=None
             OPERATION.reset(token)
             lease.release()
+        if failure is not None:
+            # Raise a fresh small exception only after dropping the original
+            # DB/canonical stack and request references. Direct callers cannot
+            # pin a materialized ledger through an exception after release.
+            args=();kwargs={}
+            raise BridgeError(*failure) from None
+        return result
     return run
+
 
 def schema_present(db):
     return bool(db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (TABLE,)).fetchone())
@@ -205,6 +220,10 @@ def _shape(request, fields):
     _encode(request)
 
 
+def _operator(store):
+    return 'bearer_authenticated_local_api' if store.settings.api_key else 'unauthenticated_local_api'
+
+
 def _check_enabled(store):
     if not getattr(store.settings, 'reviewed_primary_persons_enabled', False):
         fail('reviewed_primary_persons_disabled', 404)
@@ -280,28 +299,120 @@ def _db(store, *, write=False):
         _GATE.release()
 
 
+
+def _policy_preflight(db,group):
+    # Refuse corrupt wide TEXT/BLOB scalars before group_policy's SELECT *.
+    bad=db.execute('''SELECT 1 FROM identity_group_policy WHERE identity_group=? AND (
+        typeof(identity_group)!='text' OR length(CAST(identity_group AS BLOB))>100
+        OR typeof(mode)!='text' OR length(CAST(mode AS BLOB))>32
+        OR typeof(policy)!='text' OR length(CAST(policy AS BLOB))>8192
+        OR typeof(policy_sha256)!='text' OR length(CAST(policy_sha256 AS BLOB))!=64
+        OR (space_id IS NOT NULL AND (typeof(space_id)!='text' OR length(CAST(space_id AS BLOB))>256))
+        OR typeof(revision)!='integer' OR revision<0
+        OR typeof(availability)!='integer' OR availability<0
+        OR (change_reason IS NOT NULL AND (typeof(change_reason)!='text' OR length(CAST(change_reason AS BLOB))>128))
+        OR typeof(relation_count)!='integer' OR relation_count<0 OR relation_count>4096
+        OR typeof(relation_head)!='text' OR length(CAST(relation_head AS BLOB)) NOT IN (0,64)
+        OR typeof(primary_associations_enabled)!='integer' OR primary_associations_enabled NOT IN (0,1)) LIMIT 1''',
+        (group,)).fetchone()
+    if bad:fail('identity_policy_unavailable',503)
+    bad=db.execute('''SELECT 1 FROM speaker_identity_generations WHERE identity_group=? AND
+        (typeof(generation)!='text' OR length(CAST(generation AS BLOB))!=32) LIMIT 1''',(group,)).fetchone()
+    if bad:fail('identity_generation_unavailable',503)
+
 def _context(db, group):
     _group(group)
+    _policy_preflight(db,group)
     return bank_core.group_context(db, group, require_primary=True)
 
 
+def _canonical_preflight_rows(db, table, where, args, fields, maximum):
+    """Stream bounded scalar metadata before the materialized canonical loader.
+
+    json_array preserves SQLite scalar types (and escapes embedded NUL); BLOBs
+    are refused by SQLite rather than decoded as text. SQLite's connection-local
+    length limit bounds construction of each JSON result before Python receives
+    it. No unbounded source scalar or whole ledger is returned to Python here.
+    All fields and SQL fragments are internal constants, never caller strings.
+    """
+    bound = 32768
+    old_limit = db.getlimit(sqlite3.SQLITE_LIMIT_LENGTH)
+    db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, min(old_limit, bound))
+    cursor = None
+    try:
+        columns = ','.join(field[0] for field in fields)
+        cursor = db.execute(f'SELECT json_array({columns}) FROM {table} '
+                            f'WHERE {where} LIMIT ?', (*args, maximum + 1))
+        for count, row in enumerate(cursor, 1):
+            if count > maximum:
+                fail('canonical_integrity_unavailable', 503)
+            raw = row[0]
+            if type(raw) is not str or len(raw.encode('utf-8')) > bound:
+                fail('canonical_integrity_unavailable', 503)
+            values = json.loads(raw)
+            if type(values) is not list or len(values) != len(fields):
+                fail('canonical_integrity_unavailable', 503)
+            for value, (_, kind, lower, upper, nullable) in zip(values, fields):
+                if value is None and nullable:
+                    continue
+                if kind == 'text':
+                    if type(value) is not str:
+                        fail('canonical_integrity_unavailable', 503)
+                    size = len(value.encode('utf-8'))
+                    if not lower <= size <= upper:
+                        fail('canonical_integrity_unavailable', 503)
+                    if lower == -1 and size not in (0, upper):
+                        fail('canonical_integrity_unavailable', 503)
+                elif kind == 'integer':
+                    if type(value) is not int or value < lower:
+                        fail('canonical_integrity_unavailable', 503)
+                elif type(value) not in (int, float):
+                    fail('canonical_integrity_unavailable', 503)
+    except sqlite3.DataError:
+        # SQLITE_TOOBIG is a refused malformed stored scalar, not a relaxed cap.
+        fail('canonical_integrity_unavailable', 503)
+    except sqlite3.OperationalError as exc:
+        if str(exc) == 'JSON cannot hold BLOB values':
+            fail('canonical_integrity_unavailable', 503)
+        raise  # Preserve interruption, storage errors and the outer budget check.
+    finally:
+        try:
+            if cursor is not None:
+                cursor.close()
+        finally:
+            db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, old_limit)
+
+
 def _canonical_preflight(db,group,generation):
-    # SQL byte/type bounds precede the unchanged materialized canonical loader.
-    # These are existing legal field maxima, not a lower person/relation cap.
-    bad=db.execute('''SELECT 1 FROM identity_relation_events WHERE identity_group=? AND generation=? AND (
-        length(CAST(response AS BLOB))>2048 OR typeof(response)!='text'
-        OR length(CAST(operator_context AS BLOB))>512 OR typeof(operator_context)!='text'
-        OR length(CAST(idempotency_key AS BLOB))>512 OR typeof(idempotency_key)!='text'
-        OR length(id)!=32 OR length(person_id)!=32 OR length(other_person_id)!=32
-        OR length(generation)!=32 OR length(CAST(identity_group AS BLOB))>100
-        OR length(action)>32 OR length(request_sha256)!=64 OR length(event_sha256)!=64
-        OR length(previous_sha256) NOT IN (0,64)
-        OR (previous_event_id IS NOT NULL AND length(previous_event_id)!=32)) LIMIT 1''',(group,generation)).fetchone()
-    if bad:fail('canonical_integrity_unavailable',503)
-    bad=db.execute('''SELECT 1 FROM speakers WHERE identity_group=? AND (length(id)!=32 OR length(state)>32
-        OR length(CAST(COALESCE(name,'') AS BLOB))>800 OR typeof(state)!='text'
-        OR (merged_into IS NOT NULL AND length(merged_into)!=32)) LIMIT 1''',(group,)).fetchone()
-    if bad:fail('canonical_integrity_unavailable',503)
+    # Exact former SQL type/UTF-8 byte bounds, applied to one capped JSON row
+    # at a time. At most 3,556 legal relation text bytes can expand sixfold for
+    # JSON control escapes; scalars/punctuation keep the result below 32 KiB.
+    # The unchanged loader later reads original values, not JSON roundtrips.
+    _canonical_preflight_rows(db, 'identity_relation_events',
+        'identity_group=? AND generation=?', (group,generation), (
+            ('response','text',0,2048,False),
+            ('operator_context','text',0,512,False),
+            ('idempotency_key','text',0,512,False),
+            ('id','text',32,32,False),
+            ('person_id','text',32,32,False),
+            ('other_person_id','text',32,32,False),
+            ('generation','text',32,32,False),
+            ('identity_group','text',0,100,False),
+            ('action','text',0,32,False),
+            ('request_sha256','text',64,64,False),
+            ('event_sha256','text',64,64,False),
+            ('previous_sha256','text',-1,64,False),
+            ('sequence','integer',1,None,False),
+            ('cursor','integer',1,None,False),
+            ('created','number',None,None,False),
+            ('previous_event_id','text',32,32,True),
+        ), identity_canonical.MAX_EVENTS)
+    _canonical_preflight_rows(db, 'speakers', 'identity_group=?', (group,), (
+        ('id','text',32,32,False),
+        ('state','text',0,32,False),
+        ('name','text',0,800,True),
+        ('merged_into','text',32,32,True),
+    ), bank_core.MAX_PERSONS)
 
 
 def _canonical(db, group, generation, policy):
@@ -309,9 +420,31 @@ def _canonical(db, group, generation, policy):
     return identity_canonical.load(db, group, generation, policy)
 
 
-def _request(db, group, generation, policy, request, action, previous=None):
-    return bank_core._request(db,group,generation,policy,request,action,previous)
+def _retry_preflight(db,group,generation,key):
+    if not isinstance(key,str) or not 1<=len(key)<=128:fail('invalid_idempotency_key')
+    for table,maximum in (('identity_review_events',MAX_EVENT),('identity_relation_events',2048)):
+        bad=db.execute(f'''SELECT 1 FROM {table} WHERE identity_group=? AND generation=? AND idempotency_key=?
+            AND (typeof(response)!='text' OR length(CAST(response AS BLOB))>?
+                OR typeof(action)!='text' OR length(CAST(action AS BLOB))>32
+                OR typeof(request_sha256)!='text' OR length(CAST(request_sha256 AS BLOB))!=64) LIMIT 1''',
+            (group,generation,key,maximum)).fetchone()
+        if bad:fail('retry_metadata_unavailable',503)
 
+
+def _request(db, group, generation, policy, request, action, previous=None):
+    if request.get('expected_generation')!=generation:fail('stale_generation')
+    _retry_preflight(db,group,generation,request.get('idempotency_key'))
+    hashed,retry=bank_core._request(db,group,generation,policy,request,action,previous)
+    if retry is None:_revision_room(policy)
+    return hashed,retry
+
+
+
+def _revision_room(policy):
+    if (type(policy['revision']) is not int or type(policy['availability']) is not int
+            or not 0<=policy['revision']<9223372036854775807
+            or not 0<=policy['availability']<9223372036854775807):
+        fail('identity_revision_unavailable',503)
 
 def _person_fields(db, group, person, state, generation, revision):
     row = db.execute('''SELECT id,name,state FROM speakers WHERE id=? AND identity_group=?
@@ -337,7 +470,7 @@ def _insert_event(db, group, generation, revision, action, request, hashed, resp
         response=_encode(response,MAX_EVENT).decode(),created=time.time(),review_kind=None,
         source_session_id=source[0] if source else None,source_recording_id=source[1] if source else None,
         primary_observation_id=source[2] if source else None)
-    _encode({k:v for k,v in event.items() if v is not None} if action=='erase_primary' else event,
+    _encode(event,
             MAX_RECEIPT if action=='erase_primary' else MAX_EVENT)
     db.execute(f'INSERT INTO identity_review_events ({",".join(event)}) VALUES ({",".join("?" for _ in event)})',tuple(event.values()))
 
@@ -409,7 +542,37 @@ def projection_intact(db,group,generation):
     return not bad and not cross
 
 
+
+def _projection_preflight(db,group,generation):
+    columns=('event_id','identity_group','generation','person_id','source_session_id','source_recording_id',
+             'scope_id','observation_id','parent_ref','physical_crop_key','binding_sha256','space_id','display_ranges')
+    types=' OR '.join(f"typeof({column})!='text'" for column in columns)
+    lengths='+'.join(f'length(CAST({column} AS BLOB))' for column in columns)
+    if db.execute(f'''SELECT 1 FROM {TABLE} INDEXED BY primary_associations_person
+        WHERE identity_group=? AND ({types} OR {lengths}>?) LIMIT 1''',(group,MAX_INDEX)).fetchone():
+        fail('association_integrity_unavailable',503)
+    # Include retracted history: no oversized key/owner can be fetched by a page
+    # merely because it has no current projection.
+    bad=db.execute('''SELECT 1 FROM identity_review_events INDEXED BY review_events_generation
+        WHERE identity_group=? AND generation=? AND action IN ('associate_primary','replace_primary','retract_primary')
+        AND (typeof(id)!='text' OR length(CAST(id AS BLOB))!=32 OR typeof(person_id)!='text' OR length(CAST(person_id AS BLOB))!=32
+        OR typeof(source_session_id)!='text' OR length(CAST(source_session_id AS BLOB)) NOT BETWEEN 1 AND 64
+        OR typeof(source_recording_id)!='text' OR length(CAST(source_recording_id AS BLOB)) NOT BETWEEN 1 AND 64
+        OR typeof(primary_observation_id)!='text' OR length(CAST(primary_observation_id AS BLOB))!=64
+        OR typeof(operator_context)!='text' OR length(CAST(operator_context AS BLOB))>512
+        OR typeof(idempotency_key)!='text' OR length(CAST(idempotency_key AS BLOB))>512
+        OR typeof(request_sha256)!='text' OR length(CAST(request_sha256 AS BLOB))!=64
+        OR typeof(sequence)!='integer' OR sequence<1 OR typeof(created) NOT IN ('integer','real')
+        OR typeof(fingerprints)!='text' OR length(CAST(fingerprints AS BLOB))>4096
+        OR typeof(response)!='text' OR length(CAST(response AS BLOB))>8192
+        OR (attestation IS NOT NULL AND (typeof(attestation)!='text' OR length(CAST(attestation AS BLOB))>1024))
+        OR (previous_event_id IS NOT NULL AND (typeof(previous_event_id)!='text' OR length(CAST(previous_event_id AS BLOB))!=32))
+        OR support_id IS NOT NULL OR vector_id IS NOT NULL OR evidence_key IS NOT NULL
+        OR review_kind IS NOT NULL OR prior_prediction IS NOT NULL) LIMIT 1''',(group,generation)).fetchone()
+    if bad:fail('association_integrity_unavailable',503)
+
 def _require_projection(db,group,generation):
+    _projection_preflight(db,group,generation)
     if not projection_intact(db,group,generation): fail('association_integrity_unavailable',503)
 
 
@@ -421,7 +584,7 @@ def _bank_response(db,group,generation,policy):
         counts[key]=db.execute('SELECT COUNT(*) FROM identity_active_reviews WHERE identity_group=? AND generation=? AND kind=?',(group,generation,kind)).fetchone()[0]
     return {'identity_group':group,'identity_mode':bank_core.MODE,'generation':generation,
         'profile_revision':policy['revision'],'canonical_revision':policy['revision'],
-        'availability_sequence':policy['availability'],'policy_sha256':policy['policy_sha256'],
+        'availability_sequence':policy['availability'],'policy_sha256':policy['policy_sha256'],'space_id':policy['space_id'],
         'explicitly_retained':True,'primary_associations_enabled':True,'automatic_enrollment':False,
         'acoustic_support_certified':False,'operator_assertion_is_claim':True,'counts':counts,
         'shared_event_capacity':bank_core.MAX_EVENTS,'reserved_retractions':bank_core.active_reservations(db),
@@ -429,6 +592,7 @@ def _bank_response(db,group,generation,policy):
             'active_positives_global':bank_core.MAX_POSITIVES,'active_negatives_global':bank_core.MAX_NEGATIVES,
             'positives_per_person':bank_core.MAX_PER_PERSON,'page_items':MAX_PAGE,'page_bytes':PAGE_BYTES},
         'retention':'Person catalog and bank generation survive source deletion until explicit identity reset.',
+        'access_boundary':'existing optional bearer or local API; explicit group scope is not a separate ACL',
         'scope':'human exact observed crop claim; no listening, acoustic purity, or whole-parent certification'}
 
 
@@ -449,6 +613,7 @@ def activate_bank(store,group,request):
     if request['mode']!=bank_core.MODE or request['confirmed'] is not True or not _HASH.fullmatch(str(request['policy_sha256'])):
         fail('invalid_bank_activation')
     with _db(store,write=True) as (db,check):
+        _policy_preflight(db,group)
         policy=bank_core.group_policy(db,group)
         if policy is None:
             if request['expected_generation'] is not None or request['expected_revision']!=0:
@@ -475,6 +640,7 @@ def activate_bank(store,group,request):
             generation=current['generation']
             # NULL generation has precisely one exception: an exact current-generation create retry.
             if request['expected_generation'] is None:
+                _retry_preflight(db,group,generation,request['idempotency_key'])
                 hashed=support.digest(_encode({'action':'enable_primary_associations','previous':None,'request':request}))
                 prior=db.execute('''SELECT action,request_sha256,response FROM identity_review_events
                     WHERE identity_group=? AND generation=? AND idempotency_key=?''',(group,generation,request['idempotency_key'])).fetchone()
@@ -493,7 +659,7 @@ def activate_bank(store,group,request):
         response.update(event_id=event_id,action='enable_primary_associations')
         # The event itself counts in the response without a second invalidation.
         response['counts']['review_events']+=1
-        _insert_event(db,group,generation,policy['revision']+1,'enable_primary_associations',request,hashed,response,event_id=event_id)
+        _insert_event(db,group,generation,policy['revision']+1,'enable_primary_associations',request,hashed,response,event_id=event_id,operator_context=_operator(store))
         return response
 
 
@@ -565,7 +731,8 @@ def mutate(store,group,request,*,previous=None,retract=False):
             'active':not retract,'authority':'human_observation_claim','enrollment_allowed':False,
             'erasure_scope':'all_claim_history_for_exact_observation'}
         _insert_event(db,group,generation,policy['revision']+1,action,request,hashed,response,event_id=event_id,
-            person=person,previous=previous,binding=b,source=source,attestation=None if retract else ATTESTATION)
+            person=person,previous=previous,binding=b,source=source,attestation=None if retract else ATTESTATION,
+            operator_context=_operator(store))
         if old:db.execute(f'DELETE FROM {TABLE} WHERE event_id=?',(previous,))
         if not retract:
             row=dict(id=event_id,identity_group=group,generation=generation,person_id=person,
@@ -617,6 +784,13 @@ def erase(store,group,event_id,request):
         group,generation,policy=_context(db,group)
         hashed,retry=_request(db,group,generation,policy,request,'erase_primary',event_id)
         if retry is not None:return retry
+        bad=db.execute('''SELECT 1 FROM identity_review_events WHERE id=? AND identity_group=? AND generation=?
+            AND action IN ('associate_primary','replace_primary','retract_primary') AND (
+            typeof(primary_observation_id)!='text' OR length(CAST(primary_observation_id AS BLOB))!=64
+            OR typeof(source_session_id)!='text' OR length(CAST(source_session_id AS BLOB)) NOT BETWEEN 1 AND 64
+            OR typeof(source_recording_id)!='text' OR length(CAST(source_recording_id AS BLOB)) NOT BETWEEN 1 AND 64) LIMIT 1''',
+            (event_id,group,generation)).fetchone()
+        if bad:fail('association_integrity_unavailable',503)
         target=db.execute('''SELECT primary_observation_id,source_session_id,source_recording_id FROM identity_review_events
             WHERE id=? AND identity_group=? AND generation=? AND action IN ('associate_primary','replace_primary','retract_primary')''',
             (event_id,group,generation)).fetchone()
@@ -642,6 +816,14 @@ def erase_source(db,sid,rid=None):
     if not db.in_transaction:raise ValueError('Source erasure requires transaction')
     predicate='source_session_id=?'+(' AND source_recording_id=?' if rid is not None else '')
     args=(sid,rid) if rid is not None else (sid,)
+    for table,observation in (('identity_review_events','primary_observation_id'),(TABLE,'observation_id')):
+        actions=" AND action IN ('associate_primary','replace_primary','retract_primary')" if table=='identity_review_events' else ''
+        bad=db.execute(f'''SELECT 1 FROM {table} WHERE {predicate}{actions} AND (
+            typeof(identity_group)!='text' OR length(CAST(identity_group AS BLOB)) NOT BETWEEN 1 AND 100
+            OR typeof(generation)!='text' OR length(CAST(generation AS BLOB))!=32
+            OR typeof({observation})!='text' OR length({observation})!=64
+            OR typeof(source_recording_id)!='text' OR length(CAST(source_recording_id AS BLOB)) NOT BETWEEN 1 AND 64) LIMIT 1''',args).fetchone()
+        if bad:fail('association_integrity_unavailable',503)
     # Resolve complete tuple scopes from authoritative history AND projection.
     # Page keys only; every branch/reassociation is erased via the same primitive.
     groups=set(); deadline=time.monotonic()+READ_SECONDS
@@ -673,9 +855,11 @@ def erase_source(db,sid,rid=None):
 
 def invalidate_scope(db,scope_id,reason='primary_association_source_changed'):
     if schema_present(db):
-        db.execute(f'''UPDATE identity_group_policy SET revision=revision+1,availability=availability+1,change_reason=?
-            WHERE primary_associations_enabled=1 AND identity_group IN (
-                SELECT identity_group FROM {TABLE} INDEXED BY primary_associations_scope WHERE scope_id=?)''',(reason,scope_id))
+        groups=db.execute(f'''SELECT DISTINCT identity_group FROM {TABLE}
+            INDEXED BY primary_associations_scope WHERE scope_id=? LIMIT ?''',
+            (scope_id,bank_core.MAX_GROUPS+1)).fetchall()
+        if len(groups)>bank_core.MAX_GROUPS:fail('association_integrity_unavailable',503)
+        for group in groups:bank_core._invalidate(db,group['identity_group'],reason)
 
 
 def _page_limit(limit):
@@ -692,7 +876,7 @@ def _seek(cursor,group,generation,policy,kind,filters,default):
     if cursor is None:return default
     if not isinstance(cursor,str) or len(cursor)>2048 or not re.fullmatch(r'[A-Za-z0-9_-]+',cursor):fail('invalid_cursor')
     try:body=_decode(base64.urlsafe_b64decode(cursor+'='*(-len(cursor)%4)),1536)
-    except (ValueError,TypeError):fail('invalid_cursor')
+    except (BridgeError,ValueError,TypeError):fail('invalid_cursor')
     if type(body) is not dict or set(body)!={'g','v','r','k','f','l'}:fail('invalid_cursor')
     if body['g']!=group or body['v']!=generation or body['r']!=policy['revision'] or body['k']!=kind or body['f']!=filters:
         fail('stale_cursor')
@@ -709,13 +893,25 @@ def _page(items,group,generation,policy,kind,filters,last,has_more,*,complete=Tr
 
 
 def _event_row(db,event_id,group,generation):
-    length=db.execute('''SELECT length(CAST(response AS BLOB)) AS response_bytes,
-        COALESCE(length(CAST(fingerprints AS BLOB)),0) AS binding_bytes,
-        COALESCE(length(CAST(attestation AS BLOB)),0) AS attestation_bytes
+    row=db.execute('''SELECT
+        CASE WHEN typeof(response)='text' AND length(CAST(response AS BLOB))<=8192
+        AND typeof(fingerprints)='text' AND length(CAST(fingerprints AS BLOB))<=4096
+        AND (attestation IS NULL OR (typeof(attestation)='text' AND length(CAST(attestation AS BLOB))<=1024))
+        AND typeof(person_id)='text' AND length(CAST(person_id AS BLOB))=32
+        AND typeof(source_session_id)='text' AND length(CAST(source_session_id AS BLOB)) BETWEEN 1 AND 64
+        AND typeof(source_recording_id)='text' AND length(CAST(source_recording_id AS BLOB)) BETWEEN 1 AND 64
+        AND typeof(primary_observation_id)='text' AND length(CAST(primary_observation_id AS BLOB))=64
+        AND typeof(operator_context)='text' AND length(CAST(operator_context AS BLOB))<=512
+        AND typeof(idempotency_key)='text' AND length(CAST(idempotency_key AS BLOB))<=512
+        AND typeof(request_sha256)='text' AND length(CAST(request_sha256 AS BLOB))=64
+        AND (previous_event_id IS NULL OR (typeof(previous_event_id)='text' AND length(CAST(previous_event_id AS BLOB))=32))
+        AND typeof(sequence)='integer' AND sequence>0 AND typeof(created) IN ('integer','real')
+        AND support_id IS NULL AND vector_id IS NULL AND evidence_key IS NULL AND review_kind IS NULL
+        AND prior_prediction IS NULL THEN 1 ELSE 0 END AS bounded
         FROM identity_review_events WHERE id=? AND identity_group=? AND generation=?
         AND action IN ('associate_primary','replace_primary','retract_primary')''',(event_id,group,generation)).fetchone()
-    if length is None:fail('association_not_found',404)
-    if length['response_bytes']>MAX_EVENT or length['binding_bytes']>MAX_BINDING or length['attestation_bytes']>1024:fail('metadata_unavailable',503)
+    if row is None:fail('association_not_found',404)
+    if not row['bounded']:fail('metadata_unavailable',503)
     return db.execute('SELECT * FROM identity_review_events WHERE id=?',(event_id,)).fetchone()
 
 
@@ -744,6 +940,7 @@ def _project_event(db,row,policy,state):
                 valid=False; status='conflicting_exact_crop_claims'; break
     result={**_person_fields(db,group,person,state,generation,policy['revision']),
         'event_id':row['id'],'action':row['action'],'previous_event_id':row['previous_event_id'],
+        'operator_context':row['operator_context'],
         'profile_revision':policy['revision'],'event_revision':row['sequence'],
         'active':active,'status':status,'source_state':source_state,
         'effective_person_id':root if active and valid else None,
@@ -783,8 +980,8 @@ def events(store,group,after=None,limit=32):
         _require_projection(db,group,generation)
         last=_seek(after,group,generation,policy,'events',{},0)
         if last<0:fail('invalid_cursor')
-        keys=list(db.execute('''SELECT o.cursor,e.id FROM identity_review_events e INDEXED BY review_events_generation
-            JOIN identity_review_event_order o ON o.event_id=e.id WHERE e.identity_group=? AND e.generation=?
+        keys=list(db.execute('''SELECT o.cursor,e.id FROM identity_review_event_order o
+            CROSS JOIN identity_review_events e ON e.id=o.event_id WHERE e.identity_group=? AND e.generation=?
             AND e.action IN ('associate_primary','replace_primary','retract_primary') AND o.cursor>?
             ORDER BY o.cursor LIMIT ?''',(group,generation,last,limit+1)))
         state=_safe_canonical(db,group,generation,policy)
@@ -828,7 +1025,7 @@ def rename(store,group,person_id,request):
         response={**_person_fields(db,group,person_id,state,generation,policy['revision']+1),
             'event_id':event_id,'action':'rename_person','profile_revision':policy['revision']+1}
         _insert_event(db,group,generation,policy['revision']+1,'rename_person',request,hashed,response,
-            event_id=event_id,person=person_id,previous=person_id)
+            event_id=event_id,person=person_id,previous=person_id,operator_context=_operator(store))
         bank_core._invalidate(db,group,'reviewed_person_renamed')
         return response
 
@@ -916,5 +1113,10 @@ def relate(store,group,request,*,previous=None):
     _group(group);_encode(request)
     with _db(store,write=True) as (db,check):
         _,generation,policy=_context(db,group)
+        if request.get('expected_generation')!=generation:fail('stale_generation')
+        _retry_preflight(db,group,generation,request.get('idempotency_key'))
+        _,retry=identity_canonical._request(db,group,generation,policy,request,previous)
+        if retry is not None:return retry
+        _revision_room(policy)
         _canonical_preflight(db,group,generation)
-        return identity_canonical.mutate(store,None,request,previous=previous,group=group,db=db)
+        return identity_canonical.mutate(store,None,request,previous=previous,group=group,db=db,operator_context=_operator(store))
