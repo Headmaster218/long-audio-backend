@@ -215,6 +215,8 @@ class Store:
             init_history(db)
             from .reviewed_primary_persons import init_schema as init_reviewed_primary_persons
             init_reviewed_primary_persons(db, enable=getattr(settings, 'reviewed_primary_persons_enabled', False))
+            from .primary_voice_references import init_schema as init_primary_voice_references
+            init_primary_voice_references(db, enable=getattr(settings, 'reviewed_primary_persons_enabled', False))
             from .recording_overlap import primary_cache_schema
             primary_cache_schema(db,self)
         from .recording_primary_provenance import database_identity, enabled as primary_provenance_enabled

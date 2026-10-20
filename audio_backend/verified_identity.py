@@ -258,10 +258,63 @@ def _evidence(db, sid, generation, policy, request):
 
 
 
+def active_reference_rows(db, kind, group=None):
+    """Bounded metadata union; never manufacture legacy support identities."""
+    where='kind=?'+(' AND identity_group=?' if group is not None else '')
+    args=(kind,group) if group is not None else (kind,)
+    limit=MAX_POSITIVES if kind=='positive' else MAX_NEGATIVES
+    count=db.execute('SELECT COUNT(*) FROM identity_active_reviews WHERE '+where,args).fetchone()[0]
+    from . import primary_voice_references as primary
+    condition=' WHERE identity_group=?' if group is not None else ''
+    primary_args=(group,) if group is not None else ()
+    primary_count=(db.execute('SELECT COUNT(*) FROM '+primary.TABLE+condition,primary_args).fetchone()[0]
+        if kind=='positive' and primary.present(db) else 0)
+    if count+primary_count>limit:raise ValueError('Active reference capacity integrity')
+    rows=[dict(row,reference_type='legacy') for row in db.execute(
+        'SELECT * FROM identity_active_reviews WHERE '+where,args)]
+    if primary_count:
+        columns=('event_id','association_event_id','identity_group','generation','person_id',
+            'source_session_id','source_recording_id','observation_id','certificate_id','vector_sha256',
+            'binding_sha256','space_id','physical_crop_key','source_version','evidence_key')
+        invalid=' OR '.join(f"typeof({key})!='text' OR length(CAST({key} AS BLOB))>1024" for key in columns)
+        predicate=(condition+' AND ' if condition else ' WHERE ')+'('+invalid+')'
+        if db.execute('SELECT 1 FROM '+primary.TABLE+predicate+' LIMIT 1',primary_args).fetchone():
+            raise ValueError('Primary reference metadata integrity')
+        for row in db.execute('SELECT * FROM '+primary.TABLE+condition,primary_args):
+            value=dict(row);value.update(kind='positive',reference_type='primary')
+            rows.append(value)
+    return rows
+
+
+def centroid_score(vectors, query):
+    """Shared existing f64 centroid rule, not a different matching policy."""
+    import math
+    if not 1<=len(vectors)<=MAX_PER_PERSON or any(len(v)!=len(query) for v in vectors):
+        raise ValueError('Invalid gallery dimension or capacity')
+    centroid,_=support_vectors.normalized_vector([math.fsum(col)/len(vectors) for col in zip(*vectors)])
+    return max(-1.,min(1.,math.fsum(a*b for a,b in zip(centroid,query))))
+
+
+def select_reviewed_score(scores, params):
+    scores=sorted(scores,key=lambda row:(-row[0],row[1]))
+    result={'person_id':None,'candidate_person_id':None,'score':None,'margin':None,
+        'reference_event_ids':[],'status':'unknown_no_reviewed_references'}
+    if not scores:return result
+    best,candidate,refs=scores[0]
+    margin=best-scores[1][0] if len(scores)>1 else 2.
+    threshold=params['centroid_threshold'] if len(refs)>1 else params['single_threshold']
+    reason='unknown_below_threshold' if best<threshold else 'unknown_ambiguous' if margin<params['margin'] else 'experimental_identity_match'
+    result.update(candidate_person_id=candidate,score=best,margin=margin,reference_event_ids=refs,status=reason,
+        person_id=candidate if reason=='experimental_identity_match' else None)
+    return result
+
+
 def active_reservations(db):
     active = db.execute('SELECT COUNT(*) FROM identity_active_reviews').fetchone()[0]
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='identity_primary_associations_v1'").fetchone():
         active += db.execute('SELECT COUNT(*) FROM identity_primary_associations_v1').fetchone()[0]
+    from . import primary_voice_references as primary
+    if primary.present(db):active += db.execute('SELECT COUNT(*) FROM '+primary.TABLE).fetchone()[0]
     return active
 
 
@@ -270,6 +323,18 @@ def event_capacity(db, *, new_active=0, removed_active=0, events=1):
     if history + active_reservations(db) + new_active - removed_active + events > MAX_EVENTS:
         raise OverflowError('Review event capacity reached; retraction remains available')
 
+def check_evidence_conflicts(db,group,kind,person,evidence_key,canonical,old=None):
+    rows=list(db.execute('SELECT event_id,person_id,kind FROM identity_active_reviews WHERE identity_group=? AND evidence_key=?',(group,evidence_key)))
+    from . import primary_voice_references as primary
+    if primary.present(db):
+        rows.extend(db.execute(f"SELECT event_id,person_id,'positive' AS kind FROM {primary.TABLE} WHERE identity_group=? AND evidence_key=?",(group,evidence_key)))
+    for claim in rows:
+        if old and claim['event_id']==old['event_id']:continue
+        if kind=='positive' and claim['kind']=='positive':raise ValueError('duplicate_or_conflicting_positive_evidence')
+        if identity_canonical.review_root(canonical,claim['person_id'])==identity_canonical.review_root(canonical,person):
+            raise ValueError('duplicate_or_contradictory_review')
+
+
 def _capacity(db, kind, person, replacing=None, canonical=None):
     history = db.execute('SELECT COUNT(*) FROM identity_review_events').fetchone()[0]
     active = active_reservations(db)
@@ -277,15 +342,14 @@ def _capacity(db, kind, person, replacing=None, canonical=None):
     # replacement appends one event and carries its predecessor's reservation.
     if history + active + (1 if replacing else 2) > MAX_EVENTS:
         raise OverflowError('Review event capacity reached; retraction remains available')
-    count = db.execute('SELECT COUNT(*) FROM identity_active_reviews WHERE kind=?', (kind,)).fetchone()[0]
+    count = len(active_reference_rows(db,kind))
     removed = bool(replacing and replacing['kind'] == kind)
     if count + 1 - int(removed) > (MAX_POSITIVES if kind == 'positive' else MAX_NEGATIVES):
         raise OverflowError('Active review capacity reached')
     if kind == 'positive':
         root = identity_canonical.review_root(canonical, person)
         count = sum(identity_canonical.review_root(canonical, row['person_id']) == root
-                    for row in db.execute("SELECT person_id FROM identity_active_reviews WHERE kind='positive' AND identity_group=?",
-                                          (canonical['identity_group'],)))
+                    for row in active_reference_rows(db,'positive',canonical['identity_group']))
         removed = bool(replacing and replacing['kind'] == kind
                        and identity_canonical.review_root(canonical, replacing['person_id']) == root)
         if count + 1 - int(removed) > MAX_PER_PERSON:
@@ -343,13 +407,7 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
                 if db.execute("SELECT COUNT(*) FROM speakers WHERE state IN ('reviewed_reference','reviewed_person')").fetchone()[0] >= MAX_PERSONS:
                     raise OverflowError('Verified person capacity reached')
                 person = uuid.uuid4().hex
-            for claim in db.execute('''SELECT * FROM identity_active_reviews WHERE identity_group=? AND evidence_key=?''', (group,raw['evidence_key'])):
-                if old and claim['event_id'] == old['event_id']:
-                    continue
-                if kind == 'positive' and claim['kind'] == 'positive':
-                    raise ValueError('duplicate_or_conflicting_positive_evidence')
-                if identity_canonical.review_root(canonical, claim['person_id']) == identity_canonical.review_root(canonical, person):
-                    raise ValueError('duplicate_or_contradictory_review')
+            check_evidence_conflicts(db,group,kind,person,raw['evidence_key'],canonical,old)
             _capacity(db, kind, person, old, canonical)
             if name:
                 db.execute('''INSERT INTO speakers(id,session_id,identity_group,name,embedding,state,created)
@@ -383,6 +441,8 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
 
 def reset(db, group):
     # Delete active state first so support erasure does not retain expiry audit.
+    from . import primary_voice_references as primary
+    primary.reset(db,group)
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='identity_primary_associations_v1'").fetchone():
         db.execute('DELETE FROM identity_primary_associations_v1 WHERE identity_group=?', (group,))
     identity_canonical.reset(db, group)
@@ -511,10 +571,9 @@ def prepare_decision(store, db, chunk, offset, group, local_id, metadata, prepar
                 nonlocal invalid_gallery
                 if not vectors:return
                 try:
-                    centroid,_=support_vectors.normalized_vector([math.fsum(col)/len(vectors) for col in zip(*vectors)])
+                    score=centroid_score(vectors,proof['vector'])
                 except ValueError:
                     invalid_gallery=True;return
-                score=max(-1.,min(1.,math.fsum(a*b for a,b in zip(centroid,proof['vector']))))
                 scores.append((score,person,list(references)))
             # Sort bounded metadata only. Raw vectors still stream one canonical
             # person's at-most-eight reviewed references at a time.

@@ -165,7 +165,7 @@ def init_schema(db, *, enable=False):
         validate_schema(db)
         # The history recognizer must already have accepted the exact guard.
         present = {r['name']:r['sql'] for r in db.execute('SELECT name,sql FROM sqlite_master')}
-        if any(' '.join(present.get(k,'').split()) != ' '.join(v.split()) for k,v in history.BRIDGE_DDL.items()):
+        if not history.bridge_guard_matches(db):
             raise ValueError('Incompatible reviewed person schema')
         return
     if not enable:
@@ -452,6 +452,9 @@ def _person_fields(db, group, person, state, generation, revision):
     if row is None: fail('person_not_found',404)
     root = state['mapping'].get(person) if state else None
     positives = db.execute("SELECT COUNT(*) FROM identity_active_reviews WHERE identity_group=? AND person_id=? AND kind='positive'",(group,person)).fetchone()[0]
+    from . import primary_voice_references
+    if primary_voice_references.present(db):
+        positives += db.execute(f'SELECT COUNT(*) FROM {primary_voice_references.TABLE} WHERE identity_group=? AND generation=? AND person_id=?',(group,generation,person)).fetchone()[0]
     return {'person_id':person,'name':row['name'],'person_state':row['state'],
         'canonical_person_id':root,'canonical_revision':revision,'generation':generation,
         'active_positive_count':positives,'acoustic_reference_status':'available' if positives else 'none',
@@ -581,7 +584,7 @@ def _bank_response(db,group,generation,policy):
         'active_associations':db.execute(f'SELECT COUNT(*) FROM {TABLE} WHERE identity_group=? AND generation=?',(group,generation)).fetchone()[0],
         'review_events':db.execute('SELECT COUNT(*) FROM identity_review_events WHERE identity_group=? AND generation=?',(group,generation)).fetchone()[0]}
     for kind,key in [('positive','active_positives'),('negative','active_negatives')]:
-        counts[key]=db.execute('SELECT COUNT(*) FROM identity_active_reviews WHERE identity_group=? AND generation=? AND kind=?',(group,generation,kind)).fetchone()[0]
+        counts[key]=sum(row['generation']==generation for row in bank_core.active_reference_rows(db,kind,group))
     return {'identity_group':group,'identity_mode':bank_core.MODE,'generation':generation,
         'profile_revision':policy['revision'],'canonical_revision':policy['revision'],
         'availability_sequence':policy['availability'],'policy_sha256':policy['policy_sha256'],'space_id':policy['space_id'],
@@ -723,6 +726,9 @@ def mutate(store,group,request,*,previous=None,retract=False):
                 db.execute("INSERT INTO speakers(id,session_id,identity_group,name,embedding,state,created) VALUES(?,'',?,?,NULL,'reviewed_person',?)",
                     (person,group,request['new_person_name'],time.time()))
                 state['mapping'][person]=person
+        if old:
+            from . import primary_voice_references
+            primary_voice_references.revoke_association(db,previous)
         event_id=uuid.uuid4().hex
         response={**_person_fields(db,group,person,state,generation,policy['revision']+1),
             'event_id':event_id,'action':action,'previous_event_id':previous,'profile_revision':policy['revision']+1,
@@ -733,7 +739,8 @@ def mutate(store,group,request,*,previous=None,retract=False):
         _insert_event(db,group,generation,policy['revision']+1,action,request,hashed,response,event_id=event_id,
             person=person,previous=previous,binding=b,source=source,attestation=None if retract else ATTESTATION,
             operator_context=_operator(store))
-        if old:db.execute(f'DELETE FROM {TABLE} WHERE event_id=?',(previous,))
+        if old:
+            db.execute(f'DELETE FROM {TABLE} WHERE event_id=?',(previous,))
         if not retract:
             row=dict(id=event_id,identity_group=group,generation=generation,person_id=person,
                 source_session_id=source[0],source_recording_id=source[1],primary_observation_id=source[2])
@@ -746,6 +753,8 @@ def mutate(store,group,request,*,previous=None,retract=False):
 
 def _erase_tuple(db,group,generation,observation_id,source=None):
     """Indexed complete observation history erasure; no chain/JSON materialization."""
+    from . import primary_voice_references
+    primary_voice_references.erase_observation(db,group,generation,observation_id)
     where='identity_group=? AND generation=? AND primary_observation_id=?'
     args=(group,generation,observation_id)
     if source is not None and db.execute(f'''SELECT 1 FROM identity_review_events INDEXED BY review_events_observation
@@ -814,6 +823,8 @@ def erase_source(db,sid,rid=None):
     """Caller-owned source erasure transaction; intentionally no per-claim receipt."""
     if not schema_present(db):return
     if not db.in_transaction:raise ValueError('Source erasure requires transaction')
+    from . import primary_voice_references
+    primary_voice_references.erase_source(db,sid,rid)
     predicate='source_session_id=?'+(' AND source_recording_id=?' if rid is not None else '')
     args=(sid,rid) if rid is not None else (sid,)
     for table,observation in (('identity_review_events','primary_observation_id'),(TABLE,'observation_id')):

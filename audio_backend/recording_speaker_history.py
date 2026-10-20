@@ -280,6 +280,17 @@ BRIDGE_SOURCE_GUARD: f"""CREATE TRIGGER {BRIDGE_SOURCE_GUARD}
 }
 
 
+# Reference-learning adds one known dependency to the existing exact guard.
+# An old dev61 reader/writer rejects this shape before operating on the bank.
+REFERENCE_BRIDGE_GUARD = BRIDGE_DDL[BRIDGE_ERASE_GUARD].replace(
+    "    BEGIN SELECT RAISE", "    OR EXISTS (SELECT 1 FROM identity_primary_voice_references_v1 v WHERE v.observation_id=OLD.observation_id)\n    BEGIN SELECT RAISE")
+REFERENCE_BRIDGE_DDL = {**BRIDGE_DDL, BRIDGE_ERASE_GUARD:REFERENCE_BRIDGE_GUARD}
+
+def bridge_guard_matches(db):
+    actual=_schema_sql(db,{**DDL,**BRIDGE_DDL})
+    return _same_schema(actual,{**DDL,**BRIDGE_DDL}) or _same_schema(actual,{**DDL,**REFERENCE_BRIDGE_DDL})
+
+
 def _schema_sql(db,names):
     return {r['name']:r['sql'] for r in db.execute('SELECT name,sql FROM sqlite_master WHERE name IN ('
         + ','.join('?' for _ in names)+')',tuple(names))}
@@ -302,7 +313,7 @@ def init_schema(db):
             from .reviewed_primary_persons import validate_schema
             if validate_schema(db):raise ValueError('Incompatible recording history schema')
             return
-        if not _same_schema(present,expected):raise ValueError('Incompatible recording history schema')
+        if not (_same_schema(present,expected) or _same_schema(present,{**DDL,**REFERENCE_BRIDGE_DDL})):raise ValueError('Incompatible recording history schema')
         from .reviewed_primary_persons import validate_schema
         if not validate_schema(db):raise ValueError('Incompatible recording history schema')
         return
@@ -888,6 +899,17 @@ class HistoryStore:
             if scope['history_revision']>=MAX_REVISION:_fail('capacity_exhausted')
             db.execute(f"UPDATE {SCOPES} SET history_revision=history_revision+1,vector_count=vector_count+?,current_slot=NULL,state='pending' WHERE scope_seq=?",
                 (len(payload['certificates']),scope['scope_seq']))
+            if reservation['origin_kind']=='primary_commit':
+                # Scoring is deferred; durable intent commits with the original
+                # certificate so crash/ack recovery cannot lose the work.
+                from . import primary_voice_references
+                db.execute('SAVEPOINT optional_primary_identity')
+                try:
+                    for observation_id,_,_,_ in payload['certificates']:
+                        primary_voice_references.enqueue(db,scope['session_id'],scope['recording_id'],observation_id)
+                except Exception:
+                    db.execute('ROLLBACK TO optional_primary_identity')
+                finally:db.execute('RELEASE optional_primary_identity')
         return {'token':token,'state':'success','should_probe':False,'history_revision':scope['history_revision']+1}
 
     def append_primary(self,reservation,node,vector,invocation_id,*,success_capability,current_check):

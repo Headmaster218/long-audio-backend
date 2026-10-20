@@ -180,3 +180,22 @@ def register_routes(app,store,assign_lease,get_response_budget):
     @app.post('/identity-groups/{group}/identity-relations/{event_id}/retract')
     async def retract_relation(request:Request,group:str,event_id:str):
         return await invoke(request,lambda st,g,r:core.relate(st,g,r,previous=event_id),group,body=True)
+
+
+    from . import primary_voice_references as voice
+
+    @app.get('/sessions/{sid}/recordings/{rid}/primary-observations/{observation_id}/review-audio')
+    async def primary_review_audio(request:Request,sid:str,rid:str,observation_id:str):
+        return await invoke(request,voice.review_audio,sid,rid,observation_id)
+
+    @app.post('/identity-groups/{group}/primary-voice-references')
+    async def primary_voice_enroll(request:Request,group:str):
+        return await invoke(request,voice.enroll,group,body=True)
+
+    @app.post('/identity-groups/{group}/primary-voice-references/{event_id}/retract')
+    async def primary_voice_retract(request:Request,group:str,event_id:str):
+        return await invoke(request,voice.retract,group,event_id,body=True)
+
+    @app.get('/sessions/{sid}/recordings/{rid}/primary-observations/{observation_id}/identity-suggestion')
+    async def primary_identity_suggestion(request:Request,sid:str,rid:str,observation_id:str):
+        return await invoke(request,voice.suggestion,sid,rid,observation_id)

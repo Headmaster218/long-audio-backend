@@ -1549,6 +1549,9 @@ class MossJobs:
     def automatic_maintenance_hint(self):
         """One exact cleaned pending probe, metadata only; never model readiness."""
         if self.primary_maintenance_hint():return True
+        if self._primary_pending is None and getattr(self.store.settings,'reviewed_primary_persons_enabled',False):
+            from .primary_voice_references import pending_hint
+            if pending_hint(self.store):return True
         with self._gate():
             record = self._live
             if self._pending_record is not None or record is None:return False
@@ -1564,6 +1567,13 @@ class MossJobs:
     def automatic_idle(self):
         self._maintain_primary()
         if self._primary_executing():return False
+        # Original primary handles and permits are closed before this optional,
+        # bounded model-free gallery query. Durable pending rows survive restart.
+        if self._primary_pending is None and getattr(self.store.settings,'reviewed_primary_persons_enabled',False):
+            try:
+                from .primary_voice_references import process_one
+                process_one(self.store)
+            except Exception:pass
         self._reconcile_speaker_links()
         record = self._live
         if record is not None:self._retry_probe_storage(record)

@@ -134,10 +134,9 @@ def review_root(state, person):
 
 def _check_component(db, group, mapping, target):
     """Only immutable, explicitly reviewed references may contribute to a union."""
-    from .verified_identity import MAX_PER_PERSON
+    from .verified_identity import MAX_PER_PERSON, active_reference_rows
     positives, negatives = set(), set()
-    for row in db.execute('''SELECT person_id,kind,evidence_key FROM identity_active_reviews
-            WHERE identity_group=?''', (group,)):
+    for row in active_reference_rows(db,'positive',group)+active_reference_rows(db,'negative',group):
         if mapping.get(row['person_id']) != target:
             continue
         if row['kind'] == 'positive':
