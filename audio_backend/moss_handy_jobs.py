@@ -598,7 +598,13 @@ class MossJobs:
                 self._observe_probe_failure(handle,'dispatch_validation','source_authority_changed',exc)
                 handle['terminal_reason'] = 'cancelled' if handle['cancelled'].is_set() else 'unavailable'
                 handle['state'] = 'finish_pending'
-            else:self._drop_primary_copy(handle)
+            else:
+                # No claim was submitted. Close a v2 hard failure durably before
+                # releasing the sole slot; a failed metadata acknowledgment is
+                # maintenance-only and must never become a fresh probe retry.
+                handle['crop'] = None
+                handle['state'] = 'preclaim_close_pending'
+                self._maintain_primary()
             return False
 
     def primary_ready_hint(self):
@@ -641,7 +647,7 @@ class MossJobs:
     def primary_maintenance_hint(self):
         with self._gate():
             probe = self._primary_pending
-            return bool(probe and probe['state'] in ('claim_unknown','append_unknown','finish_pending','terminal')
+            return bool(probe and probe['state'] in ('claim_unknown','append_unknown','preclaim_close_pending','finish_pending','terminal')
                         and (probe['thread'] is None or not probe['thread'].is_alive()))
 
     def _primary_executing(self):
@@ -925,10 +931,20 @@ class MossJobs:
             state = probe['state']
             if state == 'append_unknown':
                 return self._maintain_primary_append(probe)
-            if state == 'claim_unknown':
+            if state == 'preclaim_close_pending':
+                self.history.note_primary_skip(probe['session_id'],probe['recording_id'],
+                    probe['source_start_frame'],'unavailable',probe['space'],v2_only=True,hard_close=True)
+                probe['state'] = 'terminal'
+            elif state == 'claim_unknown':
                 outcome = self.history.resolve_primary(probe['attempt_id'],probe['identity'],
                     failure_json=probe['failure_json'] if probe['failure_frozen'] else None)
                 if not outcome.get('resolved'):return False
+                if outcome.get('found') is False:
+                    # Positive durable absence is storage closure, never permission
+                    # to run this attempt again. Only a different future window
+                    # can use any remaining v2 budget after the slot is released.
+                    self.history.note_primary_skip(probe['session_id'],probe['recording_id'],
+                        probe['source_start_frame'],'claim_absent',probe['space'],v2_only=True)
                 probe['state'] = 'terminal'
                 self._kick_history_comparison()
             elif state == 'finish_pending':
@@ -957,7 +973,7 @@ class MossJobs:
             self.permit.release_optional(probe,cleaned=clean)
             if not clean:return False
         if probe['state'] == 'provisional':self._drop_primary_copy(probe);return True
-        if probe['state'] not in ('append_unknown','claim_unknown','terminal'):
+        if probe['state'] not in ('append_unknown','claim_unknown','preclaim_close_pending','terminal'):
             probe['terminal_reason'] = probe['terminal_reason'] or 'cancelled'
             probe['state'] = 'finish_pending'
         return self._maintain_primary()

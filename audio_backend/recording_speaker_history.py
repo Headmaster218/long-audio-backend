@@ -249,6 +249,53 @@ for table in (ATTEMPTS,CERTIFICATES,OBJECTS,REFS,DEPENDENCIES,SOURCES):
         BEGIN SELECT RAISE(ABORT,'History requires explicit session erasure'); END'''
 
 
+# The known immutable-scope trigger is also an old-writer fence: dev62 must
+# refuse this exact new shape instead of ignoring the sampling side table.
+LEGACY_DDL = dict(DDL)
+SAMPLING = 'recording_history_sampling_v2'
+SAMPLING_V1 = 'skip-bucket-v1'
+SAMPLING_V2 = 'fresh-window-bounded-v2'
+SAMPLING_LIMIT = 3
+SAMPLING_COUNTER_MAX = 2147483647
+SAMPLING_REASONS = ('busy','insufficient_clean_support','unavailable','source_changed',
+    'permission','capacity','other','missed','claim_absent')
+SAMPLING_COUNTERS = ('examined','admitted','exhausted') + SAMPLING_REASONS
+SAMPLING_EMPTY = encoded({key:0 for key in SAMPLING_COUNTERS})
+DDL[SAMPLING] = f"""CREATE TABLE {SAMPLING} (
+    scope_seq INTEGER PRIMARY KEY REFERENCES {SCOPES}(scope_seq) ON DELETE CASCADE,
+    sampling_policy TEXT NOT NULL CHECK(sampling_policy IN ('{SAMPLING_V1}','{SAMPLING_V2}')),
+    examined_bucket INTEGER NOT NULL DEFAULT -1 CHECK(examined_bucket>=-1),
+    examined_count INTEGER NOT NULL DEFAULT 0 CHECK(examined_count BETWEEN 0 AND 3),
+    counters BLOB NOT NULL CHECK(typeof(counters)='blob' AND length(counters) BETWEEN 1 AND 2048),
+    last_frame INTEGER NOT NULL DEFAULT -1 CHECK(last_frame>=-1),
+    last_reason TEXT NOT NULL DEFAULT 'none' CHECK(last_reason IN ('none','admitted',
+        'busy','insufficient_clean_support','unavailable','source_changed','permission','capacity','other','missed','claim_absent')))"""
+DDL['recording_history_sampling_policy_v2'] = f"""CREATE TRIGGER recording_history_sampling_policy_v2
+    BEFORE UPDATE OF scope_seq,sampling_policy ON {SAMPLING}
+    BEGIN SELECT RAISE(ABORT,'Immutable sampling policy'); END"""
+DDL['recording_history_scope_policy_v1'] = DDL['recording_history_scope_policy_v1'].replace(
+    '    BEGIN SELECT RAISE', '    WHEN 1 BEGIN SELECT RAISE')
+
+
+def _sampling_counters(raw):
+    if type(raw) is not bytes or not 1<=len(raw)<=2048:_fail('history_sampling_diagnostics')
+    try:value=json.loads(raw)
+    except (ValueError,UnicodeError):_fail('history_sampling_diagnostics')
+    if (type(value) is not dict or set(value)!=set(SAMPLING_COUNTERS)
+            or any(type(v) is not int or not 0<=v<=SAMPLING_COUNTER_MAX for v in value.values())):
+        _fail('history_sampling_diagnostics')
+    return value
+
+
+def sampling_diagnostics(db,scope_seq):
+    row=db.execute(f'SELECT * FROM {SAMPLING} WHERE scope_seq=?',(scope_seq,)).fetchone()
+    if row is None:_fail('history_sampling_missing')
+    return {'policy':row['sampling_policy'],'diagnostics_enabled':row['sampling_policy']==SAMPLING_V2,
+        'window_limit':SAMPLING_LIMIT,'examined_bucket':row['examined_bucket'],
+        'examined_count':row['examined_count'],'last_frame':row['last_frame'],
+        'last_reason':row['last_reason'],'counts':_sampling_counters(row['counters'])}
+
+
 # Bridge installation changes this one known trigger rather than rewriting any
 # evidence table. An unmodified dev60 exact recognizer refuses the new shape.
 BRIDGE_ERASE_GUARD = CERTIFICATES + '_erase_only'
@@ -306,6 +353,26 @@ def init_schema(db):
     if not db.in_transaction:raise ValueError('History migration requires transaction')
     expected={**DDL,**BRIDGE_DDL}
     present=_schema_sql(db,expected)
+    legacy_shapes=(LEGACY_DDL,{**LEGACY_DDL,**BRIDGE_DDL},{**LEGACY_DDL,**REFERENCE_BRIDGE_DDL})
+    if any(_same_schema(present,shape) for shape in legacy_shapes):
+        from .reviewed_primary_persons import validate_schema
+        bridge=validate_schema(db)
+        if bridge != (not _same_schema(present,LEGACY_DDL)):
+            raise ValueError('Incompatible recording history schema')
+        db.execute(DDL[SAMPLING])
+        db.execute(DDL['recording_history_sampling_policy_v2'])
+        db.execute(f'''INSERT INTO {SAMPLING}(scope_seq,sampling_policy,counters)
+            SELECT scope_seq,?,? FROM {SCOPES} WHERE scope_seq>0''',(SAMPLING_V1,SAMPLING_EMPTY))
+        db.execute('DROP TRIGGER recording_history_scope_policy_v1')
+        db.execute(DDL['recording_history_scope_policy_v1'])
+        present=_schema_sql(db,expected)
+    if present and SAMPLING in present:
+        # A partial row population is not permission to silently reset a policy.
+        if db.execute(f'''SELECT 1 FROM {SCOPES} h LEFT JOIN {SAMPLING} s ON s.scope_seq=h.scope_seq
+                WHERE h.scope_seq>0 AND s.scope_seq IS NULL LIMIT 1''').fetchone() or db.execute(
+                f'''SELECT 1 FROM {SAMPLING} s LEFT JOIN {SCOPES} h ON s.scope_seq=h.scope_seq
+                WHERE h.scope_seq IS NULL OR s.scope_seq=0 LIMIT 1''').fetchone():
+            raise ValueError('Incompatible recording sampling rows')
     if present:
         if _same_schema(present,DDL):
             # Extra bridge columns/tables without their old-writer fence are an
@@ -459,6 +526,7 @@ def erase_session(db,sid):
         FROM {SCOPES} INDEXED BY recording_history_session_v1 WHERE session_id=?''',(sid,)).fetchone()
     where=f'scope_seq IN (SELECT scope_seq FROM {SCOPES} WHERE session_id=?)'
     for table in (ROWS,DECISIONS,CERTIFICATES,REFS,DEPENDENCIES,OBJECTS,SOURCES,ATTEMPTS):db.execute(f'DELETE FROM {table} WHERE '+where,(sid,))
+    db.execute(f'DELETE FROM {SAMPLING} WHERE scope_seq IN (SELECT scope_seq FROM {SCOPES} WHERE session_id=?)',(sid,))
     db.execute(f'DELETE FROM {SCOPES} WHERE session_id=?',(sid,))
     changed=db.execute(f'''UPDATE {SCOPES} SET retained_bytes=retained_bytes-?,reserved_bytes=reserved_bytes-?,staging_bytes=staging_bytes-?
         WHERE scope_seq=0 AND retained_bytes>=? AND reserved_bytes>=? AND staging_bytes>=?''',(*totals,*totals)).rowcount
@@ -490,11 +558,13 @@ class HistoryStore:
 
     def _scope(self,db,sid,rid,space=None,*,create=False):
         _live(db,sid)
-        row=db.execute(f'SELECT * FROM {SCOPES} WHERE session_id=? AND recording_id=?',(sid,rid)).fetchone()
+        row=db.execute(f'''SELECT h.*,s.sampling_policy,s.examined_bucket,s.examined_count FROM {SCOPES} h
+            LEFT JOIN {SAMPLING} s ON s.scope_seq=h.scope_seq WHERE h.session_id=? AND h.recording_id=?''',(sid,rid)).fetchone()
         from .recording_speaker_link_store import SCOPES as OLD
         if db.execute(f'SELECT 1 FROM {OLD} WHERE session_id=? AND recording_id=?',(sid,rid)).fetchone():
             _fail('history_legacy_scope_frozen')
         if row is not None:
+            if row['sampling_policy'] is None:_fail('history_sampling_missing')
             if space is not None and row['space_json']!=_raw(space,16384):_fail('history_space_changed')
             return row
         if not create:return None
@@ -509,8 +579,12 @@ class HistoryStore:
         scope_id=_hash(encoded({'session_id':sid,'recording_id':rid}))
         db.execute(f'''INSERT INTO {SCOPES}(scope_seq,scope_id,session_id,recording_id,policy,space_id,space_json,interval_frames,retained_bytes)
             VALUES(?,?,?,?,?,?,?,960000,0)''',(seq,scope_id,sid,rid,POLICY,space_id,space_raw))
+        policy=getattr(self.settings,'recording_primary_sampling_policy',SAMPLING_V1)
+        if policy not in (SAMPLING_V1,SAMPLING_V2):_fail('history_sampling_policy')
+        db.execute(f'INSERT INTO {SAMPLING}(scope_seq,sampling_policy,counters) VALUES(?,?,?)',
+            (seq,policy,SAMPLING_EMPTY))
         _change_usage(db,seq,retained=SCOPE_CHARGE)
-        return db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(seq,)).fetchone()
+        return self._scope(db,sid,rid,space)
 
     @staticmethod
     def _due(scope,frame):
@@ -520,7 +594,11 @@ class HistoryStore:
         if frame<=scope['high_water']:return {'due':False,'reason':'missed'}
         if frame<120*16000:
             due=scope['bootstrap_count']<6 and frame-scope['last_claim_frame']>=10*16000
-        else:due=(frame-120*16000)//scope['interval_frames']>scope['last_bucket']
+        else:
+            bucket=(frame-120*16000)//scope['interval_frames']
+            due=bucket>scope['last_bucket']
+            if scope['sampling_policy']==SAMPLING_V2 and bucket==scope['examined_bucket']:
+                due=due and scope['examined_count']<SAMPLING_LIMIT
         return {'due':due,'reason':'none' if due else 'missed'}
 
     def uses_history(self,sid,rid):
@@ -535,14 +613,67 @@ class HistoryStore:
         if not self.enabled:return {'due':False,'reason':'other'}
         with self._database() as db:return self._due(self._scope(db,sid,rid),source_start_frame)
 
-    def note_primary_skip(self,sid,rid,source_start_frame,reason,space):
+    def primary_sampling_diagnostics(self,sid,rid):
+        with self._database() as db:
+            scope=self._scope(db,sid,rid)
+            return None if scope is None else sampling_diagnostics(db,scope['scope_seq'])
+
+    def _sampling_examine(self,db,scope,frame,reason,*,due):
+        """Fixed metadata only; no admission, PCM retention or execution authority."""
+        if scope['sampling_policy']!=SAMPLING_V2:return False
+        row=db.execute(f'SELECT * FROM {SAMPLING} WHERE scope_seq=?',(scope['scope_seq'],)).fetchone()
+        counts=_sampling_counters(row['counters'])
+        reason=reason if reason in SAMPLING_REASONS or reason=='admitted' else 'other'
+        if not due:reason='missed'
+        counts[reason]=min(SAMPLING_COUNTER_MAX,counts[reason]+1)
+        bucket=(frame-120*16000)//scope['interval_frames'] if frame>=120*16000 else -1
+        count=row['examined_count'] if bucket==row['examined_bucket'] else 0
+        exhausted=False
+        if due:
+            counts['examined']=min(SAMPLING_COUNTER_MAX,counts['examined']+1)
+            if bucket>=0:
+                count+=1
+                exhausted=count>=SAMPLING_LIMIT and reason!='admitted'
+                if exhausted:counts['exhausted']=min(SAMPLING_COUNTER_MAX,counts['exhausted']+1)
+        # Non-due windows never reset or consume an examination budget.
+        next_bucket=bucket if due and bucket>=0 else row['examined_bucket']
+        next_count=count if due and bucket>=0 else row['examined_count']
+        db.execute(f'''UPDATE {SAMPLING} SET examined_bucket=?,examined_count=?,counters=?,
+            last_frame=?,last_reason=? WHERE scope_seq=?''',
+            (next_bucket,next_count,encoded(counts),frame,reason,scope['scope_seq']))
+        return exhausted
+
+    def note_primary_skip(self,sid,rid,source_start_frame,reason,space,*,v2_only=False,hard_close=False):
         with self._database(write=True) as db:
+            if v2_only:
+                existing=self._scope(db,sid,rid)
+                policy=existing['sampling_policy'] if existing is not None else getattr(
+                    self.settings,'recording_primary_sampling_policy',SAMPLING_V1)
+                if policy!=SAMPLING_V2:return False
             scope=self._scope(db,sid,rid,space,create=True)
-            if source_start_frame<=scope['high_water']:return False
+            due=self._due(scope,source_start_frame)['due']
             bucket=(source_start_frame-120*16000)//scope['interval_frames'] if source_start_frame>=120*16000 else -1
-            # Cadence diagnostics do not dirty unchanged comparison evidence.
+            if source_start_frame<=scope['high_water']:
+                if not (hard_close and scope['sampling_policy']==SAMPLING_V2 and bucket>scope['last_bucket']):
+                    return False
+                # Storage-only closure may be overtaken by a NEW busy window.
+                # Close the original bucket once, never rewind high_water or
+                # reopen/reset a newer bucket's examination budget.
+                row=db.execute(f'SELECT counters FROM {SAMPLING} WHERE scope_seq=?',(scope['scope_seq'],)).fetchone()
+                counts=_sampling_counters(row['counters'])
+                counts['unavailable']=min(SAMPLING_COUNTER_MAX,counts['unavailable']+1)
+                counts['examined']=min(SAMPLING_COUNTER_MAX,counts['examined']+1)
+                db.execute(f'UPDATE {SAMPLING} SET counters=?,last_frame=?,last_reason=? WHERE scope_seq=?',
+                    (encoded(counts),source_start_frame,'unavailable',scope['scope_seq']))
+                db.execute(f'UPDATE {SCOPES} SET last_bucket=? WHERE scope_seq=?',(bucket,scope['scope_seq']))
+                return True
+            exhausted=self._sampling_examine(db,scope,source_start_frame,reason,due=due)
+            # V1 is unchanged. V2 retries only an explicitly safe, fresh live
+            # window. Known absent claim resolution is not an unknown outcome.
+            retryable=reason in ('busy','insufficient_clean_support','claim_absent')
+            close_bucket=(scope['sampling_policy']==SAMPLING_V1 or (due and (exhausted or not retryable)))
             db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_bucket=MAX(last_bucket,?),skipped_count=MIN(2147483647,skipped_count+1) WHERE scope_seq=?''',
-                (source_start_frame,bucket,scope['scope_seq']))
+                (source_start_frame,bucket if close_bucket else -1,scope['scope_seq']))
         return True
 
     @staticmethod
@@ -624,6 +755,7 @@ class HistoryStore:
             answer=self._claim(db,scope,attempt_id,'primary_commit',saved['header']['digest'],identity,maximum,
                 PROBE_STAGING_BYTES,current_check,payload)
             if answer['should_probe']:
+                self._sampling_examine(db,scope,frame,'admitted',due=True)
                 bucket=(frame-120*16000)//scope['interval_frames'] if frame>=120*16000 else -1
                 db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_claim_frame=?,last_bucket=MAX(last_bucket,?),
                     bootstrap_count=bootstrap_count+?,state='pending' WHERE scope_seq=?''',
@@ -1491,7 +1623,8 @@ def read_saved_for_refs(db,sid,rid,refs,*,byte_limit=PAGE_BYTES):
     result={'history_policy':True,'scope_id':scope['scope_id'],'state':'links_stale','history_status':'pending',
         'revision':scope['history_revision'],'decision_revision':-1,'policy_sha256':POLICY_SHA256,
         'space_id':scope['space_id'],'annotations':[],'authority_revision':scope['authority_revision'],
-        'observation_count':scope['observation_count'],'vector_count':scope['vector_count']}
+        'observation_count':scope['observation_count'],'vector_count':scope['vector_count'],
+        'sampling':sampling_diagnostics(db,scope['scope_seq'])}
     if authority_unknown:
         result.update(history_status='pending',reason='source_authority_unknown');return result
     if scope['authority_blocked'] is not None:
@@ -1943,7 +2076,8 @@ def read_primary_observations(db,sid,rid,after=None,limit=32):
     rows=db.execute(f'''SELECT c.sequence,c.observation_id FROM {CERTIFICATES} c
         JOIN {ATTEMPTS} a ON a.token=c.attempt WHERE c.scope_seq=? AND c.sequence>?
         AND a.origin_kind='primary_commit' ORDER BY c.sequence LIMIT ?''',(seq,last,limit+1)).fetchall()
-    items=[];used=len(encoded(context))+1024
+    sampling=sampling_diagnostics(db,seq)
+    items=[];used=len(encoded(context))+len(encoded(sampling))+1024
     for row in rows[:limit]:
         item=binding(db,sid,rid,row['observation_id']);size=len(encoded(item))+1
         if used+size>PAGE_BYTES:
@@ -1952,5 +2086,5 @@ def read_primary_observations(db,sid,rid,after=None,limit=32):
         items.append(item);used+=size;last=row['sequence']
     more=bool(rows and (len(rows)>len(items)))
     return {'items':items,'next_cursor':_observation_cursor({**context,'after':last}) if more else None,
-        'complete':not more,'scope_id':revision['scope_id'],
+        'complete':not more,'scope_id':revision['scope_id'],'sampling':sampling,
         'source_authority_revision':revision['source_authority_revision'],'source_revision':revision['source_revision']}

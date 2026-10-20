@@ -70,6 +70,7 @@ def main(argv=None):
     parser.add_argument('--moss-automatic',action='store_true',help='Candidate default-OFF automatic timestamped recording MOSS dispatch; requires MOSS jobs, native-owned support/cells/core-seams and the ordinary Worker; excludes legacy seam-cells')
     parser.add_argument('--recording-speaker-links', action='store_true', help='EXPERIMENTAL default-off recording-scoped anonymous speaker links; 32-node cap; requires automatic MOSS or exact clean-primary mode')
     parser.add_argument('--recording-primary-observation-policy', choices=('off','primary-clean-history-v1'), default='off', help='EXPERIMENTAL clean-primary immutable history; no model qualification')
+    parser.add_argument('--recording-primary-sampling-policy', choices=('skip-bucket-v1','fresh-window-bounded-v2'), default='skip-bucket-v1', help='EXPERIMENTAL fresh live-window admission only; existing scopes keep their policy')
     parser.add_argument('--recording-primary-observation-interval-seconds', type=int, default=60)
     parser.add_argument('--recording-speaker-history-read', action='store_true', help='Passive saved history projection; does not enable models')
     parser.add_argument('--recording-speaker-model', type=Path, help='Explicit existing local audited speaker.onnx; no downloads or gallery enrollment')
@@ -257,6 +258,7 @@ def main(argv=None):
                         moss_result_max_bytes_per_session=args.moss_result_max_bytes_per_session,
                         recording_speaker_links_enabled=args.recording_speaker_links,
                         recording_primary_observation_policy=args.recording_primary_observation_policy,
+                        recording_primary_sampling_policy=args.recording_primary_sampling_policy,
                         recording_primary_observation_interval_seconds=args.recording_primary_observation_interval_seconds,
                         recording_speaker_history_read_enabled=args.recording_speaker_history_read,
                         recording_primary_provenance_recording_bytes=args.recording_primary_provenance_recording_bytes,

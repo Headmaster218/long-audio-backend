@@ -26,6 +26,7 @@ def validate_framemn_options(enabled, checkpoint_path, profile):
 # string alone never opens the shared native/probe coordinator.
 PRIMARY_ONLY_FIELDS = (
     'recording_primary_observation_policy', 'recording_primary_observation_interval_seconds',
+    'recording_primary_sampling_policy',
     'recording_speaker_links_enabled', 'recording_speaker_model_path',
     'moss_jobs_enabled', 'moss_automatic_enabled', 'moss_jobs_model_path',
     'native_owned_support_enabled', 'native_owned_cells_enabled',
@@ -158,6 +159,7 @@ class Settings:
     moss_automatic_enabled: bool = False
     recording_primary_observation_policy: str = "off"
     recording_primary_observation_interval_seconds: int = 60
+    recording_primary_sampling_policy: str = "skip-bucket-v1"
     recording_speaker_history_read_enabled: bool = False
     recording_speaker_links_enabled: bool = False
     recording_speaker_model_path: str | None = None
@@ -229,6 +231,10 @@ class Settings:
             raise ValueError('recording_speaker_history_read_enabled must be boolean')
         if self.recording_primary_observation_policy not in ('off', 'primary-clean-history-v1'):
             raise ValueError('Unknown recording primary observation policy')
+        if self.recording_primary_sampling_policy not in ('skip-bucket-v1','fresh-window-bounded-v2'):
+            raise ValueError('Unknown primary sampling policy')
+        if self.recording_primary_sampling_policy != 'skip-bucket-v1' and self.recording_primary_observation_policy == 'off':
+            raise ValueError('Fresh-window sampling requires explicit primary history')
         if type(self.recording_primary_observation_interval_seconds) is not int or self.recording_primary_observation_interval_seconds != 60:
             raise ValueError('Reviewed primary observation interval is 60 seconds')
         if self.recording_primary_observation_policy != 'off' and not (self.recording_speaker_links_enabled and self.native_owned_bounded_core_support_enabled):
