@@ -1,0 +1,223 @@
+{
+  "purpose": "Public-safe source review checkpoint; not deployment or runnable test distribution",
+  "source_files": [
+    {
+      "file": "source/adapter.py",
+      "original_sha256": "2d434172ea6e9eb3a8aa097912606c73dea249011e99c84d6cdcfed0fb354b80",
+      "transformations": [
+        "Removed deployment/CLI main function; no release loader or command-line startup entrypoint included.",
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/disk_census.py",
+      "original_sha256": "19fb43e7778294b8aefbc9d8487f5de05e432badcdeb08ccafc3f70fc15992d3",
+      "transformations": []
+    },
+    {
+      "file": "source/endurance.py",
+      "original_sha256": "0024aa7e3f58f7acb8074be42c53b6f96fcad7a18db7c799de9b080bd50b82ba",
+      "transformations": []
+    },
+    {
+      "file": "source/http_transport.py",
+      "original_sha256": "d9abdf421d04bd468443f0b2e15bdb3a43565e9f2f57d182b2d0d2c0e15356c6",
+      "transformations": []
+    },
+    {
+      "file": "source/integration_controls.py",
+      "original_sha256": "c1d856ca98cc4dec74782a4a77fac2254adea0c476405290b4b730f37d86e837",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only.",
+        "Replaced experiment-specific relative monitor locator with generic reviewed-dependencies path."
+      ]
+    },
+    {
+      "file": "source/launch_binding.py",
+      "original_sha256": "203547862312854443e31cae00a88894e5e96cbf07911b2d847407d72b7d1edf",
+      "transformations": []
+    },
+    {
+      "file": "source/lifecycle_fixture.py",
+      "original_sha256": "3ab0bc85b9a33510e87681f12524bba86104bf7e69d1df808ee462f47da8376c",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/namespace_sampling.py",
+      "original_sha256": "8ec05c4529927538463ff9949da70340ce2035b010d0467f8dad6a440ecb12cb",
+      "transformations": []
+    },
+    {
+      "file": "source/ownership.py",
+      "original_sha256": "3282eb6db4d2765673ce4f661cc4db7eb59c8516d417ef3a228371b39d6db10f",
+      "transformations": []
+    },
+    {
+      "file": "source/passive.py",
+      "original_sha256": "de4f2ee81f7a18142d422ea83e46d7c9936443acea0d11df2439fc3bf7fced89",
+      "transformations": [
+        "Removed deployment/CLI main function; no release loader or command-line startup entrypoint included.",
+        "Removed executable __main__ guard; public inspection source only.",
+        "Redacted internal historical chunk ID; preserved comparison logic."
+      ]
+    },
+    {
+      "file": "source/product_transition.py",
+      "original_sha256": "0f4c495d5e41a66968603ecb35d858f4ffe16e7f13c058b3fbae31fbf8f61339",
+      "transformations": []
+    },
+    {
+      "file": "source/resume_state.py",
+      "original_sha256": "528a173b31d3e3d8ab4c454bcbf9652b559f373e9a8d7c03be24df6729c1004c",
+      "transformations": [
+        "Redacted internal historical chunk ID; preserved comparison logic.",
+        "Corrected stale module documentation only."
+      ]
+    },
+    {
+      "file": "source/sampler_observation.py",
+      "original_sha256": "ee5d2a1bfd649840d418c73347339802c11e5cccad3260e905cdc967271ef71f",
+      "transformations": []
+    },
+    {
+      "file": "source/test_adapter_source.py",
+      "original_sha256": "fb49b7bda73ffb047112be9dd692bf55e10796e62567508a5455cad69b8bdc7f",
+      "transformations": []
+    },
+    {
+      "file": "source/test_continuation.py",
+      "original_sha256": "5ed5a07b5e331d746e29131174098a984409a973a609cd175bfbc1f5119f6d09",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_disk_adapter.py",
+      "original_sha256": "50f16b0fdba576dcac1c824afc08857cee50b4a698b6279d3202bb1ccb7f7312",
+      "transformations": []
+    },
+    {
+      "file": "source/test_disk_census.py",
+      "original_sha256": "2ad16ca2ba786060b4b048c7a4cade6330273f598433756435c477eb5901e1cb",
+      "transformations": []
+    },
+    {
+      "file": "source/test_endurance_source.py",
+      "original_sha256": "16d18ba44be78f0076fe18bfa3f7e0faa3cb40c58ed9f8c6a7b9dbf2787aa25c",
+      "transformations": []
+    },
+    {
+      "file": "source/test_http_transport.py",
+      "original_sha256": "49bfb13cc174ffd2fc256acf1b2cfbea2bfa2ac18951a5b62bb5d1bacb6a77aa",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_launch_binding.py",
+      "original_sha256": "9987d84c55bfc828a073c2b6350cfc090d0509df6822f93378cc8292f4c96a7a",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_locked_adapter.py",
+      "original_sha256": "68d042211575e8c2d49821a279bb623f65da1f918b13d3c58f6ec779e2f30eda",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_namespace_adapter.py",
+      "original_sha256": "e242fd267090028cd161be68385e8121be5c82f156eb79a940460104f13e9fc0",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_namespace_sampling.py",
+      "original_sha256": "ba0d4f3b38e16ce8c7eb3ff179c245e9c3ba9e8cde764747757ba7c4c3db62d2",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_ownership.py",
+      "original_sha256": "e054167270ef11fc646f91c38aec990823e6c9e4a8b21e9c764003dd73d4c673",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only."
+      ]
+    },
+    {
+      "file": "source/test_resume_boundary.py",
+      "original_sha256": "0dfaf3986890a1da110ac5c4ced31354b8494d63912e7e3c5631a707891c2efe",
+      "transformations": []
+    },
+    {
+      "file": "source/test_sampler_observation.py",
+      "original_sha256": "9cb7bfbe732a4d36bb9a63949f78a0b5033313d57e1cb49dedddd06ca8186a92",
+      "transformations": [
+        "Removed executable __main__ guard; public inspection source only.",
+        "Replaced private monitor filesystem locator with a non-deployment placeholder."
+      ]
+    },
+    {
+      "file": "history/adapter-before-disk-fix.py",
+      "original_sha256": "7663f637dfbfef8c9caf3e247b6f523d916f39734c57716fcb4566f6e0b8cb2d",
+      "transformations": [
+        "Removed deployment main and executable guard."
+      ],
+      "status": "Historical failed disk census implementation, not current implementation."
+    },
+    {
+      "file": "sampling-protocol.json",
+      "original_sha256": "a357136eebaafcec0ad386e1ca3847be16e7c8a64b26c27745b034193d87fe60",
+      "transformations": []
+    },
+    {
+      "file": "disk-protocol.json",
+      "original_sha256": "1dfa3e0c28683699e256489b58e5e5c3eea1136fb88dca313eb7686d77530f5c",
+      "transformations": []
+    }
+  ],
+  "qualification_scope": "Tests executed against original private frozen fixtures, not transformed public files. Public source AST parsed only.",
+  "excluded": [
+    "release and approval manifests",
+    "raw run logs",
+    "private filesystem locators",
+    "source recordings",
+    "model weights",
+    "databases and journals",
+    "voiceprints",
+    "runtime installations",
+    "exact internal session and chunk identifiers"
+  ],
+  "controls": {
+    "namespace_module_tests": 36,
+    "integrated_tests": 198,
+    "disk_census_tests_within_integrated": 41,
+    "disk_adapter_tests_within_integrated": 4,
+    "actual_shaped_run_tests_within_integrated": 22,
+    "previous_control_attempt": {
+      "passed": 197,
+      "failed": 1,
+      "reason": "Stale373 source-string fixture; replaced with current pinned-baseline semantic stop/fsync/conservation test, runtime unchanged"
+    },
+    "two_generation_synthetic_lifecycle": "passed",
+    "original_unit_receipt_sha256": "304e08d63dc3bb8476409375d31c0147e1a8e25464d7914f937af4e8a081ad7b",
+    "original_unit_output_sha256": "20ab5738cbdce43fb05533f7a1deeb10848510784f6623a90fa9bb07f148a340",
+    "original_lifecycle_receipt_sha256": "8a58b2dab23a789abedd74ef6853af733a36e54ad90fcfc66165e37c75e1a0d5",
+    "original_lifecycle_result_sha256": "353a96f9a57c70eb7be14c2a05777b6b7b34b44817f2808b46fd756488bf8d70"
+  },
+  "historical_actual_disk_failure": {
+    "original_wait_receipt_sha256": "aed4f32cb94ecf5f8cb2b8fb5ccb395a4a76d2182795cc56db732bee542302d2",
+    "exact_path_unknown": true,
+    "positive_supervisor_wait": true,
+    "positive_child_cleanup": true,
+    "completed_baseline": 400,
+    "result_rows": 2412
+  },
+  "previous_failed_control_receipt_sha256": "083934ce0731befb065e3171c6e648a9d8a0354996f77d51cffe73790e6fce3a"
+}

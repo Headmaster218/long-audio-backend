@@ -1,0 +1,20 @@
+{
+  "name": "visible-pid-namespace-rss-v1",
+  "scope": "all visible numeric PIDs in captured execution PID namespace",
+  "memory_ceiling_bytes": 6442450944,
+  "maximum_proc_entries": 4096,
+  "maximum_visible_processes": 128,
+  "unreadable_live_freshness_seconds": 3,
+  "comparator_discount_bytes": 0,
+  "role_classification": "attribution only, not admission",
+  "bootstrap_cpu_exemption": "exact captured/pinned ancestors of reviewed wrapper only; RSS still counted",
+  "exit_gaps": "positive same-namespace absence recorded; prior aggregate charge retained; historical peak unknown",
+  "original_ownership": "unchanged exact launch pins, inherited kernel locks, original Popen waits and final no-survivor proof",
+  "scope_change_approved_by_root": true,
+  "hard_peak_guarantee": false,
+  "cgroup_atomic_measurement": false,
+  "maximum_diagnostic_records": 131072,
+  "maximum_diagnostic_record_bytes": 16384,
+  "cumulative_details_ledger_cap_bytes": 67108864,
+  "current_role_attribution": "Not attempted by resource sampler; current roles empty and completeness false. Historical roles reported separately."
+}

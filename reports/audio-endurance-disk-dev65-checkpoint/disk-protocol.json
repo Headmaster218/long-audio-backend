@@ -1,0 +1,20 @@
+{
+  "name": "fd-relative-sampled-disk-v1",
+  "scope": "all run-root directories and regular files, allocated=max(logical_size,blocks*512); logical stdout/stderr from same bounded census",
+  "symlinks_special_files_device_drift": "refuse",
+  "permissions_io_ancestor_or_path_binding_drift": "refuse",
+  "normal_sample_seconds": 5,
+  "last_clean_freshness_seconds": 15,
+  "gap_refreshes_clean_time": false,
+  "conservative_gap_charge": "prior aggregate plus outstanding reservations plus positive newly measured/partial identity increments, not less than current readable total",
+  "complete_after_gap": "enforce retained charge before resolving episode",
+  "disk_bytes": 8589934592,
+  "free_floor_bytes": 5905580032,
+  "terminal_reserve_bytes": 67108864,
+  "diagnostic_cap_bytes": 8388608,
+  "diagnostics": "held exclusive bounded direct descriptor, no Ledger.admit recursion; identity-verified and fsynced",
+  "log_cap_bytes": 268435456,
+  "hard_peak_guarantee": false,
+  "unseen_or_unlinked_open_bytes": "not proven by sampled named-file census; observed gaps disclosed, global free-space floor independently checked",
+  "immutable_proofs": "unchanged exact source/receipt/input/stat/hash validation; no grace applies"
+}
