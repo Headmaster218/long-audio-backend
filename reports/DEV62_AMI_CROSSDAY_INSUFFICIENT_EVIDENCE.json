@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "title": "dev62 AMI cross-day fixed-policy evaluation",
+  "date_utc": "2026-10-20",
+  "verdict": "INSUFFICIENT_EVIDENCE",
+  "summary_zh": "固定条件下，增加参考后仍未产生身份建议。没有可评分的已注册同人查询，不能据此证明长期识别改善或误认风险降低。",
+  "corpus": {
+    "name": "AMI Meeting Corpus",
+    "recordings": [
+      "EN2002a",
+      "EN2002b"
+    ],
+    "official_download": "https://groups.inf.ed.ac.uk/ami/download/",
+    "official_metadata": "https://groups.inf.ed.ac.uk/ami/corpus/signals.shtml",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "audio": "single-channel 16 kHz PCM16 Mix-Headset",
+    "annotations": "official public manual 1.6.2",
+    "sessions": [
+      {
+        "recording": "EN2002a",
+        "date": "2005-02-08",
+        "role": "enrollment",
+        "participant_mapping": {
+          "A": "MEE073",
+          "B": "FEO070",
+          "C": "FEO072",
+          "D": "MEE071"
+        }
+      },
+      {
+        "recording": "EN2002b",
+        "date": "2005-02-22",
+        "role": "query",
+        "participant_mapping": {
+          "A": "FEO070",
+          "B": "MEE071",
+          "C": "FEO072",
+          "D": "MEE073"
+        }
+      }
+    ]
+  },
+  "fixed_protocol": {
+    "window_seconds_each": [
+      0,
+      360
+    ],
+    "interval": "start inclusive, end exclusive",
+    "withheld_person": "MEE073",
+    "enrollable_people": [
+      "FEO070",
+      "MEE071",
+      "FEO072"
+    ],
+    "arms_references_per_person": [
+      0,
+      1,
+      2
+    ],
+    "selection": "Earliest eligible retained A primary crops; fixed source-time order; no replacements outside the fixed window.",
+    "reference_eligibility": "At least 2.0 seconds, production review/vector eligibility, authoritative native packet witness_count exactly zero, and whole-crop single-person annotation purity. Unknown overlap metadata is ineligible.",
+    "same_query_inventory_all_arms": true,
+    "B_labels_gate": "All three prediction artifacts sealed before B segment labels opened.",
+    "registration": "Label-assisted simulation, not human listening or user attestation.",
+    "operator": "ami-label-assisted-registration-simulation-v1",
+    "execution": "Installed production HTTP APIs plus explicitly invoked production-library enqueue/process_one on the isolated actual Store after model workers stopped; not pure HTTP end-to-end. No new encoding in the scoring stage.",
+    "suggestions_applied_as_merges": false
+  },
+  "unchanged_model_and_policy": {
+    "installed_version": "0.2.0rc3.dev62",
+    "speaker_model_sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+    "speaker_model_bytes": 39593761,
+    "policy_name": "verified-review-experimental-v1",
+    "policy_file_sha256": "5217b5fe9737ba2b0348d8ec1d2ba31ccbce6da264630a7506a6f5a71b09cbff",
+    "policy_canonical_sha256": "6f995a448b2254b1f013bf4582f0c485c8f77372fa851236fc2c5ce2ee4527d2",
+    "single_threshold": 0.75,
+    "centroid_threshold": 0.75,
+    "margin": 0.1,
+    "minimum_enrollment_and_query_seconds": 2.0,
+    "thresholds_tuned_on_fixture": false
+  },
+  "collection_qualification": {
+    "each_recording": {
+      "completed_work_rows": 35,
+      "retained_primary_observations": 6,
+      "retained_vectors": 6,
+      "fixed_window_collection_complete": true
+    },
+    "positive_worker_cleanup": true,
+    "A": "Raw-primary qualification is distinct from full anonymous-link qualification: resumed A anonymous links remained historical/stale. The separate qualification did not itself establish API eligibility; actual production binding/review APIs checked candidates during evaluation.",
+    "B": "Raw-primary collection qualified; anonymous-link state current.",
+    "denominator": "Six retained primary certificates in B, not a claim that every acoustic event or pre-reservation refusal became a certificate.",
+    "same_genuine_store": true
+  },
+  "arms": [
+    {
+      "references_requested_per_enrollable_person": 0,
+      "references_actually_registered": {
+        "FEO070": 0,
+        "MEE071": 0,
+        "FEO072": 0,
+        "MEE073": 0
+      },
+      "enrollment_reason_histogram": {
+        "annotation_not_whole_crop_singleton": 1,
+        "eligible": 3,
+        "packet_overlap_or_unknown": 2
+      },
+      "initial_review_count_proxy": 0,
+      "overall": {
+        "all_candidates": 6,
+        "emitted": 0,
+        "emitted_coverage": 0.0,
+        "incomplete_outcomes": 0,
+        "production_review_eligible": 6,
+        "unscorable": 5,
+        "unscorable_emitted": 0
+      },
+      "per_person": {
+        "FEO070": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "FEO072": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "MEE071": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "MEE073": {
+          "abstain": 1,
+          "correct": 0,
+          "correct_coverage": 0.0,
+          "needs_assignment": 1,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 1,
+          "wrong": 0
+        }
+      },
+      "registered_reference_count": 0,
+      "status_histogram": {
+        "unknown_no_reviewed_references": 2,
+        "unknown_packet_overlap": 4
+      },
+      "suggestions_not_actual_merges": true,
+      "workload_is_proxy": true
+    },
+    {
+      "references_requested_per_enrollable_person": 1,
+      "references_actually_registered": {
+        "FEO070": 0,
+        "MEE071": 0,
+        "FEO072": 1,
+        "MEE073": 0
+      },
+      "enrollment_reason_histogram": {
+        "annotation_not_whole_crop_singleton": 1,
+        "eligible": 3,
+        "packet_overlap_or_unknown": 2
+      },
+      "initial_review_count_proxy": 1,
+      "overall": {
+        "all_candidates": 6,
+        "emitted": 0,
+        "emitted_coverage": 0.0,
+        "incomplete_outcomes": 0,
+        "production_review_eligible": 6,
+        "unscorable": 5,
+        "unscorable_emitted": 0
+      },
+      "per_person": {
+        "FEO070": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "FEO072": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "MEE071": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "MEE073": {
+          "abstain": 1,
+          "correct": 0,
+          "correct_coverage": 0.0,
+          "needs_assignment": 1,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 1,
+          "wrong": 0
+        }
+      },
+      "registered_reference_count": 1,
+      "status_histogram": {
+        "unknown_below_threshold": 2,
+        "unknown_packet_overlap": 4
+      },
+      "suggestions_not_actual_merges": true,
+      "workload_is_proxy": true
+    },
+    {
+      "references_requested_per_enrollable_person": 2,
+      "references_actually_registered": {
+        "FEO070": 0,
+        "MEE071": 0,
+        "FEO072": 2,
+        "MEE073": 0
+      },
+      "enrollment_reason_histogram": {
+        "annotation_not_whole_crop_singleton": 1,
+        "eligible": 3,
+        "packet_overlap_or_unknown": 2
+      },
+      "initial_review_count_proxy": 2,
+      "overall": {
+        "all_candidates": 6,
+        "emitted": 0,
+        "emitted_coverage": 0.0,
+        "incomplete_outcomes": 0,
+        "production_review_eligible": 6,
+        "unscorable": 5,
+        "unscorable_emitted": 0
+      },
+      "per_person": {
+        "FEO070": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "FEO072": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "MEE071": {
+          "abstain": 0,
+          "correct": 0,
+          "correct_coverage": null,
+          "needs_assignment": 0,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 0,
+          "wrong": 0
+        },
+        "MEE073": {
+          "abstain": 1,
+          "correct": 0,
+          "correct_coverage": 0.0,
+          "needs_assignment": 1,
+          "needs_correction": 0,
+          "not_evaluable": 0,
+          "scorable": 1,
+          "wrong": 0
+        }
+      },
+      "registered_reference_count": 2,
+      "status_histogram": {
+        "unknown_below_threshold": 2,
+        "unknown_packet_overlap": 4
+      },
+      "suggestions_not_actual_merges": true,
+      "workload_is_proxy": true
+    }
+  ],
+  "interpretation": {
+    "B_retained_candidates": 6,
+    "B_unscorable": 5,
+    "B_scorable_registered_person_queries": 0,
+    "B_scorable_withheld_person_queries": 1,
+    "all_arms_emitted_suggestions": 0,
+    "false_suggestions_observed": 0,
+    "actual_false_merges_measured": false,
+    "corrections": "Zero wrong emitted suggestions; one clean withheld query abstained in each arm. Assignment/correction counts are label-derived workload proxies, not actual human corrections.",
+    "no_safety_claim": "Zero observed wrong suggestions with zero emitted coverage is not evidence of reduced false-merge risk.",
+    "no_learning_gain_claim": "No clean registered-person B queries were available to establish a 0/1/2-reference recognition gain."
+  },
+  "failed_attempts_and_fix": [
+    {
+      "attempt": 1,
+      "outcome": "Stopped at Settings construction before app startup or A/B annotation stage.",
+      "cause": "Collector-derived passive configuration retained incompatible primary-observation producer dependencies.",
+      "fix": "Use minimal valid model-disabled API Settings; retain actual certificate/model/policy pins, disable unrelated producers."
+    },
+    {
+      "attempt": 2,
+      "outcome": "Stopped during A crop selection after A labels opened, before enrollment and before B labels opened.",
+      "cause": "Capture origin was incorrectly subtracted from display times already relative to the fixture.",
+      "fix": "Derive fixture frames from a unique pinned work-chunk digest joined to physical crop provenance: capture_start_frame minus 100003 plus physical crop frame. Assert exact agreement with logical crop frames. No clipping, label-fitted offset, changed window or policy tuning.",
+      "state_check": "No persons, associations or references enrolled before retry; relevant identity state matched the stopped B snapshot."
+    },
+    {
+      "attempt": 3,
+      "outcome": "Completed successfully after a pure coordinate control; predictions sealed before B scoring.",
+      "completed_observed_utc": "2026-10-20T07:49:05Z"
+    }
+  ],
+  "evidence": {
+    "hash_algorithm": "SHA-256",
+    "artifacts": {
+      "results.json": "48e9c7e4b2c667a666fef9262dca3e4ca55399ca4445d750043f95d8efec7090",
+      "candidate-inventory.json": "9dc4a96656675e0ed2cb1079f0be4a82926e0044785ea2e5431821fee8106b91",
+      "enrollment-selection.json": "f1f822df3bfc4e1fcbfb17a50a432de67f2592e7a10e9d78fc0ccb44b4d96588",
+      "predictions-0.json": "297d826e8ddc6f8e44bf7cb6b03b62b4277b01e2b9a8ae8f577db4d52db761fe",
+      "predictions-0.seal.json": "6d7e8ce36badff3a57c1e025d44a289d89dca214f28eda824d4ebccf25ece1d0",
+      "predictions-1.json": "6b92cff8ea6192d18dfb587fc50757425f60d2cae9bc0de9bae028f5c6026424",
+      "predictions-1.seal.json": "84a574b377946f730c7b3d57018440a8885786973b20c17336cb84ef51bf9bc0",
+      "predictions-2.json": "6fd1935ffca76aa65d314a8d4fcc719d1fb595473c1d3202d88fc5b86853e945",
+      "predictions-2.seal.json": "76e9db1287a3377b165799d9495bc177b11843cf702225257e59e091471bd7b5"
+    },
+    "prediction_seals": [
+      {
+        "operator": "ami-label-assisted-registration-simulation-v1",
+        "sha256": "297d826e8ddc6f8e44bf7cb6b03b62b4277b01e2b9a8ae8f577db4d52db761fe",
+        "stage": 0
+      },
+      {
+        "operator": "ami-label-assisted-registration-simulation-v1",
+        "sha256": "6b92cff8ea6192d18dfb587fc50757425f60d2cae9bc0de9bae028f5c6026424",
+        "stage": 1
+      },
+      {
+        "operator": "ami-label-assisted-registration-simulation-v1",
+        "sha256": "6fd1935ffca76aa65d314a8d4fcc719d1fb595473c1d3202d88fc5b86853e945",
+        "stage": 2
+      }
+    ],
+    "final_evaluator_source_sha256": "f9c2a9e58cf35ade1f50801d459a9bb4c79eb61b22347711503cb0808e50c439",
+    "final_config_sha256": "ee28ddf07281ae083b7c07961297a4248ddc0c40336837ea2d0822d21e05661b",
+    "note": "Hashes identify retained evidence; raw prediction details, audio, vectors and local paths are not included in this public-safe report."
+  },
+  "limitations": [
+    "Four English-speaking participants and two dates 14 days apart; not Chinese or long-term validation.",
+    "Only FEO072 had eligible registered references; the other two enrollment candidates had none.",
+    "Five of six B crops failed strict annotation scoring purity; only the withheld person had one clean scorable query.",
+    "A labels were already exposed by the failed coordinate attempt; the correction used source provenance, not label fitting.",
+    "These exposed recordings must not be retuned and reused as independent confirmatory evidence.",
+    "V2 remains NO_GO; this result does not establish readiness for automatic merging or reduced human review."
+  ]
+}
