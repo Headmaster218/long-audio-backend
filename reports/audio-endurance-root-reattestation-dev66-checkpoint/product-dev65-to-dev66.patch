@@ -1,0 +1,1330 @@
+--- a/audio_backend/__init__.py
++++ b/audio_backend/__init__.py
+@@ -1,2 +1,2 @@
+ """Local, resumable audio analysis API. See README for deployment limits."""
+-__version__ = '0.2.0rc3.dev65'
++__version__ = '0.2.0rc3.dev66'
+--- a/audio_backend/__main__.py
++++ b/audio_backend/__main__.py
+@@ -20,6 +20,8 @@
+     parser.add_argument('--fragment-cpu-inspect-lease', help='Inspect one pending owner lease while holding the instance lock')
+     parser.add_argument('--fragment-cpu-reconcile', help='Explicitly reconcile that lease using the exact prior inspection SHA256')
+     parser.add_argument('--instance-lock-fd', type=int, help='Linux only: consume an inherited prelocked read-only instance.lock fd before initialization')
++    parser.add_argument('--native-root-reattestation', type=Path, help='Explicit reviewed bounded-native root-device attestation; requires pinned SHA256 and inherited instance ownership')
++    parser.add_argument('--native-root-reattestation-sha256', help='SHA256 of the exact reviewed root attestation bytes; no automatic discovery')
+     parser.add_argument('--data-dir', type=Path, default=Path(os.getenv('AUDIO_DATA_DIR','audio-data')))
+     parser.add_argument('--model-dir', type=Path, default=Path(os.getenv('AUDIO_MODEL_DIR','models')))
+     parser.add_argument('--threads', type=int, choices=range(1,5), default=4)
+@@ -93,6 +95,10 @@
+         if args.instance_lock_fd is not None:
+             from .resources import InstanceLock
+             lock=InstanceLock(args.data_dir/'instance.lock').adopt(args.instance_lock_fd)
++        if (args.native_root_reattestation is None) != (args.native_root_reattestation_sha256 is None):
++            parser.error('Root re-attestation requires both artifact path and exact SHA256')
++        if args.native_root_reattestation is not None and args.instance_lock_fd is None:
++            parser.error('Root re-attestation requires --instance-lock-fd')
+         return _main(args,parser,argv,lock)
+     finally:
+         if lock is not None: lock.release()
+@@ -101,6 +107,9 @@
+ def _run_app(settings,args,lock,**kwargs):
+     from .app import create_app
+     import uvicorn
++    if args.native_root_reattestation is not None:
++        kwargs.update(native_root_reattestation=args.native_root_reattestation,
++                      native_root_reattestation_sha256=args.native_root_reattestation_sha256)
+     if lock is None:
+         app=create_app(settings,**kwargs)
+     else:
+--- a/audio_backend/app.py
++++ b/audio_backend/app.py
+@@ -167,7 +167,8 @@
+ _INHERITED_APPS_PENDING_CLEANUP = []
+ 
+ 
+-def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=None,instance_lock_fd=None):
++def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=None,instance_lock_fd=None,
++               native_root_reattestation=None,native_root_reattestation_sha256=None):
+     """Optional explicit prelocked handoff, before any Store/filesystem setup.
+ 
+     In inherited mode the descriptor is consumed. The supervisor must retain
+@@ -182,14 +183,24 @@
+             lock.adopt(instance_lock_fd)
+         settings=settings or Settings()
+         if lock is not None: lock.verify_inherited(settings.data_dir/'instance.lock')
++        if (native_root_reattestation is None) != (native_root_reattestation_sha256 is None):
++            raise ValueError('Root re-attestation requires both artifact path and exact SHA256')
++        admission=None
++        if native_root_reattestation is not None:
++            if fragment_provider_factory is not None:
++                raise ValueError('Root re-attestation excludes fragment providers')
++            from .native_root_reattestation import load
++            admission=load(native_root_reattestation,native_root_reattestation_sha256,settings,lock)
+         return _create_app(settings,analyzer_factory,
+-            fragment_provider_factory=fragment_provider_factory,inherited_lock=lock)
++            fragment_provider_factory=fragment_provider_factory,inherited_lock=lock,
++            root_reattestation=admission)
+     except BaseException:
+         if lock is not None: lock.release()
+         raise
+ 
+ 
+-def _create_app(settings,analyzer_factory=None,*,fragment_provider_factory=None,inherited_lock=None):
++def _create_app(settings,analyzer_factory=None,*,fragment_provider_factory=None,inherited_lock=None,
++                root_reattestation=None):
+     settings=settings or Settings()
+     from .moss_handy_jobs import ownership_fence
+     ownership_fence(settings.data_dir)  # Early diagnostic only; repeated under lock.
+@@ -197,6 +208,9 @@
+     primary_only = primary_only_enabled(settings)
+     if coordinator_enabled(settings) and fragment_provider_factory is not None:
+         raise ValueError('Native job coordinator does not support fragment provider coexistence')
++    if root_reattestation is not None:
++        # Repeat the read-only anchors immediately before the first mutation.
++        root_reattestation._recheck(inherited_lock)
+     for folder in ('uploads','tmp'):
+         (settings.data_dir/folder).mkdir(parents=True,exist_ok=True)
+     store=Store(settings.data_dir/'jobs.sqlite3',settings)
+@@ -261,7 +275,8 @@
+             if settings.native_owned_cells_enabled or os.path.lexists(settings.data_dir/'native-owned-cells'):
+                 try:
+                     from .native_owned_cell_capture import register as register_cells
+-                    registered_cells=register_cells(store,fragment_provider_factory=fragment_provider_factory,instance_lock=lock)
++                    registered_cells=register_cells(store,fragment_provider_factory=fragment_provider_factory,instance_lock=lock,
++                        root_reattestation=root_reattestation)
+                     worker.native_owned_cells=registered_cells
+                     if registered_cells is not None and settings.native_owned_compact_gc_enabled:
+                         registered_cells.bind_retention_worker(worker)
+--- a/audio_backend/native_owned_cell_capture.py
++++ b/audio_backend/native_owned_cell_capture.py
+@@ -1706,7 +1706,7 @@
+     return None
+ 
+ 
+-def register(store, *, fragment_provider_factory=None, instance_lock=None):
++def register(store, *, fragment_provider_factory=None, instance_lock=None, root_reattestation=None):
+     settings = store.settings; enabled = bool(getattr(settings, 'native_owned_cells_enabled', False))
+     directory = Path(settings.data_dir) / 'native-owned-cells'
+     if not enabled and not os.path.lexists(directory):return None
+@@ -1716,6 +1716,12 @@
+     try:
+         existing = _REGISTRY.get(key)
+         if existing is not None:
++            if existing.owner._root_reattestation is not root_reattestation:
++                raise Unavailable('root_reattestation_registry_mismatch')
++            if root_reattestation is not None:
++                if instance_lock is not existing.owner.instance_lock:
++                    raise Unavailable('root_reattestation_registry_lock_mismatch')
++                root_reattestation.verify_owner(existing.owner)
+             if existing.authority.identity != authority.identity:raise Unavailable('primary_database_replaced')
+             if getattr(existing.owner, 'bounded_core_enabled', False) != bool(getattr(settings, 'native_owned_bounded_core_support_enabled', False)):
+                 raise Unavailable('bounded_activation_requires_new_owner')
+@@ -1724,6 +1730,7 @@
+         reason = configuration_reason(settings, fragment_provider_factory)
+         profile = None if reason else qualified_runtime(settings.data_dir)
+         owner = CellStore(directory, authority, enabled=enabled, qualification=profile, instance_lock=instance_lock,
++            root_reattestation=root_reattestation,
+             seam_enabled=bool(getattr(settings, 'native_owned_seam_cells_enabled', False)),
+             core_seam_enabled=bool(getattr(settings, 'native_owned_core_seams_enabled', False)),
+             compact_gc_enabled=bool(getattr(settings, 'native_owned_compact_gc_enabled', False)),
+--- a/audio_backend/native_owned_cell_store.py
++++ b/audio_backend/native_owned_cell_store.py
+@@ -580,12 +580,19 @@
+ class CellStore:
+     """No growing thread set, active+pending queue, or retained omitted-row log."""
+     def __init__(self, directory, authority, *, enabled, qualification=None, instance_lock=None,
+-                 seam_enabled=False, core_seam_enabled=False, compact_gc_enabled=False, receipt_gc_enabled=False):
++                 seam_enabled=False, core_seam_enabled=False, compact_gc_enabled=False, receipt_gc_enabled=False,
++                 root_reattestation=None):
+         settings=getattr(getattr(authority,'store',None),'settings',None)
+         self.bounded_core_enabled=bool(getattr(settings,'native_owned_bounded_core_support_enabled',False))
+         if self.bounded_core_enabled:
+             if not enabled or not core_seam_enabled:raise Unavailable('bounded_core_configuration')
+             directory=Path(directory).with_name(Path(directory).name+'-bounded-v1')
++        if root_reattestation is not None:
++            from .native_root_reattestation import RootReattestation
++            if type(root_reattestation) is not RootReattestation:
++                raise Unavailable('root_reattestation_unvalidated_admission')
++        self._root_reattestation=root_reattestation
++        self._root_reattestation_diagnostic=None
+         self.retention_store_key=None
+         self.directory = Path(directory)
+         self.path = self.directory / 'cells.sqlite3'
+@@ -1123,6 +1130,7 @@
+         return identities
+ 
+     def _open(self):
++        if self._root_reattestation is not None:self._root_reattestation.verify_owner(self)
+         budget = Budget.for_owner()
+         self._check_parents(budget)
+         # Verify build and actual loaded binaries before any on-disk connection
+@@ -1176,17 +1184,31 @@
+                 row = db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
+                 from .native_owned_core_seams import store_policy
+                 accepted_store_policies = (((store_policy(bounded=True) if self.bounded_core_enabled else store_policy()),) if self.core_seam_enabled else (POLICY_SHA256, STORE_POLICY_SHA256))
+-                if (row is None or row['policy'] not in accepted_store_policies
++                if self._root_reattestation is not None:
++                    if row is None or row['policy'] not in accepted_store_policies:
++                        raise Unavailable('optional_primary_binding_mismatch')
++                    self._root_reattestation_diagnostic=self._root_reattestation.accept(self,row,binding,db)
++                    _diagnostic('native_owned_root_reattestation artifact_sha256=%s old_binding_sha256=%s current_binding_sha256=%s change=root_device_only',
++                        self._root_reattestation_diagnostic['artifact_sha256'],
++                        self._root_reattestation_diagnostic['old_binding_sha256'],
++                        self._root_reattestation_diagnostic['current_binding_sha256'])
++                elif (row is None or row['policy'] not in accepted_store_policies
+                         or tuple(row)[:1] + tuple(row)[2:] != binding[:1] + binding[2:]):
+                     raise Unavailable('optional_primary_binding_mismatch')
+                 # Existing known profiles keep their durable policy. No upgrade,
+                 # metadata rewrite or migration follows a production-flag change.
+                 self._store_policy = row['policy']
+             else:
++                if self._root_reattestation is not None:
++                    raise Unavailable('root_reattestation_existing_database_required')
+                 self._schema(db)
+                 db.execute('INSERT INTO store_meta(id,schema,policy,primary_identity,qualification,namespace_identity,database_identity) VALUES(1,?,?,?,?,?,?)',
+                            binding)
+             verified=db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta WHERE id=1').fetchone()
++            if (self._root_reattestation_diagnostic is not None
++                    and hashlib.sha256(canonical(list(verified))).hexdigest()
++                    != self._root_reattestation_diagnostic['old_binding_sha256']):
++                raise Unavailable('root_reattestation_verified_binding_changed')
+             self.retention_store_key=hashlib.sha256(canonical(list(verified))).hexdigest()
+             if db.execute('SELECT COUNT(*) FROM cells').fetchone()[0] > MAX_CELLS or db.execute('SELECT COUNT(*) FROM sources').fetchone()[0] > MAX_RECEIPTS:
+                 raise Unavailable('existing_row_capacity')
+--- /dev/null
++++ b/audio_backend/native_root_reattestation.py
+@@ -0,0 +1,428 @@
++"""Explicit, immutable admission of one reviewed root-device transition.
++
++No metadata migration, generic root exemption, runtime qualification override or
++artifact issuance lives here. The supervisor supplies and independently pins the
++reviewed artifact. All reads precede Store initialization under inherited flock.
++"""
++from __future__ import annotations
++
++from dataclasses import asdict, dataclass
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import sqlite3
++import stat
++import time
++
++from .native_owned_cells import Unavailable, canonical
++from . import native_owned_cell_store as cells
++
++SCHEMA = 'native-root-reattestation-v1'
++FIELDS = ('schema', 'policy', 'primary_identity', 'qualification',
++          'namespace_identity', 'database_identity')
++ARTIFACT_BYTES = 32768
++BASELINE_BYTES = 2 * 1024**2
++READ_SECONDS = 10.
++_SQL_ROWS = 32
++_SEAL = object()
++
++
++def _fail(reason):
++    raise Unavailable('root_reattestation_' + reason)
++
++
++def _sha(raw):
++    return hashlib.sha256(raw).hexdigest()
++
++
++def _digest(value):
++    if type(value) is not str or re.fullmatch('[0-9a-f]{64}', value) is None:
++        _fail('invalid_digest')
++    return value
++
++
++def _pair(value):
++    if (type(value) is not list or len(value) != 2
++            or any(type(n) is not int or not 0 <= n < 1 << 64 for n in value)):
++        _fail('invalid_identity')
++    return tuple(value)
++
++
++def _path(value):
++    if (type(value) is not str or not value or len(os.fsencode(value)) > 4096
++            or '\x00' in value):
++        _fail('invalid_path')
++    path = Path(value)
++    if (not path.is_absolute() or str(path) != value or '..' in path.parts
++            or len(path.parts) > 33):
++        _fail('invalid_path')
++    return path
++
++
++def _deadline(deadline):
++    if time.monotonic() > deadline:_fail('read_deadline')
++
++
++def _directory(info, *, owned=False, private=False):
++    if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.getuid())
++            or info.st_mode & (0o077 if private else 0o022)
++            or owned and info.st_uid != os.getuid()):
++        _fail('unsafe_directory')
++    return info.st_dev, info.st_ino
++
++
++def _regular(info):
++    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
++            or info.st_uid != os.getuid() or info.st_mode & 0o022):
++        _fail('unsafe_file')
++    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid,
++            info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
++
++
++def _walk(path, deadline):
++    """Open every directory relative to the held parent, including real '/'."""
++    path = _path(str(path))
++    if not all(hasattr(os, name) for name in ('O_NOFOLLOW', 'O_DIRECTORY', 'O_NONBLOCK')):
++        _fail('primitives_unavailable')
++    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
++    fd = os.open('/', flags)
++    try:
++        identities = [_directory(os.fstat(fd))]
++        if identities[0] != _directory(os.stat('/', follow_symlinks=False)):
++            _fail('ancestor_replaced')
++        for name in path.parts[1:]:
++            _deadline(deadline)
++            child = os.open(name, flags, dir_fd=fd)
++            try:
++                identity = _directory(os.fstat(child))
++                if identity != _directory(os.stat(name, dir_fd=fd, follow_symlinks=False)):
++                    _fail('ancestor_replaced')
++            except BaseException:
++                os.close(child); raise
++            os.close(fd); fd = child; identities.append(identity)
++        _deadline(deadline)
++        return fd, tuple(identities)
++    except BaseException:
++        os.close(fd); raise
++
++
++def _read_file(path, limit, deadline):
++    path = _path(str(path)); parent, ancestors = _walk(path.parent, deadline)
++    fd = None
++    try:
++        fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
++                     dir_fd=parent)
++        before = _regular(os.fstat(fd))
++        if not 0 < before[5] <= limit:_fail('file_capacity')
++        if before != _regular(os.stat(path.name, dir_fd=parent, follow_symlinks=False)):
++            _fail('file_replaced')
++        pieces = []; remaining = limit + 1
++        while remaining:
++            _deadline(deadline); part = os.read(fd, min(65536, remaining))
++            if not part:break
++            pieces.append(part); remaining -= len(part)
++        raw = b''.join(pieces)
++        if len(raw) != before[5] or len(raw) > limit:_fail('file_capacity')
++        if before != _regular(os.fstat(fd)) or before != _regular(
++                os.stat(path.name, dir_fd=parent, follow_symlinks=False)):
++            _fail('file_replaced')
++        final, observed = _walk(path.parent, deadline)
++        os.close(final)
++        if observed != ancestors:_fail('ancestor_replaced')
++        return raw, before
++    finally:
++        if fd is not None:os.close(fd)
++        os.close(parent)
++
++
++def _json(raw, *, canonical_required=False):
++    def pairs(values):
++        result = {}
++        for key, value in values:
++            if key in result:_fail('duplicate_json_key')
++            result[key] = value
++        return result
++    try:
++        value = json.loads(raw, object_pairs_hook=pairs,
++                           parse_constant=lambda _: _fail('invalid_json_number'))
++        if canonical_required and canonical(value) != raw:_fail('noncanonical_artifact')
++        return value
++    except Unavailable:
++        # Our fail-closed reason is already classified; Unavailable is also a
++        # ValueError and must not be mistaken for a JSON decoder exception.
++        raise
++    except (ValueError, UnicodeError, RecursionError, TypeError) as exc:
++        raise Unavailable('root_reattestation_invalid_json') from exc
++
++
++def _namespace(raw):
++    if type(raw) is not str or len(raw) > 8192:_fail('invalid_namespace')
++    value = _json(raw.encode('ascii'), canonical_required=True)
++    if type(value) is not dict or set(value) != {'ancestors', 'namespace'}:
++        _fail('invalid_namespace')
++    _pair(value['namespace'])
++    if type(value['ancestors']) is not list or not 2 <= len(value['ancestors']) <= 33:
++        _fail('invalid_ancestors')
++    for item in value['ancestors']:_pair(item)
++    return value
++
++
++def _parse(raw):
++    value = _json(raw, canonical_required=True)
++    keys = {'schema', 'data_path', 'primary_path', 'native_path', 'lock_path',
++            'lock_identity', 'old_binding', 'old_binding_sha256', 'new_root',
++            'native_schema_sha256', 'baseline'}
++    if type(value) is not dict or set(value) != keys or value['schema'] != SCHEMA:
++        _fail('invalid_artifact_schema')
++    data = _path(value['data_path'])
++    for name, expected in (('primary_path', data / 'jobs.sqlite3'),
++            ('native_path', data / 'native-owned-cells-bounded-v1' / 'cells.sqlite3'),
++            ('lock_path', data / 'instance.lock')):
++        if _path(value[name]) != expected:_fail('logical_path_mismatch')
++    old = value['old_binding']
++    if (type(old) is not list or len(old) != len(FIELDS)
++            or any(type(item) is not str or not 1 <= len(item) <= 8192 for item in old)):
++        _fail('invalid_old_binding')
++    if old[0] != cells.SCHEMA:_fail('schema_mismatch')
++    for index in (1, 2, 3):_digest(old[index])
++    namespace = _namespace(old[4]); _pair(_json(old[5].encode('ascii'), canonical_required=True))
++    if len(namespace['ancestors']) != len(data.parts):_fail('ancestor_count_mismatch')
++    if _digest(value['old_binding_sha256']) != _sha(canonical(old)):_fail('old_binding_hash_mismatch')
++    new = _pair(value['new_root']); prior = _pair(namespace['ancestors'][0])
++    if new[1] != prior[1] or new[0] == prior[0]:_fail('not_root_device_only')
++    _pair(value['lock_identity'])
++    _digest(value['native_schema_sha256'])
++    baseline = value['baseline']
++    if type(baseline) is not dict or set(baseline) != {'path', 'sha256'}:_fail('invalid_baseline')
++    _path(baseline['path']); _digest(baseline['sha256'])
++    return value
++
++
++def _baseline(raw, value):
++    baseline = _json(raw)
++    if (type(baseline) is not dict or baseline.get('status') != 'complete'
++            or baseline.get('changed') != []
++            or type(baseline.get('exclusive_locks_acquired')) is not int
++            or baseline['exclusive_locks_acquired'] != 2
++            or baseline.get('ownership_status') != 'both_existing_flocks_held'):
++        _fail('baseline_provenance_mismatch')
++    binding = baseline.get('native_binding')
++    if (type(binding) is not dict or type(binding.get('stored')) is not dict
++            or set(binding['stored']) != set(FIELDS)
++            or binding['stored'] != dict(zip(FIELDS, value['old_binding']))):
++        _fail('baseline_binding_mismatch')
++    locks = baseline.get('ownership_locks')
++    if (type(locks) is not dict or type(locks.get('instance')) is not list
++            or len(locks['instance']) != 7
++            or any(type(n) is not int for n in locks['instance'])
++            or locks['instance'][:2] != value['lock_identity']):
++        _fail('baseline_lock_mismatch')
++    ancestry = baseline.get('native_ancestry_after')
++    if type(ancestry) is not dict:_fail('baseline_ancestry_mismatch')
++    old = _namespace(value['old_binding'][4]); data = Path(value['data_path'])
++    expected_pairs = [value['new_root'], *old['ancestors'][1:]]
++    paths = [str(p) for p in reversed((data, *data.parents))]
++    entries = ancestry.get('ancestors')
++    if type(entries) is not list or len(entries) != len(paths):_fail('baseline_ancestry_mismatch')
++    for entry, path, pair in zip(entries, paths, expected_pairs):
++        if (type(entry) is not dict or entry.get('path') != path
++                or _pair([entry.get('device'), entry.get('inode')]) != _pair(pair)):
++            _fail('baseline_ancestry_mismatch')
++    namespace = ancestry.get('namespace'); primary = ancestry.get('primary')
++    if (type(namespace) is not dict or namespace.get('path') != str(Path(value['native_path']).parent)
++            or _pair([namespace.get('device'), namespace.get('inode')]) != _pair(old['namespace'])
++            or type(primary) is not dict or primary.get('path') != value['primary_path']):
++        _fail('baseline_path_mismatch')
++    _pair([primary.get('device'), primary.get('inode')])
++    primary_sha = _sha(canonical({name: primary[name] for name in ('path', 'device', 'inode')}))
++    if (primary_sha != value['old_binding'][2]
++            or ancestry.get('primary_identity') != value['old_binding'][2]):
++        _fail('baseline_primary_mismatch')
++
++
++def _schema_sha(db):
++    rows = db.execute("SELECT type,name,tbl_name,sql FROM sqlite_master "
++                      "WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name LIMIT 33").fetchall()
++    if len(rows) > _SQL_ROWS:_fail('schema_capacity')
++    raw = canonical([list(row) for row in rows])
++    if len(raw) > 32768:_fail('schema_capacity')
++    return _sha(raw)
++
++
++def _anchors(value, lock, deadline):
++    from .resources import InstanceLock
++    if type(lock) is not InstanceLock:_fail('inherited_lock_required')
++    lock.verify_inherited(Path(value['lock_path']))
++    fd, ancestors = _walk(Path(value['data_path']), deadline)
++    try:
++        _directory(os.fstat(fd), owned=True)
++        for name, expected in (('instance.lock', _pair(value['lock_identity'])),
++                               ('jobs.sqlite3', None)):
++            child = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=fd)
++            try:
++                identity = _regular(os.fstat(child))
++                if identity != _regular(os.stat(name, dir_fd=fd, follow_symlinks=False)):
++                    _fail('file_replaced')
++                if expected is not None and identity[:2] != expected:_fail('lock_identity_mismatch')
++                if name == 'jobs.sqlite3':
++                    primary = _sha(canonical({'path': value['primary_path'],
++                                              'device': identity[0], 'inode': identity[1]}))
++            finally:os.close(child)
++    finally:os.close(fd)
++    ns = Path(value['native_path']).parent
++    fd, all_ancestors = _walk(ns, deadline)
++    try:
++        namespace_info = os.fstat(fd)
++        namespace = _directory(namespace_info, owned=True, private=True)
++        # An attestation is never a rollback-journal recovery or new-store permit.
++        with os.scandir(fd) as entries:
++            names = []
++            for entry in entries:
++                names.append(entry.name)
++                if len(names) > 1:break
++        if names != ['cells.sqlite3']:_fail('sidecar_or_unexpected_file')
++        child = os.open('cells.sqlite3', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=fd)
++        try:
++            file_info = os.fstat(child)
++            identity = _regular(file_info)
++            if (not hasattr(file_info, 'st_blocks') or not hasattr(namespace_info, 'st_blocks')
++                    or not 0 < file_info.st_size <= cells.DATABASE_BYTES):
++                _fail('database_capacity')
++            allocated = max(file_info.st_size, file_info.st_blocks * 512)
++            allocated += max(namespace_info.st_size, namespace_info.st_blocks * 512)
++            if (allocated > cells.RESERVED_ENVELOPE_BYTES
++                    or allocated - file_info.st_size > cells.ANCILLARY_BYTES):
++                _fail('database_capacity')
++            if identity != _regular(os.stat('cells.sqlite3', dir_fd=fd, follow_symlinks=False)):
++                _fail('file_replaced')
++            if identity[0] != namespace[0]:_fail('database_device_mismatch')
++        finally:os.close(child)
++    finally:os.close(fd)
++    if all_ancestors[:-1] != ancestors:_fail('ancestor_replaced')
++    old = _namespace(value['old_binding'][4])
++    if (ancestors[0] != _pair(value['new_root'])
++            or ancestors[1:] != tuple(_pair(p) for p in old['ancestors'][1:])
++            or namespace != _pair(old['namespace'])
++            or primary != value['old_binding'][2]
++            or canonical(list(identity[:2])).decode('ascii') != value['old_binding'][5]):
++        _fail('current_anchor_mismatch')
++    lock.verify_inherited(Path(value['lock_path'])); _deadline(deadline)
++    return ancestors, namespace, identity[:2]
++
++
++def _compare(value, stored, current):
++    """Only the exact attested old tuple and exact single root-device change."""
++    old = tuple(value['old_binding'])
++    if tuple(stored) != old:_fail('stored_binding_mismatch')
++    if any(current[i] != old[i] for i in (0, 1, 2, 3, 5)):_fail('nonnamespace_binding_mismatch')
++    prior = _namespace(old[4]); observed = _namespace(current[4])
++    expected = {'namespace': prior['namespace'],
++                'ancestors': [value['new_root'], *prior['ancestors'][1:]]}
++    if observed != expected:_fail('namespace_binding_mismatch')
++    return _sha(canonical(list(current)))
++
++
++@dataclass(frozen=True, slots=True)
++class RootReattestation:
++    artifact_path: str
++    artifact_sha256: str
++    artifact_identity: tuple
++    baseline_identity: tuple
++    raw: bytes
++    current_binding_sha256: str
++    _seal: object
++
++    def _recheck(self, lock):
++        if self._seal is not _SEAL:_fail('unvalidated_admission')
++        deadline = time.monotonic() + READ_SECONDS
++        raw, identity = _read_file(self.artifact_path, ARTIFACT_BYTES, deadline)
++        if raw != self.raw or _sha(raw) != self.artifact_sha256 or identity != self.artifact_identity:
++            _fail('artifact_replaced')
++        value = _parse(raw)
++        baseline, identity = _read_file(value['baseline']['path'], BASELINE_BYTES, deadline)
++        if identity != self.baseline_identity or _sha(baseline) != value['baseline']['sha256']:
++            _fail('baseline_replaced')
++        anchors = _anchors(value, lock, deadline)
++        return value, anchors
++
++    def verify_owner(self, owner):
++        value, anchors = self._recheck(owner.instance_lock)
++        if (not owner.enabled or not owner.bounded_core_enabled or not owner.core_seam_enabled
++                or str(owner.path) != value['native_path']
++                or owner.authority.identity != value['old_binding'][2]
++                or owner.qualification is None
++                or _sha(canonical(asdict(owner.qualification))) != value['old_binding'][3]
++                or owner._store_policy != value['old_binding'][1]):
++            _fail('owner_mismatch')
++        return value, anchors
++
++    def accept(self, owner, stored, current, db):
++        value, anchors = self.verify_owner(owner)
++        if (owner._ancestor_identity != anchors[0]
++                or owner._namespace_identity != anchors[1]
++                or _schema_sha(db) != value['native_schema_sha256']):
++            _fail('owner_observation_mismatch')
++        observed = _compare(value, stored, current)
++        if observed != self.current_binding_sha256:_fail('current_binding_changed')
++        return {'artifact_sha256': self.artifact_sha256,
++                'baseline_sha256': value['baseline']['sha256'],
++                'old_binding_sha256': value['old_binding_sha256'],
++                'current_binding_sha256': observed, 'change': 'root_device_only'}
++
++
++def load(path, sha256, settings, lock):
++    """Fail closed before primary Store initialization; performs reads only."""
++    from .native_owned_core_seams import store_policy
++    from .native_owned_cell_capture import configuration_reason
++    from .resources import InstanceLock
++    if type(lock) is not InstanceLock:_fail('inherited_lock_required')
++    lock.verify_inherited(settings.data_dir / 'instance.lock')
++    if (not getattr(settings, 'native_owned_cells_enabled', False)
++            or not getattr(settings, 'native_owned_core_seams_enabled', False)
++            or not getattr(settings, 'native_owned_bounded_core_support_enabled', False)
++            or configuration_reason(settings, None) is not None):
++        _fail('unsupported_configuration')
++    deadline = time.monotonic() + READ_SECONDS
++    raw, identity = _read_file(path, ARTIFACT_BYTES, deadline)
++    if _sha(raw) != _digest(sha256):_fail('artifact_hash_mismatch')
++    value = _parse(raw)
++    if str(settings.data_dir) != value['data_path']:_fail('data_path_mismatch')
++    if value['old_binding'][1] != store_policy(bounded=True):_fail('unsupported_policy')
++    baseline_raw, baseline_identity = _read_file(value['baseline']['path'], BASELINE_BYTES, deadline)
++    if _sha(baseline_raw) != value['baseline']['sha256']:_fail('baseline_hash_mismatch')
++    _baseline(baseline_raw, value)
++    ancestors, namespace, db_identity = _anchors(value, lock, deadline)
++    qualification = cells.qualified_runtime(settings.data_dir)
++    if qualification is None or _sha(canonical(asdict(qualification))) != value['old_binding'][3]:
++        _fail('qualification_mismatch')
++    budget = cells.Budget.for_owner()
++    memory = sqlite3.connect(':memory:', timeout=0., isolation_level=None)
++    try:
++        qualification.verify(memory, Path(value['native_path']).parent, budget)
++        cells.CellStore._schema(memory)
++        if _schema_sha(memory) != value['native_schema_sha256']:_fail('unsupported_schema')
++    finally:memory.close()
++    current = (cells.SCHEMA, store_policy(bounded=True), value['old_binding'][2],
++               _sha(canonical(asdict(qualification))),
++               canonical({'namespace': list(namespace), 'ancestors': [list(p) for p in ancestors]}).decode('ascii'),
++               canonical(list(db_identity)).decode('ascii'))
++    # immutable is safe only under authenticated exclusive ownership and with no
++    # journal/WAL/SHM. It forbids SQLite recovery writes or sidecar creation here.
++    db = sqlite3.connect(Path(value['native_path']).as_uri() + '?mode=ro&immutable=1',
++                         uri=True, timeout=0., isolation_level=None)
++    try:
++        db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 32768)
++        db.setlimit(sqlite3.SQLITE_LIMIT_SQL_LENGTH, 32768)
++        db.set_progress_handler(lambda: int(time.monotonic() > deadline), 100)
++        db.execute('PRAGMA query_only=ON'); db.execute('PRAGMA trusted_schema=OFF')
++        if _schema_sha(db) != value['native_schema_sha256']:_fail('schema_mismatch')
++        rows = db.execute('SELECT schema,policy,primary_identity,qualification,namespace_identity,database_identity FROM store_meta LIMIT 2').fetchall()
++        if len(rows) != 1:_fail('stored_binding_count')
++        current_sha = _compare(value, rows[0], current)
++    finally:db.close()
++    result = RootReattestation(str(_path(str(path))), sha256, identity,
++                              baseline_identity, raw, current_sha, _SEAL)
++    result._recheck(lock)
++    return result
+--- /dev/null
++++ b/docs/NATIVE_ROOT_REATTESTATION.md
+@@ -0,0 +1,155 @@
++# Explicit bounded-native root re-attestation (dev66)
++
++SOURCE PROPOSAL ONLY. This document is not a passing qualification, a new runtime
++qualification, an attestation for original data, or permission to start a server.
++The supervising root must review and run finite synthetic controls, preserve the
++failed historical evidence, review packaging, and separately gate any real use.
++
++## Why this is admission, not repair
++
++The native retention key is SHA256 of the canonical complete stored six-field
++`store_meta` tuple. Changing even its first ancestor would change authority for
++retention, native commits, recording batches and reclamation. Never rewrite this
++tuple, rebuild/delete the native database, or regenerate receipts to recover a
++root-only mismatch.
++
++This default-off amendment admits one exact old tuple against one exact current
++root-device tuple. It preserves the old tuple and its key byte for byte. It does
++not change the schema or runtime-qualification registry. A no-flag startup keeps
++the preexisting strict mismatch refusal and normal new-store behavior.
++
++## Explicit interface
++
++The launcher requires both:
++
++- `--native-root-reattestation /absolute/canonical/reviewed.json`
++- `--native-root-reattestation-sha256 <exact SHA256 of file bytes>`
++
++It also requires the existing `--instance-lock-fd`, authenticated as an inherited
++read-only exclusive flock before admission. The bounded-native cells/core-seams
++configuration must already be valid. There is no environment override, discovery,
++artifact generator, fallback, generic skip-root, or root wildcard.
++
++`create_app` has corresponding `native_root_reattestation` and
++`native_root_reattestation_sha256` arguments. It consumes the inherited fd under
++the existing dev65 contract, completes read-only admission before `_create_app`
++and before any directory creation or primary `Store` initialization, and passes
++one immutable admission explicitly through native registration to the owner.
++Native registry reuse requires the identical admission and lock objects, not an
++unverified approximation. Failed construction closes only the child duplicate;
++the supervisor retains its own hold through positive child wait/cleanup.
++
++The supervisor's independent uploader ownership, outcome conservation and
++positive stop/reap evidence remain runner responsibilities. This API does not
++claim that checking an instance flock proves the uploader lock or process exits.
++
++## Artifact contract
++
++The artifact is canonical ASCII JSON, exactly the serialization used by
++`native_owned_cells.canonical`, without a trailing newline, at most 32 KiB, with
++exactly these keys:
++
++- `schema`: `native-root-reattestation-v1`.
++- `data_path`, `primary_path`, `native_path`, `lock_path`: canonical absolute
++  original logical paths. The latter three must be, respectively, `jobs.sqlite3`,
++  `native-owned-cells-bounded-v1/cells.sqlite3`, and `instance.lock` beneath the
++  original data path.
++- `lock_identity`: exact instance-lock `[device, inode]`.
++- `old_binding`: the exact six strings in stored SELECT order: schema, policy,
++  primary_identity, qualification, namespace_identity, database_identity.
++- `old_binding_sha256`: SHA256 of the canonical whole `old_binding` array. This
++  is also the existing durable retention-store key, not a newly minted key.
++- `new_root`: one exact `[device, inode]`. Its device must differ from the stored
++  first ancestor, while its inode must be identical.
++- `native_schema_sha256`: exact SHA256 of canonical rows selected as
++  `type,name,tbl_name,sql` from non-internal sqlite_master entries ordered by
++  `type,name`. The admitted schema must also equal the schema independently
++  created from the current shipped `_schema` implementation in memory.
++- `baseline`: exactly `path` and `sha256` for the immutable stopped-baseline JSON
++  receipt. This exact-byte hash is the provenance pin, not an unverified label.
++
++The separately reviewed release/launch manifest must pin the artifact hash and
++source/package provenance. Product code does not issue or silently refresh an
++artifact, or treat an operator-selected file as evidence of independent review.
++
++The baseline is bounded to 2 MiB, must record complete unchanged observations,
++integer `exclusive_locks_acquired: 2`, and `both_existing_flocks_held`. Its exact
++stored six-field mapping, instance identity, and all recorded original logical
++ancestor/namespace/primary paths and identities must agree with the artifact.
++The baseline collector's observation is not retroactively represented as the
++failed historical server's startup observation.
++
++## Read-only admission and exact exception
++
++Every ancestor is opened dirfd-relative with O_NOFOLLOW/O_DIRECTORY, including
++`/`, checked for directory type, root/current UID and safe mode, and compared to
++the held descriptor. The data directory and native namespace must be owned by
++the current UID; the native namespace must be private. Artifact, baseline,
++instance lock, primary database and native database must be owned single-link
++regular files with no group/other write. File reads are bounded and reject
++observed content/metadata/path replacement. Exact artifact and baseline file
++identities are rechecked by the native owner.
++
++Before any native disk connection, admission rejects a missing store, any
++sidecar or unknown native entry, excessive logical or allocated bytes, unsafe
++namespace/ancestors, or unqualified runtime. Runtime verification remains the
++existing in-memory profile check. The existing native database is read with
++`mode=ro&immutable=1`, query_only and trusted_schema OFF, with finite row/string,
++progress and file limits. No rollback recovery, sidecar creation, schema change
++or native write occurs in this preflight. Immutable reads are permitted only
++under authenticated ownership with no journal/WAL/SHM evidence.
++
++The owner recomputes its current six-field binding normally. The admitted stored
++tuple must match every old string exactly. All five nonnamespace fields must
++match current values exactly. Namespace inode/device and every suffix ancestor
++must match exactly. The current first ancestor must equal the one attested new
++root; the sole changed coordinate is the root device. Actual SQL schema,
++supported bounded policy, loaded runtime qualification and logical DB identities
++remain mandatory.
++
++The exception is applied only at the existing stored-binding comparison.
++`_ancestor_identity` and `_namespace_identity` retain the complete actual current
++observations. Every normal within-run fence, receipt/source authority check,
++capacity limit and retention/GC condition remains active. The final SELECT is
++hashed unchanged, and a second check ensures its hash remains the attested old
++binding hash before exposing the retention key.
++
++Diagnostics contain only bounded artifact/baseline hashes, old/current whole
++binding hashes and `root_device_only` classification. No raw path, source data,
++SQL body or unobserved historical tuple is logged.
++
++## Repeated startup and limitations
++
++The same exact attestation may be reused across finite generations with the same
++root, logical paths, shared suffix/namespace/DB/lock identities, stored tuple,
++supported schema/policy and runtime. Legitimate source/cell rows may evolve;
++permanent DB-content hashes are deliberately not required. Baseline bytes and
++artifact bytes do not evolve. Changed root or anchors require new separately
++reviewed evidence, never automatic widening. Attested startup does not authorize
++an unresolved native rollback journal; existing ordinary recovery policy is not
++broadened.
++
++These are finite cooperative ownership and observed pathname fences. They do
++not claim an atomic SQLite dirfd open, protection against a hostile same-UID
++actor racing every check, universal filesystem guarantees, new durability or
++model/acoustic qualification. The ten-second read deadline and existing owner
++budgets are cooperative, not hard upper bounds on an individual OS call.
++
++## Finite synthetic gate
++
++New source controls exercise two direct owner-open cycles with populated receipt,
++cell, dependency and proof rows, DB bytes, store_meta and retention keys unchanged;
++a four-root bounded proof and positive/negative GC key fences are also preserved.
++A separate finite control executes actual CLI-to-factory-to-native-owner-thread
++plumbing across two application lifespans with only inference/listener startup
++disabled. These are not two OS-process generations. Controls also exercise no-flag refusal; ordinary
++new-store behavior; all five nonnamespace fields; root inode/suffix/namespace
++changes; wrong hash/path/policy/qualification/schema/baseline provenance;
++symlinks, hardlinks, unsafe modes/UID/types; artifact replacement/read races;
++sidecar/capacity/parser/deadline bounds; real inherited-lock requirements;
++pre-Store ordering and close-only failure cleanup; registry admission isolation;
++within-run root/suffix drift; and an actual receipt-authority rejection after
++admission. Test fixtures are synthetic and use a simulated runtime qualification.
++They create no listener, run no model and touch no original data. Existing
++inherited-lock, launch-order, CLI and supervisor ownership controls accompany the
++new tests in the separate root-only proposal. No test has been run by this worker.
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -4,7 +4,7 @@
+ 
+ [project]
+ name = "long-audio-backend"
+-version = "0.2.0rc3.dev65"
++version = "0.2.0rc3.dev66"
+ description = "Local, bounded-resource incremental audio analysis API"
+ requires-python = ">=3.12"
+ dependencies = [
+--- /dev/null
++++ b/tests/test_native_root_reattestation.py
+@@ -0,0 +1,534 @@
++"""Finite, model-free synthetic source proposal, not execution evidence.
++
++Uses only newly created fixtures beneath the test working directory, which must
++have safe ancestors. No original audio/database/model/API/server is opened.
++The injected SQLite profile simulates mechanics, not production qualification.
++"""
++from contextlib import contextmanager
++from copy import deepcopy
++from dataclasses import asdict, replace
++import hashlib
++import json
++import os
++from pathlib import Path
++import sqlite3
++import stat
++import sys
++import tempfile
++import time
++from types import SimpleNamespace
++
++import pytest
++
++from audio_backend import native_root_reattestation as attest
++from audio_backend import native_owned_cell_store as cells
++from audio_backend.native_owned_cells import Unavailable, canonical
++from audio_backend.native_owned_core_seams import store_policy
++from audio_backend.resources import InstanceLock
++from test_native_owned_cell_store import simulated_profile, SyntheticAuthority
++
++pytestmark = pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Linux inherited flock contract')
++if sys.platform.startswith('linux'):
++    import fcntl
++
++
++def sha(raw):return hashlib.sha256(raw).hexdigest()
++
++
++def snapshot(path):
++    db = sqlite3.connect(path.as_uri() + '?mode=ro&immutable=1', uri=True)
++    try:
++        return {table: db.execute('SELECT * FROM ' + table + ' ORDER BY 1').fetchall()
++                for table in ('store_meta', 'sources', 'cells', 'dependencies')}
++    finally:db.close()
++
++
++@pytest.fixture
++def case(monkeypatch):
++    # Deliberately avoid /tmp's world-writable ancestor. No production safety
++    # checker is monkeypatched; root chooses a safe writable synthetic workdir.
++    with tempfile.TemporaryDirectory(prefix='.synthetic-root-attestation-', dir=Path.cwd()) as name:
++        root = Path(name); data = root / 'data'; data.mkdir(mode=0o700)
++        from audio_backend.settings import Settings
++        from audio_backend.storage import Store
++        primary_store = Store(data / 'jobs.sqlite3', Settings(data_dir=data, start_worker=False))
++        control = data / 'instance.lock'; control.write_bytes(b'unchanged synthetic lock\n')
++        native = data / 'native-owned-cells-bounded-v1'; native.mkdir(mode=0o700)
++        path = native / 'cells.sqlite3'
++        db = sqlite3.connect(path)
++        cells.CellStore._schema(db); schema_sha = attest._schema_sha(db)
++        profile = simulated_profile(data)
++        settings = SimpleNamespace(data_dir=data, native_owned_cells_enabled=True,
++            native_owned_core_seams_enabled=True, native_owned_bounded_core_support_enabled=True,
++            moss_automatic_enabled=True, native_owned_support_enabled=True, lexical_evidence_enabled=True,
++            diarization_backend='nemotron', inference_device='cpu', overlap_backend='none', start_worker=True)
++        monkeypatch.setattr(cells, 'qualified_runtime', lambda _: profile)
++        fd, chain = attest._walk(data, time.monotonic() + 10.); os.close(fd)
++        namespace = [native.stat().st_dev, native.stat().st_ino]
++        primary = (data / 'jobs.sqlite3').stat(); native_info = path.stat()
++        primary_sha = sha(canonical({'path': str(data / 'jobs.sqlite3'), 'device': primary.st_dev, 'inode': primary.st_ino}))
++        old_chain = [list(pair) for pair in chain]; old_chain[0][0] += 100000
++        binding = [cells.SCHEMA, store_policy(bounded=True), primary_sha,
++                   sha(canonical(asdict(profile))),
++                   canonical({'ancestors': old_chain, 'namespace': namespace}).decode('ascii'),
++                   canonical([native_info.st_dev, native_info.st_ino]).decode('ascii')]
++        db.execute('INSERT INTO store_meta VALUES (1,?,?,?,?,?,?)', binding); db.commit(); db.close()
++        baseline_value = {'status': 'complete', 'changed': [], 'exclusive_locks_acquired': 2,
++            'ownership_status': 'both_existing_flocks_held',
++            'native_binding': {'stored': dict(zip(attest.FIELDS, binding)),
++                'attribution_limit': 'Synthetic collector; not a historical server observation'},
++            'ownership_locks': {'instance': [control.stat().st_dev, control.stat().st_ino,
++                control.stat().st_mode, control.stat().st_nlink, control.stat().st_size,
++                control.stat().st_mtime_ns, control.stat().st_ctime_ns]},
++            'native_ancestry_after': {'ancestors': [
++                {'path': str(p), 'device': pair[0], 'inode': pair[1]}
++                for p, pair in zip(reversed((data, *data.parents)), chain)],
++                'namespace': {'path': str(native), 'device': namespace[0], 'inode': namespace[1]},
++                'primary': {'path': str(data / 'jobs.sqlite3'), 'device': primary.st_dev, 'inode': primary.st_ino},
++                'primary_identity': primary_sha}}
++        baseline = root / 'baseline.json'; baseline.write_bytes(canonical(baseline_value))
++        value = {'schema': attest.SCHEMA, 'data_path': str(data),
++            'primary_path': str(data / 'jobs.sqlite3'), 'native_path': str(path),
++            'lock_path': str(control), 'lock_identity': [control.stat().st_dev, control.stat().st_ino],
++            'old_binding': binding, 'old_binding_sha256': sha(canonical(binding)),
++            'new_root': list(chain[0]), 'native_schema_sha256': schema_sha,
++            'baseline': {'path': str(baseline), 'sha256': sha(baseline.read_bytes())}}
++        artifact = root / 'attestation.json'; artifact.write_bytes(canonical(value))
++        authority = SyntheticAuthority(); authority.identity = primary_sha
++        authority.store = SimpleNamespace(settings=settings)
++        with control.open('rb', buffering=0) as supervisor:
++            fcntl.flock(supervisor, fcntl.LOCK_EX | fcntl.LOCK_NB)
++            lock = InstanceLock(control).adopt(os.dup(supervisor.fileno()))
++            item = SimpleNamespace(root=root, data=data, path=path, control=control,
++                profile=profile, settings=settings, value=value, artifact=artifact, baseline=baseline,
++                authority=authority, lock=lock, supervisor=supervisor, chain=chain, primary_store=primary_store)
++            try:yield item
++            finally:lock.release()
++
++
++def rewrite(case, value=None):
++    case.artifact.write_bytes(canonical(case.value if value is None else value))
++    return sha(case.artifact.read_bytes())
++
++
++def load(case):
++    return attest.load(case.artifact, sha(case.artifact.read_bytes()), case.settings, case.lock)
++
++
++def owner(case, admission=None):
++    result = cells.CellStore(case.data / 'native-owned-cells', case.authority,
++        enabled=True, qualification=case.profile, instance_lock=case.lock,
++        core_seam_enabled=True, root_reattestation=admission)
++    case.authority.owner = result
++    return result
++
++
++@contextmanager
++def opened(case, admission=None):
++    item = owner(case, admission)
++    try:
++        item._open()
++        yield item
++    finally:
++        if item._db is not None:item._db.close(); item._db = None
++
++
++def test_two_direct_owner_opens_preserve_populated_rows_proof_pcm_and_key(case):
++    from test_native_owned_cells import synthetic_cell
++    receipt = cells.Receipt('session', 'chunk', 'c' * 64, 16, 44, 76, (1, 1, 76, 1, 1), 0., None)
++    cell = synthetic_cell(receipt_id=receipt.receipt_id)
++    db = sqlite3.connect(case.path)
++    db.execute('INSERT INTO sources VALUES(?,?,?,?)', ('chunk', 'session', receipt.digest, receipt.encoded))
++    db.execute('INSERT INTO cells(cell_id,ownership,sid,cid,proof,pcm,state) VALUES(?,?,?,?,?,?,?)',
++        (cell.cell_id, cell.ownership, cell.session_id, cell.chunk_id, cell.proof, cell.pcm, 'retained'))
++    for position, values in enumerate(cells.CellStore._dependency_values(json.loads(cell.proof), cell.parts)):
++        db.execute('INSERT INTO dependencies VALUES(?,?,?,?,?,?,?,?,?)', (cell.cell_id, position, *values))
++    db.commit(); db.close()
++    before = snapshot(case.path); bytes_before = case.path.read_bytes()
++    lock_bytes = case.control.read_bytes(); key = sha(canonical(case.value['old_binding']))
++    for _ in range(2):
++        admission = load(case)
++        with opened(case, admission) as item:
++            assert item.retention_store_key == key
++            assert item._ancestor_identity == case.chain
++            assert item._ancestor_identity[0] != tuple(json.loads(case.value['old_binding'][4])['ancestors'][0])
++            assert item._root_reattestation_diagnostic['change'] == 'root_device_only'
++            assert item._receipts['chunk'] == receipt  # _open alone does not claim owner readiness
++            detail = item._read(cells.Operation('detail', cell.cell_id, item._epoch, item._wake), cells.Budget())
++            assert detail == {'status': 'available', 'detail': cell.proof, 'regeneration_eligible': True}
++        assert snapshot(case.path) == before
++        assert case.path.read_bytes() == bytes_before
++    assert case.control.read_bytes() == lock_bytes
++
++
++def test_without_opt_in_existing_strict_refusal(case):
++    with pytest.raises(Unavailable, match='optional_primary_binding_mismatch'):
++        with opened(case):pass
++
++
++@pytest.mark.parametrize('index', [0, 1, 2, 3, 5])
++def test_all_five_nonnamespace_fields_are_exact(case, index):
++    current = list(case.value['old_binding'])
++    namespace = json.loads(current[4]); namespace['ancestors'][0] = case.value['new_root']
++    current[4] = canonical(namespace).decode('ascii'); current[index] += 'x'
++    with pytest.raises(Unavailable, match='nonnamespace_binding_mismatch'):
++        attest._compare(case.value, case.value['old_binding'], current)
++
++
++@pytest.mark.parametrize('change', ['wrong_root', 'root_inode', 'suffix', 'namespace', 'old_tuple',
++    'old_hash', 'schema', 'policy', 'qualification', 'database', 'logical_path', 'baseline_hash'])
++def test_malformed_or_stale_artifact_refuses(case, change):
++    value = deepcopy(case.value)
++    if change == 'wrong_root':value['new_root'][0] += 1
++    elif change == 'root_inode':value['new_root'][1] += 1
++    elif change in ('suffix', 'namespace'):
++        ns = json.loads(value['old_binding'][4])
++        if change == 'suffix':ns['ancestors'][-1][1] += 1
++        else:ns['namespace'][1] += 1
++        value['old_binding'][4] = canonical(ns).decode('ascii')
++    elif change == 'old_tuple':value['old_binding'][2] = 'b' * 64
++    elif change == 'old_hash':value['old_binding_sha256'] = 'b' * 64
++    elif change == 'schema':value['old_binding'][0] += '-unknown'
++    elif change == 'policy':value['old_binding'][1] = 'b' * 64
++    elif change == 'qualification':value['old_binding'][3] = 'b' * 64
++    elif change == 'database':value['old_binding'][5] = '[0,1]'
++    elif change == 'logical_path':value['native_path'] += '.other'
++    elif change == 'baseline_hash':value['baseline']['sha256'] = 'b' * 64
++    if change != 'old_hash':value['old_binding_sha256'] = sha(canonical(value['old_binding']))
++    with pytest.raises((Unavailable, ValueError, OSError)):
++        attest.load(case.artifact, rewrite(case, value), case.settings, case.lock)
++
++
++def test_wrong_external_artifact_pin_refuses(case):
++    with pytest.raises(Unavailable, match='artifact_hash_mismatch'):
++        attest.load(case.artifact, '0' * 64, case.settings, case.lock)
++
++
++@pytest.mark.parametrize('target', ['artifact', 'baseline', 'control', 'path'])
++@pytest.mark.parametrize('unsafe', ['symlink', 'hardlink', 'writable'])
++def test_unsafe_files_refuse_without_mutating(case, target, unsafe):
++    path = getattr(case, target); before = path.read_bytes()
++    if unsafe == 'symlink':
++        moved = path.with_name(path.name + '.original'); path.rename(moved); path.symlink_to(moved)
++    elif unsafe == 'hardlink':os.link(path, path.with_name(path.name + '.alias'))
++    else:path.chmod(path.stat().st_mode | 0o020)
++    with pytest.raises((Unavailable, ValueError, OSError)):load(case)
++    assert path.read_bytes() == before
++
++
++def test_wrong_uid_and_type_checks_are_not_skipped(case):
++    info = case.artifact.stat()
++    values = {name: getattr(info, name) for name in ('st_dev', 'st_ino', 'st_mode',
++        'st_uid', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns')}
++    with pytest.raises(Unavailable, match='unsafe_file'):
++        attest._regular(SimpleNamespace(**{**values, 'st_uid': info.st_uid + 1}))
++    with pytest.raises(Unavailable, match='unsafe_file'):
++        attest._regular(SimpleNamespace(**{**values, 'st_mode': stat.S_IFIFO | 0o600}))
++    with pytest.raises(Unavailable, match='unsafe_directory'):
++        attest._directory(SimpleNamespace(st_mode=stat.S_IFDIR | 0o777, st_uid=os.getuid()))
++
++
++def test_artifact_replacement_after_admission_refuses(case):
++    admission = load(case); replacement = case.root / 'replacement.json'
++    replacement.write_bytes(case.artifact.read_bytes()); replacement.replace(case.artifact)
++    with pytest.raises(Unavailable, match='artifact_replaced'):
++        with opened(case, admission):pass
++
++
++def test_baseline_replacement_after_admission_refuses(case):
++    admission = load(case); replacement = case.root / 'baseline-replacement.json'
++    replacement.write_bytes(case.baseline.read_bytes()); replacement.replace(case.baseline)
++    with pytest.raises(Unavailable, match='baseline_replaced'):
++        with opened(case, admission):pass
++
++
++def test_artifact_read_race_refuses(case, monkeypatch):
++    before = snapshot(case.path)
++    real = os.read; replaced = False
++    def racing(fd, size):
++        nonlocal replaced
++        raw = real(fd, size)
++        if not replaced:
++            replaced = True
++            other = case.root / 'racing.json'; other.write_bytes(case.artifact.read_bytes()); other.replace(case.artifact)
++        return raw
++    monkeypatch.setattr(attest.os, 'read', racing)
++    # Atomic rename unlinks the held old inode (nlink=0), which may trip the
++    # earlier regular-file guard before the exact metadata equality fence.
++    with pytest.raises(Unavailable, match=r'^root_reattestation_(unsafe_file|file_replaced)$'):load(case)
++    assert replaced and snapshot(case.path) == before
++
++
++@pytest.mark.parametrize('payload,reason', [
++    (b'{}', 'invalid_artifact_schema'),
++    (b'{"schema":1,"schema":2}', 'duplicate_json_key'),
++    (b'[' * 2000, 'invalid_json'),
++    (b' ' * (attest.ARTIFACT_BYTES + 1), 'file_capacity')])
++def test_bounded_parser_rejects_bad_inputs(case, payload, reason):
++    case.artifact.write_bytes(payload)
++    with pytest.raises(Unavailable, match='^root_reattestation_' + reason + '$'):load(case)
++
++
++def test_noncanonical_json_refuses(case):
++    case.artifact.write_text(json.dumps(case.value, indent=2))
++    with pytest.raises(Unavailable, match='noncanonical_artifact'):load(case)
++
++
++def test_finite_read_deadline(case):
++    with pytest.raises(Unavailable, match='read_deadline'):
++        attest._read_file(case.artifact, attest.ARTIFACT_BYTES, time.monotonic() - 1.)
++
++
++def test_no_lock_wrong_lock_released_lock_refuse(case):
++    for bad in (None, object(), InstanceLock(case.control)):
++        with pytest.raises((Unavailable, ValueError)):
++            attest.load(case.artifact, sha(case.artifact.read_bytes()), case.settings, bad)
++    case.lock.release()
++    with pytest.raises(ValueError):load(case)
++
++
++@pytest.mark.parametrize('sidecar', ['cells.sqlite3-journal', 'cells.sqlite3-wal', 'cells.sqlite3-shm', 'unknown'])
++def test_sidecar_or_unknown_entry_refuses(case, sidecar):
++    (case.path.parent / sidecar).write_bytes(b'')
++    with pytest.raises(Unavailable, match='sidecar_or_unexpected_file'):load(case)
++
++
++def test_actual_native_schema_drift_refuses(case):
++    db = sqlite3.connect(case.path)
++    db.execute('CREATE INDEX unreviewed ON sources(digest)'); db.close()
++    with pytest.raises(Unavailable, match='schema_mismatch'):load(case)
++
++
++def test_actual_native_binding_drift_refuses(case):
++    db = sqlite3.connect(case.path)
++    db.execute("UPDATE store_meta SET primary_identity=?", ('b' * 64,)); db.commit(); db.close()
++    with pytest.raises(Unavailable, match='stored_binding_mismatch'):load(case)
++
++
++def test_runtime_qualification_mismatch_refuses(case, monkeypatch):
++    monkeypatch.setattr(cells, 'qualified_runtime', lambda _: replace(case.profile, evidence_sha256='e' * 64))
++    with pytest.raises(Unavailable, match='qualification_mismatch'):load(case)
++
++
++def test_current_ancestor_fences_still_reject_root_and_suffix_drift(case):
++    admission = load(case)
++    with opened(case, admission) as item:
++        for index in (0, -1):
++            saved = item._ancestor_identity; changed = list(saved)
++            changed[index] = (changed[index][0] + 1, changed[index][1]); item._ancestor_identity = tuple(changed)
++            with pytest.raises(Unavailable, match='cell_ancestor_replaced'):item._scan()
++            item._ancestor_identity = saved
++
++
++def test_opt_in_never_creates_missing_native_database(case):
++    case.path.unlink()
++    with pytest.raises((Unavailable, OSError)):load(case)
++    assert not case.path.exists()
++
++
++def test_artifact_is_not_a_source_authority_override(case):
++    admission = load(case)
++    with opened(case, admission) as item:
++        case.authority.valid = False
++        receipt = cells.Receipt('session', 'chunk', 'c' * 64, 16, 44, 76, (1, 1, 76, 1, 1), 0., None)
++        operation = cells.Operation('receipt', receipt, item._epoch, item._wake)
++        with pytest.raises(Unavailable, match='source_authority_unavailable'):
++            item._receipt(operation, cells.Budget())
++        assert item._db.execute('SELECT COUNT(*) FROM sources').fetchone()[0] == 0
++        assert item.retention_store_key == case.value['old_binding_sha256']
++
++
++def test_application_preflight_occurs_before_store(case, monkeypatch):
++    from audio_backend import app
++    from audio_backend.settings import Settings
++    events = []
++    def forbidden_store(*args, **kwargs):
++        events.append('store'); raise AssertionError('Store must not run after rejected attestation')
++    monkeypatch.setattr(app, 'Store', forbidden_store)
++    settings = Settings(data_dir=case.data, start_worker=False)
++    with pytest.raises(Unavailable):
++        app.create_app(settings, instance_lock_fd=os.dup(case.supervisor.fileno()),
++            native_root_reattestation=case.artifact, native_root_reattestation_sha256='0' * 64)
++    assert events == []
++    case.lock.verify_inherited(case.control)
++
++
++def test_cli_requires_both_pins_and_inherited_lock(monkeypatch):
++    from audio_backend import __main__ as cli
++    for args in (['--native-root-reattestation', '/absent'],
++                 ['--native-root-reattestation-sha256', '0' * 64],
++                 ['--native-root-reattestation', '/absent', '--native-root-reattestation-sha256', '0' * 64]):
++        with pytest.raises(SystemExit) as error:cli.main(args)
++        assert error.value.code == 2
++
++
++@pytest.mark.parametrize('change', ['float_lock_count', 'wrong_primary_path', 'wrong_ancestor_path',
++                                  'wrong_lock_identity', 'wrong_binding_shape'])
++def test_pinned_but_inconsistent_baseline_provenance_refuses(case, change):
++    baseline = json.loads(case.baseline.read_bytes())
++    if change == 'float_lock_count':baseline['exclusive_locks_acquired'] = 2.0
++    elif change == 'wrong_primary_path':baseline['native_ancestry_after']['primary']['path'] += '.wrong'
++    elif change == 'wrong_ancestor_path':baseline['native_ancestry_after']['ancestors'][-1]['path'] += '.wrong'
++    elif change == 'wrong_lock_identity':baseline['ownership_locks']['instance'][1] += 1
++    elif change == 'wrong_binding_shape':baseline['native_binding'] = []
++    case.baseline.write_bytes(canonical(baseline))
++    case.value['baseline']['sha256'] = sha(case.baseline.read_bytes()); rewrite(case)
++    with pytest.raises(Unavailable):load(case)
++
++
++def test_native_capacity_refuses_before_any_sqlite_open(case, monkeypatch):
++    os.truncate(case.path, cells.DATABASE_BYTES + 1)
++    calls = []
++    def forbidden(*args, **kwargs):
++        calls.append(args); raise AssertionError('Capacity must be checked before SQLite open')
++    monkeypatch.setattr(attest.sqlite3, 'connect', forbidden)
++    with pytest.raises(Unavailable, match='database_capacity'):load(case)
++    assert calls == []
++
++
++def test_registry_cannot_reuse_owner_under_changed_admission(case, monkeypatch):
++    from audio_backend import native_owned_cell_capture as capture
++    admission = load(case); item = owner(case, admission)
++    existing = SimpleNamespace(owner=item, authority=case.authority)
++    monkeypatch.setattr(capture, '_REGISTRY', {str(case.data / 'jobs.sqlite3'): existing})
++    store = SimpleNamespace(settings=case.settings, path=case.data / 'jobs.sqlite3')
++    for other in (None, load(case)):
++        with pytest.raises(Unavailable, match='registry_mismatch'):
++            capture.register(store, instance_lock=case.lock, root_reattestation=other)
++    with pytest.raises(Unavailable, match='registry_lock_mismatch'):
++        capture.register(store, instance_lock=None, root_reattestation=admission)
++    assert capture.register(store, instance_lock=case.lock, root_reattestation=admission) is existing
++
++
++def test_successful_preflight_then_factory_failure_closes_only_child(case, monkeypatch):
++    from audio_backend import app
++    seen = []
++    def fail_after_preflight(settings, *args, inherited_lock=None, root_reattestation=None, **kwargs):
++        inherited_lock.verify_inherited(case.control)
++        assert type(root_reattestation) is attest.RootReattestation
++        seen.append(inherited_lock)
++        raise RuntimeError('Synthetic post-preflight failure')
++    monkeypatch.setattr(app, '_create_app', fail_after_preflight)
++    incoming = os.dup(case.supervisor.fileno())
++    with pytest.raises(RuntimeError, match='post-preflight'):
++        app.create_app(case.settings, instance_lock_fd=incoming,
++            native_root_reattestation=case.artifact,
++            native_root_reattestation_sha256=sha(case.artifact.read_bytes()))
++    assert len(seen) == 1 and seen[0].file is None
++    with pytest.raises(OSError):os.fstat(incoming)
++    case.lock.verify_inherited(case.control)
++
++
++def test_cli_incomplete_artifact_pair_consumes_adopted_fd(case):
++    from audio_backend import __main__ as cli
++    incoming = os.dup(case.supervisor.fileno())
++    with pytest.raises(SystemExit) as error:
++        cli.main(['--data-dir', str(case.data), '--instance-lock-fd', str(incoming),
++                  '--native-root-reattestation', str(case.artifact)])
++    assert error.value.code == 2
++    with pytest.raises(OSError):os.fstat(incoming)
++    case.lock.verify_inherited(case.control)
++
++
++def test_ordinary_new_store_still_works_without_opt_in(case):
++    case.path.unlink()
++    with opened(case) as item:
++        assert item.retention_store_key != case.value['old_binding_sha256']
++        assert item._root_reattestation_diagnostic is None
++        assert item._ancestor_identity == case.chain
++
++
++
++def test_two_direct_opens_preserve_bounded_proof_and_gc_store_authority(case, monkeypatch):
++    # Reuse the already reviewed finite four-root producer-shaped fixture.
++    # Its source authority is synthetic; no real input is read or regenerated.
++    import test_bounded_support_roots as roots
++    from audio_backend import moss_automatic as automatic
++    from audio_backend import native_owned_core_seams as core
++    key = case.value['old_binding_sha256']
++    monkeypatch.setattr(roots, 'STORE_KEY', key)
++    with case.primary_store.db() as db:
++        core.init_schema(db)
++        for sid in (roots.SID, roots.OTHER):
++            db.execute('INSERT INTO sessions(id,name,identity_group,created,timeline_end) VALUES(?,?,?,?,120.)',
++                       (sid, 'synthetic roots', sid, 1.))
++        roots.migrate(db); bound = roots.seed_bound(db)
++    cell = bound.cell; db = sqlite3.connect(case.path)
++    db.execute('INSERT INTO cells(cell_id,ownership,sid,cid,proof,pcm,state) VALUES(?,?,?,?,?,?,?)',
++        (cell.cell_id, cell.ownership, cell.session_id, cell.chunk_id, cell.proof, cell.pcm, 'retained'))
++    for position, values in enumerate(cells.CellStore._dependency_values(bound.doc, cell.parts)):
++        db.execute('INSERT INTO dependencies VALUES(?,?,?,?,?,?,?,?,?)', (cell.cell_id, position, *values))
++    db.commit(); db.close()
++    before = snapshot(case.path); native_bytes = case.path.read_bytes()
++    tables = (automatic.TABLE, automatic.DEPENDENCIES, 'native_core_commits', 'recording_batches')
++    with case.primary_store.db() as db:
++        primary_before = {name: roots.rows(db, name) for name in tables}
++    for _ in range(2):
++        with opened(case, load(case)) as item:
++            assert item.retention_store_key == key
++            assert item._document(cell.cell_id, cells.Budget())[2] == cell.proof
++            current_key = item._root_reattestation_diagnostic['current_binding_sha256']
++            assert current_key != key
++            with case.primary_store.db() as db:
++                assert automatic.qualify_bounded_document(db, bound.doc, cells.Budget(), item.retention_store_key)
++                assert not automatic.qualify_bounded_document(db, bound.doc, cells.Budget(), current_key)
++                assert {name: roots.rows(db, name) for name in tables} == primary_before
++                memory = sqlite3.connect(':memory:'); memory.row_factory = sqlite3.Row
++                try:
++                    memory.execute('PRAGMA foreign_keys=ON')
++                    db.backup(memory)
++                    assert memory.execute('PRAGMA foreign_keys').fetchone()[0] == 1
++                    assert memory.execute('SELECT COUNT(*) FROM ' + automatic.DEPENDENCIES).fetchone()[0] > 0
++                    automatic.erase_session(memory, roots.SID)
++                    assert memory.execute('SELECT COUNT(*) FROM ' + automatic.DEPENDENCIES).fetchone()[0] == 0
++                    slot = core.slot(bound.case['commits'][2])
++                    assert automatic.retention_eligible(memory, item.retention_store_key, slot=slot)
++                    assert not automatic.retention_eligible(memory, current_key, slot=slot)
++                finally:memory.close()
++        assert snapshot(case.path) == before
++        assert case.path.read_bytes() == native_bytes
++
++
++def test_cli_factory_real_native_owner_two_lifespans_without_listener_or_models(case, monkeypatch):
++    import asyncio
++    import uvicorn
++    from audio_backend import __main__ as cli
++    from audio_backend import app as api
++    from audio_backend import native_owned_cell_capture as capture
++    monkeypatch.setattr(capture, 'qualified_runtime', lambda _: case.profile)
++    starts = []; completed = []
++    # Only inference and listener startup are disabled. CLI parsing, fd adoption,
++    # artifact loading, factory, primary Store, registry, native owner thread and
++    # lifecycle cleanup are the actual production code.
++    monkeypatch.setattr(api.Worker, 'start', lambda self: starts.append(self))
++    def no_listener(app, **kwargs):
++        async def lifecycle():
++            async with app.router.lifespan_context(app):
++                native = app.state.worker.native_owned_cells.owner
++                assert native._ready.wait(3.), native.health()
++                assert native.retention_store_key == case.value['old_binding_sha256']
++                assert native._root_reattestation_diagnostic['change'] == 'root_device_only'
++                assert native.instance_lock is app.state.instance_lock
++                native.instance_lock.verify_inherited(case.control)
++                completed.append(native)
++        asyncio.run(lifecycle())
++        assert app.state.instance_lock_cleanup_complete
++        assert app.state.instance_lock.file is None
++        assert completed[-1]._thread is not None and not completed[-1]._thread.is_alive()
++    monkeypatch.setattr(uvicorn, 'run', no_listener)
++    native_before = snapshot(case.path)
++    for _ in range(2):
++        cli.main(['--data-dir', str(case.data), '--model-dir', str(case.root / 'absent-models'),
++            '--instance-lock-fd', str(os.dup(case.supervisor.fileno())),
++            '--native-root-reattestation', str(case.artifact),
++            '--native-root-reattestation-sha256', sha(case.artifact.read_bytes()),
++            '--diarization-backend', 'nemotron', '--native-diarization-model', str(case.root / 'absent.onnx'),
++            '--native-diarization-library', str(case.root / 'absent.so'),
++            '--native-owned-support', '--native-owned-cells', '--native-owned-core-seams',
++            '--native-owned-bounded-core-support', '--lexical-evidence',
++            '--moss-jobs', '--moss-jobs-model', str(case.root / 'absent.gguf'), '--moss-automatic'])
++        assert snapshot(case.path) == native_before
++        assert str(case.data / 'jobs.sqlite3') not in capture._REGISTRY
++        case.lock.verify_inherited(case.control)
++    assert len(starts) == len(completed) == 2
++    assert completed[0] is not completed[1]

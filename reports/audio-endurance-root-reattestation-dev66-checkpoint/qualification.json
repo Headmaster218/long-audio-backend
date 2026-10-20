@@ -1,0 +1,331 @@
+{
+  "date": "2026-10-20",
+  "endurance": {
+    "actual_attempt": "Reported launched by the execution owner; this packager did not inspect live output or establish a terminal outcome.",
+    "live_counts_included": false,
+    "verdict": "NOT_ESTABLISHED_BY_THIS_CHECKPOINT"
+  },
+  "evidence_pins": {
+    "base_source_manifest": {
+      "bytes": 100181,
+      "raw_file_included": false,
+      "role": "Exact dev65 revision 02 patch base identity",
+      "sha256": "7b6cf594ed414253c8fbf382ffd4c878914ce4f8cbb379e9b69273527852716f"
+    },
+    "corrected_fixture_controls_log": {
+      "bytes": 44183,
+      "raw_file_included": false,
+      "role": "Completed finite runner control log",
+      "sha256": "ac6730ef786e8eee1c46955591c769d52014a54b36d157f0ab9bd269522cd44d"
+    },
+    "corrected_fixture_controls_wait": {
+      "bytes": 115,
+      "raw_file_included": false,
+      "role": "Original finite runner wait receipt",
+      "sha256": "ac9bdfebc0669a70f51eb68a08dfe581d894c6fdce4d9566584e81a07be281d4"
+    },
+    "corrected_fixture_lifecycle_result": {
+      "bytes": 612,
+      "raw_file_included": false,
+      "role": "Completed two-generation synthetic lifecycle summary",
+      "sha256": "353a96f9a57c70eb7be14c2a05777b6b7b34b44817f2808b46fd756488bf8d70"
+    },
+    "corrected_fixture_lifecycle_wait": {
+      "bytes": 116,
+      "raw_file_included": false,
+      "role": "Positive original wait for finite lifecycle",
+      "sha256": "dbfd71dff7f520e5ff9e9db81b178ee6ed675fb5cb5f365bc42e7db73208d7bd"
+    },
+    "corrected_fixture_source_manifest": {
+      "bytes": 9449,
+      "raw_file_included": false,
+      "role": "Frozen runner source manifest; paths excluded",
+      "sha256": "f52ee950ff17c142f48f6020c4f70c8f78465fce8b92c6e531b0e93d4f232682"
+    },
+    "external_runtime_manifest": {
+      "bytes": 844191,
+      "raw_file_included": false,
+      "role": "Existing external runtime pins; contents deliberately excluded",
+      "sha256": "bcbe7b2379905cafcc9b9b9aebf8ac3660d5d75d0866bb0ef995f4fbfdbf5969"
+    },
+    "initial_fixture_error_controls_log": {
+      "bytes": 45006,
+      "raw_file_included": false,
+      "role": "Completed finite runner control log",
+      "sha256": "5c5d6a045c93089d1a593d78b3a926e226565d0a9f02d291913afcee1652d182"
+    },
+    "initial_fixture_error_controls_wait": {
+      "bytes": 115,
+      "raw_file_included": false,
+      "role": "Original finite runner wait receipt",
+      "sha256": "2e1cbf059b36b825e499ecd3f88aa6a6df37c2c1bfad93c9998f1eeb4269faf7"
+    },
+    "initial_fixture_error_source_manifest": {
+      "bytes": 9227,
+      "raw_file_included": false,
+      "role": "Frozen runner source manifest; paths excluded",
+      "sha256": "c157698777ce59391fc273a82d6f4a1b5455de4816435fcabb44136d7d53cef2"
+    },
+    "prior_product_junit": {
+      "bytes": 66907,
+      "raw_file_included": false,
+      "role": "Preserved failed revision 01 synthetic source controls",
+      "sha256": "24d0ffa8c8ee0baffdfb6085e41a1d5fdb476dab429903d24551859e73799d60"
+    },
+    "prior_product_wait": {
+      "bytes": 189,
+      "raw_file_included": false,
+      "role": "Positive original wait for failed revision 01 controls",
+      "sha256": "7b7459f6bf3f59b95dfabfac7a6091369e0d870dae0a9658f623ad08b06e1aed"
+    },
+    "product_installed_junit": {
+      "bytes": 50051,
+      "raw_file_included": false,
+      "role": "Revision 02 installed synthetic controls",
+      "sha256": "9e0164a769d89188083b247ee27c4c6077a2c46b216be6ce9e45c5609d690d8d"
+    },
+    "product_installed_origins": {
+      "bytes": 18272,
+      "raw_file_included": false,
+      "role": "Installed module-origin audit; locations deliberately excluded",
+      "sha256": "faa1565a9fa39eb8e46362e5c2863e1fd32f6f796af2c750743382a2bc8a51e6"
+    },
+    "product_package_audit": {
+      "bytes": 7409,
+      "raw_file_included": false,
+      "role": "Completed byte-level source, wheel and installed payload audit",
+      "sha256": "b948120018560b435ab4e2f06c9933ef514b7ddaed70982c513a115290635185"
+    },
+    "product_package_execution": {
+      "bytes": 6202,
+      "raw_file_included": false,
+      "role": "Completed package stage results and scope limitations",
+      "sha256": "1f7f8b77b996cd306c260efa5a3930f00d8b8d4ae1200f8b01d79dcca8c89518"
+    },
+    "product_package_wait": {
+      "bytes": 179,
+      "raw_file_included": false,
+      "role": "Positive original wait for packaging qualification",
+      "sha256": "cfcff8d20d11a5e86afe04652770ea8f45a83f3bb8e027b4aafc93b84a1a981f"
+    },
+    "product_source_junit": {
+      "bytes": 54659,
+      "raw_file_included": false,
+      "role": "Revision 02 synthetic source controls",
+      "sha256": "d07e6af7904b86272aa659e8eb9d660ab941909fb312c622ee96163b07d78380"
+    },
+    "product_source_manifest": {
+      "bytes": 101548,
+      "raw_file_included": false,
+      "role": "Frozen product revision 02 source identity",
+      "sha256": "a4f665f606c8744a43f5342da6319e35d6203df25137ff2acd0cab46dbc84061"
+    },
+    "product_source_wait": {
+      "bytes": 189,
+      "raw_file_included": false,
+      "role": "Positive original wait for revision 02 source controls",
+      "sha256": "44a9e271b589b9a0f3308c6ad2ba3e969e1a313afbef40d60b29ebd3e5fede0e"
+    },
+    "unchanged_runner_repeat_controls_log": {
+      "bytes": 44183,
+      "raw_file_included": false,
+      "role": "Completed finite runner control log",
+      "sha256": "dd12d586c2fb7825e4f2a8b24b83b60004041b5172b4f163bdda7054dc5a4368"
+    },
+    "unchanged_runner_repeat_controls_wait": {
+      "bytes": 116,
+      "raw_file_included": false,
+      "role": "Original finite runner wait receipt",
+      "sha256": "8376f44746ffc6c4f1bed26beb351a9bbae51e78d80c86695de9c23978562554"
+    },
+    "unchanged_runner_repeat_lifecycle_result": {
+      "bytes": 612,
+      "raw_file_included": false,
+      "role": "Completed two-generation synthetic lifecycle summary",
+      "sha256": "353a96f9a57c70eb7be14c2a05777b6b7b34b44817f2808b46fd756488bf8d70"
+    },
+    "unchanged_runner_repeat_lifecycle_wait": {
+      "bytes": 115,
+      "raw_file_included": false,
+      "role": "Positive original wait for finite lifecycle",
+      "sha256": "1f30ae4edfba64feb08788a26841c6b5e90fb556464fc244242c07d9303228e1"
+    },
+    "unchanged_runner_repeat_source_manifest": {
+      "bytes": 9467,
+      "raw_file_included": false,
+      "role": "Frozen runner source manifest; paths excluded",
+      "sha256": "0139c1598e01a0ce46ff6e79e84787a659beb02a8bbd5c16ad61e45978904e8b"
+    }
+  },
+  "finite_runner_controls": [
+    {
+      "errors": 1,
+      "evidence": [
+        "initial_fixture_error_controls_log",
+        "initial_fixture_error_controls_wait",
+        "initial_fixture_error_source_manifest"
+      ],
+      "passed": 326,
+      "positive_original_wait": true,
+      "returncode": 1,
+      "stage": "initial_fixture_error",
+      "total": 327
+    },
+    {
+      "errors": 0,
+      "evidence": [
+        "corrected_fixture_controls_log",
+        "corrected_fixture_controls_wait",
+        "corrected_fixture_source_manifest",
+        "corrected_fixture_lifecycle_result",
+        "corrected_fixture_lifecycle_wait"
+      ],
+      "passed": 327,
+      "positive_original_wait": true,
+      "returncode": 0,
+      "stage": "corrected_fixture",
+      "synthetic_lifecycle": {
+        "each_lifespan_completed": true,
+        "each_positive_stop": true,
+        "failure_retained_original": true,
+        "generation_count": 2,
+        "ownership_checked_through_final_receipt": true,
+        "positive_original_wait": true,
+        "reported_error_count": 0,
+        "returncode": 0,
+        "survivor_count": 0
+      },
+      "total": 327
+    },
+    {
+      "errors": 0,
+      "evidence": [
+        "unchanged_runner_repeat_controls_log",
+        "unchanged_runner_repeat_controls_wait",
+        "unchanged_runner_repeat_source_manifest",
+        "unchanged_runner_repeat_lifecycle_result",
+        "unchanged_runner_repeat_lifecycle_wait"
+      ],
+      "passed": 327,
+      "positive_original_wait": true,
+      "returncode": 0,
+      "stage": "unchanged_runner_repeat",
+      "synthetic_lifecycle": {
+        "each_lifespan_completed": true,
+        "each_positive_stop": true,
+        "failure_retained_original": true,
+        "generation_count": 2,
+        "ownership_checked_through_final_receipt": true,
+        "positive_original_wait": true,
+        "reported_error_count": 0,
+        "returncode": 0,
+        "survivor_count": 0
+      },
+      "total": 327
+    }
+  ],
+  "limitations": [
+    "Synthetic source and installed controls simulate runtime qualification, use no inference or listener, and touch no original data.",
+    "The product CLI/factory/native-owner test covers two application lifespans in one process, not two OS-process generations.",
+    "Separate finite runner lifecycle evidence covers two synthetic generations, not the actual long-running trial.",
+    "No endurance completion, acoustic accuracy, speaker identity accuracy, deployment readiness or universal race freedom is established.",
+    "Existing external runtime pins are preserved, not newly requalified by this checkpoint.",
+    "Private raw evidence is excluded; hashes identify it but do not make its content publicly reconstructable."
+  ],
+  "owner_reported_prelaunch_sequence": {
+    "attribution": "Execution-owner handoff, not independently observed or replayed by the publication packager.",
+    "private_artifact_baseline_and_binding_included": false,
+    "sequence": [
+      "An artifact for the previous exact root identity was refused before launch after the current root changed.",
+      "A new stopped baseline and exact source conservation were reviewed independently.",
+      "A fresh artifact for the current exact root was separately reviewed and issued; no wildcard or automatic widening was used.",
+      "The unchanged runner completed a separate 327-control pass and two-generation synthetic lifecycle before a new actual attempt."
+    ]
+  },
+  "packaging": {
+    "changed_product_modules": [
+      "audio_backend/__init__.py",
+      "audio_backend/__main__.py",
+      "audio_backend/app.py",
+      "audio_backend/native_owned_cell_capture.py",
+      "audio_backend/native_owned_cell_store.py",
+      "audio_backend/native_root_reattestation.py"
+    ],
+    "evidence": [
+      "product_package_audit",
+      "product_package_wait",
+      "product_installed_origins"
+    ],
+    "external_runtime_entries_unchanged": true,
+    "external_runtime_requalification_claimed": false,
+    "fresh_launch_rehash_required": true,
+    "installed_files": 145,
+    "installed_module_origins_verified": 69,
+    "positive_original_wait": true,
+    "product_payload_files": 138,
+    "returncode": 0,
+    "source_wheel_installed_bytes_equal": true,
+    "status": "passed",
+    "wheel_sha256": "3bf9340f084000a141764d6b2f795adefbb4952615e7e47906a413d5370faba2"
+  },
+  "prior_revision_source_controls": {
+    "disposition": "Preserved failure; never combined with the succeeding pass.",
+    "error_test_names": [],
+    "errors": 0,
+    "evidence": [
+      "prior_product_junit",
+      "prior_product_wait"
+    ],
+    "failed_test_names": [
+      "test_artifact_read_race_refuses",
+      "test_noncanonical_json_refuses",
+      "test_two_direct_opens_preserve_bounded_proof_and_gc_store_authority"
+    ],
+    "failures": 3,
+    "passed": 143,
+    "positive_original_wait": true,
+    "returncode": 1,
+    "skipped": 0,
+    "total": 146
+  },
+  "product": "0.2.0rc3.dev66",
+  "repeated_runner_source_comparison": {
+    "all_bytes_match_frozen_manifests_and_each_other": true,
+    "comparison_scope": "Corrected-fixture qualification versus unchanged-runner repeat. Release coordinates and attestation artifacts are excluded.",
+    "python_source_files": 32
+  },
+  "revision_02_installed_controls": {
+    "deselection_reason": "A source-hardcoded child-import test is excluded from the installed selection; the installed no-default-database/version/CLI-help probe runs before pytest.",
+    "error_test_names": [],
+    "errors": 0,
+    "evidence": [
+      "product_installed_junit",
+      "product_package_execution",
+      "product_package_audit"
+    ],
+    "failed_test_names": [],
+    "failures": 0,
+    "intentionally_deselected": 1,
+    "passed": 145,
+    "skipped": 0,
+    "total": 145
+  },
+  "revision_02_source_controls": {
+    "error_test_names": [],
+    "errors": 0,
+    "evidence": [
+      "product_source_junit",
+      "product_source_wait"
+    ],
+    "failed_test_names": [],
+    "failures": 0,
+    "passed": 146,
+    "positive_original_wait": true,
+    "returncode": 0,
+    "skipped": 0,
+    "total": 146
+  },
+  "schema": "dev66-public-qualification-summary-v1",
+  "scope": "Existing completed synthetic controls and package audit, summarized without reexecution.",
+  "source_revision": 2
+}

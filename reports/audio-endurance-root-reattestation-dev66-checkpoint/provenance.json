@@ -1,0 +1,193 @@
+{
+  "all_base_files_match_frozen_base_manifest": true,
+  "all_published_product_files_exact_original_bytes": true,
+  "archive_contract": {
+    "directory_mode": "0755",
+    "entry_order": "sorted relative paths",
+    "file_mode": "0644",
+    "format": "gzip-compressed POSIX ustar",
+    "gid": 0,
+    "gname": "",
+    "gzip_filename": "",
+    "gzip_mtime": 0,
+    "manifest": "manifest.json covers every other file; its own hash and archive hash are reported externally to avoid circular hashing.",
+    "mtime": 0,
+    "uid": 0,
+    "uname": ""
+  },
+  "base_source_manifest_sha256": "7b6cf594ed414253c8fbf382ffd4c878914ce4f8cbb379e9b69273527852716f",
+  "date": "2026-10-20",
+  "evidence_summary_method": "Selected structured facts and counts from completed receipts, JUnit XML and runner stderr; raw private source evidence is not copied.",
+  "external_runtime_manifest_sha256": "bcbe7b2379905cafcc9b9b9aebf8ac3660d5d75d0866bb0ef995f4fbfdbf5969",
+  "manifest_delta_exactly_matches_nine_file_allowlist": true,
+  "package_audit_sha256": "b948120018560b435ab4e2f06c9933ef514b7ddaed70982c513a115290635185",
+  "patch": {
+    "bytes": 72767,
+    "file": "product-dev65-to-dev66.patch",
+    "method": "Standard unified text diff of verified base and verified source bytes, with repository-relative a/ and b/ headers and /dev/null for new files.",
+    "no_git_operation": true,
+    "no_patch_applied_to_product": true,
+    "sha256": "93ad4d5b06504f2c6b71c809b4767b34d32414f46650259449a6997c21431967"
+  },
+  "product_revision": 2,
+  "product_version": "0.2.0rc3.dev66",
+  "purpose": "Additive public product-source and finite-evidence checkpoint; no deployment or execution grant.",
+  "schema": "dev66-public-source-provenance-v1",
+  "source_file_count": 9,
+  "source_files": [
+    {
+      "base": {
+        "bytes": 108,
+        "sha256": "126bd9b8e5e9b3a13b7fddc6323912c2a850b64e899fdc920cabcdd79a77c6ca"
+      },
+      "exact_original_bytes": true,
+      "file": "source/audio_backend/__init__.py",
+      "original_qualified_source": {
+        "bytes": 108,
+        "sha256": "54ab25d01256e8f807f2d544afd2e52764f3d14ff55c312cdae7a307115eaf16"
+      },
+      "published_source": {
+        "bytes": 108,
+        "sha256": "54ab25d01256e8f807f2d544afd2e52764f3d14ff55c312cdae7a307115eaf16"
+      },
+      "transformations": []
+    },
+    {
+      "base": {
+        "bytes": 27428,
+        "sha256": "f258a3a3d0e399f74b90a255927154db0c042fca0db23c176c61f4a0e52e1390"
+      },
+      "exact_original_bytes": true,
+      "file": "source/audio_backend/__main__.py",
+      "original_qualified_source": {
+        "bytes": 28349,
+        "sha256": "06d3537b323288cc0696426a0aee8006fcf297b0b8a89d7e3adee279b69f94dd"
+      },
+      "published_source": {
+        "bytes": 28349,
+        "sha256": "06d3537b323288cc0696426a0aee8006fcf297b0b8a89d7e3adee279b69f94dd"
+      },
+      "transformations": []
+    },
+    {
+      "base": {
+        "bytes": 55957,
+        "sha256": "ac2f255b47e0a1558a0dbb423807c8dbe446336677c41c47b4eacee6337037d5"
+      },
+      "exact_original_bytes": true,
+      "file": "source/audio_backend/app.py",
+      "original_qualified_source": {
+        "bytes": 56916,
+        "sha256": "3931bb626ab01b6ba22a2afc76f7e0947854770e3b477c006270bbcb85c18512"
+      },
+      "published_source": {
+        "bytes": 56916,
+        "sha256": "3931bb626ab01b6ba22a2afc76f7e0947854770e3b477c006270bbcb85c18512"
+      },
+      "transformations": []
+    },
+    {
+      "base": {
+        "bytes": 107089,
+        "sha256": "5703a8c0e30135e921bd7063d8c18ba05730ce8e506387f54ae7d22163deee56"
+      },
+      "exact_original_bytes": true,
+      "file": "source/audio_backend/native_owned_cell_capture.py",
+      "original_qualified_source": {
+        "bytes": 107580,
+        "sha256": "a98640c60677ec2738ff7e3cf0d02f1c8ebb6cf068702c634458116d52e07679"
+      },
+      "published_source": {
+        "bytes": 107580,
+        "sha256": "a98640c60677ec2738ff7e3cf0d02f1c8ebb6cf068702c634458116d52e07679"
+      },
+      "transformations": []
+    },
+    {
+      "base": {
+        "bytes": 105828,
+        "sha256": "314c49e27475d53efc979acd6c1dc840b59cba23ff185c28f9f1b2106a341fde"
+      },
+      "exact_original_bytes": true,
+      "file": "source/audio_backend/native_owned_cell_store.py",
+      "original_qualified_source": {
+        "bytes": 107508,
+        "sha256": "74df7cc092533f04847bd13729da01cf85faaeae80d06dcaeacb21de15258d95"
+      },
+      "published_source": {
+        "bytes": 107508,
+        "sha256": "74df7cc092533f04847bd13729da01cf85faaeae80d06dcaeacb21de15258d95"
+      },
+      "transformations": []
+    },
+    {
+      "base": null,
+      "exact_original_bytes": true,
+      "file": "source/audio_backend/native_root_reattestation.py",
+      "original_qualified_source": {
+        "bytes": 20455,
+        "sha256": "4ab1726ecc78e912061d5fd2518bc74e3cd70a92dd07bae0365cced6fdd8ee02"
+      },
+      "published_source": {
+        "bytes": 20455,
+        "sha256": "4ab1726ecc78e912061d5fd2518bc74e3cd70a92dd07bae0365cced6fdd8ee02"
+      },
+      "transformations": []
+    },
+    {
+      "base": null,
+      "exact_original_bytes": true,
+      "file": "source/docs/NATIVE_ROOT_REATTESTATION.md",
+      "original_qualified_source": {
+        "bytes": 9248,
+        "sha256": "a13d326fc7370b12ac7286767569f042719bdcbfcca8f958b1dd680f86bd8a48"
+      },
+      "published_source": {
+        "bytes": 9248,
+        "sha256": "a13d326fc7370b12ac7286767569f042719bdcbfcca8f958b1dd680f86bd8a48"
+      },
+      "transformations": []
+    },
+    {
+      "base": {
+        "bytes": 905,
+        "sha256": "8027c4b550a1bb8d016bbe0cdaf32693bfd91f2f7a3cbd13852becf2f54870e6"
+      },
+      "exact_original_bytes": true,
+      "file": "source/pyproject.toml",
+      "original_qualified_source": {
+        "bytes": 905,
+        "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
+      },
+      "published_source": {
+        "bytes": 905,
+        "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
+      },
+      "transformations": []
+    },
+    {
+      "base": null,
+      "exact_original_bytes": true,
+      "file": "source/tests/test_native_root_reattestation.py",
+      "original_qualified_source": {
+        "bytes": 28683,
+        "sha256": "ed3137d6343a8f054019374ee7fc728e0b8a57b13df0148e662ad0669ff247cc"
+      },
+      "published_source": {
+        "bytes": 28683,
+        "sha256": "ed3137d6343a8f054019374ee7fc728e0b8a57b13df0148e662ad0669ff247cc"
+      },
+      "transformations": []
+    }
+  ],
+  "source_manifest_sha256": "a4f665f606c8744a43f5342da6319e35d6203df25137ff2acd0cab46dbc84061",
+  "transformed_product_sources": [],
+  "validation": [
+    "Exact source/base byte hashes checked against frozen manifests.",
+    "Python source parsed as AST only; never imported or executed.",
+    "Completed qualification results parsed without reexecution.",
+    "Corrected and repeated runner Python source files match their frozen manifest pins and each other.",
+    "Public text scanned for private filesystem locators and operational identifiers.",
+    "Archive contents, types, normalized metadata and manifest hashes verified; second archive serialization compared byte-for-byte."
+  ]
+}

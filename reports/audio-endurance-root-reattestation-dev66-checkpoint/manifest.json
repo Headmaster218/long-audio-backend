@@ -1,0 +1,58 @@
+{
+  "REPORT.md": {
+    "bytes": 9528,
+    "sha256": "bd2e5c56d52ac4981fac4278251b32413ca2f8845d59207fa237d4bace738757"
+  },
+  "product-dev65-to-dev66.patch": {
+    "bytes": 72767,
+    "sha256": "93ad4d5b06504f2c6b71c809b4767b34d32414f46650259449a6997c21431967"
+  },
+  "provenance.json": {
+    "bytes": 7228,
+    "sha256": "2d6d335c8327ac7fe93fd6697a13678e872b9f18e40c6ac204e3fb5a18e2ce11"
+  },
+  "qualification.json": {
+    "bytes": 12805,
+    "sha256": "3370a52790ace9ce96b0a39d35a7c17db768d8c85f87b0bce9e9e09c2ef3851b"
+  },
+  "source-delta.json": {
+    "bytes": 2465,
+    "sha256": "6955928e15891934ebff8b4c9fdfbc83b0514ee49ebc19ef0ccfa3e173de3038"
+  },
+  "source/audio_backend/__init__.py": {
+    "bytes": 108,
+    "sha256": "54ab25d01256e8f807f2d544afd2e52764f3d14ff55c312cdae7a307115eaf16"
+  },
+  "source/audio_backend/__main__.py": {
+    "bytes": 28349,
+    "sha256": "06d3537b323288cc0696426a0aee8006fcf297b0b8a89d7e3adee279b69f94dd"
+  },
+  "source/audio_backend/app.py": {
+    "bytes": 56916,
+    "sha256": "3931bb626ab01b6ba22a2afc76f7e0947854770e3b477c006270bbcb85c18512"
+  },
+  "source/audio_backend/native_owned_cell_capture.py": {
+    "bytes": 107580,
+    "sha256": "a98640c60677ec2738ff7e3cf0d02f1c8ebb6cf068702c634458116d52e07679"
+  },
+  "source/audio_backend/native_owned_cell_store.py": {
+    "bytes": 107508,
+    "sha256": "74df7cc092533f04847bd13729da01cf85faaeae80d06dcaeacb21de15258d95"
+  },
+  "source/audio_backend/native_root_reattestation.py": {
+    "bytes": 20455,
+    "sha256": "4ab1726ecc78e912061d5fd2518bc74e3cd70a92dd07bae0365cced6fdd8ee02"
+  },
+  "source/docs/NATIVE_ROOT_REATTESTATION.md": {
+    "bytes": 9248,
+    "sha256": "a13d326fc7370b12ac7286767569f042719bdcbfcca8f958b1dd680f86bd8a48"
+  },
+  "source/pyproject.toml": {
+    "bytes": 905,
+    "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
+  },
+  "source/tests/test_native_root_reattestation.py": {
+    "bytes": 28683,
+    "sha256": "ed3137d6343a8f054019374ee7fc728e0b8a57b13df0148e662ad0669ff247cc"
+  }
+}
