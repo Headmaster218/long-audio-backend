@@ -28,15 +28,16 @@ ZERO = '0' * 64
 
 class PagedJournal:
     """The caller holds the shared uploader lock for every operation."""
-    def __init__(self, directory, guard, api):
+    def __init__(self, directory, guard, api, *, inherited_lock=None):
         self.u = api; self.guard = guard
         self.path = Path(directory).absolute()
+        if inherited_lock is not None: inherited_lock.verify_inherited(self.path / 'uploader.lock')
         self.path.mkdir(parents=True, exist_ok=True)
         if self.path.is_symlink(): self.fail('State directory cannot be a symlink')
         self.root_identity = self._directory(self.path)
         self.history = self.path / 'uploader.history'
         self.history_identity = None
-        self.lock = api.InstanceLock(self.path / 'uploader.lock')
+        self.lock = inherited_lock or api.InstanceLock(self.path / 'uploader.lock')
         self.data = None; self.max_spool = 0; self.metadata_allocated = 0; self.live_metadata_allocated = 0
         self.digest_bindings = {'input': bytearray(), 'page': bytearray()}
         self.ready = False

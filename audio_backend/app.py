@@ -163,7 +163,33 @@ def probe(path,settings):
     finally: output.unlink(missing_ok=True)
 
 
-def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=None):
+# A failed inherited-owner shutdown cannot lose the last child fd through GC.
+_INHERITED_APPS_PENDING_CLEANUP = []
+
+
+def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=None,instance_lock_fd=None):
+    """Optional explicit prelocked handoff, before any Store/filesystem setup.
+
+    In inherited mode the descriptor is consumed. The supervisor must retain
+    its own duplicate until its original child handle has positively waited.
+    The default factory/lifespan timing is unchanged.
+    """
+    lock=None
+    try:
+        if instance_lock_fd is not None:
+            data_dir=Path(settings.data_dir) if settings is not None else Path(os.getenv('AUDIO_DATA_DIR','./audio-data'))
+            lock=InstanceLock(data_dir/'instance.lock')
+            lock.adopt(instance_lock_fd)
+        settings=settings or Settings()
+        if lock is not None: lock.verify_inherited(settings.data_dir/'instance.lock')
+        return _create_app(settings,analyzer_factory,
+            fragment_provider_factory=fragment_provider_factory,inherited_lock=lock)
+    except BaseException:
+        if lock is not None: lock.release()
+        raise
+
+
+def _create_app(settings,analyzer_factory=None,*,fragment_provider_factory=None,inherited_lock=None):
     settings=settings or Settings()
     from .moss_handy_jobs import ownership_fence
     ownership_fence(settings.data_dir)  # Early diagnostic only; repeated under lock.
@@ -190,7 +216,7 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     change_feed.initialize(store)
     worker=Worker(store,settings,analyzer_factory)
     worker.moss_automatic=automatic
-    lock=InstanceLock(settings.data_dir/'instance.lock')
+    lock=inherited_lock or InstanceLock(settings.data_dir/'instance.lock')
     upload_lock=threading.Lock()
     from .recording_overlap import RecordingOverlap, RecordingStorageCapacityError
     recordings=RecordingOverlap(store)
@@ -202,7 +228,10 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     async def lifespan(app):
         nonlocal jobs, speaker_links
         registered_cells=None
+        app.state.instance_lock_lifespan_started=True
         lock.acquire()
+        if lock._inherited and app not in _INHERITED_APPS_PENDING_CLEANUP:
+            _INHERITED_APPS_PENDING_CLEANUP.append(app)
         try:
             ownership_fence(settings.data_dir)
             try:
@@ -361,6 +390,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
                 results.revoke_recovery()
                 if speaker_links is not None:speaker_links.revoke_recovery()
                 lock.release()
+                app.state.instance_lock_cleanup_complete=True
+                if lock._inherited: _INHERITED_APPS_PENDING_CLEANUP.remove(app)
             else:
                 # Keep the live instance lock referenced while ownership is
                 # unresolved. A subsequent process also sees the durable fence.
@@ -372,6 +403,8 @@ def create_app(settings=None,analyzer_factory=None,*,fragment_provider_factory=N
     app=FastAPI(title='Local incremental audio analysis',version=__version__,lifespan=lifespan)
     app.state.store=store; app.state.worker=worker; app.state.settings=settings; app.state.fragments=fragments
     app.state.instance_lock=lock
+    app.state.instance_lock_lifespan_started=False
+    app.state.instance_lock_cleanup_complete=False
     app.state.recordings=recordings
     app.state.moss_jobs=None
     app.state.moss_automatic=automatic

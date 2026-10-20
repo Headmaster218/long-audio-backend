@@ -1,5 +1,7 @@
 import os
 import sys
+import errno
+import stat
 import shutil
 import subprocess
 import time
@@ -86,8 +88,151 @@ def _run_bounded(args, settings, *, timeout=600, stdout_path=None, stop=None):
 
 class InstanceLock:
     """Cross-platform lock to prevent two API/worker processes sharing one data directory."""
-    def __init__(self,path): self.path=path; self.file=None
+    def __init__(self,path):
+        self.path=path; self.file=None
+        self._inherited=False
+        self._inherited_identity=None
+
+    @staticmethod
+    def _identity(info):
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError('Inherited lock must be an existing single-link regular file')
+        return info.st_dev, info.st_ino, info.st_mode, info.st_nlink
+
+    def _check_inherited_identity(self, fd):
+        """Read-only exact pathname/descriptor checks; never create a lock file."""
+        import fcntl
+        path=Path(self.path).absolute()
+        if path.resolve(strict=True) != path or path.is_symlink():
+            raise ValueError('Inherited lock path must be canonical and cannot contain symlinks')
+        identity=self._identity(path.lstat())
+        if self._identity(os.fstat(fd)) != identity:
+            raise ValueError('Inherited lock descriptor does not match the exact lock path')
+        flags=fcntl.fcntl(fd,fcntl.F_GETFL)
+        if (flags & os.O_ACCMODE) != os.O_RDONLY or flags & getattr(os,'O_PATH',0):
+            raise ValueError('Inherited lock descriptor must be open read-only, not O_PATH')
+        if os.readlink(f'/proc/self/fd/{fd}') != str(path):
+            raise ValueError('Inherited lock descriptor has a different or deleted pathname')
+        if self._inherited_identity is not None and identity != self._inherited_identity:
+            raise ValueError('Inherited lock identity changed after adoption')
+        return identity
+
+    def _check_inherited_flock(self, fd, identity):
+        # Linux fdinfo exposes locks attached to this open file description,
+        # including an inherited/duplicated flock owned by the supervisor.
+        # Do not compare PID fields: they need not match across PID namespaces.
+        with open(f'/proc/self/fdinfo/{fd}','rb') as stream:
+            raw=stream.read(65537)
+        if len(raw)>65536:
+            raise ValueError('Inherited lock descriptor metadata exceeds bound')
+        dev,ino=identity[:2]
+        matches=0
+        for line in raw.decode('ascii').splitlines():
+            if not line.startswith('lock:'): continue
+            fields=line.split()
+            if len(fields)!=9 or fields[2:5]!=['FLOCK','ADVISORY','WRITE'] or fields[7:]!=['0','EOF']:
+                raise ValueError('Inherited lock must already hold one whole-file exclusive flock')
+            try:
+                major,minor,number=fields[6].split(':')
+                target=(int(major,16),int(minor,16),int(number,10))
+            except ValueError as exc:
+                raise ValueError('Invalid inherited flock target metadata') from exc
+            if target != (os.major(dev),os.minor(dev),ino):
+                raise ValueError('Inherited flock metadata does not match the exact inode')
+            matches+=1
+        if matches!=1:
+            raise ValueError('Inherited descriptor does not already own an exclusive flock')
+
+    def verify_inherited(self, path=None):
+        """Fail closed without unlocking or changing the inherited file bytes."""
+        import fcntl
+        if not self._inherited or self.file is None or self.file.closed:
+            raise ValueError('Inherited lock is not live')
+        if path is not None and Path(path).absolute()!=Path(self.path).absolute():
+            raise ValueError('Inherited lock was supplied for a different control path')
+        fd=self.file.fileno()
+        identity=self._check_inherited_identity(fd)
+        self._check_inherited_flock(fd,identity)
+        probe=os.open(self.path,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
+        try:
+            if self._identity(os.fstat(probe))!=identity:
+                raise ValueError('Inherited lock path changed while opening independent probe')
+            try:
+                fcntl.flock(probe,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES,errno.EAGAIN): raise
+            else:
+                raise ValueError('Inherited lock is not held against an independent open')
+            # A conflicting open is not enough: prove this descriptor already
+            # owns the exclusive flock, then verify it nonblockingly unchanged.
+            self._check_inherited_flock(fd,identity)
+            fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            if self._check_inherited_identity(fd)!=identity:
+                raise ValueError('Inherited lock identity changed during verification')
+            self._check_inherited_flock(fd,identity)
+        finally:
+            # Never LOCK_UN: a dup/inherited descriptor shares the parent's
+            # open file description. Closing this independent probe is safe.
+            os.close(probe)
+        return identity
+
+    def adopt(self, fd):
+        """Consume one prelocked Linux read-only fd; parent keeps its own dup.
+
+        On success or failure the supplied fd >= 3 belongs to this operation.
+        The caller must not concurrently close/reuse it or unlock the shared
+        open file description. No descriptor is reopened as the owned lock.
+        """
+        if self.file is not None or self._inherited:
+            raise ValueError('Lock adoption is single-use')
+        if type(fd) is not int or fd<3:
+            raise ValueError('Inherited lock fd must be an integer >= 3, not a standard stream')
+        self._inherited=True
+        duplicate=None
+        try:
+            if not sys.platform.startswith('linux'):
+                raise ValueError('Inherited lock adoption requires Linux flock and procfs')
+            import fcntl
+            # Atomic CLOEXEC duplication preserves the SAME open description.
+            # The passed descriptor belongs to this child only; the supervisor
+            # keeps its own descriptor in its own descriptor table.
+            duplicate=fcntl.fcntl(fd,fcntl.F_DUPFD_CLOEXEC,3)
+            # Validate the raw descriptor before a file wrapper can reject a
+            # directory or assume ownership while failing initialization.
+            identity=self._check_inherited_identity(duplicate)
+            self._check_inherited_flock(duplicate,identity)
+            self.file=os.fdopen(duplicate,'rb',buffering=0)
+            duplicate=None  # file now owns it
+            self._inherited_identity=self.verify_inherited()
+            # Validate the supplied descriptor too, without acquiring an
+            # unproven lock: fdinfo must prove ownership before flock is used.
+            identity=self._check_inherited_identity(fd)
+            self._check_inherited_flock(fd,identity)
+            fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            self._check_inherited_flock(fd,identity)
+        except BaseException:
+            self.release()
+            if duplicate is not None:
+                try: os.close(duplicate)
+                except OSError as exc:
+                    # A failed fdopen may already have closed its input. Do
+                    # not mask its original failure with a second-close EBADF.
+                    if exc.errno != errno.EBADF: raise
+            raise
+        finally:
+            # Never LOCK_UN, including on failed adoption. It would unlock the
+            # supervisor's shared open description, not just this child.
+            try: os.close(fd)
+            except OSError: pass
+        return self
+
     def acquire(self):
+        if self._inherited:
+            try: self.verify_inherited()
+            except BaseException:
+                self.release()
+                raise
+            return
         self.file=open(self.path,'a+b')
         self.file.seek(0); self.file.write(b'0'); self.file.flush(); self.file.seek(0)
         try:

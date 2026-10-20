@@ -5,6 +5,11 @@ import os
 from pathlib import Path
 
 
+# Keep unresolved child owners referenced until process exit, not garbage
+# collection. The supervisor separately keeps its hold until positive wait.
+_INHERITED_APPS_PENDING_CLEANUP = []
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', default='127.0.0.1')
@@ -14,6 +19,7 @@ def main(argv=None):
     parser.add_argument('--fragment-cpu-check', action='store_true', help='Read-only admission check; no models, database, child or listener')
     parser.add_argument('--fragment-cpu-inspect-lease', help='Inspect one pending owner lease while holding the instance lock')
     parser.add_argument('--fragment-cpu-reconcile', help='Explicitly reconcile that lease using the exact prior inspection SHA256')
+    parser.add_argument('--instance-lock-fd', type=int, help='Linux only: consume an inherited prelocked read-only instance.lock fd before initialization')
     parser.add_argument('--data-dir', type=Path, default=Path(os.getenv('AUDIO_DATA_DIR','audio-data')))
     parser.add_argument('--model-dir', type=Path, default=Path(os.getenv('AUDIO_MODEL_DIR','models')))
     parser.add_argument('--threads', type=int, choices=range(1,5), default=4)
@@ -82,6 +88,37 @@ def main(argv=None):
     parser.add_argument('--speaker-profile-strategy', choices=['max','centroid'], default='max', help='Score only explicit human-merged examples; never adapt from automatic matches')
     parser.add_argument('--speaker-calibration', help='Opt-in model-bound policy: eres2net-ami20-v1 or a local profile JSON; controls speaker thresholds and scoring')
     args = parser.parse_args(argv)
+    lock=None
+    try:
+        if args.instance_lock_fd is not None:
+            from .resources import InstanceLock
+            lock=InstanceLock(args.data_dir/'instance.lock').adopt(args.instance_lock_fd)
+        return _main(args,parser,argv,lock)
+    finally:
+        if lock is not None: lock.release()
+
+
+def _run_app(settings,args,lock,**kwargs):
+    from .app import create_app
+    import uvicorn
+    if lock is None:
+        app=create_app(settings,**kwargs)
+    else:
+        # create_app consumes only this duplicate, never the launcher's hold.
+        lock.verify_inherited(settings.data_dir/'instance.lock')
+        app=create_app(settings,instance_lock_fd=os.dup(lock.file.fileno()),**kwargs)
+    try:
+        uvicorn.run(app,host=args.host,port=args.port,workers=1)
+    finally:
+        if lock is not None:
+            if (not app.state.instance_lock_lifespan_started
+                    or app.state.instance_lock_cleanup_complete):
+                app.state.instance_lock.release()
+            else:
+                _INHERITED_APPS_PENDING_CLEANUP.append(app)
+
+
+def _main(args,parser,argv,lock):
     for name in ('recording_capture_mib','recording_total_mib'):
         if not 1 <= getattr(args,name) <= 65536:
             parser.error('--'+name.replace('_','-')+' must be an integer in 1..65536 MiB')
@@ -142,7 +179,7 @@ def main(argv=None):
         import json
         from .fragment_cpu_provider import Manifest, CPUFactory, namespace, inspect_lease, reconcile_lease
         allowed={'--fragment-cpu-manifest','--fragment-cpu-sha256','--fragment-cpu-check',
-                 '--fragment-cpu-inspect-lease','--fragment-cpu-reconcile','--data-dir','--host','--port'}
+                 '--fragment-cpu-inspect-lease','--fragment-cpu-reconcile','--data-dir','--host','--port','--instance-lock-fd'}
         raw=sys.argv[1:] if argv is None else argv
         if any(a.split('=',1)[0] not in allowed for a in raw if a.startswith('--')):
             parser.error('The CPU manifest owns inference/resource settings; do not mix legacy policy flags')
@@ -165,12 +202,13 @@ def main(argv=None):
             data=args.data_dir.resolve()
             path=data/'jobs.sqlite3'
             if not path.is_file():raise ValueError('Ownership inspection requires the existing service database')
-            lock=InstanceLock(data/'instance.lock');lock.acquire()
+            inspection_lock=lock or InstanceLock(data/'instance.lock');inspection_lock.acquire()
             try:
                 result=(reconcile_lease(path,args.fragment_cpu_inspect_lease,manifest,args.fragment_cpu_reconcile)
                         if args.fragment_cpu_reconcile else inspect_lease(path,args.fragment_cpu_inspect_lease,manifest))
                 print(json.dumps(result,sort_keys=True))
-            finally:lock.release()
+            finally:
+                if lock is None: inspection_lock.release()
             return
         from .settings import Settings
         from .app import create_app
@@ -186,7 +224,7 @@ def main(argv=None):
             inference_device='cpu',language='auto',window_seconds=30,context_seconds=2,offline=True)
         print('EXPERIMENTAL finalized PCM16 CPU providers: native overlap retained; mixture words remain uncertain. '
               'Existing SenseVoice custom and Nemotron OpenMDW model licenses still apply.',file=sys.stderr)
-        uvicorn.run(create_app(settings,fragment_provider_factory=CPUFactory(manifest)),host=args.host,port=args.port,workers=1)
+        _run_app(settings,args,lock,fragment_provider_factory=CPUFactory(manifest))
         return
     if args.framemn:
         import sys
@@ -273,7 +311,7 @@ def main(argv=None):
                         framemn_enabled=args.framemn,
                         framemn_checkpoint_path=str(args.framemn_checkpoint.resolve()) if args.framemn_checkpoint else None,
                         framemn_profile=args.framemn_profile)
-    uvicorn.run(create_app(settings), host=args.host, port=args.port, workers=1)
+    _run_app(settings,args,lock)
 
 if __name__ == '__main__':
     main()

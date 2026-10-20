@@ -38,6 +38,10 @@ STDERR_BYTES = 8192
 POLICY = 'finalized-file-mono16k-v1'
 FORMAT = {'sample_rate': RATE, 'channels': 1, 'sample_width': 2, 'encoding': 'pcm_s16le'}
 
+# Unresolved inherited owners survive temporary callers and GC until process
+# exit. Supervisors must independently retain ownership until positive wait.
+_INHERITED_UPLOADERS_PENDING_CLEANUP = []
+
 
 class Incomplete(RuntimeError):
     """Published prefix is retained; no successful final-file claim is made."""
@@ -388,10 +392,12 @@ class PCMReader:
 
 
 class Journal:
-    def __init__(self, directory, guard):
-        self.path = Path(directory).absolute(); self.path.mkdir(parents=True, exist_ok=True)
+    def __init__(self, directory, guard, *, inherited_lock=None):
+        self.path = Path(directory).absolute()
+        if inherited_lock is not None: inherited_lock.verify_inherited(self.path / 'uploader.lock')
+        self.path.mkdir(parents=True, exist_ok=True)
         if self.path.is_symlink(): raise Incomplete('State directory cannot be a symlink')
-        self.guard = guard; self.lock = InstanceLock(self.path / 'uploader.lock')
+        self.guard = guard; self.lock = inherited_lock or InstanceLock(self.path / 'uploader.lock')
         self.data = None; self.max_spool = 0
 
     def load(self):
@@ -450,7 +456,7 @@ class Journal:
 class Uploader:
     def __init__(self, *, input, session_id, capture_id, capture_origin_frame, state_dir,
                  final, api='http://127.0.0.1:8765', limits=None, cancel=None, transport=None,
-                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe'):
+                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe', _inherited_lock=None):
         if final is not True: raise ValueError('First slice requires one --final file; continuation is unsupported')
         if not isinstance(input, (str, os.PathLike)): raise ValueError('Exactly one input file is required')
         for value in (session_id, capture_id):
@@ -479,8 +485,32 @@ class Uploader:
                     raise ValueError('Original aliases a reserved state control file')
         if (state_path / 'uploader.json.next').exists() and not (state_path / 'uploader.json').exists():
             raise ValueError('Unowned atomic journal file exists without a journal')
-        self.journal = Journal(state_dir, self.guard); self.ffmpeg = ffmpeg; self.ffprobe = ffprobe
+        self.journal = Journal(state_dir, self.guard, inherited_lock=_inherited_lock); self.ffmpeg = ffmpeg; self.ffprobe = ffprobe
         self.reader = None; self.source = None
+
+    def _close_resources(self):
+        lock=self.journal.lock
+        if not lock._inherited:
+            # Preserve historical cleanup/release timing outside opt-in mode.
+            try:
+                if self.reader is not None: self.reader.close()
+            finally:
+                if self.source is not None: self.source.close()
+                lock.release()
+            return
+        cleaned=False
+        try:
+            try:
+                if self.reader is not None: self.reader.close()
+            finally:
+                if self.source is not None: self.source.close()
+            cleaned=True
+        finally:
+            # Unresolved cleanup must keep an inherited owner live. The
+            # supervisor also retains its hold until positive child wait.
+            if cleaned: lock.release()
+            elif self not in _INHERITED_UPLOADERS_PENDING_CLEANUP:
+                _INHERITED_UPLOADERS_PENDING_CLEANUP.append(self)
 
     def _retry(self, exc):
         if isinstance(exc, Uncertain): self.guard.pause(self.limits.poll_seconds); return
@@ -721,11 +751,7 @@ class Uploader:
                 with suppress(OSError, Incomplete): j.save()
             raise
         finally:
-            try:
-                if self.reader is not None: self.reader.close()
-            finally:
-                if self.source is not None: self.source.close()
-                j.lock.release()
+            self._close_resources()
 
 
 APPEND_POLICY = 'immutable-files-contiguous-mono16k-v2'
@@ -866,7 +892,7 @@ class LegacyAppendUploader(Uploader):
     def __init__(self, *, input=None, input_id=None, input_start_frame=None, max_inputs=None,
                  append=False, finalize=False, session_id, capture_id, capture_origin_frame,
                  state_dir, api='http://127.0.0.1:8765', limits=None, cancel=None, transport=None,
-                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe'):
+                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe', _inherited_lock=None):
         if bool(append) == bool(finalize): raise ValueError('Select exactly one append/finalize mode')
         if append and (not isinstance(input, (str, os.PathLike)) or not isinstance(input_id, str)
                 or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', input_id)):
@@ -893,7 +919,7 @@ class LegacyAppendUploader(Uploader):
         self.base = '/sessions/' + quote(session_id, safe='') + '/recordings/' + quote(capture_id, safe='')
         self.state_path = Path(state_dir).resolve()
         self._check_original_location(input)
-        self.journal = AppendJournal(state_dir, self.guard); self.ffmpeg = ffmpeg; self.ffprobe = ffprobe
+        self.journal = AppendJournal(state_dir, self.guard, inherited_lock=_inherited_lock); self.ffmpeg = ffmpeg; self.ffprobe = ffprobe
         self.source = self.reader = None; self.entry = None
 
     def _check_original_location(self, path):
@@ -1211,11 +1237,7 @@ class LegacyAppendUploader(Uploader):
                 with suppress(OSError, Incomplete): j.save()
             raise
         finally:
-            try:
-                if self.reader is not None: self.reader.close()
-            finally:
-                if self.source is not None: self.source.close()
-                j.lock.release()
+            self._close_resources()
 
 
 from .recording_uploader_history import (PagedJournal, POLICY as APPEND_V3_POLICY,
@@ -1249,7 +1271,7 @@ class AppendUploader(LegacyAppendUploader):
                  max_hours=None, max_original_bytes=None, append=False, finalize=False,
                  session_id, capture_id, capture_origin_frame, state_dir,
                  api='http://127.0.0.1:8765', limits=None, cancel=None, transport=None,
-                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe'):
+                 ffmpeg='/usr/bin/ffmpeg', ffprobe='/usr/bin/ffprobe', _inherited_lock=None):
         if bool(append) == bool(finalize): raise ValueError('Select exactly one append/finalize mode')
         if append and (not isinstance(input, (str, os.PathLike)) or not isinstance(input_id, str)
                 or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', input_id)):
@@ -1282,7 +1304,7 @@ class AppendUploader(LegacyAppendUploader):
         self.origin = capture_origin_frame; self.sid = session_id; self.capture = capture_id
         self.base = '/sessions/' + quote(session_id, safe='') + '/recordings/' + quote(capture_id, safe='')
         self.state_path = Path(state_dir).resolve(); self._check_original_location(input)
-        self.journal = PagedJournal(state_dir, self.guard, sys.modules[__name__])
+        self.journal = PagedJournal(state_dir, self.guard, sys.modules[__name__], inherited_lock=_inherited_lock)
         self.ffmpeg = ffmpeg; self.ffprobe = ffprobe; self.source = self.reader = None; self.entry = None
 
     def _iter_inputs(self): return self.journal.iter_inputs()
@@ -1522,11 +1544,31 @@ class AppendUploader(LegacyAppendUploader):
         finally:
             # Never salvage a partially advanced in-memory transition into a new
             # checkpoint after an error. The last durable checkpoint is authority.
-            try:
-                if self.reader is not None: self.reader.close()
-            finally:
-                if self.source is not None: self.source.close()
-                j.lock.release()
+            self._close_resources()
+
+
+def create_uploader(*, uploader_lock_fd=None, final=False, _limit_options=None, **kwargs):
+    """Construct an uploader with optional pre-mutation inherited ownership.
+
+    The incoming fd is consumed even if initialization fails. The returned
+    uploader owns its duplicate until run() completes cleanup. A caller that
+    never runs it must close uploader.journal.lock itself, without LOCK_UN.
+    """
+    lock=None
+    try:
+        if uploader_lock_fd is not None:
+            lock=InstanceLock(Path(kwargs['state_dir'])/'uploader.lock').adopt(uploader_lock_fd)
+        if _limit_options is not None: kwargs['limits']=Limits(**_limit_options)
+        if final:
+            if not kwargs.get('input') or any(kwargs.get(k) is not None for k in ('input_id', 'input_start_frame', 'max_inputs', 'max_hours', 'max_original_bytes')):
+                raise ValueError('--final requires one input and no append-only options')
+            for name in ('append', 'finalize', 'input_id', 'input_start_frame', 'max_inputs', 'max_hours', 'max_original_bytes'):
+                kwargs.pop(name,None)
+            return Uploader(**kwargs,final=True,_inherited_lock=lock)
+        return AppendUploader(**kwargs,_inherited_lock=lock)
+    except BaseException:
+        if lock is not None: lock.release()
+        raise
 
 
 def main(argv=None):
@@ -1536,6 +1578,7 @@ def main(argv=None):
     parser.add_argument('--capture-id', required=True)
     parser.add_argument('--capture-origin-frame', type=int, required=True)
     parser.add_argument('--state-dir', required=True)
+    parser.add_argument('--uploader-lock-fd', type=int, help='Linux only: consume an inherited prelocked read-only uploader.lock fd before initialization')
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument('--final', action='store_true')
     modes.add_argument('--append', action='store_true')
@@ -1550,13 +1593,8 @@ def main(argv=None):
     parser.add_argument('--deadline-seconds', type=float, default=Limits.deadline_seconds)
     args = vars(parser.parse_args(argv))
     try:
-        limits = Limits(disk_floor=args.pop('disk_floor_bytes'), deadline_seconds=args.pop('deadline_seconds'))
-        if args.pop('final'):
-            if not args.get('input') or any(args.get(k) is not None for k in ('input_id', 'input_start_frame', 'max_inputs', 'max_hours', 'max_original_bytes')):
-                raise ValueError('--final requires one input and no append-only options')
-            for name in ('append', 'finalize', 'input_id', 'input_start_frame', 'max_inputs', 'max_hours', 'max_original_bytes'): args.pop(name)
-            result = Uploader(**args, final=True, limits=limits).run()
-        else: result = AppendUploader(**args, limits=limits).run()
+        limit_options = {'disk_floor':args.pop('disk_floor_bytes'), 'deadline_seconds':args.pop('deadline_seconds')}
+        result = create_uploader(**args,_limit_options=limit_options).run()
         print(json.dumps(result, sort_keys=True)); return 0
     except (OSError, ValueError, RuntimeError, KeyboardInterrupt) as exc:
         print(f'Incomplete ingestion: {exc}', file=sys.stderr); return 2
