@@ -148,7 +148,14 @@ def automatic_cell_jobs(monkeypatch):
     fixture = CellJobsFixture('runTest')
     fixture.setUp()
     try:
+        # The real admission guard now requires a recognized provenance schema
+        # even when the optional cache capability is absent. Install that genuine
+        # disabled baseline instead of bypassing the guard in synthetic owners.
+        from audio_backend import recording_primary_provenance as provenance
+        from audio_backend.recording_overlap import primary_cache_schema
+        provenance.init_schema(fixture.db)
         auto.init_schema(fixture.db); fixture.db.commit()
+        assert primary_cache_schema(fixture.db) is False
         fixture.store.settings.moss_automatic_enabled = True
         fixture.automatic = auto.Automatic(fixture.store, fixture.owner.results,
             capture=SimpleNamespace(owner=fixture.cell_owner, authority=fixture.authority), jobs=fixture.owner)

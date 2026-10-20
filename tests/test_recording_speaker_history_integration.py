@@ -190,12 +190,16 @@ def primary_history_factory(automatic_app_factory,monkeypatch):
             h.jobs._probe_factory = Driver
             try:yield h
             finally:
-                for item in (h.jobs._primary_pending,h.jobs._history_comparison):
+                # Discovery is an owned deferred thread too. Cancel and run its
+                # original target so production completion/cleanup is observed;
+                # never clear a slot or forge the completed event in a fixture.
+                for item in (h.jobs._primary_pending,h.jobs._history_discovery,h.jobs._history_comparison):
                     if item and item['thread'] and item['thread'].is_alive():
                         item['cancelled'].set()
                         if isinstance(item['thread'],threading.Thread):item['thread'].join(timeout=5.)
                         else:item['thread'].run()
-                h.jobs._stop_primary();h.jobs._stop_history_comparison()
+                assert h.jobs._stop_primary()
+                assert h.jobs._stop_history_comparison()
     return opened
 
 

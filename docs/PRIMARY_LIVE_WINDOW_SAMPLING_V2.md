@@ -1,7 +1,11 @@
 # Experimental bounded fresh-window sampling
 
-Source-only proposal. No execution, model qualification, acoustic evaluation or
-publication is implied. The existing acoustic/comparison policy and thresholds
+Experimental dev63 implementation with finite synthetic qualification only.
+The selected 234 model-free tests passed; a separate installed metadata-only
+smoke passed after two preserved fixture failures. No model qualification or
+acoustic gain is established. The 234-node result binds the runtime02 source;
+the installed package changes only version metadata in product code. The later
+smoke fixture and documentation are not a rerun of all 234 nodes. See the [exact qualification and failure history](../reports/PRIMARY_LIVE_WINDOW_SAMPLING_DEV63_QUALIFICATION.json). The existing acoustic/comparison policy and thresholds
 remain `primary-clean-history-v1` without changes.
 
 ## Explicit contract and compatibility
@@ -25,7 +29,7 @@ cascade enforcement. There is no per-window ledger or additional PCM storage.
 
 ## Admission policy
 
-Bootstrap remains six admitted opportunities before 120 seconds, separated by
+Bootstrap remains up to six admitted opportunities before 120 seconds, separated by
 at least ten seconds. After 120 seconds:
 
 1. Every newly committed examined source frame advances the existing high-water
@@ -62,18 +66,19 @@ More eligible live chances may increase optional work, but bounded cadence does
 not promise more clean samples, per-person coverage or better speaker accuracy.
 The exposed AMI A/B recordings are not rerun or tuned by this proposal.
 
-## Source-only fixtures
+## Finite synthetic fixtures
 
 `tests/test_primary_live_window_sampling.py` defines finite metadata fixtures for
-later-window admission, old/duplicate suppression, one admission per minute,
+later-window admission, old/duplicate suppression, one admission per minute after 120 seconds,
 three-check exhaustion, next-minute reset, hard denials, fixed diagnostics and
 saturation/corruption, v1 pinning, schema migration/refusal, erasure, unresolved
 unknown versus positive absence, and preclaim hard closure. Its cadence-claim
 fixture explicitly mocks proof/admission boundaries, not the production cadence
-transaction; it is not end-to-end model or provenance evidence. Existing genuine
-producer/unknown-commit/fairness suites remain required regression gates.
+transaction; it is not end-to-end model or provenance evidence. The selected genuine
+producer/unknown-commit/fairness regression cases passed with the same 234-node
+run. This is not the full repository test suite or an acoustic probe qualification.
 
-## Unexecuted WIP review caveats
+## Diagnostic limits retained after qualification
 
 The counters describe committed cadence outcomes, not every provisional copy,
 encoder invocation or source-eligibility call. A rolled-back claim resolved as
@@ -81,8 +86,15 @@ absent after a newer busy watermark may omit its earlier outcome diagnostic.
 An overtaken hard closure can update `last_frame` to its earlier event's source
 frame; that field is the last recorded event source frame, NOT `high_water`.
 `examined_count` is the normal live-check budget state, not a count of all late
-closure events. For example, busy130 followed by delayed hard closure120 records
+closure events. For example, busy at source time 130 seconds followed by delayed hard closure at source time
+120 seconds records
 two total examined outcomes but retains one normal live-check budget entry;
 the original minute is nevertheless irrevocably closed. These distinctions must
-not be presented as exact coverage/attempt census. Full regression, precise
-counter semantics and an actual installed dev62 refusal smoke remain gates.
+not be presented as exact coverage/attempt census. The installed smoke additionally checked genuine old-dev62 plain, reviewed-bridge
+and reference-enabled databases, preserved existing v1 policy under v2 settings,
+and demonstrated old-dev62 refusal of migrated copies without logical mutation.
+Its successful Store reopen permits only the pre-existing +4 schema cookie from
+two known lifecycle trigger replacements, with exact schema SQL, rows and other
+PRAGMAs preserved. Failed old-writer and partial-schema opens retain strict
+full-snapshot equality including the cookie. General/endurance regression and
+complete provisional-attempt accounting remain outside this qualification.

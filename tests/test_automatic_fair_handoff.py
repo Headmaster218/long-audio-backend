@@ -201,7 +201,7 @@ def test_maximum_snapshot_is_indexed_metadata_only_and_finite(archive_fixture):
 def test_real_worker_keeps_queued_row_and_no_transaction_during_optional_wait(queued,action):
     store,config,cid=queued;p=permit();config._native_execution_permit=p
     worker=Worker(store,config);processed=[]
-    worker.moss_automatic=SimpleNamespace(primary_yield_due=lambda:False,step=lambda **_:None,maintain_text_storage=lambda **_:False)
+    worker.moss_automatic=SimpleNamespace(jobs=None,primary_yield_due=lambda:False,step=lambda **_:None,maintain_text_storage=lambda **_:False)
     def process(chunk):
         processed.append(chunk['id']);worker.stop_event.set()
     worker.process=process;record,_=reserve(p)
