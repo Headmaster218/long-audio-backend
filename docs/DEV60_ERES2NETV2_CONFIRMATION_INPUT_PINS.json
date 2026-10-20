@@ -1,0 +1,182 @@
+{
+  "archive": {
+    "bytes": 3673718355,
+    "emitted_bytes": 5385922560,
+    "gzip_crc_single_stream_eof": true,
+    "identity_checks": "Before, streaming pass, and after hashes agree; source metadata unchanged.",
+    "members": 73,
+    "official_url": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Eval_Ali.tar.gz",
+    "sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+    "tar_complete": true
+  },
+  "data_credit": {
+    "creator": "Alibaba Group; Fan Yu et al.",
+    "dataset": "AliMeeting",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modification": "Fixed original physical channel 1, frames [0,5760000), canonical mono16kPCM16 WAV.",
+    "paper": "https://arxiv.org/abs/2110.07393",
+    "source": "https://www.openslr.org/119/"
+  },
+  "date_utc": "2026-10-20",
+  "limits": "These are local measured byte identities, not publisher signatures or acoustic/identity results. No audio, raw labels, text, vectors, model weights or private execution paths are published. Global confirmation reference barrier remains closed.",
+  "meetings": [
+    {
+      "meeting_id": "R8003_M8001",
+      "partition": "sealed_confirmation",
+      "prefix_header": {
+        "channels": 1,
+        "data_bytes": 11520000,
+        "data_offset": 44,
+        "duration_seconds": 360.0,
+        "file_bytes": 11520044,
+        "frames": 5760000,
+        "sample_bits": 16,
+        "sample_rate": 16000
+      },
+      "prefix_pcm_sha256": "bf240f184bb934f14bc7e1b282a4c157d6d4ff386e3f6c0fdf1ee75d1d7ea5d7",
+      "prefix_sha256": "3cd7d68bfb8c0c351eae27cb89714f9be745dcf74b5c62e131e34b83f2f10d97",
+      "rank": 5,
+      "reference_bytes": 80400,
+      "reference_interpretation": "Opaque bytes only; no semantic access.",
+      "reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8003_M8001.TextGrid",
+      "reference_sha256": "a015bbcc642596ad8e40de7578208510e920832d15320aa109a0e9e3256d7235",
+      "source_channel_index_zero_based": 0,
+      "source_file_sha256": "33fc940588079005bf16491527e04a0e416e62bf57d5d471a4ff46bc0d6275e4",
+      "source_frame_interval": [
+        0,
+        5760000
+      ],
+      "source_header": {
+        "channel_mask": 1599,
+        "channels": 8,
+        "data_bytes": 529408000,
+        "data_offset": 80,
+        "duration_seconds": 2068.0,
+        "extension_bytes": 22,
+        "fact_frames": 33088000,
+        "file_bytes": 529408080,
+        "fmt_bytes": 40,
+        "format_tag": 65534,
+        "frames": 33088000,
+        "pcm_guid_bytes_le": "0100000000001000800000aa00389b71",
+        "sample_bits": 16,
+        "sample_rate": 16000,
+        "valid_bits": 16
+      },
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8003_M8001_MS801.wav",
+      "source_pcm_sha256": "3713342c0222f6f4f05f518ed775c4b1da8635af4b3d0176839170406c887991"
+    },
+    {
+      "meeting_id": "R8009_M8020",
+      "partition": "sealed_confirmation",
+      "prefix_header": {
+        "channels": 1,
+        "data_bytes": 11520000,
+        "data_offset": 44,
+        "duration_seconds": 360.0,
+        "file_bytes": 11520044,
+        "frames": 5760000,
+        "sample_bits": 16,
+        "sample_rate": 16000
+      },
+      "prefix_pcm_sha256": "abb74d10a9fcb031686f79b5bdda2f2302bdbc5f572a79902340f506010149db",
+      "prefix_sha256": "a390ca195c6e4a53b30abbfbfeca8b500fff797310699f870684e4dc29054fd1",
+      "rank": 6,
+      "reference_bytes": 88614,
+      "reference_interpretation": "Opaque bytes only; no semantic access.",
+      "reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8009_M8020.TextGrid",
+      "reference_sha256": "6d82a5c11a1d237b8f462aeca2844dd969b5b473e13b7fa2bb45722a2f12e032",
+      "source_channel_index_zero_based": 0,
+      "source_file_sha256": "51190a947a182294b103e37ab4a29ee6adeb3fb1ee94572769da82a96f7ce952",
+      "source_frame_interval": [
+        0,
+        5760000
+      ],
+      "source_header": {
+        "channel_mask": 1599,
+        "channels": 8,
+        "data_bytes": 489073552,
+        "data_offset": 80,
+        "duration_seconds": 1910.4435625,
+        "extension_bytes": 22,
+        "fact_frames": 30567097,
+        "file_bytes": 489073632,
+        "fmt_bytes": 40,
+        "format_tag": 65534,
+        "frames": 30567097,
+        "pcm_guid_bytes_le": "0100000000001000800000aa00389b71",
+        "sample_bits": 16,
+        "sample_rate": 16000,
+        "valid_bits": 16
+      },
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8009_M8020_MS810.wav",
+      "source_pcm_sha256": "b3612bd63388e6c4032737e4883ea35cb3175b90547cf1ce72fee5affa8cd8e5"
+    },
+    {
+      "meeting_id": "R8009_M8018",
+      "partition": "sealed_confirmation",
+      "prefix_header": {
+        "channels": 1,
+        "data_bytes": 11520000,
+        "data_offset": 44,
+        "duration_seconds": 360.0,
+        "file_bytes": 11520044,
+        "frames": 5760000,
+        "sample_bits": 16,
+        "sample_rate": 16000
+      },
+      "prefix_pcm_sha256": "0e50a91c4ffca73ab342d8066769892236abfe88ec59e672ed76b9c33ded20bf",
+      "prefix_sha256": "57f1962fd25cfb28dbb363e066cf586303dcc78cafbcbe2e7510e9d3df7f4d44",
+      "rank": 7,
+      "reference_bytes": 72975,
+      "reference_interpretation": "Opaque bytes only; no semantic access.",
+      "reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8009_M8018.TextGrid",
+      "reference_sha256": "be91df9d87f0f988ade6d1b2fdba82f4533a4e994fb22f8935f27b4bd7d0300e",
+      "source_channel_index_zero_based": 0,
+      "source_file_sha256": "6534df2cdc7e208c043ef823befaf4cb9b80164fad577915ff7b9eef9ba22e70",
+      "source_frame_interval": [
+        0,
+        5760000
+      ],
+      "source_header": {
+        "channel_mask": 1599,
+        "channels": 8,
+        "data_bytes": 423592192,
+        "data_offset": 80,
+        "duration_seconds": 1654.657,
+        "extension_bytes": 22,
+        "fact_frames": 26474512,
+        "file_bytes": 423592272,
+        "fmt_bytes": 40,
+        "format_tag": 65534,
+        "frames": 26474512,
+        "pcm_guid_bytes_le": "0100000000001000800000aa00389b71",
+        "sample_bits": 16,
+        "sample_rate": 16000,
+        "valid_bits": 16
+      },
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8009_M8018_MS809.wav",
+      "source_pcm_sha256": "135380198206d587f7a59e22813eb78a558756d6e53262ae7f4a2cf56f6c3700"
+    }
+  ],
+  "payload_totals": {
+    "opaque_reference_bytes": 241989,
+    "prefix_wav_bytes": 34560132,
+    "total_bytes": 34802121
+  },
+  "preparation_evidence": {
+    "full_selected_source_audio_copies_retained": false,
+    "helper_sha256": "f91ba2ec6f889e066a8bca18c4d53bc3f780e1f5905019467c59fcd5821f923f",
+    "independent_terminal_audit_sha256": "32d294b6dc13bb946999cabfbd2fe579304b037fef90890d57b04806d44aa40b",
+    "no_resampling_padding_downmix_reselection": true,
+    "one_decompression_pass": true,
+    "original_positive_wait_exit": 0,
+    "result_sha256": "a3d00a30e704525bf9327766c50cf80edbb07cc6239e74933ad9150082563684"
+  },
+  "preregistration_commit": "81108ba96c6e5cc9069f0463931eefabc904d238",
+  "preregistration_document": "DEV60_ERES2NETV2_CONFIRMATION_PREREGISTRATION.md",
+  "protocol_sha256": "fe37b14e4d21c1a64a600a459a894bef4a268eea34cf98f9f6e0847fa74aee2c",
+  "schema": "dev60-v2-confirmation-public-input-pins-v1",
+  "status": "One fixed preparation completed and independently audited; no confirmation baseline, research encode or reference semantics yet."
+}
