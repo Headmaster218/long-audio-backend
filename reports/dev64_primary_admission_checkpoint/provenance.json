@@ -1,0 +1,45 @@
+{
+  "product_version": "0.2.0rc3.dev64",
+  "status": "Source patch checkpoint only; no actual endurance qualification",
+  "files": [
+    {
+      "file": "audio_backend/__init__.py",
+      "before": "dbdf85169a2b665fefbec893de0a016f33de7b145b9a221c7e24c43a902efd70",
+      "after": "a691d75173e6426b4e9e1e0a2bd2a4f4236f0fcfbc8c9db347085775b657a131"
+    },
+    {
+      "file": "audio_backend/primary_commit_admission.py",
+      "before": null,
+      "after": "f534287b5b7429598203d5a74f815dc0ff1a4cb8cc2aa902bc5c853d71215671"
+    },
+    {
+      "file": "audio_backend/storage.py",
+      "before": "4b4fb1ad434cc06cf57bff03dbe97b0362be111d8f16451eb6b476f1dcdf20d8",
+      "after": "2fe6124369bb6089d106649c217102c10ef31d36449342c35893b9c09cb018e5"
+    },
+    {
+      "file": "pyproject.toml",
+      "before": "586ca17e3095d48159ec811719cad66708be49f709bc64165277a74021a61104",
+      "after": "d875a6c3893fa048aee6c0a0d3264419d047efa83ee096a4ccae98cd5a9100d8"
+    },
+    {
+      "file": "tests/test_primary_commit_admission.py",
+      "before": null,
+      "after": "487ae239ce6a0198aa57ecf5c2c2f0ac336f7738baa628c1f9c1c8f436b199c2"
+    },
+    {
+      "file": "tests/test_primary_only_pipeline.py",
+      "before": "9d41cecb4b8f75450d587b8538bf87ff547490fb27fc11cd202dada1554b447e",
+      "after": "89b8db3c0742b1c1ffdab3ae1f5127841bae5434891645329621c5534ab58901"
+    },
+    {
+      "file": "tests/test_primary_sampling_installed_smoke.py",
+      "before": "523ba109cec1c0a6fecb7b1eca4bbd388cf1840724782db7b77eacabdafd48ba",
+      "after": "7b5524c18305d7a762f50b89c58e92af379a1d7965a0599a7da9392638c3f8b4"
+    }
+  ],
+  "wheel_sha256": "ac85daa7e3a97050040bd93f4e00cdbfc917a23b97b5ee1d0536d660a7434513",
+  "installed_payload_file_count": 137,
+  "source_wheel_installed_equal": true,
+  "comparison_baseline": "Frozen packaged dev63 source snapshot (all before hashes); development-source preparation used an earlier version of the installed-smoke test, so its preparation delta is a different baseline."
+}

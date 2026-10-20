@@ -537,3 +537,32 @@ def test_combined_history_rivals_and_dormant_queues_survive_primary_only_reopen(
                 for table in before}
             assert [tuple(r) for r in db.execute(f'SELECT * FROM {history.CERTIFICATES} ORDER BY sequence')]==historical
         assert after==before and not reopened.probes and not reopened.drivers and not reopened.natives
+
+
+def test_bounded_primary_busy_admission_keeps_same_handoff_and_single_commit(primary_app_factory,monkeypatch):
+    from audio_backend import primary_commit_admission as admission
+    with primary_app_factory() as h:
+        _tripwires(h,monkeypatch)
+        cid,=ingest_recording(h,frames=10*RATE)
+        original=admission.begin;attempts=[];budgets=[]
+        def once_busy(db,budget):
+            budgets.append(budget)
+            class Proxy:
+                @property
+                def in_transaction(self):return db.in_transaction
+                def execute(self,sql):
+                    attempts.append(sql)
+                    if len(attempts)==1:
+                        exc=sqlite3.OperationalError('synthetic busy before primary begin')
+                        exc.sqlite_errorcode=sqlite3.SQLITE_BUSY
+                        raise exc
+                    return db.execute(sql)
+            return original(Proxy(),budget)
+        monkeypatch.setattr(admission,'begin',once_busy)
+        assert _cohort(h)==cid
+        assert len(budgets)==1 and attempts==['BEGIN IMMEDIATE','BEGIN IMMEDIATE']
+        assert h.store.chunk(cid)['next_offset']==10.
+        assert [row['text'] for row in _primary_rows(h)]==['synthetic']
+        _assert_primary_packet(h,cid)
+        _idle_until(h,lambda:h.jobs._primary_pending is None and len(h.probes)==1)
+        assert len(h.probes)==1 and h.jobs._primary_pending is None

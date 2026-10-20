@@ -122,10 +122,10 @@ def table_rows(path):
     return _logical_snapshot(path)[2]
 
 
-def test_installed_dev63_migration_sampling_and_actual_old_writer_refusal(tmp_path,monkeypatch):
+def test_installed_dev64_migration_sampling_and_actual_old_writer_refusal(tmp_path,monkeypatch):
     root=Path(os.environ['BRIDGE_INSTALL_ROOT']).resolve()
     assert Path(audio_backend.__file__).resolve().is_relative_to(root)
-    assert audio_backend.__version__=='0.2.0rc3.dev63'
+    assert audio_backend.__version__=='0.2.0rc3.dev64'
     assert Settings(data_dir=tmp_path,start_worker=False).recording_primary_sampling_policy==history.SAMPLING_V1
     oldroot=pinned_old();created=old_child(oldroot,tmp_path,'create')
     assert len(created)==3

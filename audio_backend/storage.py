@@ -224,7 +224,14 @@ class Store:
 
     @contextmanager
     def db(self,*,budget=None):
-        db = sqlite3.connect(self.path, timeout=0 if budget is not None else 15)
+        context='primary_window_commit' if getattr(budget,'_primary_commit_context',False) else None
+        try:
+            db = sqlite3.connect(self.path, timeout=0 if budget is not None else 15)
+        except sqlite3.Error as exc:
+            if context=='primary_window_commit':
+                from .primary_commit_admission import diagnostic
+                diagnostic('connect',exc,outcome='not_started')
+            raise
         db.row_factory = sqlite3.Row
         committing=False
         if budget is not None:budget.sql_outcome='not_started'
@@ -241,7 +248,7 @@ class Store:
                 db.commit()
                 if budget is not None:budget.sql_outcome='committed'
                 if budget is not None:budget.check()
-        except BaseException:
+        except BaseException as exc:
             if budget is None:db.rollback()
             else:
                 # Exhausted SQL/time budgets never interrupt cleanup or replace
@@ -251,6 +258,13 @@ class Store:
                     db.rollback()
                     if not committing:budget.sql_outcome='rolled_back'
                 except sqlite3.Error:budget.sql_outcome='unknown'
+            if context=='primary_window_commit':
+                from .primary_commit_admission import diagnostic
+                try:
+                    diagnostic('commit' if committing else 'body',exc,
+                        in_transaction=db.in_transaction,
+                        outcome=getattr(budget,'sql_outcome',None) if budget is not None else ('commit_attempted' if committing else 'rolled_back'))
+                except Exception:pass  # Diagnostics cannot replace the original SQL failure.
             raise
         finally:
             if budget is not None:budget.primary_sql=False
@@ -616,6 +630,18 @@ class Store:
         return speaker,score,status,observation
 
 
+    @contextmanager
+    def _primary_commit_database(self, budget):
+        # Mark only this original bounded transaction; do not change db()'s
+        # calling contract or create/reset any budget for diagnostic purposes.
+        previous=getattr(budget,'_primary_commit_context',False) if budget is not None else False
+        if budget is not None:budget._primary_commit_context=True
+        try:
+            with (self.db(budget=budget) if budget is not None else self.db()) as db:
+                yield db
+        finally:
+            if budget is not None:budget._primary_commit_context=previous
+
     def commit_window(self, chunk, offset, end, result):
         # Conservatively include primary statements, added revision triggers,
         # and COMMIT in the same bounded budget. No hidden second allowance.
@@ -624,8 +650,11 @@ class Store:
         bounded_handoff=result.get('_native_bounded_support')
         if isinstance(bounded_handoff,dict):
             bounded_handoff['reserved']=bounded_handoff['budget'].reserve_planning()
-        with (self.db(budget=bounded_handoff['budget']) if isinstance(bounded_handoff,dict) else self.db()) as db:
-            db.execute('BEGIN IMMEDIATE')
+        with self._primary_commit_database(bounded_handoff['budget'] if isinstance(bounded_handoff,dict) else None) as db:
+            if isinstance(bounded_handoff,dict):
+                from .primary_commit_admission import begin
+                begin(db,bounded_handoff['budget'])
+            else:db.execute('BEGIN IMMEDIATE')
             current=db.execute('SELECT * FROM chunks WHERE id=?',(chunk['id'],)).fetchone()
             if not current or current['status'] not in ('running','paused'): return False
             if abs(current['next_offset']-offset)>1e-5: return False
