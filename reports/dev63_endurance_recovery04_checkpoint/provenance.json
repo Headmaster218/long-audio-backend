@@ -1,0 +1,75 @@
+{
+  "purpose": "Sanitized recovery source review, not a deployment bundle",
+  "source_revision": 4,
+  "files": [
+    {
+      "file": "source/adapter.py",
+      "original_sha256": "32025d62455284946165327fb42a880c6b46bafa7a00519f265364c81fb071c3",
+      "transformations": [
+        "Deployment main and authorization handling removed; Operations retained."
+      ]
+    },
+    {
+      "file": "source/endurance.py",
+      "original_sha256": "00e2956d237705b013d2bfd596978bd502c98e5ee6d5d377cbc12b878b85b11d",
+      "transformations": []
+    },
+    {
+      "file": "source/passive.py",
+      "original_sha256": "a7f43cfae1fdbdc6d167807f1530a7f658addd890c44f000acedfe09f351c468",
+      "transformations": []
+    },
+    {
+      "file": "source/http_transport.py",
+      "original_sha256": "d9abdf421d04bd468443f0b2e15bdb3a43565e9f2f57d182b2d0d2c0e15356c6",
+      "transformations": []
+    },
+    {
+      "file": "source/launch_binding.py",
+      "original_sha256": "203547862312854443e31cae00a88894e5e96cbf07911b2d847407d72b7d1edf",
+      "transformations": []
+    },
+    {
+      "file": "source/resume_state.py",
+      "original_sha256": "880fb1ac7ca4757a2ddfdd69fd33427d9ddae9082b69c28c797ea627b69d721d",
+      "transformations": []
+    },
+    {
+      "file": "source/test_adapter_source.py",
+      "original_sha256": "3bd72eb0cbe0e2bc6ca68f61eaae73b176b94924303bc4212d6313ccc3c98ae6",
+      "transformations": []
+    },
+    {
+      "file": "source/test_endurance_source.py",
+      "original_sha256": "16d18ba44be78f0076fe18bfa3f7e0faa3cb40c58ed9f8c6a7b9dbf2787aa25c",
+      "transformations": []
+    },
+    {
+      "file": "source/integration_controls.py",
+      "original_sha256": "04a24e604911fc00691bedbda23d5f2f248f0a4e3a7c4f49c1278c0f52434c82",
+      "transformations": [
+        "Private monitor artifact locator replaced with generic external dependency path."
+      ]
+    },
+    {
+      "file": "source/lifecycle_fixture.py",
+      "original_sha256": "b6a1c89b9fb30ce5d46175a9cf9fa4895728eae0426d393b5f0c8a7a7a1107f9",
+      "transformations": []
+    },
+    {
+      "file": "source/test_http_transport.py",
+      "original_sha256": "49bfb13cc174ffd2fc256acf1b2cfbea2bfa2ac18951a5b62bb5d1bacb6a77aa",
+      "transformations": []
+    },
+    {
+      "file": "source/test_launch_binding.py",
+      "original_sha256": "9987d84c55bfc828a073c2b6350cfc090d0509df6822f93378cc8292f4c96a7a",
+      "transformations": []
+    },
+    {
+      "file": "source/test_resume_state.py",
+      "original_sha256": "46d932c4c305a2aebe6b7cc0a2d5566575f1d18c1a4625f19726f90d1318524d",
+      "transformations": []
+    }
+  ]
+}

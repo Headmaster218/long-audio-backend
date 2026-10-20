@@ -1,0 +1,21 @@
+{
+  "status": "Uninterrupted endurance FAILED; recovered processing IN PROGRESS, NOT PASSED",
+  "files": {
+    "REPORT.md": "37b253866931e173b99402235c2d6fdb6a2bf8f3b1158dad881a35bf3aa204a7",
+    "history/previous-checkpoint.json": "b25c115e3440c5de3da609651c63093b3392e3410915afd25fecff8f7d046f0a",
+    "provenance.json": "8bdf9cbdbd3177e518f9c383bbbf5c92a97b8c30575082e51c92da6838a74b0b",
+    "source/adapter.py": "3398fac1ac2d377a4ee51a07eb2a375977a124bd708d0b7973b82fea4267ce03",
+    "source/endurance.py": "00e2956d237705b013d2bfd596978bd502c98e5ee6d5d377cbc12b878b85b11d",
+    "source/http_transport.py": "d9abdf421d04bd468443f0b2e15bdb3a43565e9f2f57d182b2d0d2c0e15356c6",
+    "source/integration_controls.py": "796055cffa5d58c2e23e7ef0f2e949721a2be17d14c13193419eb0da76f7d951",
+    "source/launch_binding.py": "203547862312854443e31cae00a88894e5e96cbf07911b2d847407d72b7d1edf",
+    "source/lifecycle_fixture.py": "b6a1c89b9fb30ce5d46175a9cf9fa4895728eae0426d393b5f0c8a7a7a1107f9",
+    "source/passive.py": "a7f43cfae1fdbdc6d167807f1530a7f658addd890c44f000acedfe09f351c468",
+    "source/resume_state.py": "880fb1ac7ca4757a2ddfdd69fd33427d9ddae9082b69c28c797ea627b69d721d",
+    "source/test_adapter_source.py": "3bd72eb0cbe0e2bc6ca68f61eaae73b176b94924303bc4212d6313ccc3c98ae6",
+    "source/test_endurance_source.py": "16d18ba44be78f0076fe18bfa3f7e0faa3cb40c58ed9f8c6a7b9dbf2787aa25c",
+    "source/test_http_transport.py": "49bfb13cc174ffd2fc256acf1b2cfbea2bfa2ac18951a5b62bb5d1bacb6a77aa",
+    "source/test_launch_binding.py": "9987d84c55bfc828a073c2b6350cfc090d0509df6822f93378cc8292f4c96a7a",
+    "source/test_resume_state.py": "46d932c4c305a2aebe6b7cc0a2d5566575f1d18c1a4625f19726f90d1318524d"
+  }
+}
