@@ -1,0 +1,26 @@
+{
+  "boot": "must match retained original binding",
+  "deadline": "minimum of fixed recheck interval, remaining phase budget, and any existing earlier terminal grace deadline; retries never refresh it",
+  "diagnostics": "fresh per-attempt field outcomes and kernel context; executable and argv fingerprints rather than raw values; diagnostic sink errors fail closed",
+  "hard_peak_guarantee": false,
+  "immediate_refusals": "nonempty identity mismatch, foreign owner/birth, permission error, exhausted deadline, or diagnostic failure",
+  "live_metadata": "fresh process wrapper per observation; exact nonempty executable and argv with kernel checks before and after",
+  "maximum_diagnostic_record_bytes": 4096,
+  "maximum_observations": 5,
+  "maximum_recheck_seconds": 0.1,
+  "name": "bounded-retained-original-owner-recheck-v1",
+  "namespace_gate": "validates exact proof-object identity and original Popen object, then invokes fresh independent original-exit check",
+  "positive_exit": "matching poll and zero-time original Popen wait plus strict numeric absence; raises proof-bearing Vanished, never returns a cached live row",
+  "same_birth_zombie": "inherits existing zombie handling; not a new positive-wait claim",
+  "scope": "already authenticated retained original Popen owners only",
+  "stable_kernel_fields": [
+    "pid",
+    "ticks",
+    "parent",
+    "uid",
+    "pgid",
+    "sid"
+  ],
+  "transient_only": "empty metadata or exact-owner disappearance may be re-observed within the same bound",
+  "unchanged": "original deadlines, cleanup authority, ownership locks, resource ceilings, observation accounting, source pins, and no-retry-POST boundary"
+}

@@ -1,0 +1,519 @@
+{
+  "actual_continuation_status": {
+    "endurance_pass": "NOT ESTABLISHED",
+    "owner_reported_start_utc": "2026-10-20T14:36:35Z",
+    "source": "Execution-owner handoff, not live output inspection by the packager.",
+    "status": "Started; no terminal outcome established by this checkpoint."
+  },
+  "boundary": {
+    "completed_input_ordinal": 14,
+    "kind": "clean",
+    "next_input_ordinal": 15,
+    "private_coordinates": "redacted in publication; original exact checks remain required",
+    "staged_frames": "retained, not silently discarded or equated to published frames"
+  },
+  "checkpoint_date": "2026-10-20",
+  "evidence_sha256": {
+    "finite_controls_original_wait_receipt": "3c0f6294831fb6a19e0d9e0371ab14e900bc0f721819ab7a93c3d300da2efa86",
+    "finite_controls_output": "4bae73f2dcc7080d9a9299e692a09b3eefe7842b0331bca52fdb58637f77163f",
+    "first_unexecuted_source_manifest": "565a29796cfa804b081ebe0729e8f7583573ee3ec108b8cfd3f4e8dd9a28fecd",
+    "frozen_source_manifest": "c13f52618bc5877ae5be001adbb14c49511bd491150456366535b94f61696685",
+    "latest_stopped_baseline_original_wait_receipt": "63c6b738034d45feba3f31455a57da88dbc19d3663e7f1e3a8532bd1e9cf1f40",
+    "previous_actual_original_wait_receipt": "55e49a315dc1aba36deebf276e23d87a5c44c2f7f42ce6ae6a7260eb4fb7c9c1",
+    "previous_actual_terminal_frozen_copy": "168ca4dc81f82a836f12dcb0e2942a594847dd4f94c5979be157499fb12938af",
+    "two_generation_lifecycle_original_wait_receipt": "4da72b281bbe0ac7e53fe12ec8ae691a3465dec339a385f5ca2b5ca7ed401f96",
+    "two_generation_lifecycle_result": "353a96f9a57c70eb7be14c2a05777b6b7b34b44817f2808b46fd756488bf8d70"
+  },
+  "excluded": [
+    "release/approval/launch configuration and runtime deployment dependencies",
+    "raw runtime logs and raw finite-control logs",
+    "private absolute filesystem locators and exact session/capture/chunk identities",
+    "recording-specific labels/content fingerprints and private observed run coordinates",
+    "recordings, models, databases, journals, voiceprints, and runtime installations",
+    "any live-output read or live-progress claim"
+  ],
+  "historical_failure": {
+    "earlier_lost_executor_cleanup": "UNKNOWN",
+    "prior_continuation_error": "TrialStop: live original executable/argv unavailable",
+    "stale_namespace_context": "not fresh evidence of the failing original-owner metadata observation",
+    "subsequent_original_wait_and_absence": "established for the later stopped attempt; does not prove earlier lost-executor cleanup",
+    "uninterrupted_endurance_pass": false
+  },
+  "purpose": "Sanitized inspection-only public checkpoint candidate; additive reports payload, not a runnable release, approval bundle, or endurance result.",
+  "qualification": {
+    "finite_controls_passed": 253,
+    "finite_controls_positive_original_wait": true,
+    "first_candidate": "Two bare fixture names were corrected to qualified fixture references before execution. The source-only candidate is not a failed execution and is not represented as a pass.",
+    "helper_matches_original_source_only_preparation": true,
+    "injected_helper_failure_retained_original": true,
+    "lifecycle_positive_stops": true,
+    "lifecycle_survivors_or_errors": false,
+    "ownership_checked_through_final_receipt": true,
+    "scope": "Existing receipts qualify original frozen private source only. Public transformed files were only read, hashed, and AST parsed; no controls or target imports were run for this packaging task.",
+    "two_generation_synthetic_lifecycle": "PASS"
+  },
+  "source_files": [
+    {
+      "file": "source/adapter.py",
+      "original_bytes": 45428,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "aceab2928a6e9d1e7c121bdf20c1eea4c9fe71b21e3f967e3c42ae59b5c7ba4f",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Removed observed baseline count from a diagnostic string.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_COMPLETED_BASELINE.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 41899,
+      "transformed_sha256": "ab740cd6ab53c218c17c29325145ed24b560551e4ef3665b84b3df14a8141a89",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/disk_census.py",
+      "original_bytes": 15802,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "19fb43e7778294b8aefbc9d8487f5de05e432badcdeb08ccafc3f70fc15992d3",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 15960,
+      "transformed_sha256": "9d1c40d3f66d09a539e20791e57e30e01bb16ce8ae864b9988b1de0fd3d2e1b5",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/endurance.py",
+      "original_bytes": 14339,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "30f4cad547766826ff5654132917506451b3b707234019be0c261cc6f7c787bd",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Replaced exact input-content fingerprint; immutable equality logic remains visible.",
+        "Replaced recording-specific input-label prefix while retaining ordinal boundary logic.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_FRAME_ORIGIN.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 14478,
+      "transformed_sha256": "adc8ee089b27ae3964343a73a12df86bdfcc507497f05f3bce5dfbfb7a333361",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/http_transport.py",
+      "original_bytes": 2564,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "d9abdf421d04bd468443f0b2e15bdb3a43565e9f2f57d182b2d0d2c0e15356c6",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 2722,
+      "transformed_sha256": "c1aea8db21338f73195f214e91476088a597df9afda9a0165fbee7aafb589ea5",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/integration_controls.py",
+      "original_bytes": 19981,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "c1d856ca98cc4dec74782a4a77fac2254adea0c476405290b4b730f37d86e837",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Replaced private relative dependency locator with a non-deployment placeholder.",
+        "Replaced recording-specific input-label prefix while retaining ordinal boundary logic.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_FRAME_ORIGIN.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 20043,
+      "transformed_sha256": "3f7f8742784d5dc4a11609311b7294ccf6e9fe65ea8dd4ee9d9b5e7f0156595b",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/launch_binding.py",
+      "original_bytes": 1980,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "203547862312854443e31cae00a88894e5e96cbf07911b2d847407d72b7d1edf",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 2138,
+      "transformed_sha256": "fc71b757232e054760e274c211bf78c93c66cd4bc1f86d14e6500864a1f0209a",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/lifecycle_fixture.py",
+      "original_bytes": 2548,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "3ab0bc85b9a33510e87681f12524bba86104bf7e69d1df808ee462f47da8376c",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 737,
+      "transformed_sha256": "1e8b01c56b6a7225c0e50cdfe0d0da3623ca172789ee4349c63cca7cfa5cb7d5",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/namespace_sampling.py",
+      "original_bytes": 19527,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "cfe095c9fbb37333612fe0a2d2c3aa96317f71538a03b914139bdba5bf38cee6",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 19685,
+      "transformed_sha256": "dd64e45961f2e0df07fcbb1a1edda0923b78fe3316a9ecab789a6047e0de7e18",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/original_recheck.py",
+      "original_bytes": 9022,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "a1e046e8e66fb7f330e33353373804f0aae3c7b2f4936f9a7d11db32abd32041",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 9180,
+      "transformed_sha256": "703773e34000da88f20420c78b49385f0eafcb09e2a8e3f707e9f00afdd805ba",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/ownership.py",
+      "original_bytes": 2061,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "3282eb6db4d2765673ce4f661cc4db7eb59c8516d417ef3a228371b39d6db10f",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 2219,
+      "transformed_sha256": "08d54c7894f6f07748244930ccc62bde9533d1054abf615870703de2a7d25740",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/passive.py",
+      "original_bytes": 15199,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "de4f2ee81f7a18142d422ea83e46d7c9936443acea0d11df2439fc3bf7fced89",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Replaced historical internal chunk identifier.",
+        "Replaced exact input-content fingerprint; immutable equality logic remains visible.",
+        "Replaced recording-specific input-label prefix while retaining ordinal boundary logic.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_PRIOR_CHUNK_DURATION, REDACTED_PRIOR_CHUNK_START, REDACTED_RECOVERED_REQUESTS_OR_PRIOR_SEQUENCE.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 14963,
+      "transformed_sha256": "958117a8c6987a2fec07fb2de555205b9125d2949d4c256d6308ac3a0b708740",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/product_transition.py",
+      "original_bytes": 4403,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "0f4c495d5e41a66968603ecb35d858f4ffe16e7f13c058b3fbae31fbf8f61339",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 4561,
+      "transformed_sha256": "f4aa18af79eda1e3f28c5d56c05379225039b6310eb09fd0c844e5777a37498d",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/resume_state.py",
+      "original_bytes": 7830,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "1e1b606c3934460a091bdc75558e2bd0011e5148d44716b74fd2d5ca7ff8f09b",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Replaced historical internal chunk identifier.",
+        "Replaced recording-specific input-label prefix while retaining ordinal boundary logic.",
+        "Replaced private journal-directory label.",
+        "Replaced private database-directory label.",
+        "Replaced private prior-output directory label.",
+        "Corrected stale partial-boundary module documentation.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_CLOCK_INTERVAL, REDACTED_COMPLETED_BASELINE, REDACTED_COMPLETED_END, REDACTED_DECODED_LOWER_BOUND, REDACTED_EMITTED_FRAMES, REDACTED_FRAME_ORIGIN, REDACTED_ORIGINAL_SCHEDULE_POSITION, REDACTED_PRIOR_CHUNK_DURATION, REDACTED_PUBLISHED_FRAMES, REDACTED_RECOVERED_DECODED_BYTES, REDACTED_RECOVERED_REQUESTS_OR_PRIOR_SEQUENCE, REDACTED_REQUEST_LOWER_BOUND, REDACTED_RESULT_ROWS, REDACTED_STAGED_PAGE_COUNT.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 8376,
+      "transformed_sha256": "7e71e813d5428acd5a2d0ddf04eb0a82ea2a916926b937a14b58671d4c6155c8",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/sampler_observation.py",
+      "original_bytes": 5771,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "ee5d2a1bfd649840d418c73347339802c11e5cccad3260e905cdc967271ef71f",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 5929,
+      "transformed_sha256": "d6e40499597752d31e0eef22dc3aef6802b2a9bc00018227b5c480bec2c07371",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_adapter_source.py",
+      "original_bytes": 5138,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "fb49b7bda73ffb047112be9dd692bf55e10796e62567508a5455cad69b8bdc7f",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 5296,
+      "transformed_sha256": "f749a2cab8111f067523c15abb70115be7d7d93566d3e90b2fbd39a95243c5c1",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_continuation.py",
+      "original_bytes": 4392,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "b463f27b255c71076a8c485448e8b84404efd7b9b7f72015a2e4fdff96f31724",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Replaced recording-specific input-label prefix while retaining ordinal boundary logic.",
+        "Removed observed baseline count from a fixture name.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_COMPLETED_BASELINE, REDACTED_COMPLETED_END, REDACTED_EMITTED_FRAMES, REDACTED_FRAME_ORIGIN, REDACTED_PRIOR_CHUNK_DURATION, REDACTED_PUBLISHED_FRAMES, REDACTED_RESULT_ROWS, REDACTED_STAGED_PAGE_COUNT.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 4794,
+      "transformed_sha256": "0b0f0e3faf770064f8e42f8f19367be01174040ff30421fa470766427a9290e4",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_disk_adapter.py",
+      "original_bytes": 2003,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "50f16b0fdba576dcac1c824afc08857cee50b4a698b6279d3202bb1ccb7f7312",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 2161,
+      "transformed_sha256": "9594613764f33aa7e48357bbf0d82e7433e5a6f0752c8a7b5fd162c410bc7411",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_disk_census.py",
+      "original_bytes": 13588,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "2ad16ca2ba786060b4b048c7a4cade6330273f598433756435c477eb5901e1cb",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 13746,
+      "transformed_sha256": "9c4928e9cab9f8f182c1b439c5f75405b41cdf7b2bd90c094644e70eeea1751b",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_endurance_source.py",
+      "original_bytes": 5356,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "16d18ba44be78f0076fe18bfa3f7e0faa3cb40c58ed9f8c6a7b9dbf2787aa25c",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_FRAME_ORIGIN.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 5529,
+      "transformed_sha256": "3d6188b7d6d27cb6858016fa56271b052e8610413d8dbb928a2db593d2bff1fa",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_http_transport.py",
+      "original_bytes": 3684,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "49bfb13cc174ffd2fc256acf1b2cfbea2bfa2ac18951a5b62bb5d1bacb6a77aa",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 3801,
+      "transformed_sha256": "e1a6c4422019d69d46ae34bf2af55b30fbe453e193375159e5e9c07743ca8589",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_launch_binding.py",
+      "original_bytes": 4336,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "9987d84c55bfc828a073c2b6350cfc090d0509df6822f93378cc8292f4c96a7a",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 4454,
+      "transformed_sha256": "7f689a44981b669d3a93b2f95eaf075611704c5862b7750b02b80b0415cef9be",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_locked_adapter.py",
+      "original_bytes": 7799,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "68d042211575e8c2d49821a279bb623f65da1f918b13d3c58f6ec779e2f30eda",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 7917,
+      "transformed_sha256": "11b0ab91ec2177708da11550f34aab482111e980113f7c0f5815599bc7060729",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_namespace_adapter.py",
+      "original_bytes": 2850,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "a54c8df05024e65d16027bfbb9a79dadc86ec16be223e80f1797ceab3a988c17",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Replaced private observed run coordinates with undefined symbolic redactions: REDACTED_COMPLETED_BASELINE, REDACTED_FRAME_ORIGIN, REDACTED_RECOVERED_DECODED_BYTES, REDACTED_RECOVERED_REQUESTS_OR_PRIOR_SEQUENCE.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 3089,
+      "transformed_sha256": "da69d39b880ab1a1ee573a8d7e6858612cb60d9376221f987603af778c4c3925",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_namespace_sampling.py",
+      "original_bytes": 14813,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "ba0d4f3b38e16ce8c7eb3ff179c245e9c3ba9e8cde764747757ba7c4c3db62d2",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 14931,
+      "transformed_sha256": "d6f1079043fb43adce7c23f05bf44cd8e7cd496dc485656f2ec2be55b4d08811",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_original_namespace.py",
+      "original_bytes": 4188,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "e6761a21fc07315031b5d96c4af7829765a6888ad6d1bb0516f6551672f34e33",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 4346,
+      "transformed_sha256": "89f01faedc9aee95e2ef4b87f6bd962b2a6ded3c7408d1a0b9868575734913ca",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_original_recheck.py",
+      "original_bytes": 14601,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "60c84d92e5e001528dbfdcf4761577188ef1c66c0452b1606f76761935368cf8",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 14759,
+      "transformed_sha256": "ec225836a87f6a67582a5d98f7e0dffbfaf4d1c429fd0b9afdc7d29b20282e23",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_ownership.py",
+      "original_bytes": 5810,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "e054167270ef11fc646f91c38aec990823e6c9e4a8b21e9c764003dd73d4c673",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 5928,
+      "transformed_sha256": "4d1301d2b18e7d249e6107d3591fee9e8c437a568772c87006c63aa164270807",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_resume_boundary.py",
+      "original_bytes": 11545,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "baa22e0320fa924c333a32213c3a165ce7a3e6a97539e4a91892ca7177237b58",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Replaced recording-specific input-label prefix while retaining ordinal boundary logic.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 11709,
+      "transformed_sha256": "cf824bb1b8639f0c3b0bb9cff5a24eaa3b3eaf20628d0cbc51bdd348c0a4630a",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "source/test_sampler_observation.py",
+      "original_bytes": 10640,
+      "original_frozen_manifest_match": true,
+      "original_sha256": "9cb7bfbe732a4d36bb9a63949f78a0b5033313d57e1cb49dedddd06ca8186a92",
+      "source_role": "current-qualified-original",
+      "transformations": [
+        "Removed top-level CLI main functions and executable __main__ guards.",
+        "Replaced private absolute dependency locator with a non-deployment placeholder.",
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 10702,
+      "transformed_sha256": "ec1f25f6ada998462efe027a212a3cd0feeb74203fc0bbfb3e3dc8401c071a30",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "history/namespace_sampling_before_owner_recheck.py",
+      "original_bytes": 17883,
+      "original_frozen_manifest_match": false,
+      "original_sha256": "8ec05c4529927538463ff9949da70340ce2035b010d0467f8dad6a440ecb12cb",
+      "source_role": "historical-before-owner-recheck; not current implementation",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 18041,
+      "transformed_sha256": "e786f555bbb3df4955e034c65dc3f66e926b7cf53d6acc3c0608435ea6167701",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "history/test_original_namespace_unexecuted.py",
+      "original_bytes": 4152,
+      "original_frozen_manifest_match": false,
+      "original_sha256": "86211c5412d58a72f80927f8b9b48ff2e5e7a272b02dd32b9e625ee62c274387",
+      "source_role": "first-source-only-candidate; two bare fixture names corrected before any execution",
+      "transformations": [
+        "Inserted an unconditional inspection-only RuntimeError before executable module content; public files cannot be imported or run as supplied."
+      ],
+      "transformed_bytes": 4310,
+      "transformed_sha256": "cf60b5d215f6aa6731969bce663592e43c81ffb8d639304e8123db3d5e8f4029",
+      "validation": "AST parsed only; never imported or executed."
+    },
+    {
+      "file": "sampling-protocol.json",
+      "original_frozen_manifest_match": true,
+      "original_sha256": "a357136eebaafcec0ad386e1ca3847be16e7c8a64b26c27745b034193d87fe60",
+      "source_role": "existing-protocol",
+      "transformations": [
+        "Removed private execution-approval metadata; this public checkpoint grants no execution authority.",
+        "Canonical JSON formatting."
+      ],
+      "transformed_sha256": "7597e38150361f609623032c06d007bbd2710fd1699e6ff004fe965b50791168"
+    },
+    {
+      "file": "disk-protocol.json",
+      "original_frozen_manifest_match": true,
+      "original_sha256": "1dfa3e0c28683699e256489b58e5e5c3eea1136fb88dca313eb7686d77530f5c",
+      "source_role": "existing-protocol",
+      "transformations": [
+        "Canonical JSON formatting."
+      ],
+      "transformed_sha256": "6800ad301254c7945b741b49660b750708ba075bb27530ec97ec89bb76c6d43d"
+    }
+  ]
+}
