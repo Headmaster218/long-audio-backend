@@ -4,6 +4,7 @@ Original people and review owners are never rewritten. The hash-linked ledger is
 the canonical mapping, not an enrollment source or a mutable gallery filter.
 """
 import json
+from contextlib import nullcontext
 import re
 import time
 import uuid
@@ -177,16 +178,16 @@ def _request(db, group, generation, policy, request, previous):
     return hashed, None
 
 
-def mutate(store, sid, request, *, previous=None, operator_context='local_api'):
+def mutate(store, sid, request, *, previous=None, operator_context='local_api', group=None, db=None):
     """An explicit relation claim, or the exact undo/retraction of that claim."""
     from . import verified_identity as bank
-    with store.db() as db:
-        db.execute('BEGIN IMMEDIATE')
-        group, generation, policy = bank._context(db, sid)
+    with (store.db() if db is None else nullcontext(db)) as db:
+        if not db.in_transaction: db.execute('BEGIN IMMEDIATE')
+        group, generation, policy = (bank._context(db, sid) if group is None else bank.group_context(db, group, require_primary=True))
         hashed, retry = _request(db, group, generation, policy, request, previous)
-        state = load(db, group, generation, policy)
         if retry is not None:
             return retry
+        state = load(db, group, generation, policy)
         if previous:
             old = state['active'].get(previous)
             if old is None:
@@ -201,7 +202,7 @@ def mutate(store, sid, request, *, previous=None, operator_context='local_api'):
                 raise ValueError('Explicit confirmed person relation required')
             if source not in state['people'] or target not in state['people']:
                 raise KeyError('Person not found in this identity group')
-            if any(state['people'][p]['state'] != 'reviewed_reference' for p in (source, target)):
+            if any(state['people'][p]['state'] not in ('reviewed_reference', 'reviewed_person') for p in (source, target)):
                 raise ValueError('Person relation requires existing verified-group people')
             mapping = state['mapping']
             if mapping[source] == mapping[target]:
@@ -251,13 +252,13 @@ def mutate(store, sid, request, *, previous=None, operator_context='local_api'):
         return response
 
 
-def events(store, sid, after=0, limit=100):
-    from .verified_identity import _context
+def events(store, sid, after=0, limit=100, *, group=None):
+    from .verified_identity import _context, group_context
     if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 500:
         raise ValueError('Invalid person relation page')
     with store.db() as db:
         db.execute('BEGIN')
-        group, generation, policy = _context(db, sid)
+        group, generation, policy = (_context(db, sid) if group is None else group_context(db, group, require_primary=True))
         state = load(db, group, generation, policy)
         page = [e for e in state['events'] if e['cursor'] > after][:limit]
         public = []

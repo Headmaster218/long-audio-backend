@@ -177,6 +177,15 @@ def _context(db, sid):
     policy = group_policy(db, group)
     if not policy or policy['mode'] != MODE:
         raise ValueError('Explicit verified_review_v1 identity group required')
+    return group_context(db, group)
+
+
+def group_context(db, group, *, require_primary=False):
+    policy = group_policy(db, group)
+    if not policy or policy['mode'] != MODE:
+        raise KeyError('Reviewed identity group not found')
+    if require_primary and not policy.get('primary_associations_enabled', 0):
+        raise ValueError('primary_associations_not_enabled')
     current=db.execute('SELECT generation FROM speaker_identity_generations WHERE identity_group=?',(group,)).fetchone()
     if not current:raise ValueError('Identity generation unavailable')
     return group,current['generation'],policy
@@ -245,9 +254,22 @@ def _evidence(db, sid, generation, policy, request):
     return raw, manifest, expected
 
 
+
+def active_reservations(db):
+    active = db.execute('SELECT COUNT(*) FROM identity_active_reviews').fetchone()[0]
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='identity_primary_associations_v1'").fetchone():
+        active += db.execute('SELECT COUNT(*) FROM identity_primary_associations_v1').fetchone()[0]
+    return active
+
+
+def event_capacity(db, *, new_active=0, removed_active=0, events=1):
+    history = db.execute('SELECT COUNT(*) FROM identity_review_events').fetchone()[0]
+    if history + active_reservations(db) + new_active - removed_active + events > MAX_EVENTS:
+        raise OverflowError('Review event capacity reached; retraction remains available')
+
 def _capacity(db, kind, person, replacing=None, canonical=None):
     history = db.execute('SELECT COUNT(*) FROM identity_review_events').fetchone()[0]
-    active = db.execute('SELECT COUNT(*) FROM identity_active_reviews').fetchone()[0]
+    active = active_reservations(db)
     # Admission uses one history slot and reserves one later revocation. A
     # replacement appends one event and carries its predecessor's reservation.
     if history + active + (1 if replacing else 2) > MAX_EVENTS:
@@ -315,7 +337,7 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
             else:
                 if not isinstance(name,str) or not 1 <= len(name) <= 200:
                     raise ValueError('Invalid new person name')
-                if db.execute("SELECT COUNT(*) FROM speakers WHERE state='reviewed_reference'").fetchone()[0] >= MAX_PERSONS:
+                if db.execute("SELECT COUNT(*) FROM speakers WHERE state IN ('reviewed_reference','reviewed_person')").fetchone()[0] >= MAX_PERSONS:
                     raise OverflowError('Verified person capacity reached')
                 person = uuid.uuid4().hex
             for claim in db.execute('''SELECT * FROM identity_active_reviews WHERE identity_group=? AND evidence_key=?''', (group,raw['evidence_key'])):
@@ -358,6 +380,8 @@ def mutate(store, sid, request, *, previous=None, retract=False, operator_contex
 
 def reset(db, group):
     # Delete active state first so support erasure does not retain expiry audit.
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='identity_primary_associations_v1'").fetchone():
+        db.execute('DELETE FROM identity_primary_associations_v1 WHERE identity_group=?', (group,))
     identity_canonical.reset(db, group)
     db.execute('DELETE FROM identity_active_reviews WHERE identity_group=?', (group,))
     db.execute('DELETE FROM identity_review_events WHERE identity_group=?', (group,))
@@ -647,7 +671,7 @@ def events(store,sid,after=0,limit=100):
         rows=[dict(row) for row in db.execute('''SELECT o.cursor,e.id,e.sequence,e.action,e.review_kind,e.person_id,e.previous_event_id,
             e.attestation,e.operator_context,e.created,CASE WHEN a.event_id IS NULL THEN 0 ELSE 1 END AS active
             FROM identity_review_events e JOIN identity_review_event_order o ON o.event_id=e.id LEFT JOIN identity_active_reviews a ON a.event_id=e.id
-            WHERE e.identity_group=? AND e.generation=? AND o.cursor>? ORDER BY o.cursor LIMIT ?''',
+            WHERE e.identity_group=? AND e.generation=? AND e.action IN ('positive','negative','replace','retract','source_expired') AND o.cursor>? ORDER BY o.cursor LIMIT ?''',
             (group,generation,after,limit))]
         # Expiry may emit multiple events at one revision: use an event ID cursor
         # for exact pagination rather than accepting a lossy revision boundary.
@@ -667,7 +691,7 @@ def event_detail(store,sid,event_id):
             e.support_id,e.attestation,e.operator_context,e.created,
             CASE WHEN a.event_id IS NULL THEN 0 ELSE 1 END AS active
             FROM identity_review_events e LEFT JOIN identity_active_reviews a ON a.event_id=e.id
-            WHERE e.id=? AND e.identity_group=? AND e.generation=?''',(event_id,group,generation)).fetchone()
+            WHERE e.id=? AND e.identity_group=? AND e.generation=? AND e.action IN ('positive','negative','replace','retract','source_expired')''',(event_id,group,generation)).fetchone()
         if row is None:raise KeyError('Review event not found in this identity group and generation')
         result=dict(row)
         support_id=result.pop('support_id')

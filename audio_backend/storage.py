@@ -213,6 +213,8 @@ class Store:
                 and settings.native_owned_compact_gc_enabled and settings.native_owned_receipt_gc_enabled))
             from .recording_speaker_history import init_schema as init_history
             init_history(db)
+            from .reviewed_primary_persons import init_schema as init_reviewed_primary_persons
+            init_reviewed_primary_persons(db, enable=getattr(settings, 'reviewed_primary_persons_enabled', False))
             from .recording_overlap import primary_cache_schema
             primary_cache_schema(db,self)
         from .recording_primary_provenance import database_identity, enabled as primary_provenance_enabled
@@ -922,7 +924,11 @@ class Store:
                     raise OverflowError('Merged speaker would exceed example capacity')
                 db.execute('UPDATE speakers SET merged_into=? WHERE id=?',(merge_into,pid))
             else:
-                if verified:db.execute('UPDATE speakers SET name=? WHERE id=?',(name,pid))
+                if verified:
+                    policy=verified_identity.group_policy(db,source['identity_group'])
+                    if policy.get('primary_associations_enabled',0):
+                        raise ValueError('reviewed_person_revision_required')
+                    db.execute('UPDATE speakers SET name=? WHERE id=?',(name,pid))
                 else:db.execute("UPDATE speakers SET name=?,state='confirmed' WHERE id=?",(name,pid))
             db.execute('INSERT INTO corrections(session_id,action,detail,created) VALUES(?,?,?,?)',(sid,'speaker',json.dumps({'speaker_id':pid,'name':name,'merge_into':merge_into,'undo_merge':undo_merge}),time.time()))
 

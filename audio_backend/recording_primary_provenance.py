@@ -654,6 +654,60 @@ def read_exact(db, *, cid, start, end):
     return None if row is None else _read_packet(db, row)
 
 
+def read_metadata_binding(db, *, sid, rid, sequence, packet_sha256, parent_ref, row_index):
+    """Bounded exact retained packet/parent lookup, without live source authority.
+
+    This is intentionally weaker than ``current``. It reads no file, receipt
+    owner, support cache, vector or model, and does not attest source bytes. A
+    changed live parent is a diagnostic; the retained immutable packet remains
+    the description of what the human was shown.
+    """
+    from .native_owned_cells import exact_frame
+    if not db.in_transaction:raise ValueError('Primary metadata read requires a transaction')
+    _id(sid); _id(rid)
+    if (type(sequence) is not int or not 1 <= sequence <= MAX_COUNTER
+            or type(packet_sha256) is not str or len(packet_sha256) != 64
+            or any(c not in '0123456789abcdef' for c in packet_sha256)
+            or type(parent_ref) is not str or not 1 <= len(parent_ref) <= 90
+            or type(row_index) is not int or not 0 <= row_index < 128):
+        raise ValueError('Invalid primary metadata selector')
+    h = db.execute(f"""SELECT sequence,sid,rid,cid,core_start,core_end,core_slot,digest,
+        charge,length(body) AS n FROM {TABLE} WHERE sequence=? AND sid=? AND rid=? AND digest=?""",
+        (sequence,sid,rid,packet_sha256)).fetchone()
+    if h is None:return None
+    saved = _read_packet(db,h); packet = saved['packet']; part = packet['commit']['part']
+    if row_index >= len(packet['refs']) or packet['refs'][row_index][0] != parent_ref:
+        raise ValueError('Invalid retained primary parent binding')
+    live = db.execute("""SELECT b.state,c.session_id,c.digest,c.duration,c.timeline_start,
+        c.next_offset,c.status FROM sessions s JOIN recording_batches b ON b.session_id=s.id
+        JOIN recording_work w ON w.batch_id=b.id JOIN chunks c ON c.id=w.chunk_id
+        WHERE s.id=? AND s.deleted=0 AND b.id=? AND w.chunk_id=?
+        AND length(CAST(c.session_id AS BLOB)) BETWEEN 1 AND 64
+        AND length(CAST(c.digest AS BLOB))=64 AND length(CAST(c.status AS BLOB))<=32
+        AND length(CAST(b.state AS BLOB))<=32""",(sid,rid,part['chunk_id'])).fetchone()
+    source_current = bool(live is not None and live['session_id'] == sid
+        and live['digest'] == part['source_sha256'] and live['duration'] == part['source_frames']/16000
+        and live['timeline_start'] == float.fromhex(packet['commit']['scope']['origin'])
+            + (part['logical_start']-part['source_start'])/16000
+        and live['status'] != 'cancelled' and live['state'] not in ('cancelled','aborted'))
+    if source_current:
+        try:source_current = exact_frame(live['next_offset']) >= part['source_end']
+        except (ValueError,TypeError):source_current = False
+    # Bound the full selected row before materializing text for its existing
+    # canonical evidence hash. No text is returned by this metadata helper.
+    ident = int(parent_ref.split('.')[1])
+    size = db.execute('SELECT ' + '+'.join('COALESCE(length(CAST(' + k + ' AS BLOB)),0)'
+        for k in ('text','raw_text','asr_backend','timestamp_kind','speaker_local_id'))
+        + '+512 FROM segments WHERE id=?',(ident,)).fetchone()
+    parent_current = False
+    if size is not None and type(size[0]) is int and 512 <= size[0] <= MAX_BODY:
+        row = db.execute('SELECT '+','.join(contract.PRIMARY_FIELDS)+' FROM segments WHERE id=?',(ident,)).fetchone()
+        parent_current = bool(row is not None and _row_binding(packet,row_index,row)
+            and contract.primary_evidence(sid,row)['source_ref'] == parent_ref)
+    return {'saved':saved,'source_current':source_current,'parent_current':parent_current,
+        'validation_semantics':'retained_metadata_bound_human_claim'}
+
+
 def current(db, saved, *, source_current):
     """Revalidate current authority; audit packet remains available on refusal.
 

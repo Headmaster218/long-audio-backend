@@ -39,10 +39,19 @@ def reset_group(store, group):
         policy=group_policy(db,group)
         if policy and policy['mode']=='verified_review_v1':
             db.execute('INSERT OR IGNORE INTO identity_feed_suppression VALUES(?)',(group,))
-        # Rotate only real groups: arbitrary reset URLs must not grow this table.
-        if db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0 LIMIT 1',(group,)).fetchone():
+        # An activated bank is real even with zero ordinary sessions. Preserve
+        # its explicit retention/policy, but make every old request generation
+        # unusable. Arbitrary reset URLs must not grow the generation table.
+        retained = bool(policy and policy.get('primary_associations_enabled') == 1)
+        if retained or db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0 LIMIT 1',(group,)).fetchone():
             import uuid
             db.execute('INSERT OR REPLACE INTO speaker_identity_generations VALUES(?,?)',(group,uuid.uuid4().hex))
+        from .reviewed_primary_persons import schema_present
+        if schema_present(db):
+            # Erase the current projection before its immutable event owners,
+            # across every generation. The shared reset below removes all event
+            # actions, including source-free erasure receipts and activation.
+            db.execute('DELETE FROM identity_primary_associations_v1 WHERE identity_group=?',(group,))
         from .verified_identity import reset
         reset(db,group)
         db.execute('DELETE FROM speaker_support WHERE identity_group=?',(group,))
@@ -79,6 +88,11 @@ def reset_group(store, group):
         db.execute(f'''UPDATE result_changes SET operation='delete',data=NULL
             WHERE session_id IN ({GROUP_SESSIONS}) AND entity='speakers'
             AND operation!='delete' ''', (group,))
+        # Also cover historical snapshots by their recorded group, independent
+        # of today's session membership (including a zero-session retained bank).
+        db.execute('''UPDATE result_changes SET operation='delete',data=NULL
+            WHERE entity='speakers' AND data IS NOT NULL
+            AND json_extract(data,'$.identity_group')=?''', (group,))
         db.execute(f'''UPDATE result_changes SET data=json_set(data,
                 '$.speaker_id',NULL,'$.speaker_match_score',NULL,'$.speaker_status','identity_reset')
             WHERE session_id IN ({GROUP_SESSIONS}) AND entity IN ('segments','speaker_turns')

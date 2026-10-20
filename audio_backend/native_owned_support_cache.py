@@ -38,6 +38,8 @@ MAX_DISPATCH_BYTES = 768 * 1024
 MAX_REGISTRY_OWNERS = 8
 MAX_READ_LEASES = 2
 MAX_READ_BYTES = 1536 * 1024
+# Separate transient bridge metadata accounting, never durable producer staging.
+BRIDGE_OPERATION_BYTES = 32 * 1024 * 1024
 MAX_ROWS = 1024
 MAX_SQL_BYTES = 256 * 1024
 MAX_VM_STEPS = 150000
@@ -358,6 +360,29 @@ class DispatchLease:
             self.owner._lock.release()
 
 
+class BridgeOperationLease:
+    """One worker owns this reservation until actual completion/serialization.
+
+    It is deliberately not an ASGI response lease: disconnect cannot release a
+    still-running worker's materialized canonical metadata. The original result
+    response pool remains independently charged until ASGI completion.
+    """
+    def __init__(self, owner):
+        self.owner = owner
+        self.reserved = BRIDGE_OPERATION_BYTES
+        self.released = False
+        self._release_lock = threading.Lock()
+
+    def release(self):
+        with self._release_lock:
+            if self.released:
+                return
+            self.released = True
+            self.owner._bridge_operation_count = 0
+            self.owner._bridge_operation_bytes = 0
+            self.owner._bridge_operation_lock.release()
+
+
 class ReadResponseBudget:
     """One aggregate lease pool shared by source, live-job and history responses."""
     def __init__(self):
@@ -365,6 +390,20 @@ class ReadResponseBudget:
         self._lease_count = self._lease_bytes = 0
         self._leases = []
         self._lease_cleanup_pending = threading.Event()
+        self._bridge_operation_lock = threading.Lock()
+        self._bridge_operation_count = self._bridge_operation_bytes = 0
+
+    def reserve_bridge_operation(self):
+        if not self._bridge_operation_lock.acquire(blocking=False):
+            raise ReadError(503, 'read_capacity')
+        try:
+            lease = BridgeOperationLease(self)
+            self._bridge_operation_count = 1
+            self._bridge_operation_bytes = BRIDGE_OPERATION_BYTES
+            return lease
+        except BaseException:
+            self._bridge_operation_lock.release()
+            raise
 
     def _drain_leases_locked(self):
         for lease in tuple(self._leases):

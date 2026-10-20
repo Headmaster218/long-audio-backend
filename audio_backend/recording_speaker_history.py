@@ -6,6 +6,7 @@ certificates. Unknown acknowledgements resolve storage ownership only.
 """
 from contextlib import contextmanager
 from dataclasses import asdict
+import base64
 import hashlib
 import json
 import math
@@ -248,19 +249,76 @@ for table in (ATTEMPTS,CERTIFICATES,OBJECTS,REFS,DEPENDENCIES,SOURCES):
         BEGIN SELECT RAISE(ABORT,'History requires explicit session erasure'); END'''
 
 
+# Bridge installation changes this one known trigger rather than rewriting any
+# evidence table. An unmodified dev60 exact recognizer refuses the new shape.
+BRIDGE_ERASE_GUARD = CERTIFICATES + '_erase_only'
+BRIDGE_SOURCE_GUARD = 'recording_history_reviewed_source_v1'
+BRIDGE_DDL = {
+BRIDGE_ERASE_GUARD: f"""CREATE TRIGGER {BRIDGE_ERASE_GUARD} BEFORE DELETE ON {CERTIFICATES}
+    WHEN NOT EXISTS (SELECT 1 FROM {SCOPES} h JOIN sessions s ON s.id=h.session_id
+        WHERE h.scope_seq=OLD.scope_seq AND s.deleted=1)
+    OR EXISTS (SELECT 1 FROM identity_review_events e INDEXED BY review_events_source
+        JOIN {SCOPES} h ON h.scope_seq=OLD.scope_seq
+        WHERE e.source_session_id=h.session_id AND e.source_recording_id=h.recording_id)
+    OR EXISTS (SELECT 1 FROM identity_primary_associations_v1 a INDEXED BY primary_associations_source
+        JOIN {SCOPES} h ON h.scope_seq=OLD.scope_seq
+        WHERE a.source_session_id=h.session_id AND a.source_recording_id=h.recording_id)
+    BEGIN SELECT RAISE(ABORT,'History requires complete reviewed source erasure'); END""",
+BRIDGE_SOURCE_GUARD: f"""CREATE TRIGGER {BRIDGE_SOURCE_GUARD}
+    AFTER UPDATE OF authority_revision,source_revision ON {SCOPES}
+    WHEN OLD.authority_revision IS NOT NEW.authority_revision OR OLD.source_revision IS NOT NEW.source_revision
+    BEGIN UPDATE identity_group_policy SET
+        revision=CASE WHEN revision<{MAX_REVISION} THEN revision+1 ELSE RAISE(ABORT,'Reviewed revision exhausted') END,
+        availability=CASE WHEN availability<{MAX_REVISION} THEN availability+1 ELSE RAISE(ABORT,'Reviewed availability exhausted') END,
+        change_reason='primary_source_changed'
+        WHERE primary_associations_enabled=1 AND identity_group IN
+            (SELECT a.identity_group FROM identity_primary_associations_v1 a INDEXED BY primary_associations_scope
+             JOIN speaker_identity_generations g ON g.identity_group=a.identity_group AND g.generation=a.generation
+             WHERE a.scope_id=NEW.scope_id); END""",
+}
+
+
+def _schema_sql(db,names):
+    return {r['name']:r['sql'] for r in db.execute('SELECT name,sql FROM sqlite_master WHERE name IN ('
+        + ','.join('?' for _ in names)+')',tuple(names))}
+
+
+def _same_schema(actual,expected):
+    return set(actual)==set(expected) and all(type(actual[k]) is str
+        and ' '.join(actual[k].split())==' '.join(v.split()) for k,v in expected.items())
+
+
 def init_schema(db):
-    """Exact all-or-none additive schema; caller owns transaction and rollback."""
+    """Recognize the complete old or frozen bridge shape; never repair mixtures."""
     if not db.in_transaction:raise ValueError('History migration requires transaction')
-    present={r['name']:r['sql'] for r in db.execute('SELECT name,sql FROM sqlite_master WHERE name IN ('+
-        ','.join('?' for _ in DDL)+')',tuple(DDL))}
+    expected={**DDL,**BRIDGE_DDL}
+    present=_schema_sql(db,expected)
     if present:
-        norm=lambda value:' '.join(value.split())
-        if set(present)!=set(DDL) or any(norm(present[k])!=norm(v) for k,v in DDL.items()):
-            raise ValueError('Incompatible recording history schema')
+        if _same_schema(present,DDL):
+            # Extra bridge columns/tables without their old-writer fence are an
+            # interrupted/unknown shape, not permission to normalize it away.
+            from .reviewed_primary_persons import validate_schema
+            if validate_schema(db):raise ValueError('Incompatible recording history schema')
+            return
+        if not _same_schema(present,expected):raise ValueError('Incompatible recording history schema')
+        from .reviewed_primary_persons import validate_schema
+        if not validate_schema(db):raise ValueError('Incompatible recording history schema')
         return
     for sql in DDL.values():db.execute(sql)
-    db.execute(f'''INSERT INTO {SCOPES}(scope_seq,scope_id,session_id,recording_id,policy,space_id,space_json,interval_frames)
-        VALUES(0,'','','','','',?,960000)''',(b'null',))
+    db.execute(f"""INSERT INTO {SCOPES}(scope_seq,scope_id,session_id,recording_id,policy,space_id,space_json,interval_frames)
+        VALUES(0,'','','','','',?,960000)""",(b'null',))
+
+
+def install_bridge_guard(db):
+    """Last bridge-migration step, inside its enclosing BEGIN IMMEDIATE."""
+    if not db.in_transaction:raise ValueError('Bridge migration requires transaction')
+    from .reviewed_primary_persons import validate_schema
+    if not validate_schema(db):raise ValueError('Incomplete reviewed primary schema')
+    present=_schema_sql(db,{**DDL,**BRIDGE_DDL})
+    if _same_schema(present,{**DDL,**BRIDGE_DDL}):return
+    if not _same_schema(present,DDL):raise ValueError('Incompatible recording history schema')
+    db.execute('DROP TRIGGER '+BRIDGE_ERASE_GUARD)
+    for sql in BRIDGE_DDL.values():db.execute(sql)
 
 
 def enabled(settings):return getattr(settings,'recording_primary_observation_policy','off')==POLICY
@@ -1513,3 +1571,311 @@ def notify_source_mismatch(store,chunk_ids):
                 _AUTHORITY_UNKNOWN_DATABASES.pop(path,None)
                 _AUTHORITY_UNKNOWN_BYTES-=len(path.encode('utf-8'))+512
     return True
+
+
+HUMAN_BINDING_SCHEMA = 'human-primary-observation-binding-v1'
+HUMAN_BINDING_BYTES = 4096
+
+
+
+def _metadata_hex(value,size=64):
+    if type(value) is not str or len(value)!=size or any(c not in '0123456789abcdef' for c in value):
+        _fail('history_proof_changed')
+    return value
+
+
+def _metadata_id(value):
+    from .native_owned_support_cache import _identifier
+    return _identifier(value)
+
+
+def read_source_revision(db,sid,rid):
+    """Current durable CAS fields; separate from the immutable crop digest."""
+    if not db.in_transaction:raise ValueError('Observation metadata requires transaction')
+    _metadata_id(sid);_metadata_id(rid);_live(db,sid)
+    if db.execute('SELECT 1 FROM recording_batches WHERE id=? AND session_id=?',(rid,sid)).fetchone() is None:
+        _fail('recording_not_found',404)
+    row=db.execute(f'''SELECT scope_id,history_revision,authority_revision,source_revision,authority_blocked
+        FROM {SCOPES} WHERE session_id=? AND recording_id=?''',(sid,rid)).fetchone()
+    return None if row is None else {'scope_id':row['scope_id'],'history_revision':row['history_revision'],
+        'source_authority_revision':row['authority_revision'],'source_revision':row['source_revision'],
+        'authority_blocked':row['authority_blocked']}
+
+
+def _metadata_source(db,scope,attempt,packet,header):
+    """Read only bounded retained receipt/dependency metadata, never its file."""
+    from .native_owned_cell_store import Receipt
+    seq=scope['scope_seq'];token=attempt['token'];part=packet['commit']['part']
+    sizes=db.execute(f'''SELECT kind,dependency_key,length(fact) AS n FROM {DEPENDENCIES}
+        INDEXED BY recording_history_dependency_attempt_v1 WHERE attempt=?
+        ORDER BY kind,dependency_key LIMIT 131''',(token,)).fetchall()
+    if (len(sizes)!=len(packet['refs'])+2 or len(sizes)>130
+            or any(type(r['n']) is not int or not 1<=r['n']<=256 for r in sizes)):
+        _fail('history_proof_missing')
+    dependencies={}
+    for row in sizes:
+        fact=db.execute(f'''SELECT fact FROM {DEPENDENCIES} WHERE scope_seq=? AND kind=?
+            AND dependency_key=? AND attempt=? AND length(fact)=?''',
+            (seq,row['kind'],row['dependency_key'],token,row['n'])).fetchone()
+        if fact is None:_fail('history_proof_missing')
+        dependencies[(row['kind'],row['dependency_key'])]=_decode(fact[0],256)
+    source_fact=dependencies.get(('source',part['chunk_id']))
+    mapping_fact=dependencies.get(('mapping',part['chunk_id']))
+    if (type(source_fact) is not dict or set(source_fact)!={'version','receipt'}
+            or type(mapping_fact) is not dict or set(mapping_fact)!={'mapping'}):_fail('history_proof_missing')
+    for value in (*source_fact.values(),*mapping_fact.values()):_metadata_hex(value)
+    expected={('source',part['chunk_id']):source_fact,('mapping',part['chunk_id']):mapping_fact}
+    expected.update({('primary',ref.split('.')[1]):{'ref':ref} for ref,_ in packet['refs']})
+    if dependencies!=expected:_fail('history_proof_changed')
+    n=db.execute(f'''SELECT length(marker),typeof(marker) FROM {SOURCES}
+        WHERE scope_seq=? AND version=?''',(seq,source_fact['version'])).fetchone()
+    if n is None:_fail('history_proof_missing')
+    if n[1]!='null' and (n[1]!='blob' or type(n[0]) is not int or not 1<=n[0]<=1024):_fail('history_proof_changed')
+    source=db.execute(f'''SELECT version,chunk_id,receipt_digest,mapping_digest,state,admission_revision,
+        observation_count,vector_count,required_end,marker,marker_token,cleanup FROM {SOURCES}
+        WHERE scope_seq=? AND version=?''',(seq,source_fact['version'])).fetchone()
+    source=_source_document(source)
+    if (source['chunk_id']!=part['chunk_id'] or source['receipt_digest']!=source_fact['receipt']
+            or source['mapping_digest']!=mapping_fact['mapping'] or source['required_end']<part['source_end']
+            or source['admission_revision']<1 or source['observation_count']<1):_fail('history_proof_changed')
+    edges=db.execute(f'''SELECT kind,object_key,digest FROM {REFS} WHERE attempt=?
+        ORDER BY kind,object_key LIMIT 3''',(token,)).fetchall()
+    if (len(edges)!=2 or edges[0]['kind']!='packet' or edges[1]['kind']!='receipt'
+            or edges[0]['digest']!=header['packet'] or edges[1]['digest']!=source['receipt_digest']
+            or edges[1]['object_key']!=source['receipt_digest']):_fail('history_proof_changed')
+    size=db.execute(f'''SELECT length(body),typeof(body) FROM {OBJECTS}
+        WHERE scope_seq=? AND kind='receipt' AND digest=?''',(seq,source['receipt_digest'])).fetchone()
+    if size is None or size[1]!='blob' or type(size[0]) is not int or not 1<=size[0]<=1024:_fail('history_proof_missing')
+    raw=db.execute(f'''SELECT body FROM {OBJECTS} WHERE scope_seq=? AND kind='receipt'
+        AND digest=? AND length(body)=?''',(seq,source['receipt_digest'],size[0])).fetchone()[0]
+    if _hash(raw)!=source['receipt_digest']:_fail('history_proof_changed')
+    receipt=Receipt.decode(raw)
+    if (receipt.session_id!=scope['session_id'] or receipt.chunk_id!=part['chunk_id']
+            or receipt.digest!=part['source_sha256'] or receipt.frames!=part['source_frames']
+            or receipt.receipt_id!=part['receipt_sha256']
+            or receipt.timeline_start!=float.fromhex(packet['commit']['scope']['origin'])
+                +(part['logical_start']-part['source_start'])/16000):_fail('history_proof_changed')
+    # Path is used only to compare the recorded source-version digest. It is
+    # length-gated, never opened and never copied into the binding or response.
+    bounds=db.execute('''SELECT length(CAST(c.path AS BLOB)) FROM chunks c
+        JOIN recording_work w ON w.chunk_id=c.id LEFT JOIN stream_chunks sc ON sc.chunk_id=c.id
+        WHERE c.id=? AND length(CAST(c.session_id AS BLOB)) BETWEEN 1 AND 64
+        AND length(CAST(c.digest AS BLOB))=64 AND length(CAST(w.batch_id AS BLOB)) BETWEEN 1 AND 64
+        AND (sc.session_id IS NULL OR length(CAST(sc.session_id AS BLOB)) BETWEEN 1 AND 64)
+        AND (sc.stream_id IS NULL OR length(CAST(sc.stream_id AS BLOB)) BETWEEN 1 AND 64)''',
+        (part['chunk_id'],)).fetchone()
+    current=False;fact=None
+    if bounds is not None and type(bounds[0]) is int and 1<=bounds[0]<=4096:
+        try:
+            fact=HistoryStore._source_fact(db,receipt,source['required_end'])
+            current=(fact['version']==source['version'] and fact['mapping_digest']==source['mapping_digest'])
+        except ReadError:current=False
+    if source['state']=='retired':
+        marker=_decode(source['marker'],1024)
+        fields={'schema','token','version','receipt','path','mapping','admission_revision','observation_count',
+            'vector_count','basis_count','required_end','set_digest','validation_digest','authority_revision','policy'}
+        if (type(marker) is not dict or set(marker)!=fields or type(marker['schema']) is not int or marker['schema']!=1
+                or marker['token']!=source['marker_token'] or marker['version']!=source['version']
+                or marker['receipt']!=source['receipt_digest'] or marker['mapping']!=source['mapping_digest']
+                or type(marker['basis_count']) is not int or marker['basis_count']!=source['admission_revision']
+                or type(marker['authority_revision']) is not int or marker['authority_revision']!=scope['authority_revision']
+                or type(marker['policy']) is not str or not 1<=len(marker['policy'].encode('utf-8'))<=64
+                or any(type(marker[k]) is not int or marker[k]!=source[k]
+                    for k in ('admission_revision','observation_count','vector_count','required_end'))):
+            _fail('history_retirement_changed')
+        _metadata_hex(marker['token'],32)
+        for key in ('path','set_digest','validation_digest'):_metadata_hex(marker[key])
+        if fact is None or marker['path']!=fact['path_digest']:current=False
+    elif source['state']=='active':
+        if source['marker'] is not None or source['marker_token'] is not None:_fail('history_proof_changed')
+    elif source['state']!='revoked':_fail('history_proof_changed')
+    return source,current
+
+
+def _bound_primary_metadata(db,sid,rid,observation_id,scope,row):
+    from . import recording_primary_provenance as provenance
+    from .embedding_space import validate_space
+    from .recording_primary_probe import standalone_primary_metadata,_namespace
+    from .recording_speaker_links import history_node,_witnesses
+    sizes=db.execute(f'''SELECT typeof(c.header),length(c.header),typeof(a.basis),length(a.basis),
+        typeof(a.terminal),length(a.terminal),typeof(h.space_json),length(h.space_json)
+        FROM {CERTIFICATES} c JOIN {ATTEMPTS} a ON a.token=c.attempt JOIN {SCOPES} h ON h.scope_seq=c.scope_seq
+        WHERE c.observation_id=?''',(observation_id,)).fetchone()
+    for offset,maximum in ((0,2048),(2,512),(6,16384)):
+        if sizes[offset]!='blob' or type(sizes[offset+1]) is not int or not 1<=sizes[offset+1]<=maximum:_fail('history_proof_missing')
+    if row['attempt_state']=='reserved':
+        if sizes[4]!='null' or sizes[5] is not None:_fail('history_proof_changed')
+    elif sizes[4]!='blob' or type(sizes[5]) is not int or not 1<=sizes[5]<=512:_fail('history_proof_missing')
+    blobs=db.execute(f'''SELECT c.header,a.basis,a.terminal,h.space_json FROM {CERTIFICATES} c
+        JOIN {ATTEMPTS} a ON a.token=c.attempt JOIN {SCOPES} h ON h.scope_seq=c.scope_seq WHERE c.observation_id=?''',
+        (observation_id,)).fetchone()
+    header=_decode(blobs['header'],2048);basis=_decode(blobs['basis'],512);space=_decode(blobs['space_json'],16384)
+    if type(header) is not dict or header.get('origin_kind')!='primary_commit' or header.get('source_kind')!='native_primary':
+        _fail('unsupported_observation_origin')
+    if (scope['scope_id']!=_hash(encoded({'session_id':sid,'recording_id':rid})) or scope['policy']!=POLICY
+            or validate_space(space)!=scope['space_id'] or header.get('space_id')!=scope['space_id']):_fail('history_space_changed')
+    for key in ('node_id','pcm_hash','float_hash','source_key','packet'):_metadata_hex(header.get(key))
+    _metadata_hex(row['attempt'],32);_metadata_hex(row['invocation_id'],32)
+    if (row['attempt_scope']!=scope['scope_seq'] or row['origin_id']!=header['packet']
+            or row['attempt_invocation']!=row['invocation_id']
+            or observation_id!=_hash(encoded([row['attempt'],_hash(blobs['basis']),_hash(blobs['header'])]))):_fail('history_proof_changed')
+    packet_ref=db.execute(f'''SELECT object_key,digest FROM {REFS} WHERE attempt=? AND kind='packet'
+        ORDER BY object_key LIMIT 2''',(row['attempt'],)).fetchall()
+    if (len(packet_ref)!=1 or packet_ref[0]['digest']!=header['packet'] or
+            type(packet_ref[0]['object_key']) is not str or not packet_ref[0]['object_key'].isdigit()
+            or len(packet_ref[0]['object_key'])>19):_fail('history_proof_missing')
+    sequence=int(packet_ref[0]['object_key'])
+    if str(sequence)!=packet_ref[0]['object_key']:_fail('history_proof_changed')
+    saved_binding=provenance.read_metadata_binding(db,sid=sid,rid=rid,sequence=sequence,
+        packet_sha256=header['packet'],parent_ref=header.get('ref_key'),row_index=header.get('row'))
+    if saved_binding is None:_fail('history_proof_missing')
+    saved=saved_binding['saved'];packet=saved['packet'];part=packet['commit']['part']
+    # Use the existing producer's metadata validator and packet bounds. This
+    # reader introduces no smaller row/turn or lifetime-observation cutoff.
+    node=standalone_primary_metadata(saved,scope['space_id'])
+    if node is None:_fail('history_proof_changed')
+    node.update(pcm16le_sha256=header['pcm_hash'],float32le_sha256=header['float_hash'])
+    if encoded(history_node(node,origin_kind='primary_commit'))!=blobs['header']:_fail('history_proof_changed')
+    if row['identity_sha256']!=_hash(encoded(primary_identity(saved,node,scope['space_id']))):_fail('history_proof_changed')
+    if len(db.execute(f'SELECT sequence FROM {CERTIFICATES} WHERE scope_seq=? AND attempt=? LIMIT 2',
+            (scope['scope_seq'],row['attempt'])).fetchall())!=1:_fail('history_proof_changed')
+    turns=[{'label':packet['labels'][t[1]],'original':t[2:4]} for t in packet['turns']]
+    witnesses=_witnesses([(_hash(encoded(_namespace(packet))),turns,0,0)],header['packet'])
+    expected_basis={'schema':1,'kind':'primary_commit','packet_digests':[header['packet']],'witness_count':len(witnesses)}
+    if encoded(basis)!=encoded(expected_basis) or row['witness_count']!=len(witnesses):_fail('history_proof_changed')
+    kind=row['evidence_kind'];certificate=row['certificate_id'];vector_hash=row['vector_sha256']
+    if kind=='vector':
+        _metadata_hex(certificate);_metadata_hex(vector_hash)
+        if certificate!=_hash(encoded([observation_id,row['invocation_id'],vector_hash])):_fail('history_proof_changed')
+    elif kind not in ('pending','candidate_missing') or certificate is not None or vector_hash is not None:
+        _fail('history_proof_changed')
+    if row['attempt_state']=='reserved':
+        if kind!='pending' or row['terminal_sha256'] is not None:_fail('history_proof_changed')
+    else:
+        if _hash(blobs['terminal'])!=row['terminal_sha256']:_fail('history_terminal_changed')
+        terminal=_decode(blobs['terminal'],512)
+        if row['attempt_state']=='success':
+            expected_terminal={'schema':1,'outcome':'success','invocation':row['invocation_id'],
+                'basis':_hash(blobs['basis']),'certificates':[certificate]}
+            if kind!='vector' or encoded(terminal)!=encoded(expected_terminal):_fail('history_terminal_changed')
+        elif row['attempt_state']=='failure':
+            if kind!='candidate_missing':_fail('history_terminal_changed')
+            if type(terminal) is not dict:_fail('history_terminal_changed')
+            if terminal.get('schema')==1:
+                if (type(terminal['schema']) is not int or set(terminal)!={'schema','outcome','reason'} or terminal['outcome']!='failure'
+                        or terminal['reason'] not in _REASONS):_fail('history_terminal_changed')
+            else:
+                from .recording_speaker_link_store import validate_failure
+                validate_failure(blobs['terminal'])
+        else:_fail('history_terminal_changed')
+    source,current_source=_metadata_source(db,scope,row,packet,header)
+    origin=float.fromhex(packet['commit']['scope']['origin'])
+    logical=[{'start_frame':node['start_frame'],'end_frame':node['end_frame'],
+        'origin_seconds_hex':packet['commit']['scope']['origin'],
+        'session_start_seconds':origin+node['start_frame']/16000,
+        'session_end_seconds':origin+node['end_frame']/16000,
+        'recording_start_seconds':origin+node['start_frame']/16000,
+        'recording_end_seconds':origin+node['end_frame']/16000}]
+    physical={'source_sha256':part['source_sha256'],'source_frames':part['source_frames'],
+        'source_start_frame':node['source_spans'][0]['source_start'],
+        'source_end_frame':node['source_spans'][0]['source_end'],
+        'pcm16le_sha256':header['pcm_hash'],'float32le_sha256':header['float_hash']}
+    document={'schema':HUMAN_BINDING_SCHEMA,'source_session_id':sid,'recording_id':rid,
+        'scope_id':scope['scope_id'],'observation_id':observation_id,'observation_sequence':row['sequence'],
+        'attempt':row['attempt'],'invocation_id':row['invocation_id'],'evidence_kind':kind,
+        'certificate_id':certificate,'vector_sha256':vector_hash,'header_sha256':_hash(blobs['header']),
+        'node_id':header['node_id'],'parent_ref':header['ref_key'],'packet_sha256':header['packet'],
+        'packet_sequence':sequence,'row_ordinal':header['row'],'physical_crop':physical,
+        'source_version':source['version'],'receipt_sha256':source['receipt_digest'],
+        'mapping_sha256':source['mapping_digest'],'space_id':scope['space_id'],
+        'space_descriptor_sha256':_hash(blobs['space_json']),'observation_policy':scope['policy'],
+        'admission_basis_sha256':_hash(blobs['basis']),'logical_crop_ranges':logical}
+    raw=_raw(document,HUMAN_BINDING_BYTES)
+    crop_key=_hash(encoded({'schema':'reviewed-exact-physical-crop-v1',
+        **{k:v for k,v in physical.items() if k!='float32le_sha256'}}))
+    state='source_retired' if source['state']=='retired' else 'human_associated'
+    reason='none'
+    if kind=='pending':state='binding_stale';reason='pending'
+    elif source['state']=='revoked' or scope['authority_blocked'] is not None:
+        state='source_revoked';reason='source_revoked'
+    elif row['authority_revision']!=scope['authority_revision'] or not current_source or not saved_binding['source_current']:
+        state='binding_stale';reason='source_changed'
+    elif not saved_binding['parent_current']:state='binding_stale';reason='parent_changed'
+    database_path=db.execute('PRAGMA database_list').fetchone()[2]
+    with _AUTHORITY_UNKNOWN_LOCK:
+        unknown=_AUTHORITY_UNKNOWN_OVERFLOW or part['chunk_id'] in _AUTHORITY_UNKNOWN_DATABASES.get(database_path,{})
+    if unknown:state='binding_stale';reason='source_authority_unknown'
+    return {'binding':document,'binding_sha256':_hash(raw),'physical_crop_key':crop_key,
+        'source_state':state,'review_eligible':reason=='none','reason':reason,
+        'audio_availability':'unavailable' if source['state']=='retired' else 'not_checked',
+        'vector_available':kind=='vector'}
+
+
+def binding(db,sid,rid,observation_id):
+    """Safe exact observation descriptor in one caller-owned DB snapshot.
+
+    Missing/tombstoned entities are 404. Retained but ineligible observations
+    return an explicit diagnostic, never fabricated evidence or a positive.
+    """
+    revision=read_source_revision(db,sid,rid)
+    _metadata_hex(observation_id)
+    if revision is None:_fail('primary_observation_not_found',404)
+    scope=db.execute(f'''SELECT scope_seq,scope_id,session_id,recording_id,policy,space_id,
+        history_revision,authority_revision,source_revision,authority_blocked FROM {SCOPES}
+        WHERE session_id=? AND recording_id=?''',(sid,rid)).fetchone()
+    row=db.execute(f'''SELECT c.sequence,c.attempt,c.observation_id,c.invocation_id,c.evidence_kind,
+        c.certificate_id,c.vector_sha256,a.token,a.scope_seq AS attempt_scope,a.origin_kind,a.origin_id,
+        a.identity_sha256,a.state AS attempt_state,a.authority_revision,a.invocation_id AS attempt_invocation,
+        a.terminal_sha256,a.witness_count FROM {CERTIFICATES} c JOIN {ATTEMPTS} a ON a.token=c.attempt
+        WHERE c.scope_seq=? AND c.observation_id=?''',(scope['scope_seq'],observation_id)).fetchone()
+    if row is None or row['origin_kind']!='primary_commit':_fail('primary_observation_not_found',404)
+    result={'source_session_id':sid,'recording_id':rid,'observation_id':observation_id,
+        'observation_sequence':row['sequence'],'source_authority_revision':scope['authority_revision'],
+        'source_revision':scope['source_revision'],'validation_semantics':'retained_metadata_bound_human_claim',
+        'authority':'human_observation_claim','extent':'observed_crop_only',
+        'acoustic_support_certified':False,'enrollment_allowed':False}
+    try:result.update(_bound_primary_metadata(db,sid,rid,observation_id,scope,row))
+    except (ReadError,ValueError,TypeError,KeyError,OverflowError,UnicodeError,RecursionError) as exc:
+        reason=exc.reason if isinstance(exc,ReadError) else 'history_proof_changed'
+        result.update(binding=None,binding_sha256=None,physical_crop_key=None,source_state='binding_stale',
+            review_eligible=False,reason=reason,audio_availability='not_checked',vector_available=False)
+    return result
+
+
+def _observation_cursor(value):
+    return base64.urlsafe_b64encode(encoded(value)).decode('ascii').rstrip('=')
+
+
+def read_primary_observations(db,sid,rid,after=None,limit=32):
+    """Keyset metadata-only page, at most 32 rows/128 KiB, no comparator path."""
+    if type(limit) is not int or not 1<=limit<=PAGE_ROWS:_fail('invalid_observation_limit',409)
+    revision=read_source_revision(db,sid,rid)
+    if revision is None:return {'items':[],'next_cursor':None,'complete':True}
+    fence={k:v for k,v in revision.items() if k!='authority_blocked'}
+    context={'schema':'primary-observation-page-v1','sid':sid,'rid':rid,'revision':fence}
+    last=0
+    if after is not None:
+        try:
+            if type(after) is not str or not 1<=len(after)<=1024:raise ValueError()
+            raw=base64.b64decode(after+'='*(-len(after)%4),altchars=b'-_',validate=True)
+            cursor=_decode(raw,768)
+            if (type(cursor) is not dict or set(cursor)!=set(context)|{'after'}
+                    or any(cursor[k]!=v for k,v in context.items()) or type(cursor['after']) is not int
+                    or not 0<=cursor['after']<=MAX_REVISION or _observation_cursor(cursor)!=after):raise ValueError()
+            last=cursor['after']
+        except (ValueError,ReadError,UnicodeError):_fail('stale_observation_cursor',409)
+    seq=db.execute(f'SELECT scope_seq FROM {SCOPES} WHERE scope_id=?',(revision['scope_id'],)).fetchone()[0]
+    rows=db.execute(f'''SELECT c.sequence,c.observation_id FROM {CERTIFICATES} c
+        JOIN {ATTEMPTS} a ON a.token=c.attempt WHERE c.scope_seq=? AND c.sequence>?
+        AND a.origin_kind='primary_commit' ORDER BY c.sequence LIMIT ?''',(seq,last,limit+1)).fetchall()
+    items=[];used=len(encoded(context))+1024
+    for row in rows[:limit]:
+        item=binding(db,sid,rid,row['observation_id']);size=len(encoded(item))+1
+        if used+size>PAGE_BYTES:
+            if not items:_fail('observation_response_capacity',429)
+            break
+        items.append(item);used+=size;last=row['sequence']
+    more=bool(rows and (len(rows)>len(items)))
+    return {'items':items,'next_cursor':_observation_cursor({**context,'after':last}) if more else None,
+        'complete':not more,'scope_id':revision['scope_id'],
+        'source_authority_revision':revision['source_authority_revision'],'source_revision':revision['source_revision']}

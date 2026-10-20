@@ -50,6 +50,7 @@ def main(argv=None):
     parser.add_argument('--framemn', action='store_true', help='EXPERIMENTAL default-off temporal Knock candidate side channel; does not change events or ASR')
     parser.add_argument('--framemn-checkpoint', type=Path, help='User-supplied local FrameMN10 checkpoint; no automatic downloads')
     parser.add_argument('--framemn-profile', choices=('knock-001-median9-experimental-v1',), default='knock-001-median9-experimental-v1')
+    parser.add_argument('--reviewed-primary-persons', action='store_true', help='Enable explicit model-free crop-only human person associations')
     parser.add_argument('--verified-identity-policy',help='Explicit experimental verified-review JSON policy; applies only to newly requested verified groups')
     parser.add_argument('--speaker-support-review',action='store_true',help='Opt-in exact acoustic review capture; bounded private PCM, not identity learning; see docs/EMBEDDING_SUPPORT_LINEAGE.md')
     parser.add_argument('--native-owned-cells',action='store_true',help='UNQUALIFIED default-OFF passive durable selected cells; requires separately qualified SQLite/VFS runtime')
@@ -265,6 +266,7 @@ def main(argv=None):
                         moss_jobs_model_path=str(args.moss_jobs_model.resolve()) if args.moss_jobs_model else None,
                         moss_automatic_enabled=args.moss_automatic,
                         verified_identity_policy_file=args.verified_identity_policy,
+                        reviewed_primary_persons_enabled=args.reviewed_primary_persons,
                         event_threshold=args.event_threshold,
                         framemn_enabled=args.framemn,
                         framemn_checkpoint_path=str(args.framemn_checkpoint.resolve()) if args.framemn_checkpoint else None,

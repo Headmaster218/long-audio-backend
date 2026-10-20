@@ -139,6 +139,7 @@ class Settings:
     max_speaker_observations_total: int = 8192
     verified_identity_policy_file: str | Path | None = None
     verified_identity_policy: dict | None = field(default=None,init=False,repr=False)
+    reviewed_primary_persons_enabled: bool = False
     speaker_support_enabled: bool = False
     native_owned_support_enabled: bool = False
     native_owned_cells_enabled: bool = False
@@ -243,6 +244,8 @@ class Settings:
             if (type(path) is not str or not path or len(path.encode('utf-8')) > 4096
                     or '\x00' in path or not Path(path).is_absolute()):
                 raise ValueError('Recording speaker links require an explicit absolute local model path')
+        if type(self.reviewed_primary_persons_enabled) is not bool:
+            raise ValueError('reviewed_primary_persons_enabled must be boolean')
         if self.verified_identity_policy_file is not None:
             from .verified_identity import policy_file
             self.verified_identity_policy=policy_file(self.verified_identity_policy_file)

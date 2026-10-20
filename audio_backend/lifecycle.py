@@ -62,8 +62,52 @@ def cleanup_pending(store, delete_file=None, sid=None):
     return {'cleanup_pending': pending}
 
 
+def _retained_person_banks(db, sid, group):
+    """Bounded disclosure before source-indexed links are irreversibly erased."""
+    from .verified_identity import MAX_GROUPS
+    rows = db.execute('''SELECT p.identity_group,g.generation
+        FROM identity_group_policy p JOIN speaker_identity_generations g
+        ON g.identity_group=p.identity_group
+        WHERE p.primary_associations_enabled=1 AND (p.identity_group=?
+            OR p.identity_group IN (
+                SELECT identity_group FROM identity_review_events INDEXED BY review_events_source
+                    WHERE source_session_id=?
+                UNION
+                SELECT identity_group FROM identity_primary_associations_v1 INDEXED BY primary_associations_source
+                    WHERE source_session_id=?
+                UNION
+                SELECT identity_group FROM speakers WHERE session_id=?
+                    AND state IN ('reviewed_reference','reviewed_person')))
+        ORDER BY p.identity_group LIMIT ?''', (group,sid,sid,sid,MAX_GROUPS+1)).fetchall()
+    if len(rows) > MAX_GROUPS:
+        raise ValueError('reviewed_person_bank_capacity')
+    return [{'identity_group': row['identity_group'], 'generation': row['generation'],
+             'explicitly_retained': True} for row in rows]
+
+
+def _scrub_retained_creation_source(db, sid):
+    """Keep catalog people, but erase the obsolete source creation pointer.
+
+    Speaker snapshots fan out to all live sessions in the bank. Scrub historical
+    copies by their recorded bank/source, including copies of now-removed people.
+    Updating the live row emits the existing safe current speaker snapshot.
+    """
+    db.execute('''UPDATE speakers SET session_id=''
+        WHERE session_id=? AND state IN ('reviewed_reference','reviewed_person')
+        AND identity_group IN (SELECT identity_group FROM identity_group_policy
+            WHERE primary_associations_enabled=1)''', (sid,))
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_changes'").fetchone():
+        db.execute('''UPDATE result_changes SET data=json_set(data,'$.session_id','')
+            WHERE entity='speakers' AND data IS NOT NULL
+            AND json_extract(data,'$.session_id')=?
+            AND json_extract(data,'$.identity_group') IN (
+                SELECT identity_group FROM identity_group_policy
+                WHERE primary_associations_enabled=1)''', (sid,))
+
+
 def delete_session(store, sid, delete_file=None):
     """Commit logical deletion and cleanup intent before deleting any source."""
+    retained_person_banks = []
     with store.db() as db:
         db.execute('BEGIN IMMEDIATE')
         session = db.execute('SELECT deleted,identity_group FROM sessions WHERE id=?', (sid,)).fetchone()
@@ -76,11 +120,24 @@ def delete_session(store, sid, delete_file=None):
                 raise ValueError('Pause or cancel the running chunk first, then wait for worker idle')
             db.execute('''INSERT OR IGNORE INTO session_file_cleanup(session_id,path,created)
                 SELECT session_id,path,? FROM chunks WHERE session_id=?''', (time.time(), sid))
+            from .reviewed_primary_persons import schema_present, erase_source
+            bridge = schema_present(db)
+            from .verified_identity import group_policy
+            policy = group_policy(db,session['identity_group'])
+            retained = bool(policy and policy.get('primary_associations_enabled') == 1)
+            if bridge:
+                retained_person_banks = _retained_person_banks(db,sid,session['identity_group'])
+                # Complete indexed history/projection erasure includes retracted
+                # chains. Do this before any source-fence triggers and, critically,
+                # before the history certificate erasure guard is reached.
+                erase_source(db,sid)
             from .recording_overlap import erase as erase_recording
             erase_recording(db, sid, store.settings.data_dir / 'uploads')
             # Keep only a scrubbed ID tombstone for idempotent cleanup retry.
             # The change-feed erasure trigger removes historical text snapshots.
             db.execute("UPDATE sessions SET deleted=1,name='',identity_group='',created=0,timeline_end=0,processing_mode='legacy' WHERE id=?", (sid,))
+            if bridge:
+                _scrub_retained_creation_source(db,sid)
             from .moss_result_store import erase_session as erase_moss_results
             erase_moss_results(db, sid)
             from .recording_speaker_link_store import erase_session as erase_recording_links
@@ -99,17 +156,18 @@ def delete_session(store, sid, delete_file=None):
             from .recording_primary_provenance import erased as primary_provenance_erased
             primary_provenance_erased(db, sid)
             db.execute('DELETE FROM corrections WHERE session_id=?', (sid,))
-            db.execute('''DELETE FROM speaker_identity_generations WHERE identity_group=?
-                AND NOT EXISTS (SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0)''',
-                (session['identity_group'],session['identity_group']))
-            # Reclaim empty group policy only after all trust/history is explicitly
-            # erased. A group with surviving sessions retains its immutable mode.
-            if not db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0',(session['identity_group'],)).fetchone():
+            # Activated banks are explicitly retained independently of ordinary
+            # sessions. Deleting the last source must preserve their people,
+            # relations, policy and generation; only full bank reset forgets them.
+            # Unactivated groups keep their preexisting last-session lifetime.
+            if not retained and not db.execute('SELECT 1 FROM sessions WHERE identity_group=? AND deleted=0',(session['identity_group'],)).fetchone():
+                db.execute('DELETE FROM speaker_identity_generations WHERE identity_group=?',
+                    (session['identity_group'],))
                 from .verified_identity import reset
                 reset(db,session['identity_group'])
                 db.execute('DELETE FROM identity_group_policy WHERE identity_group=?',(session['identity_group'],))
-                if db.execute("SELECT 1 FROM speakers WHERE identity_group=? AND state='reviewed_reference' LIMIT 1",(session['identity_group'],)).fetchone():
-                    db.execute("DELETE FROM speakers WHERE identity_group=? AND state='reviewed_reference'",(session['identity_group'],))
+                db.execute("""DELETE FROM speakers WHERE identity_group=?
+                    AND state IN ('reviewed_reference','reviewed_person')""",(session['identity_group'],))
             # Row DELETE triggers may have appended tombstones after the first
             # erasure trigger. Erase those too, within the same transaction.
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_changes'").fetchone():
@@ -128,6 +186,12 @@ def delete_session(store, sid, delete_file=None):
         result['moss_jobs_cleanup_pending']=jobs_pending
     if cells_pending is not None:
         result['native_owned_cells_cleanup_pending']=cells_pending
+    if retained_person_banks:
+        # Disclosure is bounded even when a source was reviewed in many banks.
+        # The count makes a shortened list explicit; it is not an occurrence page.
+        result['retained_person_banks']=retained_person_banks[:32]
+        result['retained_person_bank_count']=len(retained_person_banks)
+        result['retained_person_banks_has_more']=len(retained_person_banks)>32
     return {'deleted': sid, **result}
 
 
