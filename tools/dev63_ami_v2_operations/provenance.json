@@ -1,0 +1,200 @@
+{
+  "archive_only": true,
+  "tested_private_files_unchanged": true,
+  "source_and_transformed_hashes": [
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "fixed_trial.py",
+      "source_sha256": "2e25e4dc0f3dea22ea9f18cf062863f2a9efb80c1ff3b5a58ebfc6a4ef2ae2db",
+      "source_bytes": 96722,
+      "archive_file": "original/fixed_trial.py",
+      "archive_sha256": "10422712e6061635e663179fcac77e2d123a09109dd7d1ea420bd37936a40a99",
+      "archive_bytes": 96962,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "check_saved.py",
+      "source_sha256": "0fdab2c52bfaa256b4366375c3e833a96bb162a5e5b3fe960cf1d241481f9a59",
+      "source_bytes": 65835,
+      "archive_file": "original/check_saved.py",
+      "archive_sha256": "5fb79b56ab5e3336214b6becad0cf70a97593a7d24c25745f46f9459bc665ecf",
+      "archive_bytes": 66061,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "sampling_evidence.py",
+      "source_sha256": "9574735b86445a5bdcf7721f504aa67e86a1f07dd63777d47e453161f0f32acd",
+      "source_bytes": 4915,
+      "archive_file": "original/sampling_evidence.py",
+      "archive_sha256": "f0e2df3c40e1e637d84ae1526f49016d7639eda0362c8c0f9ce364962d05b9c1",
+      "archive_bytes": 5155,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "test_controls.py",
+      "source_sha256": "78f0c3ce8c48dfdf45625165f53c20032e607d5291abaf0770b774784bd6f494",
+      "source_bytes": 2242,
+      "archive_file": "original/test_controls.py",
+      "archive_sha256": "bbcbf01cfd4ca50d00fbaeb3c4fd753165e40a08a12b167eec8765e44d9cecd6",
+      "archive_bytes": 2482,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "test_monitor_resume.py",
+      "source_sha256": "c8e0cb497030e4fa2223cb66397da551f1cf496d2b68ce7747595509ebd7f33d",
+      "source_bytes": 3725,
+      "archive_file": "original/test_monitor_resume.py",
+      "archive_sha256": "3860407d3c1b58acbbace7887f1a1e46cb8ed2d9ddc04c24761348e62acc4b4a",
+      "archive_bytes": 3965,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "controls.json",
+      "source_sha256": "2f4aa9ca956b7d2390b7e970ee7f42816ac633099c2c9fb18e576a8a3b37e7cf",
+      "source_bytes": 7327,
+      "archive_file": "original/control_summary.json",
+      "archive_sha256": "1dcb1ca5d8994d210999887ab0a5a6d6c4ddb0e3c436a8ce43f473057d1874c5",
+      "transform": "Selected public operational fields summarized; private generated identities, runtime inventory, approvals and raw journal omitted."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "settings.json",
+      "source_sha256": "2c56c98a777a3956d3288dab8fd103f009ef30dd9f402f82f5ef8892a146920f",
+      "source_bytes": 3108,
+      "archive_file": "original/control_summary.json",
+      "archive_sha256": "1dcb1ca5d8994d210999887ab0a5a6d6c4ddb0e3c436a8ce43f473057d1874c5",
+      "transform": "Selected public operational fields summarized; private generated identities, runtime inventory, approvals and raw journal omitted."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-20261020/collector",
+      "source_file": "frozen-controls.json",
+      "source_sha256": "0f8fbb0e9c569c720b07f8b9538bd4fb07fd9dc66c118d6dbd6e747d2dc49f1b",
+      "source_bytes": 1262,
+      "archive_file": "original/control_summary.json",
+      "archive_sha256": "1dcb1ca5d8994d210999887ab0a5a6d6c4ddb0e3c436a8ce43f473057d1874c5",
+      "transform": "Selected public operational fields summarized; private generated identities, runtime inventory, approvals and raw journal omitted."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "fixed_trial.py",
+      "source_sha256": "bcad729f24170fca1574f55a20850a2f8d41d52e59fa44ad8699ae6f851f6c3b",
+      "source_bytes": 102405,
+      "archive_file": "corrected_resume/fixed_trial.py",
+      "archive_sha256": "a38fa53721c2ceefca8adb433bac9a9182776ba55eeaf1196de7426c4897d71b",
+      "archive_bytes": 102617,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "check_saved.py",
+      "source_sha256": "0fdab2c52bfaa256b4366375c3e833a96bb162a5e5b3fe960cf1d241481f9a59",
+      "source_bytes": 65835,
+      "archive_file": "corrected_resume/check_saved.py",
+      "archive_sha256": "5fb79b56ab5e3336214b6becad0cf70a97593a7d24c25745f46f9459bc665ecf",
+      "archive_bytes": 66061,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "sampling_evidence.py",
+      "source_sha256": "9574735b86445a5bdcf7721f504aa67e86a1f07dd63777d47e453161f0f32acd",
+      "source_bytes": 4915,
+      "archive_file": "corrected_resume/sampling_evidence.py",
+      "archive_sha256": "f0e2df3c40e1e637d84ae1526f49016d7639eda0362c8c0f9ce364962d05b9c1",
+      "archive_bytes": 5155,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "test_controls.py",
+      "source_sha256": "78f0c3ce8c48dfdf45625165f53c20032e607d5291abaf0770b774784bd6f494",
+      "source_bytes": 2242,
+      "archive_file": "corrected_resume/test_controls.py",
+      "archive_sha256": "bbcbf01cfd4ca50d00fbaeb3c4fd753165e40a08a12b167eec8765e44d9cecd6",
+      "archive_bytes": 2482,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "test_monitor_resume.py",
+      "source_sha256": "1fd9bea3670db17eb789c02fffac4fe5a6a867f894e53e2cdedee09058110783",
+      "source_bytes": 3785,
+      "archive_file": "corrected_resume/test_monitor_resume.py",
+      "archive_sha256": "2dbcf622aeab341f054cd2b13735cb61d3a57c2f74bb15dcca4edae8f1a72c50",
+      "archive_bytes": 4025,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "resume_guard.py",
+      "source_sha256": "7813c75093023fc4cf9763250edb439c44553cf33a2f41ee23d72a38ff7d45fa",
+      "source_bytes": 1705,
+      "archive_file": "corrected_resume/resume_guard.py",
+      "archive_sha256": "9d1dfdd29d5af8bceea23e28eb5fb210d80eb4603243faa7747e2352e5549292",
+      "archive_bytes": 1945,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "seal_resume.py",
+      "source_sha256": "a1818762441b0e963b02f565b74917920e1d0f72253a814f6b17f4af653a71f9",
+      "source_bytes": 2243,
+      "archive_file": "corrected_resume/seal_resume.py",
+      "archive_sha256": "14885800e0b90684eb6699fc414f3226975453064e874cc21b28c17b5987d598",
+      "archive_bytes": 2483,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "test_terminal_grace.py",
+      "source_sha256": "c75ab1ed305bd627218a879a42a74f00c0827b9e882507f5ac8fb63cc3be081a",
+      "source_bytes": 3119,
+      "archive_file": "corrected_resume/test_terminal_grace.py",
+      "archive_sha256": "2fc08284500f48e996f9d79c57777881e1315eb95a3829f3d9e74806befcf45f",
+      "archive_bytes": 3359,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "test_resume_controls.py",
+      "source_sha256": "5b818fb4f0bd464090f0fd52cd18782ac268651c6da16bc99ef1fb7ec9315979",
+      "source_bytes": 2759,
+      "archive_file": "corrected_resume/test_resume_controls.py",
+      "archive_sha256": "772be2c8b4e8f04000bc94ea485933965b725fb642edad22e358db5c06436beb",
+      "archive_bytes": 2999,
+      "transform": "Added source-archive warning; replaced private workspace/runtime absolute paths with explicit deployment placeholders; otherwise preserved source."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "controls.json",
+      "source_sha256": "08a27404fd4d20196595b5e5b48ec1f65b81d1d645e5db902a0993920acdbda1",
+      "source_bytes": 12084,
+      "archive_file": "corrected_resume/control_summary.json",
+      "archive_sha256": "b6994720bc76008b28775b035c90155b72abcf0653c6dc805efa2b337b6692af",
+      "transform": "Selected public operational fields summarized; private generated identities, runtime inventory, approvals and raw journal omitted."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "settings.json",
+      "source_sha256": "2c56c98a777a3956d3288dab8fd103f009ef30dd9f402f82f5ef8892a146920f",
+      "source_bytes": 3108,
+      "archive_file": "corrected_resume/control_summary.json",
+      "archive_sha256": "b6994720bc76008b28775b035c90155b72abcf0653c6dc805efa2b337b6692af",
+      "transform": "Selected public operational fields summarized; private generated identities, runtime inventory, approvals and raw journal omitted."
+    },
+    {
+      "source_bundle": "dev63-ami-v2-smoke-resume01-20261020/collector",
+      "source_file": "frozen-controls.json",
+      "source_sha256": "eb1da2c0e3bba88e9e747160087d1a9214d348c45d6dfd89e5927af315efb62e",
+      "source_bytes": 1962,
+      "archive_file": "corrected_resume/control_summary.json",
+      "archive_sha256": "b6994720bc76008b28775b035c90155b72abcf0653c6dc805efa2b337b6692af",
+      "transform": "Selected public operational fields summarized; private generated identities, runtime inventory, approvals and raw journal omitted."
+    }
+  ]
+}
