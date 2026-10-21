@@ -1,0 +1,9 @@
+{
+  "status": "reviewed-scope report-only revision; prior-label-exposure caveat explicit; no raw evidence JSON for publication",
+  "files": {
+    "REPORT.md": {
+      "bytes": 3176,
+      "sha256": "9dc2a174177831e089f7b6f946008ae421eb98252912576218fcce82f152bb39"
+    }
+  }
+}
