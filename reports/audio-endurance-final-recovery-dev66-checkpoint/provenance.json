@@ -1,0 +1,248 @@
+{
+  "already_published_product": "Product commit bb03607 is owner-supplied context; no Git lookup or publication was performed. This bundle contains runner source only, not a second product patch.",
+  "evidence_sha256": {
+    "actual_original_wait": "ef429fb738fe9b985f0aaad5207f2ed66815a1f33b39032d2a23ea3bb6ffa358",
+    "final_live_completed_manifest": "93bce1dbb8a94ec9e32413299b03ca57ff4b13c76200d51072aa165663654330",
+    "final_saved_event_ledger": "9276fd378366a7e35ffdbc12a4f08f9ebe2a7af1ded5dea8f58df0e6960946c9",
+    "final_stopped_completed_manifest": "93bce1dbb8a94ec9e32413299b03ca57ff4b13c76200d51072aa165663654330",
+    "finite_control_output": "87ca62441d7f9e0f8c76bb5be9eb55733cb8f8062c7b41ff0bd121bd12b24dca",
+    "finite_control_wait": "b5f59ebc72feb3cc063e9b76947a26ed0c353bf4f9420ac3b4d1648514705dbc",
+    "historical_intermediate_source_attestation_audit": "2ce775bbcc5a923020cc77c1c5d59dad127fbf7583d4d8c4e42da97b9b5ea709",
+    "qualified_source_manifest": "dc836a98fb1907bde92dffdbe84f9af40d8f1718d18d8f46a732442165eba6c2",
+    "synthetic_lifecycle_result": "353a96f9a57c70eb7be14c2a05777b6b7b34b44817f2808b46fd756488bf8d70",
+    "synthetic_lifecycle_wait": "05c4fdf01037b57b0c6866a6dd84fe45184c365d94359b34fd47ce5bae642e5f"
+  },
+  "inspection_only": "Every published Python file is transformed and begins ordinary execution with an unconditional RuntimeError. Dependencies and private pins are omitted. Finite test results apply only to the original frozen private bundle.",
+  "privacy": "Private paths, raw source material, actual IDs, raw logs, response bodies, database files, deployment configuration and executable release bundles are omitted. Hashes commit to omitted evidence, not public reproduction.",
+  "purpose": "New additive source-only final recovery checkpoint candidate; not publication authorization or a runnable deployment.",
+  "saved_terminal_record_sha256": "7bb5f0e7ad8f86179ce36b674bdc71f13fbde3de86006d1646999ee271d91a58",
+  "scope": "Source reads, existing completed text evidence, hashes, AST inspection and archive packaging only. No target imports/tests/product/model/API/SQLite/server/Git operations.",
+  "source_files": [
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "dee92e99f53cc61689caf12684108f5d9da62da2317922398ac099fa05dbf046"
+      },
+      "file": "source/adapter.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "dee92e99f53cc61689caf12684108f5d9da62da2317922398ac099fa05dbf046"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 51081,
+      "original_sha256": "dee92e99f53cc61689caf12684108f5d9da62da2317922398ac099fa05dbf046",
+      "transformations": [
+        "Removed deployment CLI main functions and executable __main__ guards.",
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 47541,
+      "transformed_sha256": "2fd79d8fd7f5ae888939d539ae5fa9f69ca55e80d02b88869c675742fef3dc3b",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "d9d34eaa05ddf61cae89ebfdadfc2cfb45f7717d540b9691a0cbe82315122a4d"
+      },
+      "file": "source/disk_census.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "d9d34eaa05ddf61cae89ebfdadfc2cfb45f7717d540b9691a0cbe82315122a4d"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 23041,
+      "original_sha256": "d9d34eaa05ddf61cae89ebfdadfc2cfb45f7717d540b9691a0cbe82315122a4d",
+      "transformations": [
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 23255,
+      "transformed_sha256": "7a059dbdc79b52ccf17fc4335dc818f987645188db1f20481b29c566c54b2912",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "b30684eb7a226962e5124daf95ba6acc3a0a3ab4a8ddd52554ab3fa3e5a051af"
+      },
+      "file": "source/endurance.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "b30684eb7a226962e5124daf95ba6acc3a0a3ab4a8ddd52554ab3fa3e5a051af"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 14539,
+      "original_sha256": "b30684eb7a226962e5124daf95ba6acc3a0a3ab4a8ddd52554ab3fa3e5a051af",
+      "transformations": [
+        "Recording-specific labels replaced by generic ordinal labels.",
+        "Redacted embedded recording/private-evidence digest literals; exact original source digest is retained in provenance.",
+        "Replaced 1 distinct non-protocol numeric evidence/fixture coordinates with opaque symbolic names; original values are intentionally not embedded in this public provenance.",
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 14746,
+      "transformed_sha256": "8467b0235c2b066a03e3f223f23275a2ea10cbd34e42eb958248fac39529aa43",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "0ba2f7c7736d351985bf8c7d1829ff65a3ec858d66a4518f274a6b11b3b2ced8"
+      },
+      "file": "source/resume_state.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "37b111c523fd94cb1d252bfbd1f7f9fd18bac049d63d9fd94cea9f96805fc53e"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 83962,
+      "original_sha256": "9ce5eb218d289fc54a3fa8bc503320215fb11bd868dcd450e318a5c6d46ac9ab",
+      "transformations": [
+        "Recording-specific labels replaced by generic ordinal labels.",
+        "Internal historical chunk identity removed.",
+        "Private journal-directory label replaced.",
+        "Private data-directory label replaced.",
+        "Host-specific artifact key generalized.",
+        "Private output-directory label replaced by a stable symbolic segment label.",
+        "Private segment-context key replaced by a stable symbolic label.",
+        "Redacted embedded recording/private-evidence digest literals; exact original source digest is retained in provenance.",
+        "Replaced 85 distinct non-protocol numeric evidence/fixture coordinates with opaque symbolic names; original values are intentionally not embedded in this public provenance.",
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 88004,
+      "transformed_sha256": "1a9e30177a721d086526b8f71a5b88188e781e8003260ce93080a03ad6440621",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "4c7a35a54b516f28274b176d70791433cf414e86eb31f0aac7e8a4a7feb96f35"
+      },
+      "file": "controls/test_disk_census.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "4c7a35a54b516f28274b176d70791433cf414e86eb31f0aac7e8a4a7feb96f35"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 21522,
+      "original_sha256": "4c7a35a54b516f28274b176d70791433cf414e86eb31f0aac7e8a4a7feb96f35",
+      "transformations": [
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 21736,
+      "transformed_sha256": "548a3bc915f228a41dbb66668db9005fb1e8e17c681b26668c98d4e0a41d97bd",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "112dc08979cc934c1ba36a158b508141dcfa24ef33b12dccb37a57dd11736cff"
+      },
+      "file": "controls/test_disk_adapter.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "112dc08979cc934c1ba36a158b508141dcfa24ef33b12dccb37a57dd11736cff"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 9814,
+      "original_sha256": "112dc08979cc934c1ba36a158b508141dcfa24ef33b12dccb37a57dd11736cff",
+      "transformations": [
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 10028,
+      "transformed_sha256": "975a4351067f4f1045962c44cbb64dba18db40f410a56807ccce1e202c79304b",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "b5e0a7fca9eb31f21eba3e12ae337e8c93c8dce6c690f987ba9f769e56741381"
+      },
+      "file": "controls/test_continuation.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "a988ac1eb4598e2be16e1a30c58fd9c96f88d3b863ee0712d8b2caf76826f1f4"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 70505,
+      "original_sha256": "a7117b53f4a213d762128f9f3ece33ffbcc3eb8e120cbca6bb8edea9c66a6697",
+      "transformations": [
+        "Removed deployment CLI main functions and executable __main__ guards.",
+        "Recording-specific labels replaced by generic ordinal labels.",
+        "Private journal-directory label replaced.",
+        "Private data-directory label replaced.",
+        "Host-specific artifact key generalized.",
+        "Private output-directory label replaced by a stable symbolic segment label.",
+        "Replaced 88 distinct non-protocol numeric evidence/fixture coordinates with opaque symbolic names; original values are intentionally not embedded in this public provenance.",
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 74325,
+      "transformed_sha256": "5dc03309ab9ae704b1a641ddc4405a2e280d1e02330bbc03853e62a93090768a",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "49d1ea273b300766032af716ba11c497c0b6df6d33372ce0f3ad8638ab75ab10"
+      },
+      "file": "controls/test_resume_boundary.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "49d1ea273b300766032af716ba11c497c0b6df6d33372ce0f3ad8638ab75ab10"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 15418,
+      "original_sha256": "156bf80eeaba70bee0934ea45a3b9e35fea3d1d9066fb98760aef3a10ed71c0b",
+      "transformations": [
+        "Recording-specific labels replaced by generic ordinal labels.",
+        "Replaced 2 distinct non-protocol numeric evidence/fixture coordinates with opaque symbolic names; original values are intentionally not embedded in this public provenance.",
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 15749,
+      "transformed_sha256": "8e7c4cb12b00ddf9e7c280a581882d521ad35f38aadd8bc22790439b97da433a",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "70cea04bb72da4a4e7710aa0f6ae961a5d42548a9cb70f1282ff13e798d21265"
+      },
+      "file": "controls/test_adapter_source.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": true,
+        "sha256": "70cea04bb72da4a4e7710aa0f6ae961a5d42548a9cb70f1282ff13e798d21265"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 5147,
+      "original_sha256": "70cea04bb72da4a4e7710aa0f6ae961a5d42548a9cb70f1282ff13e798d21265",
+      "transformations": [
+        "Inserted unconditional RuntimeError before ordinary module execution; no candidate import or test was performed."
+      ],
+      "transformed_bytes": 5361,
+      "transformed_sha256": "3cf1ff4e92d52066a3c28597e028eb856ae12d82c95a3f8d7abbb71ef354a45a",
+      "validation": "AST parsed only; not executed, imported or tested."
+    },
+    {
+      "dynamic_reserve_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "739020561b684ca808deb6d308436012493d7b3c03a4a7bd6ab2cda22815fedc"
+      },
+      "file": "source/product_transition.py",
+      "immediate_predecessor": {
+        "byte_identical_to_final": false,
+        "sha256": "a3e715d0ff46d3bc66f8c517bf7f45eabb565c9cf05d9ac4d1dce87f6f09a34c"
+      },
+      "matched_frozen_manifest": true,
+      "original_bytes": 16850,
+      "original_sha256": "19a986c4cc9b93e8958a91a894e9bfebec97efede25e97ba7d7b70895b4de0bc",
+      "transformations": [
+        "Private artifact/evidence digest literals redacted.",
+        "Host-specific root key and exact root identity replaced by generic label and symbolic coordinates.",
+        "Private predecessor output-directory labels replaced by stable symbolic segment labels.",
+        "Unconditional inspection-only RuntimeError inserted before ordinary execution."
+      ],
+      "transformed_bytes": 17140,
+      "transformed_sha256": "d7d172a530c20b9a5688e75eca3f89705bb40a31e6d90024cdf8c7b46faf3581",
+      "validation": "AST parsed only; not executed, imported or tested."
+    }
+  ],
+  "source_lineage": "adapter.py, disk_census.py and endurance.py are byte-identical to the qualified dynamic-reserve predecessor; resume_state.py, product_transition.py and the continuation/boundary controls include the later qualified final-recovery changes."
+}

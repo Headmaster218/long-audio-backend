@@ -1,0 +1,82 @@
+{
+  "finite_controls": {
+    "passed": 414,
+    "root_returncode": 0,
+    "source_manifest_bound": true
+  },
+  "historical_limitations": [
+    "Original uninterrupted endurance remains failed.",
+    "Every historical lost-owner cleanup UNKNOWN remains UNKNOWN.",
+    "Earlier 8 GiB protocol remains capacity-limited/incomplete; the explicit revised 10 GiB result does not retroactively change it.",
+    "Intermediate baseline helper lacked prelaunch executable-SHA attestation; timestamps and later content audits cannot repair it.",
+    "Historical global observation quota and unseen resource peaks remain unproved."
+  ],
+  "independent_saved_evidence_review": {
+    "current_cleanup": "Positive original waits, lifespan complete, no reported errors or survivors; final helper waits positive; terminal fsync precedes ownership close in qualified source.",
+    "earlier_completed_subsets_preserved": [
+      3345,
+      2989,
+      2013
+    ],
+    "final_staged_frames": 0,
+    "frames": 691200000,
+    "fresh_page_sweep": "147 pages, contiguous complete work and published/released pages; saved body hashes verified by independent reviewer, not copied into publication",
+    "pages": 147,
+    "workload_inputs": 90
+  },
+  "not_claimed": [
+    "identity learning",
+    "acoustic or identity accuracy",
+    "garbage collection or root closure qualification",
+    "48-hour endurance",
+    "cross-day boundary handling",
+    "hard historical resource peaks",
+    "uninterrupted operation"
+  ],
+  "optional_attempts": {
+    "accuracy_pass": false,
+    "all_optional_attempts_succeeded": false,
+    "failure": 21,
+    "gc_qualification": false,
+    "last_health_qualification": "Owner ready/alive with sticky optional_sql_or_io_failure; reclamation and root closure unqualified; automatic template updates false.",
+    "learning_pass": false,
+    "reserved": 1,
+    "success": 272
+  },
+  "recovered_operations": {
+    "completed_chunks": 4115,
+    "eos": true,
+    "final_live_and_stopped_manifest_identical": true,
+    "ordinary_operations_pass_field": false,
+    "original_root_returncode": 0,
+    "original_root_wait_finish_utc": "2026-10-21T03:41:58.956Z",
+    "prior_completed_results_preserved": 3345,
+    "result_rows": 25004,
+    "status": "PASS",
+    "uninterrupted_pass": false
+  },
+  "required_receipts": {
+    "durable": 4115
+  },
+  "sampled_resources": {
+    "final_observed_disk_bytes": 8956395520,
+    "final_snapshot_accounted_bytes": 410271744,
+    "final_snapshot_reserve_bytes": 536870912,
+    "historical_hard_peak_guarantee": false,
+    "memory_limit_bytes": 6442450944,
+    "observed_peak_charged_memory_bytes": 3030659072,
+    "revised_disk_limit_bytes": 10737418240,
+    "role_attribution_complete": false,
+    "terminal_evidence_cap_bytes": 67108864,
+    "terminal_evidence_spend_bytes": 8589378
+  },
+  "synthetic_lifecycle": {
+    "errors": false,
+    "generations": 2,
+    "injected_helper_failure_retained_original": true,
+    "lifespans": true,
+    "ownership_checked_through_final_receipt": true,
+    "positive_stops": true,
+    "survivors": false
+  }
+}
