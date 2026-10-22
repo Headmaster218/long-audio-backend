@@ -1,0 +1,44 @@
+[
+  {
+    "path": "audio_backend/moss_handy_jobs.py",
+    "before_sha256": "aace5a7147f2cfc524ebe8becbcd8e7bc2993f2f486a00a42f909c4c9f086b10",
+    "after_sha256": "17cc40a79fb358ddf821bbe31166162118aeb5f1e682f2f85f18b4b1286a5b3f",
+    "bytes": 168471
+  },
+  {
+    "path": "audio_backend/recording_speaker_history.py",
+    "before_sha256": "d9e595765f9350072bcb74b7955c99262cd170c41e7d10a2da3acff0599c28a6",
+    "after_sha256": "e7bfa93290638495351575c9035d49e81cc508a6c4c919ebb8b62f36573553d8",
+    "bytes": 159777
+  },
+  {
+    "path": "audio_backend/trial_sampling_census.py",
+    "before_sha256": "07952f67fcd5c5252576468ed973cbafd51b9d2f2981191df75a56be2cbeca78",
+    "after_sha256": "9faafb4dee3d36a66c9c13f0a83dc0ae7e205be6ffa62dfd6ac19309082240e0",
+    "bytes": 29924
+  },
+  {
+    "path": "tests/test_trial_sampling_census_capture_isolation.py",
+    "before_sha256": null,
+    "after_sha256": "4bc2464b5bb73aaa16483ada4132f9df234f2bb0a88662262127a353852b810d",
+    "bytes": 4535
+  },
+  {
+    "path": "tests/test_trial_sampling_census_stage1.py",
+    "before_sha256": "787bf318f2fc1eac2ee4870d8f340d25d06a01eb5f80fa43fad72cb0c4a2ca83",
+    "after_sha256": "ff7fd724000c66dc80ae10636389d16e2c2482682c9b3b785aca915e0b52ca98",
+    "bytes": 8271
+  },
+  {
+    "path": "tests/test_trial_sampling_census_stage3.py",
+    "before_sha256": null,
+    "after_sha256": "e392e9ef8755b92408e581b1d50e0a66ff4ea57a198dc3ab6932fa0f5ce125f2",
+    "bytes": 9663
+  },
+  {
+    "path": "tests/test_trial_sampling_census_worker_integration.py",
+    "before_sha256": null,
+    "after_sha256": "e0611de71b306ea4388662dab421ac92a3adf1fce29c7eaaa9144965c6ec8268",
+    "bytes": 12651
+  }
+]

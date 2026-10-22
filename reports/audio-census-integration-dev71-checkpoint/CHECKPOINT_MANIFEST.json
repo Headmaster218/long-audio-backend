@@ -1,0 +1,99 @@
+{
+  "base_commit": "c2094c1813392801f3e74b2fa767bff269108da7",
+  "additive_repository_prefix": "reports/audio-census-integration-dev71-checkpoint",
+  "root_product_modified": false,
+  "census_complete": false,
+  "audio_archive_label_database_files_included": false,
+  "files": [
+    {
+      "path": "CAPTURE_REPAIR.md",
+      "bytes": 3382,
+      "sha256": "2a7624dbfc7f78de5fc1a202940c202391b7c860d7fb15a4523b110eb6005711"
+    },
+    {
+      "path": "INTEGRATION_FIXTURE_REVISION.md",
+      "bytes": 3133,
+      "sha256": "88fc94ff760c1db553c4660dbe3bd82ada036d5f0317a897ea9e060ca5db1f92"
+    },
+    {
+      "path": "REPORT.md",
+      "bytes": 6299,
+      "sha256": "5d9686a23ae101fdb711933a1441541c1f9382b16e0e7508948c09ad9a2c74f5"
+    },
+    {
+      "path": "REPRODUCE.md",
+      "bytes": 3560,
+      "sha256": "34a3a74843a8ab11bd0886bcac320082f2bb9b060a10d72eb1003cf6e1640865"
+    },
+    {
+      "path": "RESULT_SUMMARY.json",
+      "bytes": 1773,
+      "sha256": "83e8354dc47e9dea9b4396b39de8fbe972bd4b91163b744ae5e1f802aa277af8"
+    },
+    {
+      "path": "SOURCE_DELTA.json",
+      "bytes": 1666,
+      "sha256": "730d7617923bf79fad396042e6dac9e45881996d1a192fe05a32f8df658c1cff"
+    },
+    {
+      "path": "STAGE3_DESIGN.md",
+      "bytes": 6061,
+      "sha256": "d7272a5c3a2f5550f551890a8c8caaba2436d1090ae1fcd1bb3aac223ad175bb"
+    },
+    {
+      "path": "dev71-from-dev70.patch",
+      "bytes": 53812,
+      "sha256": "5324cbb73c7929b53ec892678af94ef123958aa54ce7e86e9889f60d77ca8db0"
+    },
+    {
+      "path": "evidence/ami-annotation-acquisition.json",
+      "bytes": 306,
+      "sha256": "8d6543aae998702ce66a1289648978407cf08bdb548ba62cfc2d2243cf05c489"
+    },
+    {
+      "path": "evidence/ami-audio-acquisition.json",
+      "bytes": 1235,
+      "sha256": "c2ffcba00d08269aa003a3a69ed4b75eebbba178722aa270030b985359b2d1d3"
+    },
+    {
+      "path": "source/audio_backend/moss_handy_jobs.py",
+      "bytes": 168471,
+      "sha256": "17cc40a79fb358ddf821bbe31166162118aeb5f1e682f2f85f18b4b1286a5b3f"
+    },
+    {
+      "path": "source/audio_backend/recording_speaker_history.py",
+      "bytes": 159777,
+      "sha256": "e7bfa93290638495351575c9035d49e81cc508a6c4c919ebb8b62f36573553d8"
+    },
+    {
+      "path": "source/audio_backend/trial_sampling_census.py",
+      "bytes": 29924,
+      "sha256": "9faafb4dee3d36a66c9c13f0a83dc0ae7e205be6ffa62dfd6ac19309082240e0"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_capture_isolation.py",
+      "bytes": 4535,
+      "sha256": "4bc2464b5bb73aaa16483ada4132f9df234f2bb0a88662262127a353852b810d"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_stage1.py",
+      "bytes": 8271,
+      "sha256": "ff7fd724000c66dc80ae10636389d16e2c2482682c9b3b785aca915e0b52ca98"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_stage3.py",
+      "bytes": 9663,
+      "sha256": "e392e9ef8755b92408e581b1d50e0a66ff4ea57a198dc3ab6932fa0f5ce125f2"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_worker_integration.py",
+      "bytes": 12651,
+      "sha256": "e0611de71b306ea4388662dab421ac92a3adf1fce29c7eaaa9144965c6ec8268"
+    },
+    {
+      "path": "terminal-release-fixture-only.patch",
+      "bytes": 628,
+      "sha256": "ee00f41ff0c78ba08cbefbf08716e24850eecf3e42a90fc233b5dd0d1b151b75"
+    }
+  ]
+}

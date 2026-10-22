@@ -1,0 +1,10 @@
+--- a/tests/test_worker_terminal_release_ordering.py
++++ b/tests/test_worker_terminal_release_ordering.py
+@@ -63,6 +63,7 @@
+         raise AssertionError('No database, new task, new child, or unexpected step')
+     manager._thread_factory = forbidden
+     manager.history = SimpleNamespace(
++        primary_recovery_status="ready",  # This fixture starts after startup recovery.
+         comparison_current=lambda value: case.current_reads.append(('comparison', value)) or 'current',
+         dispatch_current=lambda value, **kwargs: case.current_reads.append(('primary', value)) or True,
+         finish_comparison=forbidden)

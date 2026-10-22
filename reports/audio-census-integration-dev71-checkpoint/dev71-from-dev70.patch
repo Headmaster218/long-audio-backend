@@ -1,0 +1,1049 @@
+--- a/audio_backend/moss_handy_jobs.py
++++ b/audio_backend/moss_handy_jobs.py
+@@ -1,5 +1,6 @@
+ """One-slot MOSS execution with immutable historical snapshots; no inference retry."""
+ from contextlib import contextmanager
++from .trial_sampling_census import primary_binding
+ import hashlib
+ import json
+ import os
+@@ -445,6 +446,12 @@
+         except BaseException:
+             observe_active('PREPARE_RESULT', {'component':'primary_copy', 'outcome':'exception'})
+             raise
++        # Non-authoritative observer binding follows this exact handle only.
++        try:
++            from .trial_sampling_census import current_binding
++            if type(handle) is dict and current_binding() is not None:
++                handle['_trial_census_binding'] = current_binding()
++        except BaseException:pass
+         # The original read transaction is now closed, including early returns.
+         # Absent handle causes remain UNKNOWN rather than manufactured reasons.
+         if handle is None:
+@@ -557,6 +564,7 @@
+                 or probe.get('node') != node):return False
+         return hashlib.sha256(encoded(saved)).hexdigest() == saved_sha and sha(node) == node_sha
+ 
++    @primary_binding(argument=True)
+     def primary_committed(self, handle):
+         """Called solely by Worker after the exact commit_window returned True."""
+         if type(handle) is not dict or handle.get('owner') is not self:return False
+@@ -799,6 +807,7 @@
+             self._maintain_primary()
+             return False
+ 
++    @primary_binding(argument=True)
+     def _run_primary(self, probe):
+         from .recording_speaker_probe_runner import ProbeOperation, ProbeDriver, KIND
+         failure_stage, failure_reason = 'dispatch_validation', 'source_authority_changed'
+@@ -891,6 +900,7 @@
+         return self._primary_result_matches(reservation,node,vector,invocation_id,
+                                             allow_cancelled=True)
+ 
++    @primary_binding(argument=True)
+     def _maintain_primary_append(self, probe):
+         """One exact storage turn; a cleaned model permit is never reacquired."""
+         with self._gate():
+@@ -939,6 +949,7 @@
+                 if probe is self._primary_pending and probe['state'] == 'append_unknown':
+                     probe['storage_retry_after'] = time.monotonic() + 1.
+ 
++    @primary_binding(argument=False)
+     def _maintain_primary(self):
+         probe = self._primary_pending
+         if probe is None:return True
+--- a/audio_backend/recording_speaker_history.py
++++ b/audio_backend/recording_speaker_history.py
+@@ -19,6 +19,7 @@
+ import uuid
+ 
+ from .moss_result_store import MossResultStore, encoded
++from .trial_sampling_census import history_operation, capture_transaction, capture_scope, capture_counters
+ from .native_owned_support_cache import ReadError
+ 
+ POLICY = 'primary-clean-history-v1'
+@@ -718,9 +719,14 @@
+             if db.execute(f'SELECT 1 FROM {OLD} WHERE session_id=? AND recording_id=?',(sid,rid)).fetchone():return False
+             return True
+ 
++    @history_operation('primary_due')
+     def primary_due(self,sid,rid,source_start_frame):
+         if not self.enabled:return {'due':False,'reason':'other'}
+-        with self._database() as db:return self._due(self._scope(db,sid,rid),source_start_frame)
++        with self._database() as db:
++            scope=self._scope(db,sid,rid)
++            answer=self._due(scope,source_start_frame)
++            capture_scope(scope, lambda: {'frame':source_start_frame, 'due':answer['due'], 'reason':answer['reason']})
++            return answer
+ 
+     def primary_sampling_diagnostics(self,sid,rid):
+         with self._database() as db:
+@@ -732,6 +738,8 @@
+         if scope['sampling_policy']!=SAMPLING_V2:return False
+         row=db.execute(f'SELECT * FROM {SAMPLING} WHERE scope_seq=?',(scope['scope_seq'],)).fetchone()
+         counts=_sampling_counters(row['counters'])
++        # Copy original counter scalars before mutation; no observer encoding/I/O.
++        capture_counters(counts, before=True)
+         reason=reason if reason in SAMPLING_REASONS or reason=='admitted' else 'other'
+         if not due:reason='missed'
+         counts[reason]=min(SAMPLING_COUNTER_MAX,counts[reason]+1)
+@@ -744,14 +752,18 @@
+                 count+=1
+                 exhausted=count>=SAMPLING_LIMIT and reason!='admitted'
+                 if exhausted:counts['exhausted']=min(SAMPLING_COUNTER_MAX,counts['exhausted']+1)
++        capture_counters(counts, before=False)
+         # Non-due windows never reset or consume an examination budget.
+         next_bucket=bucket if due and bucket>=0 else row['examined_bucket']
+         next_count=count if due and bucket>=0 else row['examined_count']
+         db.execute(f'''UPDATE {SAMPLING} SET examined_bucket=?,examined_count=?,counters=?,
+             last_frame=?,last_reason=? WHERE scope_seq=?''',
+             (next_bucket,next_count,encoded(counts),frame,reason,scope['scope_seq']))
++        capture_transaction(lambda: {'value_kind':'intended_post', 'examined_bucket':next_bucket,
++                             'examined_count':next_count, 'frame':frame, 'reason':reason})
+         return exhausted
+ 
++    @history_operation('note_primary_skip')
+     def note_primary_skip(self,sid,rid,source_start_frame,reason,space,*,v2_only=False,hard_close=False):
+         with self._database(write=True) as db:
+             if v2_only:
+@@ -761,6 +773,7 @@
+                 if policy!=SAMPLING_V2:return False
+             scope=self._scope(db,sid,rid,space,create=True)
+             due=self._due(scope,source_start_frame)['due']
++            capture_scope(scope, lambda: {'frame':source_start_frame, 'transaction_due':due, 'reason':reason})
+             bucket=(source_start_frame-120*16000)//scope['interval_frames'] if source_start_frame>=120*16000 else -1
+             if source_start_frame<=scope['high_water']:
+                 if not (hard_close and scope['sampling_policy']==SAMPLING_V2 and bucket>scope['last_bucket']):
+@@ -770,11 +783,16 @@
+                 # reopen/reset a newer bucket's examination budget.
+                 row=db.execute(f'SELECT counters FROM {SAMPLING} WHERE scope_seq=?',(scope['scope_seq'],)).fetchone()
+                 counts=_sampling_counters(row['counters'])
++                capture_transaction(lambda: {'value_kind':'observed_pre', 'counter_name':'unavailable', 'counter_before':counts['unavailable']})
++                capture_transaction(lambda: {'value_kind':'observed_pre', 'counter_name':'examined', 'counter_before':counts['examined']})
+                 counts['unavailable']=min(SAMPLING_COUNTER_MAX,counts['unavailable']+1)
+                 counts['examined']=min(SAMPLING_COUNTER_MAX,counts['examined']+1)
+                 db.execute(f'UPDATE {SAMPLING} SET counters=?,last_frame=?,last_reason=? WHERE scope_seq=?',
+                     (encoded(counts),source_start_frame,'unavailable',scope['scope_seq']))
+                 db.execute(f'UPDATE {SCOPES} SET last_bucket=? WHERE scope_seq=?',(bucket,scope['scope_seq']))
++                capture_transaction(lambda: {'value_kind':'intended_post', 'last_bucket':bucket, 'reason':'hard_close_original_bucket'})
++                capture_transaction(lambda: {'value_kind':'intended_post', 'counter_name':'unavailable', 'counter_after':counts['unavailable']})
++                capture_transaction(lambda: {'value_kind':'intended_post', 'counter_name':'examined', 'counter_after':counts['examined']})
+                 return True
+             exhausted=self._sampling_examine(db,scope,source_start_frame,reason,due=due)
+             # V1 is unchanged. V2 retries only an explicitly safe, fresh live
+@@ -783,6 +801,8 @@
+             close_bucket=(scope['sampling_policy']==SAMPLING_V1 or (due and (exhausted or not retryable)))
+             db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_bucket=MAX(last_bucket,?),skipped_count=MIN(2147483647,skipped_count+1) WHERE scope_seq=?''',
+                 (source_start_frame,bucket if close_bucket else -1,scope['scope_seq']))
++            capture_transaction(lambda: {'value_kind':'intended_post', 'high_water':source_start_frame,
++                                 'last_bucket':max(scope['last_bucket'],bucket if close_bucket else -1)})
+         return True
+ 
+     @staticmethod
+@@ -836,6 +856,7 @@
+         row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+         return self._reservation(row,scope,should_probe=True)
+ 
++    @history_operation('claim_primary')
+     def claim_primary(self,sid,rid,attempt_id,saved,node,receipt_bytes,*,current_check,space,admission_capability,invocation_id):
+         from .recording_primary_probe import validate_standalone_primary_node
+         validate_standalone_primary_node(saved,node)
+@@ -845,12 +866,19 @@
+         with self._memory_lock,self._database(write=True) as db:
+             self._primary_recovery_ready()
+             scope=self._scope(db,sid,rid,space,create=True)
++            capture_scope(scope, lambda: {'frame':frame})
+             previous=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+             if previous is not None:
+                 if previous['identity_sha256']!=identity or previous['invocation_id']!=invocation_id:_fail('history_attempt_conflict')
++                capture_transaction(lambda: {'value_kind':'observed_pre', 'due':None, 'reason':'existing_attempt_no_recheck',
++                                     'reservation_token':previous['token'], 'result_state':previous['state']})
+                 return self._reservation(previous,scope)
+-            if not self._due(scope,frame)['due']:_fail('history_not_due')
++            original_due=self._due(scope,frame)
++            capture_transaction(lambda: {'value_kind':'observed_pre', 'transaction_due':original_due['due'], 'reason':original_due['reason']})
++            if not original_due['due']:_fail('history_not_due')
+             fact=self._source_fact(db,receipt_bytes,packet['commit']['part']['source_end'])
++            capture_transaction(lambda: {'value_kind':'observed_pre', 'source_version_sha256':fact['version'],
++                                 'mapping_sha256':fact['mapping_digest'], 'packet_sha256':saved['header']['digest']})
+             self._source_admissible(db,scope['scope_seq'],fact)
+             count=len(packet['refs'])
+             if not 1<=count<=128:_fail('history_dependency_capacity')
+@@ -870,6 +898,9 @@
+                 db.execute(f'''UPDATE {SCOPES} SET high_water=?,last_claim_frame=?,last_bucket=MAX(last_bucket,?),
+                     bootstrap_count=bootstrap_count+?,state='pending' WHERE scope_seq=?''',
+                     (frame,frame,bucket,int(frame<120*16000),scope['scope_seq']))
++                capture_transaction(lambda: {'value_kind':'intended_post', 'high_water':frame, 'last_claim_frame':frame,
++                                     'last_bucket':max(scope['last_bucket'],bucket),
++                                     'bootstrap_count':scope['bootstrap_count']+int(frame<120*16000)})
+             self._primary_recovery_ready()
+         return answer
+ 
+@@ -918,16 +949,20 @@
+         if scope['history_revision']>=MAX_REVISION:_fail('capacity_exhausted')
+         db.execute(f"UPDATE {SCOPES} SET history_revision=history_revision+1,current_slot=NULL,state='pending' WHERE scope_seq=?",(row['scope_seq'],))
+ 
++    @history_operation('resolve_primary')
+     def resolve_primary(self,attempt_id,identity=None,*,failure_json=None):
+         # Exact unknown-outcome closure never grants inference permission. A
+         # positively committed success is observed, never replaced or replayed.
+         terminal=self._failure_bytes('storage_unknown',failure_json)
+         with self._database(write=True) as db:
+             row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+-            if row is None:return {'found':False,'resolved':True,'should_probe':False}
++            if row is None:
++                capture_transaction(lambda: {'value_kind':'observed_pre', 'found':False, 'reservation_token':attempt_id})
++                return {'found':False,'resolved':True,'should_probe':False}
+             expected=_hash(encoded(identity)) if type(identity) is dict else identity
+             if expected is None or expected!=row['identity_sha256']:_fail('history_attempt_conflict')
+             scope=db.execute(f'SELECT * FROM {SCOPES} WHERE scope_seq=?',(row['scope_seq'],)).fetchone()
++            capture_scope(scope, lambda: {'reservation_token':row['token'], 'result_state':row['state']})
+             if row['state']=='reserved':
+                 self._finish_missing(db,row,scope,terminal)
+                 row=db.execute(f'SELECT * FROM {ATTEMPTS} WHERE token=?',(attempt_id,)).fetchone()
+@@ -936,6 +971,7 @@
+ 
+     resolve_moss=resolve_primary
+ 
++    @history_operation('finish_primary')
+     def finish_primary(self,reservation,reason,*,failure_json=None):
+         token=reservation['token'];candidate=self._failure_bytes(reason,failure_json)
+         with self._memory_lock:
+@@ -945,6 +981,7 @@
+             terminal=pending['failure_terminal']
+         with self._database(write=True) as db:
+             row,scope=self._attempt(db,reservation)
++            capture_scope(scope, lambda: {'reservation_token':row['token'], 'result_state':row['state']})
+             if row['state']!='reserved':
+                 if row['state']!='failure' or row['terminal']!=terminal:_fail('history_terminal_conflict')
+                 return self._reservation(row,scope)
+@@ -1119,6 +1156,7 @@
+         token=reservation['token']
+         with self._database(write=True) as db:
+             row,scope=self._attempt(db,reservation)
++            capture_scope(scope, lambda: {'reservation_token':row['token'], 'result_state':row['state']})
+             if row['state']!='reserved':
+                 if row['state']!='success' or row['terminal']!=payload['terminal']:_fail('history_terminal_conflict')
+                 return {'token':token,'state':'success','should_probe':False,'existing':True}
+@@ -1155,6 +1193,7 @@
+                 finally:db.execute('RELEASE optional_primary_identity')
+         return {'token':token,'state':'success','should_probe':False,'history_revision':scope['history_revision']+1}
+ 
++    @history_operation('append_primary')
+     def append_primary(self,reservation,node,vector,invocation_id,*,success_capability,current_check):
+         def authorize():self._authorize_success(reservation,node,vector,invocation_id,success_capability)
+         authorize()
+@@ -1165,6 +1204,7 @@
+         payload=self._prepare_success(reservation,[dict(node,vector=vector)],invocation_id)
+         return self._append(reservation,payload,current_check,authorize)
+ 
++    @history_operation('acknowledge_primary_append')
+     def acknowledge_primary_append(self,reservation,node,vector,invocation_id,*,success_capability):
+         """Read-only exact acknowledgement of an already frozen live success.
+ 
+@@ -1186,6 +1226,7 @@
+                 or pending.get('terminal')!=payload['terminal']):_fail('history_terminal_conflict')
+         with self._database() as db:
+             row,scope=self._attempt(db,reservation)
++            capture_scope(scope, lambda: {'reservation_token':row['token'], 'result_state':row['state']})
+             if row['state']=='reserved':return {'resolved':False,'state':'reserved','should_probe':False}
+             if (row['state']!='success' or row['terminal']!=payload['terminal']
+                     or row['terminal_sha256']!=_hash(payload['terminal'])):_fail('history_terminal_conflict')
+--- a/audio_backend/trial_sampling_census.py
++++ b/audio_backend/trial_sampling_census.py
+@@ -1,12 +1,14 @@
+-"""Bounded trial observer transport, NOT an integrated completeness proof.
+-
+-Stage 1 intentionally has no production hook or COMPLETE seal. Its observations
++"""Bounded trial observer transport and partial hooks, NOT a completeness proof.
++
++Stage 3 still has no reconciliation or COMPLETE seal. Its observations
+ cannot grant sampling/identity authority. A collector must stop on unhealthy,
+ then positively stop the product before inspecting the preserved sidecar.
+ """
+ from __future__ import annotations
+ 
+ import contextvars
++import functools
++import itertools
+ try:
+     import fcntl
+ except ImportError:  # Optional transport must not make default Worker imports platform-specific.
+@@ -33,8 +35,11 @@
+     'end_frame', 'interval_frames'))
+ _PHASES = frozenset(('WINDOW_BEGIN', 'PREPARE_RESULT', 'DUE_PRECHECK',
+     'COMMIT_INTENT', 'COMMIT_ACK', 'CALLBACK_RESULT', 'DECISION_INTENT',
+-    'DECISION_ACK', 'TERMINAL_RESULT', 'RECOVERY_RESULT'))
+-_FIELDS = frozenset(('component', 'session_id', 'chunk_id', 'recording_id',
++    'DECISION_ACK', 'TRANSACTION_SNAPSHOT', 'TERMINAL_RESULT', 'RECOVERY_RESULT'))
++_FIELDS = frozenset(('operation_id', 'operation', 'value_kind', 'scope_present',
++    'scope_state', 'authority_revision', 'interval_frames', 'sampling_policy',
++    'counter_name', 'counter_before', 'counter_after', 'result_state', 'found',
++    'resolved', 'should_probe', 'terminal_sha256', 'source_version_sha256', 'component', 'session_id', 'chunk_id', 'recording_id',
+     'origin_frame', 'commit_evidence_sha256', 'outcome', 'reason', 'due', 'transaction_due', 'frame',
+     'local_start', 'local_end', 'logical_start', 'logical_end',
+     'source_revision', 'history_revision', 'high_water', 'last_claim_frame',
+@@ -477,3 +482,177 @@
+                    for phase, fields in phases)
+     return {'committed_acknowledged': committed, 'callback_observed': callback,
+             'eligibility': 'UNKNOWN', 'complete_census_certified': False}
++
++
++_TRANSACTION = contextvars.ContextVar('trial_census_transaction', default=None)
++_OPERATION_IDS = itertools.count(1)
++_MAX_TRANSACTION_RECORDS = 32
++
++
++def current_binding():
++    try:return _ACTIVE.get()
++    except BaseException:return None
++
++
++class bound_observation:
++    """Restore only the original explicit binding; never infer from new windows."""
++    def __init__(self, binding):self.binding, self.token = binding, None
++    def __enter__(self):
++        try:self.token = _ACTIVE.set(self.binding)
++        except BaseException:pass
++        return self
++    def __exit__(self, *args):
++        try:
++            if self.token is not None:_ACTIVE.reset(self.token)
++        except BaseException:pass
++        return False
++
++
++def capture_transaction(fields):
++    """Evaluate lazy scalar reads only inside the isolated, active buffer.
++
++    Producers must not perform I/O, encoding, hashing or queries. A callable is
++    evaluated synchronously, never retained, so mutable pre-state is copied now.
++    """
++    trace = None
++    try:
++        trace = _TRANSACTION.get()
++        if trace is None or trace['failed']:return
++        if len(trace['records']) >= _MAX_TRANSACTION_RECORDS:raise ValueError('buffer_cap')
++        if callable(fields):fields = fields()
++        copied = {}
++        if type(fields) is not dict or len(fields) > len(_FIELDS):raise ValueError('fields')
++        for key, value in fields.items():
++            if type(key) is not str or key not in _FIELDS:raise ValueError('field')
++            if value is None or type(value) is bool:pass
++            elif type(value) is int:
++                if not -(2**63) <= value < 2**63:raise ValueError('integer')
++            elif type(value) is str:
++                if len(value) > 96 or not value.isascii():raise ValueError('text')
++            else:raise ValueError('scalar')
++            copied[key] = value
++        trace['records'].append(copied)
++    except BaseException:
++        if trace is not None:trace['failed'] = True
++
++
++def capture_scope(scope, extra=None):
++    """Scope and extra mapping reads are skipped when no capture is active."""
++    def fields_from_scope():
++        fields = {'value_kind':'observed_pre', 'scope_present':scope is not None}
++        if scope is not None:
++            for key in ('high_water', 'last_claim_frame', 'bootstrap_count', 'last_bucket',
++                        'examined_bucket', 'examined_count', 'source_revision',
++                        'history_revision', 'authority_revision', 'interval_frames', 'sampling_policy'):
++                try:fields[key] = scope[key]
++                except (KeyError, IndexError):fields[key] = None
++        if extra is not None:fields.update(extra() if callable(extra) else extra)
++        return fields
++    capture_transaction(fields_from_scope)
++
++
++def capture_counters(counts, *, before):
++    """Avoid observer-only counter iteration entirely without an active trace."""
++    trace = None
++    try:
++        trace = _TRANSACTION.get()
++        if trace is None or trace['failed']:return
++        for key, value in counts.items():
++            capture_transaction({'value_kind':'observed_pre' if before else 'intended_post',
++                                 'counter_name':key,
++                                 'counter_before' if before else 'counter_after':value})
++            if trace['failed']:return
++    except BaseException:
++        try:
++            if trace is not None:trace['failed'] = True
++        except BaseException:pass
++
++
++def _finish_operation(trace, result, returned):
++    try:
++        if trace['failed']:
++            port, _ = trace['binding']
++            port.failed = True
++            try:port.sink.invalidate()
++            except BaseException:pass
++            return
++        for fields in trace['records']:
++            observe_active('TRANSACTION_SNAPSHOT', dict(fields, operation_id=trace['id'], operation=trace['name']))
++        fields = {'operation_id':trace['id'], 'operation':trace['name'],
++                  'outcome':'returned' if returned else 'unknown',
++                  'reason':'none' if returned else 'method_exception'}
++        if returned and type(result) is dict:
++            for source, target in (('token','reservation_token'), ('state','result_state'),
++                                   ('found','found'), ('resolved','resolved'),
++                                   ('should_probe','should_probe'), ('due','due'),
++                                   ('terminal_sha256','terminal_sha256')):
++                if source in result:fields[target] = result[source]
++        elif returned and type(result) is bool:fields['result_state'] = 'true' if result else 'false'
++        observe_active('DECISION_ACK', fields)
++    except BaseException:
++        try:trace['binding'][0].failed = True
++        except BaseException:pass
++
++
++def history_operation(name):
++    """ACK after original method and all original DB contexts have returned."""
++    def decorate(original):
++        @functools.wraps(original)
++        def wrapped(*args, **kwargs):
++            binding = current_binding()
++            if binding is None:return original(*args, **kwargs)
++            trace, token, returned, result = None, None, False, None
++            try:
++                trace = {'name':name, 'id':format(next(_OPERATION_IDS), '016x'),
++                         'binding':binding, 'records':[], 'failed':False}
++                observe_active('DECISION_INTENT', {'operation':name, 'operation_id':trace['id']})
++                token = _TRANSACTION.set(trace)
++            except BaseException:
++                try:binding[0].failed = True
++                except BaseException:pass
++            try:
++                result = original(*args, **kwargs)
++                returned = True
++                return result
++            finally:
++                try:
++                    if token is not None:_TRANSACTION.reset(token)
++                    if trace is not None:_finish_operation(trace, result, returned)
++                except BaseException:
++                    try:binding[0].failed = True
++                    except BaseException:pass
++        return wrapped
++    return decorate
++
++
++
++def primary_binding(argument=False):
++    """Retain original opportunity across maintenance and model-thread boundaries."""
++    def decorate(original):
++        @functools.wraps(original)
++        def wrapped(self, *args, **kwargs):
++            probe, binding = None, None
++            try:
++                probe = (args[0] if args else kwargs.get('probe', kwargs.get('handle'))) if argument else getattr(self, '_primary_pending', None)
++                if type(probe) is dict:binding = probe.get('_trial_census_binding')
++            except BaseException:pass
++            with bound_observation(binding):
++                returned = False
++                try:
++                    answer = original(self, *args, **kwargs)
++                    returned = True
++                    return answer
++                finally:
++                    try:
++                        if binding is not None:
++                            observe_active('TERMINAL_RESULT', {'component':original.__name__,
++                                'outcome':'returned' if returned else 'unknown',
++                                'result_state':probe.get('state'),
++                                'frame':probe.get('source_start_frame'),
++                                'invocation_id':probe.get('invocation_id'),
++                                'reason':'state_only_not_durable_terminal_proof'})
++                    except BaseException:
++                        try:binding[0].failed = True
++                        except BaseException:pass
++        return wrapped
++    return decorate
+--- /dev/null
++++ b/tests/test_trial_sampling_census_capture_isolation.py
+@@ -0,0 +1,109 @@
++"""Finite observer-isolation regressions; root execution required.
++
++Mapping-only tests perform no storage operations. The two cadence tests reuse
++an unchanged, explicitly mocked provenance seam and one fresh SQLite scope.
++They qualify instrumentation noninterference, not admission proof validity.
++"""
++import pytest
++
++from audio_backend import trial_sampling_census as census
++from test_recording_speaker_history import history_env
++from test_primary_live_window_sampling import scope, cadence_claim, diag
++from test_trial_sampling_census_stage3 import Recorder, bound
++
++
++class ThrowingMapping:
++    def __init__(self):self.reads = 0
++    def __getitem__(self, key):
++        self.reads += 1
++        raise RuntimeError('observer mapping access')
++    def items(self):
++        self.reads += 1
++        raise RuntimeError('observer counter iteration')
++
++
++@pytest.mark.parametrize('failed', [None, True])
++def test_inactive_or_failed_capture_never_reads_producers(failed):
++    trace = None if failed is None else {'records':[], 'failed':True}
++    token = census._TRANSACTION.set(trace)
++    mapping = ThrowingMapping()
++    try:
++        census.capture_transaction(lambda: {'source_version_sha256':mapping['version']})
++        census.capture_scope(mapping, lambda: {'reservation_token':mapping['token']})
++        census.capture_scope(None, lambda: {'reason':mapping['reason']})
++        census.capture_counters(mapping, before=True)
++        census.capture_counters(mapping, before=False)
++    finally:census._TRANSACTION.reset(token)
++    assert mapping.reads == 0
++    if trace is not None:assert trace['records'] == []
++
++
++@pytest.mark.parametrize('fact', [{}, {'version':'a'*64}, {'version':object(), 'mapping_digest':'b'*64}])
++def test_partial_or_malformed_fact_invalidates_capture_only(fact):
++    trace = {'records':[], 'failed':False}
++    token = census._TRANSACTION.set(trace)
++    try:
++        census.capture_transaction(lambda: {'source_version_sha256':fact['version'],
++                                           'mapping_sha256':fact['mapping_digest']})
++    finally:census._TRANSACTION.reset(token)
++    assert trace == {'records':[], 'failed':True}
++
++
++@pytest.mark.parametrize('kind', ['transaction', 'scope', 'scope_extra', 'counter'])
++def test_throwing_mapping_invalidates_capture_only(kind):
++    trace = {'records':[], 'failed':False}
++    token = census._TRANSACTION.set(trace)
++    mapping = ThrowingMapping()
++    try:
++        if kind == 'transaction':
++            census.capture_transaction(lambda: {'source_version_sha256':mapping['version']})
++        elif kind == 'scope':census.capture_scope(mapping)
++        elif kind == 'scope_extra':census.capture_scope(None, lambda: {'reason':mapping['reason']})
++        else:census.capture_counters(mapping, before=True)
++    finally:census._TRANSACTION.reset(token)
++    assert mapping.reads == 1
++    assert trace == {'records':[], 'failed':True}
++
++
++def test_lazy_capture_snapshots_now_not_after_mutation():
++    trace = {'records':[], 'failed':False}
++    token = census._TRANSACTION.set(trace)
++    counts = {'busy':0}
++    try:
++        census.capture_counters(counts, before=True)
++        counts['busy'] = 1
++        census.capture_counters(counts, before=False)
++        counts['busy'] = 2
++    finally:census._TRANSACTION.reset(token)
++    assert trace['records'] == [
++        {'value_kind':'observed_pre', 'counter_name':'busy', 'counter_before':0},
++        {'value_kind':'intended_post', 'counter_name':'busy', 'counter_after':1}]
++    assert not trace['failed']
++
++
++@pytest.mark.parametrize('active', [False, True])
++def test_unchanged_partial_fact_cadence_fixture_still_admits(history_env, monkeypatch, active):
++    env = history_env
++    scope(env)
++    port = Recorder()
++    with bound(port) if active else census.bound_observation(None):
++        result = cadence_claim(env, 0, monkeypatch)
++    assert result == {'should_probe':True}
++    assert diag(env)['counts']['admitted'] == 1
++    if active:
++        assert port.failed
++        assert not any(phase == 'DECISION_ACK' for phase, _, _ in port.events)
++    else:
++        assert not port.events and not port.failed
++
++
++def test_capture_failure_preserves_exact_original_exception():
++    failure = RuntimeError('original product exception')
++    port = Recorder()
++    @census.history_operation('claim_primary')
++    def original():
++        census.capture_transaction(lambda: {'source_version_sha256':{}['version']})
++        raise failure
++    with bound(port), pytest.raises(RuntimeError) as caught:original()
++    assert caught.value is failure
++    assert port.failed
+--- a/tests/test_trial_sampling_census_stage1.py
++++ b/tests/test_trial_sampling_census_stage1.py
+@@ -148,7 +148,7 @@
+     if not baseline.exists():pytest.skip('baseline copy not supplied')
+     for old in (baseline / 'audio_backend').rglob('*.py'):
+         relative = old.relative_to(baseline)
+-        if relative.name in {'worker.py', 'native_owned_cell_capture.py', 'moss_handy_jobs.py'}:continue
++        if relative.name in {'worker.py', 'native_owned_cell_capture.py', 'moss_handy_jobs.py', 'recording_speaker_history.py'}:continue
+         assert (root / relative).read_bytes() == old.read_bytes(), str(relative)
+ 
+ 
+--- /dev/null
++++ b/tests/test_trial_sampling_census_stage3.py
+@@ -0,0 +1,191 @@
++"""Root-only, bounded real HistoryStore/InstanceLock tests; no model execution."""
++from contextlib import contextmanager
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import pytest
++from audio_backend import trial_sampling_census as census
++from audio_backend import recording_speaker_history as history
++from audio_backend.moss_handy_jobs import MossJobs
++from test_recording_speaker_history import (history_env, primary_fixture, source_fixture,
++    claim, append, connection, links, scope_row)
++
++
++class Recorder:
++    def __init__(self, depth=None, broken=False):
++        self.events=[];self.depth=depth;self.broken=broken;self.failed=False
++    def observe(self, phase, key, fields):
++        if self.depth is not None:assert self.depth[0] == 0, 'observer I/O inside database scope'
++        if self.broken:raise RuntimeError('observer only')
++        self.events.append((phase, dict(fields), key))
++        return True
++
++
++def bound(port, key='c'*64):return census.bound_observation((port,key))
++
++
++def track_database(env, monkeypatch, *, fail_after=False):
++    depth=[0];original=env.value._database
++    @contextmanager
++    def tracked(*args, **kwargs):
++        depth[0]+=1
++        try:
++            with original(*args, **kwargs) as db:yield db
++            if fail_after:raise RuntimeError('synthetic after database context exit')
++        finally:depth[0]-=1
++    monkeypatch.setattr(env.value, '_database', tracked)
++    return depth
++
++
++def test_real_scope_precheck_skip_snapshot_outside_db(history_env, monkeypatch):
++    env=history_env;item=source_fixture(env)
++    env.store.settings.recording_primary_sampling_policy=history.SAMPLING_V2
++    depth=track_database(env,monkeypatch);port=Recorder(depth)
++    with bound(port):
++        assert env.value.primary_due(item.sid,item.rid,0)['due'] is True
++        assert env.value.note_primary_skip(item.sid,item.rid,0,'busy',links.expected_space()) is True
++    snapshots=[fields for phase,fields,_ in port.events if phase=='TRANSACTION_SNAPSHOT']
++    assert any(fields.get('scope_present') is False for fields in snapshots)
++    assert any(fields.get('transaction_due') is True for fields in snapshots)
++    assert any(fields.get('value_kind')=='intended_post' and fields.get('high_water')==0 for fields in snapshots)
++    assert any(fields.get('counter_name')=='busy' and fields.get('counter_after')==1 for fields in snapshots)
++    assert port.failed is False
++
++
++def test_real_store_no_observer_equivalence_and_no_extra_queries(history_env, monkeypatch):
++    env=history_env;a=source_fixture(env,number=1);b=source_fixture(env,number=2)
++    env.store.settings.recording_primary_sampling_policy=history.SAMPLING_V2
++    original=env.value._database;queries=[]
++    @contextmanager
++    def traced(*args, **kwargs):
++        with original(*args,**kwargs) as db:
++            db.set_trace_callback(queries.append)
++            yield db
++    monkeypatch.setattr(env.value,'_database',traced)
++    with census.bound_observation(None):
++        first=env.value.note_primary_skip(a.sid,a.rid,0,'busy',links.expected_space())
++    first_queries=list(queries);queries.clear()
++    with bound(Recorder()):
++        second=env.value.note_primary_skip(b.sid,b.rid,0,'busy',links.expected_space())
++    second_queries=list(queries)
++    assert first is second is True
++    # Query text embeds scope IDs, but the observer must not add a single SELECT.
++    assert sum(q.lstrip().upper().startswith('SELECT') for q in first_queries)==sum(
++        q.lstrip().upper().startswith('SELECT') for q in second_queries)
++    row_a,row_b=scope_row(env.store,a.rid),scope_row(env.store,b.rid)
++    for key in ('high_water','last_claim_frame','last_bucket','bootstrap_count',
++                'skipped_count','history_revision','source_revision'):
++        assert row_a[key]==row_b[key]
++    assert env.value.primary_sampling_diagnostics(a.sid,a.rid)==env.value.primary_sampling_diagnostics(b.sid,b.rid)
++
++
++def test_real_store_after_exit_exception_ack_unknown_not_false(history_env,monkeypatch):
++    env=history_env;item=source_fixture(env)
++    depth=track_database(env,monkeypatch,fail_after=True);port=Recorder(depth)
++    with bound(port),pytest.raises(RuntimeError,match='after database context exit'):
++        env.value.note_primary_skip(item.sid,item.rid,0,'busy',links.expected_space())
++    acks=[fields for phase,fields,_ in port.events if phase=='DECISION_ACK']
++    assert len(acks)==1 and acks[0]['outcome']=='unknown'
++    assert 'result_state' not in acks[0]
++    # The real DB committed despite the synthetic lost method acknowledgement.
++    assert scope_row(env.store,item.rid)['high_water']==0
++
++
++def test_real_claim_existing_and_finish_uses_original_queries(history_env,monkeypatch):
++    env=history_env;item=primary_fixture(env)
++    env.store.settings.recording_primary_sampling_policy=history.SAMPLING_V2
++    depth=track_database(env,monkeypatch);port=Recorder(depth)
++    with bound(port):
++        first=claim(env,item)
++        existing=claim(env,item)
++        terminal=env.value.finish_primary(first,'unavailable')
++    assert first['should_probe'] is True and existing['should_probe'] is False
++    assert terminal['state']=='failure'
++    snapshots=[fields for phase,fields,_ in port.events if phase=='TRANSACTION_SNAPSHOT']
++    assert any(f.get('mapping_sha256') for f in snapshots)
++    assert any(f.get('reason')=='existing_attempt_no_recheck' and f.get('due') is None for f in snapshots)
++    assert port.failed is False
++
++
++def test_real_history_observer_exception_preserves_product(history_env):
++    env=history_env;item=source_fixture(env);port=Recorder(broken=True)
++    with bound(port):
++        assert env.value.note_primary_skip(item.sid,item.rid,0,'busy',links.expected_space()) is True
++    assert port.failed is True
++    assert scope_row(env.store,item.rid)['high_water']==0
++
++
++def test_buffer_never_encodes_or_hashes_inside_capture():
++    trace={'records':[],'failed':False};token=census._TRANSACTION.set(trace)
++    try:
++        with patch.object(census,'_encoded',side_effect=AssertionError('encoding')), \
++                patch.object(census,'_sha',side_effect=AssertionError('hashing')):
++            census.capture_transaction({'value_kind':'observed_pre','high_water':1})
++            census.capture_scope({'high_water':2})
++    finally:census._TRANSACTION.reset(token)
++    assert len(trace['records'])==2 and not trace['failed']
++
++
++def test_buffer_overflow_marks_invalid_not_product_exception():
++    trace={'records':[],'failed':False};token=census._TRANSACTION.set(trace)
++    try:
++        for _ in range(census._MAX_TRANSACTION_RECORDS+1):census.capture_transaction({'due':True})
++    finally:census._TRANSACTION.reset(token)
++    assert trace['failed'] and len(trace['records'])==census._MAX_TRANSACTION_RECORDS
++
++
++def test_real_maintenance_hard_close_preserves_original_binding(history_env):
++    env=history_env;item=source_fixture(env)
++    env.store.settings.recording_primary_sampling_policy=history.SAMPLING_V2
++    frame=120*16000
++    env.value.note_primary_skip(item.sid,item.rid,frame+960000,'busy',links.expected_space())
++    old_port,new_port=Recorder(),Recorder()
++    probe={'owner':None,'state':'preclaim_close_pending','thread':None,
++           'thread_start_attempted':False,'operation':None,'session_id':item.sid,
++           'recording_id':item.rid,'source_start_frame':frame,'space':links.expected_space(),
++           'invocation_id':'a'*32,'_trial_census_binding':(old_port,'a'*64)}
++    manager=SimpleNamespace(_primary_pending=probe,history=env.value)
++    probe['owner']=manager
++    def drop(value):assert value is probe;manager._primary_pending=None
++    manager._drop_primary_copy=drop
++    with bound(new_port,'b'*64):assert MossJobs._maintain_primary(manager) is True
++    assert old_port.events and not new_port.events
++    assert all(key=='a'*64 for _,_,key in old_port.events)
++    row=scope_row(env.store,item.rid)
++    assert row['high_water']==frame+960000
++    assert row['last_bucket']==0
++
++
++def test_missing_maintenance_binding_is_not_backfilled():
++    port=Recorder();manager=SimpleNamespace(_primary_pending=None)
++    with bound(port):assert MossJobs._maintain_primary(manager) is True
++    assert not port.events
++    assert census.classify_window([])['eligibility']=='UNKNOWN'
++
++
++def test_real_precheck_true_recheck_false_is_not_admission(history_env):
++    env=history_env;item=primary_fixture(env);port=Recorder()
++    with bound(port):
++        assert env.value.primary_due(item.sid,item.rid,0)['due'] is True
++        env.value.note_primary_skip(item.sid,item.rid,0,'busy',links.expected_space())
++        with pytest.raises(Exception) as seen:claim(env,item)
++    assert getattr(seen.value,'reason',None)=='history_not_due'
++    assert any(phase=='TRANSACTION_SNAPSHOT' and fields.get('transaction_due') is False
++               for phase,fields,_ in port.events)
++    acks=[fields for phase,fields,_ in port.events
++          if phase=='DECISION_ACK' and fields['operation']=='claim_primary']
++    assert acks[-1]['outcome']=='unknown'
++    with connection(env.store.path) as db:
++        assert db.execute(f'SELECT COUNT(*) FROM {history.ATTEMPTS}').fetchone()[0]==0
++
++
++def test_real_append_ack_is_success_not_inferred_from_manager_state(history_env):
++    env=history_env;item=primary_fixture(env);port=Recorder()
++    with bound(port):
++        reservation=claim(env,item)
++        result=append(env,item,reservation)
++    assert result['state']=='success'
++    acks=[fields for phase,fields,_ in port.events
++          if phase=='DECISION_ACK' and fields['operation']=='append_primary']
++    assert acks[-1]['result_state']=='success'
++    assert census.classify_window([(p,f) for p,f,_ in port.events])['eligibility']=='UNKNOWN'
+--- /dev/null
++++ b/tests/test_trial_sampling_census_worker_integration.py
+@@ -0,0 +1,266 @@
++"""Source-only proposal: real Worker/manager/SQLite census boundary controls.
++
++At most two 10-second synthetic recordings per case. Native/ASR/probe model
++edges are fake; HTTP ingestion, InstanceLock, Worker.process, commit_window,
++manager decisions, HistoryStore and cleanup are production paths. No comparison
++child is drained, no external audio/model/network is requested. Root executes.
++This is not acoustic qualification or complete/stopped-snapshot reconciliation.
++"""
++from types import SimpleNamespace
++from contextlib import contextmanager
++import time
++
++import pytest
++
++from audio_backend import recording_speaker_history as history
++from audio_backend import trial_sampling_census as census
++from test_moss_automatic_integration import automatic_app_factory
++from test_recording_speaker_history import attempt_row, assert_accounting
++from test_recording_speaker_history_integration import (
++    primary_history_factory, RATE, ingest_recording, _cohort,
++    _complete_pending_probe, _primary_rows, _counts,
++)
++
++
++class Recorder:
++    def __init__(self, broken=False):
++        self.events = []
++        self.broken = broken
++        self.failed = False
++
++    def observe(self, phase, key, fields):
++        if self.broken:
++            raise RuntimeError('synthetic observer failure')
++        self.events.append((phase, dict(fields), key))
++        return True
++
++
++def phases(port, key=None):
++    return [(phase, fields) for phase, fields, observed_key in port.events
++            if key is None or observed_key == key]
++
++
++def decisions(port, operation):
++    return [(fields, key) for phase, fields, key in port.events
++            if phase == 'DECISION_ACK' and fields.get('operation') == operation]
++
++
++def durable_semantics(h, cid):
++    # Generated row/chunk/native epoch IDs differ between independent app runs.
++    # Retain the complete transcript payload except those generated identities.
++    rows = []
++    for row in _primary_rows(h):
++        row = dict(row)
++        row.pop('id'); row.pop('chunk_id')
++        if row['speaker_local_id'] is not None:
++            row['speaker_local_id'] = row['speaker_local_id'].rsplit(':', 1)[-1]
++        rows.append(row)
++    with h.store.db() as db:
++        attempts = [tuple(row) for row in db.execute(
++            f'SELECT state, reserved_bytes, staging_bytes FROM {history.ATTEMPTS} ORDER BY token')]
++        unique = db.execute(f'SELECT COUNT(*), COUNT(DISTINCT token) FROM {history.ATTEMPTS}').fetchone()
++    assert tuple(unique) == (1, 1)
++    assert attempts == [('success', 0, 0)]
++    assert_accounting(SimpleNamespace(store=h.store))
++    return rows, h.store.chunk(cid)['next_offset'], attempts, _counts(h)
++
++
++def assert_released(h):
++    assert h.jobs._primary_pending is None
++    assert h.jobs._probe_staging_bytes == 0
++    assert h.jobs.permit._optional is None
++    assert all(not item.granted and not item.entered for item in h.jobs.permit._primary.values())
++    assert not h.drivers  # No automatic model or comparison process launched.
++
++
++def successful_run(factory, root, observer):
++    with factory(root=root) as h:
++        # A real lifespan owns this file; do not substitute a mock lock.
++        assert h.app.state.instance_lock.file is not None
++        h.worker.trial_observer = observer
++        cid = ingest_recording(h, frames=10 * RATE)[0]
++        assert _cohort(h) == cid
++        pending = h.jobs._primary_pending
++        assert pending is not None and pending['admitted'] and pending['state'] == 'pending'
++        token = pending['attempt_id']
++        assert attempt_row(h.store, token)['state'] == 'reserved'
++        before = _primary_rows(h)
++        assert before and h.store.chunk(cid)['next_offset'] == 10.
++        _complete_pending_probe(h)
++        assert _primary_rows(h) == before
++        assert len(h.probes) == 1 and h.probes[0].starts == 1
++        assert h.probes[0].cleanups == 1
++        assert_released(h)
++        result = durable_semantics(h, cid)
++    assert h.app.state.instance_lock.file is None
++    assert h.app.state.instance_lock_cleanup_complete
++    return result
++
++
++@pytest.mark.parametrize('mode', ['none', 'normal', 'throwing'])
++def test_worker_commit_manager_history_noninterference(primary_history_factory, tmp_path, mode):
++    baseline = successful_run(primary_history_factory, tmp_path / 'baseline', None)
++    port = None if mode == 'none' else Recorder(broken=mode == 'throwing')
++    actual = successful_run(primary_history_factory, tmp_path / 'candidate', port)
++    assert actual == baseline
++    if mode == 'throwing':
++        assert port.failed and not port.events
++    if mode == 'normal':
++        assert not port.failed
++        assert sum(phase == 'WINDOW_BEGIN' for phase, _, _ in port.events) == 1
++        assert ('COMMIT_ACK', {'outcome': 'true', 'reason': 'none'}) in phases(port)
++        assert ('CALLBACK_RESULT', {'outcome': 'returned'}) in phases(port)
++        claims = decisions(port, 'claim_primary')
++        appends = decisions(port, 'append_primary')
++        assert len(claims) == len(appends) == 1
++        assert claims[0][0]['outcome'] == 'returned' and claims[0][0]['should_probe'] is True
++        assert appends[0][0]['outcome'] == 'returned' and appends[0][0]['result_state'] == 'success'
++        assert claims[0][1] == appends[0][1]
++        assert any(phase == 'TRANSACTION_SNAPSHOT' for phase, _, _ in port.events)
++        assert census.classify_window(phases(port))['complete_census_certified'] is False
++
++
++def test_worker_commit_lands_but_outer_return_raises(primary_history_factory, monkeypatch):
++    port = Recorder()
++    with primary_history_factory() as h:
++        h.worker.trial_observer = port
++        cid = ingest_recording(h, frames=10 * RATE)[0]
++        original = h.store.commit_window
++        calls = []
++        failure = RuntimeError('synthetic lost outer commit acknowledgement')
++        def lost_ack(*args, **kwargs):
++            result = original(*args, **kwargs)
++            calls.append(result)
++            assert result is True
++            raise failure
++        monkeypatch.setattr(h.store, 'commit_window', lost_ack)
++        with pytest.raises(RuntimeError) as seen:
++            _cohort(h)
++        assert seen.value is failure and calls == [True]
++        assert _primary_rows(h) and h.store.chunk(cid)['next_offset'] == 10.
++        with h.store.db() as db:
++            assert db.execute(f'SELECT COUNT(*) FROM {history.ATTEMPTS}').fetchone()[0] == 0
++        assert ('COMMIT_ACK', {'outcome': 'unknown', 'reason': 'commit_exception'}) in phases(port)
++        assert not any(phase == 'COMMIT_ACK' and fields.get('outcome') == 'true'
++                       for phase, fields in phases(port))
++        assert not any(phase == 'CALLBACK_RESULT' for phase, _ in phases(port))
++        assert not decisions(port, 'claim_primary')
++        outcome = census.classify_window(phases(port))
++        assert not outcome['committed_acknowledged'] and outcome['eligibility'] == 'UNKNOWN'
++        assert not outcome['complete_census_certified']
++        assert not h.probes
++        assert_released(h)
++    assert h.app.state.instance_lock_cleanup_complete
++
++
++class DelayedCaseBudget:
++    """Test-only bounded scheduling; never relax a production deadline.
++
++    The inherited _cohort helper lacks the normal Worker's handoff pump. Its
++    primary_span therefore needs both explicit opportunity closure and a stop
++    bound. The original permit implements cancellation/release; no token is
++    overwritten, no optional reservation is forged, and no retries occur.
++    """
++    def __init__(self, h):
++        self.h = h
++        self.deadline = time.monotonic() + 30.
++        self.stage = 'opened'
++        self.reported = False
++
++    def mark(self, stage):
++        self.stage = stage
++        print('CENSUS_DELAYED_STAGE ' + stage, flush=True)
++        assert time.monotonic() < self.deadline, 'delayed case budget exhausted: ' + stage
++
++    def stopped(self):
++        expired = time.monotonic() >= self.deadline
++        if expired and not self.reported:
++            self.reported = True
++            permit = self.h.jobs.permit
++            # Called under the original reentrant permit condition. Fixed
++            # scalar diagnostics only, not DB queries or ownership changes.
++            pending = self.h.jobs._primary_pending
++            print('CENSUS_DELAYED_TIMEOUT', self.stage,
++                  'handoff', permit._handoff is not None,
++                  'turn', permit._turn is not None,
++                  'optional', permit._optional is not None,
++                  'pending', pending.get('state') if pending else None,
++                  flush=True)
++        return expired
++
++    def install(self, monkeypatch):
++        original = self.h.jobs.permit.primary_span
++        @contextmanager
++        def bounded(kind='probe', stop=None):
++            def stopped():
++                return self.stopped() or (stop is not None and stop())
++            with original(kind, stop=stopped) as intent:
++                yield intent
++        monkeypatch.setattr(self.h.jobs.permit, 'primary_span', bounded)
++
++
++@pytest.mark.parametrize('missing_binding', [False, True])
++def test_old_real_handle_finishes_after_new_worker_window(primary_history_factory, missing_binding, monkeypatch):
++    old_port, new_port = Recorder(), Recorder()
++    with primary_history_factory() as h:
++        budget = DelayedCaseBudget(h)
++        budget.install(monkeypatch)
++        budget.mark('first_ingest')
++        h.worker.trial_observer = old_port
++        first = ingest_recording(h, frames=10 * RATE)[0]
++        budget.mark('first_cohort')
++        assert _cohort(h) == first
++        probe = h.jobs._primary_pending
++        assert probe is not None and probe['state'] == 'pending'
++        binding = probe['_trial_census_binding']
++        assert binding[0] is old_port
++        token = probe['attempt_id']
++        budget.mark('close_first_scheduling_opportunity_without_dispatch')
++        # _cohort can request a fair handoff but has no production Worker loop
++        # to service it. Close that actual scheduling opportunity normally,
++        # deliberately not submitting this old probe until after window two.
++        assert h.jobs.permit._optional is None
++        with h.jobs.permit.automatic_turn() as granted:
++            assert granted
++        assert h.jobs.permit._handoff is None and h.jobs._primary_pending is probe
++        # A second real 10-second recording in a distinct session. The manager
++        # retains its sole old pending slot; the new opportunity cannot steal it.
++        response = h.client.post('/sessions', json={'name': 'second synthetic census window'})
++        assert response.status_code == 201, response.text
++        h.sid = response.json()['id']
++        h.worker.trial_observer = new_port
++        budget.mark('second_ingest')
++        second = ingest_recording(h, frames=10 * RATE)[0]
++        budget.mark('second_cohort')
++        assert _cohort(h) == second
++        assert h.jobs._primary_pending is probe
++        new_keys = [key for phase, _, key in new_port.events if phase == 'WINDOW_BEGIN']
++        assert len(new_keys) == 1 and new_keys[0] != binding[1]
++        new_binding = (new_port, new_keys[0])
++        if missing_binding:
++            probe.pop('_trial_census_binding')
++        old_count, new_count = len(old_port.events), len(new_port.events)
++        budget.mark('complete_old_probe_under_new_binding')
++        # Keep the newer context active during delayed completion to detect an
++        # accidental fallback to current context rather than immutable ownership.
++        with census.bound_observation(new_binding):
++            _complete_pending_probe(h)
++        budget.mark('verify_delayed_completion')
++        assert len(new_port.events) == new_count
++        if missing_binding:
++            assert len(old_port.events) == old_count
++            assert not decisions(old_port, 'append_primary')
++            assert census.classify_window(phases(old_port))['eligibility'] == 'UNKNOWN'
++        else:
++            later = old_port.events[old_count:]
++            assert later and all(key == binding[1] for _, _, key in later)
++            assert any(phase == 'DECISION_ACK' and fields.get('operation') == 'append_primary'
++                       and fields.get('result_state') == 'success' for phase, fields, _ in later)
++            assert any(phase == 'TERMINAL_RESULT' for phase, _, _ in later)
++        assert attempt_row(h.store, token)['state'] == 'success'
++        with h.store.db() as db:
++            assert db.execute(f'SELECT COUNT(*) FROM {history.ATTEMPTS}').fetchone()[0] == 1
++        assert_released(h)
++        budget.mark('lifespan_cleanup')
++    assert h.app.state.instance_lock_cleanup_complete
++    print('CENSUS_DELAYED_STAGE cleanup_verified', flush=True)

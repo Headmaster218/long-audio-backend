@@ -1,0 +1,71 @@
+{
+  "base_commit": "c2094c1813392801f3e74b2fa767bff269108da7",
+  "source_delta_files": 7,
+  "product_files_changed": 3,
+  "tests_changed_or_added": 4,
+  "terminal_fixture_patch_applied_to_payload": false,
+  "census_complete": false,
+  "eligibility": "UNKNOWN",
+  "new_census_real_model_execution_tested": false,
+  "full_suite_pass_claimed": false,
+  "runs": [
+    {
+      "name": "original_stage3",
+      "passed": 56,
+      "seconds": 6.65
+    },
+    {
+      "name": "original_selected_regression",
+      "passed": 105,
+      "failed": 4,
+      "deselected": 10,
+      "seconds": 18.83
+    },
+    {
+      "name": "capture_repair_focused",
+      "passed": 94,
+      "seconds": 8.85,
+      "exit_code": 0
+    },
+    {
+      "name": "adapted_terminal_fixture_baseline",
+      "passed": 2,
+      "seconds": 1.4
+    },
+    {
+      "name": "adapted_terminal_fixture_candidate",
+      "passed": 2,
+      "seconds": 1.43
+    },
+    {
+      "name": "first_worker_integration",
+      "exit_code": 124,
+      "outer_timeout_seconds": 180,
+      "progress_dots": 4,
+      "completed_case_count_proven": false,
+      "cleanup_proven": false
+    },
+    {
+      "name": "revised_worker_integration",
+      "passed": 6,
+      "warnings": 1,
+      "seconds": 44.32,
+      "exit_code": 0,
+      "normal_cleanup_assertions_passed": true
+    },
+    {
+      "name": "final_selected_production_regression",
+      "passed": 107,
+      "deselected": 10,
+      "warnings": 1,
+      "seconds": 21.12,
+      "exit_code": 0
+    }
+  ],
+  "overlapping_suite_counts_not_independent": true,
+  "fresh_ami_audio_bytes": 125745924,
+  "fresh_annotation_archive_bytes": 22887865,
+  "labels_opened": false,
+  "annotation_archive_contents_inspected": false,
+  "historical_dataset_byte_identity_proven": false
+}
