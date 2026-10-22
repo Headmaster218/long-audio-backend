@@ -1,0 +1,61 @@
+{
+  "historical_runtime_restored": false,
+  "full_focused_gate_passed": false,
+  "real_audio_accuracy_claimed": false,
+  "runs": [
+    {
+      "name": "reconstructed_dev67_startup",
+      "passed": 16,
+      "failed": 0,
+      "seconds": 3.04,
+      "exit_code": 0
+    },
+    {
+      "name": "revision01_new_and_legacy_overlap",
+      "passed": 30,
+      "failed": 0,
+      "seconds": 6.78,
+      "exit_code": 0
+    },
+    {
+      "name": "revision01_three_modules",
+      "passed": 172,
+      "failed": 5,
+      "seconds": 142.31,
+      "exit_code": 1,
+      "failure_category": "missing_soundfile_distribution_metadata"
+    },
+    {
+      "name": "revision02_four_modules",
+      "passed": 211,
+      "failed": 2,
+      "seconds": 167.21,
+      "exit_code": 1,
+      "new_crop_policy_cases_passed": 36,
+      "failures": [
+        "test_nested_exact_edge_undo_preserves_original_association_owners[undo-bc-first]",
+        "test_different_people_blocks_union_and_exact_crop_alias_conflicts_after_undo"
+      ],
+      "notes": "metadata_capacity refusal and deadline-related SQLITE_INTERRUPT; complete gate remains failed"
+    },
+    {
+      "name": "revision02_two_node_isolated_diagnostic",
+      "passed": 2,
+      "failed": 0,
+      "seconds": 3.29,
+      "exit_code": 0,
+      "source_and_storage_limits_unchanged": true,
+      "does_not_supersede_broad_failure": true
+    }
+  ],
+  "source_payloads_verified": 8,
+  "patch_apply_check_passed": true,
+  "qualification_excludes": [
+    "historical runtime recovery",
+    "missing historical process-crash helper",
+    "package qualification",
+    "production activation",
+    "real-audio accuracy",
+    "cross-day identity acceptance"
+  ]
+}

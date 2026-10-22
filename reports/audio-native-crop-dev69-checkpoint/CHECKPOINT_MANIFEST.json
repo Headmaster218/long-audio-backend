@@ -1,0 +1,89 @@
+{
+  "base_commit": "4131b4dcda46a761dd185ae071dc49b985f3144c",
+  "target_branch": "development/rc3-dev69-crop-support-checkpoint",
+  "additive_repository_prefix": "reports/audio-native-crop-dev69-checkpoint",
+  "root_product_modified": false,
+  "full_focused_gate_passed": false,
+  "files": [
+    {
+      "path": "FRESH_RUNTIME.json",
+      "bytes": 565,
+      "sha256": "619dd61700bed56ec360b14b5c641c8a7fb4108ad9f4cfb8dd3289db0574532a"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3211,
+      "sha256": "42c7899b160ec2415383222b852fd10550500cc380fd1f96f2d85184e17e78e7"
+    },
+    {
+      "path": "REPORT.md",
+      "bytes": 7258,
+      "sha256": "47538b39302449146605501456f30e814487b3213836d11932fad12701d83e42"
+    },
+    {
+      "path": "TEST_RESULTS.json",
+      "bytes": 1694,
+      "sha256": "e5c92fa2a7fa5718a9e2b70d7565a12b55dd3a22db597e38ca64d303a5b05cd4"
+    },
+    {
+      "path": "bundle-files.sha256",
+      "bytes": 338,
+      "sha256": "84094d4229a24f9bf647c2aeb077ecb8b1866dbe24ba555f6356cebc02eb8a74"
+    },
+    {
+      "path": "candidate-files.sha256",
+      "bytes": 95229,
+      "sha256": "6d841bb1ccc59e982abafec679dc0b812de229a3cba51625985fe905bd8ef57c"
+    },
+    {
+      "path": "candidate-full.patch",
+      "bytes": 37993,
+      "sha256": "d89955d4d865d5831ec6072e734b1e933a562b2a4848554bae15067c46527266"
+    },
+    {
+      "path": "source/audio_backend/primary_crop_support.py",
+      "bytes": 3536,
+      "sha256": "116cb54fff76a35a2c4f2af51b9ec4d761607c2a983bbcb65f5803301a6584b2"
+    },
+    {
+      "path": "source/audio_backend/primary_voice_references.py",
+      "bytes": 33648,
+      "sha256": "142d70116eeab035f5836fc4f620695c699665e22fe25b5985c6757406ff143e"
+    },
+    {
+      "path": "source/audio_backend/recording_speaker_history.py",
+      "bytes": 156221,
+      "sha256": "d9e595765f9350072bcb74b7955c99262cd170c41e7d10a2da3acff0599c28a6"
+    },
+    {
+      "path": "source/audio_backend/reviewed_primary_persons.py",
+      "bytes": 67467,
+      "sha256": "d3fbffc63cfa9204f42f88219c6b021bac525df7674d477a59dff7ced7095501"
+    },
+    {
+      "path": "source/audio_backend/verified_identity.py",
+      "bytes": 50287,
+      "sha256": "db4d40ff20458005edce061b94cd9c5f07e242b370ed331d8ce7ec0f8b4e015a"
+    },
+    {
+      "path": "source/docs/NATIVE_CROP_QUERY_POLICY.md",
+      "bytes": 3858,
+      "sha256": "00ba26c4be32a422aa53f6ec4a8cba25cf190be1dff06ab624bd3200026238ad"
+    },
+    {
+      "path": "source/tests/reviewed_person_bridge_fixtures.py",
+      "bytes": 18895,
+      "sha256": "d0014c60ffd9e0ea866dc215f4165f4276362313b7ecabb1483d2f5d91f58fda"
+    },
+    {
+      "path": "source/tests/test_primary_crop_support.py",
+      "bytes": 14767,
+      "sha256": "556f664a7885573af04b64fc5cc14d3a6fb04c5db1554a3d63a0f4a21d9d9abc"
+    },
+    {
+      "path": "source-files.sha256",
+      "bytes": 893,
+      "sha256": "ad371909bb01762f4896ccfca352269e136ca5d1a37a5552bc39d176a8c01016"
+    }
+  ]
+}
