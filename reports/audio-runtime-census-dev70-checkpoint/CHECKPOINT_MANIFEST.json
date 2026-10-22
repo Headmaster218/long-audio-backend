@@ -1,0 +1,180 @@
+{
+  "base_commit": "5470f08d568da759d3087c2bb2cb907227e8ff9a",
+  "additive_repository_prefix": "reports/audio-runtime-census-dev70-checkpoint",
+  "root_product_modified": false,
+  "binary_model_audio_database_files_included": false,
+  "census_complete": false,
+  "acoustic_accuracy_evaluated": false,
+  "files": [
+    {
+      "path": "CENSUS_PREPARATION.md",
+      "bytes": 2622,
+      "sha256": "74c6e3e091dfa94c9537633df1536ce16fe94a74f941c4b3e6c9cdaa5cb6b613"
+    },
+    {
+      "path": "CENSUS_REMAINING_SCOPE.md",
+      "bytes": 5601,
+      "sha256": "7a0b0976571f0bfdbb4d98c06b7b2960f0671aee0f3474e8db9f3fc743dc4b4d"
+    },
+    {
+      "path": "REPORT.md",
+      "bytes": 6009,
+      "sha256": "ff7b95f030225e83f37a9045991ebd2356ce5601fcb9387b8e38438fc5f5dab8"
+    },
+    {
+      "path": "REPRODUCE.md",
+      "bytes": 3706,
+      "sha256": "32c7bbe509e4f022ecc938e83eb026cab20eac74d244b17cb5e1666ef284b4e2"
+    },
+    {
+      "path": "RESULT_SUMMARY.json",
+      "bytes": 1248,
+      "sha256": "4889e6ec3b66de7180bf151d5e1a6c6efd71ef3765ab94750e8f77a60904ea5d"
+    },
+    {
+      "path": "SOURCE_DELTA.json",
+      "bytes": 1567,
+      "sha256": "5bc6f7a1a95cb85294c1c55f6f03b27dffd2bb5edeac6d31c148c7f4ea1c9909"
+    },
+    {
+      "path": "census-from-dev69.patch",
+      "bytes": 55284,
+      "sha256": "b7fd8203a7d583a9b4ca8433f772a6d154f30c3b54626fada7e6c56c7910a669"
+    },
+    {
+      "path": "evidence/ami-head-attempt01.json",
+      "bytes": 185,
+      "sha256": "7a6eef75b13b74f4b770a37d46bbd5b388a6a3facba5524cb5dff36283b61b19"
+    },
+    {
+      "path": "evidence/smoke-first-result.json",
+      "bytes": 4092,
+      "sha256": "fe0ccf56c1bd1db5c6166a2c0f2fc0bbca9392df147052dc523a84c868cdb8f2"
+    },
+    {
+      "path": "evidence/smoke-first-root-wait.json",
+      "bytes": 418,
+      "sha256": "b49aa86033987d8136c38961aa7b60b67f8be78c71396b44751aae62ca863885"
+    },
+    {
+      "path": "evidence/smoke-rev03-result.json",
+      "bytes": 12283,
+      "sha256": "908a571c4fae548a4c803b68b85448e4ed39de6887cca4b8911105e37318cdda"
+    },
+    {
+      "path": "evidence/smoke-rev03-root-wait.json",
+      "bytes": 1032,
+      "sha256": "a07eb00f1cbe69257112472814d58c24cdd7bfc0c330e5d87265dc67cc545a6a"
+    },
+    {
+      "path": "runtime/NUMPY_WHEEL.json",
+      "bytes": 307,
+      "sha256": "7d06b791f642ca896b68d691c933a160790ec7665f079302addc93d51e9814ce"
+    },
+    {
+      "path": "runtime/RESTORE_INVENTORY.json",
+      "bytes": 6075,
+      "sha256": "185e975e027210aa8a5f40c1c6c5334ec51f55b0cf6de244d7c07271770ff98b"
+    },
+    {
+      "path": "runtime/download-receipt.json",
+      "bytes": 1011,
+      "sha256": "4b57f99e854f79d88b66fcbef69e1b6d18b397c681ffb28f58234eed5664398f"
+    },
+    {
+      "path": "runtime/download.py",
+      "bytes": 1248,
+      "sha256": "d880aeefa902319480fb08d34aac13b10bfd06ac51e2eebc29fb4665735a98ea"
+    },
+    {
+      "path": "runtime/expanded-receipt.json",
+      "bytes": 26960,
+      "sha256": "ffa64715cd348a954acc07e41d9b55852285fb3fc3f1d90d1702c289b70da28e"
+    },
+    {
+      "path": "runtime/extract.py",
+      "bytes": 1918,
+      "sha256": "d8e350ad89ef98b339a3380c560f87a6f7b57df5f308348f72ff818887583bb6"
+    },
+    {
+      "path": "smoke-first-recovered/MANIFEST.json",
+      "bytes": 104480,
+      "sha256": "ac2b0bfe287af2aea0b8c6867730e6307ab40cb55df2d292f02d6720f1604964"
+    },
+    {
+      "path": "smoke-first-recovered/README.md",
+      "bytes": 3778,
+      "sha256": "f5deb9409bb30a94fb5c929dcb1acd4efe742b5c3c26480ccc8679f19030d103"
+    },
+    {
+      "path": "smoke-first-recovered/child.py",
+      "bytes": 4750,
+      "sha256": "3798ed7631c65e6852a07f1dead057328e78e5d24625c60d4fa6bea0e7370b89"
+    },
+    {
+      "path": "smoke-first-recovered/launch.py",
+      "bytes": 2731,
+      "sha256": "4c660fd261facb8a9f37e62426cce710790f1500caa07e88b9c22144d017ab69"
+    },
+    {
+      "path": "smoke-rev03/FROZEN.json",
+      "bytes": 255,
+      "sha256": "b13aef2588744eb5b994195d2befaa4938913ec46a38f66f76407011fb1e584f"
+    },
+    {
+      "path": "smoke-rev03/MANIFEST.json",
+      "bytes": 292284,
+      "sha256": "ec0b29e17e1bf54edf038f9419d087b2a9fc35da0eba97e4e02b21e399cb22ac"
+    },
+    {
+      "path": "smoke-rev03/README.md",
+      "bytes": 3191,
+      "sha256": "5fcd4a9b43b8d2c80d3ffcbe40d9be075bb7e46905b032dcbfd7d719ac75387b"
+    },
+    {
+      "path": "smoke-rev03/child.py",
+      "bytes": 7221,
+      "sha256": "b663d343a13ef2e614e266c55cb2c35ea6abea05822b6e00565c73a22f205e0a"
+    },
+    {
+      "path": "smoke-rev03/launch.py",
+      "bytes": 3140,
+      "sha256": "21ed30df49453cafe7d4878d240f59ccf263ce71c42adc23baa3371f325a42c3"
+    },
+    {
+      "path": "source/audio_backend/moss_handy_jobs.py",
+      "bytes": 167949,
+      "sha256": "aace5a7147f2cfc524ebe8becbcd8e7bc2993f2f486a00a42f909c4c9f086b10"
+    },
+    {
+      "path": "source/audio_backend/native_owned_cell_capture.py",
+      "bytes": 109013,
+      "sha256": "022656aec9f7753ea774affa17a752de3d09d7719369b56f4ddf61e7ebbdb267"
+    },
+    {
+      "path": "source/audio_backend/trial_sampling_census.py",
+      "bytes": 21940,
+      "sha256": "07952f67fcd5c5252576468ed973cbafd51b9d2f2981191df75a56be2cbeca78"
+    },
+    {
+      "path": "source/audio_backend/worker.py",
+      "bytes": 38851,
+      "sha256": "98b73d3ed40f856d21b9554c97f4dd50eb8e35a32017e81ff2c195a2c3ba7e03"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_portability.py",
+      "bytes": 5486,
+      "sha256": "b97af9aaaa67413a0b254ee6e295a2561b2c78ec75d4c02f284707b77e1923f5"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_stage1.py",
+      "bytes": 8239,
+      "sha256": "787bf318f2fc1eac2ee4870d8f340d25d06a01eb5f80fa43fad72cb0c4a2ca83"
+    },
+    {
+      "path": "source/tests/test_trial_sampling_census_stage2.py",
+      "bytes": 4800,
+      "sha256": "d784d1cae5d2e6d92c8ade07083b48a89bcbd60c87c3b0ba2a1e36ac18f5f2a9"
+    }
+  ]
+}

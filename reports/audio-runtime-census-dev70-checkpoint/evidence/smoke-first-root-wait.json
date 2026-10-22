@@ -1,0 +1,14 @@
+{
+  "original_pid": 6,
+  "exit_code": 0,
+  "positive_original_wait": true,
+  "elapsed_seconds": 12.043280820999826,
+  "sampled_peak_rss_bytes": 491421696,
+  "rss_sampling_errors": [],
+  "limit_reason": null,
+  "output_cap_bytes": 33554432,
+  "model_links_excluded_from_generated_output_cap": true,
+  "hard_rss_peak_guaranteed": false,
+  "inference_status": "read_result_json",
+  "historical_runtime_restored": false
+}

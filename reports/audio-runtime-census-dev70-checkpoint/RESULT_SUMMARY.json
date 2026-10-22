@@ -1,0 +1,46 @@
+{
+  "base_commit": "5470f08d568da759d3087c2bb2cb907227e8ff9a",
+  "source_delta_files": 7,
+  "download_assets": 6,
+  "download_bytes": 427331627,
+  "model_families_execution_proven_lower_bound": 4,
+  "smoke_original_exit_code": 0,
+  "smoke_positive_original_wait": true,
+  "smoke_elapsed_seconds": 10.322709680000116,
+  "smoke_sampled_peak_rss_bytes": 517390336,
+  "smoke_frozen_hashes_unchanged": true,
+  "smoke_source": "dev69 crop-policy revision02; not census candidate",
+  "embedding_space_id": "6a50c1646fcc3edd2fea59828319f21ba41bc871bd34c85fb31a94be92024848",
+  "embedding_finish_proof_validated": true,
+  "census_control_runs": [
+    {
+      "stage": "stage1",
+      "passed": 20
+    },
+    {
+      "stage": "stage2",
+      "passed": 41
+    },
+    {
+      "stage": "stage2_rev03",
+      "passed": 45,
+      "seconds": 4.97
+    }
+  ],
+  "census_complete": false,
+  "eligibility": "UNKNOWN",
+  "stage3_qualified": false,
+  "dev69_broad_gate": {
+    "passed": 211,
+    "failed": 2,
+    "superseded_by_diagnostic": false
+  },
+  "budget_diagnostic": {
+    "passed": 3,
+    "seconds": 3.41,
+    "failure_reproduced": false
+  },
+  "new_ami_dataset_acquired": false,
+  "historical_runtime_restored": false,
+  "acoustic_accuracy_evaluated": false
+}

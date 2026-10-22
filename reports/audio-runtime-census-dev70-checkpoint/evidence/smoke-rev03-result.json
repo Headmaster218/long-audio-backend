@@ -1,0 +1,262 @@
+{
+  "status": "SMOKE_COMPLETED",
+  "input_frames": 114432,
+  "input_rate": 16000,
+  "input_seconds": 7.152,
+  "cpus": [
+    0,
+    1
+  ],
+  "analyzer_threads": 2,
+  "native_thread_count_control": "library default; API exposes no thread setter; affinity bounds two CPUs",
+  "native_push_completed": true,
+  "native_finish_completed": true,
+  "analyzer_returned": true,
+  "native_close_completed": true,
+  "analyzer_close_completed": true,
+  "accuracy_evaluated": false,
+  "native_turn_count": 1,
+  "embedding_space_descriptor": {
+    "schema_version": 1,
+    "status": "proven",
+    "binding_id": "02763d940b59563aeeb7e70cc1b0b12542b6d09fa1f0c7be76f33faedb293be0",
+    "proof": {
+      "kind": "audited-binary-and-self-reported-source-v1",
+      "source_commit": "11afbd009a7f8c08f4bcf2fc1b265d0df4670fbf",
+      "source_base_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/11afbd009a7f8c08f4bcf2fc1b265d0df4670fbf/",
+      "source_files": {
+        "sherpa-onnx/csrc/features.h": "98d7cced1049d2dcaca085d8b309e7296d8b6f811db8c8f0762907d4fd31d66e",
+        "sherpa-onnx/csrc/features.cc": "1d2f19982d5e9c410a7101027a0251ef63ca7d50413d91edab029d546c9cf2e8",
+        "sherpa-onnx/csrc/speaker-embedding-extractor-general-impl.h": "585a32319d1bc29763000c3c18eb3e97413dbb5d7965a9a485caed7a0dd9ee22",
+        "sherpa-onnx/csrc/speaker-embedding-extractor-model.cc": "eae4f613882731c8e027543df4d40cf58c719a0bd0ef963a9ada4dc1fa7cc120",
+        "sherpa-onnx/csrc/speaker-embedding-extractor-impl.cc": "0a98272899c8310743dea4281e1011a0dcf360d26aebe43dd146f4c594cb27bc",
+        "sherpa-onnx/csrc/online-stream.cc": "c2b7d33398d1a1125a97fd2d62ea2eaf137dfa7b492ff0b3d9ac38f6322f0dee",
+        "sherpa-onnx/csrc/speaker-embedding-extractor-model-meta-data.h": "1309c1476492a7c6f5e3aad45ebee65978087b0bc567f4861b814c6e49fd2aa1",
+        "cmake/kaldi-native-fbank.cmake": "619f0046f568e85790f4180899e666053f246f5c0fc36c951421441f3e992e38",
+        "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "sherpa-onnx/csrc/session.cc": "2ace7fcbc910ab41804ab93869c0eeceac8b0d416d6dbe76a4417c2b007a9e52"
+      },
+      "fbank_archive_url": "https://github.com/csukuangfj/kaldi-native-fbank/archive/refs/tags/v1.22.3.tar.gz",
+      "fbank_archive_sha256": "9176cc66fc7ce1edf85cf355b06e320c57db6297df74277f575183468893cf61",
+      "fbank_source_files": {
+        "kaldi-native-fbank/csrc/feature-fbank.h": "4be90549f3df404c71cab527fa9ef7fcc3ec14883c33235dfddde234be36a8ce",
+        "kaldi-native-fbank/csrc/feature-fbank.cc": "6c9edabf3b2479f31392aec9490688f59262e6f86c85cc648cfa8987387814c1",
+        "kaldi-native-fbank/csrc/feature-window.h": "8a181e9111ed9c31b3d2c3fcc14cb52ef106294e0edb78ed69788300c3992a59",
+        "kaldi-native-fbank/csrc/feature-window.cc": "cac43e0def16acb3032491ea65d4cdfc9e2523ef18d8202524a58b43b7fe67d2",
+        "kaldi-native-fbank/csrc/mel-computations.h": "3a85adb8f7e51598f6f46a0d2b6bdef4c0836efbc925dd0a5e1983598f3f4341",
+        "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "kaldi-native-fbank/csrc/online-feature.h": "9cc145593df3fa9725cdd8a2860236ce95cbd43624c275195bb15912d642792b",
+        "kaldi-native-fbank/csrc/online-feature.cc": "d74de946a0ccdeec7b5d44bf31d7038d72d5c36b7aa328f842ac89ebfa86ccd1"
+      }
+    },
+    "runtime": {
+      "name": "sherpa-onnx",
+      "version": "1.13.8",
+      "git_sha1": "11afbd00",
+      "onnxruntime_version": "1.28.2",
+      "platform": "Linux",
+      "machine": "x86_64",
+      "artifacts": {
+        "sherpa_extension": "eb9c3545b310ecd97ba0a2ff53fe39f8d8fb9efaea2dea0ca333ae9050bf2cd2",
+        "onnxruntime": "4b3607aebd1784b26b6f9b20e4bd974c7ab8287043e4d095cb7d2cb40b5e566e"
+      }
+    },
+    "model": {
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "version": "eres2net-base-zh-cn-3dspeaker-16k-v1",
+      "dimension": 512,
+      "metadata": {
+        "framework": "3d-speaker",
+        "language": "Chinese",
+        "url": "https://www.modelscope.cn/models/iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k/summary",
+        "comment": "This model is from iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k",
+        "sample_rate": "16000",
+        "output_dim": "512",
+        "normalize_samples": "1",
+        "feature_normalize_type": "global-mean"
+      }
+    },
+    "frontend": {
+      "implementation": "sherpa-general-speaker-kaldi-native-fbank",
+      "sampling_rate": 16000,
+      "feature_dim": 80,
+      "low_freq": 20.0,
+      "high_freq": -400.0,
+      "high_freq_hz": 7600.0,
+      "dither": 0.0,
+      "normalize_samples": true,
+      "waveform_scale": 1.0,
+      "snip_edges": false,
+      "frame_length_ms": 25.0,
+      "frame_shift_ms": 10.0,
+      "window_type": "povey",
+      "preemph_coeff": 0.9700000286102295,
+      "remove_dc_offset": true,
+      "round_to_power_of_two": true,
+      "fft_size": 512,
+      "is_librosa": false,
+      "use_energy": false,
+      "raw_energy": true,
+      "energy_floor": 0.0,
+      "htk_compat": false,
+      "htk_mode": false,
+      "use_log_fbank": true,
+      "use_power": true,
+      "log_floor": 1.1920928955078125e-07,
+      "vtln_warp": 1.0,
+      "feature_normalize_type": "global-mean",
+      "mean_axis": "per-bin-over-all-frames",
+      "input_finished": true,
+      "resampling": "none-input-and-model-16000"
+    },
+    "output": {
+      "dtype": "float32",
+      "normalization": "numpy-float32-asarray-linalg-norm-divide-v1",
+      "numpy": {
+        "version": "2.5.3",
+        "artifacts": {
+          "numpy._core._multiarray_umath": "ceec5ba13ab88318632307fdd2df74f317fa293ce77be559c4298ddd1f4306b0",
+          "numpy.linalg._umath_linalg": "19d024507f73b42889baeb00f9da0004e33a42ed7a78fd77662fd6236e930d78",
+          "numpy.linalg._linalg": "fb51e084cbb05b72a571a088299222055f3f176792ea9ea66186327a31ec787f",
+          "numpy.libs/libgfortran-83c28eba-468e71e5.so.5.0.0": "a6a368328d02a5d8a149746f13f6268f8cc9192df5c18777b25c3c9b5ef52160",
+          "numpy.libs/libquadmath-2284e583-a9307bba.so.0.0.0": "6bc3069003caec1f075be3c51ae8355332f081fa9465910c4b5724e7fe7d8ad4",
+          "numpy.libs/libscipy_openblas64_-f48b354e.so": "432e1c1739731468ba305771af96773939e43016643e2d630f58cb45b6670e96"
+        }
+      }
+    },
+    "extractor": {
+      "provider": "cpu",
+      "num_threads": 2
+    }
+  },
+  "embedding_space_id": "6a50c1646fcc3edd2fea59828319f21ba41bc871bd34c85fb31a94be92024848",
+  "embedding_finish_proof_validated": true,
+  "embedding_descriptor_validated_id": "6a50c1646fcc3edd2fea59828319f21ba41bc871bd34c85fb31a94be92024848",
+  "segment_count": 2,
+  "event_count": 0,
+  "speaker_turn_count": 1,
+  "embedding_vector_count": 1,
+  "stage_seconds": {
+    "events": 1.955,
+    "diarization": 1.212,
+    "asr": 2.846
+  },
+  "asr_runtime": {
+    "provider": "cpu",
+    "model": "SenseVoiceSmall int8",
+    "timestamp_note": "CTC start anchors only; no native durations"
+  },
+  "embedding_space_status": "proven",
+  "silence_fast_path": false,
+  "native_provenance": {
+    "diarization_backend": "nemotron3-native",
+    "diarization_runtime": "NeMo-Speech.cpp",
+    "diarization_runtime_version": "0.2.0",
+    "diarization_library_sha256": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52",
+    "diarization_model_sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+    "diarization_model_license": "OpenMDW-1.1",
+    "diarization_model_license_url": "https://openmdw.ai/license/1-1/",
+    "diarization_preset": "v3-offline",
+    "diarization_geometry": {
+      "spkcache": 264,
+      "fifo": 0,
+      "chunk": 264,
+      "update_period": 188,
+      "left_context": 1,
+      "right_context": 1,
+      "frame_seconds": 0.08
+    },
+    "diarization_postprocessing": {
+      "onset": 0.641,
+      "offset": 0.561,
+      "pad_onset": 0.229,
+      "pad_offset": 0.079,
+      "min_duration_on": 0.511,
+      "min_duration_off": 0.296
+    },
+    "diarization_local_capacity": 8,
+    "diarization_epoch_input_cap_seconds": 30.0,
+    "diarization_morphology_guard_seconds": 2.0,
+    "diarization_global_identity": "separate ERes2Net evidence and identity registry",
+    "diarization_capacity_warning": "At most 8 distinct speakers in one epoch, including replay/context; not unlimited speakers.",
+    "diarization_native_requested_threads": 4,
+    "diarization_runtime_files_sha256": {
+      "libggml-base.so": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062",
+      "libggml-base.so.0": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062",
+      "libggml-base.so.0.25.1": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062",
+      "libggml-cpu.so": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019",
+      "libggml-cpu.so.0": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019",
+      "libggml-cpu.so.0.25.1": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019",
+      "libggml.so": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4",
+      "libggml.so.0": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4",
+      "libggml.so.0.25.1": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4",
+      "libllama.so": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2",
+      "libllama.so.0": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2",
+      "libllama.so.0.5.0": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2",
+      "libnemo_speech_asr.so": "596c0e0dd3da78e959e850ed3e90911524a6051d8f4405324d70a570c427e246",
+      "libnemo_speech_asr_c.so": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52",
+      "libnemo_speech_asr_c.so.1": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52"
+    },
+    "diarization_fingerprint": "cb8dbb06ab40149393da4cc30458053915f8b9f0fc2897f9ac862fa40d35aefb"
+  },
+  "observed_model_coverage": {
+    "native_inference_completed": true,
+    "zipformer_events_returned": true,
+    "sensevoice_result_returned": true,
+    "eres2net_vectors_returned": true
+  },
+  "model_families_execution_proven_lower_bound": 4,
+  "zipformer_completed_call_count": 2,
+  "attestation_diagnostics": {
+    "begin_completed": true,
+    "finish_completed": true,
+    "exceptions": [],
+    "runtime_snapshot": {
+      "runtime": {
+        "name": "sherpa-onnx",
+        "version": "1.13.8",
+        "git_sha1": "11afbd00",
+        "onnxruntime_version": "1.28.2",
+        "platform": "Linux",
+        "machine": "x86_64",
+        "artifacts": {
+          "sherpa_extension": "eb9c3545b310ecd97ba0a2ff53fe39f8d8fb9efaea2dea0ca333ae9050bf2cd2",
+          "onnxruntime": "4b3607aebd1784b26b6f9b20e4bd974c7ab8287043e4d095cb7d2cb40b5e566e"
+        }
+      },
+      "numpy_runtime": {
+        "version": "2.5.3",
+        "artifacts": {
+          "numpy._core._multiarray_umath": "ceec5ba13ab88318632307fdd2df74f317fa293ce77be559c4298ddd1f4306b0",
+          "numpy.linalg._umath_linalg": "19d024507f73b42889baeb00f9da0004e33a42ed7a78fd77662fd6236e930d78",
+          "numpy.linalg._linalg": "fb51e084cbb05b72a571a088299222055f3f176792ea9ea66186327a31ec787f",
+          "numpy.libs/libgfortran-83c28eba-468e71e5.so.5.0.0": "a6a368328d02a5d8a149746f13f6268f8cc9192df5c18777b25c3c9b5ef52160",
+          "numpy.libs/libquadmath-2284e583-a9307bba.so.0.0.0": "6bc3069003caec1f075be3c51ae8355332f081fa9465910c4b5724e7fe7d8ad4",
+          "numpy.libs/libscipy_openblas64_-f48b354e.so": "432e1c1739731468ba305771af96773939e43016643e2d630f58cb45b6670e96"
+        }
+      },
+      "frontend_defaults": {
+        "sampling_rate": 16000,
+        "feature_dim": 80,
+        "low_freq": 20.0,
+        "high_freq": -400.0,
+        "dither": 0.0,
+        "normalize_samples": true,
+        "snip_edges": false
+      }
+    },
+    "audited_binding_ids": [
+      "02763d940b59563aeeb7e70cc1b0b12542b6d09fa1f0c7be76f33faedb293be0"
+    ],
+    "binding_comparisons": {
+      "02763d940b59563aeeb7e70cc1b0b12542b6d09fa1f0c7be76f33faedb293be0": {
+        "runtime_equal": true,
+        "numpy_equal": true,
+        "expected_numpy_version": "2.5.3",
+        "observed_numpy_version": "2.5.3"
+      }
+    }
+  },
+  "cleanup_errors": [],
+  "elapsed_seconds": 7.438058268000532
+}

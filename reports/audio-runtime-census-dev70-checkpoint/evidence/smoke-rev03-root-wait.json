@@ -1,0 +1,25 @@
+{
+  "frozen_hashes_unchanged": true,
+  "frozen_hashes_before": {
+    "child.py": "b663d343a13ef2e614e266c55cb2c35ea6abea05822b6e00565c73a22f205e0a",
+    "launch.py": "21ed30df49453cafe7d4878d240f59ccf263ce71c42adc23baa3371f325a42c3",
+    "MANIFEST.json": "ec0b29e17e1bf54edf038f9419d087b2a9fc35da0eba97e4e02b21e399cb22ac"
+  },
+  "frozen_hashes_after": {
+    "child.py": "b663d343a13ef2e614e266c55cb2c35ea6abea05822b6e00565c73a22f205e0a",
+    "launch.py": "21ed30df49453cafe7d4878d240f59ccf263ce71c42adc23baa3371f325a42c3",
+    "MANIFEST.json": "ec0b29e17e1bf54edf038f9419d087b2a9fc35da0eba97e4e02b21e399cb22ac"
+  },
+  "original_pid": 5,
+  "exit_code": 0,
+  "positive_original_wait": true,
+  "elapsed_seconds": 10.322709680000116,
+  "sampled_peak_rss_bytes": 517390336,
+  "rss_sampling_errors": [],
+  "limit_reason": null,
+  "output_cap_bytes": 33554432,
+  "model_links_excluded_from_generated_output_cap": true,
+  "hard_rss_peak_guaranteed": false,
+  "inference_status": "read_result_json",
+  "historical_runtime_restored": false
+}

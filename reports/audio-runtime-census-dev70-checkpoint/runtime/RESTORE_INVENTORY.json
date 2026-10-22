@@ -1,0 +1,126 @@
+{
+  "status": "PREPARATION_ONLY_NOT_LAUNCH_APPROVAL",
+  "download_bytes": 427331627,
+  "downloads": [
+    {
+      "id": "eres2net-base-zh-cn",
+      "destination": "models/speaker.onnx",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "bytes": 39593761,
+      "license": "Apache-2.0",
+      "license_source": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE"
+    },
+    {
+      "id": "zipformer-small-audioset",
+      "destination": "models/events.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/audio-tagging-models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15.tar.bz2",
+      "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6",
+      "bytes": 111034072,
+      "license": "Apache-2.0",
+      "license_source": "https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15",
+      "extract_to": "models",
+      "max_extracted_bytes": 314572800
+    },
+    {
+      "id": "sensevoice-small-int8",
+      "destination": "models/sensevoice/model.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+      "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+      "bytes": 163002883,
+      "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+      "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "optional_sensevoice_model": true,
+      "extract_to": "models/sensevoice",
+      "strip_root": true,
+      "max_extracted_bytes": 367001600
+    },
+    {
+      "id": "sensevoice-model-license",
+      "destination": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "url": "https://raw.githubusercontent.com/modelscope/FunASR/main/MODEL_LICENSE",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+      "bytes": 5306,
+      "license": "FunASR Model Open Source License Agreement v1.1 (custom)",
+      "license_source": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "optional_sensevoice_model": true
+    },
+    {
+      "id": "linux-x86_64-cpu",
+      "url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz",
+      "bytes": 6683477,
+      "sha256": "f396057150f1b774935c7414fd32ebc04195a795a34120d78d8c9ecefa1b7507",
+      "destination": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz"
+    },
+    {
+      "url": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed7/Nemotron-3-Diarization.q8_0.gguf",
+      "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+      "bytes": 107012128,
+      "id": "nemotron3-q8",
+      "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf"
+    }
+  ],
+  "runtime_files": [
+    {
+      "path": "models/speaker.onnx",
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "bytes": 39593761
+    },
+    {
+      "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+      "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34",
+      "bytes": 91932865
+    },
+    {
+      "path": "models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv",
+      "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429",
+      "bytes": 14675
+    },
+    {
+      "path": "models/sensevoice/model.int8.onnx",
+      "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51",
+      "bytes": 239233841,
+      "optional_sensevoice_model": true
+    },
+    {
+      "path": "models/sensevoice/tokens.txt",
+      "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+      "bytes": 315894,
+      "optional_sensevoice_model": true
+    },
+    {
+      "path": "models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+      "bytes": 5306,
+      "optional_sensevoice_model": true
+    }
+  ],
+  "native_model": {
+    "url": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed7/Nemotron-3-Diarization.q8_0.gguf",
+    "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+    "bytes": 107012128,
+    "id": "nemotron3-q8",
+    "destination": "models/native-diarization/Nemotron-3-Diarization.q8_0.gguf"
+  },
+  "native_license": {
+    "url": "https://raw.githubusercontent.com/OpenMDW/OpenMDW/main/1.1/LICENSE.OpenMDW-1.1",
+    "sha256": "2ab44b68365473c112f5092211a38f231cb23e50de68b75a13369adbd76a74df",
+    "bytes": null
+  },
+  "source_manifest_sha256": {
+    "model-manifest.json": "6835817147daca593ab65e0363cea02e81e1f5c11add5bbfe8366e346320ca22",
+    "native-runtime-manifest.json": "599f99319021eddfa7fa80a2df9ec76f4e48fd479e170b01a35ede41b01599a7"
+  },
+  "excluded": "No MOSS GGUF/conversion; no Whisper, pyannote segmentation, torch, DiCoW or overlap model. Exact primary-only path requires SenseVoice+Nemotron+Zipformer events+ERes2Net.",
+  "native_extraction": {
+    "max_extracted_bytes": 268435456,
+    "max_entries": 20000,
+    "source": "scripts/setup_native_diarization.py; apply both limits to Linux tar as a stricter root-owned plan gate",
+    "required_library_basename": "libnemo_speech_asr_c.so",
+    "expected_library_count": 1,
+    "expected_reported_version": "0.2.0",
+    "expanded_leaf_hashes": null,
+    "elf_loader_dependencies": null,
+    "qualification": "Reject links, traversal, special files, duplicate normalized names, absolute members and expansion limits before extraction. Hash every extracted regular leaf. Inspect ELF DT_NEEDED and RPATH/RUNPATH using readelf before target execution. New receipt bound to exact pinned archive, not historical leaf restoration."
+  }
+}

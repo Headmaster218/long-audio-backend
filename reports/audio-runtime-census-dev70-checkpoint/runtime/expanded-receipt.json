@@ -1,0 +1,588 @@
+[
+  {
+    "archive": "models/events.tar.bz2",
+    "files": [
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+        "bytes": 91932865,
+        "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/README.md",
+        "bytes": 243,
+        "sha256": "a00e3521a62cf6d6fc6fc9b0ce1779cf637ffab77b017e7cf48851cb187909a6"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv",
+        "bytes": 14675,
+        "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.int8.onnx",
+        "bytes": 27038066,
+        "sha256": "69304b8a1b96bbe6b7d16c24079f0732c65faf3568a14cb82a8238c709afe76c"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/9.wav",
+        "bytes": 295054,
+        "sha256": "3e64664ba3af83a323b2f77749d2dcb9c1d9dbf0353fbe233fc025fb8e0c2145"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/11.wav",
+        "bytes": 367494,
+        "sha256": "1de5ce1e5262140b0b800cc12bf635ccb5d0d54881385f4184cb6ab873676197"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/4.wav",
+        "bytes": 320078,
+        "sha256": "eba3340c61d0dfb0532bed52a9da7389912addc661707bbe588dbeb4a1d38c65"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/13.wav",
+        "bytes": 290202,
+        "sha256": "a300cfdcc92cb35701a21fe89619a1a9d2d0ebc8bf168c03733f4cc365454612"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/5.wav",
+        "bytes": 265134,
+        "sha256": "836b2d550ada991c4efb84f14c880f8e49057e1fdd35b6e05732041aff8ccbc5"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/12.wav",
+        "bytes": 287228,
+        "sha256": "a33d53dea1624b7411b4d88d9e3d5a4a632b6a6deb522ac3049643043545ee6b"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/6.wav",
+        "bytes": 279056,
+        "sha256": "136702e1046ab39bd3ad0431a789325ca14459448388248fb75cb8c033ccb4ac"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/1.wav",
+        "bytes": 320078,
+        "sha256": "ce16b2d9b657a68795d48aff8bba7ded5bb12f75ad30ed18e45e2d72e1c8f58c"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/10.wav",
+        "bytes": 250820,
+        "sha256": "a9c4665e36e990ff739beb1b7a96df403e2f031e96004626057c342eec986965"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/2.wav",
+        "bytes": 320078,
+        "sha256": "2466dcfe841ae2ac3763ac4e4c834a523b3111cdb3e667943af1ded57ced2021"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/8.wav",
+        "bytes": 247104,
+        "sha256": "6a1c8069cc932d29918be549d2bbe783dca4e6b4c2443bd23f6e526cb1f483e0"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/3.wav",
+        "bytes": 320078,
+        "sha256": "1ba3e55c71a822030c91533f703b44163eaa6daea253e9f1ab790b7ac0f2f153"
+      },
+      {
+        "path": "expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/test_wavs/7.wav",
+        "bytes": 90258,
+        "sha256": "d5d38fe922c4b70d24dfc4a400b1aafc10e44034cbfca4f9110fff195323c667"
+      }
+    ],
+    "symlinks_materialized_as_files": true,
+    "total_written_bytes": 122638511
+  },
+  {
+    "archive": "models/sensevoice/model.tar.bz2",
+    "files": [
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/export-onnx.py",
+        "bytes": 5905,
+        "sha256": "c97f6a33f9d7135efd4d55b3e24e288c47d925f3b4f04b8b3418c2821c0a89ce"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/LICENSE",
+        "bytes": 71,
+        "sha256": "221c6df10b0931a5629adad671ea48fb7747e034c414b6d2bfa275bc3dd4ea17"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/README.md",
+        "bytes": 104,
+        "sha256": "763991a00edaea534ab36bf1b7cf89e61e911666dcfabbba71f91f9f7c593a63"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/model.int8.onnx",
+        "bytes": 239233841,
+        "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/tokens.txt",
+        "bytes": 315894,
+        "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/en.wav",
+        "bytes": 228908,
+        "sha256": "eb1eb008904465b74c304aad8342e8c7d3c6e61ffe9f66adcaca9cf0f76a93f4"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/ko.wav",
+        "bytes": 147500,
+        "sha256": "0dc797a5c81ed30fc339d91f3da718ab02854e17ffa37cb93c4c039ac5c6bb9c"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/yue.wav",
+        "bytes": 164780,
+        "sha256": "0960b2db54ae202071d250e6462fbf74a3c863f0e3e7f01273e4939c996875a0"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/ja.wav",
+        "bytes": 230444,
+        "sha256": "460bd8dccb0d2a5f4e29c628f837be4082d13defc64c3fc21dd1b6bb0e119095"
+      },
+      {
+        "path": "expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/zh.wav",
+        "bytes": 178988,
+        "sha256": "b77f1794fe374a0ba1ee1dc458bfaf9349496cbbfc32780c50ba3c5a7ad8e373"
+      }
+    ],
+    "symlinks_materialized_as_files": true,
+    "total_written_bytes": 240506435
+  },
+  {
+    "archive": "vendor/native-diarization/downloads/nemo-speech-0.2.0-linux-x86_64-cpu.tar.gz",
+    "files": [
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libatomic.so.1",
+        "bytes": 30968,
+        "sha256": "2bd070e46f561a6ff36e4e358f5b0eaf04fdbe37992db38223b13c760a4721ab"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml.so",
+        "bytes": 47864,
+        "sha256": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml.so.0",
+        "bytes": 47864,
+        "sha256": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-base.so.0",
+        "bytes": 863168,
+        "sha256": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libgomp.so.1",
+        "bytes": 265856,
+        "sha256": "98b21ff32bb07b53f1fb266d887d2db0086ea66c8ad03696a1db53f65321cd94"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-base.so",
+        "bytes": 863168,
+        "sha256": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_nmt.so",
+        "bytes": 64520,
+        "sha256": "c05886ee5bbeec3e0f13c9544b60cafac3c14cb2fc403b84326cd1806ed29112"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml.so.0.25.1",
+        "bytes": 47864,
+        "sha256": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_nmt_c.so.1",
+        "bytes": 22928,
+        "sha256": "b7c4a1e055084460fa614864bbf8bfb37a8c0c4636194abb8a0c61e430cc07ae"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libgcc_s.so.1",
+        "bytes": 104984,
+        "sha256": "489803ded8a4d803e2c792763a2767c12185f5764b7bba080742d14ef2452b27"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_text_normalization.so",
+        "bytes": 3650200,
+        "sha256": "39c3d410a0481b0d58a1bb9d3d5a2cb5d7fb9250b3406a291b154cb34b2a0ebf"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-cpu.so.0.25.1",
+        "bytes": 1186072,
+        "sha256": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-cpu.so",
+        "bytes": 1186072,
+        "sha256": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr_c.so",
+        "bytes": 68208,
+        "sha256": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libstdc++.so.6",
+        "bytes": 1956992,
+        "sha256": "26916e7389a561537a0510661fc75538cea236139346f3dbe21bc64ba65605bf"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-base.so.0.25.1",
+        "bytes": 863168,
+        "sha256": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-cpu.so.0",
+        "bytes": 1186072,
+        "sha256": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr.so",
+        "bytes": 2265256,
+        "sha256": "596c0e0dd3da78e959e850ed3e90911524a6051d8f4405324d70a570c427e246"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_tts.so",
+        "bytes": 1114264,
+        "sha256": "799cde968a0bb97d98c8c78851fc5794ab7eda785d9631a1c6179403821bebce"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_nmt_c.so",
+        "bytes": 22928,
+        "sha256": "b7c4a1e055084460fa614864bbf8bfb37a8c0c4636194abb8a0c61e430cc07ae"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libllama.so.0",
+        "bytes": 3865744,
+        "sha256": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libllama.so",
+        "bytes": 3865744,
+        "sha256": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr_c.so.1",
+        "bytes": 68208,
+        "sha256": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libllama.so.0.5.0",
+        "bytes": 3865744,
+        "sha256": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_tts.so.1",
+        "bytes": 1114264,
+        "sha256": "799cde968a0bb97d98c8c78851fc5794ab7eda785d9631a1c6179403821bebce"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/bin/nemo-speech",
+        "bytes": 1986904,
+        "sha256": "aec241361094229555bb6fc80538dc6e13c31e0073e6bed99504d22c4d3da15e"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/model-index.json",
+        "bytes": 7975,
+        "sha256": "4d5d88c93b006b33b2e02e5c214e97e6c28e96f8673b0d744ccfa1e8f4a255b7"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/CONTRIBUTING.md",
+        "bytes": 5328,
+        "sha256": "dab40307a65b606e687f7731273817794293c16e8d67ba7d836e83a96478c367"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/README.md",
+        "bytes": 9445,
+        "sha256": "54f85f532a1bfe23324ced98b4ad0da675d8e98b4f3d4552644f74be23b1d6b2"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/cli.md",
+        "bytes": 10849,
+        "sha256": "bbf0c8b54a67261e3f6dddadbbd7bcbbf915c9a157d068ca75cf189a3927614b"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/build.md",
+        "bytes": 11278,
+        "sha256": "1adaeccf203a4561be08fa0bd3effb46f6bc1fae07b4d6020449a9b1dde75c74"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/sdk.md",
+        "bytes": 7652,
+        "sha256": "290466ffb5ca4064abaeecfab4d0b351ce6b983d434057a67782a834622c6def"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/install.md",
+        "bytes": 8249,
+        "sha256": "bec102a2ac4f4566db8f9be6d1c5143cd5345c6a199e018b3083ab48594afc64"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/README.md",
+        "bytes": 2363,
+        "sha256": "0bd53c4c04a1a6670d440a626b04e19ce3354006807882e9d5f8e36d37b4b936"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/clients.md",
+        "bytes": 2948,
+        "sha256": "c4977349b3fed97eee0700543ef77e58d3ea2c07b1b89ba8510adb2e3476cd6c"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/troubleshooting.md",
+        "bytes": 2548,
+        "sha256": "50cc4f3c85e397c78e5ab77065f0d9ed44058de62d634fee6aab2ca532927063"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/api.md",
+        "bytes": 11151,
+        "sha256": "eb23ac5107ffbd2fb797eefcb2ce6deb50c4560e526d08d3b39d7b0bc07fdef1"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/model-conversion.md",
+        "bytes": 2571,
+        "sha256": "063a4651ac62559390241520d54d4ac47e9e952708205ce290304c7012d95f68"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/server.md",
+        "bytes": 10509,
+        "sha256": "01b99ed2681cf2227ef525cbb5f22605411ee046bfc15f7a9fb40649a15fea19"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/asr/models.md",
+        "bytes": 7032,
+        "sha256": "dd89dde01f1b77a095750f4fadcf4762b971103e7026f52ef88096e19f9fe769"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/asr/configuration.md",
+        "bytes": 14812,
+        "sha256": "c4be8d65c0a4abcdf064d4124a767ae9626cdf5c3b476b124dd22651d02f9c73"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/asr/customization.md",
+        "bytes": 4494,
+        "sha256": "3849d88f25926a1196737b11420027ee1f451abbc9b7307f799190036b4c622d"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/s2s/models.md",
+        "bytes": 4537,
+        "sha256": "4e4a8089fd8f0b4c9d7fe7d07af5466dbe98b9e2531065374c20662a1f7d65a7"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/s2s/configuration.md",
+        "bytes": 3470,
+        "sha256": "2178cb877efd78a344d646a479e117babb332e86ea68d116840a5ab6ee48e7ca"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/s2s/docker.md",
+        "bytes": 2475,
+        "sha256": "f430241ae0296304bac4fc20d6df04f7c8194021c282f06f486c8e7b36e2c750"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/s2s/README.md",
+        "bytes": 2805,
+        "sha256": "b07a3b137188bc1a29ee21b071c78f01adc452bf22b7cb7307f6cc8290cd503e"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/s2s/clients.md",
+        "bytes": 4968,
+        "sha256": "a8c19f0b745b6ad6bdbfb3c9fee588f260d88b1f3036376a35cba507b5069ed9"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/nmt/models.md",
+        "bytes": 1575,
+        "sha256": "a0f5874b51448351ad36e2a572db16b8647e0b58a19043411e9303ac224a2451"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/nmt/configuration.md",
+        "bytes": 3282,
+        "sha256": "fc32f28f71114b049382d850d8c91bdb4d2a7a8cd17e96e05cb8b17f61ecf875"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/development/diagnostics.md",
+        "bytes": 3747,
+        "sha256": "e82ced430db61edd107af84d2ac096bb6ddfa1c1d48c2a8a284469592cf7e97a"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/development/cublas-shim.md",
+        "bytes": 2312,
+        "sha256": "126b2e92e74451cb999932474ddabab44e9d1064607dbafd7e36b36cb6ae4679"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/development/README.md",
+        "bytes": 997,
+        "sha256": "91b7eeb45247c5ccb86c728e100926f690bce39a13d7c2fe185ddf03eecc8847"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/development/releasing.md",
+        "bytes": 4865,
+        "sha256": "c4445d64f55519613c0e698b24c1a7f94ea10c5ba301cc8f483015f6b725370b"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/development/asr-batching.md",
+        "bytes": 6192,
+        "sha256": "351e7cc131aa055a032aa2cb74b261320fab47793ace608b757abdce84b500a7"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/development/windows-build.md",
+        "bytes": 8299,
+        "sha256": "4b7f3efa6f8d3242edcef47a658d381c1d7800cd94d50e44738f60d3a075c278"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/tts/models.md",
+        "bytes": 5956,
+        "sha256": "125e5ab5020661a20ba97d1cab4f55c92e08f7a10d86f4c0ad5dc6131ca60938"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/doc/nemo-speech/docs/tts/configuration.md",
+        "bytes": 9143,
+        "sha256": "5d60b9e3dc3b51b23622653b8a3463758c79e4386b1f5229b0d97ca3adf07532"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/LICENSE",
+        "bytes": 12238,
+        "sha256": "eaaca34b26b27c7be5a5099a0b9ddf9913f2db0aa96f6d5854435f2916d6fdc3"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/NOTICE",
+        "bytes": 233,
+        "sha256": "d5ea773d67035e676503579ecf7d5836a124649d7fe99d59ec3c50cd101e1a80"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/THIRD_PARTY_NOTICES.md",
+        "bytes": 10277,
+        "sha256": "fd8fcc0c71abde95b1b742a74c70aa27d2b4f2811fc19f64378b6845d8f3254a"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/sentencepiece/LICENSE",
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/sentencepiece/protobuf-lite-LICENSE",
+        "bytes": 1732,
+        "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/sentencepiece/darts-clone-LICENSE",
+        "bytes": 1481,
+        "sha256": "155f59997298ee336602c49f9c1110f268ac394ca2197eb02647a3555935ad52"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/sentencepiece/absl-LICENSE",
+        "bytes": 11365,
+        "sha256": "d3e2f59e1d71176dfdb555ece6a41f7a5aa0f52ff21211010ace314f57695f6b"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/openfst/COPYING",
+        "bytes": 559,
+        "sha256": "dd0c6c9378a98b6a0e96b559b285c8506434fe2691eeeef151e8a8c1c492778e"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/re2/LICENSE",
+        "bytes": 1558,
+        "sha256": "6040cda75d90b1738292a631d89934c411ef7ffd543c4d6a1b7edfc8edf29449"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/gcc-runtime/copyright",
+        "bytes": 75285,
+        "sha256": "0122839ddca455eb169542587ae16197e41ed70618bb7f0f6a5dd9b16fa27035"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/llama.cpp/LICENSE",
+        "bytes": 1078,
+        "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/protobuf/LICENSE",
+        "bytes": 1732,
+        "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/miniaudio/LICENSE",
+        "bytes": 2598,
+        "sha256": "1d13e0cd56bb6bff8c66eb67084765fbefddcfd931922d2a75c072a9efb7cde9"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/cpp-httplib/LICENSE",
+        "bytes": 1075,
+        "sha256": "4b45cbe16d7b71b89ae6127e26e0d90a029198ca5e958ad8e3d0b8bbed364d8b"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/sparrowhawk/LICENSE",
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/licenses/nemo-speech/third_party/ggml/LICENSE",
+        "bytes": 1078,
+        "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/nmt.example.yaml",
+        "bytes": 998,
+        "sha256": "313214fe93f9f9f57897823d2d3fe20e7a9986fc18b1df37063985389874d46f"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/diar.example.yaml",
+        "bytes": 505,
+        "sha256": "ac0e5d93af9fb37c9a03ab0039acd5af0790c36a2b12cc8d181212a1fbd01b5b"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/tts.example.yaml",
+        "bytes": 1728,
+        "sha256": "a1ccdd6886f25d635aaffd4501c3b9626f7c7b264f280ca72273bb3b14bb651a"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/server.example.yaml",
+        "bytes": 3391,
+        "sha256": "afe8b2575c036156322a93aaf2f328f925e6685e3cddc9604c0fca37a9406d0c"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/asr.example.yaml",
+        "bytes": 2903,
+        "sha256": "c406506f22ef5baa008138c28817dd18445407e404bfb507630469d203798716"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/README.md",
+        "bytes": 881,
+        "sha256": "981118a586fa2cdaab5bed0f0775292002821007ee1da5740a8a77877db50c89"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/share/nemo-speech/config/voicechat.yaml",
+        "bytes": 390,
+        "sha256": "9013c7a390fc3f8c68c6833400a55aadd91543e01a49db32e64a81a1b32ef17b"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/cmake/NeMoSpeech/NeMoSpeechConfig.cmake",
+        "bytes": 2456,
+        "sha256": "198dac27044b0c59931af19a56738e438ad75dd607457f12974b5295e5339065"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/cmake/NeMoSpeech/NeMoSpeechConfigVersion.cmake",
+        "bytes": 3675,
+        "sha256": "f1f7887f16102d42a1ec373d902e672111bcb69a72c17a29ad093105426391cd"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/include/nemo_speech/asr.h",
+        "bytes": 12718,
+        "sha256": "12f3e017391ae19daabe59d2d50541f0aabb010228d075426b4a9834337422fa"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/include/nemo_speech/tts.h",
+        "bytes": 8212,
+        "sha256": "dbc414e65f095e90b7ab085a10e3e7559acfcbcc61e4637bec1549279eaecfbb"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/include/nemo_speech/diar.h",
+        "bytes": 7606,
+        "sha256": "4839f70ccab30af3ed9949751792a547f3a8a4129848f64c8cd69889bd433afd"
+      },
+      {
+        "path": "expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/include/nemo_speech/nmt.h",
+        "bytes": 4425,
+        "sha256": "ef46ea5643ce99c7c8dfdd322bf93cbc3b0d6ca296fc802e6ed71b31dd98a2b6"
+      }
+    ],
+    "symlinks_materialized_as_files": true,
+    "total_written_bytes": 31003744
+  }
+]

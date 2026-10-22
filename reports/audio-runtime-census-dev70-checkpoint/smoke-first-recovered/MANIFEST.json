@@ -1,0 +1,2391 @@
+{
+  "config": {
+    "asr_backend": "sensevoice",
+    "diarization_backend": "nemotron",
+    "device": "cpu",
+    "cpu_threads": 2,
+    "language": "en",
+    "chinese_script": "as_is",
+    "speaker_support_enabled": true,
+    "speaker_min_query_seconds": 2.0,
+    "overlap_backend": "none",
+    "framemn_enabled": false,
+    "native_diarization_epoch_max_seconds": 30,
+    "max_chunk_seconds": 60
+  },
+  "pins": [
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/__init__.py",
+      "bytes": 108,
+      "sha256": "54ab25d01256e8f807f2d544afd2e52764f3d14ff55c312cdae7a307115eaf16"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/__main__.py",
+      "bytes": 28349,
+      "sha256": "06d3537b323288cc0696426a0aee8006fcf297b0b8a89d7e3adee279b69f94dd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/app.py",
+      "bytes": 57490,
+      "sha256": "fcc9a4e37ca9c2551fb591b72a80bbbaa0b56e29b9629dfbd92a4761e3edf183"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/boundaries.py",
+      "bytes": 9016,
+      "sha256": "9c917ade8b38cae2711921285ccf212a47345f05294480e29affa90de040fab5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/boundary_store.py",
+      "bytes": 16501,
+      "sha256": "4e25acd84134aa7525c32d5b7b4c02b5bd50f33735c391af894e0c06753786f4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/change_feed.py",
+      "bytes": 12651,
+      "sha256": "d87d38e2d1d507bd2c2cdcf820673a8de4c0c0a4a508670431725e651aa4e003"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/data_paths.py",
+      "bytes": 1164,
+      "sha256": "ad77c4dec0ec8f35f524c2cf69fb7d3b535c51ec3c925afdb4f9784b3cf16466"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/dicow_assets.py",
+      "bytes": 1972,
+      "sha256": "c3a5edac830349117eb382edccfb30386a2ec9dc2942a1eaa8f0154c1ed77954"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/dicow_candidates.py",
+      "bytes": 18231,
+      "sha256": "e2eb5e4bf88a04f0570e9bb4a9b0f65fde32a6d914744cc5075d90635fad5180"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/dicow_runner.py",
+      "bytes": 3673,
+      "sha256": "848c0b9405638f51fa2886aa4bec5737c147559eada01abc7b9594b3c144f25b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/embedding_space.py",
+      "bytes": 18703,
+      "sha256": "e34afa07d4f41e39f379c235c751959a60f1bef5d61bb57b7723984c915dd629"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/event_candidate_store.py",
+      "bytes": 24434,
+      "sha256": "bb05fa4a0989258e4ad13940c80e12da68d43b696c1ba615a069269431f31583"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/__init__.py",
+      "bytes": 237,
+      "sha256": "a3cac77c5c60a086023d63acacda5ff230d4e0a878e2cc74efac8c2eb5195ffa"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/__init__.py",
+      "bytes": 79,
+      "sha256": "582c720c5f546bd1a307f445044bb9771f26f2a31904fefadb07adfb699a05e2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/__init__.py",
+      "bytes": 78,
+      "sha256": "6dd939e6aa13873e88d2ad12e3a14dabce1a419f5d7fe64c3389f8f72531b6e9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/block_types.py",
+      "bytes": 6631,
+      "sha256": "1f6029feee668bfd84060fa626f79dd2a4370c7e5c989cdead6a3b7994c67fe5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/labelmap.py",
+      "bytes": 7187,
+      "sha256": "aba453ca093f80e2bcf1355d6f25992c443d91f76ee5ba61041922000285fb1d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/model.py",
+      "bytes": 8736,
+      "sha256": "4299ff6793b910869e74d21b4766adb517b3491df3b6a207402019633a38584e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/preprocess.py",
+      "bytes": 5253,
+      "sha256": "6557ffb18d5ede947cd348fd8f34e07d848c4c51a6323b6c0fd09eaa39059dcf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/utils.py",
+      "bytes": 889,
+      "sha256": "ad7933b3267b5b34be442932d499648b65188fd11837416ea3a2e3ddf1443bc8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/_vendor/framemn/wrappers.py",
+      "bytes": 2228,
+      "sha256": "76cb10cf41149e867407aa5cdc3bee66d5b2bcdcb5b96d6fa4643ce0297845be"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/detector.py",
+      "bytes": 5843,
+      "sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/framemn.py",
+      "bytes": 11281,
+      "sha256": "4cff587384d8c9c3a5a8ab392cf94e245dc1f3fe005e41761466325b68b2cbb1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/metrics.py",
+      "bytes": 2814,
+      "sha256": "fec57c10418fe5d094481bf76ded426ddf1cf11f8f85baab32666073cea99ad4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/multiresolution.py",
+      "bytes": 2704,
+      "sha256": "7b6fca32ff60b7bd3b20233b3eec1434c9901510732a8cee72b1b5e352db77ca"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/provenance.py",
+      "bytes": 3132,
+      "sha256": "0e57fab110cda6ee75244b5f2ab368a01753c66c812a11791f138b1d0122f56f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/events/temporal_decode.py",
+      "bytes": 4199,
+      "sha256": "352aafb5a905b69033daeea79e90b3005a791db3a0562685ea96f5933dbb4bf7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/experimental_identity_memory.py",
+      "bytes": 13732,
+      "sha256": "dd4f300381615e066e98ea9436f6e0d91789ac5cff38e3d47a9106b01bf049ad"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_asr_coverage.py",
+      "bytes": 11673,
+      "sha256": "a4fe24de707b2f3fa7ace9ecbbedb2e5c1c62109d3d63bdc0fd69579abf7942f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_core.py",
+      "bytes": 27203,
+      "sha256": "56ab6aa6f5cd01e33c4eef1bb6e5b27ae7da6d2abc11f62e8e9ec2edcca46819"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_cpu_meter.py",
+      "bytes": 19093,
+      "sha256": "8cc16a3fd80b61805559d2bc7ac63a7b9f2173d7d53cb61df930b4c76e0147d0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_cpu_provider.py",
+      "bytes": 68656,
+      "sha256": "adc4984931292a70d9d1fcad3404005e7b2a6b678358722c24449305d7e867c3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_decoded_source.py",
+      "bytes": 35891,
+      "sha256": "d03f8a8c21ecdc62c879efdb259d72dd07995dabfb0da2dec08f739b0ce62212"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_evidence.py",
+      "bytes": 7175,
+      "sha256": "7dee9d29a4ea09f65b9ab481cdefd657a63b1f74726dcd7de3be28763b550464"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_http.py",
+      "bytes": 32597,
+      "sha256": "8c489ece2bee3c8599d52afaa81ca4847ef025e51e7b6ad4c659dfc9bc6fb597"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_matcher.py",
+      "bytes": 8668,
+      "sha256": "8527637d0a4fa6c3f2cbf731ea9a619649c1b9981f2711208d5793757aa7f872"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_matcher_p1.py",
+      "bytes": 3688,
+      "sha256": "2cc0014cd2c0b4be4508cd3a7debde64ed7a174ca965570df855541c5992be73"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_matcher_v2.py",
+      "bytes": 2713,
+      "sha256": "42e2c47f7694c72c7006f5d48e3fca9510afb4da724e4e10addce512cb6acba3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_model_bridges.py",
+      "bytes": 28273,
+      "sha256": "d00615ef7b99ba8ba4b8225d42b52f37e3e90f7372b68026b58561a1049dc982"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_model_compare.py",
+      "bytes": 26651,
+      "sha256": "3158c6e3d2aa9fdbfe817a4324fbb364da84cd29c238cf0d5c0026e1aa56c2cd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_model_guard.py",
+      "bytes": 9965,
+      "sha256": "9ed1c310f79397a67a2b346d93d87bfa7301452a72045601b0b6a79c3c0e9279"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_model_meter.py",
+      "bytes": 8350,
+      "sha256": "dcf82812beed58148833c208805501d0a4e4971f65aa9471669f1e88983e261d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_model_protocol.py",
+      "bytes": 16144,
+      "sha256": "a06129c2c73faf08de4fbed2925393f840a6377a3e8992f436e9be1a429d037b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_model_score.py",
+      "bytes": 13922,
+      "sha256": "50a8d883af69a9c2e6bcabc25daa452da81d685fe324b169e485bade76ebcfd1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_normalized_runtime.py",
+      "bytes": 17273,
+      "sha256": "e6ef9f9ea6dd32ee5c55b39dd57d6acea654dca359d71d4d2c4e31692f3f57b0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_normalizer.py",
+      "bytes": 12551,
+      "sha256": "ecec82e55070bae01056dfd66125ac04c47037a3e797476633a90b305d47aee0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_resource_feed.py",
+      "bytes": 4092,
+      "sha256": "8aa45bdf5171a5e7c7229938b7135a9354170276192ef31046be3b0538645545"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_rolling_decode.py",
+      "bytes": 24711,
+      "sha256": "61bcf6ac0ec87686e63204c51093b70ac12491cbb244e90140f69c790c933cc4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_runtime.py",
+      "bytes": 18640,
+      "sha256": "ee508f31759e3397a1390c02ff6959a4f9d4418099d3a90e917cd0786283423f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_runtime_contracts.py",
+      "bytes": 16698,
+      "sha256": "12321342d990205e75fe231604514acce0add06e9d60c841fc2c85ecb44568cc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/fragment_runtime_store.py",
+      "bytes": 20224,
+      "sha256": "0c5649e19b50146c326780287eed5f6a71dbfd9d91560580ca3f205f2708f9b2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/guard.py",
+      "bytes": 1085,
+      "sha256": "4626b683546fee64c014da0698a67d0070130886eba03f7020d01c2f5b28601f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/identity_canonical.py",
+      "bytes": 15838,
+      "sha256": "a3f9ae2b6fdc4446c0bbd82675e0246b15ef4de68ee1774015dddf7c9520a71d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/identity_reset.py",
+      "bytes": 8263,
+      "sha256": "cf35771ad91c0cb7e945a0a2d54ba15bee26fc0bc70cc43837d0909135fc4244"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/__init__.py",
+      "bytes": 190,
+      "sha256": "32acf32f287bb45c06185ae51876b48067f9e681c803eb918d0366f6fddce718"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/analyzer.py",
+      "bytes": 47444,
+      "sha256": "71b53669ea9d24df4356022dba05f0232d86cf0b899782e0c00a979dd3a94b43"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/dicow_asr.py",
+      "bytes": 5295,
+      "sha256": "a8a62ffd124743deca6315b6bfc435869440102755d1a82dcb1e1d4663ffa129"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/moss_td_asr.py",
+      "bytes": 14997,
+      "sha256": "2081964e8138350428204be9bcb0e66bddc61266bb27de069dfd4072b8725daf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/moss_td_cpp_asr.py",
+      "bytes": 10461,
+      "sha256": "b6222fc61054ed1b5ce40f8f4c2cf3b82fc6e4e1149d607c0a41ebbe7d89d062"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/mossformer_separation.py",
+      "bytes": 4601,
+      "sha256": "2c0ce9107921137f0d58a52c161dfdcb32e59ccaecf47794d63ad32455e596b8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/inference/native_diarization.py",
+      "bytes": 14870,
+      "sha256": "eabc3929bc5dfa382775c79b145d84a5d7e042730e0312af8afe394049d08caf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/lexical_evidence.py",
+      "bytes": 19335,
+      "sha256": "311d3ec7ab82765b0894d199388c9b375e985a5f28dcbdc81640523e2ac8d0ec"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/lifecycle.py",
+      "bytes": 17834,
+      "sha256": "f40b37cd2ad374cc99086f08f85c3ccb288d36f41e67fe20f305cfa30cfbed7a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_automatic.py",
+      "bytes": 101231,
+      "sha256": "d216405605ee963cd7265e793ca7abb4c7c46b5d122ddbcfd5ba2039abb73746"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_handy_adapter.py",
+      "bytes": 13361,
+      "sha256": "6f6a74f2822f9ab8d949376611a0fbe86d74e58b283a2307ed63687d529b27c4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_handy_controller.py",
+      "bytes": 36645,
+      "sha256": "e34f3df60b6241a7e7dd98081dde960e5ebe018ba3f8bb376e84b3a6062e38eb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_handy_http.py",
+      "bytes": 20180,
+      "sha256": "2c6b40f2dd8c320af05eb18f400a757d109d69fd1a49581da9fbfea622af7972"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_handy_jobs.py",
+      "bytes": 166671,
+      "sha256": "30f1d48d4357b256af320465656327a82099fd7c66ec3d127d23078a5673481d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_handy_profile.py",
+      "bytes": 9975,
+      "sha256": "502cb490e148b550b73b6589480ecee26d011ed74d27b89e82c85ba20d358c77"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_handy_runner.py",
+      "bytes": 12906,
+      "sha256": "4d17d60806bf2a02d0f248d7957bd423ef15feee8ec79b1fa235ce059b8a0858"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_result_store.py",
+      "bytes": 33367,
+      "sha256": "eaef2ccfcb071604a3903d713e353abeaf2e7b1746277d20936c415d12b917e3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_td_assets.py",
+      "bytes": 2503,
+      "sha256": "50c133f83f467ccda37e771c80f05eff467a19f7c265da81d0d0f1d64c5e844d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_td_candidates.py",
+      "bytes": 16598,
+      "sha256": "396b020d784d98b88e8195e0df563ac3ef4559bc0ced92e1853fa113f62c4423"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_td_cpp_assets.py",
+      "bytes": 12076,
+      "sha256": "a74cc5006c7aff5bcfcc1222a5e93ae390aa4e539dc36b027af80c187409f0e5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_td_recovery.py",
+      "bytes": 5083,
+      "sha256": "cb630d475fa8d6cfcb7aa17ac2a23e79ba4bb1553015c1cf8012408376ad0b72"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/moss_td_runner.py",
+      "bytes": 10682,
+      "sha256": "69cb61192dadccf532ba0168d8e7a8af1348644dcd9674759e5fe2d8914cf16b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_boundary_probe.py",
+      "bytes": 27175,
+      "sha256": "662b45cfe55686b1ca8feeb6bbcc90620c95367187f4b91ee9b29d2a088064dc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_boundary_remainder.py",
+      "bytes": 5818,
+      "sha256": "605522d3124e792432d8d358c68e638f61f6d84c03f4f67c8ffb0ce74513719c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_execution_permit.py",
+      "bytes": 89709,
+      "sha256": "2d821d8e20c526ea609e61d77e638dde1d937748f517ec4bf696d826f54d0530"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_lexical_alternatives.py",
+      "bytes": 10505,
+      "sha256": "321745aa3bef2462cb5b2b196d16f9ffe78d70c8bf20aeaf36e701ffc45d708f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_cell_capture.py",
+      "bytes": 107580,
+      "sha256": "a98640c60677ec2738ff7e3cf0d02f1c8ebb6cf068702c634458116d52e07679"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_cell_jobs.py",
+      "bytes": 14930,
+      "sha256": "6ad147a53d08a2c956198e787182c80c84540185497d9c69d79fbbe41fe52826"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_cell_store.py",
+      "bytes": 107508,
+      "sha256": "74df7cc092533f04847bd13729da01cf85faaeae80d06dcaeacb21de15258d95"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_cells.py",
+      "bytes": 25788,
+      "sha256": "416718496c6ba1f3c8eaeb701a694c7882654bbd890c8af54c58ed60d7dbb6f3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_core_seams.py",
+      "bytes": 115972,
+      "sha256": "81394658e7721dac47e099cb94771d174ffa144aec21e0e60a026cd73ee4f5e5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_retention.py",
+      "bytes": 2327,
+      "sha256": "a835c81ffdfa70f7da90d4d93bf29e8f932f37b90a786a6ec8913595fff6443b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_seam_cells.py",
+      "bytes": 21544,
+      "sha256": "f0c5addf9932027d5fb76bdeadf1d03d50b5efd75785ee946e27ebad649b6489"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_support.py",
+      "bytes": 31364,
+      "sha256": "2403aa765c42bce62c6982d0022662ed82870948028ee994b86740fd8c800451"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_owned_support_cache.py",
+      "bytes": 53804,
+      "sha256": "7345723bc2ae0e7365299ce405acd39720defbf17e13f5665e57ebb571730f3a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_root_reattestation.py",
+      "bytes": 20455,
+      "sha256": "4ab1726ecc78e912061d5fd2518bc74e3cd70a92dd07bae0365cced6fdd8ee02"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_runner.py",
+      "bytes": 3328,
+      "sha256": "3f1dd47c80aaf51c6037d1ce73023134a8193fd239eb0ddfae112bd2d9788935"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/native_worker.py",
+      "bytes": 10188,
+      "sha256": "d11e31f44742966ea42ce1407995b22381fd85607f08a6cfc9a4b4f30afe1afb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/overlap.py",
+      "bytes": 7947,
+      "sha256": "31982119d37071145e4f3a1f696b9cb5e336d7d5e05e815afd41d52d79935208"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/overlap_candidates.py",
+      "bytes": 21709,
+      "sha256": "a539c4adaa1b9b5616ff7fd5b6a6ea543f7c664040498aef3b78e5be82cbbb31"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/overlap_diagnostics.py",
+      "bytes": 14628,
+      "sha256": "9e8e2f2c41a971f5533ac455b08a5eb20b1189ef926820259d8ed92a98b0c54a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/overlap_ownership.py",
+      "bytes": 12916,
+      "sha256": "5d579adebec2bf7d7f153131c8f06e772af1d516efba8ec43946778c5b900e75"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/overlap_runner.py",
+      "bytes": 3717,
+      "sha256": "02eb60fb4080ee090741435e546fee5263de767b2b6e8f6edf5d71f516bf7d33"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/overlap_store.py",
+      "bytes": 34123,
+      "sha256": "f84b27db0e0f1a2b35df320f26ead6d404b29161f4587403fdedc77eb3ed1843"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/primary_commit_admission.py",
+      "bytes": 2438,
+      "sha256": "f534287b5b7429598203d5a74f815dc0ff1a4cb8cc2aa902bc5c853d71215671"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/primary_crop_support.py",
+      "bytes": 3536,
+      "sha256": "116cb54fff76a35a2c4f2af51b9ec4d761607c2a983bbcb65f5803301a6584b2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/primary_voice_references.py",
+      "bytes": 33648,
+      "sha256": "142d70116eeab035f5836fc4f620695c699665e22fe25b5985c6757406ff143e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/qwen_candidate_runner.py",
+      "bytes": 41334,
+      "sha256": "a4a151d8fc3aa7b9e80463542ca796c1bd5b1b300de0d3be275af4172c9e9ccb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/qwen_candidate_store.py",
+      "bytes": 18498,
+      "sha256": "9ca7255537fbee04d663bc167a4c76bc31458854f02ed71070d925a0d3d8c947"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/qwen_candidates.py",
+      "bytes": 22446,
+      "sha256": "f244bd8403750f48da464caf9779dabf57b88e063f65a34199d559848ace9603"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/qwen_profiles.py",
+      "bytes": 3347,
+      "sha256": "0ff2775973ac69d71d7ceaf1e703a214d198a7386f8bbfe83cf34383a5bd1beb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/qwen_recovery.py",
+      "bytes": 11177,
+      "sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_overlap.py",
+      "bytes": 137716,
+      "sha256": "cdeeccaf938125287c53317edef407a73bc795ca882e607a561af133e054be23"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_primary_probe.py",
+      "bytes": 29133,
+      "sha256": "86be61f4de7dd925483104453323bd6eb947cdc7012b6a8764e4dfac8e3a9d94"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_primary_provenance.py",
+      "bytes": 49077,
+      "sha256": "e5c1f83a1929365e7208c6ed0fe678b9cae7a0e838be283ea7b92741a5d49a21"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_speaker_history.py",
+      "bytes": 156221,
+      "sha256": "d9e595765f9350072bcb74b7955c99262cd170c41e7d10a2da3acff0599c28a6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_speaker_history_compare.py",
+      "bytes": 46350,
+      "sha256": "40e12f9652b87daefdcb7620fd743c94f3393ce1df61a4417526768304576f30"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_speaker_history_process.py",
+      "bytes": 48851,
+      "sha256": "e426ba25c8f0d11917641d111ecef64c274939785723b2401b303290807204cc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_speaker_link_store.py",
+      "bytes": 63865,
+      "sha256": "1f19d35b69e5a2060e61ef7e7a6ef86de38229c0b5ef4733e1283011e691512c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_speaker_links.py",
+      "bytes": 77537,
+      "sha256": "88971fd7633182c57627a6ec4ac94ba6291b4976f2225c53223fd5232dcbb7c4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_speaker_probe_runner.py",
+      "bytes": 15797,
+      "sha256": "39f78574f3b08f1e8cdb3d175954f816cfaae43f58571340af3932153acbaae7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_uploader.py",
+      "bytes": 98876,
+      "sha256": "6eedd4e139438ed02835a1e066c623065f0fc6062149bcc39175be843829a31c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/recording_uploader_history.py",
+      "bytes": 36022,
+      "sha256": "706c0a5a51815469bbbe0317ae8a2ce299af6ea2662855fd72abe4271c91a350"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/resources.py",
+      "bytes": 14977,
+      "sha256": "1552e053d5884a8a3905c983afe8796fc4db7ac754a3a3d0581cf94a47df377c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/reviewed_primary_persons.py",
+      "bytes": 67467,
+      "sha256": "d3fbffc63cfa9204f42f88219c6b021bac525df7674d477a59dff7ced7095501"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/reviewed_primary_persons_http.py",
+      "bytes": 10586,
+      "sha256": "864f03b878bf74cf5564a0dffe6e8d0f8d9e0c6f651d4f141752e2496c9af9ee"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/runner.py",
+      "bytes": 2594,
+      "sha256": "d0ec92ffd26f7a47e76139bd79022162517e9f0326bd4f0601a85581177c7969"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/settings.py",
+      "bytes": 28307,
+      "sha256": "64a3d1121eba6e3257250ef15d03f7c0a82d44ad40892aefdb159886cb8cc845"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/speaker_calibration.py",
+      "bytes": 2451,
+      "sha256": "bb9b5d8933e3f9955f4997357fdb786326a406aa60f2f344d03e0232ee9d895e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/speaker_evidence.py",
+      "bytes": 6690,
+      "sha256": "7a0f4b72592d0669bf05748fbfb9a04104ca517297be5b2d6955997f618274f0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/speaker_support.py",
+      "bytes": 38036,
+      "sha256": "cdec57064a189140cb4121431ff99a8266ed2f88c1eb44a74f2f0c980fe5e12c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/storage.py",
+      "bytes": 73170,
+      "sha256": "2fe6124369bb6089d106649c217102c10ef31d36449342c35893b9c09cb018e5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/support_vectors.py",
+      "bytes": 7909,
+      "sha256": "5068b5b87bef609244cd31d3c76026b9dc245b27c8fdc96a604202a62d129b6b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/transcript_contract.py",
+      "bytes": 20655,
+      "sha256": "1989e8c5eb87fab9c027df793a1c02b841ef323a887a00c2820f09732b88d04a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/transcript_http.py",
+      "bytes": 3932,
+      "sha256": "83fe028b50476e3f7206fbd8b70d647ada7fa5ca1d2e2728ca7fbf725709c242"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/transcript_projection.py",
+      "bytes": 19656,
+      "sha256": "c7036e35fdb8493bd6d4605c983f4b1449f3da754c7e5453f0a611b05854d009"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/transcript_revision.py",
+      "bytes": 8970,
+      "sha256": "7ab9a3e3343d3c0e542ddbd4cb94204e7bf078d0063a2d48f298a6c525224003"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/transcript_store.py",
+      "bytes": 59212,
+      "sha256": "143754c9e385c70e9ca14838f36d8f4a245623215fea96bbe8b8597032568b26"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/verified_identity.py",
+      "bytes": 50287,
+      "sha256": "db4d40ff20458005edce061b94cd9c5f07e242b370ed331d8ce7ec0f8b4e015a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/audio_backend/worker.py",
+      "bytes": 38022,
+      "sha256": "c2a5adad839ae565442cae212581925a5e734f5ed5d5f1742a695aa5282ad251"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/evaluation/orphan-receipt-gc-20261016/test_metadata_stress.py",
+      "bytes": 26465,
+      "sha256": "e71355cbbbd66919a43c06971069d0126c7cb50d53ed16a68727ceac0e12c95b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/prototypes/history_comparator/benchmark_history.py",
+      "bytes": 5528,
+      "sha256": "67022e060d76c7e5ff7c61258fcbcde39f7eaa4fc0335bdb7a34b268c71f98f3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/prototypes/history_comparator/compact_history.py",
+      "bytes": 24926,
+      "sha256": "1695330e437c49339e6093c2a290b1559e76207eb659b3fe89fedccc1a89776b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/prototypes/history_comparator/test_compact_history.py",
+      "bytes": 11486,
+      "sha256": "bea381bc204e598e41bdfd2a9855fd8eb9c38184b3ed3b2fe67596961b784438"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/audit_moss_endurance_candidates.py",
+      "bytes": 38776,
+      "sha256": "357d26d976cdc39794f4cd79ff8911c502c0e4e0f92dd3d700aea04596238591"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/boundary_metrics.py",
+      "bytes": 2605,
+      "sha256": "16e72b88a57ea5665ddb21dac4c49556cc524c17faedfdc4a23e1de5ee27ce50"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/capture_endurance_observations.py",
+      "bytes": 5808,
+      "sha256": "451c00d9b929cda0c55d746f88faa16d0e7c13b484a74d526e772870af0aac31"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/compare_fragment_models.py",
+      "bytes": 5976,
+      "sha256": "15ad3f637c6c9a212abd5e6955219d22ce0802f0edf4afe2fca445955c0e245e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/diagnose_fragment_anchor_layout.py",
+      "bytes": 8117,
+      "sha256": "01a268852bc923f1419765fbeca30211127c20aa750b43e0129b9d1a854c1957"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/events_residual_development.py",
+      "bytes": 40577,
+      "sha256": "a8c138f53ca41a14ce42ec274baf1f0c6716f1e7de23c78ddaa8c80b7cbb9989"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/events_residual_development_v2.py",
+      "bytes": 41943,
+      "sha256": "a935101d33ea9ea05af0b454a193b4304c303b648dd99fea954002b46088f408"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/events_residual_resume.py",
+      "bytes": 16711,
+      "sha256": "fd139d7888a818fa38f8f5637e9753a10cc072cd903e73c44f6d6ad8caa156e3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/moss_td_research/guard.py",
+      "bytes": 4680,
+      "sha256": "c56c76aa9af3bdc534871907e734510f01cc59001a7db9942a1a777ddf4800c8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/positive_event_seams.py",
+      "bytes": 28351,
+      "sha256": "68962833481574cbf9bfab5d00562c9ebdabf8c2f967f3238de4d9d7fc33a399"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/replay_correction_identity.py",
+      "bytes": 20569,
+      "sha256": "63566a6d868a93ab1e12ff7cc50206d92b3e6a454418b801e5a280923cafcc70"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/replay_epoch_identity.py",
+      "bytes": 4473,
+      "sha256": "6f601f02f2ca87a8b2cd44c465003603f511dabe7db41d3920c7c43875a8feaf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/replay_scheduled_identity_review.py",
+      "bytes": 13901,
+      "sha256": "fc84a7c33dc5740b666b5d8908df1cd0d10dbd814768d4d143b33651e77de99b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/replay_short_acoustic_queries.py",
+      "bytes": 7696,
+      "sha256": "b87fb4f098a3f1fdf6c3cef8f438d70a696508d10af2a3b00efb1a632a5e2fe2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/run_array_identity_replacement.py",
+      "bytes": 32447,
+      "sha256": "4684d71e0e4d1f86011cf9de5e38386bec7d7570a5ae013696f50203f0412584"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/run_fragment_core_tests.py",
+      "bytes": 6748,
+      "sha256": "83b21ab41265576403a3439f6f6766e0c567e9450db91e727f6dcf2b2513a9c9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/run_qwen_candidates.py",
+      "bytes": 6934,
+      "sha256": "7325883fac08cb7337f9a2b572beed9dba31828fb0c3e681b11edca51c4a9f1b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/score_overlap_signal.py",
+      "bytes": 2915,
+      "sha256": "8aaa90b4029e0d1dec3be5b38617d2f6bbe29a64e7f7d2c519fc576feac4d1b1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/score_overlap_transcripts.py",
+      "bytes": 4336,
+      "sha256": "f526fe03178c969d515a56c76c1b160a5d4ccc0519812a36f9f61b4d2901b6a9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/score_predictions.py",
+      "bytes": 14491,
+      "sha256": "da365a52a221fd5cd7577f48b5a5c914c2a6e9c8e97116abecfe576147ca1149"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/benchmarks/verify_array_identity_replacement.py",
+      "bytes": 14314,
+      "sha256": "316a91a250b1f20ec51abdaf447b5e5eb6ffbceef38bd5e256992f746aead915"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/build_fragment_cpu_manifest.py",
+      "bytes": 13111,
+      "sha256": "36977ecc8d6feb423a101c42afe2c34c489f585ba51530d942cc3864a9f7e3b6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/measure_command.py",
+      "bytes": 5247,
+      "sha256": "785e8996a888cfdc45a06e2817c830ea765a2491db7bc72da12e6c5b2f26de06"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/migrate_audio_data.py",
+      "bytes": 9964,
+      "sha256": "749940e2c315c19cbbcd703005f53d4667c0d53fa26e3cf16a4d607b539f5e69"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/package_source.py",
+      "bytes": 11815,
+      "sha256": "24879bdd7bf44f4f716b372a46c31998bec7436a5b50131f61c84f6e4054e493"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/prepare_moss_td_cpp.py",
+      "bytes": 17553,
+      "sha256": "9f9572d3b57369589dfcd963755781cc8b6339573ae866fa23f502c984d5a0a9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/public_history.py",
+      "bytes": 5825,
+      "sha256": "422ceafb5ae2197111b5f287478dcadc51e17d3e5957f90d9c355aed3c609114"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/run_cpu_candidate.py",
+      "bytes": 13245,
+      "sha256": "221d0eb3f43db77cf81dc27941ae208c02e2bd970f092fe61119607164584b04"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/setup_dicow.py",
+      "bytes": 5095,
+      "sha256": "91113054afcff8a7179b45e20fa44916d02b7cb3921069585ff9fe6671b09e30"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/setup_models.py",
+      "bytes": 5297,
+      "sha256": "72a846aec694621bd0bd7a5f2c5e954127f5dbc3100bc955928647a88fb9549d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/setup_moss_td.py",
+      "bytes": 7004,
+      "sha256": "87f3c4182e07434e277ff9e423f9d43f17480ebe0947b65f1eff5ce226cb2895"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/setup_moss_td_cpp.py",
+      "bytes": 6618,
+      "sha256": "0ed96ee5e8dfbe3c857b7a03f4f95d94f24108c9346d7219023e2294ea5670dc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/setup_native_diarization.py",
+      "bytes": 5216,
+      "sha256": "5498de123631f994c2efd450e96a9047e4d9ff4296154deb446f82f5dca88503"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/setup_overlap_models.py",
+      "bytes": 2477,
+      "sha256": "5a36a29aa2b7941e402a248e6f96a6bb11393ec410ee8bb17e83e4d6d5ab8d6d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/scripts/source_staging_guard.py",
+      "bytes": 8420,
+      "sha256": "1542abd056d0a244ad454cc7e8a6d82501ffca582048ce006640791b8c1fa0eb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/conftest.py",
+      "bytes": 10307,
+      "sha256": "7b9e4e5e62d9631edd1e5ba4fb676de1c5f0895f98155f4cb80ddbc72f474593"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/fixtures/source70_native_owned_core_seams.py",
+      "bytes": 106068,
+      "sha256": "3608374af430d7e7396ecf32d726f02a96356a35bed89c85ea15f35c6609bdfc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/fragment_core_data/fixture_recipe.py",
+      "bytes": 2579,
+      "sha256": "49c16ea769346cce823cdf97dfafa80b76add009287c0e070550725d03a534b2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/fragment_core_data/p1/fixture_recipe.py",
+      "bytes": 1293,
+      "sha256": "b83b231e44db788b4fc143853325928d78b980b9466df2cab309ad7a5381f615"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/fragment_core_data/v2/fixture_recipe.py",
+      "bytes": 4647,
+      "sha256": "02f9a4a9edf8c82cae16c508ab6e94d836f8adb5618a27604eb0c004a18e317a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/reviewed_person_bridge_fixtures.py",
+      "bytes": 18895,
+      "sha256": "d0014c60ffd9e0ea866dc215f4165f4276362313b7ecabb1483d2f5d91f58fda"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_api_storage.py",
+      "bytes": 24832,
+      "sha256": "d9cdcdb9caed322d6fe061b7e230471ddf3918fb18a1ff8056f3ce6c7786a68b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_array_identity_replacement.py",
+      "bytes": 5912,
+      "sha256": "2949418d439f8c2772943739276f0b2369b53adf59878a48319cf2def9d88cce"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_automatic_discovery_integration.py",
+      "bytes": 15915,
+      "sha256": "b521e51958ff144a7ff8090b1f87c910eafa7f644b39501d5d4b0a50bc66feb1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_automatic_fair_handoff.py",
+      "bytes": 22631,
+      "sha256": "0d3c198eaa58c3c85fc26e0df60ad16d9c9af22cbbd75e045a073f5b85c6ec6a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_automatic_preflight_busy.py",
+      "bytes": 12585,
+      "sha256": "b0e508837cbd87c8ce1f15f7b7f02592b9517251228d6631f91cd4280750fcd1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_automatic_text_storage_maintenance.py",
+      "bytes": 12838,
+      "sha256": "8fb06fd4c034ffc18f3b2072fb20afebb7bb9a106f813efc17dc41b8026b208c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_dev11_integration.py",
+      "bytes": 45783,
+      "sha256": "3c59adf5254b6722becb1c3ee6ebdbb362caf0fa414f21ddbab3087573a16768"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_dev12_source.py",
+      "bytes": 13204,
+      "sha256": "b8c2b36b2d558e12a12c326f65db6157a2a8f1c48a19c4f41d4ce682e12eaca0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_dev13_source.py",
+      "bytes": 7553,
+      "sha256": "f10c36c73f37a6e28f093f705c20013b45bf325ac258835e2b238afdcff6e60d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev1_source.py",
+      "bytes": 24310,
+      "sha256": "3a6d464cc7d7e9126832999601d5e8782066dc3da3ddc464d64d23c27dc4183d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev2_source.py",
+      "bytes": 25273,
+      "sha256": "b8698e19a981a8d8d361dece6a52cae432ed0f1aca1f0b25fbe433b062f5a086"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev3_source.py",
+      "bytes": 25131,
+      "sha256": "0d7e696da82d8d07109f048b9d8e625f88871f45b147bef91c42989530b14bd1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev4_source.py",
+      "bytes": 25813,
+      "sha256": "d8f43b4f6b8102653ff915dee73e4040938cf33ea5bccee9ea3ab6338438ae74"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev5_source.py",
+      "bytes": 62879,
+      "sha256": "028b1dd099732a6694e13442593f5b27a2375afda9c5843a7e4b581568b6e2e5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev6_source.py",
+      "bytes": 31482,
+      "sha256": "4205a86e717694a31598ef100c7d4d71623adb558fb2c7a1496a7b5b547ca60d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev7_source.py",
+      "bytes": 27282,
+      "sha256": "3df934bd87d6b70da57bc84f9c1857aad7af43bc4852338b6677500fac685284"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_backend_rc3_dev8_source.py",
+      "bytes": 35546,
+      "sha256": "864f68fe54db4401d011c9163a8962076a4a0c74908c16fb96f9cfae483bb2f0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_boundaries.py",
+      "bytes": 8805,
+      "sha256": "30889c8ac8869aa802e25254d6b1a40c67c92b07456ee9a5913683c99c788415"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_bounded_core_support.py",
+      "bytes": 126875,
+      "sha256": "36867525078868fdda0af86738a836981ececf13b031f98956c2cac89b9a9d51"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_bounded_support_intents.py",
+      "bytes": 238368,
+      "sha256": "710295fee29def89dcfe477199ba9934b920458875fd268400370ac39df5a6a4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_bounded_support_roots.py",
+      "bytes": 70752,
+      "sha256": "fb68c6710b86a889c49ba9f1060e9ebc8614456db1b48a7f2dcf40fd68239a9e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_bounded_target_context.py",
+      "bytes": 13160,
+      "sha256": "a318809a1504c97bce7d08b40ffd31e964b0f59b96102fc8241a70b74434f2bc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_candidate_core_bounds.py",
+      "bytes": 1895,
+      "sha256": "eebc6508aa99085fcbe80846ae22987c66ed944dbfe2ac1b9fa14336ac25cf81"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_candidate_ledger_api.py",
+      "bytes": 3565,
+      "sha256": "46f3316daa7c780da6e8213c0f60bfd0bbb6e6d23b63e68f1e428f23f06c22a0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_canonical_duration_eos.py",
+      "bytes": 16620,
+      "sha256": "5f93d255a0df04f6db58efe295a263e2150d2c81d5077672abd327af858b10bf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_cli.py",
+      "bytes": 2633,
+      "sha256": "3201710d4d2406ad867440c90a55877c3d7fc3de7a87f776866218cccfd06eb8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_correction_identity_replay.py",
+      "bytes": 2957,
+      "sha256": "02d44e15f45fee2f8c11b96b319a89678f27b959503402b80f36742f1f0c56e0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_cpu_candidate_launcher.py",
+      "bytes": 15949,
+      "sha256": "326242c1150d6ef70ebedd5a14b2fd9e2eaef0b47e02755e40c5f6c771446e55"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_current_census_resample.py",
+      "bytes": 17010,
+      "sha256": "18485f4c209ecd2c5df8ea9779e3c4e7195ecba2fb534b4d5916a41fe2408868"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_data_dir_migration.py",
+      "bytes": 7507,
+      "sha256": "8751c815561475277710b084dbff63f70c02df47aa57d1352e1e0e2c88a1bf6d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_data_path_guard.py",
+      "bytes": 3339,
+      "sha256": "d7ba8b0ad156d1a7f377d04a343b06c6fae1affb721dcc80ac4be9c8d1a6e862"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_dicow_candidates.py",
+      "bytes": 10907,
+      "sha256": "df2a5081d4155954ddbb58a8c84c98e170a60a903d1640a81bf8248435be9ba2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_embedding_space.py",
+      "bytes": 17206,
+      "sha256": "b4f5519237e774db0476e91eff41de8e4c61644684a3ac5309766a7b9bd66fa5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_empty_comparison_availability_candidate.py",
+      "bytes": 6649,
+      "sha256": "996f3798193ceec7bcfb3aa0b737e17cff5a4acf6225b36fb9ebf68b0fa25fc8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_empty_comparison_discovery_candidate.py",
+      "bytes": 35346,
+      "sha256": "866dd67e94ba4ab55185297cb9496426fc799eb3c06ea682512bce5af92dd1a7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_empty_comparison_pending_candidate.py",
+      "bytes": 15063,
+      "sha256": "430ed686c06abea8de2561fef3c708077d6bfce1a032f6eaf5422de038b38f36"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_endurance_observation_capture.py",
+      "bytes": 4430,
+      "sha256": "58d595ed85569a3ab02b7d66842b6ddf146a6bc09130011bca91ad575875efcd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_epoch_identity_replay.py",
+      "bytes": 1363,
+      "sha256": "adeead35f499933ceee51982fb5792745c38f9af453d18273e3402738d11256e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_event_candidate_numeric_projection.py",
+      "bytes": 24619,
+      "sha256": "bc2a0a0d87126151f0f37dab93868ff33325227df23dbad15f0a116034c58a3e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_event_evaluation_coverage.py",
+      "bytes": 8893,
+      "sha256": "cad66a038b1c9a24ab6350f0f913fbdb285485fd12b1ecc2d2cc0ee3f981ebf0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_event_provenance.py",
+      "bytes": 14604,
+      "sha256": "3f65c403b5f7df7c38cdf3068275cc8be8aa26f10f99d71e2238425ffdda1dd0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_candidate_store.py",
+      "bytes": 6815,
+      "sha256": "ceccd2a46d889b2ea5019a4ffb1c9d092e5c8cbbd712ced5091fba3d14b82329"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_detector.py",
+      "bytes": 3054,
+      "sha256": "222ea1e58f5323d566e636a68bcf7d523cb72c785a9125143c525674223c2e1e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_multiresolution.py",
+      "bytes": 585,
+      "sha256": "4cffd56a8135add1c08cf2438231fc561dbfae895868bf1a24e73d612b216746"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_residual_development.py",
+      "bytes": 7988,
+      "sha256": "b6219007636eac47b4efce6b151c0e29bf642f4cb40344d88f54285ce3256e77"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_residual_development_v2.py",
+      "bytes": 9392,
+      "sha256": "1d939e074a08277cf8773f9334a7e244c0eabd1043bb53249c708f5809baf157"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_residual_resume.py",
+      "bytes": 4679,
+      "sha256": "dc9b412f7e0995b4e41cd5738df84118b8d337640e1ff10f567e8f11f6d8432b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_events_temporal_decode.py",
+      "bytes": 961,
+      "sha256": "638daf66800b18eaf99de5d8c44ee62017dea3b6e431212b4b32889928b600d1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_experimental_identity_memory.py",
+      "bytes": 7448,
+      "sha256": "1971d3b5800b5771ff566e809626cd06303852f701369385c3b03180fc6cde0b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_final_audit.py",
+      "bytes": 4242,
+      "sha256": "c84469422a5473daf7b0babad839a71482cab9e613cf7485b6f9975ac747131e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_asr_coverage.py",
+      "bytes": 20315,
+      "sha256": "52ebdb8b68f26a2fe1b5c8d1e8e72350ec365117d1a7c1b9a75d27672f905a69"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_core.py",
+      "bytes": 29532,
+      "sha256": "01eddf8088cdf604c186b3dc8dbe27ad84d941cb66f3a36d6d02b10ee1e81882"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_cpu_provider.py",
+      "bytes": 72098,
+      "sha256": "1f930b00767a3c073200b1b3f320990cc220922c0921edaafc23fd13566da1dd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_decoded_source.py",
+      "bytes": 9411,
+      "sha256": "47fe5f93031f8165c24ea5d06793eb2d1bc44ec606c619e0cd584924d9d1426f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_http.py",
+      "bytes": 33875,
+      "sha256": "69aef85058e6990c7a41a4078522fbf054019736b541d04c0f1b6bec36f732b9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_matcher_p1.py",
+      "bytes": 7215,
+      "sha256": "10a3f546fd372ecc3bd476c90b1740a826fbe6391a94dd61bc54b9934ee02037"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_matcher_v2.py",
+      "bytes": 9516,
+      "sha256": "c1cdf8aa9af7330f5b2139d94cdf5f54b64408350dcb8a15d3e8f0297a574732"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_model_bridges.py",
+      "bytes": 31293,
+      "sha256": "41c45870333d3e87930c87e4b86e17ad63926b444ff86facc4ed040b76d5ffa8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_normalized_runtime.py",
+      "bytes": 22352,
+      "sha256": "57420261a1657fd8a476171bca61a43855428f146538d1f39ed3c6bb101e9719"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_normalizer.py",
+      "bytes": 11365,
+      "sha256": "ff9fd57b62c553f59a42b55d37770eba67022f5529bf0044682a02651f8c98cc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_real_pcm16.py",
+      "bytes": 14346,
+      "sha256": "8ce808e938bc62394e996a69fc72fdb07698b98cccf61df0aec9240b3a23f08b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_real_pcm16_p1.py",
+      "bytes": 1445,
+      "sha256": "003dea9329877adb0d8982f61f73f2aba5bc2fb36764eadeae07c9c8eac350e9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_real_pcm16_v2.py",
+      "bytes": 1420,
+      "sha256": "ea78d150b8e4d4de7e33ab875c2eaae7833cc9ecc1e9647d1180c4f6c64a2f21"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_rolling_decode.py",
+      "bytes": 10872,
+      "sha256": "13e8f6a0cd22eccae5ca3040f748bccd3b109df198dc4c6041e0799c45d3d507"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_runtime.py",
+      "bytes": 45547,
+      "sha256": "bec82e77f5e3b883e1958bc01d60d54d0530b33af5fab5ad5ad945e52e0cc185"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_fragment_staging_sources.py",
+      "bytes": 50920,
+      "sha256": "6ff58045702ef0d1b6630a8de6230b44ec907edf24d9395928cd30fd0a8f78b9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_frame_origin_observation.py",
+      "bytes": 20222,
+      "sha256": "60277d6af9377904cf2e41d96cfff1c5ca79412ccb8977665cfaef78c8226407"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_framemn_adapter.py",
+      "bytes": 19188,
+      "sha256": "aa63e441469d6f19ad0c8457ab2179da7358252d3ce70c806255357a2871c19c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_framemn_analyzer.py",
+      "bytes": 20695,
+      "sha256": "149de9a52fdea6de2c70c1387f581f06b23e6d172da9c2add8b88640e59d29b5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_framemn_candidate_api.py",
+      "bytes": 1667,
+      "sha256": "5f471f2139c63869c496cbb1b50772816f0503e5ab75e2395d07dc8d6adf795c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_framemn_candidate_projection.py",
+      "bytes": 9390,
+      "sha256": "cc03243034f063048f2b04103742f62a3b988ef195d5ee474e71be3081d9bfa7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_framemn_packaging.py",
+      "bytes": 955,
+      "sha256": "83f9883bae7577c5d757bb61d8e6e85f2d48b00af7a90ab3e0b706f49cfdc837"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_identity_collision_dev12_compatibility.py",
+      "bytes": 13279,
+      "sha256": "f64be7e9208f09810acc27bf09e795b20bd9f22dac1b2f9dc39a7720001cb4dc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_identity_reset.py",
+      "bytes": 8218,
+      "sha256": "f2bfdbed65e741a45e9facdb445b96e1fceaa24f0e05a13ae96608cca9580bc6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_inference.py",
+      "bytes": 9001,
+      "sha256": "810068dd1e1361ca185ee86838be9cb164d2226fffed28dc63f051334dcd4efc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_inherited_instance_lock.py",
+      "bytes": 13269,
+      "sha256": "b2b2d1133e4d80b9ffcd2e892173d0b35798e8d4ca50d092c2761b4d80b665b2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_inherited_lock_launch.py",
+      "bytes": 16455,
+      "sha256": "f913e42c388eedaa8b3f1b85b271124224cc1f8f5bccfafc13358ed17ea57b8d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_lexical_evidence.py",
+      "bytes": 22866,
+      "sha256": "7de3d9a2357cd0920c7dc280de76de66937cccf75a7457b9fb1e9ccaa2e52885"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_lexical_metrics_fast.py",
+      "bytes": 1400,
+      "sha256": "d81203018791932b290b987c0cc7a131d87afa497bafa648f66afb48ceedd5dd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_lifecycle_durability.py",
+      "bytes": 11071,
+      "sha256": "f982a23d2c3bf4f5660060e8d3f2848e4b3af30be61def48f7c5854a3b9aaa3a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_automatic.py",
+      "bytes": 24877,
+      "sha256": "db81fff11b9ccff5f8309efaac0c079b3f8cc6c73c9f4dbd07a1d88240cc9a33"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_automatic_integration.py",
+      "bytes": 55509,
+      "sha256": "b9d590c971d6e75dccbafedf93f48172ec9fba3394d11baacc8e98c4319f4288"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_cell_jobs_api.py",
+      "bytes": 57140,
+      "sha256": "72fb8265d4e40fe5e0dcb1b53576d78836b01038fdf36ff04a725739d224944d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_cpp_public_provenance.py",
+      "bytes": 2518,
+      "sha256": "6e2d46bfb3e26b05ab51c8969c97925ea231d9e67581bed527865aa44776b96c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_endpoint_tolerance.py",
+      "bytes": 17515,
+      "sha256": "4596660c77ccaa8b5222454ba9121b879dc2e00e94146ff76ca0af690692866a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_endurance_candidate_audit.py",
+      "bytes": 18029,
+      "sha256": "5a6abc09b88c18a2f62bce6bdf0e34266cb8fb11b5d671ea7c090cd4c31b0278"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_gate_failure_diagnostics.py",
+      "bytes": 9444,
+      "sha256": "68d96a4ec6644d8080d0ebb66cda80a201a6d7abe9a3a9dc224411dfae3db3b4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_handy_adapter.py",
+      "bytes": 8551,
+      "sha256": "827bc1a400eecefbca3154ee0001b788e5409f8d406c01585adcec499389ccda"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_handy_controller.py",
+      "bytes": 22099,
+      "sha256": "2a60f175868f171e0bb54dbffd25f3bd8ac84ed48d4279f237498eed2161954f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_handy_jobs.py",
+      "bytes": 37966,
+      "sha256": "70486b0ed94634de8ed0287e8a939e569cb4c6792649a792302b5a1f39eeb6bd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_handy_jobs_api.py",
+      "bytes": 27448,
+      "sha256": "9270de17f7451e21b147b606dfed7d4460160c96edb10421e5ccb40ffdbb650c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_handy_profile.py",
+      "bytes": 9204,
+      "sha256": "07444ecec0f3bcc1699a4194f328fa418c817e0b7e28adf7fd3b8690a3b054a3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_no_result_outcome.py",
+      "bytes": 19571,
+      "sha256": "b3f4b0fb9b204899aae8d382f4c03a334b42f0858f14b8fd65656d85a4459c29"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_outer_owner_prelaunch.py",
+      "bytes": 14361,
+      "sha256": "97e8fb786a900839a471f35a96b1a1734d72234b183c81db54d9d831f6fe5b88"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_owner_admission_defer.py",
+      "bytes": 17673,
+      "sha256": "00e61fb78461db79d230413d7ffc02eae467eb28eaa390ddfa5a6d7a0be75679"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_prelaunch_read_defer.py",
+      "bytes": 15636,
+      "sha256": "25d20ee45ae9f4efde7a071834801e7b3657c31cfa56ef5fcc8e2a667b4830d8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_rejected_timestamp_diagnostics.py",
+      "bytes": 10106,
+      "sha256": "c192dd8ef3d7cccc9ca369c89af41c8deea103168b0eb772bfb0aa2a31cf9681"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_result_database_diagnostics.py",
+      "bytes": 8455,
+      "sha256": "5c287897e5e27523d2a7a977f4f0b297dd053bdd8a72579bb944115802c6b8dc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_result_history_api.py",
+      "bytes": 5640,
+      "sha256": "f1a41d058bfc4afc45133852b3aba94c3a6ab064ed98912e2c9e176a663a5b87"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_result_settings.py",
+      "bytes": 2241,
+      "sha256": "0b34083d1e3a348075cd743ebff798ed4fe233fca63b54a1fe9be8ab458887ab"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_result_store.py",
+      "bytes": 29901,
+      "sha256": "c6e45718b00aa6bbe4f5730869ebdf6e09922c3c87befd32cf8e1c663cf52f99"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_candidates.py",
+      "bytes": 9430,
+      "sha256": "1cc81497abafe0d87db7da1fe56930efe7a2672cf4a7b261bba64440f014e52a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_configuration.py",
+      "bytes": 3606,
+      "sha256": "82b760f089ff0a0acf84ee7fef53b7981c780e7d6ca7f3ade4b9c4c2f0ee72a1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_cpp_assets_setup.py",
+      "bytes": 10073,
+      "sha256": "e19788b9ace921e802b6aa9ba91d3d3328b785a7f4fb9394e5565cbb5f3b8816"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_cpp_engine.py",
+      "bytes": 8603,
+      "sha256": "ed736500d612f8d3fa13b0337d8a3d69f7c52e402f0f18d44fcd4240ffa03b35"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_cpp_runner_lifecycle.py",
+      "bytes": 3345,
+      "sha256": "fe1123684ff8da725af6568cba9f765915dd7ad935aae5a38119aad31e4a1d23"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_engine.py",
+      "bytes": 18291,
+      "sha256": "6c82b58385e2c108308baa6c11be494a1613488e748ab496ed3517203057e26c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_partial_recovery.py",
+      "bytes": 22049,
+      "sha256": "d550dc7f02f97039182fa7147b756da4f4f4470e0861c5ee4479257999b9af62"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_runner_lifecycle.py",
+      "bytes": 6652,
+      "sha256": "933cdf64a096241dd580983bbb002b43a12f22f077bf1c3b894f814dd454d7b9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_setup_resume.py",
+      "bytes": 8594,
+      "sha256": "6ca56c64ca37f7858c718e46885fca52071d3ed1e45c84a3bb08c2c502930767"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_moss_td_speech_probe.py",
+      "bytes": 5331,
+      "sha256": "795843fc04221c063298d6a7c8222c0cfbcb7b5ebd7544b74cf85c1b9d3c02b7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_multicore_seam_coverage.py",
+      "bytes": 21275,
+      "sha256": "7a4ccd9480d0002018c6be5ebe85707d8f9d2a48c210c5db4e9b585c31640f2d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_boundary_probe.py",
+      "bytes": 13086,
+      "sha256": "76fe2bafe3c63d555f0454381c831eae5948e92a0e5babf52c6d9bae1810a0ec"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_diarization.py",
+      "bytes": 11525,
+      "sha256": "30a584ee95c0c38c1298209a5115845333b4729da6083c191c4e22fc1863a58c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_execution_permit.py",
+      "bytes": 15149,
+      "sha256": "8a20d179fa61e49407b161a9a6a415d6a82b823b32253a49381e2a5a84be3c75"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_lexical_alternatives.py",
+      "bytes": 13601,
+      "sha256": "d7bc20ffb8d6e7d4f264b00822538a302704869abb6fe1f9f85177f801915d2b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_overlap_api.py",
+      "bytes": 4062,
+      "sha256": "240094ffdd015fc99a411ca252bca7604b22dba8c0ff66400a27f8c72a18832a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cell_capture.py",
+      "bytes": 31638,
+      "sha256": "62230616154d86200a9d35ac6421cedd974bd33d764d823602726c292018378a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cell_jobs.py",
+      "bytes": 37833,
+      "sha256": "c6515a0fe116ac2933419ab75bd72e47cf6f7f6669de13b3215ab0b91c84914a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cell_list_authority.py",
+      "bytes": 21340,
+      "sha256": "497ab9d6c68d3ca98517da5d68d99db9494137e014f0667a621cf88664774850"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cell_pagination.py",
+      "bytes": 12909,
+      "sha256": "56198cf38c43d7bd0c8e01d8b1587125402ca405a6a5519e20c1ea028053c4ea"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cell_publish_scope.py",
+      "bytes": 7629,
+      "sha256": "6ec06b252ee00e0a39086edcc35496a08c61d3f6da07cfb3d5b7ccbaa3efe186"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cell_store.py",
+      "bytes": 41002,
+      "sha256": "81d43404ccbf567a058d98ba1b335d228d89209ead5ec046da885249eadf1251"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_cells.py",
+      "bytes": 12717,
+      "sha256": "f83ef67e1b658265d4c3dcbfbee296a6973cd913480d8e3a4099310f135a24d0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_compact_gc.py",
+      "bytes": 49180,
+      "sha256": "e8144018947e812ef65c11356d15679c35b81a00d595e8544b5bd34a40841d0d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_receipt_gc.py",
+      "bytes": 62025,
+      "sha256": "c1876cc4a7e632dc04c2a86e90f8718491166f30d939cb25e735fdc2b702f7ee"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_seam_cells.py",
+      "bytes": 21126,
+      "sha256": "6604c4d6739f5063e1f634b934b12cb3654bf980f9579302212f27a31bf359ed"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_support.py",
+      "bytes": 27544,
+      "sha256": "ea30d72aa6740bfa75d37413819621033a327ffe98a5ff8a4c992df708c929ba"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_support_api.py",
+      "bytes": 20502,
+      "sha256": "656b7e0a390d5c3b1d3e638a00fc84c667b109b7563be515e52b3c086bba4a66"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_owned_support_cache.py",
+      "bytes": 40968,
+      "sha256": "6038bc62dd762e05bc876501e429a66c2283d01dec632b91d3cd8fce9c06550b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_root_reattestation.py",
+      "bytes": 28683,
+      "sha256": "ed3137d6343a8f054019374ee7fc728e0b8a57b13df0148e662ad0669ff247cc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_sample_cut.py",
+      "bytes": 12128,
+      "sha256": "7076a5c3537f812174a993ad73b3e8b577afc5b47612ac9932e839e86ec68aba"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_scheduling.py",
+      "bytes": 5004,
+      "sha256": "ca8f9176923139dcd7802c5c4eab461c8a7eb328ff8688921e8b2ada165f34a3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_native_setup.py",
+      "bytes": 1210,
+      "sha256": "e6844bbf0df3dd1473bfe4cf4fbf46e07963a674cdd16e2f2b29184daa27542f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_optional_retention.py",
+      "bytes": 37958,
+      "sha256": "4d6a6c2d3d9a70ab1e983dd8fdfeaea2950cbf373c770da0aaf9aabe59f6a534"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_optional_running_sample_busy.py",
+      "bytes": 22772,
+      "sha256": "e32fdde1f30d729bd4d615d284328f205207ef54545da19721ca461499b7b124"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_diagnostics.py",
+      "bytes": 28803,
+      "sha256": "9936a4f0377b36ba623bd824a242a0e4c5541d699764041bc7c9174c723d50ac"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_ownership.py",
+      "bytes": 11570,
+      "sha256": "d453108435fad81eb3fd88e0f6046d22e669b9f06b479cd5c3ddc05387020a21"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_public_contract.py",
+      "bytes": 8333,
+      "sha256": "4241f64d6c086bb4c074e5e6187c04208dd56e7ceb74ae91776b8ff3e47c7915"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_readiness.py",
+      "bytes": 2394,
+      "sha256": "1d7d78be92d794b4d6e334960c011f717c14455a61f51f9d855b3de608eb1e11"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_sources.py",
+      "bytes": 2833,
+      "sha256": "ffb81e80f6d70019c4d2d21f120b507bb4a94db0aaf61c13fba4671b71d1a15c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_store.py",
+      "bytes": 9432,
+      "sha256": "613f8fe25344c9b8a4de34982e1cd91630c2cdd60d6b1d459dc92dd066321187"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_overlap_transcript_metrics.py",
+      "bytes": 2194,
+      "sha256": "ca0ef500f64b54e104be166488c599461e9ce2724a22ef3330643ea1bac28ffd"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_package_privacy.py",
+      "bytes": 12108,
+      "sha256": "81a70086b766748e136b5b5223793eba80567fd5e01af6895e41139e93acf820"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_positive_event_seams.py",
+      "bytes": 12983,
+      "sha256": "25ea22f358de4f54fe9c3b9d59f26fc9aff0decb57c246c24eb13286b22f24f5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_prepare_moss_td_cpp.py",
+      "bytes": 13458,
+      "sha256": "c7999330c962696b2a54de43cdc723ef65cc887daeb47525c4cb8a742fda4c23"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_cache_retirement.py",
+      "bytes": 60981,
+      "sha256": "1df18f3f73165d3a31932f49b6057956f3ef4ac64d1388adf54c401deab097a4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_cache_retirement_pipeline.py",
+      "bytes": 30025,
+      "sha256": "7f7f4ebf21c9eec48e0d547ea69cbf659b011ddbe39842ae332b3171fdad6159"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_commit_admission.py",
+      "bytes": 5204,
+      "sha256": "487ae239ce6a0198aa57ecf5c2c2f0ac336f7738baa628c1f9c1c8f436b199c2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_crop_support.py",
+      "bytes": 14767,
+      "sha256": "556f664a7885573af04b64fc5cc14d3a6fb04c5db1554a3d63a0f4a21d9d9abc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_history_abstention.py",
+      "bytes": 8846,
+      "sha256": "5619b9bba4da9953cab6e95a9e7a27104b1497888a5f74ce562c5124059eda08"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_history_admission_boundaries.py",
+      "bytes": 7727,
+      "sha256": "1c522a43858ed3b4af42b84feadbdb16801800bb81e655be410b529e4cc5bb78"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_history_recovery_stage2.py",
+      "bytes": 11750,
+      "sha256": "b13e3297138566115664793b713958e6b1df616593fb4a861eefa07094d8e175"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_history_startup_app.py",
+      "bytes": 15991,
+      "sha256": "ce86efd3eafead85bd5ed57c233148fa522e15fb534ab9e4b87b31fc6f148db0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_history_startup_recovery.py",
+      "bytes": 9966,
+      "sha256": "f15e12b6e925e3bd3d900e249c50a7b47080fc3f330b0504c11568e8d1fdfc3c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_live_window_sampling.py",
+      "bytes": 14080,
+      "sha256": "134513dc2537850df5b1db62db66ced64cfd96ea65235b1e39d00902e4ac0210"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_observation_diagnostic.py",
+      "bytes": 14177,
+      "sha256": "a440b0202b0727af5fab0f389586bb546a0d9e324bc6b8bcbc831cfbeb9a32f6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_only_configuration.py",
+      "bytes": 26435,
+      "sha256": "8760f53c80539448f12a588d30b76efe1e9d5e29d043c9687a69577c0f1d52cf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_only_pipeline.py",
+      "bytes": 32546,
+      "sha256": "89b8db3c0742b1c1ffdab3ae1f5127841bae5434891645329621c5534ab58901"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_before_input_integration.py",
+      "bytes": 19205,
+      "sha256": "9292d63e1e465c30321528b7221e9eb024f583294f2082bbe9715fa14a555c71"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_census_coordination_candidate.py",
+      "bytes": 52972,
+      "sha256": "a9c56be68aa4494708a847fdbd8126150f0cb0f2124f701353fde4d6bb625ab7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_read_defer.py",
+      "bytes": 19680,
+      "sha256": "b8ee9bba142bd3f293b148b748b78ae8666aca88652787808a5cd8623f339b89"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_reservation_fingerprint.py",
+      "bytes": 29748,
+      "sha256": "418922505875b51b5bd957e97bf92f52c59a006df62b246ab8b2de4cebc36af4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_running_integration.py",
+      "bytes": 15929,
+      "sha256": "ea027745a7872043e4efc8f9ed5f743320da2904ef198785496d001493c446fe"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_sampling_diagnostic.py",
+      "bytes": 17564,
+      "sha256": "cfe3172102637b6a8a22e3bb90e18ec127c451e074d7d6736797c12ac37421bf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_start_phase_candidate.py",
+      "bytes": 11514,
+      "sha256": "c1555f0cdb4e8b14ffd70ef91aaee61430dfe1575a670b7442226ba7d169b898"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_start_phase_integration.py",
+      "bytes": 19749,
+      "sha256": "7bcce453db449232f078607d4aeb7b60a99a7348f06efc3bb631b47ae124d432"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_probe_storage_reconcile.py",
+      "bytes": 22035,
+      "sha256": "e99f2763769434ac0137ec0e994bc5c3a6bae47e2dc1fb52dcad3de5ce440917"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_rss_exit.py",
+      "bytes": 14734,
+      "sha256": "2fa0f6e2cd1e3c88e666ee3fd6e844351fa06b6090e624b17333ae857138bf2f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_sampling_installed_smoke.py",
+      "bytes": 12949,
+      "sha256": "8750546f039fe7affc146cc2a6065af0976a6818679edfd041fc789679342655"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_sampling_recovery.py",
+      "bytes": 17415,
+      "sha256": "1e7fe6124e3334383f7e14fab9dbad9c94d04ca2e5ad7356836e2f37fe396cd2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_voice_references.py",
+      "bytes": 48737,
+      "sha256": "f3db671a2cc487aef0a6a6c39d26178c5bf7e100b9893a3ee7cdf2bc882fd245"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_voice_references_installed_smoke.py",
+      "bytes": 11382,
+      "sha256": "66e010c8a63e2d673f17ba6e5dcd2b313c453c83d39d7298386c28608dc3cc51"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_primary_voice_references_old_startup.py",
+      "bytes": 6887,
+      "sha256": "8f6cded6eae51c182198eaf655e9ef7066cd40bc46fa4bfe80e86226ab81f237"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_process_lifecycle.py",
+      "bytes": 7367,
+      "sha256": "ea478ddfd8c46d38f74cae0755264cd0cdc0aa539bdb81fce585a653c00dd950"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_public_history.py",
+      "bytes": 11705,
+      "sha256": "3b43527f1e71c3da9d083c3f8b3e3532f34700454d525c7ce5ce3866d1ad4f34"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_punctuation_boundary.py",
+      "bytes": 2709,
+      "sha256": "75d511aafb697ddb64ad137de48bc92e50ac4564091f0753ef3e34e7a16b0a96"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_queue_scaling.py",
+      "bytes": 1541,
+      "sha256": "8892b74e06e99a5fe692f465f73965a006f3033ba3fbb1170c001ee238c308df"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_qwen_candidate_store.py",
+      "bytes": 31360,
+      "sha256": "8b83ffa1aa9c10963026694c3177b423f8f295a25dad388c7e6dd0dfcf8e556a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_qwen_candidates.py",
+      "bytes": 18287,
+      "sha256": "03441303a06d214bfe4cefc5d5076ccd1438a1328d181ef63d8d9e64a2a96553"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_qwen_profiles.py",
+      "bytes": 28155,
+      "sha256": "bac88a493188e4be4c232c44d1dc1295038adc2b199de4cf3466b022b555513c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_qwen_recovery.py",
+      "bytes": 10254,
+      "sha256": "38a3e86106fae95467e5cd67fde220ae8de2e6afec087d7f24bcfceab650f8a2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_overlap.py",
+      "bytes": 52631,
+      "sha256": "9a8e019873c006943eaa7a7735b1026caace078f871dfe1a66e1b914154cd71c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_pages.py",
+      "bytes": 99248,
+      "sha256": "0de1b7240eda84db365ed5939f5c407e4668df04c7ab6d3b7d7dc1bdd01c6b16"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_pages_hour.py",
+      "bytes": 5308,
+      "sha256": "52b7d995ba530b0cef8a506db06bb04d93513513205a956c80b40255f8def4a0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_link_transcript.py",
+      "bytes": 26618,
+      "sha256": "10412944b29f193d946413b54a0df3863aea13d5b087cbf321313bfd9ae38fa8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_pipeline.py",
+      "bytes": 17938,
+      "sha256": "281deae1640eddbbe3deb0f024caf8aa433318fd31ffce98d104322de222c607"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_probe.py",
+      "bytes": 12165,
+      "sha256": "d36b98fac36943355542bd9020ddbaca6ea7285ee6c6160f6ac1627e21beb80f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_probe_pipeline.py",
+      "bytes": 49477,
+      "sha256": "832bd4ff55f11f05c4c21bc2ef38ba647620f6434e0df99f998a29913698dbf3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_probe_store.py",
+      "bytes": 5046,
+      "sha256": "c75377c5bee6274a08441b6845f52717c728b6ff361c943fe3230d0e941f408c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_provenance.py",
+      "bytes": 22860,
+      "sha256": "2199bb0a8d5789af8310bce688c42f7ece9b1b4e383f2c12461c8570a0dd41fb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_primary_sizing.py",
+      "bytes": 20614,
+      "sha256": "445cfceaa1270f5c44aba7d45ff2b4d07a019ddc78a7d2ee4f291e2ae357d5d8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_history.py",
+      "bytes": 118427,
+      "sha256": "f86fe73477a23fdec621fa1aaafe5277502cdb88721d11dd4d736e1f8672d7ea"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_history_compare.py",
+      "bytes": 32051,
+      "sha256": "a6daa6953d41b85aad7ec3b4568c7014e6ad0e7b2d30d46b24e1dfd1b4a3f292"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_history_integration.py",
+      "bytes": 124726,
+      "sha256": "c06a893a32d5a7ba950e87896b3ac9ed5c51ca6e8e74b5db673f8b537ebaa76c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_history_process.py",
+      "bytes": 46725,
+      "sha256": "7aadae9c76ee5f967c05d2b49183b033b7759cb510bea4a41908d4e149b33c7b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_link_store.py",
+      "bytes": 70409,
+      "sha256": "952dc7f83090233e6c017244f175217b524d5372736383fe93edbfcb3d3c1d9e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_links.py",
+      "bytes": 18038,
+      "sha256": "a57c9f18f9577b0488fc03a6cb5e9be7784f95abf6dcd989e14a32ae1cb2b3f8"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_links_v2.py",
+      "bytes": 24510,
+      "sha256": "08e269974f4adc671f5fa89131653001b3ae58b5842c7b6094aceb4d8492a1e0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_links_v3.py",
+      "bytes": 22061,
+      "sha256": "4ff2e12df73a329d035400d4ac87359cd89186e1a4f28eb44460abf70ba4a32c"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_speaker_probe_lifecycle.py",
+      "bytes": 26186,
+      "sha256": "6dc439c943ce000f3ea19316bf3fe687c0222581b682dc3cb5cf4999f97fd37b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_recording_uploader.py",
+      "bytes": 98213,
+      "sha256": "092f3a75e351e5a271ac43d02a90fb5b8e386b53873e993a970fffcc058b4755"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_redundant_comparison_pause_candidate.py",
+      "bytes": 18221,
+      "sha256": "42338c4a1718fc9fa13707b617c49209b4e849b43218866a40cbf71478aac050"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reset_replay_core_seams.py",
+      "bytes": 28211,
+      "sha256": "1f451d683cde2b5be8feebb2d93bd5521df941786371780255d6f30b966877b6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_restart_replay_core_seams.py",
+      "bytes": 25751,
+      "sha256": "5ed1772f17f8a46a8a52284792a55d9812505043e2b219190b017adc1626aed5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewable_support.py",
+      "bytes": 33690,
+      "sha256": "2669697aea922b1adae473217bae19b73cf1a708b66c3d4371875ac950366a59"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewed_primary_persons.py",
+      "bytes": 52302,
+      "sha256": "fbcb460cf721af2c6b29a3cad4d87d6e4e1ed0fdefcebc3e0dffc8b398a48522"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewed_primary_persons_http.py",
+      "bytes": 7035,
+      "sha256": "6f9976f4eadb580371ee43aef7579ae0bb025319d3876c650ac6a840e9c0a4bb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewed_primary_persons_installed_smoke.py",
+      "bytes": 5517,
+      "sha256": "1ceaacc85730d6258cc934c5aea8f1ee97bceb728b901e19af5c0ed6db7a01ca"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewed_primary_persons_old_startup.py",
+      "bytes": 6399,
+      "sha256": "b658a1aed5bc377c74c0cb43bf5032e1cec45ddb0f962b1748374ab2276762f1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewed_primary_persons_preflight.py",
+      "bytes": 6982,
+      "sha256": "e9e15919d869dede418062384b9a56554cad002b94d03e2b5e1e5cc4e41a03ec"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_reviewed_primary_persons_resources.py",
+      "bytes": 15937,
+      "sha256": "70255c893a0a004cd72d77532567f168275ab55adcca0087401c5cbc41b254d9"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_same_epoch_core_seams.py",
+      "bytes": 32459,
+      "sha256": "b471ecd2842249ba8b12b5bded8bb31ea13b7e6b5b59e2ce490b012d87cc3a41"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_scheduled_identity_review.py",
+      "bytes": 3283,
+      "sha256": "a73fca856f4f459342a1c8074d252f3cc3dd45d44b07d80d66c372a0a4326cf2"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_seam_tail_continuity.py",
+      "bytes": 22209,
+      "sha256": "90c14ea29a0da536f9601879b3c9ae87fc193ef8acdc26dc888f742b645a78e4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_speaker_calibration_profile.py",
+      "bytes": 2348,
+      "sha256": "4937ca2b3ef3dab5633bdd438c135d7160f802ba7ee6bdd28d6968ad8a8d463a"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_speaker_clean_mask.py",
+      "bytes": 1068,
+      "sha256": "bb99c8e0b9bc08818e8498ac7e441deab29a56a689e596c4d2657a20e65b7df5"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_speaker_evidence.py",
+      "bytes": 9251,
+      "sha256": "420b1c92cced8a6112b0d1a9d94e5c25fe65ed6cc139d1840b431ed36359d7ea"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_speaker_probe_maintenance.py",
+      "bytes": 13100,
+      "sha256": "6e67f72e2e8a7aec81ea45d2ab7b2b92e26753de8f6005d95a62f6dfc1fbe883"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_speaker_support_lineage.py",
+      "bytes": 5702,
+      "sha256": "8e94cc35e5542763be25c493796024ef2995b366bde7dae9be4ad23d89def4d0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_staged_stream_visibility.py",
+      "bytes": 14488,
+      "sha256": "8180ac549ca6106b641d1af27ec5e18e389f3ad4e9064ed0f812b92d83dbff11"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_stream_api_contract.py",
+      "bytes": 6757,
+      "sha256": "da633ed692cbdd1508856c63acca87d010b8bed1e5e9e8498e1cd84deeeaaafa"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_stream_boundaries.py",
+      "bytes": 3592,
+      "sha256": "96b841c1e6263cb2608362933cb5afa1f3b59e06bb4b911d86661fabbbd9b40e"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_stream_time_index.py",
+      "bytes": 5090,
+      "sha256": "dc859a19ba56bfbba9ec1a9b6a7522c104c2523944d527e983c9541157ed7fc0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_components.py",
+      "bytes": 27506,
+      "sha256": "cde771001edb5af96976fcc49030bdeddc39992eca4aad677e7d79ee443918e3"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_http.py",
+      "bytes": 30058,
+      "sha256": "8d559f2b75393fc40b162592a647e3e9c952038eeb4b813d1d86dcb85c7f66e0"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_indexed.py",
+      "bytes": 19579,
+      "sha256": "2ab65b66c5056f6f299d328c78f59084efa0ea5629e907ff1d2862413be3ebd7"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_lexical_projection.py",
+      "bytes": 44477,
+      "sha256": "b17b9bca197a7d372e181620ecf5179eb768b1baea256afcc4a731acb07a5574"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_projection.py",
+      "bytes": 21030,
+      "sha256": "d167e1082310a3e1d596fc832547ceb6ebd39ccf6f366bd799c63932088410b6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_read_contention.py",
+      "bytes": 10505,
+      "sha256": "476d2289dda244573e7fb2bebc48cca59afae8e3f323c30849ea0459136c46cf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_transcript_source_roots.py",
+      "bytes": 12907,
+      "sha256": "6ca31fb3214faa1a7e8955b471f3ea210a82da28b008cd4244ec91645b96c477"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_two_upload_reset.py",
+      "bytes": 15719,
+      "sha256": "533a874078fe2d8fed23ca28eed50a6409ab3cf8fffdd0b3a58d851455a0fd81"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_bank.py",
+      "bytes": 11827,
+      "sha256": "8223e11953581a5d466d30099c1137ccfd237e5930b9baa53d92995dfac3bf52"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_canonical.py",
+      "bytes": 19170,
+      "sha256": "8754fbef48f40f4f96a8dd40222a7345c46617e877819dc61f007a430586ae91"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_integrity.py",
+      "bytes": 6266,
+      "sha256": "218b42a68307a866167f8f291b8721d3a6baa29cf47d1b81b2d44a9b21a486d1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_lifecycle.py",
+      "bytes": 38103,
+      "sha256": "1681ea70c91006b263afc520834045b0769b870ae280f987e0c05c623674e577"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_matching.py",
+      "bytes": 10046,
+      "sha256": "9f952c4cdc1578e304217f01d31e05f6293a00b6eace65392411fe7b95630891"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_overlap_guard.py",
+      "bytes": 8145,
+      "sha256": "1a7e26f88f937ade59a298f60d637d7834d11ef056cfdd076d4ada7d0e84f6cc"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_verified_identity_projection.py",
+      "bytes": 8572,
+      "sha256": "19a0618842099946c15c1fe36f86327aec02d90aeaa89b829ffc70bcd1607e61"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_whisper_unicode_pipeline.py",
+      "bytes": 3107,
+      "sha256": "c2ec80999cdd32bc20199439592de5e97ae92e1a42c8b09bda9eddfacc43df9d"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_worker_claim_busy.py",
+      "bytes": 9021,
+      "sha256": "c6ae4ed8d034d4405bfe1bdd38038e2222ebbdbc2b6d42eb0e8167feb16a57e4"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tests/test_worker_terminal_release_ordering.py",
+      "bytes": 13764,
+      "sha256": "e1d09d7ea3a6ae117933c5f55066ec822e623c2affe4f06427e780f88d377b42"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/check_saved.py",
+      "bytes": 66061,
+      "sha256": "5fb79b56ab5e3336214b6becad0cf70a97593a7d24c25745f46f9459bc665ecf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/fixed_trial.py",
+      "bytes": 102617,
+      "sha256": "a38fa53721c2ceefca8adb433bac9a9182776ba55eeaf1196de7426c4897d71b"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/resume_guard.py",
+      "bytes": 1945,
+      "sha256": "9d1dfdd29d5af8bceea23e28eb5fb210d80eb4603243faa7747e2352e5549292"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/sampling_evidence.py",
+      "bytes": 5155,
+      "sha256": "f0e2df3c40e1e637d84ae1526f49016d7639eda0362c8c0f9ce364962d05b9c1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/seal_resume.py",
+      "bytes": 2483,
+      "sha256": "14885800e0b90684eb6699fc414f3226975453064e874cc21b28c17b5987d598"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/test_controls.py",
+      "bytes": 2482,
+      "sha256": "bbcbf01cfd4ca50d00fbaeb3c4fd753165e40a08a12b167eec8765e44d9cecd6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/test_monitor_resume.py",
+      "bytes": 4025,
+      "sha256": "2dbcf622aeab341f054cd2b13735cb61d3a57c2f74bb15dcca4edae8f1a72c50"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/test_resume_controls.py",
+      "bytes": 2999,
+      "sha256": "772be2c8b4e8f04000bc94ea485933965b725fb642edad22e358db5c06436beb"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/corrected_resume/test_terminal_grace.py",
+      "bytes": 3359,
+      "sha256": "2fc08284500f48e996f9d79c57777881e1315eb95a3829f3d9e74806befcf45f"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/original/check_saved.py",
+      "bytes": 66061,
+      "sha256": "5fb79b56ab5e3336214b6becad0cf70a97593a7d24c25745f46f9459bc665ecf"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/original/fixed_trial.py",
+      "bytes": 96962,
+      "sha256": "10422712e6061635e663179fcac77e2d123a09109dd7d1ea420bd37936a40a99"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/original/sampling_evidence.py",
+      "bytes": 5155,
+      "sha256": "f0e2df3c40e1e637d84ae1526f49016d7639eda0362c8c0f9ce364962d05b9c1"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/original/test_controls.py",
+      "bytes": 2482,
+      "sha256": "bbcbf01cfd4ca50d00fbaeb3c4fd753165e40a08a12b167eec8765e44d9cecd6"
+    },
+    {
+      "path": "audio-crop-policy-candidate-rev02-20261022/tools/dev63_ami_v2_operations/original/test_monitor_resume.py",
+      "bytes": 3965,
+      "sha256": "3860407d3c1b58acbbace7887f1a1e46cb8ed2d9ddc04c24761348e62acc4b4a"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv",
+      "bytes": 14675,
+      "sha256": "cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+      "bytes": 91932865,
+      "sha256": "e61bdfaab92b48bc51209c0da91621fb8d89d1564bb5bb38be6e4a4380c1ed34"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libatomic.so.1",
+      "bytes": 30968,
+      "sha256": "2bd070e46f561a6ff36e4e358f5b0eaf04fdbe37992db38223b13c760a4721ab"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libgcc_s.so.1",
+      "bytes": 104984,
+      "sha256": "489803ded8a4d803e2c792763a2767c12185f5764b7bba080742d14ef2452b27"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-base.so",
+      "bytes": 863168,
+      "sha256": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-base.so.0",
+      "bytes": 863168,
+      "sha256": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-base.so.0.25.1",
+      "bytes": 863168,
+      "sha256": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-cpu.so",
+      "bytes": 1186072,
+      "sha256": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-cpu.so.0",
+      "bytes": 1186072,
+      "sha256": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml-cpu.so.0.25.1",
+      "bytes": 1186072,
+      "sha256": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml.so",
+      "bytes": 47864,
+      "sha256": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml.so.0",
+      "bytes": 47864,
+      "sha256": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libggml.so.0.25.1",
+      "bytes": 47864,
+      "sha256": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libgomp.so.1",
+      "bytes": 265856,
+      "sha256": "98b21ff32bb07b53f1fb266d887d2db0086ea66c8ad03696a1db53f65321cd94"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libllama.so",
+      "bytes": 3865744,
+      "sha256": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libllama.so.0",
+      "bytes": 3865744,
+      "sha256": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libllama.so.0.5.0",
+      "bytes": 3865744,
+      "sha256": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr.so",
+      "bytes": 2265256,
+      "sha256": "596c0e0dd3da78e959e850ed3e90911524a6051d8f4405324d70a570c427e246"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr_c.so",
+      "bytes": 68208,
+      "sha256": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr_c.so.1",
+      "bytes": 68208,
+      "sha256": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_nmt.so",
+      "bytes": 64520,
+      "sha256": "c05886ee5bbeec3e0f13c9544b60cafac3c14cb2fc403b84326cd1806ed29112"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_nmt_c.so",
+      "bytes": 22928,
+      "sha256": "b7c4a1e055084460fa614864bbf8bfb37a8c0c4636194abb8a0c61e430cc07ae"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_nmt_c.so.1",
+      "bytes": 22928,
+      "sha256": "b7c4a1e055084460fa614864bbf8bfb37a8c0c4636194abb8a0c61e430cc07ae"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_text_normalization.so",
+      "bytes": 3650200,
+      "sha256": "39c3d410a0481b0d58a1bb9d3d5a2cb5d7fb9250b3406a291b154cb34b2a0ebf"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_tts.so",
+      "bytes": 1114264,
+      "sha256": "799cde968a0bb97d98c8c78851fc5794ab7eda785d9631a1c6179403821bebce"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_tts.so.1",
+      "bytes": 1114264,
+      "sha256": "799cde968a0bb97d98c8c78851fc5794ab7eda785d9631a1c6179403821bebce"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libstdc++.so.6",
+      "bytes": 1956992,
+      "sha256": "26916e7389a561537a0510661fc75538cea236139346f3dbe21bc64ba65605bf"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/model.int8.onnx",
+      "bytes": 239233841,
+      "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/en.wav",
+      "bytes": 228908,
+      "sha256": "eb1eb008904465b74c304aad8342e8c7d3c6e61ffe9f66adcaca9cf0f76a93f4"
+    },
+    {
+      "path": "audio-model-restore-20261022/expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/tokens.txt",
+      "bytes": 315894,
+      "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+    },
+    {
+      "path": "audio-model-restore-20261022/models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+      "bytes": 107012128,
+      "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1"
+    },
+    {
+      "path": "audio-model-restore-20261022/models/sensevoice/UPSTREAM_MODEL_LICENSE",
+      "bytes": 5306,
+      "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8"
+    },
+    {
+      "path": "audio-model-restore-20261022/models/speaker.onnx",
+      "bytes": 39593761,
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+    },
+    {
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+      "bytes": 30894944,
+      "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+    }
+  ],
+  "layout": {
+    "speaker.onnx": "audio-model-restore-20261022/models/speaker.onnx",
+    "sensevoice/model.int8.onnx": "audio-model-restore-20261022/expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/model.int8.onnx",
+    "sensevoice/tokens.txt": "audio-model-restore-20261022/expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/tokens.txt",
+    "sensevoice/UPSTREAM_MODEL_LICENSE": "audio-model-restore-20261022/models/sensevoice/UPSTREAM_MODEL_LICENSE",
+    "sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx": "audio-model-restore-20261022/expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx",
+    "sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv": "audio-model-restore-20261022/expanded/events/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv"
+  },
+  "native_library": "audio-model-restore-20261022/expanded/native/nemo-speech-0.2.0-linux-x86_64-cpu/lib/libnemo_speech_asr_c.so",
+  "native_model": "audio-model-restore-20261022/models/native-diarization/Nemotron-3-Diarization.q8_0.gguf",
+  "wav": "audio-model-restore-20261022/expanded/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/test_wavs/en.wav",
+  "python_paths": [
+    "audio-crop-policy-candidate-rev02-20261022",
+    "audio-recovery-deps-20261022"
+  ],
+  "runner_pins": [
+    {
+      "path": "child.py",
+      "sha256": "3798ed7631c65e6852a07f1dead057328e78e5d24625c60d4fa6bea0e7370b89"
+    }
+  ],
+  "package_versions": {
+    "numpy": "2.3.5",
+    "soundfile": "0.14.0",
+    "sherpa-onnx": "1.13.8",
+    "sherpa-onnx-core": "1.13.8",
+    "psutil": "7.2.2"
+  }
+}

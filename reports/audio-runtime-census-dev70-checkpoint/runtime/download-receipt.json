@@ -1,0 +1,38 @@
+[
+  {
+    "id": "eres2net-base-zh-cn",
+    "bytes": 39593761,
+    "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+    "verified": true
+  },
+  {
+    "id": "zipformer-small-audioset",
+    "bytes": 111034072,
+    "sha256": "07e2fafcdcbc461f2816188d9b0bbafced12584030cf67d5652e549ef256a2c6",
+    "verified": true
+  },
+  {
+    "id": "sensevoice-small-int8",
+    "bytes": 163002883,
+    "sha256": "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+    "verified": true
+  },
+  {
+    "id": "sensevoice-model-license",
+    "bytes": 5306,
+    "sha256": "7dba975a2069691db4992b0592d70828b330d2f8a30a71450f4e152a554e84f8",
+    "verified": true
+  },
+  {
+    "id": "linux-x86_64-cpu",
+    "bytes": 6683477,
+    "sha256": "f396057150f1b774935c7414fd32ebc04195a795a34120d78d8c9ecefa1b7507",
+    "verified": true
+  },
+  {
+    "id": "nemotron3-q8",
+    "bytes": 107012128,
+    "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+    "verified": true
+  }
+]

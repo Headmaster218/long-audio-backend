@@ -1,0 +1,96 @@
+{
+  "status": "SMOKE_COMPLETED",
+  "input_frames": 114432,
+  "input_rate": 16000,
+  "input_seconds": 7.152,
+  "cpus": [
+    0,
+    1
+  ],
+  "analyzer_threads": 2,
+  "native_requested_threads": 4,
+  "native_push_completed": true,
+  "native_finish_completed": true,
+  "analyzer_returned": true,
+  "native_close_completed": true,
+  "analyzer_close_completed": true,
+  "accuracy_evaluated": false,
+  "native_turn_count": 1,
+  "segment_count": 2,
+  "event_count": 0,
+  "speaker_turn_count": 1,
+  "embedding_vector_count": 1,
+  "stage_seconds": {
+    "events": 2.241,
+    "diarization": 2.025,
+    "asr": 3.536
+  },
+  "asr_runtime": {
+    "provider": "cpu",
+    "model": "SenseVoiceSmall int8",
+    "timestamp_note": "CTC start anchors only; no native durations"
+  },
+  "embedding_space_status": "unavailable",
+  "silence_fast_path": false,
+  "native_provenance": {
+    "diarization_backend": "nemotron3-native",
+    "diarization_runtime": "NeMo-Speech.cpp",
+    "diarization_runtime_version": "0.2.0",
+    "diarization_library_sha256": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52",
+    "diarization_model_sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+    "diarization_model_license": "OpenMDW-1.1",
+    "diarization_model_license_url": "https://openmdw.ai/license/1-1/",
+    "diarization_preset": "v3-offline",
+    "diarization_geometry": {
+      "spkcache": 264,
+      "fifo": 0,
+      "chunk": 264,
+      "update_period": 188,
+      "left_context": 1,
+      "right_context": 1,
+      "frame_seconds": 0.08
+    },
+    "diarization_postprocessing": {
+      "onset": 0.641,
+      "offset": 0.561,
+      "pad_onset": 0.229,
+      "pad_offset": 0.079,
+      "min_duration_on": 0.511,
+      "min_duration_off": 0.296
+    },
+    "diarization_local_capacity": 8,
+    "diarization_epoch_input_cap_seconds": 30.0,
+    "diarization_morphology_guard_seconds": 2.0,
+    "diarization_global_identity": "separate ERes2Net evidence and identity registry",
+    "diarization_capacity_warning": "At most 8 distinct speakers in one epoch, including replay/context; not unlimited speakers.",
+    "diarization_native_requested_threads": 4,
+    "diarization_runtime_files_sha256": {
+      "libggml-base.so": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062",
+      "libggml-base.so.0": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062",
+      "libggml-base.so.0.25.1": "79c5512818e2a6936cdeba03b5d0ecaf1b27fb0671afff8f8d22a4d5903f1062",
+      "libggml-cpu.so": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019",
+      "libggml-cpu.so.0": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019",
+      "libggml-cpu.so.0.25.1": "468fa2631a621dd7d61118c3ddede6b75cf16f9d63c8602420c5a3a5e4570019",
+      "libggml.so": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4",
+      "libggml.so.0": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4",
+      "libggml.so.0.25.1": "dc4a83f10816da67ccbf0b108d03e8da090bfa52f8da2feffb81d900672560d4",
+      "libllama.so": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2",
+      "libllama.so.0": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2",
+      "libllama.so.0.5.0": "7fa0e98ff09bb87a3ecdf68d509de96d4014d54a7b89ee570f18084c99a3f5b2",
+      "libnemo_speech_asr.so": "596c0e0dd3da78e959e850ed3e90911524a6051d8f4405324d70a570c427e246",
+      "libnemo_speech_asr_c.so": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52",
+      "libnemo_speech_asr_c.so.1": "b16719ac6c8614e43a9bed224b21dd17b9bfb59b5215cc7fe29482712090dc52"
+    },
+    "diarization_fingerprint": "cb8dbb06ab40149393da4cc30458053915f8b9f0fc2897f9ac862fa40d35aefb"
+  },
+  "observed_model_coverage": {
+    "native_inference_completed": true,
+    "zipformer_events_returned": true,
+    "sensevoice_result_returned": true,
+    "eres2net_vectors_returned": true
+  },
+  "model_families_execution_proven_lower_bound": 4,
+  "zipformer_completed_call_count": 2,
+  "cleanup_errors": [],
+  "elapsed_seconds": 9.163853066999764
+}

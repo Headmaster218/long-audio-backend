@@ -1,0 +1,9 @@
+{
+  "distribution": "numpy",
+  "version": "2.5.3",
+  "filename": "numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+  "bytes": 16717410,
+  "sha256": "b7e18c623bb5c95acb3b3328861272816ba199fb531921c5d6d0b675f1fde9e3",
+  "source": "PyPI package registry",
+  "binary_included": false
+}

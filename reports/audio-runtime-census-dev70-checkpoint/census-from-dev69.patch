@@ -1,0 +1,1108 @@
+--- a/audio_backend/moss_handy_jobs.py
++++ b/audio_backend/moss_handy_jobs.py
+@@ -439,6 +439,23 @@
+         finally:owner._publication_guard.release()
+ 
+     def prepare_primary_copy(self, capture, chunk, offset, end, draft, owned_pcm):
++        from .trial_sampling_census import observe_active
++        try:
++            handle = self._prepare_primary_copy_with_census(capture, chunk, offset, end, draft, owned_pcm)
++        except BaseException:
++            observe_active('PREPARE_RESULT', {'component':'primary_copy', 'outcome':'exception'})
++            raise
++        # The original read transaction is now closed, including early returns.
++        # Absent handle causes remain UNKNOWN rather than manufactured reasons.
++        if handle is None:
++            observe_active('PREPARE_RESULT', {'component':'primary_copy', 'outcome':'absent', 'reason':'unknown'})
++        else:
++            observe_active('PREPARE_RESULT', {'component':'primary_copy', 'outcome':handle.get('state'),
++                           'reason':handle.get('reason'), 'recording_id':handle.get('recording_id'),
++                           'invocation_id':handle.get('invocation_id')})
++        return handle
++
++    def _prepare_primary_copy_with_census(self, capture, chunk, offset, end, draft, owned_pcm):
+         """One optional live copy; this method never writes the primary DB."""
+         if not self._history_enabled() or self.cell_source is None:return None
+         if self.history.primary_recovery_status!='ready':return None
+@@ -468,6 +485,9 @@
+             'append_binding':None, 'storage_retry_after':0.,
+             'invocation_id':uuid.uuid4().hex, 'failure_json':None, 'failure_frozen':False}
+         due = self.history.primary_due(chunk['session_id'],rid,frame)
++        from .trial_sampling_census import observe_active
++        observe_active('DUE_PRECHECK', {'due':due['due'], 'reason':due['reason'], 'frame':frame,
++                       'recording_id':rid, 'invocation_id':handle['invocation_id']})
+         if not due['due']:
+             handle['reason'] = due['reason']; return handle
+         handle['reason'] = 'insufficient_clean_support'
+--- a/audio_backend/native_owned_cell_capture.py
++++ b/audio_backend/native_owned_cell_capture.py
+@@ -1403,7 +1403,19 @@
+             raise
+ 
+     def prepare(self, chunk, native, offset, end, result, *, required=False):
++        from .trial_sampling_census import observe_active
++        try:
++            cells = self._prepare_with_census(chunk, native, offset, end, result, required=required)
++        except BaseException:
++            observe_active('PREPARE_RESULT', {'component':'native_capture', 'outcome':'exception'})
++            raise
++        observe_active('PREPARE_RESULT', {'component':'native_capture', 'outcome':'returned'})
++        return cells
++
++    def _prepare_with_census(self, chunk, native, offset, end, result, *, required=False):
++        from .trial_sampling_census import observe_active
+         if self.analyzer is None or native is None:
++            observe_active('PREPARE_RESULT', {'component':'native_capture', 'outcome':'absent', 'reason':'analyzer_or_native_absent'})
+             if required:raise Unavailable('automatic_capture_unavailable')
+             return ()
+         try:
+@@ -1432,6 +1444,8 @@
+                         _diagnostic_failure('seam_prepare', exc)
+                         # Optional composition must not discard already valid v1 cells.
+                         self.invalidate_seam(str(exc) if isinstance(exc, Unavailable) else 'seam_prepare_unavailable')
++            observe_active('PREPARE_RESULT', {'component':'native_provenance', 'outcome':'prepared',
++                           'commit_evidence_sha256':commit_hash})
+             # Optional identity copying has its own read/budget boundary. It is
+             # deliberately outside the required-primary Budget and exception
+             # boundary; no probe failure invalidates native capture or text.
+@@ -1441,10 +1455,16 @@
+                 if jobs is not None:
+                     result['_primary_probe_handle'] = jobs.prepare_primary_copy(
+                         self, chunk, offset, end, result.get('_primary_provenance'), original)
++                else:
++                    from .trial_sampling_census import observe_active
++                    observe_active('PREPARE_RESULT', {'component':'primary_copy', 'outcome':'absent', 'reason':'no_jobs'})
+             except Exception:
++                from .trial_sampling_census import observe_active
++                observe_active('PREPARE_RESULT', {'component':'primary_copy', 'outcome':'exception', 'reason':'swallowed_exception'})
+                 result.pop('_primary_probe_handle', None)
+             return cells
+         except Exception as exc:
++            observe_active('PREPARE_RESULT', {'component':'native_capture', 'outcome':'failure', 'reason':'capture_unavailable'})
+             self._failure(exc)
+             if required or self.primary_only and isinstance(exc, sqlite3.Error):raise
+             return ()
+--- /dev/null
++++ b/audio_backend/trial_sampling_census.py
+@@ -0,0 +1,479 @@
++"""Bounded trial observer transport, NOT an integrated completeness proof.
++
++Stage 1 intentionally has no production hook or COMPLETE seal. Its observations
++cannot grant sampling/identity authority. A collector must stop on unhealthy,
++then positively stop the product before inspecting the preserved sidecar.
++"""
++from __future__ import annotations
++
++import contextvars
++try:
++    import fcntl
++except ImportError:  # Optional transport must not make default Worker imports platform-specific.
++    fcntl = None
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import stat
++import threading
++
++MAX_BYTES = 16 * 1024 * 1024
++RESERVE_BYTES = 1024 * 1024
++MAX_EVENTS = 8192
++MAX_WINDOWS = 2048
++MAX_EVENT_BYTES = 1536
++MAX_MANIFEST_BYTES = 65536
++_HEX = re.compile(r'^[0-9a-f]{64}$')
++_MANIFEST_HASHES = frozenset(('source_sha256', 'source_tree_sha256',
++    'source_snapshot_sha256', 'runtime_sha256', 'model_manifest_sha256',
++    'sampling_policy_sha256', 'observer_sha256'))
++_MANIFEST_INTS = frozenset(('source_frames', 'origin_frame', 'start_frame',
++    'end_frame', 'interval_frames'))
++_PHASES = frozenset(('WINDOW_BEGIN', 'PREPARE_RESULT', 'DUE_PRECHECK',
++    'COMMIT_INTENT', 'COMMIT_ACK', 'CALLBACK_RESULT', 'DECISION_INTENT',
++    'DECISION_ACK', 'TERMINAL_RESULT', 'RECOVERY_RESULT'))
++_FIELDS = frozenset(('component', 'session_id', 'chunk_id', 'recording_id',
++    'origin_frame', 'commit_evidence_sha256', 'outcome', 'reason', 'due', 'transaction_due', 'frame',
++    'local_start', 'local_end', 'logical_start', 'logical_end',
++    'source_revision', 'history_revision', 'high_water', 'last_claim_frame',
++    'bootstrap_count', 'last_bucket', 'examined_bucket', 'examined_count',
++    'packet_sha256', 'node_sha256', 'mapping_sha256', 'reservation_token',
++    'invocation_id', 'exception_class'))
++
++
++def _encoded(value):
++    return json.dumps(value, sort_keys=True, separators=(',', ':'),
++                      ensure_ascii=True, allow_nan=False).encode('ascii')
++
++
++def _sha(value):
++    return hashlib.sha256(value).hexdigest()
++
++
++def capture_fields(fields):
++    """Copy a bounded scalar observation in memory; no I/O or DB reads.
++
++    The caller must invoke this on values from its ORIGINAL transaction and
++    append only after that transaction returns. This helper does not itself
++    enforce a transaction boundary or establish the values' provenance.
++    """
++    if type(fields) is not dict or len(fields) > len(_FIELDS):
++        raise ValueError('fields')
++    result = {}
++    for key, value in fields.items():
++        if type(key) is not str or key not in _FIELDS:
++            raise ValueError('field_name')
++        if value is None or type(value) is bool:
++            pass
++        elif type(value) is int:
++            if not -(2**63) <= value < 2**63:raise ValueError('integer')
++        elif type(value) is str:
++            if len(value) > 96 or not value.isascii():raise ValueError('text')
++        else:raise ValueError('scalar')
++        result[key] = value
++    if len(_encoded(result)) > 1024:raise ValueError('fields_bytes')
++    return result
++
++
++class CensusError(RuntimeError):
++    pass
++
++
++class TrialCensus:
++    """Single-process/single-writer append sink in a NEW, exclusive directory.
++
++    A failed write may leave a partial tail: never truncate/retry/reopen it.
++    Restart append is deliberately unsupported in stage 1. `inspect` may read
++    old evidence, but never authorizes resumption or completes missing events.
++    """
++    def __init__(self, directory, *, run_id, epoch, manifest,
++                 event_limit=MAX_EVENTS, window_limit=MAX_WINDOWS):
++        self._creator_pid = os.getpid()
++        if (fcntl is None or not hasattr(os, 'posix_fallocate')
++                or not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY')):
++            raise CensusError('unsupported_observer_platform')
++        if (type(run_id) is not str or not _HEX.fullmatch(run_id)
++                or type(epoch) is not int or not 0 <= epoch < 2**31
++                or type(event_limit) is not int or not 1 <= event_limit <= MAX_EVENTS
++                or type(window_limit) is not int or not 1 <= window_limit <= MAX_WINDOWS
++                or type(manifest) is not dict):
++            raise ValueError('census_configuration')
++        if set(manifest) != _MANIFEST_HASHES | _MANIFEST_INTS | {'sampling_policy'}:
++            raise ValueError('manifest_fields')
++        for key in _MANIFEST_HASHES:
++            if type(manifest[key]) is not str or not _HEX.fullmatch(manifest[key]):
++                raise ValueError('manifest_hash')
++        for key in _MANIFEST_INTS:
++            if type(manifest[key]) is not int or not 0 <= manifest[key] < 2**63:
++                raise ValueError('manifest_integer')
++        if (not manifest['interval_frames']
++                or not 0 <= manifest['start_frame'] < manifest['end_frame'] <= manifest['source_frames']
++                or type(manifest['sampling_policy']) is not str
++                or not 1 <= len(manifest['sampling_policy']) <= 96
++                or not manifest['sampling_policy'].isascii()):
++            raise ValueError('manifest_geometry_policy')
++        if manifest['observer_sha256'] != _sha(Path(__file__).read_bytes()):
++            raise ValueError('observer_source_mismatch')
++        envelope = {'schema_version': 1, 'stage': 'UNQUALIFIED_STAGE1',
++                    'run_id': run_id, 'epoch': epoch, 'creator_pid': self._creator_pid, 'identity': manifest,
++                    'caps': {'bytes': MAX_BYTES, 'reserve_bytes': RESERVE_BYTES,
++                             'events': event_limit, 'windows': window_limit,
++                             'event_bytes': MAX_EVENT_BYTES}}
++        raw = _encoded(envelope)
++        if len(raw) > MAX_MANIFEST_BYTES:raise ValueError('manifest_size')
++        self.directory = Path(directory)
++        self.run_id, self.epoch = run_id, epoch
++        self.event_limit, self.window_limit = event_limit, window_limit
++        self._mutex = threading.Lock()
++        self._seq, self._prev = 0, '0' * 64
++        self._windows = set()
++        self._healthy, self._failure, self._closed = True, None, False
++        self._fds, self._identities = {}, {}
++        self._event_bytes = 0
++        self._manifest_sha = _sha(raw)
++        self.directory.mkdir(mode=0o700, parents=False, exist_ok=False)
++        self._dir_identity = self._identity(self.directory.lstat())
++        try:
++            for name in ('owner', 'manifest.json', 'events.jsonl', 'terminal.reserve'):
++                fd = os.open(self.directory / name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
++                self._fds[name] = fd
++                self._identities[name] = self._identity(os.fstat(fd))
++            fcntl.flock(self._fds['owner'], fcntl.LOCK_EX | fcntl.LOCK_NB)
++            self._write_all(self._fds['manifest.json'], raw)
++            os.fsync(self._fds['manifest.json'])
++            # Real allocation, not a sparse promise of future terminal space.
++            os.posix_fallocate(self._fds['terminal.reserve'], 0, RESERVE_BYTES)
++            os.fsync(self._fds['terminal.reserve'])
++            self._sync_directory()
++            self._sync_parent_directory()
++            self._check_files()
++        except BaseException:
++            self._healthy, self._failure = False, 'initialization_failed'
++            self._close_fds()
++            raise
++
++    @staticmethod
++    def _identity(st):return st.st_dev, st.st_ino
++
++    @staticmethod
++    def _write_all(fd, raw):
++        offset = 0
++        while offset < len(raw):
++            wrote = os.write(fd, memoryview(raw)[offset:])
++            if wrote <= 0:raise OSError('short_write')
++            offset += wrote
++
++    def _sync_directory(self):
++        fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++        try:os.fsync(fd)
++        finally:os.close(fd)
++
++    def _sync_parent_directory(self):
++        # fsync of the new directory alone does not durably link it into its
++        # parent. Initialization cannot acknowledge before this entry is durable.
++        fd = os.open(self.directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++        try:os.fsync(fd)
++        finally:os.close(fd)
++
++    def _check_files(self):
++        if self._identity(self.directory.lstat()) != self._dir_identity:
++            raise CensusError('directory_replaced')
++        if set(os.listdir(self.directory)) != set(self._fds):
++            raise CensusError('unexpected_files')
++        allocated = 0
++        for name, fd in self._fds.items():
++            st, path_st = os.fstat(fd), (self.directory / name).lstat()
++            if (not stat.S_ISREG(st.st_mode) or not stat.S_ISREG(path_st.st_mode)
++                    or st.st_nlink != 1 or self._identity(st) != self._identities[name]
++                    or self._identity(path_st) != self._identities[name]):
++                raise CensusError('file_replaced')
++            allocated += max(st.st_size, st.st_blocks * 512)
++        if allocated > MAX_BYTES:raise CensusError('allocation_cap')
++        if os.fstat(self._fds['events.jsonl']).st_size != self._event_bytes:
++            raise CensusError('event_size_changed')
++        return allocated
++
++    def _owned_process(self):
++        # Check before any inherited mutex/FD operation: flock survives fork,
++        # whereas Python locks/counters do not provide cross-process ownership.
++        return os.getpid() == self._creator_pid
++
++    def _reject_inherited(self):
++        self._healthy = False
++        self._failure = 'inherited_process'
++
++    @property
++    def healthy(self):return self._owned_process() and self._healthy and not self._closed
++
++    @property
++    def failure(self):return self._failure
++
++    def invalidate(self, reason='observer_error'):
++        # Fixed category only; never retain exception objects or private text.
++        if not self._owned_process():
++            self._reject_inherited()
++            return
++        with self._mutex:
++            self._healthy = False
++            if self._failure is None:self._failure = 'observer_error'
++
++    def append(self, phase, opportunity, fields):
++        """Return False and stick unhealthy on ANY observation failure.
++
++        No exception escapes into the product caller. Caller must independently
++        monitor health; a False return does not mean a product skip occurred.
++        """
++        if not self._owned_process():
++            self._reject_inherited()
++            return False
++        with self._mutex:
++            if not self.healthy:return False
++            try:
++                if phase not in _PHASES or type(opportunity) is not str or not _HEX.fullmatch(opportunity):
++                    raise CensusError('event_identity')
++                values = capture_fields(fields)
++                is_new = opportunity not in self._windows
++                if is_new and phase != 'WINDOW_BEGIN':raise CensusError('window_not_started')
++                if not is_new and phase == 'WINDOW_BEGIN':raise CensusError('duplicate_window')
++                if self._seq >= self.event_limit:raise CensusError('event_cap')
++                if is_new and len(self._windows) >= self.window_limit:raise CensusError('window_cap')
++                row = {'schema_version': 1, 'run_id': self.run_id, 'epoch': self.epoch,
++                       'seq': self._seq + 1, 'previous_sha256': self._prev,
++                       'manifest_sha256': self._manifest_sha, 'phase': phase,
++                       'opportunity': opportunity, 'fields': values}
++                digest = _sha(_encoded(row));row['event_sha256'] = digest
++                raw = _encoded(row) + b'\n'
++                if len(raw) > MAX_EVENT_BYTES:raise CensusError('event_bytes_cap')
++                allocated = self._check_files()
++                # Allow a whole allocation block for the next append.
++                if allocated + len(raw) + 4096 > MAX_BYTES:raise CensusError('allocation_cap')
++                self._write_all(self._fds['events.jsonl'], raw)
++                os.fsync(self._fds['events.jsonl'])
++                self._event_bytes += len(raw)
++                self._seq += 1;self._prev = digest
++                if is_new:self._windows.add(opportunity)
++                return True
++            except BaseException:
++                self._healthy = False
++                self._failure = 'append_failed'
++                return False
++
++    def close(self):
++        """Write bounded diagnostic terminal metadata, NEVER a complete seal."""
++        if not self._owned_process():
++            self._reject_inherited()
++            return
++        with self._mutex:
++            if self._closed:return
++            terminal = {'schema_version': 1, 'status': 'UNQUALIFIED_STAGE1',
++                        'observer_healthy_before_close': self._healthy,
++                        'failure': self._failure, 'events_acknowledged': self._seq,
++                        'windows_started': len(self._windows), 'last_sha256': self._prev,
++                        'manifest_sha256': self._manifest_sha,
++                        'complete_census_certified': False}
++            raw = _encoded(terminal) + b'\n'
++            try:
++                if len(raw) >= RESERVE_BYTES:raise CensusError('terminal_cap')
++                fd = self._fds['terminal.reserve']
++                os.lseek(fd, 0, os.SEEK_SET)
++                self._write_all(fd, raw)
++                os.fsync(fd)
++            except BaseException:
++                self._healthy = False
++                if self._failure is None:self._failure = 'terminal_failed'
++            finally:
++                self._closed = True
++                self._close_fds()
++
++    def _close_fds(self):
++        if not self._owned_process():return
++        for fd in self._fds.values():
++            try:os.close(fd)
++            except OSError:pass
++        self._fds = {}
++
++
++class ObserverPort:
++    """Exception-isolated explicit interface; not auto-installed in the product."""
++    def __init__(self, sink):
++        self.sink = sink
++        self.failed = False
++
++    @property
++    def healthy(self):
++        try:return not self.failed and self.sink.healthy
++        except BaseException:return False
++
++    def observe(self, phase, opportunity, fields):
++        try:
++            result = self.sink.append(phase, opportunity, fields)
++            if result is not True:self.failed = True
++            return result is True
++        except BaseException:
++            self.failed = True
++            try:self.sink.invalidate()
++            except BaseException:pass
++            return False
++
++
++def inspect(directory):
++    """Bounded read-only integrity inspection; never a completeness proof.
++
++    Rejects links, extra files, oversized/torn records and unknown window keys.
++    This does not prove original product execution or authorize restart append.
++    """
++    root = Path(directory)
++    names = {'owner', 'manifest.json', 'events.jsonl', 'terminal.reserve'}
++    if root.is_symlink() or set(os.listdir(root)) != names:raise CensusError('files')
++    allocated = 0
++    for name in names:
++        st = (root / name).lstat()
++        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:raise CensusError('file')
++        allocated += max(st.st_size, st.st_blocks * 512)
++    if allocated > MAX_BYTES:raise CensusError('allocation_cap')
++    manifest_path = root / 'manifest.json'
++    if manifest_path.stat().st_size > MAX_MANIFEST_BYTES:raise CensusError('manifest_size')
++    manifest_raw = manifest_path.read_bytes()
++    manifest_sha = _sha(manifest_raw)
++    manifest = json.loads(manifest_raw)
++    if manifest.get('schema_version') != 1 or manifest.get('stage') != 'UNQUALIFIED_STAGE1':
++        raise CensusError('manifest_schema')
++    seq, prev, windows, identity = 0, '0' * 64, set(), None
++    with (root / 'events.jsonl').open('rb') as source:
++        while True:
++            raw = source.readline(MAX_EVENT_BYTES + 1)
++            if not raw:break
++            if len(raw) > MAX_EVENT_BYTES or not raw.endswith(b'\n'):raise CensusError('tail')
++            row = json.loads(raw)
++            if _encoded(row) + b'\n' != raw:raise CensusError('noncanonical_event')
++            if set(row) != {'schema_version', 'run_id', 'epoch', 'seq', 'previous_sha256',
++                            'manifest_sha256', 'phase', 'opportunity', 'fields', 'event_sha256'}:
++                raise CensusError('event_schema')
++            digest = row.pop('event_sha256')
++            if _sha(_encoded(row)) != digest:raise CensusError('digest')
++            if (row['schema_version'] != 1 or row['seq'] != seq + 1
++                    or row['previous_sha256'] != prev or row['manifest_sha256'] != manifest_sha
++                    or row['phase'] not in _PHASES):raise CensusError('chain')
++            current = row['run_id'], row['epoch']
++            if current != (manifest['run_id'], manifest['epoch']):raise CensusError('manifest_identity')
++            if identity is not None and current != identity:raise CensusError('identity')
++            identity = current
++            key = row['opportunity']
++            if type(key) is not str or not _HEX.fullmatch(key):raise CensusError('opportunity')
++            if row['phase'] == 'WINDOW_BEGIN':
++                if key in windows:raise CensusError('duplicate_window')
++                windows.add(key)
++            elif key not in windows:raise CensusError('window_not_started')
++            capture_fields(row['fields'])
++            seq += 1;prev = digest
++            if (seq > min(MAX_EVENTS, manifest['caps']['events'])
++                    or len(windows) > min(MAX_WINDOWS, manifest['caps']['windows'])):
++                raise CensusError('count_cap')
++    return {'status': 'INTEGRITY_ONLY_NOT_COMPLETE', 'events': seq,
++            'windows': len(windows), 'last_sha256': prev,
++            'complete_census_certified': False}
++
++
++_ACTIVE = contextvars.ContextVar('trial_census_active_window', default=None)
++
++
++def observe_active(phase, fields):
++    """Only call outside DB contexts; never changes a product result/exception."""
++    try:
++        active = _ACTIVE.get()
++        if active is not None:
++            port, key = active
++            return port.observe(phase, key, fields)
++    except BaseException:
++        try:
++            if active is not None:active[0].failed = True
++        except BaseException:pass
++        return False
++    return False
++
++
++class window_observation:
++    """Exception-contained synchronous worker scope. No thread propagation.
++
++    Current identity binds chunk/session/exact core frames to the immutable
++    manifest via its events. Source mapping/revision remains UNKNOWN until the
++    later provenance/transaction integration, so no complete seal is possible.
++    """
++    def __init__(self, observer, chunk, start, end, capture):
++        self.observer = observer
++        self.args = chunk, start, end, capture
++        self.token = None
++
++    def __enter__(self):
++        try:self.token = _ACTIVE.set(None)
++        except BaseException:pass
++        if self.observer is None:return self
++        try:
++            from .native_owned_cells import exact_frame
++            chunk, start, end, capture = self.args
++            local_start, local_end = exact_frame(start), exact_frame(end)
++            origin = getattr(capture, 'origin_frame', None)
++            if type(origin) is not int:origin = None
++            fields = {'session_id': chunk.get('session_id'), 'chunk_id': chunk.get('id'),
++                      'recording_id': None, 'local_start': local_start, 'local_end': local_end,
++                      'origin_frame': origin,
++                      'logical_start': origin + local_start if origin is not None else None,
++                      'logical_end': origin + local_end if origin is not None else None,
++                      'reason': 'source_mapping_revision_unknown'}
++            fields = capture_fields(fields)
++            key = _sha(_encoded(fields))
++            _ACTIVE.set((self.observer, key))
++            observe_active('WINDOW_BEGIN', fields)
++        except BaseException:
++            try:self.observer.failed = True
++            except BaseException:pass
++        return self
++
++    def __exit__(self, kind, value, traceback):
++        try:
++            if kind is not None:
++                observe_active('PREPARE_RESULT', {'component': 'worker_scope',
++                               'outcome': 'exception', 'reason': 'unresolved_window_outcome'})
++        except BaseException:pass
++        finally:
++            try:
++                if self.token is not None:_ACTIVE.reset(self.token)
++            except BaseException:pass
++        return False
++
++
++def observe_commit(call):
++    """The original commit call is executed exactly once, unchanged return."""
++    observe_active('COMMIT_INTENT', {})
++    try:
++        result = call()
++    except BaseException:
++        observe_active('COMMIT_ACK', {'outcome': 'unknown', 'reason': 'commit_exception'})
++        raise
++    observe_active('COMMIT_ACK', {'outcome': 'true' if result is True else 'not_true',
++                                'reason': 'none' if result is True else 'commit_not_acknowledged'})
++    return result
++
++
++def observe_callback(call):
++    """Preserve original callback return/exception; caller's catch is unchanged."""
++    observe_active('CALLBACK_RESULT', {'outcome': 'invoked'})
++    try:
++        result = call()
++    except BaseException:
++        observe_active('CALLBACK_RESULT', {'outcome': 'exception', 'reason': 'callback_outcome_unknown'})
++        raise
++    observe_active('CALLBACK_RESULT', {'outcome': 'returned'})
++    return result
++
++
++def classify_window(phases):
++    """Small synthetic coverage helper, not stopped-snapshot reconciliation."""
++    committed = any(phase == 'COMMIT_ACK' and fields.get('outcome') == 'true'
++                    for phase, fields in phases)
++    callback = any(phase == 'CALLBACK_RESULT' and fields.get('outcome') in ('returned', 'absent')
++                   for phase, fields in phases)
++    return {'committed_acknowledged': committed, 'callback_observed': callback,
++            'eligibility': 'UNKNOWN', 'complete_census_certified': False}
+--- a/audio_backend/worker.py
++++ b/audio_backend/worker.py
+@@ -14,6 +14,7 @@
+ from .moss_automatic import _WINDOW_READ_DEFERRED
+ from .overlap_ownership import own_candidates,validate_candidates
+ from . import speaker_support, event_candidate_store
++from .trial_sampling_census import window_observation, observe_active, observe_commit, observe_callback
+ 
+ 
+ def validate_result(result,duration):
+@@ -108,7 +109,8 @@
+ 
+ 
+ class Worker:
+-    def __init__(self,store,settings,analyzer_factory=None):
++    def __init__(self,store,settings,analyzer_factory=None,*,trial_observer=None):
++        self.trial_observer=trial_observer
+         self.store=store; self.settings=settings; self.analyzer_factory=analyzer_factory
+         self.stop_event=threading.Event(); self.wake=threading.Event(); self.current_chunk=None
+         self.native=None
+@@ -562,48 +564,52 @@
+                 result.setdefault('metadata',{})['core_cut']={'nominal':nominal_end,'actual':end,'reason':'neural_speech_gap' if end<nominal_end else 'fixed_or_final'}
+                 previous=result['metadata'].get('boundary_tail',[])
+                 primary_jobs=getattr(self.moss_automatic,'jobs',None)
+-                try:
+-                    if automatic:
+-                        if self.native_owned_cells is None:raise RuntimeError('automatic_capture_unavailable')
+-                        if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
+-                            self.native_owned_cells.start_bounded(result)
+-                        selected_cells=self.native_owned_cells.prepare(chunk,native,offset,end,result,required=True)
+-                        result['_native_automatic_cells']=selected_cells
+-                        if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
+-                            # The result packet is the sole handoff owner; bounded
+-                            # preparation releases ordinary PCM after freezing origins.
+-                            selected_cells=()
+-                    else:
+-                        if primary_recording:self._cell_call('start_bounded',result)
+-                        selected_cells=(self.native_owned_cells.prepare(chunk,native,offset,end,result)
+-                            if primary_recording and self.native_owned_cells is not None
+-                            else self._cell_call('prepare',chunk,native,offset,end,result))
+-                    if automatic:
+-                        self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
+-                            lambda:self.interrupted(chunk['id']),required=True)
+-                        # Disk headroom includes the same primary DB/WAL and existing
+-                        # write/scratch allowance immediately before enqueue.
+-                        self.moss_automatic.results._headroom()
+-                    elif primary_recording and self.native_owned_cells is not None:
+-                        self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
+-                            lambda:self.interrupted(chunk['id']))
+-                    else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
+-                    if self.interrupted(chunk['id']): raise InterruptedError()
+-                    if self.store.commit_window(chunk,offset,end,result) is not True: return
+-                    # A positively returned primary acknowledgement alone transfers ownership.
+-                    if primary_jobs is not None:
+-                        try:primary_jobs.primary_committed(result.get('_primary_probe_handle'))
+-                        except Exception:pass
+-                    self._publish_native_support(native,offset,end)
+-                    if not automatic and not primary_only:
+-                        self._cell_call('committed',selected_cells)
+-                        self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
+-                finally:
+-                    # This also aborts after seam/headroom/cancel/unknown-ack failures.
+-                    handle=result.pop('_primary_probe_handle',None)
+-                    if primary_jobs is not None:
+-                        try:primary_jobs.abort_primary_copy(handle)
+-                        except Exception:pass
++                with window_observation(getattr(self,'trial_observer',None),chunk,offset,end,self.native_owned_cells):
++                    try:
++                        if automatic:
++                            if self.native_owned_cells is None:raise RuntimeError('automatic_capture_unavailable')
++                            if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
++                                self.native_owned_cells.start_bounded(result)
++                            selected_cells=self.native_owned_cells.prepare(chunk,native,offset,end,result,required=True)
++                            result['_native_automatic_cells']=selected_cells
++                            if getattr(self.settings,'native_owned_bounded_core_support_enabled',False):
++                                # The result packet is the sole handoff owner; bounded
++                                # preparation releases ordinary PCM after freezing origins.
++                                selected_cells=()
++                        else:
++                            if primary_recording:self._cell_call('start_bounded',result)
++                            selected_cells=(self.native_owned_cells.prepare(chunk,native,offset,end,result)
++                                if primary_recording and self.native_owned_cells is not None
++                                else self._cell_call('prepare',chunk,native,offset,end,result))
++                        observe_active('PREPARE_RESULT', {'component':'worker_prepare', 'outcome':'returned',
++                                       'reason':'no_capture' if self.native_owned_cells is None else 'none'})
++                        if automatic:
++                            self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
++                                lambda:self.interrupted(chunk['id']),required=True)
++                            # Disk headroom includes the same primary DB/WAL and existing
++                            # write/scratch allowance immediately before enqueue.
++                            self.moss_automatic.results._headroom()
++                        elif primary_recording and self.native_owned_cells is not None:
++                            self.native_owned_cells.prepare_core_seam(chunk,native,offset,end,result,self.native,
++                                lambda:self.interrupted(chunk['id']))
++                        else:self._cell_call('prepare_core_seam',chunk,native,offset,end,result,self.native,lambda:self.interrupted(chunk['id']))
++                        if self.interrupted(chunk['id']): raise InterruptedError()
++                        if observe_commit(lambda:self.store.commit_window(chunk,offset,end,result)) is not True: return
++                        # A positively returned primary acknowledgement alone transfers ownership.
++                        if primary_jobs is not None:
++                            try:observe_callback(lambda:primary_jobs.primary_committed(result.get('_primary_probe_handle')))
++                            except Exception:pass
++                        else:observe_active('CALLBACK_RESULT', {'outcome':'absent', 'reason':'no_jobs'})
++                        self._publish_native_support(native,offset,end)
++                        if not automatic and not primary_only:
++                            self._cell_call('committed',selected_cells)
++                            self._cell_call('drain_core_seams',result.get('_native_core_seam_status'))
++                    finally:
++                        # This also aborts after seam/headroom/cancel/unknown-ack failures.
++                        handle=result.pop('_primary_probe_handle',None)
++                        if primary_jobs is not None:
++                            try:primary_jobs.abort_primary_copy(handle)
++                            except Exception:pass
+             offset=end
+             if self._fair_core_handoff and self.moss_automatic is not None and self.moss_automatic.primary_yield_due():
+                 permit=getattr(self.settings, '_native_execution_permit', None)
+--- /dev/null
++++ b/tests/test_trial_sampling_census_portability.py
+@@ -0,0 +1,106 @@
++"""Bounded isolated imports; no subprocess, global module deletion, or model."""
++import builtins
++import importlib.util
++from pathlib import Path
++from unittest.mock import patch
++
++import pytest
++from audio_backend import trial_sampling_census as installed
++
++
++def test_module_import_without_fcntl_preserves_no_observer_path(tmp_path):
++    original = builtins.__import__
++    seen = []
++    def restricted(name, *args, **kwargs):
++        if name == 'fcntl':
++            seen.append(name)
++            raise ModuleNotFoundError("Synthetic platform without fcntl")
++        return original(name, *args, **kwargs)
++    # This private module is never inserted into sys.modules. Existing imports
++    # remain untouched; the import override lasts only for executing this source.
++    spec = importlib.util.spec_from_file_location('_isolated_census_portability', installed.__file__)
++    module = importlib.util.module_from_spec(spec)
++    with patch.object(builtins, '__import__', side_effect=restricted):
++        spec.loader.exec_module(module)
++    assert seen == ['fcntl']
++    assert module.fcntl is None
++    with module.window_observation(None, {}, 0., 1., None):
++        assert module.observe_commit(lambda:True) is True
++        assert module.observe_callback(lambda:7) == 7
++    with pytest.raises(module.CensusError, match='unsupported_observer_platform'):
++        module.TrialCensus(tmp_path / 'unsupported', run_id='b' * 64, epoch=0, manifest={})
++    assert not (tmp_path / 'unsupported').exists()
++    assert installed is not module
++    worker_spec = importlib.util.spec_from_file_location(
++        'audio_backend._isolated_worker_portability', Path(installed.__file__).with_name('worker.py'))
++    worker = importlib.util.module_from_spec(worker_spec)
++    def worker_import(name, globals=None, locals=None, fromlist=(), level=0):
++        if name == 'trial_sampling_census' and level == 1:return module
++        return original(name, globals, locals, fromlist, level)
++    with patch.object(builtins, '__import__', side_effect=worker_import):
++        worker_spec.loader.exec_module(worker)
++    assert worker.window_observation is module.window_observation
++    assert callable(worker.Worker)
++
++
++def test_sink_fails_before_any_files_on_missing_fcntl(tmp_path):
++    with patch.object(installed, 'fcntl', None):
++        with pytest.raises(installed.CensusError, match='unsupported_observer_platform'):
++            installed.TrialCensus(tmp_path / 'unsupported', run_id='b' * 64, epoch=0, manifest={})
++    assert not (tmp_path / 'unsupported').exists()
++
++
++def test_inherited_process_rejected_before_mutex_and_sink_io(tmp_path):
++    import hashlib
++    values = {key:'a' * 64 for key in installed._MANIFEST_HASHES}
++    values.update(source_frames=16000, origin_frame=0, start_frame=0,
++                  end_frame=16000, interval_frames=960000, sampling_policy='test')
++    values['observer_sha256'] = hashlib.sha256(Path(installed.__file__).read_bytes()).hexdigest()
++    sink = installed.TrialCensus(tmp_path / 'owned', run_id='b' * 64, epoch=0, manifest=values)
++    fds = dict(sink._fds)
++    class ForbiddenMutex:
++        def __enter__(self):raise AssertionError('inherited mutex acquired')
++        def __exit__(self, *args):raise AssertionError('inherited mutex released')
++    with patch.object(installed.os, 'getpid', return_value=sink._creator_pid + 1), \
++            patch.object(sink, '_mutex', ForbiddenMutex()), \
++            patch.object(installed.os, 'write') as write, \
++            patch.object(installed.os, 'fsync') as fsync, \
++            patch.object(installed.os, 'close') as close, \
++            patch.object(installed.os, 'open') as opened, \
++            patch.object(installed.os, 'listdir') as listed:
++        assert sink.healthy is False
++        assert sink.append('WINDOW_BEGIN', 'c' * 64, {}) is False
++        sink.invalidate()
++        sink.close()
++        sink._close_fds()
++        for call in (write, fsync, close, opened, listed):call.assert_not_called()
++    assert sink._fds == fds
++    assert sink.failure == 'inherited_process'
++    assert (tmp_path / 'owned' / 'events.jsonl').stat().st_size == 0
++    sink.close()  # Back in creator PID, normal diagnostic close is permitted.
++
++
++def test_parent_directory_fsync_failure_never_acknowledges_initialization(tmp_path):
++    import hashlib
++    import os
++    values = {key:'a' * 64 for key in installed._MANIFEST_HASHES}
++    values.update(source_frames=16000, origin_frame=0, start_frame=0,
++                  end_frame=16000, interval_frames=960000, sampling_policy='test')
++    values['observer_sha256'] = hashlib.sha256(Path(installed.__file__).read_bytes()).hexdigest()
++    identity = (tmp_path.stat().st_dev, tmp_path.stat().st_ino)
++    original = os.fsync;parent_calls = []
++    def fail_parent(fd):
++        st = os.fstat(fd)
++        if (st.st_dev, st.st_ino) == identity:
++            parent_calls.append(fd)
++            raise OSError('synthetic parent directory fsync failure')
++        return original(fd)
++    sink = installed.TrialCensus.__new__(installed.TrialCensus)
++    with patch.object(installed.os, 'fsync', side_effect=fail_parent):
++        with pytest.raises(OSError, match='parent directory fsync failure'):
++            sink.__init__(tmp_path / 'unacknowledged', run_id='b' * 64, epoch=0, manifest=values)
++    assert len(parent_calls) == 1
++    assert sink.healthy is False
++    assert sink.failure == 'initialization_failed'
++    assert sink._fds == {}
++    assert (tmp_path / 'unacknowledged' / 'events.jsonl').stat().st_size == 0
+--- /dev/null
++++ b/tests/test_trial_sampling_census_stage1.py
+@@ -0,0 +1,201 @@
++"""Synthetic source-only tests. Root executor must run; not an acoustic gate."""
++import hashlib
++from pathlib import Path
++from unittest.mock import patch
++
++import pytest
++from audio_backend import trial_sampling_census as census
++
++
++def manifest():
++    values = {key: 'a' * 64 for key in census._MANIFEST_HASHES}
++    values.update(source_frames=16000, origin_frame=0, start_frame=0,
++                  end_frame=16000, interval_frames=960000, sampling_policy='test')
++    values['observer_sha256'] = hashlib.sha256(Path(census.__file__).read_bytes()).hexdigest()
++    return values
++
++
++def sink(tmp_path, **kwargs):
++    return census.TrialCensus(tmp_path / 'census', run_id='b' * 64, epoch=0,
++                              manifest=manifest(), **kwargs)
++
++
++def test_roundtrip_never_certifies_completeness(tmp_path):
++    value = sink(tmp_path)
++    assert value.append('WINDOW_BEGIN', 'c' * 64, {'local_start': 0, 'local_end': 16000})
++    assert value.append('COMMIT_INTENT', 'c' * 64, {})
++    value.close()
++    result = census.inspect(tmp_path / 'census')
++    assert result['events'] == 2
++    assert result['complete_census_certified'] is False
++    assert result['status'] == 'INTEGRITY_ONLY_NOT_COMPLETE'
++    assert (tmp_path / 'census' / 'terminal.reserve').stat().st_size == census.RESERVE_BYTES
++
++
++def test_memory_capture_no_mutable_or_unbounded_fields():
++    source = {'due': True, 'history_revision': 2, 'reason': 'none'}
++    captured = census.capture_fields(source)
++    source['due'] = False
++    assert captured['due'] is True
++    for fields in ({'reason': []}, {'unknown': 1}, {'reason': 'x' * 97},
++                   {'frame': 2**63}, {'reason': '\u4e2d'}):
++        with pytest.raises(ValueError):census.capture_fields(fields)
++
++
++def test_event_cap_exact_and_one_over_sticky(tmp_path):
++    value = sink(tmp_path, event_limit=2)
++    assert value.append('WINDOW_BEGIN', 'c' * 64, {})
++    assert value.append('COMMIT_ACK', 'c' * 64, {'outcome': 'true'})
++    size = (tmp_path / 'census' / 'events.jsonl').stat().st_size
++    assert not value.append('CALLBACK_RESULT', 'c' * 64, {})
++    assert not value.healthy
++    assert not value.append('TERMINAL_RESULT', 'c' * 64, {})
++    assert (tmp_path / 'census' / 'events.jsonl').stat().st_size == size
++    value.close()
++
++
++def test_window_cap_exact_and_one_over(tmp_path):
++    value = sink(tmp_path, window_limit=1)
++    assert value.append('WINDOW_BEGIN', 'c' * 64, {})
++    assert not value.append('WINDOW_BEGIN', 'd' * 64, {})
++    value.close()
++
++
++def test_caps_cannot_be_raised(tmp_path):
++    for options in ({'event_limit': 8193}, {'window_limit': 2049}):
++        with pytest.raises(ValueError):sink(tmp_path, **options)
++    assert not (tmp_path / 'census').exists()
++
++
++@pytest.mark.parametrize('failure', ['write', 'fsync'])
++def test_io_failure_is_sticky_and_never_product_exception(tmp_path, failure):
++    value = sink(tmp_path)
++    with patch.object(census.os, failure, side_effect=OSError('synthetic')):
++        assert value.append('WINDOW_BEGIN', 'c' * 64, {}) is False
++    assert not value.healthy
++    assert value.failure == 'append_failed'
++    assert not value.append('WINDOW_BEGIN', 'd' * 64, {})
++    value.close()
++
++
++def test_partial_tail_is_preserved_and_rejected(tmp_path):
++    value = sink(tmp_path)
++    real_write = census.os.write
++    calls = []
++    def torn(fd, data):
++        if calls:raise OSError('synthetic')
++        calls.append(1)
++        return real_write(fd, data[:7])
++    with patch.object(census.os, 'write', side_effect=torn):
++        assert not value.append('WINDOW_BEGIN', 'c' * 64, {})
++    before = (tmp_path / 'census' / 'events.jsonl').read_bytes()
++    value.close()
++    assert (tmp_path / 'census' / 'events.jsonl').read_bytes() == before
++    with pytest.raises(census.CensusError):census.inspect(tmp_path / 'census')
++
++
++def test_no_reopen_or_replace_existing_evidence(tmp_path):
++    value = sink(tmp_path)
++    value.close()
++    with pytest.raises(FileExistsError):sink(tmp_path)
++
++
++@pytest.mark.parametrize('phase,key', [('COMMIT_ACK', 'c' * 64), ('WINDOW_BEGIN', 'bad')])
++def test_unknown_window_or_bad_key_invalidates(tmp_path, phase, key):
++    value = sink(tmp_path)
++    assert not value.append(phase, key, {})
++    value.close()
++
++
++def test_port_contains_even_baseexception():
++    class Broken:
++        healthy = True
++        def append(self, *args):raise KeyboardInterrupt()
++        def invalidate(self):raise RuntimeError()
++    port = census.ObserverPort(Broken())
++    assert port.observe('WINDOW_BEGIN', 'c' * 64, {}) is False
++    assert not port.healthy
++
++
++def test_wrong_observer_source_hash_rejected_before_creating(tmp_path):
++    values = manifest();values['observer_sha256'] = '0' * 64
++    with pytest.raises(ValueError):
++        census.TrialCensus(tmp_path / 'census', run_id='b' * 64, epoch=0, manifest=values)
++    assert not (tmp_path / 'census').exists()
++
++
++def test_event_size_has_no_truncation(tmp_path):
++    value = sink(tmp_path)
++    fields = {key: 'x' * 96 for key in list(census._FIELDS)[:12]}
++    assert not value.append('WINDOW_BEGIN', 'c' * 64, fields)
++    assert (tmp_path / 'census' / 'events.jsonl').stat().st_size == 0
++    value.close()
++
++
++def test_tamper_detected(tmp_path):
++    value = sink(tmp_path)
++    assert value.append('WINDOW_BEGIN', 'c' * 64, {'reason': 'none'})
++    value.close()
++    target = tmp_path / 'census' / 'events.jsonl'
++    target.write_bytes(target.read_bytes().replace(b'none', b'evil'))
++    with pytest.raises(census.CensusError):census.inspect(tmp_path / 'census')
++
++
++def test_unrelated_product_sources_unchanged():
++    # Stage 2 changes only these explicit optional hook integration files.
++    root = Path(__file__).resolve().parents[1]
++    baseline = root.parent / 'audio-crop-policy-candidate-rev02-20261022'
++    if not baseline.exists():pytest.skip('baseline copy not supplied')
++    for old in (baseline / 'audio_backend').rglob('*.py'):
++        relative = old.relative_to(baseline)
++        if relative.name in {'worker.py', 'native_owned_cell_capture.py', 'moss_handy_jobs.py'}:continue
++        assert (root / relative).read_bytes() == old.read_bytes(), str(relative)
++
++
++def test_exact_encoded_event_boundary(tmp_path):
++    value = sink(tmp_path)
++    row = {'schema_version': 1, 'run_id': value.run_id, 'epoch': value.epoch,
++           'seq': 1, 'previous_sha256': '0' * 64,
++           'manifest_sha256': value._manifest_sha, 'phase': 'WINDOW_BEGIN',
++           'opportunity': 'c' * 64, 'fields': {}}
++    row['event_sha256'] = census._sha(census._encoded(row))
++    length = len(census._encoded(row)) + 1
++    with patch.object(census, 'MAX_EVENT_BYTES', length):
++        assert value.append('WINDOW_BEGIN', 'c' * 64, {})
++        assert not value.append('WINDOW_BEGIN', 'd' * 64, {'reason': 'x'})
++    assert (tmp_path / 'census' / 'events.jsonl').stat().st_size == length
++    value.close()
++
++
++def test_real_hard_count_caps(tmp_path):
++    value = sink(tmp_path)
++    # Actual disk writes and bounds checks; suppress fsync ONLY for this count
++    # test. Separate tests inject write/fsync errors and normal tests fsync.
++    with patch.object(census.os, 'fsync'):
++        for number in range(census.MAX_WINDOWS):
++            assert value.append('WINDOW_BEGIN', f'{number:064x}', {})
++        for number in range(census.MAX_EVENTS - census.MAX_WINDOWS):
++            assert value.append('PREPARE_RESULT', f'{0:064x}', {'outcome': 'synthetic'})
++        assert not value.append('PREPARE_RESULT', f'{0:064x}', {})
++    value.close()
++    result = census.inspect(tmp_path / 'census')
++    assert result['windows'] == 2048
++    assert result['events'] == 8192
++    assert sum(p.stat().st_size for p in (tmp_path / 'census').iterdir()) < census.MAX_BYTES
++
++
++def test_real_hard_window_cap(tmp_path):
++    value = sink(tmp_path)
++    with patch.object(census.os, 'fsync'):
++        for number in range(census.MAX_WINDOWS):
++            assert value.append('WINDOW_BEGIN', f'{number:064x}', {})
++        assert not value.append('WINDOW_BEGIN', f'{census.MAX_WINDOWS:064x}', {})
++    value.close()
++
++
++def test_close_fsync_failure_stays_invalid(tmp_path):
++    value = sink(tmp_path)
++    with patch.object(census.os, 'fsync', side_effect=OSError('synthetic')):
++        value.close()
++    assert not value.healthy
++    assert value.failure == 'terminal_failed'
+--- /dev/null
++++ b/tests/test_trial_sampling_census_stage2.py
+@@ -0,0 +1,111 @@
++"""Root-run synchronous hook controls; no model or database needed."""
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import pytest
++from audio_backend import trial_sampling_census as census
++from audio_backend.moss_handy_jobs import MossJobs
++from audio_backend.native_owned_cell_capture import Capture
++
++
++class Recorder:
++    def __init__(self, broken=False):self.events = [];self.broken = broken
++    def observe(self, phase, key, fields):
++        if self.broken:raise KeyboardInterrupt('observer only')
++        self.events.append((phase, dict(fields)))
++        return True
++
++
++def scope(port):
++    return census.window_observation(port, {'session_id': 1, 'id': 2}, 0., 1.,
++                                     SimpleNamespace(origin_frame=100))
++
++
++@pytest.mark.parametrize('broken', [False, True])
++@pytest.mark.parametrize('result', [True, False, None, 1, 'true'])
++def test_commit_exact_return_and_single_original_call(broken, result):
++    port = Recorder(broken);calls = []
++    with scope(port):
++        def original():calls.append('original');return result
++        assert census.observe_commit(original) is result
++    assert calls == ['original']
++    if not broken:
++        assert port.events[0][0] == 'WINDOW_BEGIN'
++        assert port.events[-1][1]['outcome'] == ('true' if result is True else 'not_true')
++
++
++@pytest.mark.parametrize('broken', [False, True])
++def test_commit_and_callback_exception_identity_unchanged(broken):
++    port = Recorder(broken);error = RuntimeError('product failure')
++    def original():raise error
++    for wrapper in (census.observe_commit, census.observe_callback):
++        with scope(port), pytest.raises(RuntimeError) as seen:wrapper(original)
++        assert seen.value is error
++    assert census.classify_window(port.events)['eligibility'] == 'UNKNOWN'
++
++
++def test_missing_callback_or_decision_never_complete():
++    events = [('WINDOW_BEGIN', {}), ('COMMIT_ACK', {'outcome': 'true'})]
++    result = census.classify_window(events)
++    assert result['committed_acknowledged']
++    assert not result['callback_observed']
++    assert result['eligibility'] == 'UNKNOWN'
++    assert result['complete_census_certified'] is False
++    events.append(('CALLBACK_RESULT', {'outcome': 'returned'}))
++    assert census.classify_window(events)['eligibility'] == 'UNKNOWN'
++
++
++def test_scope_restores_context_and_none_is_opt_out():
++    port = Recorder()
++    with scope(port):
++        with scope(None):census.observe_active('PREPARE_RESULT', {'outcome':'must_not_log'})
++        census.observe_active('PREPARE_RESULT', {'outcome':'visible'})
++    census.observe_active('PREPARE_RESULT', {'outcome':'must_not_log'})
++    assert [fields.get('outcome') for _, fields in port.events] == [None, 'visible']
++
++
++@pytest.mark.parametrize('broken', [False, True])
++def test_manager_actual_wrapper_preserves_handle_and_absence(broken):
++    # Use actual method wrapper with the underlying product call isolated.
++    obj = SimpleNamespace()
++    handle = {'state':'skip', 'reason':'busy', 'recording_id':7, 'invocation_id':'a'*32}
++    for expected in (handle, None):
++        calls = []
++        def original(*args):calls.append(args);return expected
++        obj._prepare_primary_copy_with_census = original
++        with scope(Recorder(broken)):
++            assert MossJobs.prepare_primary_copy(obj, None, {}, 0, 1, None, b'') is expected
++        assert len(calls) == 1
++
++
++@pytest.mark.parametrize('broken', [False, True])
++def test_native_actual_wrapper_preserves_result_and_required_argument(broken):
++    result = object();calls = []
++    def original(*args, **kwargs):calls.append(kwargs);return result
++    obj = SimpleNamespace(_prepare_with_census=original)
++    with scope(Recorder(broken)):
++        assert Capture.prepare(obj, {}, None, 0, 1, {}, required=True) is result
++    assert calls == [{'required': True}]
++
++
++def test_context_failure_does_not_call_product_twice_or_suppress_product():
++    port = Recorder();calls = []
++    # Invalid exact-frame geometry invalidates only observer setup.
++    with census.window_observation(port, {}, float('nan'), 1., None):
++        assert census.observe_commit(lambda:calls.append(1)) is None
++    assert calls == [1]
++    assert port.failed is True
++
++
++def test_none_observer_performs_no_sink_io():
++    with patch.object(census.os, 'write', side_effect=AssertionError('I/O')):
++        with scope(None):
++            assert census.observe_commit(lambda:True) is True
++            assert census.observe_callback(lambda:42) == 42
++
++
++def test_real_native_early_absence_is_visible_and_unchanged():
++    port = Recorder();obj = SimpleNamespace(analyzer=None)
++    with scope(port):
++        assert Capture._prepare_with_census(obj, {}, None, 0, 1, {}, required=False) == ()
++    assert any(fields.get('reason') == 'analyzer_or_native_absent' for _, fields in port.events)
