@@ -1,0 +1,52 @@
+[
+  {
+    "path": "audio_backend/native_owned_cell_capture.py",
+    "before_sha256": "022656aec9f7753ea774affa17a752de3d09d7719369b56f4ddf61e7ebbdb267",
+    "after_sha256": "cf2c10e853b0d813fca56daef16a2fa1fe6bdf077beb2450f42b311b442acc47"
+  },
+  {
+    "path": "audio_backend/native_owned_cells.py",
+    "before_sha256": "416718496c6ba1f3c8eaeb701a694c7882654bbd890c8af54c58ed60d7dbb6f3",
+    "after_sha256": "7bb9dc6b8509be93d4ca6802c630d3f7a118654006751fd738499d3a046b7ab9"
+  },
+  {
+    "path": "audio_backend/native_owned_core_seams.py",
+    "before_sha256": "81394658e7721dac47e099cb94771d174ffa144aec21e0e60a026cd73ee4f5e5",
+    "after_sha256": "df4d3904566c56aa368cfe11de31118e0b6222947b0ef99a72443040ef2621b8"
+  },
+  {
+    "path": "audio_backend/native_owned_cell_store.py",
+    "before_sha256": "74df7cc092533f04847bd13729da01cf85faaeae80d06dcaeacb21de15258d95",
+    "after_sha256": "a0d0aa55e5731b3916bb6fa3ba31aab0f526c844a15cdb3f713b080d786ae977"
+  },
+  {
+    "path": "audio_backend/storage.py",
+    "before_sha256": "2fe6124369bb6089d106649c217102c10ef31d36449342c35893b9c09cb018e5",
+    "after_sha256": "ac45691c81d4958f8eafb1052ba2634844011f37c55af9279cbf701791a75c24"
+  },
+  {
+    "path": "audio_backend/primary_commit_cost.py",
+    "before_sha256": null,
+    "after_sha256": "1ca9fa26e463c5b4f2e03fd9aa6db41cd905f39a41e7e5a796627ea4c970ba88"
+  },
+  {
+    "path": "tests/test_recovered_array_digest.py",
+    "before_sha256": null,
+    "after_sha256": "1da683bea36dd7e0b6913e6537809223623e3bdfe142450c25281cdebbb15a2f"
+  },
+  {
+    "path": "tests/test_recovered_capture_read_reuse.py",
+    "before_sha256": null,
+    "after_sha256": "9235b9a04c7fe03655f64f07ead3fce8f23fdeb1482df2123dcaa1b739d10dab"
+  },
+  {
+    "path": "tests/test_recovered_commit_diagnostics.py",
+    "before_sha256": null,
+    "after_sha256": "57c8b4f5cb3cccaf633134f293279a89b1ededc7c41b8296b6c5bdd087e22380"
+  },
+  {
+    "path": "tests/test_recovered_initial_scope.py",
+    "before_sha256": null,
+    "after_sha256": "6a83833c24ad80d4384dddff6a6a5fa9b6dce16fcf382d3a8a147f45cf40d41b"
+  }
+]

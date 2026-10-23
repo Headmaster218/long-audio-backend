@@ -1,0 +1,1005 @@
+--- a/audio_backend/native_owned_cell_capture.py
++++ b/audio_backend/native_owned_cell_capture.py
+@@ -1422,8 +1422,11 @@
+             with self.budget.phase():
+                 start_local = exact_frame(offset); end_local = exact_frame(end)
+                 a, b = self.origin_frame + start_local, self.origin_frame + end_local
+-                parts = self.authority.mapping(chunk, self.scope_start, a, b, self.budget)
+-                original = self.authority.original_pcm(parts, self.budget)
++                # Reuse only the connection; each authority read retains its
++                # own fresh snapshot. Required capture is not optional planning.
++                with self.authority.list_read_scope(self.budget):
++                    parts = self.authority.mapping(chunk, self.scope_start, a, b, self.budget)
++                    original = self.authority.original_pcm(parts, self.budget)
+                 observed = self.analyzer[2 * (a - self.analyzer_start):2 * (b - self.analyzer_start)]
+                 if original != observed:raise Unavailable('original_native_analyzer_mismatch')
+                 evidence = {'chunk_id': chunk['id'], 'start': start_local, 'end': end_local,
+--- a/audio_backend/native_owned_cells.py
++++ b/audio_backend/native_owned_cells.py
+@@ -5,6 +5,8 @@
+ frontier float-to-frame transforms remain evidence, never repaired source bounds.
+ """
+ from __future__ import annotations
++from array import array
++import sys
+ 
+ from dataclasses import dataclass, asdict
+ import hashlib
+@@ -102,10 +104,17 @@
+     if type(pcm) is not bytes or len(pcm) > CELL_PCM_BYTES or len(pcm) % 2:
+         raise Unavailable('invalid_cell_pcm')
+     result = hashlib.sha256()
++    fast = sys.byteorder == 'little' and array('h').itemsize == 2 and array('f').itemsize == 4
+     for at in range(0, len(pcm), IO_BYTES // 2):
+         block = pcm[at:at + IO_BYTES // 2]
+-        result.update(b''.join(struct.pack('<f', n[0] / 32768.)
+-                               for n in struct.iter_unpack('<h', block)))
++        if fast:
++            samples = array('h'); samples.frombytes(block)
++            floats = array('f', (n / 32768. for n in samples))
++            result.update(floats)
++            del samples, floats
++        else:
++            result.update(b''.join(struct.pack('<f', n[0] / 32768.)
++                                   for n in struct.iter_unpack('<h', block)))
+     return result.hexdigest()
+ 
+ 
+--- a/audio_backend/native_owned_core_seams.py
++++ b/audio_backend/native_owned_core_seams.py
+@@ -6,6 +6,7 @@
+ Reset and restart replay use separate policies; historical contracts stay strict.
+ """
+ from __future__ import annotations
++from contextlib import nullcontext
+ from dataclasses import asdict
+ import hashlib
+ import json
+@@ -1581,7 +1582,11 @@
+         bounded = result.get('_native_bounded_support')
+         budget = bounded['budget'] if bounded is not None else Budget()
+         try:
+-            with (budget.planning_phase() if bounded is not None else budget.phase()):
++            # Opt in only this optional bounded discovery segment. The scope
++            # ends before bounded_prepare and any native TURNS opportunity.
++            with (budget.planning_phase() if bounded is not None else budget.phase()), (
++                    c.authority.list_read_scope(budget, bounded_planning=True)
++                    if bounded is not None else nullcontext()):
+                 a, b = c.origin_frame + exact_frame(offset), c.origin_frame + exact_frame(end)
+                 parts = c.authority.mapping(chunk, c.scope_start, a, b, budget)
+                 if len(parts) != 1 or parts[0].chunk_id != chunk['id']:raise Unavailable('core_single_source_required')
+--- a/audio_backend/native_owned_cell_store.py
++++ b/audio_backend/native_owned_cell_store.py
+@@ -202,7 +202,19 @@
+         try:self.check()
+         except Unavailable as exc:
+             self._progress_refusal=str(exc)
++            try:
++                observation=getattr(self,'_primary_commit_observation',None)
++                if observation is not None:
++                    from .primary_commit_cost import note
++                    note(observation,'callback',str(exc))
++            except BaseException:pass
+             return 1
++        try:
++            observation=getattr(self,'_primary_commit_observation',None)
++            if observation is not None:
++                from .primary_commit_cost import note
++                note(observation,'callback',None)
++        except BaseException:pass
+         return 0
+ 
+ 
+--- a/audio_backend/storage.py
++++ b/audio_backend/storage.py
+@@ -234,30 +234,50 @@
+             raise
+         db.row_factory = sqlite3.Row
+         committing=False
++        observation=None;previous_observation=None
++        def observe(*args):pass
++        if context=='primary_window_commit':
++            try:
++                previous_observation=getattr(budget,'_primary_commit_observation',None)
++                budget._primary_commit_observation=None
++                from .primary_commit_cost import start,note
++                observation=start(budget)
++                budget._primary_commit_observation=observation
++                def observe(*args):
++                    try:note(observation,*args)
++                    except BaseException:pass
++            except BaseException:pass
+         if budget is not None:budget.sql_outcome='not_started'
+         try:
+             with budget.notice_phase() if budget is not None else nullcontext():
+                 if budget is not None:
+                     budget.primary_sql=True
+                     db.set_progress_handler(budget.progress,100)
++                    observe('installed_callback')
+                 db.execute('PRAGMA foreign_keys=ON')
+                 yield db
+                 if budget is not None:budget.check()
+                 committing=True
++                observe('phase','commit_exit')
+                 if budget is not None:budget.sql_outcome='commit_attempted'
+                 db.commit()
+                 if budget is not None:budget.sql_outcome='committed'
+                 if budget is not None:budget.check()
+         except BaseException as exc:
++            observe('failure',exc,committing)
+             if budget is None:db.rollback()
+             else:
+                 # Exhausted SQL/time budgets never interrupt cleanup or replace
+                 # the original hard/uncertain transaction failure.
+                 db.set_progress_handler(None,0)
++                observe('removed_callback')
++                observe('rolled_back','unknown')
+                 try:
+                     db.rollback()
++                    observe('rolled_back','returned')
+                     if not committing:budget.sql_outcome='rolled_back'
+                 except sqlite3.Error:budget.sql_outcome='unknown'
++                observe('transaction_after',db)
+             if context=='primary_window_commit':
+                 from .primary_commit_admission import diagnostic
+                 try:
+@@ -268,7 +288,15 @@
+             raise
+         finally:
+             if budget is not None:budget.primary_sql=False
+-            db.close()
++            observe('close_result','unknown')
++            try:
++                db.close()
++                observe('close_result','returned')
++            finally:
++                try:
++                    if context=='primary_window_commit':budget._primary_commit_observation=previous_observation
++                except BaseException:pass
++                observe('emit')
+ 
+     @contextmanager
+     def _claim_database(self,budget):
+@@ -635,12 +663,19 @@
+         # Mark only this original bounded transaction; do not change db()'s
+         # calling contract or create/reset any budget for diagnostic purposes.
+         previous=getattr(budget,'_primary_commit_context',False) if budget is not None else False
++        phase_tracker=None
+         if budget is not None:budget._primary_commit_context=True
+         try:
+             with (self.db(budget=budget) if budget is not None else self.db()) as db:
++                try:phase_tracker=getattr(budget,'_primary_commit_observation',None)
++                except BaseException:pass
+                 yield db
+         finally:
+             if budget is not None:budget._primary_commit_context=previous
++            try:
++                from .primary_commit_cost import note
++                note(phase_tracker,'emit_phases')
++            except BaseException:pass
+ 
+     def commit_window(self, chunk, offset, end, result):
+         # Conservatively include primary statements, added revision triggers,
+@@ -648,6 +683,12 @@
+         from .recording_primary_provenance import enabled as primary_provenance_enabled
+         retain_primary_provenance = primary_provenance_enabled(self.settings)
+         bounded_handoff=result.get('_native_bounded_support')
++        def phase(name):
++            try:
++                from .primary_commit_cost import note
++                budget=bounded_handoff['budget'] if isinstance(bounded_handoff,dict) else None
++                note(getattr(budget,'_primary_commit_observation',None),'phase',name)
++            except BaseException:pass
+         if isinstance(bounded_handoff,dict):
+             bounded_handoff['reserved']=bounded_handoff['budget'].reserve_planning()
+         with self._primary_commit_database(bounded_handoff['budget'] if isinstance(bounded_handoff,dict) else None) as db:
+@@ -682,6 +723,7 @@
+                 if size>MAX_WINDOW_BYTES:raise ValueError('Diagnostic window exceeds byte budget')
+                 # Allow for SQLite pages, WAL, indexes and transaction overhead.
+                 check_resources(self.settings,additional_disk=4*size+65536)
++            phase('lexical_prepare')
+             local={};local_turn_ids={}
+             metadata=dict(result.get('metadata',{}))
+             lexical_prepared=None;lexical_rows=[];primary_provenance_ids=[]
+@@ -689,6 +731,7 @@
+                 from . import lexical_evidence
+                 lexical_prepared,reason=lexical_evidence.prepare(result,chunk,offset,end)
+                 metadata['lexical_evidence']={'schema':lexical_evidence.SCHEMA,'status':reason or 'pending'}
++            phase('identity_prepare')
+             metadata['speaker_identity_policy']={'profile_strategy':self.settings.speaker_profile_strategy,
+                 'match_threshold':self.settings.speaker_match_threshold,'new_threshold':self.settings.speaker_new_threshold,
+                 'margin':self.settings.speaker_match_margin,'min_enrollment_seconds':self.settings.speaker_min_clean_seconds,'min_query_seconds':self.settings.speaker_min_query_seconds,
+@@ -737,6 +780,7 @@
+                     local[local_id]=(speaker,score,status,None)
+             def resolve_identity(local_id,raw):
+                 return self._window_identity(db,chunk,offset,metadata,group,local_id,raw)
++            phase('turn_rows')
+             for turn in raw_turns:
+                 local_id=turn.get('speaker_local_id')
+                 if local_id is None:
+@@ -749,6 +793,7 @@
+                 turn_cursor=db.execute('INSERT INTO speaker_turns(chunk_id,start,end,speaker_id,speaker_local_id,speaker_match_score,speaker_status,overlap,speaker_window_start,speaker_support_id,speaker_support_status,identity_decision_id,identity_profile_revision,identity_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                     (chunk['id'],chunk['timeline_start']+offset+turn['start'],chunk['timeline_start']+offset+turn['end'],speaker,local_id,score,status,int(bool(turn.get('overlap')) or any(other.get('speaker_local_id')!=local_id and min(turn['end'],other['end'])>max(turn['start'],other['start']) for other in raw_turns)),offset,support_id,support_status,*decision_refs.get(local_id,(None,None)),'current' if local_id in decision_refs else None))
+                 if local_id is not None:local_turn_ids.setdefault(local_id,[]).append(turn_cursor.lastrowid)
++            phase('segment_rows')
+             for segment in result['segments']:
+                 local_id=segment.get('speaker_local_id')
+                 # IDs are only stable within this analyzer window. Never carry a local ID across windows.
+@@ -768,8 +813,10 @@
+                 if lexical_prepared is not None:
+                     from .transcript_contract import PRIMARY_FIELDS
+                     lexical_rows.append(db.execute('SELECT '+','.join(PRIMARY_FIELDS)+' FROM segments WHERE id=?',(segment_cursor.lastrowid,)).fetchone())
++            phase('lexical_persist')
+             if lexical_prepared is not None:
+                 metadata['lexical_evidence']['status']=lexical_evidence.persist(db,current,chunk,lexical_rows,lexical_prepared)
++            phase('events_candidates')
+             for event in result['events']:
+                 for key in ('time_precision','source_label','method'):
+                     value=event.get(key)
+@@ -783,6 +830,7 @@
+                 resolved_local_identities={key:{'speaker_id':None if verified else value[0],'speaker_status':'identity_decision_required' if verified else value[2],'speaker_turn_ids':local_turn_ids.get(key,[])} for key,value in local.items()})
+             status='completed' if end>=chunk['duration']-1e-5 else current['status']
+             provenance=update_provenance(current['provenance'],metadata,offset)
++            phase('core_compact')
+             if getattr(self.settings, 'native_owned_core_seams_enabled', False):
+                 from .native_owned_core_seams import transaction as commit_core_seam
+                 if (bounded or primary_recording) and result.get('_native_core_seam') is not None:
+@@ -792,6 +840,7 @@
+                 result['_native_core_seam_status'] = optional_reason
+                 if optional_reason is not None:
+                     metadata['native_core_seam'] = {'status': optional_reason}
++            phase('optional_enqueue')
+             if automatic:
+                 from .moss_automatic import enqueue,enqueue_bounded
+                 if bounded:
+@@ -804,11 +853,13 @@
+                         result.get('_native_core_seam'),bounded_handoff,chunk,lexical_rows,
+                         metadata.get('lexical_evidence',{}).get('status'))
+                 else:enqueue(db,result.get('_native_automatic_cells'),result.get('_native_core_seam'))
++            phase('primary_packet')
+             if retain_primary_provenance:
+                 from .recording_primary_provenance import persist, retain_status, SCHEMA as PRIMARY_PROVENANCE_SCHEMA
+                 primary_status = persist(self, db, chunk, offset, end, result, primary_provenance_ids)
+                 metadata['recording_primary_provenance'] = {'schema': PRIMARY_PROVENANCE_SCHEMA, 'status': primary_status}
+                 retain_status(provenance, primary_status, offset)
++            phase('chunk_update')
+             db.execute('UPDATE chunks SET next_offset=?,status=?,metadata=?,provenance=? WHERE id=?',(end,status,json.dumps(metadata),json.dumps(provenance),chunk['id']))
+             if status=='completed':wake_stream_successor(db,chunk['id'])
+             return True
+--- /dev/null
++++ b/audio_backend/primary_commit_cost.py
+@@ -0,0 +1,141 @@
++"""Bounded failure-only observations, never transaction or retry authority."""
++import json
++import logging
++import math
++import threading
++import time
++
++_LOG = logging.getLogger(__name__)
++_LOCK = threading.Lock()
++_COUNT = 0
++LIMIT = 8
++STAGES = ('begin_guards', 'lexical_prepare', 'identity_prepare', 'turn_rows',
++          'segment_rows', 'lexical_persist', 'events_candidates', 'core_compact',
++          'optional_enqueue', 'primary_packet', 'chunk_update', 'commit_exit')
++
++
++def note(tracker, method, *args):
++    try:
++        if tracker is not None:return getattr(tracker, method)(*args)
++    except BaseException:pass
++
++
++def start(budget):
++    try:return Observation(budget)
++    except BaseException:return None
++
++
++def number(value):
++    if type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 2**53:
++        return round(value, 3)
++    return None
++
++
++class Observation:
++    def __init__(self, budget):
++        self.budget = budget
++        self.wall = time.monotonic_ns()
++        self.cpu = time.thread_time_ns()
++        self.thread = threading.get_ident()
++        self.installed = self.removed = False
++        self.calls = 0
++        self.reason = self.callback_phase_seconds = None
++        self.failed = None
++        self.active = self.same_thread = True
++        self.rollback = self.closed = 'not_attempted'
++        self.transaction = None
++        self.rows = []
++        self.index = 0
++        self.valid = True
++        self.phase_failure = None
++        self.admitted = self.emitted = False
++
++    def installed_callback(self):self.installed = True
++    def removed_callback(self):self.removed = True
++    def rolled_back(self, state):self.rollback = state
++    def close_result(self, state):self.closed = state
++    def transaction_after(self, db):self.transaction = db.in_transaction
++
++    def callback(self, reason):
++        if not self.active:return
++        if threading.get_ident() != self.thread:
++            self.same_thread = False
++            return
++        self.calls = min(150000, self.calls + 1)
++        if reason in ('cooperative_deadline', 'bounded_planning_capacity', 'operation_work_capacity'):
++            self.reason = reason
++            limits = self.budget._planning_limits
++            self.callback_phase_seconds = number(limits[0]) if limits is not None else None
++
++    def sample(self):
++        if not self.same_thread or threading.get_ident() != self.thread:raise ValueError
++        wall = (time.monotonic_ns() - self.wall) / 1e6
++        cpu = (time.thread_time_ns() - self.cpu) / 1e6
++        counts = [self.budget.steps, self.budget.sql_bytes, self.budget.read_bytes]
++        if any(type(v) is not int for v in counts):raise ValueError
++        values = [wall, cpu, *counts]
++        if any(number(v) is None for v in values) or cpu > wall + 1.:raise ValueError
++        row = [STAGES[self.index], round(wall, 3), round(cpu, 3), *counts]
++        if self.rows and any(a < b for a, b in zip(row[1:], self.rows[-1][1:])):raise ValueError
++        return row
++
++    def phase(self, name):
++        if not self.valid or self.phase_failure is not None:return
++        try:
++            index = STAGES.index(name)
++            if index <= self.index:raise ValueError
++            self.rows.append(self.sample())
++            self.index = index
++        except BaseException:self.valid = False
++
++    def phase_failed(self):
++        try:
++            if self.valid:self.rows.append(self.sample())
++        except BaseException:self.valid = False
++        self.phase_failure = dict(schema='primary_commit_stages_v1', valid=self.valid,
++            connection_open='excluded', counter_scope='shared_budget_explicit_projection',
++            exact_interrupt_attribution='unproven', last_stage=STAGES[self.index],
++            columns=['stage', 'cumulative_wall_ms', 'cumulative_thread_cpu_ms',
++                     'budget_steps', 'budget_projection_bytes', 'budget_read_bytes'],
++            rows=self.rows if self.valid else [], clock_tolerance_ms=1.0)
++
++    def failure(self, exc, committing):
++        if self.failed is not None:return
++        budget = self.budget
++        elapsed = budget.elapsed
++        if budget._began is not None:elapsed += time.monotonic() - budget._began
++        self.failed = dict(schema='primary_commit_cost_v1', stage='commit' if committing else 'body',
++            sqlite_code=number(getattr(exc, 'sqlite_errorcode', None)),
++            wall_ms=number((time.monotonic_ns() - self.wall) / 1e6),
++            thread_cpu_ms=number((time.thread_time_ns() - self.cpu) / 1e6)
++                if self.same_thread and threading.get_ident() == self.thread else None,
++            elapsed_ms=number(elapsed * 1000), seconds=number(budget.seconds),
++            notice_seconds=number(budget._bounded_seconds or .5),
++            steps=number(budget.steps), sql_bytes=number(budget.sql_bytes), read_bytes=number(budget.read_bytes),
++            callback_calls=self.calls, callback_refusal=self.reason,
++            callback_phase_seconds=self.callback_phase_seconds, callback_same_thread=self.same_thread,
++            exact_interrupt_attribution='unproven', callback_installed=self.installed)
++        self.phase_failed()
++
++    def emit(self):
++        global _COUNT
++        self.active = False
++        if self.failed is None:return
++        self.failed.update(rollback=self.rollback, closed=self.closed,
++            in_transaction_after_rollback=self.transaction, callback_removed=self.removed)
++        encoded = json.dumps(self.failed, separators=(',', ':'), allow_nan=False)
++        if len(encoded.encode('utf-8')) > 1024:return
++        if not _LOCK.acquire(blocking=False):return
++        try:
++            if _COUNT >= LIMIT:return
++            _COUNT += 1
++            self.admitted = True
++        finally:_LOCK.release()
++        _LOG.warning('primary_commit_cost %s', encoded)
++
++    def emit_phases(self):
++        if not self.admitted or self.emitted or self.phase_failure is None:return
++        self.emitted = True
++        encoded = json.dumps(self.phase_failure, separators=(',', ':'), allow_nan=False)
++        if len(encoded.encode('utf-8')) <= 2048:
++            _LOG.warning('primary_commit_stages %s', encoded)
+--- /dev/null
++++ b/tests/test_recovered_array_digest.py
+@@ -0,0 +1,94 @@
++"""New recovery controls; not byte-identical restoration of lost test files."""
++from array import array
++from dataclasses import replace
++import hashlib
++import struct
++from types import SimpleNamespace
++
++import pytest
++
++from audio_backend import native_owned_cells as cells
++from audio_backend import native_owned_core_seams as core
++from test_bounded_core_support import synthetic_case, final_cell, primary_row
++
++
++def scalar_bytes(pcm):
++    return b''.join(struct.pack('<f', n / 32768.) for (n,) in struct.iter_unpack('<h', pcm))
++
++
++def scalar_digest(pcm):return hashlib.sha256(scalar_bytes(pcm)).hexdigest()
++
++
++def test_entire_int16_domain_raw_bytes_and_hash(monkeypatch):
++    pcm=b''.join(struct.pack('<h', n) for n in range(-32768,32768))
++    expected=scalar_bytes(pcm); updates=[]; real=hashlib.sha256
++    class Hash:
++        def __init__(self):self.h=real()
++        def update(self, block):updates.append(bytes(block));self.h.update(block)
++        def hexdigest(self):return self.h.hexdigest()
++    monkeypatch.setattr(cells,'hashlib',SimpleNamespace(sha256=Hash))
++    assert cells.float32_digest(pcm)==real(expected).hexdigest()
++    assert b''.join(updates)==expected
++    assert all(len(block)<=65536 for block in updates)
++
++
++@pytest.mark.parametrize('length',[0,2,32766,32768,32770,65534,65536,65538,320000,639998,640000])
++def test_boundaries_match_scalar(length):
++    pattern=b'\0\x80\xff\x7f\xff\xff\0\0\x01\0'
++    pcm=(pattern*((length+9)//10))[:length]
++    assert cells.float32_digest(pcm)==scalar_digest(pcm)
++
++
++class BytesSubclass(bytes):pass
++
++
++@pytest.mark.parametrize('value',[None,b'\0',b'\0'*32769,b'\0'*640001,b'\0'*640002,
++    bytearray(2),memoryview(b'\0\0'),BytesSubclass(b'\0\0')])
++def test_invalid_inputs_preserve_refusal(value):
++    with pytest.raises(cells.Unavailable,match='^invalid_cell_pcm$'):cells.float32_digest(value)
++
++
++@pytest.mark.parametrize('layout',['big','short_width','float_width'])
++def test_unsupported_layout_uses_scalar(monkeypatch,layout):
++    calls=[]
++    def factory(kind,*args):
++        calls.append(kind)
++        if kind=='h' and layout=='short_width':return SimpleNamespace(itemsize=4)
++        if kind=='f' and layout=='float_width':return SimpleNamespace(itemsize=8)
++        return array(kind,*args)
++    monkeypatch.setattr(cells,'sys',SimpleNamespace(byteorder='big' if layout=='big' else 'little'))
++    monkeypatch.setattr(cells,'array',factory)
++    pcm=struct.pack('<hhhh',-32768,-1,0,32767)
++    assert cells.float32_digest(pcm)==scalar_digest(pcm)
++    assert len(calls)<=2  # Layout probes only; no block conversion.
++
++
++def test_supported_layout_really_converts_arrays(monkeypatch):
++    if cells.sys.byteorder!='little' or array('h').itemsize!=2 or array('f').itemsize!=4:
++        pytest.skip('host does not have supported layout')
++    calls=[]
++    def factory(kind,*args):calls.append(kind);return array(kind,*args)
++    monkeypatch.setattr(cells,'array',factory)
++    assert cells.float32_digest(b'\x01\0'*20000)==scalar_digest(b'\x01\0'*20000)
++    assert calls.count('h')==calls.count('f')==3  # Probe + two bounded blocks.
++
++
++@pytest.mark.parametrize('count',[2,3,4])
++def test_current_proof_identity_ownership_and_independent_validation(monkeypatch,count):
++    case=synthetic_case([10*i for i in range(count+1)],[(2,8)])
++    rows=[primary_row(1,0,count*10)]
++    original=cells.float32_digest; calls=[]
++    def construction(pcm):calls.append('construction');return original(pcm)
++    def validation(pcm):calls.append('validation');return original(pcm)
++    monkeypatch.setattr(core,'float32_digest',construction)
++    monkeypatch.setattr(cells,'float32_digest',validation)
++    fast=final_cell(case,rows)
++    assert calls.count('construction')==1 and calls.count('validation')==1
++    monkeypatch.setattr(core,'float32_digest',scalar_digest)
++    monkeypatch.setattr(cells,'float32_digest',scalar_digest)
++    slow=final_cell(case,rows)
++    assert (fast.proof,fast.cell_id,fast.ownership,fast.pcm,fast.support,fast.parts)==(
++        slow.proof,slow.cell_id,slow.ownership,slow.pcm,slow.support,slow.parts)
++    with pytest.raises(cells.Unavailable):replace(fast,pcm=b'\x01\0'+fast.pcm[2:])
++    with pytest.raises(cells.Unavailable):replace(fast,proof=fast.proof+b' ')
++    with pytest.raises(cells.Unavailable):replace(fast,support=replace(fast.support,float32le_sha256='f'*64))
+--- /dev/null
++++ b/tests/test_recovered_capture_read_reuse.py
+@@ -0,0 +1,93 @@
++"""New finite connection-reuse controls using the published real authority fixture."""
++from types import SimpleNamespace
++import threading
++
++import pytest
++
++from audio_backend import native_owned_cell_capture as capture
++from audio_backend.native_owned_cell_store import Budget
++from audio_backend.native_owned_cells import RATE, Unavailable
++import test_native_owned_cell_list_authority as list_authority
++
++
++@pytest.fixture
++def source():
++    case=list_authority.ListAuthorityTests();case.setUp()
++    try:yield case
++    finally:case.doCleanups()
++
++
++def wiring(source, monkeypatch):
++    authority=source.authority; parts=source.cell.parts; failures=[]; copied=[]
++    def mapping(chunk, scope_start, a, b, budget):
++        scope=authority._list_reads.current
++        assert scope['budget'] is budget and scope['bounded_planning'] is False
++        for part in parts:assert authority.row(part.chunk_id,budget) is not None
++        return parts
++    monkeypatch.setattr(authority,'mapping',mapping)
++    def copy(*args):
++        assert authority._list_reads.current is None
++        assert all(db.record['closed'] for db in source.connections)
++        copied.append(True)
++    authority.store.moss_automatic=SimpleNamespace(jobs=SimpleNamespace(prepare_primary_copy=copy))
++    state=SimpleNamespace(authority=authority,budget=Budget(),analyzer=b'\x01\0'*32,
++        origin_frame=0,analyzer_start=0,scope_start=0.,primary_only=True,seam_enabled=False,
++        _failure=lambda exc:failures.append(exc))
++    def run():
++        return capture.Capture._prepare_with_census(state,{'id':'left'}, {'state':{}},
++            0.,32/RATE, {'metadata':{'core_cut':{}}},required=True)
++    return state,run,failures,copied
++
++
++def test_capture_reuses_one_connection_but_twelve_snapshots(source,monkeypatch):
++    state,run,failures,copied=wiring(source,monkeypatch)
++    assert run()==() and not failures and copied==[True]
++    assert len(source.connections)==1
++    record=source.connections[0].record
++    assert record['begin']==record['rollback']==12
++    assert record['closed'] and not record['close_with_transaction']
++    assert state.analyzer is None and source.authority._list_reads.current is None
++
++
++def test_mutation_after_mapping_invalidates_pcm_authority(source,monkeypatch):
++    state,run,failures,copied=wiring(source,monkeypatch)
++    original=source.authority.mapping
++    def changed(*args):
++        parts=original(*args)
++        source.commit("UPDATE chunks SET digest=? WHERE id='left'",('f'*64,))
++        return parts
++    monkeypatch.setattr(source.authority,'mapping',changed)
++    with pytest.raises(Unavailable):run()
++    assert failures and not copied and state.analyzer is None
++    assert source.authority._list_reads.current is None
++    assert all(db.record['closed'] for db in source.connections)
++
++
++def test_required_capture_rollback_uncertainty_is_hard(source,monkeypatch):
++    import sqlite3
++    state,run,failures,copied=wiring(source,monkeypatch)
++    source.fail_rollback=True
++    with pytest.raises(sqlite3.OperationalError):run()
++    assert len(failures)==1 and not copied and state.analyzer is None
++    assert source.authority._list_reads.current is None
++    assert all(db.record['closed'] for db in source.connections)
++
++
++def test_connection_scopes_are_thread_local(source):
++    barrier=threading.Barrier(2); outcomes=[]; errors=[]
++    def worker():
++        try:
++            budget=Budget()
++            with source.authority.list_read_scope(budget):
++                barrier.wait(timeout=3)
++                outcomes.append(source.authority._read(budget,'source_row',lambda db:db.execute('SELECT 1').fetchone()[0]))
++            assert source.authority._list_reads.current is None
++        except BaseException as exc:errors.append(exc)
++    threads=[threading.Thread(target=worker) for _ in range(2)]
++    for thread in threads:thread.start()
++    for thread in threads:thread.join(timeout=5)
++    assert not any(thread.is_alive() for thread in threads)
++    assert not errors and outcomes==[1,1]
++    assert len(source.connections)==2
++    assert len({db.record['thread'] for db in source.connections})==2
++    assert all(db.record['closed'] and db.record['begin']==db.record['rollback']==1 for db in source.connections)
+--- /dev/null
++++ b/tests/test_recovered_commit_diagnostics.py
+@@ -0,0 +1,225 @@
++"""Finite fake-database controls of the real Store contexts and real Budget."""
++import json
++import sqlite3
++from types import SimpleNamespace
++import pytest
++from audio_backend import primary_commit_cost as cost, storage
++from audio_backend import native_owned_cell_store as budgets
++
++
++def error(code=9):
++    exc = sqlite3.OperationalError('PRIVATE payload /path SQL text')
++    exc.sqlite_errorcode = code
++    return exc
++
++
++class Clock:
++    wall = 1000000000
++    cpu = 500000000
++    thread = 1
++    def monotonic_ns(self):return self.wall
++    def thread_time_ns(self):return self.cpu
++    def monotonic(self):return self.wall / 1e9
++    def advance(self, ms):
++        self.wall += int(ms * 1e6)
++        self.cpu += int(ms * 5e5)
++
++
++class DB:
++    def __init__(self):
++        self.events = []
++        self.faults = {}
++        self.in_transaction = True
++        self.handler = None
++    def action(self, name):
++        self.events.append(name)
++        if name in self.faults:raise self.faults[name]
++    def set_progress_handler(self, callback, steps):
++        self.action('remove' if callback is None else 'install')
++        self.handler = callback
++    def execute(self, sql):self.action('execute')
++    def rollback(self):
++        self.action('rollback')
++        self.in_transaction = False
++    def commit(self):self.action('commit')
++    def close(self):self.action('close')
++
++
++@pytest.fixture
++def rig(monkeypatch):
++    clock = Clock()
++    monkeypatch.setattr(cost, 'time', clock)
++    monkeypatch.setattr(cost, 'threading', SimpleNamespace(get_ident=lambda: clock.thread))
++    monkeypatch.setattr(budgets, 'time', clock)
++    monkeypatch.setattr(cost, '_COUNT', 0)
++    db = DB()
++    monkeypatch.setattr(storage.sqlite3, 'connect', lambda *a, **k: db)
++    store = storage.Store.__new__(storage.Store)
++    store.path = 'unused'
++    budget = budgets.Budget.for_bounded(.75)
++    logs = []
++    def log(fmt, encoded):
++        assert db.events[-1] == 'close'
++        logs.append((fmt.split()[0], json.loads(encoded), encoded))
++    monkeypatch.setattr(cost._LOG, 'warning', log)
++    return SimpleNamespace(clock=clock, db=db, store=store, budget=budget, logs=logs)
++
++
++def fail(rig, exc, stage=None):
++    with rig.store._primary_commit_database(rig.budget):
++        if stage is not None:
++            cost.note(rig.budget._primary_commit_observation, 'phase', stage)
++        raise exc
++
++
++@pytest.mark.parametrize('stage', cost.STAGES)
++def test_stage_failure_original_exception_and_after_close(rig, stage):
++    exc = error()
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        fail(rig, exc, None if stage == 'begin_guards' else stage)
++    assert caught.value is exc
++    assert rig.db.events == ['install', 'execute', 'remove', 'rollback', 'close']
++    assert rig.budget._primary_commit_observation is None
++    assert rig.budget._primary_commit_context is False
++    record, phases = [entry[1] for entry in rig.logs]
++    assert record['rollback'] == record['closed'] == 'returned'
++    assert record['in_transaction_after_rollback'] is False
++    assert record['callback_removed'] and record['callback_installed']
++    assert phases['valid'] and phases['last_stage'] == stage
++    assert phases['rows'][-1][0] == stage
++    assert 'PRIVATE' not in ''.join(entry[2] for entry in rig.logs)
++
++
++@pytest.mark.parametrize('kind', ['deadline', 'vm', 'external', 'stale'])
++def test_current_callback_only_same_budget_not_connection_attribution(rig, kind):
++    exc = error()
++    rig.budget._progress_refusal = 'operation_work_capacity' if kind == 'stale' else None
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        with rig.store._primary_commit_database(rig.budget):
++            assert rig.db.handler.__self__ is rig.budget
++            assert rig.db.handler.__func__ is budgets.Budget.progress
++            if kind == 'deadline':rig.clock.advance(751)
++            if kind == 'vm':rig.budget.steps = 150000
++            if kind in ('deadline', 'vm'):assert rig.db.handler() == 1
++            raise exc
++    assert caught.value is exc and rig.budget.seconds == .75
++    row = rig.logs[0][1]
++    assert row['callback_calls'] == (1 if kind in ('deadline', 'vm') else 0)
++    assert row['callback_refusal'] == ('bounded_planning_capacity' if kind in ('deadline', 'vm') else None)
++    assert row['exact_interrupt_attribution'] == 'unproven'
++    assert rig.budget.steps == (150100 if kind == 'vm' else 100 if kind == 'deadline' else 0)
++
++
++@pytest.mark.parametrize('fault', ['remove', 'rollback', 'close', 'commit'])
++def test_cleanup_priority_unchanged(rig, fault):
++    body = error()
++    cleanup = error(10)
++    rig.db.faults[fault] = cleanup
++    expected = body if fault == 'rollback' else cleanup
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        with rig.store._primary_commit_database(rig.budget):
++            if fault != 'commit':raise body
++    assert caught.value is expected
++    assert rig.db.events[-1] == 'close'
++    assert rig.budget._primary_commit_observation is None
++    row = rig.logs[0][1]
++    if fault == 'remove':assert row['rollback'] == 'not_attempted' and 'rollback' not in rig.db.events
++    if fault == 'rollback':assert row['rollback'] == 'unknown'
++    if fault == 'close':assert row['closed'] == 'unknown'
++    if fault == 'commit':assert rig.logs[1][1]['last_stage'] == 'commit_exit'
++
++
++@pytest.mark.parametrize('fault', ['start', 'failure', 'emit', 'emit_phases', 'logger'])
++def test_observer_fault_and_prior_marker_preserve_body_interrupt(rig, monkeypatch, fault):
++    calls = []
++    sentinel = SimpleNamespace(callback=lambda reason: calls.append(reason))
++    rig.budget._primary_commit_observation = sentinel
++    def broken(*args):raise KeyboardInterrupt('diagnostic fault')
++    if fault == 'logger':monkeypatch.setattr(cost._LOG, 'warning', broken)
++    elif fault == 'start':monkeypatch.setattr(cost, 'start', broken)
++    else:monkeypatch.setattr(cost.Observation, fault, broken)
++    exc = KeyboardInterrupt('original body')
++    with pytest.raises(KeyboardInterrupt) as caught:
++        with rig.store._primary_commit_database(rig.budget):
++            assert rig.db.handler() == 0
++            raise exc
++    assert caught.value is exc
++    assert calls == []
++    assert rig.budget._primary_commit_observation is sentinel
++    assert rig.db.events[-3:] == ['remove', 'rollback', 'close']
++
++
++def test_success_does_not_consume_failure_cap(rig):
++    for _ in range(20):
++        with rig.store._primary_commit_database(rig.budget):pass
++    assert rig.logs == [] and cost._COUNT == 0
++    for _ in range(10):
++        with pytest.raises(sqlite3.OperationalError):fail(rig, error())
++    assert cost._COUNT == 8 and len(rig.logs) == 16
++    assert all(len(encoded.encode()) <= (1024 if prefix == 'primary_commit_cost' else 2048)
++               for prefix, _, encoded in rig.logs)
++
++
++def test_busy_cap_drops_both_records(rig):
++    cost._LOCK.acquire()
++    try:
++        with pytest.raises(sqlite3.OperationalError):fail(rig, error())
++    finally:cost._LOCK.release()
++    assert rig.logs == [] and cost._COUNT == 0
++
++
++def test_pre_yield_failure_has_no_stage_companion(rig):
++    exc = error()
++    rig.db.faults['execute'] = exc
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        with rig.store._primary_commit_database(rig.budget):pytest.fail('entered')
++    assert caught.value is exc
++    assert [row[0] for row in rig.logs] == ['primary_commit_cost']
++
++
++@pytest.mark.parametrize('invalid', ['wall', 'cpu', 'thread', 'counter', 'order', 'clock'])
++def test_invalid_stage_samples_hide_all_rows(rig, monkeypatch, invalid):
++    with pytest.raises(sqlite3.OperationalError):
++        with rig.store._primary_commit_database(rig.budget):
++            obs = rig.budget._primary_commit_observation
++            obs.phase('lexical_prepare')
++            if invalid == 'wall':rig.clock.wall -= 1
++            if invalid == 'cpu':rig.clock.cpu += 2000000
++            if invalid == 'thread':rig.clock.thread = 2
++            if invalid == 'counter':rig.budget.steps = -1
++            if invalid == 'order':obs.phase('lexical_prepare')
++            if invalid == 'clock':
++                monkeypatch.setattr(rig.clock, 'thread_time_ns', lambda: float('nan'))
++            raise error()
++    phases = rig.logs[1][1]
++    assert phases['valid'] is False and phases['rows'] == []
++
++
++def test_maximum_twelve_rows_fit_cap(rig):
++    with pytest.raises(sqlite3.OperationalError):
++        with rig.store._primary_commit_database(rig.budget):
++            obs = rig.budget._primary_commit_observation
++            rig.budget.steps = rig.budget.sql_bytes = rig.budget.read_bytes = 2**53
++            for stage in cost.STAGES[1:]:obs.phase(stage)
++            raise error()
++    phases = rig.logs[1][1]
++    assert phases['valid'] and len(phases['rows']) == 12
++    assert len(rig.logs[1][2].encode()) <= 2048
++
++
++def test_marker_restore_fault_does_not_replace_original_close(rig):
++    class BrokenRestore(budgets.Budget):
++        armed = False
++        def __setattr__(self, name, value):
++            if name == '_primary_commit_observation' and self.armed:
++                raise RuntimeError('marker restoration failed')
++            super().__setattr__(name, value)
++    rig.budget = BrokenRestore.for_bounded(.75)
++    close = error(10)
++    rig.db.faults['close'] = close
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        with rig.store._primary_commit_database(rig.budget):
++            rig.budget.armed = True
++            raise error()
++    assert caught.value is close
++    assert rig.db.events[-1] == 'close'
+--- /dev/null
++++ b/tests/test_recovered_initial_scope.py
+@@ -0,0 +1,169 @@
++"""New recovery controls; synthetic inference with actual Worker and SQLite.
++
++These are branch/authority controls, not A10 workload or performance evidence.
++"""
++from contextlib import nullcontext
++from dataclasses import replace
++import hashlib
++import sqlite3
++from types import SimpleNamespace
++
++import pytest
++
++from audio_backend import native_owned_cell_store as budgets
++from audio_backend.native_owned_cell_capture import PrimaryAuthority, signature
++from audio_backend.native_owned_core_seams import CoreSeams
++from audio_backend.native_owned_cells import Unavailable, RATE
++from audio_backend.storage import Store
++from test_bounded_support_intents import automatic_app_factory, bounded_app_factory, ingest, process_primary, wav_bytes
++from test_bounded_support_roots import legacy_store, SID, exhaust_planning_read, observe_authority_connections
++
++
++def install(h, monkeypatch, phase='source_row', kind='vm', cleanup=None):
++    authority=h.capture.authority; read=authority._read; raw_connect=sqlite3.connect
++    opened=[]; selected=[None]; seen=[]; commits=[]; shift=[0.]
++    if kind in ('deadline','total'):
++        clock=budgets.time
++        monkeypatch.setattr(budgets,'time',SimpleNamespace(monotonic=lambda:clock.monotonic()+shift[0]))
++    class Connection(sqlite3.Connection):
++        def __init__(self,*a,**kw):super().__init__(*a,**kw);self.closed=False;self.events=[]
++        def execute(self,sql,*a,**kw):
++            verb=sql.strip().split()[0].upper();self.events.append(verb)
++            if self is selected[0] and cleanup=='rollback' and verb=='ROLLBACK':
++                raise sqlite3.OperationalError('synthetic rollback refusal')
++            return super().execute(sql,*a,**kw)
++        def close(self):
++            self.events.append('CLOSE');super().close();self.closed=True
++            if self is selected[0] and cleanup=='close':raise sqlite3.OperationalError('synthetic close uncertainty')
++    def connect(path,*a,**kw):
++        if type(path) is str and '?mode=ro' in path:
++            db=raw_connect(path,*a,factory=Connection,**kw);opened.append(db);return db
++        return raw_connect(path,*a,**kw)
++    monkeypatch.setattr(sqlite3,'connect',connect)
++    def wrapped(budget,current,reader):
++        scope=getattr(authority._list_reads,'current',None)
++        if not seen and current==phase and scope is not None and scope.get('bounded_planning') is True:
++            assert scope['budget'] is budget and budget._planning_limits==(.4,120000,128*1024)
++            seen.append({'budget':budget})
++            def fault(db):
++                selected[0]=db
++                if kind=='external':
++                    budget._progress_refusal='bounded_planning_capacity'
++                    db.set_progress_handler(lambda:1,100)
++                elif kind in ('deadline','total'):shift[0]=.401 if kind=='deadline' else .801
++                return exhaust_planning_read(db)
++            try:return read(budget,current,fault)
++            except BaseException as exc:
++                seen[0].update(error=exc,steps=budget.steps,elapsed=budget.elapsed);raise
++        return read(budget,current,reader)
++    monkeypatch.setattr(authority,'_read',wrapped)
++    def commit(chunk,offset,end,result):
++        assert authority._list_reads.current is None
++        handoff=result['_native_bounded_support'];budget=handoff['budget']
++        assert budget is seen[0]['budget'] and budget.seconds==.75
++        assert budget.steps>=seen[0]['steps'] and budget.elapsed>=seen[0]['elapsed']
++        assert handoff['plans']==[] and result['_native_automatic_cells']==()
++        assert handoff['reason']=='bounded_planning_capacity'
++        commits.append({'elapsed':budget.elapsed})
++        # The inherited measurement-only wrapper assumes later true_eof exists.
++        # Do not invent it: call the unchanged production method exactly once.
++        accepted=Store.commit_window(h.store,chunk,offset,end,result)
++        commits[-1]['accepted']=accepted
++        return accepted
++    monkeypatch.setattr(h.store,'commit_window',commit)
++    return opened,seen,commits
++
++
++@pytest.mark.parametrize('phase',['source_row','core_previous'])
++@pytest.mark.parametrize('kind',['vm','deadline'])
++def test_authenticated_initial_refusal_commits_once(bounded_app_factory,monkeypatch,phase,kind):
++    with bounded_app_factory() as h:
++        chunks=ingest(h);opened,seen,commits=install(h,monkeypatch,phase,kind)
++        assert process_primary(h)==chunks[0]['id']
++        assert len(seen)==len(commits)==1 and commits[0]['accepted'] is True
++        assert type(seen[0]['error']) is Unavailable
++        assert seen[0]['error'].__cause__.sqlite_errorcode==sqlite3.SQLITE_INTERRUPT
++        assert str(seen[0]['error'])=='bounded_planning_capacity'
++        assert h.store.chunk(chunks[0]['id'])['next_offset']==10.5
++        assert any(db.events[-2:]==['ROLLBACK','CLOSE'] for db in opened)
++        assert all(db.closed for db in opened)
++        assert h.capture.authority._list_reads.current is None
++        assert not h.drivers and h.jobs._live is None and not h.owner._pins
++        if kind=='vm':assert seen[0]['steps']>120000
++        else:assert commits[0]['elapsed']>=.401
++
++
++@pytest.mark.parametrize('kind,cleanup',[('external',None),('vm','rollback'),('vm','close')])
++def test_unproven_or_uncertain_initial_read_stays_hard(bounded_app_factory,monkeypatch,kind,cleanup):
++    with bounded_app_factory() as h:
++        chunks=ingest(h);opened,seen,commits=install(h,monkeypatch,kind=kind,cleanup=cleanup)
++        with pytest.raises(sqlite3.OperationalError):process_primary(h)
++        assert len(seen)==1 and not commits
++        assert h.store.chunk(chunks[0]['id'])['next_offset']==0.
++        assert all(db.closed for db in opened) and h.capture.authority._list_reads.current is None
++        if kind=='external':assert seen[0]['steps']<120000
++
++
++def test_total_budget_is_not_reset(bounded_app_factory,monkeypatch):
++    with bounded_app_factory() as h:
++        chunks=ingest(h);opened,seen,commits=install(h,monkeypatch,kind='total')
++        with pytest.raises(Unavailable,match='bounded_planning_capacity'):process_primary(h)
++        assert len(seen)==len(commits)==1 and commits[0]['elapsed']>=.801
++        assert 'accepted' not in commits[0] and h.store.chunk(chunks[0]['id'])['next_offset']==0.
++        assert all(db.closed for db in opened)
++
++
++def test_scope_ends_before_next_planning(bounded_app_factory,monkeypatch):
++    with bounded_app_factory() as h:
++        chunks=ingest(h);original=h.capture.bounded_prepare;seen=[]
++        def later(*args):
++            assert h.capture.authority._list_reads.current is None
++            seen.append(True);return original(*args)
++        monkeypatch.setattr(h.capture,'bounded_prepare',later)
++        assert process_primary(h)==chunks[0]['id'] and seen==[True]
++
++
++@pytest.mark.parametrize('mode',['absent','capture','primary_sql'])
++def test_default_or_write_reader_cannot_soften_interrupt(legacy_store,mode):
++    authority=PrimaryAuthority(legacy_store);budget=budgets.Budget.for_bounded(.75)
++    budget.primary_sql=mode=='primary_sql'
++    scope=nullcontext() if mode=='absent' else authority.list_read_scope(budget,bounded_planning=mode=='primary_sql')
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        with budget.planning_phase(),scope:authority._read(budget,'source_row',exhaust_planning_read)
++    assert caught.value.sqlite_errorcode==sqlite3.SQLITE_INTERRUPT and budget.steps>120000
++
++
++def test_nonbounded_required_prepare_does_not_opt_in():
++    error=sqlite3.OperationalError('external');error.sqlite_errorcode=sqlite3.SQLITE_INTERRUPT
++    def mapping(*args):raise error
++    def forbidden(*args,**kwargs):pytest.fail('nonbounded entered optional scope')
++    owner=SimpleNamespace(_epoch=object(),health=lambda:{'ready':True})
++    capture=SimpleNamespace(owner=owner,scope=('stream','sid','stream'),origin_frame=0,scope_start=0.,
++        authority=SimpleNamespace(mapping=mapping,list_read_scope=forbidden))
++    with pytest.raises(sqlite3.OperationalError) as caught:
++        CoreSeams(capture).prepare({}, {}, 0., 1., {}, None, lambda:False, required=True)
++    assert caught.value is error
++
++
++@pytest.mark.parametrize('changed',['source','receipt'])
++def test_fresh_binding_rejects_valid_mutation(legacy_store,monkeypatch,changed):
++    store=legacy_store;path=store.settings.data_dir/'uploads'/'recovery.audio'
++    path.parent.mkdir(exist_ok=True);content=wav_bytes(0,2);path.write_bytes(content)
++    digest=hashlib.sha256(content).hexdigest();duration=2/RATE
++    with store.db() as db:
++        db.execute('''INSERT INTO chunks(id,session_id,idempotency_key,digest,path,duration,
++            timeline_start,status,next_offset,created,metadata)
++            VALUES('fresh',?,'fresh',?,?,?,0.,'completed',?,1.,'{}')''',(SID,digest,str(path),duration,duration))
++    receipt=budgets.Receipt(SID,'fresh',digest,2,44,len(content),signature(path.stat()),0.,None)
++    authority=PrimaryAuthority(store);opened=observe_authority_connections(monkeypatch)
++    budget=budgets.Budget.for_bounded(.75)
++    with budget.planning_phase(),authority.list_read_scope(budget,bounded_planning=True):
++        assert authority.receipt_valid(receipt,budget)
++        if changed=='source':
++            with store.db() as db:db.execute("UPDATE chunks SET digest=? WHERE id='fresh'",('f'*64,))
++        else:
++            previous=receipt;receipt=replace(receipt,timeline_start=1/RATE)
++            assert budgets.Receipt.decode(receipt.encoded)==receipt and receipt.receipt_id!=previous.receipt_id
++        assert not authority.receipt_valid(receipt,budget)
++    assert len(opened)==1 and opened[0].closed
++    assert opened[0].events.count('BEGIN')==opened[0].events.count('ROLLBACK')==3
