@@ -1,0 +1,110 @@
+"""Root-executed source/behavior controls; no author execution."""
+import ast
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+import pytest
+from audio_backend import app as app_module
+from audio_backend import shutdown_diagnostics as diagnostics
+from audio_backend.settings import Settings
+from fastapi.testclient import TestClient
+from test_native_owned_support_api import FakeAnalyzer
+
+BASE=Path('/workspace/scratch/12ec3121e93f/audio-runtime-qualified-rev02-20261025/audio_backend/app.py')
+PREDICATE='stopped and jobs_stopped and cells_stopped and fragments.cleanup_error is None and initializer_safe'
+
+
+def record(state,**changes):
+    values=dict(worker_stopped=True,jobs_stopped=True,cells_stopped=True,
+        fragment_cleanup_error=None,initializer_safe=True);values.update(changes)
+    diagnostics.record_shutdown_decision(state,**values)
+
+@pytest.mark.parametrize('field',['worker_stopped','jobs_stopped','cells_stopped','initializer_safe'])
+def test_each_predicate_is_preserved_without_truth_coercion(field):
+    state=SimpleNamespace();record(state,**{field:False})
+    assert state.shutdown_decision_diagnostics['predicates'][field] is False
+    record(state,**{field:1})
+    assert state.shutdown_decision_diagnostics is None
+
+
+def test_exception_class_only_no_messages_ids_or_paths():
+    SecretClass=type('SecretPatientName123',(RuntimeError,),{})
+    state=SimpleNamespace(worker_shutdown_error=RuntimeError('/private/path'),
+        moss_jobs_shutdown_error=SecretClass('secret transcript'),native_owned_cells_shutdown_error=OSError('secret'))
+    record(state,fragment_cleanup_error=ValueError('private-model-name'))
+    row=state.shutdown_decision_diagnostics
+    assert row['exception_classes']=={'worker':'RuntimeError','jobs':'other','cells':'OSError','fragment':'ValueError'}
+    assert row['predicates']['fragment_cleanup_clear'] is False
+    assert 'private' not in repr(row) and 'SecretPatient' not in repr(row)
+
+
+def test_diagnostic_storage_failure_never_escapes():
+    class Broken:
+        def __setattr__(self,*_):raise KeyboardInterrupt('synthetic diagnostic failure')
+    record(Broken())
+
+
+def test_no_health_stop_or_cleanup_is_called():
+    class State:
+        def health(self):raise AssertionError('health called')
+        def stop(self):raise AssertionError('stop called')
+        def close(self):raise AssertionError('close called')
+    state=State();record(state)
+    assert state.shutdown_decision_diagnostics['observation']=='OBSERVED'
+
+
+def test_original_conjunction_branches_and_cleanup_calls_are_unchanged():
+    old=ast.parse(BASE.read_text());new=ast.parse(Path(app_module.__file__).read_text())
+    expected=ast.dump(ast.parse(PREDICATE,mode='eval').body,include_attributes=False)
+    def decision(tree):
+        found=[n for n in ast.walk(tree) if isinstance(n,ast.If)
+            and ast.dump(n.test,include_attributes=False)==expected]
+        assert len(found)==1
+        return ast.dump(found[0],include_attributes=False)
+    assert decision(old)==decision(new)
+    names={'stop','close','close_admission','unregister_cells','revoke_recovery','release','health'}
+    def calls(tree):
+        return sorted(ast.dump(n,include_attributes=False) for n in ast.walk(tree) if isinstance(n,ast.Call)
+            and ((isinstance(n.func,ast.Attribute) and n.func.attr in names)
+                or isinstance(n.func,ast.Name) and n.func.id in names))
+    assert calls(old)==calls(new)
+
+
+@pytest.mark.parametrize('stopped',[True,False])
+@pytest.mark.parametrize('diagnostic_fails',[True,False])
+def test_real_lifespan_keeps_worker_result_and_single_stop(tmp_path,stopped,diagnostic_fails):
+    app=app_module.create_app(Settings(data_dir=tmp_path,disk_reserve_bytes=0,start_worker=False),analyzer_factory=FakeAnalyzer)
+    worker=app.state.worker;original=worker.stop;calls=[]
+    def stop():calls.append(True);assert original();return stopped
+    def observe(*a,**k):
+        if diagnostic_fails:raise KeyboardInterrupt('synthetic diagnostic failure')
+        return saved(*a,**k)
+    saved=diagnostics.record_shutdown_decision
+    with patch.object(worker,'stop',side_effect=stop),patch.object(diagnostics,'record_shutdown_decision',side_effect=observe):
+        if stopped:
+            with TestClient(app):pass
+        else:
+            with pytest.raises(RuntimeError,match='Shutdown blocked'):
+                with TestClient(app):pass
+    assert calls==[True]
+    assert app.state.instance_lock_cleanup_complete is stopped
+    if not diagnostic_fails:
+        assert app.state.shutdown_decision_diagnostics['predicates']['worker_stopped'] is stopped
+    if not stopped:
+        # Test-only original stop has already positively completed. The production
+        # app correctly retained its lock on the injected false acknowledgment.
+        # Close the test's lock only to avoid leaking a fixture-owned descriptor.
+        app.state.instance_lock.release()
+
+
+def test_app_unwinding_exception_keeps_identity_when_diagnostic_fails(tmp_path):
+    app=app_module.create_app(Settings(data_dir=tmp_path,disk_reserve_bytes=0,start_worker=False),analyzer_factory=FakeAnalyzer)
+    original=RuntimeError('original lifespan body error')
+    async def unwind():
+        async with app.router.lifespan_context(app):raise original
+    with patch.object(diagnostics,'record_shutdown_decision',side_effect=KeyboardInterrupt('diagnostic')):
+        with pytest.raises(RuntimeError) as caught:
+            asyncio.run(unwind())
+    assert caught.value is original
+    assert app.state.instance_lock_cleanup_complete is True

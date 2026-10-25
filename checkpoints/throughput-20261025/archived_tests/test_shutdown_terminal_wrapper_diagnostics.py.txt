@@ -1,0 +1,63 @@
+"""Root-only wrapper controls; all service objects explicitly fake."""
+from types import SimpleNamespace
+from unittest.mock import patch
+import pytest
+import service_wrapper as wrapper
+from test_service_wrapper import fake_app
+
+
+def row():
+    return {'schema':1,'observation':'OBSERVED','predicates':{
+        'worker_stopped':True,'jobs_stopped':False,'cells_stopped':True,
+        'fragment_cleanup_clear':True,'initializer_safe':True},
+        'exception_classes':{'worker':None,'jobs':'ReadError','cells':None,'fragment':None}}
+
+
+def test_projection_is_allowlisted_and_missing_is_unknown():
+    assert wrapper.shutdown_projection(None)['observation']=='UNKNOWN'
+    value=row();value['raw']='private';value['exception_classes']['jobs']='secret class/path'
+    projected=wrapper.shutdown_projection(SimpleNamespace(shutdown_decision_diagnostics=value))
+    assert projected['exception_classes']['jobs']=='other'
+    assert 'private' not in repr(projected) and 'secret' not in repr(projected)
+    assert projected['predicates']['jobs_stopped'] is False
+
+
+@pytest.mark.parametrize('cleanup',[True,False])
+@pytest.mark.parametrize('projection_fails',[True,False])
+def test_diagnostic_cannot_grant_clean_or_block_existing_clean(tmp_path,cleanup,projection_fails):
+    receipts=[];app=fake_app(cleanup=cleanup);app.state.shutdown_decision_diagnostics=row()
+    # Deliberately misleading positive evidence must not grant a clean receipt.
+    if not cleanup:
+        app.state.shutdown_decision_diagnostics['predicates']={key:True for key in row()['predicates']}
+        app.state.shutdown_decision_diagnostics['exception_classes']={key:None for key in row()['exception_classes']}
+    class Server:
+        def __init__(self,*_):self.started=True
+        def run(self):pass
+    saved=wrapper.shutdown_projection
+    def project(state):
+        if projection_fails:raise KeyboardInterrupt('synthetic projection failure')
+        return saved(state)
+    def launch():
+        wrapper.run_service(settings=object(),output=tmp_path,port=18871,instance_lock_fd=9,
+            app_factory=lambda *a,**k:app,uvicorn_module=SimpleNamespace(Server=Server,Config=lambda *a,**k:None),
+            write_terminal=receipts.append,without_trial_observer=True)
+    with patch.object(wrapper,'shutdown_projection',side_effect=project):
+        if cleanup:launch()
+        else:
+            with pytest.raises(RuntimeError,match='not clean'):launch()
+    assert receipts[0]['clean'] is cleanup
+    assert receipts[0]['shutdown_decision']['observation']==('UNKNOWN' if projection_fails else 'OBSERVED')
+
+
+def test_original_body_exception_keeps_priority_when_projection_raises(tmp_path):
+    original=RuntimeError('original body error');receipts=[]
+    class Server:
+        def __init__(self,*_):self.started=True
+        def run(self):raise original
+    with patch.object(wrapper,'shutdown_projection',side_effect=KeyboardInterrupt('diagnostic')):
+        with pytest.raises(RuntimeError) as caught:
+            wrapper.run_service(settings=object(),output=tmp_path,port=18871,instance_lock_fd=9,
+                app_factory=lambda *a,**k:fake_app(),uvicorn_module=SimpleNamespace(Server=Server,Config=lambda *a,**k:None),
+                write_terminal=receipts.append,without_trial_observer=True)
+    assert caught.value is original
+    assert receipts[0]['shutdown_decision']['observation']=='UNKNOWN'
