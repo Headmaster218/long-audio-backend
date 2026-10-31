@@ -26,6 +26,14 @@ class Controls(unittest.TestCase):
   s=dict(baseline_result='result',baseline_execution='execution',pins={})
   with self.assertRaises(ValueError):require_baseline_pins(s)
   s['pins']={'result':'hash','execution':'hash'};require_baseline_pins(s)
+ def test_frozen_character_units(self):
+  # Synthetic examples, not corpus reference text. No filler/numeral mapping.
+  self.assertEqual(''.join(tokens('嗯，Ａ１ ２。')), '嗯a12')
+  self.assertNotEqual(''.join(tokens('十二')), ''.join(tokens('12')))
+  self.assertEqual(''.join(tokens('<noise> 啊')), 'noise啊')
+ def test_error_rate_not_clamped(self):
+  x=score({'speaker':'a'},{'track':'a b c d'})
+  self.assertEqual(x['errors'],3);self.assertEqual(x['rate'],3.0)
  def test_context(self):
   x=budget(731648);self.assertEqual((x["prompt_tokens"],x["generation_budget"],x["total_budget"]),(675,1272,1947))
   with self.assertRaises(ValueError):budget(731649)

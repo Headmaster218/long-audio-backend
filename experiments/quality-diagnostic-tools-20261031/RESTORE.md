@@ -1,15 +1,15 @@
 # Source-only diagnostic checkpoint
 
-Frozen source commit: `65bf503626e35f73c04de4b36dfc00f9b1f39bf6`.
-The 15 source files preserve that separate local Git snapshot. All executable
-files are byte-identical; one sentence in REPLICATION_PROTOCOL.md was changed
-from internal coordination wording to a generic authorization/input-pin rule.
+Frozen source commit: `3539738657009869d2a30752044cc8903c83dbef`.
+The 17 source files preserve that separate local Git snapshot. All executable
+files are byte-identical; internal coordination wording in REPLICATION_PROTOCOL.md and CHINESE_PROTOCOL.md
+was replaced with generic authorization/input-pin or reference-preparation wording.
 This additive checkpoint does not replace the backend and excludes all production
 reader fixes, corpus/model assets, reference text, inference outputs and private
 input specifications. It is not a self-contained reproducible benchmark package.
 
 Run `python verify_source.py`, then copy `source/` into an empty directory.
-With Python 3.11 or newer, run `python -m unittest -v` there: eight synthetic tests.
+With Python 3.11 or newer, run `python -m unittest -v` there: ten synthetic tests.
 These tests require no models, corpus or third-party packages. They test only
 model-free arithmetic, synthetic PCM, edit matching and receipt validation.
 They do not certify native inference, general accuracy or complete content.
@@ -69,5 +69,23 @@ external `gold`, `scorer_dir`, `repo`, and complete `pins`, supply `frames`,
 `reference_words`, `baseline_result`, and `baseline_execution`; both baseline
 outputs must be pinned. Reference format matches the preceding whole-score
 contract. Outputs contain private text and must remain outside the repository.
-Eight synthetic tests verify limited model-free behavior only, not a full native
+Ten synthetic tests verify limited model-free behavior only, not a full native
 pipeline, native resource safety, quality results, or production qualification.
+
+## Separate Chinese character diagnostic
+
+`CHINESE_PROTOCOL.md` preserves the prospective Chinese scientific protocol, not
+current execution status. `chinese_replication_score.py` uses the same external
+scorer/runtime contracts as replication_score.py but selects language `zh` and
+requires `reference_characters` rather than `reference_words`. Its private gold
+JSON contains `segments`, each with `speaker` and `text_raw` fields. Do not include
+that text in model inputs, the Git tree, or public reports. Chinese character
+counts are not pooled with English word counts; edit rates may exceed 100%.
+The synthetic normalization controls do not validate the external scorer itself.
+
+External AISHELL-4 provenance references:
+https://www.openslr.org/111/
+https://huggingface.co/datasets/AISHELL/aishelltech/tree/aada72727856313b19d4a030383c426364931dbf
+No corpus material is included. Preserve the upstream CC BY-SA 4.0 terms and
+protocol's unverified mirror/full-archive identity caveat; the mirror's metadata
+does not replace upstream license obligations. No accuracy results are included.

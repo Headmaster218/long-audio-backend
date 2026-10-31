@@ -1,10 +1,14 @@
 {
-  "source_commit": "65bf503626e35f73c04de4b36dfc00f9b1f39bf6",
-  "source_tree": "4a21eb792dd5b7c06ba6d9e36fb48658c7dd72b6",
+  "source_commit": "3539738657009869d2a30752044cc8903c83dbef",
+  "source_tree": "6e0c8f6f86d54a43ead353d1604b4951d37ceb7e",
   "export_transformations": [
     {
       "path": "REPLICATION_PROTOCOL.md",
-      "kind": "One internal coordination sentence replaced with generic execution authorization and input-pin requirement; executable files unchanged."
+      "kind": "Internal coordination terminology replaced by generic authorization/input-pin or reference-preparation wording; executable files unchanged."
+    },
+    {
+      "path": "CHINESE_PROTOCOL.md",
+      "kind": "Internal coordination terminology replaced by generic authorization/input-pin or reference-preparation wording; executable files unchanged."
     }
   ],
   "files": [
@@ -13,6 +17,13 @@
       "bytes": 69,
       "sha256": "8c81bc6b90fb2aa05be7ffa93ca420d9ad6ed184b5c0c1b1684dce95d1f87a66",
       "git_blob": "0a3bb25e671196a7fdd877edc2bdaf61f735c2f3",
+      "mode": "100644"
+    },
+    {
+      "path": "CHINESE_PROTOCOL.md",
+      "bytes": 2402,
+      "sha256": "309c238dc429a6ba3d0dc0ec87b86fc711ee0aa791e6bc8912d147b701fcf65f",
+      "git_blob": "bb0ada0fa77464b0b0d5718ee83e50d9e9e1632d",
       "mode": "100644"
     },
     {
@@ -27,6 +38,13 @@
       "bytes": 2887,
       "sha256": "06f86b1502308dd1e06ba7048064ed07d1b21045a288225809cf1ef21c5a1743",
       "git_blob": "4028f067e5f8dece23bee21509d26054b79c0cca",
+      "mode": "100644"
+    },
+    {
+      "path": "chinese_replication_score.py",
+      "bytes": 3574,
+      "sha256": "eddad3e09fe8a2d9fac9a42a9fc931a8dad763470bcda2e4946adfb033080b85",
+      "git_blob": "fe0fce1e4f8240634838620e118843859f8aa702",
       "mode": "100644"
     },
     {
@@ -80,9 +98,9 @@
     },
     {
       "path": "test_model_free.py",
-      "bytes": 2645,
-      "sha256": "1595630229cd9e642078327e9da8a7f528f8a1a2ff6972427bd5f06fa39d2115",
-      "git_blob": "304067127e9ccb98f046a62a2168a46919fa0a50",
+      "bytes": 3120,
+      "sha256": "6855aef442cbadd4e9cbf554faa1f18002381272f602052abbb25d008f99c7ed",
+      "git_blob": "83b10477d2f77dc9f7aed6dcf9df6b84b59a6cae",
       "mode": "100644"
     },
     {
