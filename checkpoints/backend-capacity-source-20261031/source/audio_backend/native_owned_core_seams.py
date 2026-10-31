@@ -1188,6 +1188,17 @@ def _gc_guard(owner, op, db, budget, *, pending=None):
     return frozenset(roots), pending
 
 
+PAYLOAD_PENDING_ROOTS_SQL = """SELECT CASE
+    WHEN typeof(cid)='text' AND length(CAST(cid AS BLOB)) BETWEEN 1 AND 128 THEN cid ELSE NULL END
+    FROM native_core_commits WHERE rowid IN (
+      SELECT rowid FROM (SELECT rowid FROM native_core_commits INDEXED BY native_core_pending
+        WHERE state='pending' LIMIT :cap)
+      UNION
+      SELECT rowid FROM (SELECT rowid FROM native_core_commits INDEXED BY native_core_pending_bodies
+        WHERE pending IS NOT NULL LIMIT :cap)
+      LIMIT :cap)"""
+
+
 def payload_retention_roots(owner, db, budget, roots):
     """Read-only payload protection under PayloadFrontier's original locks.
 
@@ -1212,9 +1223,11 @@ def payload_retention_roots(owner, db, budget, roots):
             extra = pin.document.get('dependency_roots')
             if type(extra) is not list or len(extra) > MAX_PARTS:raise Unavailable('payload_roots_invalid')
             for dependency in extra:roots.add(text(dependency['cid']))
-    pending = db.execute('''SELECT CASE WHEN typeof(cid)='text' AND length(CAST(cid AS BLOB)) BETWEEN 1 AND 128
-        THEN cid ELSE NULL END FROM native_core_commits WHERE pending IS NOT NULL OR state='pending' LIMIT ?''',
-        (MAX_PENDING + 1,)).fetchall()
+    # Bound both sides of the original OR using existing indexes. Deduplicate
+    # integer row identities, NOT cids: multiple pending commits for one chunk
+    # still consume separate pending slots. Each branch reads at most cap rows;
+    # the union projects at most cap bounded cids under the original budget.
+    pending = db.execute(PAYLOAD_PENDING_ROOTS_SQL, {'cap': MAX_PENDING + 1}).fetchall()
     if len(pending) > MAX_PENDING:raise Unavailable('payload_pending_capacity')
     roots.update(text(row[0]) for row in pending)
     if len(roots) > MAX_PINS * MAX_PARTS * 2 + MAX_PENDING + 2:

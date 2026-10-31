@@ -51,6 +51,15 @@ async def serve(config,fd,out):
         save(out/'ready.json',{'pid':os.getpid(),'port':server.servers[0].sockets[0].getsockname()[1],
             'strict':settings.strict_primary_enabled,'worker_alive':app.state.worker.thread.is_alive(),
             'cells':cells.owner.health(),'inherited_lock':app.state.instance_lock._inherited})
+        while not task.done():
+            worker=app.state.worker
+            save(out/'worker_health.json',{'schema':'actual-worker-health-v1','time':time.time(),'monotonic':time.monotonic(),
+                'worker_enabled':settings.start_worker,'worker_alive':worker.thread.is_alive(),
+                'worker_error_class':getattr(worker,'_terminal_error_class',None),
+                'maintenance_failed':getattr(worker,'_payload_maintenance_error',None) is not None,
+                'strict_cleanup_failed':getattr(worker,'_strict_cleanup_failed',False),
+                'current_chunk':worker.current_chunk is not None})
+            await asyncio.wait({task},timeout=.5)
         await task
     except BaseException as exc:
         failure={'type':type(exc).__name__,'message':str(exc)[:2048]}

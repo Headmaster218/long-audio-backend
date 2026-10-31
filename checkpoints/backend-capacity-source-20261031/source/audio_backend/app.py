@@ -615,14 +615,22 @@ def _create_app(settings,analyzer_factory=None,*,fragment_provider_factory=None,
         if settings.overlap_backend!='none':
             from .overlap_candidates import overlap_readiness
             readiness=overlap_readiness(settings.inference_config())
-        return {'status':'blocked' if fragments.cleanup_error or (jobs is not None and jobs.health()['cleanup_pending']) else 'ok',
+        worker_enabled=settings.start_worker is True
+        worker_alive=worker.thread.is_alive()
+        error_class=getattr(worker,'_terminal_error_class',None)
+        if error_class is not None and (type(error_class) is not str or not 1<=len(error_class)<=64
+                or not error_class.isascii() or not error_class.isidentifier()):
+            error_class='UnclassifiedError'
+        return {'status':('blocked' if fragments.cleanup_error or (jobs is not None and jobs.health()['cleanup_pending'])
+                          else 'degraded' if worker_enabled and not worker_alive else 'ok'),
                 **({'moss_jobs':jobs.health()} if jobs is not None else {}),
                 **({'moss_automatic':automatic.health()} if settings.moss_automatic_enabled else {}),
                 **({'native_owned_cells':worker.native_owned_cells.health()} if worker.native_owned_cells is not None
                    else ({'native_owned_cells':{'enabled':True,'status':app.state.native_owned_cells_status,'ready':False}}
                          if settings.native_owned_cells_enabled or app.state.native_owned_cells_status!='disabled_absent' else {})),
                 'fragment_cleanup_pending':fragments.cleanup_error,
-                'worker_alive':worker.thread.is_alive(),'active_chunk':worker.current_chunk,
+                'worker_enabled':worker_enabled,'worker_alive':worker_alive,'worker_error_class':error_class,
+                'active_chunk':worker.current_chunk,
                 'process_tree_rss_bytes':tree_rss(),'memory_budget_bytes':settings.process_memory_limit_bytes,
                 'memory_budget_scope':'RAM process tree only; VRAM requires target-hardware measurement',
                 'asr_backend':settings.asr_backend,'diarization_backend':settings.diarization_backend,'overlap_backend':settings.overlap_backend,

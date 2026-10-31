@@ -95,10 +95,55 @@ class Gate:
         self.process=None;self.port=None;self.hold=None;self.last_disk=0;self.peak_rss=0;self.peak_data=0
         self.http_count=0;self.read_observation_skips=0;self.last_heartbeat=0;self.completed=0;self.published=0;self.journal=None
         self.known_processes={};self.error=None;self.stop_requested=False
+        self._last_completed=0;self._last_advance=time.monotonic();self._last_advance_wall=time.time()
+        self._last_liveness=0;self._ready_seen=None;self.worker_health=None;self.progress_alert=None;self.phase='starting';self.phase_observation_error=None
+    def set_phase(self,phase):
+        # Diagnostic publication must never mask the first failure or skip
+        # original process shutdown/fd release in a finally block.
+        try:
+            assert phase in ('starting','processing','stopping','integrity','terminal')
+            self.phase=phase
+            path=self.out/'progress.json'
+            previous=json.loads(path.read_text()) if path.exists() else {}
+            save(path,dict(previous,phase=phase,time=time.time()))
+        except BaseException as exc:
+            if self.phase_observation_error is None:
+                self.phase_observation_error=type(exc).__name__[:64]
+    def check_liveness(self,now):
+        if now-self._last_liveness<.5:return
+        self._last_liveness=now
+        if self.completed!=self._last_completed:
+            if self.completed<self._last_completed:raise RuntimeError('completed_counter_reversed')
+            self._last_completed=self.completed;self._last_advance=now;self._last_advance_wall=time.time()
+        if not (self.out/'ready.json').exists():return
+        if self._ready_seen is None:
+            self._ready_seen=now;self._last_advance=now
+        health_path=self.out/'worker_health.json'
+        if not health_path.exists():
+            if now-self._ready_seen>5:raise RuntimeError('worker_health_missing')
+        else:
+            if health_path.stat().st_size>4096:raise RuntimeError('worker_health_oversize')
+            value=json.loads(health_path.read_text());self.worker_health=value
+            if value.get('schema')!='actual-worker-health-v1':raise RuntimeError('worker_health_invalid')
+            if value.get('worker_alive') is not True:raise RuntimeError('actual_worker_thread_exited')
+            if value.get('worker_error_class') is not None:raise RuntimeError('actual_worker_terminal_error')
+            if value.get('maintenance_failed') is not False or value.get('strict_cleanup_failed') is not False:
+                raise RuntimeError('actual_worker_failure')
+            stamp=value.get('monotonic')
+            if type(stamp) not in (int,float) or not 0<=time.monotonic()-stamp<=30:
+                raise RuntimeError('worker_health_stale')
+        error_path=self.out/'service.stderr'
+        if error_path.exists():
+            with error_path.open('rb') as log:
+                log.seek(max(0,error_path.stat().st_size-65536))
+                if b'Exception in thread audio-worker' in log.read(65536):
+                    raise RuntimeError('actual_worker_thread_exception')
+        self.progress_alert='no_completed_progress_300s_inspect_stage' if now-self._last_advance>300 else None
     def check(self):
         now=time.monotonic()
         if self.stop_requested or (self.out/'STOP_REQUESTED').exists():raise RuntimeError('manual_stop_requested')
         if now>=self.deadline:raise TimeoutError('overall_deadline')
+        self.check_liveness(now)
         rows=process_census(os.getpid(),self.process.pid if self.process is not None else None);rss=sum(row['rss'] for row in rows)+64*1024**2
         self.peak_rss=max(self.peak_rss,rss)
         for row in rows:self.known_processes[row['pid']]=row
@@ -115,7 +160,8 @@ class Gate:
         if now-self.last_heartbeat>=15:
             save(self.out/'progress.json',{'completed':self.completed,'published_pages':self.published,
                 'audio_seconds_completed':self.completed*10.5,'peak_rss':self.peak_rss,
-                'peak_data':self.peak_data,'free':free,'http_requests':self.http_count,'time':time.time()})
+                'peak_data':self.peak_data,'free':free,'http_requests':self.http_count,'time':time.time(),
+                'last_completed_advance':self._last_advance_wall,'worker_health':self.worker_health,'progress_alert':self.progress_alert,'phase':self.phase})
             self.last_heartbeat=now
         if self.process is not None and self.process.poll() is not None:raise RuntimeError('service_exited_early')
     def request(self,description):
@@ -362,10 +408,11 @@ def main():
             gate.process=subprocess.Popen(command,pass_fds=(gate.hold,),stdout=stdout,stderr=stderr,cwd=REPO,start_new_session=True)
         while not (out/'ready.json').exists():gate.check();time.sleep(.1)
         ready=json.loads((out/'ready.json').read_text());assert ready['strict'] and ready['inherited_lock'] and ready['worker_alive']
-        gate.port=ready['port'];result['stream']=gate.stream(sample)
+        gate.port=ready['port'];gate.set_phase('processing');result['stream']=gate.stream(sample)
     except BaseException as error:
         result['error']={'type':type(error).__name__,'message':str(error)[:4096]}
     finally:
+        gate.set_phase('stopping')
         try:result['shutdown']=gate.stop()
         except BaseException as error:
             result['shutdown_error']={'type':type(error).__name__,'message':str(error)[:4096]}
@@ -375,6 +422,7 @@ def main():
         result.update(ended=time.time(),peak_rss=gate.peak_rss,peak_data=gate.peak_data,http_requests=gate.http_count,read_observation_skips=gate.read_observation_skips)
         if not any(k in result for k in ('error','shutdown_error')):
             try:
+                gate.set_phase('integrity')
                 from capacity_integrity import inspect
                 result['integrity']=inspect(gate.data,cfg,args.pages)
             except BaseException as error:result['integrity_error']={'type':type(error).__name__,'message':str(error)[:4096]}
@@ -386,7 +434,9 @@ def main():
         if final_bytes>DATA_CAP or final_free<FLOOR:result['resource_error']='final_disk_bound'
         result['source_unchanged']=source_pins()==pins
         if not result['source_unchanged']:result['source_error']='source_changed_during_run'
-        result['passed']=not any(k in result for k in ('error','shutdown_error','integrity_error','source_error','resource_error'))
+        gate.set_phase('terminal')
+        if gate.phase_observation_error is not None:result['monitoring_error']=gate.phase_observation_error
+        result['passed']=not any(k in result for k in ('error','shutdown_error','integrity_error','source_error','resource_error','monitoring_error'))
         save(out/'RESULT.json',result)
     if not result['passed']:raise SystemExit(1)
 

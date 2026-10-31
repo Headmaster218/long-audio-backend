@@ -137,6 +137,7 @@ class Worker:
         self.trial_observer=trial_observer
         self.store=store; self.settings=settings; self.analyzer_factory=analyzer_factory
         self.stop_event=threading.Event(); self.wake=threading.Event(); self.current_chunk=None
+        self._terminal_error_class=None
         self.native=None
         self._strict_active=False; self._strict_cleanup_failed=False
         self._strict_analyzer_owner=None; self._strict_native_owner=None
@@ -386,14 +387,22 @@ class Worker:
         try: return self.store.chunk(cid)['status']!='running'
         except KeyError: return True
     def loop(self):
-        try:self._run_loop()
-        finally:
-            try:
-                if getattr(self.settings, 'strict_primary_enabled', False):self._strict_retire()
-                elif self.resident_analyzer is not None:self.resident_analyzer.close()
+        try:
+            try:self._run_loop()
             finally:
-                permit=getattr(self.settings, '_native_execution_permit', None)
-                if permit is not None:permit.abandon_automatic_turn()
+                try:
+                    if getattr(self.settings, 'strict_primary_enabled', False):self._strict_retire()
+                    elif self.resident_analyzer is not None:self.resident_analyzer.close()
+                finally:
+                    permit=getattr(self.settings, '_native_execution_permit', None)
+                    if permit is not None:permit.abandon_automatic_turn()
+        except BaseException as exc:
+            # Bounded terminal metadata only; retain the original propagation and
+            # cleanup semantics. Never publish an exception message or traceback.
+            name=type(exc).__name__
+            self._terminal_error_class=(name if type(name) is str and 1<=len(name)<=64
+                and name.isascii() and name.isidentifier() else 'UnclassifiedError')
+            raise
 
     def _run_loop(self):
         while not self.stop_event.is_set():

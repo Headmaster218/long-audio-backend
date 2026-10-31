@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "9e6117f77b2c75a1dd37781cd86b2c163c7c2b10",
+  "local_source_commit": "e9e9bb62b99b0b8d54d498424994fb29a57a606d",
   "files": [
     {
       "path": ".gitignore",
@@ -46,9 +46,9 @@
     },
     {
       "path": "audio_backend/app.py",
-      "sha": "df0f71d7aba2b0d097e5dd35aa2c62578fcfdfd9",
-      "size": 64287,
-      "sha256": "da34b5b6814db5cc07f74fbc6f9566923584a862652c5e716d482685276cdecd"
+      "sha": "bb35ca76ebafca3a98e9063e070200938efe4ca1",
+      "size": 64829,
+      "sha256": "0b99d34cfcf22c29d708d5cd709bb67c7a963890ce6043b29575e850248c1060"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -550,9 +550,9 @@
     },
     {
       "path": "audio_backend/native_owned_core_seams.py",
-      "sha": "cd1d1eb9361dca1de3d21a0eabce1059e8299095",
-      "size": 119142,
-      "sha256": "5edcc8b6babfc11bf34db01f536559f5a45a5062f8bf132c7e2fc602cbe4653a"
+      "sha": "6658de64c951c9eb69a53b3941ea25a52813bbbf",
+      "size": 119787,
+      "sha256": "ac703fe7666808d65b3f8e0b6c8b32b3684d283a8676b8edff351c6de4094417"
     },
     {
       "path": "audio_backend/native_owned_retention.py",
@@ -928,9 +928,9 @@
     },
     {
       "path": "audio_backend/worker.py",
-      "sha": "1e3c1b5521ae423e17fd406d29482db13c9dcd0d",
-      "size": 56413,
-      "sha256": "920f142a6bbc6cf1effce0abefdd532d6a5b7ba0ea6b8c06555bf92c660bf8cb"
+      "sha": "130052f19686ad9e7f96c9b588d5570648459ba1",
+      "size": 56925,
+      "sha256": "a0c30c6dc9a68db5febd13c3beabaefcfedc05dc8a1b9091bfa5de16f9fe1f41"
     },
     {
       "path": "dicow-model-manifest.json",
@@ -1039,6 +1039,12 @@
       "sha": "b37056958b2b2dfe621d4de326cfdd99c19fcd61",
       "size": 8280,
       "sha256": "399e69a03b51602ea561da27fe83a723bd0173e3853a743e1371fd23587a6225"
+    },
+    {
+      "path": "docs/CAPACITY_MONITORING.md",
+      "sha": "6026007c7566ea7993874bd2b096cc699a5b2534",
+      "size": 1473,
+      "sha256": "b1f4ecf3bfa0c79096bb2ac98b7b3e4e9ce6ec971b3b885a27ef022288e91ee8"
     },
     {
       "path": "docs/CAPACITY_REBUILD_20261031.md",
@@ -2607,6 +2613,12 @@
       "sha256": "168325e0384a5c99b1e2f55d2e862761d1419d2207ee60332aa2bc099312e9ec"
     },
     {
+      "path": "tests/test_capacity_liveness.py",
+      "sha": "d9226f020d42c15ba5c2283e903b439b212aebd7",
+      "size": 4396,
+      "sha256": "d54e18fe8cbeefb48506b62655828825304470d899619f66e9e6a401b166f6e1"
+    },
+    {
       "path": "tests/test_capacity_page_reconciliation.py",
       "sha": "613d3fccc57a82b8e5dca830a9220e28e1fffee7",
       "size": 9074,
@@ -3363,6 +3375,12 @@
       "sha256": "2d125bf0132a18a3adbc5b06cc35a9ee1510be87f0857cd2a153774b9845b847"
     },
     {
+      "path": "tests/test_payload_pending_roots_indexed.py",
+      "sha": "1ec0b17dc23a90c39ac548341f2e4c0e8bfb8bad",
+      "size": 4618,
+      "sha256": "572efe4d78e8a35b91cbbfd39b5d0c7dc0d0d79bdc603c0166e9c081587c1d00"
+    },
+    {
       "path": "tests/test_positive_event_seams.py",
       "sha": "2515ef5ce53cd1d8daf2abc5c553ff8e744cb711",
       "size": 12983,
@@ -4101,6 +4119,12 @@
       "sha256": "c6ae4ed8d034d4405bfe1bdd38038e2222ebbdbc2b6d42eb0e8167feb16a57e4"
     },
     {
+      "path": "tests/test_worker_liveness_health.py",
+      "sha": "84b5b7e3ed7faa9d66788214b7302374c73352fb",
+      "size": 4271,
+      "sha256": "85805cf251798e66a7e1a54ccbf66db70099aba14c7cb49b2dfd6012a7c898c6"
+    },
+    {
       "path": "tests/test_worker_terminal_release_ordering.py",
       "sha": "59bfe377c59f4ea475457308f38d45676e632027",
       "size": 13764,
@@ -4132,21 +4156,21 @@
     },
     {
       "path": "tools/capacity_resume.py",
-      "sha": "5c177a35072eacc00f8ef611febdbe47cf9c1b70",
-      "size": 12116,
-      "sha256": "02394e898959bc1b1ef326190692575dd0bde59ae94821f122247c3f30008735"
+      "sha": "40cbe35bf90363b07d0301196cdc0fe8d336fba8",
+      "size": 12367,
+      "sha256": "f44230079d6111fcad8dab068a34bebe6169be4e93008a14919ef68716e345ff"
     },
     {
       "path": "tools/capacity_run.py",
-      "sha": "34da2501ef46e250a6515868286d3bde79b4580d",
-      "size": 23836,
-      "sha256": "806b4909c0e310d478bf44bb7f67c2fb2095ceefd68d074d35b4272a4e4a9e1e"
+      "sha": "e5889af000666a2fb30bf5f3c203eefc35df1d2e",
+      "size": 27193,
+      "sha256": "6ee00de8085e13291ad35764cea068cd480cdd1a41b8644e43cb212cf5934d2d"
     },
     {
       "path": "tools/capacity_service.py",
-      "sha": "9b59b384945d85a2f05902bbdc283490ee076ac4",
-      "size": 3646,
-      "sha256": "6af7e893d5afc700a33443ce827fda026d359eb5f44c78c7cf5121e99b707664"
+      "sha": "0465c3847ba28f67a01cca9e4505024851be8b11",
+      "size": 4324,
+      "sha256": "28e6584f4750dabbbdf0287120309436fcd370798f3183d30337d72ed2147d59"
     },
     {
       "path": "tools/dev63_ami_v2_operations/ATTRIBUTION.txt",

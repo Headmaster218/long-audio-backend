@@ -159,9 +159,10 @@ def main():
             gate.process=subprocess.Popen([sys.executable,'-I','-B','-X','pycache_prefix='+str(out/'absent-cache'),str(REPO/'tools/capacity_service.py'),str(out/'config.json'),str(fd),str(out)],pass_fds=(fd,),stdout=stdout,stderr=stderr,cwd=REPO,start_new_session=True)
         while not (out/'ready.json').exists():gate.check();time.sleep(.1)
         ready=json.loads((out/'ready.json').read_text());assert ready['strict'] and ready['inherited_lock'] and ready['worker_alive']
-        gate.port=ready['port'];result['stream']=gate.stream(sample)
+        gate.port=ready['port'];gate.set_phase('processing');result['stream']=gate.stream(sample)
     except BaseException as exc:result['error']={'type':type(exc).__name__,'message':str(exc)[:4096]}
     finally:
+        gate.set_phase('stopping')
         try:result['shutdown']=gate.stop()
         except BaseException as exc:
             result['shutdown_error']=str(exc)
@@ -170,6 +171,7 @@ def main():
         gate.journal.close()
         if not any(k in result for k in ('error','shutdown_error')):
             try:
+                gate.set_phase('integrity')
                 from capacity_integrity import inspect
                 result['integrity']=inspect(data,cfg,147)
             except BaseException as exc:result['integrity_error']=str(exc)
@@ -178,6 +180,8 @@ def main():
         result.update(final_allocated=size,final_files=count,final_free=free)
         if size>DATA_CAP or free<FLOOR:result['resource_error']='final_disk_bound'
         result['source_unchanged']=source_pins()==pins
+        gate.set_phase('terminal')
+        if gate.phase_observation_error is not None:result['monitoring_error']=gate.phase_observation_error
         result['passed']=result['source_unchanged'] and not any(k.endswith('error') for k in result)
         save(out/'RESULT.json',result)
         if 'shutdown_error' not in result:os.close(fd)
