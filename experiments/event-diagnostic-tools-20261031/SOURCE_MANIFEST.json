@@ -1,0 +1,54 @@
+{
+  "source_commit": "234c73e37c27f67027ea11753140883c3ccbb7e1",
+  "source_tree": "e8dfa3ccaec5f0b0a868c1f18cbd3ed933eb2bf7",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3570,
+      "sha256": "9ae38ec5ff2a79893833ad0796afcd5835cd117fb04434335b8156ee1687f651",
+      "git_blob": "c9ebb983f2a72157b76d57fc5e41453486535a2a",
+      "mode": "100644"
+    },
+    {
+      "path": "run_once.py",
+      "bytes": 4140,
+      "sha256": "6857cf8525e2987e0bb3e3fc09409644c0aa154c0561f2909a1157c17ee72554",
+      "git_blob": "4c444474c4e2c8c18ae956b2a9c4a744f153247f",
+      "mode": "100644"
+    },
+    {
+      "path": "test_protocol.py",
+      "bytes": 1332,
+      "sha256": "0221dbf9721c07483bf6288be9e2218c0dda16e3f1fe88a7aac73c264d34a42d",
+      "git_blob": "5258d5393a3f9ca88b5ccc21b0fd9a588f7d9353",
+      "mode": "100644"
+    }
+  ],
+  "external_model_free_dependencies": {
+    "repository": "Headmaster218/long-audio-backend",
+    "commit": "f5105d48bb588a8f25c1e0b2e5ac646edc4dee9e",
+    "prefix": "checkpoints/backend-capacity-source-20261031/source/",
+    "files": [
+      {
+        "path": "audio_backend/__init__.py",
+        "sha256": "54ab25d01256e8f807f2d544afd2e52764f3d14ff55c312cdae7a307115eaf16",
+        "git_blob": "b06a9d8b32d0c10653896d14e0aac5f9ff2d42a2"
+      },
+      {
+        "path": "audio_backend/events/__init__.py",
+        "sha256": "a3cac77c5c60a086023d63acacda5ff230d4e0a878e2cc74efac8c2eb5195ffa",
+        "git_blob": "422182217a1bba157a895c55385ce23ad457dc74"
+      },
+      {
+        "path": "audio_backend/events/detector.py",
+        "sha256": "ccfbdaa8f51c9dcaf5a7e000b1242d7a539ccb618677980b60c3e7f501a813e0",
+        "git_blob": "1c8174d32cc7e9d316a20a82c59ed8815673d606"
+      },
+      {
+        "path": "audio_backend/events/metrics.py",
+        "sha256": "fec57c10418fe5d094481bf76ded426ddf1cf11f8f85baab32666073cea99ad4",
+        "git_blob": "37f080b5479a5e3c04c5ee14ff49b40ba6236be9"
+      }
+    ]
+  }
+}
