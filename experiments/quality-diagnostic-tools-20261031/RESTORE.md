@@ -1,13 +1,15 @@
 # Source-only diagnostic checkpoint
 
-Frozen source commit: `89fd7711bf4e8b3d372653434aea40522e4f2bb3`.
-Nine files under `source/` are byte-identical to that separate local Git tree.
+Frozen source commit: `65bf503626e35f73c04de4b36dfc00f9b1f39bf6`.
+The 15 source files preserve that separate local Git snapshot. All executable
+files are byte-identical; one sentence in REPLICATION_PROTOCOL.md was changed
+from internal coordination wording to a generic authorization/input-pin rule.
 This additive checkpoint does not replace the backend and excludes all production
 reader fixes, corpus/model assets, reference text, inference outputs and private
 input specifications. It is not a self-contained reproducible benchmark package.
 
 Run `python verify_source.py`, then copy `source/` into an empty directory.
-With Python 3.11 or newer, run `python -m unittest -v` there: six synthetic tests.
+With Python 3.11 or newer, run `python -m unittest -v` there: eight synthetic tests.
 These tests require no models, corpus or third-party packages. They test only
 model-free arithmetic, synthetic PCM, edit matching and receipt validation.
 They do not certify native inference, general accuracy or complete content.
@@ -47,3 +49,25 @@ here; consult each upstream license before independently obtaining dependencies.
 This backup does not grant or change licensing for the repository's own code.
 The diagnostic is exposed, not held-out; forced-aligned timing and source-derived
 EOS inference do not establish content completeness or production qualification.
+
+## Additional two-case replication tools
+
+`select_complete_windows.py` uses external annotation intervals only, never
+predictions. `REPLICATION_PROTOCOL.md` preserves the pre-run scientific plan,
+selection rule, resource bounds and interpretation limits, not execution status.
+`replication_supervisor.py SPEC OUTPUT` performs one local native, ASR, or
+candidate phase. It requires the existing runtime, psutil, and backend inference
+dependencies externally installed; baseline ASR also imports soundfile. Specs
+supply `phase` (`native`, `asr`, or `candidate`), `frames`, `audio`, `pcm_sha256`,
+and a complete `pins` mapping. Baseline phases require `repo`, `config`, and
+`case_id`; ASR additionally requires `native_result` and `native_execution`, both
+explicitly pinned. Candidate requires `model` and `model_sha256`. The same
+external runtime/model pins and non-optimized Python requirement apply.
+
+`replication_score.py SPEC RUN OUTPUT` is post-inference only. In addition to
+external `gold`, `scorer_dir`, `repo`, and complete `pins`, supply `frames`,
+`reference_words`, `baseline_result`, and `baseline_execution`; both baseline
+outputs must be pinned. Reference format matches the preceding whole-score
+contract. Outputs contain private text and must remain outside the repository.
+Eight synthetic tests verify limited model-free behavior only, not a full native
+pipeline, native resource safety, quality results, or production qualification.

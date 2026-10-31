@@ -3,7 +3,10 @@ from pathlib import Path
 from validate_pcm import compare
 from paired_metric import tokens,score
 from context_budget import budget
+from select_complete_windows import select
+from decimal import Decimal
 from whole_score import validate_run
+from replication_score import require_baseline_pins
 import hashlib
 class Controls(unittest.TestCase):
  def test_fail_closed(self):
@@ -15,6 +18,14 @@ class Controls(unittest.TestCase):
   for k,v in [('model_closed',False),('session_closed',False),('truncated',True),('aborted',True),('exception','Failure'),('attempts',2),('raw_bytes',9)]:
    with self.assertRaises(ValueError):validate_run(e,dict(r,**{k:v}),b'fixture')
   with self.assertRaises(ValueError):validate_run(e,r,b'changed')
+ def test_selection(self):
+  self.assertEqual(select([(0,2),(3,32),(34,36)],0),(Decimal(0),Decimal(32)))
+  self.assertEqual(select([(0,130),(135,165)],120),(Decimal(130),Decimal(165)))
+  with self.assertRaises(ValueError):select([(0,100)],0)
+ def test_pending_output_pins(self):
+  s=dict(baseline_result='result',baseline_execution='execution',pins={})
+  with self.assertRaises(ValueError):require_baseline_pins(s)
+  s['pins']={'result':'hash','execution':'hash'};require_baseline_pins(s)
  def test_context(self):
   x=budget(731648);self.assertEqual((x["prompt_tokens"],x["generation_budget"],x["total_budget"]),(675,1272,1947))
   with self.assertRaises(ValueError):budget(731649)

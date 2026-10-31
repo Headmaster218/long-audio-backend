@@ -1,6 +1,12 @@
 {
-  "source_commit": "89fd7711bf4e8b3d372653434aea40522e4f2bb3",
-  "source_tree": "b718929e73f7d17a73b7be3ae56467013d6e829a",
+  "source_commit": "65bf503626e35f73c04de4b36dfc00f9b1f39bf6",
+  "source_tree": "4a21eb792dd5b7c06ba6d9e36fb48658c7dd72b6",
+  "export_transformations": [
+    {
+      "path": "REPLICATION_PROTOCOL.md",
+      "kind": "One internal coordination sentence replaced with generic execution authorization and input-pin requirement; executable files unchanged."
+    }
+  ],
   "files": [
     {
       "path": ".gitignore",
@@ -14,6 +20,13 @@
       "bytes": 3127,
       "sha256": "49473e5b0ad5a9907d9c1028130b97cff982700f85373073f724a7d01d5743c6",
       "git_blob": "96c0210d5e041513bb2c3efde476208f0352f02e",
+      "mode": "100644"
+    },
+    {
+      "path": "REPLICATION_PROTOCOL.md",
+      "bytes": 2887,
+      "sha256": "06f86b1502308dd1e06ba7048064ed07d1b21045a288225809cf1ef21c5a1743",
+      "git_blob": "4028f067e5f8dece23bee21509d26054b79c0cca",
       "mode": "100644"
     },
     {
@@ -31,10 +44,45 @@
       "mode": "100644"
     },
     {
+      "path": "replication_baseline_worker.py",
+      "bytes": 2027,
+      "sha256": "e467e3ca1e7dcbc6829bc22136a1ecfaa66bab2191ece06603659bcb6497a437",
+      "git_blob": "cbab3c38cedd47e97b7d0c12ffa1db83e3e7d1df",
+      "mode": "100644"
+    },
+    {
+      "path": "replication_native_worker.py",
+      "bytes": 2730,
+      "sha256": "8217b9fba6a2f66b94481507e0024e784526a7552cce4b2ea185f7079739dcd1",
+      "git_blob": "1a2760e743000b924b516a94f1db59c7851a3e68",
+      "mode": "100644"
+    },
+    {
+      "path": "replication_score.py",
+      "bytes": 3511,
+      "sha256": "64a7a6dc45d6a7800f5a09d99372a24ccabd24d3a72d762edafdfd7a765fef40",
+      "git_blob": "88e686dfe3e0651e95b81d6037c0e00c1566826e",
+      "mode": "100644"
+    },
+    {
+      "path": "replication_supervisor.py",
+      "bytes": 3128,
+      "sha256": "637f0ec683376d81f67081361c17e2bb41a68a438a41f2e2cbd360dc420873ac",
+      "git_blob": "61e359c002e255c08b7fe4f66cccf3fe68a6581a",
+      "mode": "100644"
+    },
+    {
+      "path": "select_complete_windows.py",
+      "bytes": 847,
+      "sha256": "0c83cfeced89e7db13c773c0ab78eaa0005e48f6e7657c06a1c3aa6ea515a179",
+      "git_blob": "5f7e1edfd15a9286d355bd1a778b543e95f5f168",
+      "mode": "100644"
+    },
+    {
       "path": "test_model_free.py",
-      "bytes": 2033,
-      "sha256": "8c8a2aaeb9937ec12f83f0ea5ad601200fd1a79d06cb61cebdf0103e911842fd",
-      "git_blob": "863dfb50063700df3fd2d1a633cd75f6aa39ce72",
+      "bytes": 2645,
+      "sha256": "1595630229cd9e642078327e9da8a7f528f8a1a2ff6972427bd5f06fa39d2115",
+      "git_blob": "304067127e9ccb98f046a62a2168a46919fa0a50",
       "mode": "100644"
     },
     {
