@@ -1,0 +1,69 @@
+{
+  "source_commit": "89fd7711bf4e8b3d372653434aea40522e4f2bb3",
+  "source_tree": "b718929e73f7d17a73b7be3ae56467013d6e829a",
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 69,
+      "sha256": "8c81bc6b90fb2aa05be7ffa93ca420d9ad6ed184b5c0c1b1684dce95d1f87a66",
+      "git_blob": "0a3bb25e671196a7fdd877edc2bdaf61f735c2f3",
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3127,
+      "sha256": "49473e5b0ad5a9907d9c1028130b97cff982700f85373073f724a7d01d5743c6",
+      "git_blob": "96c0210d5e041513bb2c3efde476208f0352f02e",
+      "mode": "100644"
+    },
+    {
+      "path": "context_budget.py",
+      "bytes": 790,
+      "sha256": "a9434dc7805d55fc230d6e8f8b872d243144bce7232cb9fed50503f183a5b653",
+      "git_blob": "15496b08ab81e00baac5a78b02f58b9e98489ec5",
+      "mode": "100644"
+    },
+    {
+      "path": "paired_metric.py",
+      "bytes": 2699,
+      "sha256": "54501f8f4d5bd025ebe0f4d8edaa366d6f64c305706af297e2665f1ad1f3475a",
+      "git_blob": "51c0283b945c7fd41ec0c51121b5ed89bec66164",
+      "mode": "100644"
+    },
+    {
+      "path": "test_model_free.py",
+      "bytes": 2033,
+      "sha256": "8c8a2aaeb9937ec12f83f0ea5ad601200fd1a79d06cb61cebdf0103e911842fd",
+      "git_blob": "863dfb50063700df3fd2d1a633cd75f6aa39ce72",
+      "mode": "100644"
+    },
+    {
+      "path": "validate_pcm.py",
+      "bytes": 1280,
+      "sha256": "9a3bfa3a708f95512d0220c557e03eb17d68db58d052266e956b642882aa3fac",
+      "git_blob": "0d39cc64ed33b66a6505f0982d77639071137dc4",
+      "mode": "100644"
+    },
+    {
+      "path": "whole_native_supervisor.py",
+      "bytes": 2736,
+      "sha256": "48d603fbdf022d11a7e2fec1606f2566b7973a86ee626fe590a30fc7fb110d2b",
+      "git_blob": "aa4dfc9e6c9cf268d74a32f9300c7aec63c4ac28",
+      "mode": "100644"
+    },
+    {
+      "path": "whole_native_worker.py",
+      "bytes": 2653,
+      "sha256": "a43121244a5b1b7b322e58ac19481fdfddc8df6ce843e1c6803f07b20260e921",
+      "git_blob": "b9ae8cc8aef32e4487f250791536213f46c3c52d",
+      "mode": "100644"
+    },
+    {
+      "path": "whole_score.py",
+      "bytes": 2807,
+      "sha256": "826d7437d6adea7917dd0e485c79498f984de3c3222d27461e063c4290e43452",
+      "git_blob": "ae6d6aceff04d2927c4a2748cd8e8b0a5ab51104",
+      "mode": "100644"
+    }
+  ]
+}
