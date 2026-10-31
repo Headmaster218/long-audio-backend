@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "checkpoint_date": "2026-10-19",
+  "scope": "AliMeeting Eval far-field held-out design and accepted prefix preparation; metadata only",
+  "status": {
+    "preparation": "complete_and_independently_accepted",
+    "four_baseline_runs": "conditionally_authorized_after_helper_static_publication_gates_and_fresh_admission_not_launched",
+    "heldout_pilot_results_available": false,
+    "heldout_inference_performed": false,
+    "calibration_fitted": false,
+    "confirmation_processed": false,
+    "pilot_reference_interpreted": false
+  },
+  "source_report_ancestor": {
+    "commit": "ab3dfd09d3534f5a05dce205c9b9ad2bcd3effc1",
+    "tree": "7d177f85748d5d7f4fc199edd1d95aa9d91b198f",
+    "files": 606,
+    "bytes": 10933700
+  },
+  "baseline_product": {
+    "commit": "6326733db5984d95546f52bd0de5653504af2ee0",
+    "tree": "c37ead48b684ba935e1a7b3ce9950ad3a467e513",
+    "history_score_floor": 0.55,
+    "history_rival_margin": 0.1,
+    "decision_rules_and_natural_sampling": "unchanged",
+    "identity_and_profile_authority": "disabled"
+  },
+  "corpus": {
+    "name": "AliMeeting",
+    "split": "Eval",
+    "condition": "far-field",
+    "catalog_url": "https://www.openslr.org/119/",
+    "creators_url": "https://github.com/yufan-aslp/AliMeeting",
+    "paper_url": "https://arxiv.org/abs/2110.07393",
+    "attribution": "AliMeeting, provided by Alibaba Group; Fan Yu et al., M2MeT: The ICASSP 2022 Multi-Channel Multi-Party Meeting Transcription Challenge (ICASSP 2022), as credited by OpenSLR 119.",
+    "dataset_license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "derivation": "Four fixed [0,360)-second physical channel 1/index 0 prefixes copied sample-exactly from eight-channel originals into canonical mono PCM16 WAVs; no resampling, downmixing, padding, shifting or outcome-based selection. Corpus audio and labels are not included in this checkpoint.",
+    "code_license_does_not_replace_dataset_license": true
+  },
+  "archive": {
+    "official_url": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Eval_Ali.tar.gz",
+    "bytes": 3673718355,
+    "sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+    "digest_qualification": "Acquired-byte identity; no official digest was found in the retained acquisition review. Not independent authenticity or historical corpus equality.",
+    "ordered_inventory_members": 73,
+    "inventory_sha256": "e2454da1a9d2b1b082d07b85e2958a59e8a68af086078bd1ea85f50b00c095de",
+    "gzip_tar_traversals_this_preparation": 1,
+    "additional_compressed_file_hash_reads": 2,
+    "before_traversal_after_hashes_equal": true,
+    "emitted_tar_bytes": 5385922560,
+    "tar_gzip_crc_single_stream_and_physical_eof": "passed"
+  },
+  "selection": {
+    "excluded_exposed_meeting": "R8001_M8004",
+    "seed": "dev60-heldout-identity-v1-20261019",
+    "sort_key": "SHA256(ASCII(seed + \"\\n\" + meeting_id)), then meeting_id; ascending hexadecimal digest",
+    "seed_evaluations": 1,
+    "outcomes_used": false,
+    "ordered_meetings": [
+      {
+        "rank": 1,
+        "meeting_id": "R8007_M8011",
+        "split": "calibration_reserved",
+        "selection_sha256": "1f80ec40c6bcb80769cc436b364bd3c4e133401cfff3cc5eafdbcfa5f71425a1"
+      },
+      {
+        "rank": 2,
+        "meeting_id": "R8008_M8013",
+        "split": "calibration_reserved",
+        "selection_sha256": "33295e8a09ab83e8e431fd214232e05cfc5bfcc290004980f6de877a12a39196"
+      },
+      {
+        "rank": 3,
+        "meeting_id": "R8007_M8010",
+        "split": "development",
+        "selection_sha256": "98f085cf60695eb8ee3af8f3014e7ac861f171d6475cced2c22ad9ac69efda2a"
+      },
+      {
+        "rank": 4,
+        "meeting_id": "R8009_M8019",
+        "split": "development",
+        "selection_sha256": "9b1154616839029891af830538fede2dc8eb1063c4f6e0b99e1999ff91bb1072"
+      },
+      {
+        "rank": 5,
+        "meeting_id": "R8003_M8001",
+        "split": "sealed_confirmation",
+        "selection_sha256": "acb532931b8ed82ca003894691575128f555f3ec690177d237541738a6f114fc"
+      },
+      {
+        "rank": 6,
+        "meeting_id": "R8009_M8020",
+        "split": "sealed_confirmation",
+        "selection_sha256": "b9b64067315ab59a72fe330546d093d2560db77100a871bb6ccf9ff1d49df8d6"
+      },
+      {
+        "rank": 7,
+        "meeting_id": "R8009_M8018",
+        "split": "sealed_confirmation",
+        "selection_sha256": "f00aebd060ddfca2fda64001cf7e9a7b8b1a74f4a2b4090d7fe0e044841083a7"
+      }
+    ]
+  },
+  "identity_limits": [
+    "Near-field filename speaker tokens are disjoint across all eight meetings; physical-person uniqueness across Eval sessions is not independently proven.",
+    "Room/acoustic disjointness is not established; R8007 and R8009 occur across splits. Pretrained-model exposure is unresolved.",
+    "Held-out describes this development exercise, not verified unseen-person, unseen-room, language or device generalization."
+  ],
+  "common_geometry": {
+    "source": {
+      "container": "RIFF WAVE_FORMAT_EXTENSIBLE exact PCM subtype",
+      "channels": 8,
+      "sample_rate_hz": 16000,
+      "container_bits": 16,
+      "valid_bits": 16,
+      "format_tag": 65534,
+      "fmt_bytes": 40,
+      "fact_bytes": 4,
+      "data_offset_bytes": 80,
+      "channel_mask": 1599,
+      "pcm_subtype_guid": "00000001-0000-0010-8000-00aa00389b71"
+    },
+    "prefix": {
+      "source_physical_channel": 1,
+      "source_channel_index_zero_based": 0,
+      "source_frame_interval_half_open": [
+        0,
+        5760000
+      ],
+      "source_time_interval_seconds_half_open": [
+        0,
+        360
+      ],
+      "container": "canonical RIFF PCM16 WAV",
+      "channels": 1,
+      "sample_rate_hz": 16000,
+      "sample_bits": 16,
+      "frames": 5760000,
+      "header_bytes": 44,
+      "pcm_bytes": 11520000,
+      "file_bytes": 11520044
+    },
+    "acceptance": "Compatible geometry and duration >=360 seconds. All four full sources exceed the descriptive corpus-level 15-30-minute range; this is not a preparation failure and does not authorize reselection."
+  },
+  "pilot": [
+    {
+      "meeting_id": "R8007_M8011",
+      "rank": 1,
+      "split": "calibration_reserved",
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8007_M8011_MS806.wav",
+      "source_file_bytes": 476555856,
+      "source_file_sha256": "c2140f541e74c3ab5556de158a53cb70d165cee3b58762ad653855a8d18ad857",
+      "source_pcm_bytes": 476555776,
+      "source_pcm_sha256": "b217100fca9b3cc39c7a4033f85ea4c539c201b1135ee246b4a39922e00c6b54",
+      "source_frames": 29784736,
+      "source_duration_seconds": 1861.546,
+      "prefix_file_bytes": 11520044,
+      "prefix_file_sha256": "a6ca4700c529d97a1dc1eccb2e2ffd723226ec099dbd4d552a06fd576d0418a0",
+      "prefix_pcm_bytes": 11520000,
+      "prefix_pcm_sha256": "fd43bc5bff53b7f5f9286afbb9e2eb557eab49fdb159ac28cff9fa2abe18d5f8",
+      "opaque_reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8007_M8011.TextGrid",
+      "opaque_reference_bytes": 89858,
+      "opaque_reference_sha256": "4baea9f7b9ef4182c4fceeb3a10d0ea966359b214fa04ae54434fab084b8c316"
+    },
+    {
+      "meeting_id": "R8008_M8013",
+      "rank": 2,
+      "split": "calibration_reserved",
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8008_M8013_MS807.wav",
+      "source_file_bytes": 573304528,
+      "source_file_sha256": "aa22327ef996a60166fe2c4d8a7fa152be8dd5246e24fc38084e61208dbc5feb",
+      "source_pcm_bytes": 573304448,
+      "source_pcm_sha256": "44c14a6583c21375705c5a182199303d5ffb82e5e6a29fc07d3578e5b93cd1b9",
+      "source_frames": 35831528,
+      "source_duration_seconds": 2239.4705,
+      "prefix_file_bytes": 11520044,
+      "prefix_file_sha256": "7bcf4b11120eebadf3497d8435a688a2b3dbbbacdae3e3090c7cd0fdd143e488",
+      "prefix_pcm_bytes": 11520000,
+      "prefix_pcm_sha256": "4067a165e6d0a4c22b6d1f325616629a0ea5455842a5e1cf0254015d8af197c9",
+      "opaque_reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8008_M8013.TextGrid",
+      "opaque_reference_bytes": 79663,
+      "opaque_reference_sha256": "b0f938c81b95728bd38f7aec655f6804ca4dcc3182bb0facb8d05a9a84293869"
+    },
+    {
+      "meeting_id": "R8007_M8010",
+      "rank": 3,
+      "split": "development",
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8007_M8010_MS803.wav",
+      "source_file_bytes": 475218496,
+      "source_file_sha256": "d92169f2c90dde2482ec6f794588a597870f2dff51a1f123e92bcf052a7ca9b2",
+      "source_pcm_bytes": 475218416,
+      "source_pcm_sha256": "3c27c0f40ffa8b6a35fa62752b7251f76e643d39451843c18e4312d7c26646e4",
+      "source_frames": 29701151,
+      "source_duration_seconds": 1856.3219375,
+      "prefix_file_bytes": 11520044,
+      "prefix_file_sha256": "c7f39e41587bd5cf494eee2e0309ad317648db749a5f29262eeff43588ecbedb",
+      "prefix_pcm_bytes": 11520000,
+      "prefix_pcm_sha256": "6b4e2cb6dcc5c11816ced01bedeb8614e8d7b8c0079ea0474885fccf792c5f72",
+      "opaque_reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8007_M8010.TextGrid",
+      "opaque_reference_bytes": 129859,
+      "opaque_reference_sha256": "0ab9ae505fd81a283e645ce9896610c57e34e747e5551144f98f0cbac0604e44"
+    },
+    {
+      "meeting_id": "R8009_M8019",
+      "rank": 4,
+      "split": "development",
+      "source_member": "Eval_Ali/Eval_Ali_far/audio_dir/R8009_M8019_MS810.wav",
+      "source_file_bytes": 505325136,
+      "source_file_sha256": "67e7c91769b289bfcc6f0d4da5992934218f4f9b70e6178a92f0cae0309b8b11",
+      "source_pcm_bytes": 505325056,
+      "source_pcm_sha256": "3c6ef56e10525c89682274307cfa757e964043d2cd2669cd24087b6153bcc5f7",
+      "source_frames": 31582816,
+      "source_duration_seconds": 1973.926,
+      "prefix_file_bytes": 11520044,
+      "prefix_file_sha256": "e77b1dc3e43d6a898850206c64f0663fb77b3e215d19c140ee4808c7e1131f15",
+      "prefix_pcm_bytes": 11520000,
+      "prefix_pcm_sha256": "e5c5a2671de683dbb9d6d468b88f6a6a7ca80a609f3066e083edb7eb3fc2fa11",
+      "opaque_reference_member": "Eval_Ali/Eval_Ali_far/textgrid_dir/R8009_M8019.TextGrid",
+      "opaque_reference_bytes": 93517,
+      "opaque_reference_sha256": "dd85bfb2b920ac064b61e1fb8a09ab378a9e10422b48d23cd3030e2f02271b7c"
+    }
+  ],
+  "exposure_and_storage": {
+    "pilot_prefix_bytes": 46080176,
+    "opaque_pilot_reference_bytes": 392897,
+    "total_retained_payload_bytes": 46473073,
+    "new_archive_copies": 0,
+    "new_full_source_copies": 0,
+    "pilot_reference_handling": "Copied and hashed as opaque bytes; semantic interpretation requires prediction sealing and separately released scoring.",
+    "confirmation_handling": "Compressed traversal necessarily passed confirmation member bytes; no confirmation WAV/reference parsing, retention, embeddings, scores or inference. Confirmation remains unused.",
+    "automatic_retries": 0
+  },
+  "verification": {
+    "synthetic_tests_passed": 8,
+    "test_scope": "Synthetic-only standard/extensible PCM and exact samples/full hashes; malformed/truncated geometry; source/emission bounds; inventory/tar integrity; gzip CRC/truncation/single-stream; opaque references and confirmation exclusion; fixed selection/no reselection.",
+    "preparation_attempts": 1,
+    "independent_terminal_verdict": "accepted_preparation_complete",
+    "payload_hash_basis": "Recorded and disk-verified by accepted preparation helper. Independent terminal audit and this checkpoint use metadata, not independent payload rehashing."
+  },
+  "preparation_resources": {
+    "limits": {
+      "address_space_bytes_per_process": 268435456,
+      "sampled_aggregate_rss_bytes": 268435456,
+      "streaming_read_bytes": 65536,
+      "selected_source_member_bytes": 805306368,
+      "emitted_bytes": 8589934592,
+      "fresh_namespace_bytes": 134217728,
+      "tests_plus_preparation_work_seconds": 900,
+      "tests_plus_preparation_cpu_seconds": 600,
+      "preparation_cleanup_seconds": 60,
+      "entry_free_bytes": 8589934592,
+      "preserved_free_bytes": 6442450944
+    },
+    "reported": {
+      "synthetic_test_elapsed_seconds": 0.03157164099684451,
+      "synthetic_test_import_inclusive_process_cpu_seconds": 0.128632,
+      "preparation_elapsed_seconds": 36.458882437000284,
+      "preparation_sampled_aggregate_cpu_seconds": 36.4,
+      "preparation_peak_sampled_aggregate_rss_bytes": 19398656,
+      "summed_stage_elapsed_seconds": 36.49045407799713,
+      "summed_sampled_aggregate_cpu_seconds": 36.52,
+      "maximum_test_or_preparation_sampled_rss_bytes": 22581248
+    },
+    "qualification": "Stage elapsed timers exclude interpreter startup and final receipt writes. Import-inclusive process CPU and sampled aggregate CPU have different scopes. Sampled CPU/RSS are not continuous kernel aggregate accounting; wait-call durations are not total runtime."
+  },
+  "finite_baseline": {
+    "proposal_sha256": "d7bb36c027dad7cb1f487af52f948c6abe895ba01dc9ea3af7d264c8bdc2628f",
+    "status": "conditionally_authorized_not_launched; helper/static/publication gates and fresh admission remain",
+    "pilot_order": [
+      "R8007_M8011",
+      "R8008_M8013",
+      "R8007_M8010",
+      "R8009_M8019"
+    ],
+    "fresh_recording_local_scopes": true,
+    "serial_runs": 4,
+    "seconds_per_run": 360,
+    "capacity_ceiling": {
+      "admissions_per_meeting": 10,
+      "bootstrap_admissions_per_meeting": 6,
+      "later_admissions_per_meeting": 4,
+      "unordered_pairs_per_meeting": 45,
+      "pilot_admissions": 40,
+      "pilot_unordered_pairs": 180,
+      "qualification": "Capacity ceilings, not expected observations, vectors or independent sample sizes. Skips/failures can leave sparse or no scorable evidence."
+    },
+    "rules": "No calibration or alternative model; unchanged .55 floor/.10 margin, reciprocal complete-link decisions, competitors, abstention and constraints. No cross-meeting history, gold-selected crops, replacement, extension or automatic retry. Seal predictions before reference scoring. Failed and abstaining scopes remain in the denominator of four.",
+    "runtime_planning": {
+      "scheduling_allowance_minutes_per_run": [
+        8,
+        15
+      ],
+      "scheduling_allowance_minutes_four_runs": [
+        32,
+        60
+      ],
+      "absolute_deadline_seconds_per_run": 3420,
+      "sum_absolute_deadlines_seconds_four_runs": 13680,
+      "sampled_charged_memory_ceiling_bytes": 6442450944,
+      "output_ceiling_bytes_per_run": 536870912,
+      "qualification": "Forecasts and retained finite limits, not observed held-out runtime or guaranteed completion bounds; memory accounting is sampled. Fresh admission required for each run."
+    },
+    "confirmation": "Ranks 5-7 remain unused until any candidate implementation, fitting data, decision rule and metrics are frozen and separately authorized. Sparse evidence can end the screen without a variant."
+  },
+  "evidence_records": {
+    "design": {
+      "bytes": 18040,
+      "sha256": "ccaca94ea77b40a7cf5afc1c385a2796bb7c574d2df31b34226e7c222215d6cf"
+    },
+    "selection": {
+      "bytes": 10788,
+      "sha256": "2b8ca8a0f2c12d0f24b4c4ba753dd9784bb23a88830d77ced45f13064c81728a"
+    },
+    "design_review": {
+      "bytes": 3381,
+      "sha256": "77fd5ae997a6749d463402081999b18d89ce44af0ac8a9a7b3e7fb93d7c8dfc9"
+    },
+    "finite_baseline_proposal": {
+      "bytes": 15601,
+      "sha256": "d7bb36c027dad7cb1f487af52f948c6abe895ba01dc9ea3af7d264c8bdc2628f"
+    },
+    "preparation_freeze": {
+      "bytes": 2243,
+      "sha256": "71a5246a743d02fd82de0631d96a6a59a8caa7db38bfd0c72355457623759bc9"
+    },
+    "preparation_source_review": {
+      "bytes": 3443,
+      "sha256": "fe411c714b1296e062a5bba0b051d68dced1eed4e3899d0513410b445c19e214"
+    },
+    "synthetic_test_review": {
+      "bytes": 1990,
+      "sha256": "d2c0beb37075f6d81b36c4b27ca7338c72e273c7bd457f076d6f1ddc364c00c8"
+    },
+    "synthetic_test_receipt": {
+      "bytes": 2106,
+      "sha256": "a9a8509323c78dbd09875bc6327910e9f9d0be9f54e4ebd9243219df152b04d2"
+    },
+    "preparation_execution_receipt": {
+      "bytes": 2133,
+      "sha256": "4c2def67846da124a27d1ba00125fa73f961c1fbfb9405ad0a3f4f109a337cbe"
+    },
+    "preparation_result": {
+      "bytes": 11864,
+      "sha256": "e7580dd7df209faa45af8ec8128d7cb9f3530b6ec40962335f99e4b3ddc04b90"
+    },
+    "preparation_terminal_summary": {
+      "bytes": 9433,
+      "sha256": "d4d11df8353e29d7d83972f9254f5fb7278fc167b64f4a8c05135f41ac695156"
+    },
+    "preparation_terminal_review": {
+      "bytes": 4367,
+      "sha256": "2ea22a828736fa0d2c316f417b19de1f881dad525b59e9fb627602194deabccc"
+    }
+  },
+  "checkpoint_content": "Metadata, hashes and qualifications only. No audio, reference labels, vectors or transcript content; no local private paths, process identifiers, host secrets or operational logs."
+}

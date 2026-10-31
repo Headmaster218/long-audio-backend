@@ -1,0 +1,107 @@
+{
+  "upstream_repository": "https://github.com/fschmid56/PretrainedSED",
+  "upstream_commit": "1aa47e482f7e89904cba2338999345025d8b4e36",
+  "license": "MIT; unchanged LICENSE included",
+  "source_files": [
+    {
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/LICENSE",
+      "bytes": 1071,
+      "sha256_computed_from_https_source": "399acc6d903cfd65a6cd5baba6a99af3ee534d79161b07854c1a6ffeab3dc88b",
+      "published_git_blob_sha1": "b504c5013f9fff8f54e409807236f6b942721f7e"
+    },
+    {
+      "path": "models/prediction_wrapper.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/models/prediction_wrapper.py",
+      "bytes": 10385,
+      "sha256_computed_from_https_source": "53f37f7870a85e64242d07dd087ffb4c72a8a8413d43a593ab46bba85b3983eb",
+      "published_git_blob_sha1": "1e87c8a0e1b3f8ea6bdbda8b2aa5f44f038dd865"
+    },
+    {
+      "path": "models/frame_mn/Frame_MN_wrapper.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_mn/Frame_MN_wrapper.py",
+      "bytes": 2437,
+      "sha256_computed_from_https_source": "c9f9be29be6cb5dfb94b03a0cb95a22c35519aaefabf913fdebc0e3fc2f40d77",
+      "published_git_blob_sha1": "491c82b4bb42994c11d5df9b94a6780734828c80"
+    },
+    {
+      "path": "models/frame_mn/model.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_mn/model.py",
+      "bytes": 17450,
+      "sha256_computed_from_https_source": "6c316eab1744c3a6d45537532bd4dfc91718f7132f1de42e79a922c8c5b48077",
+      "published_git_blob_sha1": "b470b33fca88933761aee388904f87286f507427"
+    },
+    {
+      "path": "models/frame_mn/block_types.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_mn/block_types.py",
+      "bytes": 6573,
+      "sha256_computed_from_https_source": "1dfa5636aadb209eeaa7e412d5fc422bfefe230b4b30f49a14fe11776eab825c",
+      "published_git_blob_sha1": "4a79de7d7948b3b5f13eaa1a88826120c699d47a"
+    },
+    {
+      "path": "models/frame_mn/utils.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_mn/utils.py",
+      "bytes": 2804,
+      "sha256_computed_from_https_source": "b952d15279cf2fb21658e6916ce23e00e3338187564b4ad9c635a10dd261aac5",
+      "published_git_blob_sha1": "db04576ac9ca05e743f4876989dcc5d9a32c35ae"
+    },
+    {
+      "path": "models/frame_passt/preprocess.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/models/frame_passt/preprocess.py",
+      "bytes": 5184,
+      "sha256_computed_from_https_source": "1ac324f812566924ab52879077186dcaffdc8a4062ee186153be48e99b658db0",
+      "published_git_blob_sha1": "ccb51359cb93dd8582c51bec087a7da6ed57fd2e"
+    },
+    {
+      "path": "data_util/audioset_classes.py",
+      "url": "https://raw.githubusercontent.com/fschmid56/PretrainedSED/1aa47e482f7e89904cba2338999345025d8b4e36/data_util/audioset_classes.py",
+      "bytes": 54411,
+      "sha256_computed_from_https_source": "771adb63768b349171a1668b4b0c2f932f6db1b21e10450c7e9136c0397e076f",
+      "published_git_blob_sha1": "4ca779ff50fc5585f4bae5248d31496cd4312065"
+    }
+  ],
+  "adaptations": [
+    "All model imports are package-relative; no global sys.path or torch.hub changes.",
+    "Only the fixed width=1 FrameMN architecture and no-RNN linear 447-class prediction heads remain.",
+    "All upstream checkpoint loading, pretrained downloads, URL registries, diagnostic printing and unrelated training utilities are removed.",
+    "Torch, torchvision and torchaudio imports occur only through the adapter lazy loader.",
+    "The label map is the exact literal as_strong_train_classes; all weak maps are omitted.",
+    "Preprocessing arithmetic is unchanged from the pinned source."
+  ],
+  "labelmap_canonical_encoding": "JSON ordered list, UTF-8, ensure_ascii=False, separators comma/colon, no trailing newline",
+  "labelmap_sha256": "89c223c4b1d5b5fefbccc10e5a652221a8c4fd70ab46a8a1885670e889719348",
+  "files": {
+    "LICENSE": {
+      "bytes": 1071,
+      "sha256": "399acc6d903cfd65a6cd5baba6a99af3ee534d79161b07854c1a6ffeab3dc88b"
+    },
+    "__init__.py": {
+      "bytes": 78,
+      "sha256": "6dd939e6aa13873e88d2ad12e3a14dabce1a419f5d7fe64c3389f8f72531b6e9"
+    },
+    "block_types.py": {
+      "bytes": 6631,
+      "sha256": "1f6029feee668bfd84060fa626f79dd2a4370c7e5c989cdead6a3b7994c67fe5"
+    },
+    "labelmap.py": {
+      "bytes": 7187,
+      "sha256": "aba453ca093f80e2bcf1355d6f25992c443d91f76ee5ba61041922000285fb1d"
+    },
+    "model.py": {
+      "bytes": 8736,
+      "sha256": "4299ff6793b910869e74d21b4766adb517b3491df3b6a207402019633a38584e"
+    },
+    "preprocess.py": {
+      "bytes": 5253,
+      "sha256": "6557ffb18d5ede947cd348fd8f34e07d848c4c51a6323b6c0fd09eaa39059dcf"
+    },
+    "utils.py": {
+      "bytes": 889,
+      "sha256": "ad7933b3267b5b34be442932d499648b65188fd11837416ea3a2e3ddf1443bc8"
+    },
+    "wrappers.py": {
+      "bytes": 2228,
+      "sha256": "76cb10cf41149e867407aa5cdc3bee66d5b2bcdcb5b96d6fa4643ce0297845be"
+    }
+  }
+}

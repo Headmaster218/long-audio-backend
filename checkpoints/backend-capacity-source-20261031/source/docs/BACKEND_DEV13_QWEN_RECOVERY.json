@@ -1,0 +1,97 @@
+{
+  "schema": "reviewed-backend-dev13-qwen-recovery-v1",
+  "version": "0.2.0rc2.dev13",
+  "base_commit": "b291776174e0a8d4f74d8ca988931c7a7cba1956",
+  "base_tree": "091a197f2da2edf3f14b75d4100f6b7bc624c275",
+  "scope": "Model-free opt-in full20s status18 two10s atomic recovery; no native CLI or primary integration",
+  "source_budget": {
+    "maximum_files": 293,
+    "maximum_total_bytes": 3420000,
+    "maximum_file_bytes": 250000
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 13823,
+      "sha256": "9be42e7e2df9b537347af4af21f826c9fe289a932ff578e02cbb9959fbca7cd4",
+      "source_blob": "7c530a7104395dde4944504f4c7dc6d59ac09ed5",
+      "supersedes": {
+        "bytes": 13664,
+        "sha256": "3fe390538823f03aced61914a88c46a3a650ec41478707a1cb02adeb42994d4d",
+        "source_blob": "7c303467853e840a875fbf8de0bff4a1894c8038"
+      }
+    },
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 108,
+      "sha256": "d5ba020afc8a4e51fc1882da38d8ae0bf6d8b6db137f194d145e498bcf601cc1",
+      "source_blob": "4ee100103f7c68bc3ce37f3aab8ea930f3f0b29c",
+      "supersedes": {
+        "bytes": 108,
+        "sha256": "9fe54da9a34fb1e591f08583a29df0cbd63fd527b49ed36182f180cd65256ca1",
+        "source_blob": "fc0b98d72dcfa9be8dfea37c1178a2416296428b"
+      }
+    },
+    {
+      "path": "audio_backend/qwen_recovery.py",
+      "bytes": 11177,
+      "sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f",
+      "source_blob": "4cc94dbb5e7718620f560bba3b574f36594d5432",
+      "base_absent": true
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 13165,
+      "sha256": "caf9c697b60772884e5a3734fc7eb92cc9588151139cb51b3bd27135fce567ad",
+      "source_blob": "b471ea6d59cc65405fb76cd6b11df5a66ead390f",
+      "supersedes": {
+        "bytes": 12973,
+        "sha256": "08bf3b8bd3d6be4ae775c8dfe6b38561bf6dd59771584ca28748cc69549c6738",
+        "source_blob": "15668cbd5f938fa8bd537ebf5a9e76e841795d54"
+      }
+    },
+    {
+      "path": "docs/QWEN_BOUNDED_RECOVERY.md",
+      "bytes": 2771,
+      "sha256": "c8ec60111cbc598dc16c658ef197776a1a73625712d92ea14baaa50e60ca6b22",
+      "source_blob": "2682d9e1b1606c802964e8bd05125c5dd737475d",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 829,
+      "sha256": "1b905b59b5ee34ca0530b5024e8f9748cea5b60878eb8cb747aeed8aebf64965",
+      "source_blob": "5c94337237e2462b693fb5a05b85d428c5a73501",
+      "supersedes": {
+        "bytes": 829,
+        "sha256": "17d309939b13eaa5f6292f434be2dde6b7d64d9218d0920e69c5b9e7adf3fa74",
+        "source_blob": "1fdc4bbd03b1909bac729475949448155a218a0c"
+      }
+    },
+    {
+      "path": "tests/test_backend_dev12_source.py",
+      "bytes": 13204,
+      "sha256": "b8c2b36b2d558e12a12c326f65db6157a2a8f1c48a19c4f41d4ce682e12eaca0",
+      "source_blob": "f3bd89f27e0e02547ed7fdae713082b2697687f5",
+      "supersedes": {
+        "bytes": 13425,
+        "sha256": "45ad99a7a3c8e534dbb6a29349b4ff173e33e5ed063ea97fc347d8d0da7159d1",
+        "source_blob": "e114b664cfe6d84c25c287854bd2ec4a45516e72"
+      }
+    },
+    {
+      "path": "tests/test_backend_dev13_source.py",
+      "bytes": 7744,
+      "sha256": "41618077e6268795be5f25e8aebfa945856733a27013eac14a6f6bd5686667b1",
+      "source_blob": "8c370f89cada857bdb92030c603a7abd10a9fb8b",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_qwen_recovery.py",
+      "bytes": 10254,
+      "sha256": "38a3e86106fae95467e5cd67fde220ae8de2e6afec087d7f24bcfceab650f8a2",
+      "source_blob": "123098276272375a3dbd3c9ba6d183d4c24a2ff2",
+      "base_absent": true
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "schema": "reviewed-backend-rc3-dev4-source-v1",
+  "version": "0.2.0rc3.dev4",
+  "base_commit": "2c841d84a9b3204e510628f4aef17fe90334e76c",
+  "base_tree": "bb31c31a9411ea4c0ec5e185cc9bae57ac31a1f0",
+  "base_files": 311,
+  "base_bytes": 3741330,
+  "base_source_inventory_sha256": "ab719ce8e437ba5f19651a5d6dd69fa1abc6c5214d57f1c1ef497734f77a989c",
+  "scope": "Explicit experimental Handy profile, raw-first unknown-EOS adapter and isolated MOSS-owned one-job controller; no app/Worker dispatch, API or scheduler changes",
+  "qualification": "Model-free unit fixtures and tiny stdlib fake-worker wiring only when separately reported against frozen source; no new inference, acoustic, full-suite or long-recording qualification",
+  "source_budget": {
+    "maximum_files": 322,
+    "maximum_total_bytes": 4000000,
+    "maximum_file_bytes": 250000
+  },
+  "historical_proof": "Immutable published rc3.dev3 current_snapshot/docstring adapter only; original verifier and mutation bodies preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins both this manifest and the source gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "49adf2c2ac4af5b5b61f461e2552f8dc21a0049ddc9890c6f833aae990a217d8",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "bf168be435c15d58e4d48af5411132bea85c8de44c010e8ba85fd64d6b48598e"
+      }
+    },
+    {
+      "path": "audio_backend/moss_handy_adapter.py",
+      "bytes": 4995,
+      "sha256": "06bb8610a1ee713c35759486e594b1f05776eec73af65c6bb4507363865feab7",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/moss_handy_controller.py",
+      "bytes": 18853,
+      "sha256": "a635ff029096841e5b5653e4ba59d1787cdb49e023c1eec7bbb439e25fb5ae34",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/moss_handy_profile.py",
+      "bytes": 9975,
+      "sha256": "502cb490e148b550b73b6589480ecee26d011ed74d27b89e82c85ba20d358c77",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/moss_handy_runner.py",
+      "bytes": 12373,
+      "sha256": "29da1e7c16f41fb7df24ce55ea000047911d9bb4ca702e2bfc2d680bbda64b77",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/profiles/moss_handy_q8_0.json",
+      "bytes": 980,
+      "sha256": "84b9d65a315d8942f3bc312137e14b081f3570864154a6d8419252849076e374",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 14415,
+      "sha256": "2997096df5fad171e10422002d72de35b50b06a2a58e17125b3b4fa196cf9e84",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 13934,
+        "sha256": "3fddfdf05004cd1f277e7a613a0ff137b46574ef5072ecb9634a7c9e607d419e"
+      }
+    },
+    {
+      "path": "docs/MOSS_HANDY_EXPERIMENTAL.md",
+      "bytes": 8327,
+      "sha256": "c92bfeebf8ea9b943d1abbcc0739be8c3d4101a185c149aec800337e895589a7",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "f0ec4ef0b65fe0f36e8a3e93fcf018db31692138a53028924b57f6e1acc4764a",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "3781064b8ae4f66272887f1c9bcafb5fecc76adc28d03e88dfbafd71ad8962f9"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev3_source.py",
+      "bytes": 25131,
+      "sha256": "0d7e696da82d8d07109f048b9d8e625f88871f45b147bef91c42989530b14bd1",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 25331,
+        "sha256": "e44a5a7429153896f785c77807bba60d8525d79b0c700a49b4aaec7661c4306a"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev4_source.py",
+      "bytes": 26013,
+      "sha256": "b0ead22f080a5ef23b700ee1baffaf4bda200f7494c117adf9d48f12ea46f63f",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_handy_adapter.py",
+      "bytes": 8551,
+      "sha256": "827bc1a400eecefbca3154ee0001b788e5409f8d406c01585adcec499389ccda",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_handy_controller.py",
+      "bytes": 20423,
+      "sha256": "fc82fa9d6765adf14196f8b8804b82e4ec7a996c59fcac3553b30854ea75d2be",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_moss_handy_profile.py",
+      "bytes": 9204,
+      "sha256": "07444ecec0f3bcc1699a4194f328fa418c817e0b7e28adf7fd3b8690a3b054a3",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

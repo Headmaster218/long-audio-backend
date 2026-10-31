@@ -1,0 +1,235 @@
+{
+  "schema": "reviewed-backend-rc3-dev6-source-v1",
+  "version": "0.2.0rc3.dev6",
+  "base_commit": "e6791e6d1b78a14c113529d809b8486349be1146",
+  "base_tree": "0aa2ac344d4513d9e9cfd68897957303f92e550d",
+  "base_sole_parent": "762509bddf4c3f1604c446d485034be8882de6f7",
+  "base_files": 331,
+  "base_bytes": 4098577,
+  "base_external_index_sha256": "1c65871ed492120dc0931b0355ead419d8821c8352cc704623aeaa8f17b36d63",
+  "base_source_inventory_sha256": "6f4471ebe992e151258e704b243d90ad932505aec3dee1c218366ccb83d724ce",
+  "design_package": {
+    "inventory": "bb02ca78d54b262df4b1542cfd907235bace0efb319162a168e0b57deff49312",
+    "design": "649cf6769b579ab1de5fcaf10d610c5827d19d7e22975a9068d89f08228e0ccb",
+    "tests": "2183e695461a261416e4df9a23bc757842d5da2eebfbbfb0ea0bd0033677fe2e"
+  },
+  "composed_inventory": {
+    "added": [
+      "audio_backend/native_owned_cell_capture.py",
+      "audio_backend/native_owned_cell_store.py",
+      "audio_backend/native_owned_cells.py",
+      "docs/BACKEND_RC3_DEV6_SOURCE.json",
+      "docs/NATIVE_OWNED_CELLS.md",
+      "tests/test_backend_rc3_dev6_source.py",
+      "tests/test_native_owned_cell_capture.py",
+      "tests/test_native_owned_cell_store.py",
+      "tests/test_native_owned_cells.py"
+    ],
+    "changed": [
+      "audio_backend/__init__.py",
+      "audio_backend/__main__.py",
+      "audio_backend/app.py",
+      "audio_backend/lifecycle.py",
+      "audio_backend/settings.py",
+      "audio_backend/worker.py",
+      "docs/FRAGMENT_STAGING_POLICY.json",
+      "pyproject.toml",
+      "tests/test_backend_rc3_dev5_source.py"
+    ],
+    "total": 18
+  },
+  "scope": "Default-OFF passive native cell witness, immutable fresh-upload receipts, optional dedicated store, publication and retention only",
+  "qualification": "One exact A interpreter/build/package/realpath/device27 profile; finite conditional unix-VFS allocation and process-crash recovery proof accepted; activated-source enabled check and refreshed model-free denominator pending; no model, acoustic, service RSS, long-recording, power-loss or platform-wide qualification",
+  "qualification_evidence_sha256": "7097319b7e75d603dd0730033e29847b76631d71ae1bf8215f2052fc01377f55",
+  "runtime_bounds": {
+    "cell_frames": 320000,
+    "cell_pcm_bytes": 640000,
+    "core_frames": 960000,
+    "ring_frames": 1536000,
+    "ring_pcm_bytes": 3072000,
+    "proof_dependency_bytes": 65536,
+    "source_parts": 128,
+    "cells": 1024,
+    "source_receipts": 4096,
+    "receipt_bytes": 1024,
+    "handoffs_active_or_pending": 1,
+    "handoff_cells": 3,
+    "handoff_material_bytes": 2359296,
+    "pins": 2,
+    "pin_bytes": 786432,
+    "page_rows": 20,
+    "page_bytes": 65536,
+    "total_bytes": 67108864,
+    "database_bytes": 25165824,
+    "journal_bytes": 33554432,
+    "ancillary_bytes": 2097152,
+    "envelope_bytes": 60817408,
+    "page_size": 4096,
+    "max_page_count": 6144,
+    "operation_seconds": 0.5,
+    "lock_seconds": 0.005,
+    "sql_steps": 150000,
+    "sql_projection_bytes": 262144,
+    "source_read_bytes": 41943040,
+    "transfer_bytes": 65536,
+    "working_reservation_bytes": 67108864,
+    "working_memory_measured": false
+  },
+  "source_budget": {
+    "maximum_files": 340,
+    "maximum_total_bytes": 4600000,
+    "maximum_file_bytes": 250000
+  },
+  "preserved": "Existing primary algorithms/windows/native epochs, SQL, original files/chunk rows, support and MOSS APIs/managers/controllers/providers/permits",
+  "excluded": "No public cell routes, jobs adapter, regeneration execution, source retirement, scheduler, provider construction or inference",
+  "historical_proof": "Published dev5 current_snapshot/docstring adapter only; all original verifier and mutation bodies preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins the manifest and source gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "ddf8841294596880c0800a0119e0fc90b28ae80739ba49a573869b2ed79f65ef",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "802bd15f0bc545c6960e547f7855097ec5648aba90c263c547521616142ffb8d"
+      }
+    },
+    {
+      "path": "audio_backend/__main__.py",
+      "bytes": 17073,
+      "sha256": "d2848b85927e58abe626b293bf120fdd5e2062075fa235b98ed4af78a6e8090e",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 16785,
+        "sha256": "ffb869138ef883a23d71af29009fdb99198f8dfc9172c276f3013da2e72936b7"
+      }
+    },
+    {
+      "path": "audio_backend/app.py",
+      "bytes": 37652,
+      "sha256": "46ee10ee3fa8b3d35097ea1f2c1157c9974fb05d107cab5ecf3cc6c5c01e5d99",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 34923,
+        "sha256": "6882a360ec3b392acd749cb414d9dcf6e1f65801d5acad54a3b16e67daeb09f4"
+      }
+    },
+    {
+      "path": "audio_backend/lifecycle.py",
+      "bytes": 9466,
+      "sha256": "2f44d741dab5b5bd7933dcb50593afa7333e2707ae0621f442509b31e8badd83",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 9233,
+        "sha256": "17435c2c94cffee3c8c2b97c4458e1353702038248c8cbafae53420d9e318f90"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_cell_capture.py",
+      "bytes": 28823,
+      "sha256": "d632cd7abb2d093b5a7d32d317b03f2c948b68f9a0ad8e449e6a5c92fbd94a44",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/native_owned_cell_store.py",
+      "bytes": 49472,
+      "sha256": "0087b87e7ae8af72e808380e16b2eaeea0f7e221ae5abd88cf14bddd8a0b0b28",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/native_owned_cells.py",
+      "bytes": 25205,
+      "sha256": "a0abc59c890f889712348c82ebff565050d169afee87ea4450ac833dec7720b7",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "bytes": 15762,
+      "sha256": "37608a7208a7b703c85b81f76544ca0532dc29bbf68385e2a685f613eb44d8d2",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 15580,
+        "sha256": "8e334059ebe83fad083c66bec94442c00109e9b03a3622bd57d0c0658e9315a0"
+      }
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "bytes": 26243,
+      "sha256": "2ab3f27a819e6bc81b9088a7c5023f146f03f3ecff09d49b4e766a90ea4c0674",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 25447,
+        "sha256": "c5fa6e1b9efa25d9f08dbdd01e6af059c2cd6bd024d403e8f10961536a66d265"
+      }
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 15299,
+      "sha256": "3436c07a1aa70fe72ee87f934274b9743e648ba7a559e8ed1e247d07bb913d13",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 14818,
+        "sha256": "4bf090c42a1463c5a7c240bc63d158ee15b1a31a515b22844ba2d0ae8f90bd12"
+      }
+    },
+    {
+      "path": "docs/NATIVE_OWNED_CELLS.md",
+      "bytes": 13591,
+      "sha256": "5cafc617ef7262442bb3876407d3dbe643c154dbb69bfe92ff12f8677307f6d5",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "595ad1ec1bb180e2f618aa9547c1a2c77d07463c8a40390d0900ebfcd6d13497",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "55d6775b0458737a659e0c16da9d108a9c275f8a3300a3b1e67db66c3bc30087"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev5_source.py",
+      "bytes": 62879,
+      "sha256": "028b1dd099732a6694e13442593f5b27a2375afda9c5843a7e4b581568b6e2e5",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 63079,
+        "sha256": "0bcea469d656246bc02a7a8a8f1d733c9da750318006fed4cf8f700317bdb807"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev6_source.py",
+      "bytes": 31662,
+      "sha256": "d924c6d2f1266f6984973ced93cf9a46381709f503d4f2387d68c47fb23bfe93",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_cell_capture.py",
+      "bytes": 23303,
+      "sha256": "eabaee96373cfb85377ee52dbe9d84e1bd5117712837ba806c78f0e7859def06",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_cell_store.py",
+      "bytes": 25308,
+      "sha256": "3e77cfba9a690303d5ab3ca5f27d7365e3ca6060d3e64ce77d861fa0c614b4d7",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_cells.py",
+      "bytes": 12717,
+      "sha256": "f83ef67e1b658265d4c3dcbfbee296a6973cd913480d8e3a4099310f135a24d0",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

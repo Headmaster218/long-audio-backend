@@ -1,0 +1,80 @@
+{
+  "schema": "reviewed-event-numeric-source-v1",
+  "base_commit": "5ec6c9d5bd3febf2c30695120b969e6b70a1c0d2",
+  "public_base_commit": "4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c",
+  "base_tree": "d6729a14d0981a58d191f21b788af62772155085",
+  "version": "0.2.0rc2.dev8",
+  "scope": {
+    "status": "standalone-dev8-derived-source-fix-not-a-release",
+    "production": "event candidate numeric ownership and bounded diagnostic persistence only",
+    "unchanged": "ASR, detector, speaker models, thresholds, schema and historical provenance",
+    "validation": "synthetic model-free numeric and transactional checks; no quality claim"
+  },
+  "manifest_self_hash": "excluded-to-avoid-recursion; structure-validated",
+  "files": [
+    {
+      "path": "audio_backend/event_candidate_store.py",
+      "bytes": 15546,
+      "sha256": "0e8224ae8ecc7a8f56b4bd461e11e65816f04ee19370c3873dbbc2f20d7cf968",
+      "source_blob": "ff6d07dfb2a0bdb811f17292790bed26a6cae57b",
+      "supersedes": {
+        "source_blob": "f5f1a2bb1fd65065e75c176ba52e7716ee6f3814",
+        "sha256": "23b702ccafd1ffbaec56815571d492abff8867eb5b4a82c7102ec7258ae29efb"
+      }
+    },
+    {
+      "path": "audio_backend/storage.py",
+      "bytes": 52251,
+      "sha256": "c684d14b65e12d39ce6919323467bcc5ca8bd8c568c750520c5dd8fa24bfc401",
+      "source_blob": "2eb28055093cadabe2d208210ff793452c43dcce",
+      "supersedes": {
+        "source_blob": "a212c69708fe2248f2e6c4a9c46ecb45cabb9ece",
+        "sha256": "5fc1d0970be2215fde8996a7254365790510002d19b112e6ffd4ef6bc703f798"
+      }
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "bytes": 18188,
+      "sha256": "51e56dbe04cb9bf85e1ee265744856a0257689a7f5b734299da74dbb132050af",
+      "source_blob": "74848bcdaee9f2e8871d1428374fce69c81d0e54",
+      "supersedes": {
+        "source_blob": "30115349e1f286634532804070d244b6af86e88e",
+        "sha256": "c8696c5d1619d7acfb592fe4d0475f1f653ccc13a0bd4b1d7a47bf222f45d845"
+      }
+    },
+    {
+      "path": "docs/EVENT_CANDIDATE_NUMERIC_OWNERSHIP.md",
+      "bytes": 4841,
+      "sha256": "9004bc0e213134b466250bff7f6d313405371ea3c4c6b14a94dc890fb5f49aac",
+      "source_blob": "c44b22d0f43883cf9d7bb3741cce8618651206d8",
+      "base_absent": true
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 12240,
+      "sha256": "479fe137d2bc2c89f069f89429a3621b8fbbbe5cfa0373b09ed92f12d03e66d7",
+      "source_blob": "ba2a20dd8f729ad9dd8d29a28d7478f655cd4e1b",
+      "supersedes": {
+        "source_blob": "3bb5bcd8f0fa0e9a9efad4ab661036bd6e20218b",
+        "sha256": "b70ab306020d7996ce273f2e4858cef4ec4f80c75d6b559797208a1a61035669"
+      }
+    },
+    {
+      "path": "tests/test_event_candidate_numeric_projection.py",
+      "bytes": 24619,
+      "sha256": "bc2a0a0d87126151f0f37dab93868ff33325227df23dbad15f0a116034c58a3e",
+      "source_blob": "47704822a5b7b55a282d6e33d5d7c607931e884b",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "bytes": 42714,
+      "sha256": "0688bcd88f982e1e0bfbf60f553b76535dc107314dff0996da497b60e2b8462e",
+      "source_blob": "f25a7e1fc1d382acef01a66704ced6d5c66b4211",
+      "supersedes": {
+        "source_blob": "0f96fd39596fc30d6a3d1f1b1372e0dd83617b3b",
+        "sha256": "b0639c090c87f5f129ff9a7f7696bc8c72716f61e72bc016eb08e4fa0d4aadb8"
+      }
+    }
+  ]
+}

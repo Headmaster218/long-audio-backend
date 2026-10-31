@@ -1,0 +1,17 @@
+# Optional isolated environment only. Do not upgrade an existing environment.
+# python3.12 -m venv .venv-moss-td
+# .venv-moss-td/bin/pip install torch==2.8.0+cpu torchaudio==2.8.0+cpu --index-url https://download.pytorch.org/whl/cpu
+# .venv-moss-td/bin/pip install -r requirements-moss-td.txt
+# No CUDA/Vulkan support is required or claimed.
+torch==2.8.0+cpu
+torchaudio==2.8.0+cpu
+transformers==5.6.0
+tokenizers==0.22.2
+safetensors==0.6.2
+huggingface-hub==1.33.0
+accelerate==1.10.1
+numpy==1.26.4
+soundfile==0.13.1
+psutil==7.2.2
+librosa==0.11.0
+numba==0.61.2

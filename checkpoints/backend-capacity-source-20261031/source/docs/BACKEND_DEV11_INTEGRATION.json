@@ -1,0 +1,261 @@
+{
+  "schema": "reviewed-backend-dev11-integration-v1",
+  "version": "0.2.0rc2.dev11",
+  "parents": [
+    "366797b5c0bba70975507b71db8b4596b6d9344f",
+    "5cca518467e5d03eaced884f73798917542f79fd"
+  ],
+  "input_pins": {
+    "366797b5c0bba70975507b71db8b4596b6d9344f": {
+      "tree": "dc6c9bd493238b4b6c41b087eb668a60f1726895",
+      "parents": [
+        "0a27197979c8e96fa560432f7a15f49c9e1965fb"
+      ]
+    },
+    "5cca518467e5d03eaced884f73798917542f79fd": {
+      "tree": "e35afda019d60bb0590b7b65480f55dbc38f2ef6",
+      "parents": [
+        "4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c"
+      ]
+    },
+    "4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c": {
+      "tree": "d6729a14d0981a58d191f21b788af62772155085",
+      "parents": [
+        "ba1ebe8dacaca8dda651bb7671b9c0036b80e85b",
+        "702c5055551767b3db41b6b296223aa60a6f78df"
+      ]
+    }
+  },
+  "merge_base": "4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c",
+  "scope": {
+    "runtime": "Reviewed dev9 duration/EOS, dev10 private overlap retention and bounded v2 event numeric composition",
+    "history": "Original-to-public map and historical manifests unchanged; historical gates use immutable public heads",
+    "acceptance": "Model-free source integration only; no release, real-model quality or long-run acceptance",
+    "numeric_limits": "Bounded endpoint roundoff convention; arbitrary cancellation/rebasing and global timestamp precision remain unproved"
+  },
+  "source_budget": {
+    "maximum_files": 283,
+    "maximum_total_bytes": 3400000,
+    "maximum_file_bytes": 250000,
+    "prior_total_byte_cap": 3200000
+  },
+  "manifest_self_hash": "excluded-to-avoid-recursion; exact schema and canonical serialization validated",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 13118,
+      "sha256": "20eecabc5f513b37d6897f074bf078f3f8a3406bfd752bf11fcd27a27ce51e04",
+      "source_blob": "7c934d981b2812128c3d7e771edd5431b47a9fe1",
+      "supersedes": {
+        "bytes": 12752,
+        "sha256": "d9b24d7bd3e933de32b30af7c91ae869a29547e92800b2aaef7d0db7ef076005",
+        "source_blob": "c5a4b8f00a0e787ab9d0240b0e0c9ed80b254da1"
+      }
+    },
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 108,
+      "sha256": "53c85f4721ef526e1d4485df991bce251ba987820b3f8966d9b292ba02c683e1",
+      "source_blob": "6f70f0915e6497263f3ec57af481645f672f26f9",
+      "supersedes": {
+        "bytes": 108,
+        "sha256": "0009873f8a76e9c0b44efa4e06421c4f9c764d94f84581d9d21a476bc90089a6",
+        "source_blob": "e39cf0b5de53e438d30435d85cfcf82a05ee1559"
+      }
+    },
+    {
+      "path": "audio_backend/event_candidate_store.py",
+      "bytes": 15546,
+      "sha256": "0e8224ae8ecc7a8f56b4bd461e11e65816f04ee19370c3873dbbc2f20d7cf968",
+      "source_blob": "ff6d07dfb2a0bdb811f17292790bed26a6cae57b",
+      "supersedes": {
+        "bytes": 9396,
+        "sha256": "23b702ccafd1ffbaec56815571d492abff8867eb5b4a82c7102ec7258ae29efb",
+        "source_blob": "f5f1a2bb1fd65065e75c176ba52e7716ee6f3814"
+      },
+      "source_commit": "5cca518467e5d03eaced884f73798917542f79fd"
+    },
+    {
+      "path": "audio_backend/storage.py",
+      "bytes": 53164,
+      "sha256": "52112499c2e59046a466c64deb31e84d0208cb5a67c7bcfb2f273fbdb76f58f5",
+      "source_blob": "8a92aad2c32b603f4ed6dcfe1884152d99bc3aad",
+      "supersedes": {
+        "bytes": 53080,
+        "sha256": "e2ddc381c487577534387e6e70bf63ccf8664841a6d1b767eccaac6c868e1dfa",
+        "source_blob": "e30ff27055772d9fe8054eef8443471a4691ce9d"
+      },
+      "inputs": {
+        "4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c": {
+          "bytes": 52167,
+          "sha256": "5fc1d0970be2215fde8996a7254365790510002d19b112e6ffd4ef6bc703f798",
+          "source_blob": "a212c69708fe2248f2e6c4a9c46ecb45cabb9ece"
+        },
+        "366797b5c0bba70975507b71db8b4596b6d9344f": {
+          "bytes": 53080,
+          "sha256": "e2ddc381c487577534387e6e70bf63ccf8664841a6d1b767eccaac6c868e1dfa",
+          "source_blob": "e30ff27055772d9fe8054eef8443471a4691ce9d"
+        },
+        "5cca518467e5d03eaced884f73798917542f79fd": {
+          "bytes": 52251,
+          "sha256": "c684d14b65e12d39ce6919323467bcc5ca8bd8c568c750520c5dd8fa24bfc401",
+          "source_blob": "2eb28055093cadabe2d208210ff793452c43dcce"
+        }
+      }
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "bytes": 19455,
+      "sha256": "9e59a3ceeccc33ebed18d3eb0aa6006b876276f1c3e71b22f6cd8b5565e52ea2",
+      "source_blob": "5b292d429fafce4446f046be306476ccf0db949e",
+      "supersedes": {
+        "bytes": 19871,
+        "sha256": "1fd715ff37ed33f2b5588e44c98078fcce9982e7f44a1e23a5020735e399aa89",
+        "source_blob": "174b3dba0954d9cfe2059944b67dc7234fb85658"
+      },
+      "inputs": {
+        "4bde1e8d2fd050a10a1168e4cb46f80a5db6d28c": {
+          "bytes": 18604,
+          "sha256": "c8696c5d1619d7acfb592fe4d0475f1f653ccc13a0bd4b1d7a47bf222f45d845",
+          "source_blob": "30115349e1f286634532804070d244b6af86e88e"
+        },
+        "366797b5c0bba70975507b71db8b4596b6d9344f": {
+          "bytes": 19871,
+          "sha256": "1fd715ff37ed33f2b5588e44c98078fcce9982e7f44a1e23a5020735e399aa89",
+          "source_blob": "174b3dba0954d9cfe2059944b67dc7234fb85658"
+        },
+        "5cca518467e5d03eaced884f73798917542f79fd": {
+          "bytes": 18188,
+          "sha256": "51e56dbe04cb9bf85e1ee265744856a0257689a7f5b734299da74dbb132050af",
+          "source_blob": "74848bcdaee9f2e8871d1428374fce69c81d0e54"
+        }
+      }
+    },
+    {
+      "path": "docs/BACKEND_DEV11_INTEGRATION.md",
+      "bytes": 9112,
+      "sha256": "201360c80815f5bf5c6e922c51865aad0450691aadd7fe2c6a137a6fdd26017c",
+      "source_blob": "bd00f2022354ecb3802b44a2f100da9c83aef3a5",
+      "base_absent": true
+    },
+    {
+      "path": "docs/EVENT_CANDIDATE_NUMERIC_OWNERSHIP.md",
+      "bytes": 4841,
+      "sha256": "9004bc0e213134b466250bff7f6d313405371ea3c4c6b14a94dc890fb5f49aac",
+      "source_blob": "c44b22d0f43883cf9d7bb3741cce8618651206d8",
+      "base_absent": true,
+      "source_commit": "5cca518467e5d03eaced884f73798917542f79fd"
+    },
+    {
+      "path": "docs/EVENT_CANDIDATE_NUMERIC_SOURCE.json",
+      "bytes": 3349,
+      "sha256": "b3cc9e701782081daca2a520cfee2976deda2ee9ce567a7227503fee1ffa521e",
+      "source_blob": "f338d67376cd4bda423c21c2fa86ac2a1e8940fe",
+      "base_absent": true,
+      "source_commit": "5cca518467e5d03eaced884f73798917542f79fd"
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 12768,
+      "sha256": "3a081a457b077fa1b4341e225b18bed7ca7807dbbf421d3a53a02304c57788d2",
+      "source_blob": "762a3a4eda3c74790577642bd162962615ef5f66",
+      "supersedes": {
+        "bytes": 12463,
+        "sha256": "282e6a50ebd7da143dc1e6e76ac1010ed9d86b27a640bc93ba95dbb3d9d7fa6a",
+        "source_blob": "f16d2a7c35bc34754ac37a8e833db6663b0c6574"
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 829,
+      "sha256": "ccba4964f14e835d4b7927a1dfac95a726af90442cdb9b6283103c6bc7ff608c",
+      "source_blob": "38a2c3aafabe7733bdf0c823446296fce3a23065",
+      "supersedes": {
+        "bytes": 829,
+        "sha256": "fd36d60b2e0c04e569562aa81355bf9f8fac3eb586c4f83ac3165c6c49834cd2",
+        "source_blob": "f000c97586bd47fb58a9045b1c89b7d209ef2aba"
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "bytes": 10307,
+      "sha256": "7b9e4e5e62d9631edd1e5ba4fb676de1c5f0895f98155f4cb80ddbc72f474593",
+      "source_blob": "927df14d19242c01885bd12b1215d2c1dec29299",
+      "supersedes": {
+        "bytes": 1222,
+        "sha256": "2217c86dbef9e534d035afc968707b7281d6415cd3e024873c836c1baf2a9dbe",
+        "source_blob": "20053796c1e26c6d8e29acfa53cdaac3790991ee"
+      }
+    },
+    {
+      "path": "tests/test_backend_dev11_integration.py",
+      "bytes": 46699,
+      "sha256": "dae9da05bc87910f637871be079adb95ceb8c24a2063aa74005082c68b90fe5c",
+      "source_blob": "3b523b7aa244b6def991e255e179d41cc6f3e887",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_boundaries.py",
+      "bytes": 8805,
+      "sha256": "30889c8ac8869aa802e25254d6b1a40c67c92b07456ee9a5913683c99c788415",
+      "source_blob": "1b8d95f3b48d2e03d13d4a7386e36649f77ddc9a",
+      "supersedes": {
+        "bytes": 8773,
+        "sha256": "6bb5f7d84ebca04d30717ac2f1875dae5df4751ee331206c6a78ed29799a8b36",
+        "source_blob": "ce3372bc0e46aadd3990e7cb0a6b192651f3f8c5"
+      }
+    },
+    {
+      "path": "tests/test_event_candidate_numeric_projection.py",
+      "bytes": 24619,
+      "sha256": "bc2a0a0d87126151f0f37dab93868ff33325227df23dbad15f0a116034c58a3e",
+      "source_blob": "47704822a5b7b55a282d6e33d5d7c607931e884b",
+      "base_absent": true,
+      "source_commit": "5cca518467e5d03eaced884f73798917542f79fd"
+    },
+    {
+      "path": "tests/test_fragment_decoded_source.py",
+      "bytes": 9411,
+      "sha256": "47fe5f93031f8165c24ea5d06793eb2d1bc44ec606c619e0cd584924d9d1426f",
+      "source_blob": "e22b44eb06d41ada098a86344e96a194b3f7ebe1",
+      "supersedes": {
+        "bytes": 9059,
+        "sha256": "92acb0719ac5e01a5a3efa1a64126e52478861a8ac89f6502c1916e495dda574",
+        "source_blob": "ce60de0f4ff69d7956410aba26654b10284dda5a"
+      }
+    },
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "bytes": 50750,
+      "sha256": "44afad52a388c31b3a11f42993407bb9045d93726b080aac8146a85324f9ad11",
+      "source_blob": "233e24b2624b9d82a2d788ce8bd5f91bed407023",
+      "supersedes": {
+        "bytes": 50651,
+        "sha256": "0742457279db6a5bfea7b69ebd110250bde3eb2aba1ae7386e99a2e6424a32ea",
+        "source_blob": "0d3317a8629e878d86bddc21e3f94ffbed2b9f49"
+      }
+    },
+    {
+      "path": "tests/test_positive_event_seams.py",
+      "bytes": 12983,
+      "sha256": "25ea22f358de4f54fe9c3b9d59f26fc9aff0decb57c246c24eb13286b22f24f5",
+      "source_blob": "2515ef5ce53cd1d8daf2abc5c553ff8e744cb711",
+      "supersedes": {
+        "bytes": 11025,
+        "sha256": "c3e43f23fc991bce9f016225a6a0c17a9c81dba5b1aff6a4004dc45cc404187a",
+        "source_blob": "9f6aae775ee1a9cf59fde550173de75deedaa2c7"
+      }
+    },
+    {
+      "path": "tests/test_public_history.py",
+      "bytes": 11705,
+      "sha256": "3b43527f1e71c3da9d083c3f8b3e3532f34700454d525c7ce5ce3866d1ad4f34",
+      "source_blob": "032aa9a0a42c5f61f54dc91f7882aa175295f65f",
+      "supersedes": {
+        "bytes": 11281,
+        "sha256": "c2b023f9c0f4e5c69c576d7538ab810ee0b3c4c5c97cfb77da740cdef4d3c8ba",
+        "source_blob": "d87c78ef0b408cce01fc59f8d7ce731831292fc8"
+      }
+    }
+  ]
+}

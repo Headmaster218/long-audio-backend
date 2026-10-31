@@ -1,0 +1,68 @@
+{
+  "schema": "reviewed-public-recovery-v1",
+  "base_commit": "0a27197979c8e96fa560432f7a15f49c9e1965fb",
+  "scope": "Public Git-only dev10 provenance tooling and documentation; no runtime or acceptance changes",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 12752,
+      "sha256": "d9b24d7bd3e933de32b30af7c91ae869a29547e92800b2aaef7d0db7ef076005",
+      "source_blob": "c5a4b8f00a0e787ab9d0240b0e0c9ed80b254da1",
+      "supersedes": {
+        "bytes": 12516,
+        "sha256": "3f909d87f6d989d395233caa9e6d76c612a1b42b2b172242a8783906f40c127d",
+        "source_blob": "509e6f085c9f3fadbaa4c62575d34ffa218fd3d3"
+      }
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 12463,
+      "sha256": "282e6a50ebd7da143dc1e6e76ac1010ed9d86b27a640bc93ba95dbb3d9d7fa6a",
+      "source_blob": "f16d2a7c35bc34754ac37a8e833db6663b0c6574",
+      "supersedes": {
+        "bytes": 12278,
+        "sha256": "b3a83eced88828f4a0077963303687f5cdd1cfe11cfc5b8a2d35529c7386dcf8",
+        "source_blob": "d391215cf3c81867b4b3ce311a82ceded11346f8"
+      }
+    },
+    {
+      "path": "docs/PUBLIC_HISTORY_MAP.json",
+      "bytes": 4546,
+      "sha256": "12382b2866595a034281cfe2324241eb5e9de7b235382eb88c53ad7ab3a9bea7",
+      "source_blob": "8e8cf247200429146e5d687216b2a2cf0c6bb695",
+      "base_absent": true
+    },
+    {
+      "path": "docs/PUBLIC_REPRODUCIBILITY.md",
+      "bytes": 3508,
+      "sha256": "deda275e6bc2ac692ba53333c34b9f95cbca3d309d7401cf69e7a9d337d4db70",
+      "source_blob": "ee7fa0f709be54c13dfd291d755e90c59183c01a",
+      "base_absent": true
+    },
+    {
+      "path": "scripts/public_history.py",
+      "bytes": 5825,
+      "sha256": "422ceafb5ae2197111b5f287478dcadc51e17d3e5957f90d9c355aed3c609114",
+      "source_blob": "bfa330434c5b427be7f7059ea4cf828faf7d6f7b",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_fragment_staging_sources.py",
+      "bytes": 50651,
+      "sha256": "0742457279db6a5bfea7b69ebd110250bde3eb2aba1ae7386e99a2e6424a32ea",
+      "source_blob": "0d3317a8629e878d86bddc21e3f94ffbed2b9f49",
+      "supersedes": {
+        "bytes": 51827,
+        "sha256": "6a5f3588605d73f4ed576de8e1b04ab7b55a8b0d08e88799f061dd83ccc6b65f",
+        "source_blob": "3175df5caf33a6e2042711c947ab72390649de1a"
+      }
+    },
+    {
+      "path": "tests/test_public_history.py",
+      "bytes": 11281,
+      "sha256": "c2b023f9c0f4e5c69c576d7538ab810ee0b3c4c5c97cfb77da740cdef4d3c8ba",
+      "source_blob": "d87c78ef0b408cce01fc59f8d7ce731831292fc8",
+      "base_absent": true
+    }
+  ]
+}

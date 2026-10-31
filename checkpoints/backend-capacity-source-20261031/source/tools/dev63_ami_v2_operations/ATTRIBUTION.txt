@@ -1,0 +1,8 @@
+Source: AMI Meeting Corpus, ES2011a Mix-Headset, official University of Edinburgh AMI corpus mirror.
+https://groups.inf.ed.ac.uk/ami/AMICorpusMirror//amicorpus/ES2011a/audio/ES2011a.Mix-Headset.wav
+License: Creative Commons Attribution 4.0 International, https://creativecommons.org/licenses/by/4.0/
+Official license notice: https://groups.inf.ed.ac.uk/ami/corpus/license.shtml
+Modification: exact first 480 seconds copied into a canonical PCM WAV header; no resampling or sample changes.
+This operation/cadence fixture is not independent speaker-accuracy confirmation. No listening, model inference or transcript labels used for selection.
+
+No audio or annotation data is included in this source archive.

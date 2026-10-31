@@ -1,0 +1,159 @@
+{
+  "schema": "reviewed-backend-rc3-dev3-source-v1",
+  "version": "0.2.0rc3.dev3",
+  "base_commit": "fa8ed88c4691e0784cbb30baff66ca777c1de871",
+  "base_tree": "b110b464a92a2a4d9c8d24d9f0582a04304b02b7",
+  "base_files": 303,
+  "base_bytes": 3536418,
+  "base_source_inventory_sha256": "41757b2d0a215259ab1a4522bdb8fe38f6e3a34373ac8a55ac14151f647034c5",
+  "scope": "Default-OFF volatile native-selected support capture/read for isolated original PCM uploads up to20s; primary SQL/schema/scheduling unchanged; no lexical dispatch or restart persistence",
+  "qualification": "Focused stdlib and pinned API fake-provider tests; no real native model, positive acoustic overlap, historical full-suite or long-recording qualification",
+  "source_budget": {
+    "maximum_files": 311,
+    "maximum_total_bytes": 3800000,
+    "maximum_file_bytes": 250000
+  },
+  "historical_proof": "Immutable published rc3.dev2 current_snapshot/docstring adapter only; original verifier and mutation bodies preserved",
+  "external_seal": "Manifest excludes itself; independent external seal pins both this manifest and the source gate",
+  "files": [
+    {
+      "path": "audio_backend/__init__.py",
+      "bytes": 107,
+      "sha256": "bf168be435c15d58e4d48af5411132bea85c8de44c010e8ba85fd64d6b48598e",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 107,
+        "sha256": "c7d0e77bdb4544057340deb0152e040fdb4e78060625406cf2a30dd96dd81804"
+      }
+    },
+    {
+      "path": "audio_backend/__main__.py",
+      "bytes": 15678,
+      "sha256": "137e461bfdc98beb2c2d4184019c00ba68b46b056fadc4a0bd5aaa6c182cadb7",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 15107,
+        "sha256": "9e4c461ee6834b15db189488dc08ad692887431dd5f212664ee0f0328e09c9af"
+      }
+    },
+    {
+      "path": "audio_backend/app.py",
+      "bytes": 32299,
+      "sha256": "dc2ac03ac65fcb64d389ad4ecba03a85b386788bae720a801703f717301ed2c2",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 26989,
+        "sha256": "a77b18723a82af4bc357e47af37d60e4aa39bf0bb285e1cc885927cbe722376a"
+      }
+    },
+    {
+      "path": "audio_backend/lifecycle.py",
+      "bytes": 9024,
+      "sha256": "4b653d352d44141cb170cba97b404e104c8f9f77c79a744c593729cf747af481",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 8730,
+        "sha256": "d1b2972510945360d878c5e67387a2d26ec5224cf0c92e70f2c6a61224577f28"
+      }
+    },
+    {
+      "path": "audio_backend/native_owned_support.py",
+      "bytes": 31364,
+      "sha256": "2403aa765c42bce62c6982d0022662ed82870948028ee994b86740fd8c800451",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/native_owned_support_cache.py",
+      "bytes": 44448,
+      "sha256": "43fa6fecdeea5d822f3ba9227739fb35ba21f500ae2e249e0b5fa0bd6fb79a29",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "audio_backend/settings.py",
+      "bytes": 14578,
+      "sha256": "a0b30e0f64278992221bb9a5eee2f2b665cdcb9b2350ed1df86a2b80430547df",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 14390,
+        "sha256": "860de9d0d68fe9d9a8521dde63b6096d3472dd8b8e1b60ea6bdb0aa286a7b8d6"
+      }
+    },
+    {
+      "path": "audio_backend/worker.py",
+      "bytes": 23996,
+      "sha256": "79eb04db126effdeb2c2a226729d91f79cba77044ab8459df2c00c79b7bce932",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 19455,
+        "sha256": "9e59a3ceeccc33ebed18d3eb0aa6006b876276f1c3e71b22f6cd8b5565e52ea2"
+      }
+    },
+    {
+      "path": "docs/FRAGMENT_STAGING_POLICY.json",
+      "bytes": 13934,
+      "sha256": "3fddfdf05004cd1f277e7a613a0ff137b46574ef5072ecb9634a7c9e607d419e",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 13601,
+        "sha256": "b875a707004dbbf553bc48c0ba514df2d1e83e15a89357454783eaae8cb766fc"
+      }
+    },
+    {
+      "path": "docs/NATIVE_OWNED_SUPPORT_CAPTURE.md",
+      "bytes": 6217,
+      "sha256": "2eff5e48c60dd1a5c9fb7ca39868b93922ea8a2ab431d2da8596b96ba5268410",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 828,
+      "sha256": "3781064b8ae4f66272887f1c9bcafb5fecc76adc28d03e88dfbafd71ad8962f9",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 828,
+        "sha256": "9c8dce32978d6591459c4aa4fec6c0f765651d9d6e5b2e4ea7cfae35eda953a9"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev2_source.py",
+      "bytes": 25273,
+      "sha256": "b8698e19a981a8d8d361dece6a52cae432ed0f1aca1f0b25fbe433b062f5a086",
+      "mode": "100644",
+      "supersedes": {
+        "bytes": 25650,
+        "sha256": "6894af451db6f8e41230deac5f119a908b11d05e04399732ee9b7bfbced3d45a"
+      }
+    },
+    {
+      "path": "tests/test_backend_rc3_dev3_source.py",
+      "bytes": 25331,
+      "sha256": "e44a5a7429153896f785c77807bba60d8525d79b0c700a49b4aaec7661c4306a",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_support.py",
+      "bytes": 27544,
+      "sha256": "ea30d72aa6740bfa75d37413819621033a327ffe98a5ff8a4c992df708c929ba",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_support_api.py",
+      "bytes": 20502,
+      "sha256": "656b7e0a390d5c3b1d3e638a00fc84c667b109b7563be515e52b3c086bba4a66",
+      "mode": "100644",
+      "base_absent": true
+    },
+    {
+      "path": "tests/test_native_owned_support_cache.py",
+      "bytes": 33028,
+      "sha256": "f880e2cae448ebdb320e361ec192958996c31eea2079579193ac7aed2d0fe528",
+      "mode": "100644",
+      "base_absent": true
+    }
+  ]
+}

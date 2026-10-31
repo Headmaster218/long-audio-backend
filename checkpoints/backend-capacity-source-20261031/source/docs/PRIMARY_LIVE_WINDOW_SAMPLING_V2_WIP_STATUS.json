@@ -1,0 +1,48 @@
+{
+  "schema": "primary-live-window-sampling-wip-v1",
+  "status": "UNEXECUTED_UNQUALIFIED_SOURCE_ONLY",
+  "base_product_commit": "3eef156f7640da2b68e40d43cecf8b5004555b2d",
+  "sampling_default": "skip-bucket-v1",
+  "sampling_opt_in": "fresh-window-bounded-v2",
+  "static_review": "coherent WIP; not execution approval",
+  "executed_tests": false,
+  "executed_models": false,
+  "published": false,
+  "changes": {
+    "audio_backend/__main__.py": {
+      "bytes": 25967,
+      "sha256": "28edf7ef656a0a55ca37262b9bb657174be23e85305770219eb16c0e7c24b20c"
+    },
+    "audio_backend/moss_handy_jobs.py": {
+      "bytes": 166181,
+      "sha256": "a5442f4a7625c56917d9356f74e38e70585311d5af99fc7c4a4617c699a622f9"
+    },
+    "audio_backend/recording_speaker_history.py": {
+      "bytes": 149263,
+      "sha256": "26a1879ac64b55219bcfb603ebc217a56baee4501b45017cd9d2e91e65693d58"
+    },
+    "audio_backend/settings.py": {
+      "bytes": 28307,
+      "sha256": "64a3d1121eba6e3257250ef15d03f7c0a82d44ad40892aefdb159886cb8cc845"
+    },
+    "docs/PRIMARY_LIVE_WINDOW_SAMPLING_V2.md": {
+      "bytes": 5463,
+      "sha256": "7f178aa26ca4aceb7f344f50d7b0f4f00a55b25b4cd218a03b0a48928d9c1204"
+    },
+    "tests/test_primary_live_window_sampling.py": {
+      "bytes": 14080,
+      "sha256": "134513dc2537850df5b1db62db66ced64cfd96ea65235b1e39d00902e4ac0210"
+    }
+  },
+  "remaining_gates": [
+    "Review and execute finite synthetic fixtures and existing producer/fairness/unknown-commit regression suites.",
+    "Verify installed dev62 refusal and exact legacy bridge/reference migration atomically.",
+    "Clarify diagnostic committed-outcome budget semantics for rolled-back claims overtaken by later busy windows.",
+    "No exposed AMI reruns or threshold tuning."
+  ],
+  "diagnostic_caveats": [
+    "last_frame means last recorded event source frame, not source high_water.",
+    "examined_count is ordinary live-check budget state; late hard closure may increment total examined without changing it.",
+    "Counters are not a complete provisional eligibility/encoder-call census."
+  ]
+}

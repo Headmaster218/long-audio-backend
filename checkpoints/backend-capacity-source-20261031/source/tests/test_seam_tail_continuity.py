@@ -1,0 +1,433 @@
+"""Finite synthetic seam-tail regressions using the real Capture API.
+
+The producer fixtures and primary-commit/publication doubles are explicit.
+No SQL, model, decoder, native child, saved audio, service or live store is used.
+"""
+from copy import deepcopy
+from dataclasses import replace
+import hashlib
+import json
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+import wave
+
+from audio_backend import native_owned_cells as cells
+from audio_backend import native_owned_seam_cells as seam
+from audio_backend import native_owned_cell_capture as candidate
+from audio_backend.native_owned_cell_store import Operation
+from test_native_owned_seam_cells import synthetic_pieces
+from test_native_owned_support import EPOCH, synthetic_native, synthetic_provenance, synthetic_state
+
+RATE = cells.RATE
+FRAMES = 4000
+TOTAL = 4 * FRAMES
+PCM = b'\x01\0' * TOTAL
+NO_PAIR = 'no_same_response_native_overlap'
+
+
+class MemoryAuthority:
+    """Explicit primary-commit test double, never a real DB authorization claim."""
+    def __init__(self):
+        self.records = {}
+        self.reject = set()
+        self.calls = []
+
+    def mapping(self, chunk, scope, a, b, budget):
+        cid = chunk['id']
+        return (cells.SourceSpan('session', cid, cells.sha({'receipt': cid}),
+            hashlib.sha256(PCM[:2 * FRAMES]).hexdigest(), FRAMES, 0, FRAMES, a, b),)
+
+    def original_pcm(self, parts, budget):
+        return b''.join(PCM[2 * p.source_start:2 * p.source_end] for p in parts)
+
+    def seam_commit_current(self, commit, scope, part, budget):
+        cid = commit['chunk_id']
+        self.calls.append(cid)
+        expected = self.records.get(cid)
+        return cid not in self.reject and expected == (commit, scope, part)
+
+    def cell_valid(self, doc, budget, publishing=False):
+        doc, support, parts = cells.validate_document(cells.canonical(doc))
+        if seam.is_composite(doc):
+            return all(self.seam_commit_current(c, doc['scope'], p, budget)
+                       for c, p in zip(doc['commits'], parts))
+        expected = self.records.get(doc['commit']['chunk_id'])
+        return expected is not None and expected[0]['evidence'] == doc['commit_evidence']
+
+
+class Flow:
+    """Reuse existing producer builders through the actual Capture API."""
+    def __init__(self, case, module=candidate):
+        self.case = case
+        self.module = module
+        self.published = []
+        self.authority = MemoryAuthority()
+        self.owner = SimpleNamespace(enabled=True, seam_enabled=True, _epoch=object(),
+            _store_policy=seam.STORE_POLICY_SHA256, health=lambda: {'ready': True})
+        def submit(kind, batch):
+            self.published.append((kind, batch))
+            return Operation(kind, batch, self.owner._epoch)
+        self.owner.submit = submit
+        self.capture = module.Capture(self.owner, self.authority)
+        self.pending = None
+
+    def stage(self, index, turns=None, mutate_native=None, end=None):
+        c = self.capture
+        cid = chr(ord('A') + index)
+        origin = index * FRAMES / RATE
+        chunk = {'id': cid, 'session_id': 'session', 'duration': FRAMES / RATE,
+                 'timeline_start': origin}
+        c.begin_prepare(chunk, {'stream_id': 'stream', 'start': 0.})
+        if index == 0:
+            c.observe_response({'state': synthetic_state(EPOCH, 0), 'provenance': synthetic_provenance()})
+            c.observe_pcm('native', self.case.wav, 0., TOTAL / RATE)
+            c.observe_response(synthetic_state(EPOCH, TOTAL, stable_frames=TOTAL))
+            c.observe_response(synthetic_state(EPOCH, TOTAL, finished=True))
+        response = {'turns': deepcopy(turns or [])}
+        c.observe_response(response)
+        c.end_prepare()
+        c.observe_pcm('analyzer', self.case.wav, 0., TOTAL / RATE,
+                      (origin, -origin, TOTAL / RATE - origin))
+        native = synthetic_native(TOTAL, turns=response['turns'])
+        native.update(end=FRAMES / RATE, extract_start=-origin, extract_end=TOTAL / RATE - origin)
+        if mutate_native is not None:
+            mutate_native(native)
+        cut = {'nominal': FRAMES / RATE, 'actual': FRAMES / RATE, 'reason': 'fixed_or_final'}
+        evidence = {'chunk_id': cid, 'start': 0, 'end': FRAMES,
+                    'native': deepcopy(native['state']), 'core_cut': deepcopy(cut)}
+        expected_commit = {'chunk_id': cid, 'source_origin_frame': index * FRAMES,
+            'local_start_frame': 0, 'local_end_frame': FRAMES,
+            'logical_start_frame': index * FRAMES, 'logical_end_frame': (index + 1) * FRAMES,
+            'evidence': evidence, 'evidence_sha256': cells.sha(evidence)}
+        expected_scope = {'session_id': 'session', 'stream_id': 'stream', 'origin_seconds_hex': (0.).hex(),
+            'epoch_id': EPOCH, 'epoch_index': 0, 'reset_generation': 1}
+        expected_part = self.authority.mapping(chunk, 0., index * FRAMES, (index + 1) * FRAMES, c.budget)[0]
+        self.pending = (cid, (expected_commit, expected_scope, expected_part))
+        return c.prepare(chunk, native, 0., FRAMES / RATE if end is None else end,
+                         {'metadata': {'core_cut': cut}})
+
+    def commit(self, ordinary):
+        # Simulate the unchanged Worker's successful primary commit before hook.
+        cid, expected = self.pending
+        self.authority.records[cid] = deepcopy(expected)
+        return self.capture.committed(ordinary)
+
+    def process(self, index, turns=None):
+        ordinary = self.stage(index, turns)
+        self.case.assertIsNotNone(self.capture._seam_provisional, self.capture.last_seam_reason)
+        return self.commit(ordinary)
+
+    @staticmethod
+    def overlap():
+        return [{'start': FRAMES / RATE, 'end': 3 * FRAMES / RATE,
+                 'speaker_local_id': EPOCH + ':speaker_' + str(i)} for i in (1, 2)]
+
+
+class ContinuityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='seam-tail-synthetic-')
+        cls.root = Path(cls.temp.name)
+        cls.wav = cls.root / 'synthetic-observed.wav'
+        with wave.open(str(cls.wav), 'wb') as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(RATE)
+            out.writeframes(PCM)
+        if cls.wav.stat().st_size >= 4 * 1024**2:
+            raise AssertionError('Synthetic fixture capacity exceeded')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+        if cls.root.exists():
+            raise AssertionError('Synthetic temporary leaf survived cleanup')
+
+    def setUp(self):
+        self.diagnostics = []
+        guard = patch.object(candidate, '_diagnostic_failure',
+            side_effect=lambda stage, exc: self.diagnostics.append((stage, type(exc).__name__, str(exc))))
+        guard.start()
+        self.addCleanup(guard.stop)
+
+    def assert_closed(self, flow, reason=None):
+        self.assertIsNone(flow.capture._seam_tail)
+        self.assertIsNone(flow.capture._seam_provisional)
+        self.assertEqual(flow.published, [])
+        if reason is not None:
+            self.assertEqual(flow.capture.last_seam_reason, reason)
+
+    def staged_b(self, *, overlap=False):
+        flow = Flow(self)
+        flow.process(0)
+        ordinary = flow.stage(1, flow.overlap() if overlap else [])
+        self.assertIsNotNone(flow.capture._seam_provisional, flow.capture.last_seam_reason)
+        return flow, ordinary
+
+
+
+    def test_quiet_ab_preserves_b_and_positive_bc_emits_real_composite(self):
+        flow = Flow(self)
+        flow.process(0)
+        flow.process(1)
+        b_tail = flow.capture._seam_tail
+        self.assertEqual(b_tail.commit['chunk_id'], 'B')
+        self.assertEqual(flow.capture.last_seam_reason, 'seam_no_native_overlap')
+        self.assertEqual(flow.published, [])
+        result = flow.process(2, flow.overlap())
+        self.assertIsInstance(result, Operation)
+        self.assertEqual(len(flow.published), 1)
+        kind, batch = flow.published[0]
+        self.assertEqual(kind, 'publish')
+        self.assertEqual(len(batch), 2)
+        composite = batch[-1]
+        doc, support, parts = cells.validate_document(composite.proof)
+        seam.validate_cell_pcm(doc, composite.pcm)
+        self.assertEqual([c['chunk_id'] for c in doc['commits']], ['B', 'C'])
+        self.assertEqual(doc['selection']['witness_index'], 1)
+        self.assertEqual(doc['geometry']['seam_frame'], 2 * FRAMES)
+        self.assertEqual(doc['publication_anchor']['chunk_id'], 'C')
+        self.assertEqual(composite.pcm, PCM[:4 * FRAMES])
+        self.assertEqual(flow.capture._seam_tail.commit['chunk_id'], 'C')
+        self.assertEqual(flow.capture.last_seam_reason, 'seam_validated_selected')
+        self.assertEqual(self.diagnostics, [])
+
+    def test_all_unselected_stream_keeps_each_valid_tail_without_diagnostics(self):
+        variants = [[], [{'start': 0., 'end': TOTAL / RATE, 'speaker_local_id': EPOCH + ':speaker_1'}],
+            [{'start': 0., 'end': .5, 'speaker_local_id': EPOCH + ':speaker_1'},
+             {'start': .5, 'end': 1., 'speaker_local_id': EPOCH + ':speaker_2'}]]
+        for turns in variants:
+            with self.subTest(turns=turns):
+                flow = Flow(self)
+                for index in range(4):
+                    result = flow.process(index, turns)
+                    self.assertEqual(result, {'status': 'no_native_overlap'})
+                    self.assertEqual(flow.capture._seam_tail.commit['chunk_id'], chr(ord('A') + index))
+                    self.assertIsNone(flow.capture._seam_provisional)
+                    self.assertEqual(flow.capture.last_seam_reason,
+                                     'seam_tail_promoted' if index == 0 else 'seam_no_native_overlap')
+                self.assertEqual(flow.published, [])
+        self.assertEqual(self.diagnostics, [])
+
+    def test_pure_composition_and_selected_pair_still_reject_no_pair(self):
+        left, right = synthetic_pieces()
+        for turns in ([], [{'label': EPOCH + ':speaker_1', 'original': [0, 32]}],
+                [{'label': EPOCH + ':speaker_1', 'original': [0, 16]},
+                 {'label': EPOCH + ':speaker_2', 'original': [16, 32]}]):
+            witnesses = [dict(p.witness, turns=deepcopy(turns)) for p in (left, right)]
+            with self.assertRaises(cells.Unavailable) as caught:
+                seam.selected_pair(witnesses, 0, 32)
+            self.assertEqual(caught.exception.args, (NO_PAIR,))
+            with self.assertRaises(cells.Unavailable) as caught:
+                seam.make_composite(replace(left, witness=witnesses[0]), replace(right, witness=witnesses[1]))
+            self.assertEqual(caught.exception.args, (NO_PAIR,))
+
+    def test_commit_hook_identity_mismatch_fails_closed(self):
+        flow, ordinary = self.staged_b()
+        self.assertEqual(ordinary, ())
+        flow.commit([])  # Equal emptiness is insufficient; exact hook object matters.
+        self.assert_closed(flow, 'seam_commit_hook_mismatch')
+        self.assertEqual(self.diagnostics[-1][0], 'seam_commit')
+
+    def test_owner_reset_token_and_enablement_guards_fail_closed(self):
+        for mutation in ('owner', 'token', 'reset', 'disabled', 'owner_disabled'):
+            with self.subTest(mutation=mutation):
+                flow, ordinary = self.staged_b()
+                c = flow.capture
+                if mutation == 'owner':flow.owner._epoch = object()
+                elif mutation == 'token':c._seam_generation = object()
+                elif mutation == 'reset':c.observed_reset_generation += 1
+                elif mutation == 'disabled':c._seam_disabled = True
+                else:flow.owner.enabled = False
+                flow.commit(ordinary)
+                self.assert_closed(flow, 'seam_generation_revoked')
+
+    def test_current_primary_authority_loss_and_failure_reason_are_not_swallowed(self):
+        for raised in (False, True):
+            with self.subTest(raised=raised):
+                flow, ordinary = self.staged_b()
+                if raised:
+                    def fail(*args):raise cells.Unavailable(NO_PAIR)
+                    flow.authority.seam_commit_current = fail
+                else:flow.authority.reject.add('B')
+                flow.commit(ordinary)
+                self.assert_closed(flow, NO_PAIR if raised else 'seam_current_commit_unavailable')
+                self.assertEqual(self.diagnostics[-1][0], 'seam_commit')
+
+    def test_previous_primary_authority_loss_in_prepare_invalidates(self):
+        flow = Flow(self)
+        flow.process(0)
+        flow.authority.reject.add('A')
+        ordinary = flow.stage(1)
+        self.assertEqual(ordinary, ())
+        self.assert_closed(flow, 'seam_previous_commit_unavailable')
+        self.assertEqual(self.diagnostics[-1][0], 'seam_prepare')
+
+    def test_revocation_during_current_commit_check_invalidates(self):
+        flow, ordinary = self.staged_b()
+        original = flow.authority.seam_commit_current
+        def revoke(*args):
+            valid = original(*args)
+            flow.capture.invalidate_seam('capture_revoked')
+            return valid
+        flow.authority.seam_commit_current = revoke
+        flow.commit(ordinary)
+        self.assert_closed(flow, 'seam_generation_revoked')
+
+    def test_revocation_during_real_no_pair_result_cannot_promote_tail(self):
+        flow, ordinary = self.staged_b()
+        original = seam.make_composite
+        reached = []
+        def revoke(left, right):
+            try:return original(left, right)
+            except cells.Unavailable as exc:
+                reached.append(exc.args)
+                flow.capture.invalidate_seam('capture_revoked')
+                raise
+        with patch.object(seam, 'make_composite', side_effect=revoke):
+            flow.commit(ordinary)
+        self.assertEqual(reached, [(NO_PAIR,)])
+        self.assert_closed(flow, 'seam_generation_revoked')
+
+    def test_other_exception_types_and_nonexact_reasons_fail_closed(self):
+        for exc in (ValueError(NO_PAIR), RuntimeError(NO_PAIR), cells.Unavailable(NO_PAIR + '_extra'),
+                    cells.Unavailable(NO_PAIR, 'extra'), cells.Unavailable('seam_piece_scope_mismatch')):
+            with self.subTest(exception=repr(exc)):
+                flow, ordinary = self.staged_b()
+                with patch.object(seam, 'make_composite', side_effect=exc):
+                    flow.commit(ordinary)
+                self.assert_closed(flow)
+                self.assertEqual(self.diagnostics[-1][0], 'seam_commit')
+
+    def test_real_scope_mismatch_before_selection_still_invalidates(self):
+        flow, ordinary = self.staged_b()
+        left = flow.capture._seam_provisional[3]
+        left.scope['stream_id'] = 'different-stream'
+        flow.commit(ordinary)
+        self.assert_closed(flow, 'seam_piece_scope_mismatch')
+
+    def test_real_selected_proof_and_coordinate_faults_still_invalidate(self):
+        for mutation in ('fingerprint', 'query_boolean', 'bad_turn_interval'):
+            with self.subTest(mutation=mutation):
+                flow, ordinary = self.staged_b(overlap=True)
+                right = flow.capture._seam_provisional[4]
+                if mutation == 'fingerprint':right.witness['native']['state']['fingerprint'] = 'f' * 64
+                elif mutation == 'query_boolean':right.witness['query_start_frame'] = True
+                else:right.witness['turns'][0]['original'][0] = -1
+                # Use the real make_composite and real Cell proof admission.
+                flow.commit(ordinary)
+                self.assertIsNone(flow.capture._seam_tail)
+                self.assertIsNone(flow.capture._seam_provisional)
+                # Previously valid ordinary cells retain their original behavior.
+                self.assertEqual(len(flow.published), 1)
+                self.assertEqual(len(flow.published[0][1]), 1)
+                self.assertFalse(seam.is_composite(json.loads(flow.published[0][1][0].proof)))
+                self.assertTrue(any(stage == 'seam_commit' for stage, _, _ in self.diagnostics))
+
+    def test_unselected_malformed_witness_and_coordinates_fail_closed(self):
+        faults = ('fingerprint', 'query_boolean', 'query_extent', 'frontier_hex',
+                  'turn_shape', 'turn_reversed', 'action_count', 'missing_field')
+        for side in (3, 4):
+            for fault in faults:
+                with self.subTest(side=side, fault=fault):
+                    flow, ordinary = self.staged_b()
+                    piece = flow.capture._seam_provisional[side]
+                    witness = piece.witness
+                    if fault == 'fingerprint':witness['native']['state']['fingerprint'] = 'f' * 64
+                    elif fault == 'query_boolean':witness['query_start_frame'] = True
+                    elif fault == 'query_extent':witness['query_end_frame'] = piece.part.logical_end - 1
+                    elif fault == 'frontier_hex':witness['native']['state']['stable']['hex'] = 'wrong'
+                    elif fault == 'turn_shape':witness['turns'] = [{'unexpected': True}]
+                    elif fault == 'turn_reversed':witness['turns'] = [
+                        {'label': EPOCH + ':speaker_1', 'original': [2, 1]}]
+                    elif fault == 'action_count':witness['native']['observed_action_count'] = 0
+                    else:del witness['native']['true_eof']
+                    # Each response has at most one turn: selection has no pair,
+                    # so this specifically exercises the quiet-branch validation.
+                    flow.commit(ordinary)
+                    self.assert_closed(flow)
+                    self.assertEqual(self.diagnostics[-1][0], 'seam_commit')
+                    self.assertNotEqual(flow.capture.last_seam_reason, 'seam_no_native_overlap')
+
+    def test_unselected_nonincreasing_observation_count_fails_closed(self):
+        flow, ordinary = self.staged_b()
+        left, right = flow.capture._seam_provisional[3:5]
+        right.witness['native']['observed_action_count'] = left.witness['native']['observed_action_count']
+        flow.commit(ordinary)
+        self.assert_closed(flow, 'seam_native_continuity')
+
+    def test_unselected_distinct_terminal_tail_must_also_have_valid_witness(self):
+        # Existing builder creates genuine prefix/tail geometry above SIDE_FRAMES.
+        # Supplemental staged hook test isolates a distinct tail; all main stream
+        # tests above go through actual observe/prepare as well as committed.
+        flow = Flow(self)
+        left, right = synthetic_pieces(frames=168000)
+        left = replace(left, witness=dict(left.witness, turns=[]))
+        right = replace(right, witness=dict(right.witness, turns=[]))
+        part = replace(right.part, source_start=8000, source_end=168000,
+                       logical_start=176000, logical_end=336000)
+        tail = replace(right, part=part, witness=deepcopy(right.witness))
+        self.assertIsNot(tail, right)
+        tail.witness['query_end_frame'] = 328000  # Prefix still fits; tail does not.
+        c = flow.capture
+        c.observed_reset_generation = 1
+        ordinary = ()
+        c._seam_tail = left
+        c._seam_provisional = (ordinary, c._seam_generation, 1, left, right, tail)
+        flow.pending = (tail.commit['chunk_id'], (deepcopy(tail.commit), deepcopy(tail.scope), tail.part))
+        flow.commit(ordinary)
+        self.assert_closed(flow, 'seam_witness_geometry')
+
+    def test_invalid_native_prepared_proof_and_fractional_coordinate_clear_old_tail(self):
+        variants = [
+            ('identity', lambda n: n['state'].update(epoch_id='f' * 32), None),
+            ('provenance', lambda n: n['provenance'].update(diarization_fingerprint='f' * 64), None),
+            ('frontier', lambda n: n['state'].update(stable_until=.5), None),
+            ('turn_transform', lambda n: n.update(turns=[{'start': 0., 'end': .25,
+                'speaker_local_id': EPOCH + ':speaker_1'}]), None),
+            ('coordinate', None, (FRAMES - .5) / RATE),
+        ]
+        for label, mutation, end in variants:
+            with self.subTest(label=label):
+                flow = Flow(self)
+                flow.process(0)
+                ordinary = flow.stage(1, mutate_native=mutation, end=end)
+                self.assertEqual(ordinary, ())
+                self.assert_closed(flow)
+                self.assertEqual(self.diagnostics[-1][0], 'capture')
+                self.assertNotEqual(flow.capture.last_seam_reason, 'seam_no_native_overlap')
+
+    def test_invalid_native_response_and_analyzer_coordinate_clear_old_tail(self):
+        for fault in ('native_identity', 'analyzer_coordinate'):
+            with self.subTest(fault=fault):
+                flow = Flow(self)
+                flow.process(0)
+                c = flow.capture
+                if fault == 'native_identity':
+                    c.active = True
+                    state = synthetic_state(EPOCH, TOTAL, finished=True)
+                    state['fingerprint'] = 'f' * 64
+                    c.observe_response(state)
+                    self.assertEqual(c.last_seam_reason, 'seam_invalid_native_observation')
+                else:
+                    c.observe_pcm('analyzer', self.wav, 0., (TOTAL - .5) / RATE,
+                                  (0., 0., (TOTAL - .5) / RATE))
+                    self.assertEqual(c.last_seam_reason, 'fractional_frame_coordinate')
+                self.assert_closed(flow)
+
+    def test_selected_composite_current_authority_rejection_fails_closed(self):
+        flow, ordinary = self.staged_b(overlap=True)
+        original = flow.authority.cell_valid
+        def reject_composite(doc, *args, **kwargs):
+            return False if seam.is_composite(doc) else original(doc, *args, **kwargs)
+        flow.authority.cell_valid = reject_composite
+        flow.commit(ordinary)
+        self.assertIsNone(flow.capture._seam_tail)
+        self.assertIsNone(flow.capture._seam_provisional)
+        self.assertEqual(flow.capture.last_seam_reason, 'seam_both_commits_unavailable')
+        self.assertEqual(len(flow.published), 1)
+        self.assertEqual(len(flow.published[0][1]), 1)
+
