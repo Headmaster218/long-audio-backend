@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "2fa3334b89852b6ac4bf6a8347219027d79b98ff",
+  "local_source_commit": "8238751f7af23e0cc5980a8cca82b6130708b316",
   "files": [
     {
       "path": ".gitignore",
@@ -1971,6 +1971,12 @@
       "sha256": "516cafff276494ea754f6e62e2a413629f6e064b5798ed4fd172dae4c2efac26"
     },
     {
+      "path": "docs/SYNTHETIC_PROCESS_REOPEN_NOV01.md",
+      "size": 3655,
+      "sha": "4594e2782606c2976b797749efefabe8daf71e40",
+      "sha256": "65cb07889c0dc515840c711cfdf5da1ed2675424cb5f0fce9326934ba9938eed"
+    },
+    {
       "path": "docs/TESTED_API_GUIDE_ZH.md",
       "size": 23438,
       "sha": "d13cb34a61ea76c221e763f17fc4ba9dc79ee6ed",
@@ -2479,6 +2485,12 @@
       "size": 1874,
       "sha": "0376127f2655e22a5214e369c06888a21c63e622",
       "sha256": "5c5ba74eb75c954ea18ca8d00bee47b810bf992ccaf5629eafb05280aae702fc"
+    },
+    {
+      "path": "tests/helpers/synthetic_store_process.py",
+      "size": 5642,
+      "sha": "71b8ae1e7473084705cf3093313910475d6fb645",
+      "sha256": "f104e1da442c76f415e77772662af1e07ea13fd69e883d931b0dd04781d2cdb6"
     },
     {
       "path": "tests/reviewed_person_bridge_fixtures.py",
@@ -3943,6 +3955,12 @@
       "size": 14488,
       "sha": "243694e12a30ef8a25571b3cf08b4d1ee3716f90",
       "sha256": "8180ac549ca6106b641d1af27ec5e18e389f3ad4e9064ed0f812b92d83dbff11"
+    },
+    {
+      "path": "tests/test_store_subprocess_reopen_nov01.py",
+      "size": 3510,
+      "sha": "0852015a5415865dc89dab1091f0c2ccc63c5d1a",
+      "sha256": "3f81b12b13afd364fbe217f8f3061c739a08d82845984dc0c55959165759d7a3"
     },
     {
       "path": "tests/test_stream_api_contract.py",

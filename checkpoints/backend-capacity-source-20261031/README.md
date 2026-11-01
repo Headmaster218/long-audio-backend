@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`2fa3334b89852b6ac4bf6a8347219027d79b98ff`. It includes the October 31 capacity reconstruction,
+`8238751f7af23e0cc5980a8cca82b6130708b316`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `80544907f74925d6773d9cd79ae78c54d63a7e70`; its tree and history
+The parent public commit is `cc1af631628ca4324df8a0bdafcaba97554a22ad`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -103,3 +103,18 @@ Final selected checks: 141 passed; one Worker-thread handoff case not selected.
 The prior two stale source-pin failures were reviewed, not suppressed or counted
 as passes. Additional Store cold-read reopen tests use generated component data;
 no model, inference, real recording, process-restart or long-run claim follows.
+
+## Subsequent bounded process-reopen validation
+
+Tests/protocol documentation only; no production changes. Original model-free
+Worker handoff is now included rather than unselected. Two sequential generated-
+data writer/reader child processes positively exit and re-open original Store
+cold data across an actual exec boundary, with real locks, source/policy binding,
+SQLite integrity, exact bytes and unchanged budget/deadline refusal. Owned-child
+SIGTERM and kill/reap timeout branches are separately checked. See
+source/docs/SYNTHETIC_PROCESS_REOPEN_NOV01.md for independent review and limits.
+
+The final selected aggregate is 145 passed (142 existing including Worker handoff,
+plus three subprocess/watchdog cases), no deselections. This remains synthetic
+component/connected-thread validation, not real-model, mobile-device, crash,
+full-service restart, accuracy or long-duration qualification.
