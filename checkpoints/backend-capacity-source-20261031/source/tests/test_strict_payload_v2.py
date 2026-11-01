@@ -369,8 +369,16 @@ def test_component_frontier_roots_and_one_unit_bound(tmp_path, monkeypatch):
     assert source.name == 'native_owned_cell_capture.py'
     with source.open('rb') as file:raw = file.read(160 * 1024 + 1)
     assert len(raw) <= 160 * 1024
-    assert hashlib.sha256(raw).hexdigest() == 'd9c2cdd81359c5ff5edc84b82a53498deba7a1649047c6f426450b774cd56539'
+    # Explicit reviewed source identity, plus independently historical target
+    # ASTs: not a blanket update of the old whole-module digest. See review doc.
+    review = json.loads((Path(__file__).parent / 'fixtures' /
+        'capture_boundaries_reviewed.json').read_text())
+    assert review['historical_file_sha256'] == 'd9c2cdd81359c5ff5edc84b82a53498deba7a1649047c6f426450b774cd56539'
+    assert hashlib.sha256(raw).hexdigest() == review['reviewed_public_file_sha256']
     tree = ast.parse(raw, filename=str(source))
+    for name, expected in review['targets'].items():
+        target, = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name == name]
+        assert hashlib.sha256(ast.dump(target, include_attributes=False).encode()).hexdigest() == expected
     frontier, = [node for node in tree.body if isinstance(node, ast.ClassDef)
                  and node.name == 'PayloadFrontier']
     links, = [node for node in frontier.body if isinstance(node, ast.FunctionDef)

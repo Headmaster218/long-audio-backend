@@ -311,12 +311,13 @@ def retained_snapshot(value):
 
 # 1. Version/no-migration boundaries.
 def test_v1_ddl_literal_is_unchanged(tmp_path):
-    import ast
-    source = Path(strict.__file__).read_text()
-    node = next(item for item in ast.parse(source).body
-        if isinstance(item, ast.FunctionDef) and item.name == '_statements')
-    assert hashlib.sha256(ast.get_source_segment(source, node).encode()).hexdigest() == (
-        '76b990445e0f3249339d97b037b5c2bf7f00e8114833aa6d9560dc123e38aa42')
+    # Independently extracted from the historical function whose hash this test
+    # originally pinned; compare emitted SQL, not a now-parameterized function.
+    fixture = json.loads((Path(__file__).parent / 'fixtures' /
+        'strict_v1_default_ddl_reviewed.json').read_text())
+    assert fixture['historical_function_sha256'] == '76b990445e0f3249339d97b037b5c2bf7f00e8114833aa6d9560dc123e38aa42'
+    assert len(fixture['default_statements']) == 14
+    assert strict._statements() == fixture['default_statements']
     assert strict.POLICY == 'strict-primary-manual-v1'
     cfg = configuration(tmp_path, policy=strict.POLICY)
     assert cfg.start_worker is True and primary_only_enabled(cfg) is True
@@ -1118,3 +1119,17 @@ def test_unknown_original_checkpoint_commit_latches_even_after_positive_db_close
         with pytest.raises(OSError) as refused: archive.refuse_pending_archive()
         assert refused.value is error
     # Close was positive but COMMIT was not: no reconciliation/reopen here.
+
+
+@pytest.mark.parametrize('limit', [1, 2056, 32768, 131072])
+def test_reviewed_nondefault_ddl_changes_only_retained_outcome_threshold(limit):
+    original = json.loads((Path(__file__).parent / 'fixtures' /
+        'strict_v1_default_ddl_reviewed.json').read_text())['default_statements']
+    current = strict._statements(limit)
+    assert len(current) == len(original) == 14
+    assert original[10].startswith('CREATE TRIGGER IF NOT EXISTS strict_outcome_admit ')
+    assert original[10].count(')>=2056') == 1
+    expected = list(original)
+    expected[10] = original[10].replace(')>=2056', ')>=' + str(limit))
+    assert current == expected
+    assert sum(a != b for a, b in zip(original, current)) == (0 if limit == 2056 else 1)

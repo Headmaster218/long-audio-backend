@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`28ce7d5546c8ea5d26c29b7fe9751dedc0e69130`. It includes the October 31 capacity reconstruction,
+`2fa3334b89852b6ac4bf6a8347219027d79b98ff`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `f5105d48bb588a8f25c1e0b2e5ac646edc4dee9e`; its tree and history
+The parent public commit is `80544907f74925d6773d9cd79ae78c54d63a7e70`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -89,3 +89,17 @@ results were restored or executed for this change. All historical qualification
 statements above describe earlier work, not current-environment qualification.
 This source checkpoint does not restore the lost unpublished Oct31 fixes or
 private 12-hour run data and makes no new real-data/endurance/accuracy claim.
+
+## Reviewed regression contracts, Nov1 subsequent milestone
+
+This milestone changes tests, synthetic fixtures and documentation only. The
+historical default DDL is compared against 14 independently extracted historical
+SQL strings, including exact bounds on permitted nondefault threshold changes.
+Capture source provenance remains checked, with independently historical AST pins
+for its unchanged predicate/frontier and narrow packetless/priming behavior tests.
+See source/docs/REVIEWED_ARCHIVE_CAPTURE_CONTRACTS_NOV01.md for full scope.
+
+Final selected checks: 141 passed; one Worker-thread handoff case not selected.
+The prior two stale source-pin failures were reviewed, not suppressed or counted
+as passes. Additional Store cold-read reopen tests use generated component data;
+no model, inference, real recording, process-restart or long-run claim follows.

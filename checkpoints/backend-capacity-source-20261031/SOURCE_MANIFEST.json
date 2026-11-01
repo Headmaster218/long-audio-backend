@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "28ce7d5546c8ea5d26c29b7fe9751dedc0e69130",
+  "local_source_commit": "2fa3334b89852b6ac4bf6a8347219027d79b98ff",
   "files": [
     {
       "path": ".gitignore",
@@ -1905,6 +1905,12 @@
       "sha256": "fd78ff5d25bc4fea0bbd2c6b50ddb720427526ddb9cd25519d658586bf0bd47b"
     },
     {
+      "path": "docs/REVIEWED_ARCHIVE_CAPTURE_CONTRACTS_NOV01.md",
+      "size": 3708,
+      "sha": "a6c7a44d72f24d300e6ef2e12d281fc13b05014c",
+      "sha256": "54dd0fee37ed55bc947cc27cce29f60dbc79a264b667ff004a6209dc473b6ac4"
+    },
+    {
       "path": "docs/REVIEWED_PRIMARY_PERSONS.md",
       "size": 7114,
       "sha": "3ae8130e669c36af93c3e99a1ef32fb4e1c6e300",
@@ -2373,6 +2379,12 @@
       "sha256": "7b9e4e5e62d9631edd1e5ba4fb676de1c5f0895f98155f4cb80ddbc72f474593"
     },
     {
+      "path": "tests/fixtures/capture_boundaries_reviewed.json",
+      "size": 634,
+      "sha": "43725195bd5bfc4649eb45ab4ca42ff96cb55e98",
+      "sha256": "05297d8713dedd9b6c377c0fe3942c4865852f1f654f166daa8ad75037194343"
+    },
+    {
       "path": "tests/fixtures/overlap_schema_dev8.sql",
       "size": 2534,
       "sha": "dcafb2a4faaf6e20af6e2ecb69eb4ee759d0fb7e",
@@ -2383,6 +2395,12 @@
       "size": 106068,
       "sha": "00eb4f7f1b92d8aebef040e148b4e9683204b39b",
       "sha256": "3608374af430d7e7396ecf32d726f02a96356a35bed89c85ea15f35c6609bdfc"
+    },
+    {
+      "path": "tests/fixtures/strict_v1_default_ddl_reviewed.json",
+      "size": 5897,
+      "sha": "380f1251a66b7bc2c426407c747b91780ea288f5",
+      "sha256": "06e7258dc62d29e3f4e8dae5da79925c590d69241553f5c5b3aa3981d3587afd"
     },
     {
       "path": "tests/fixtures/transcript_components.json",
@@ -2641,6 +2659,12 @@
       "size": 5703,
       "sha": "1051ce09439059f4d7961748e3c9cf72392de493",
       "sha256": "1d4d83a0cd319be211e5c963ab415e2bc31c59fc72ec0304f3109ed45d3f4393"
+    },
+    {
+      "path": "tests/test_capture_review_boundaries_nov01.py",
+      "size": 6060,
+      "sha": "58d48c9d6ad40b4450767928d5ff9e47d2402a6d",
+      "sha256": "c758390a4a068eb1ad4009dace5d48f07e9ac06fcf1a826b6d1bf805efbe1b58"
     },
     {
       "path": "tests/test_cli.py",
@@ -3946,9 +3970,9 @@
     },
     {
       "path": "tests/test_strict_archive_v2.py",
-      "size": 56476,
-      "sha": "ac99a277bb1bf040c1d5b2a5d10c45a9e38cd14a",
-      "sha256": "451b2b5a7e9a6c85f84d480d83298ff82ffdf4fa92bcc57081e8b35793d44d67"
+      "size": 57366,
+      "sha": "157368a787f4c4bddd5aab185f1061b9fab5f2ae",
+      "sha256": "e36f0d9ee64f11d5c1f0f69d1df9120c9b13236685e5f5c9f382fe17afab9424"
     },
     {
       "path": "tests/test_strict_lifetime.py",
@@ -3964,9 +3988,9 @@
     },
     {
       "path": "tests/test_strict_payload_v2.py",
-      "size": 57881,
-      "sha": "ccf96f36c98590c5ca69a73124f40c89c301b037",
-      "sha256": "986d6271d74bda3bd83f533f56529fdce7a93dc7d5e077739bf5c46e46fda0fd"
+      "size": 58526,
+      "sha": "5820a672e1743e8c16e9ce121b9defe61c238f4a",
+      "sha256": "64370feca7872af801c80b7e33b788e24a20300f9bb49f7f12b37a8ce37ab939"
     },
     {
       "path": "tests/test_strict_provenance_refusal_diagnostic.py",
@@ -3997,6 +4021,12 @@
       "size": 4055,
       "sha": "fe5ce5ef35727c95b798cb14a8788fb2dd81b10d",
       "sha256": "8c8440e0421ff21b5ed7bf7c3960eea17ed66add9ca46d80c0ea881d3f403286"
+    },
+    {
+      "path": "tests/test_support_reopen_nov01.py",
+      "size": 2519,
+      "sha": "8254d3d7811b436da2cbcd1ce6c462db0cdc22cf",
+      "sha256": "948df02afaecf7365badae52407dcd1c60a8d678b2f81de73f9ba0dab93a9fc3"
     },
     {
       "path": "tests/test_transcript_components.py",

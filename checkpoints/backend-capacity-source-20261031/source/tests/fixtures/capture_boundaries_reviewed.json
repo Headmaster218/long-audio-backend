@@ -1,0 +1,11 @@
+{
+  "schema": "reviewed-capture-boundaries-v1",
+  "scope": "Predicate and entire PayloadFrontier AST; source bodies reviewed separately, not blanket qualification",
+  "historical_file_sha256": "d9c2cdd81359c5ff5edc84b82a53498deba7a1649047c6f426450b774cd56539",
+  "reviewed_public_file_sha256": "f3215506ef85d5a546ee15e9a8379d4c1e83a38d3463414fd3019d1092c93c7f",
+  "public_commit": "4e5712d998a429dddf2c349cedbaa9df6641ad40",
+  "targets": {
+    "_payload_pending_ready": "310d74acd7e1b3a4118c1d0d96c2ef1c2a9bc782c131ff156141b03739aac988",
+    "PayloadFrontier": "20c2bfdbb06aab1f9af0fae67a507fbbb395ddc6a107eb04160c5b2fcfdf9c69"
+  }
+}
