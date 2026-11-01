@@ -1,0 +1,289 @@
+{
+  "scope": "New Nov1 synthetic in-memory SQLite evidence; not recovered history or real cold API qualification",
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "cases": [
+    {
+      "rows": 674,
+      "with_pcm": false,
+      "new_vm": 67,
+      "unhinted_vm": 6803,
+      "equal_results": true,
+      "query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_session (session_id=? AND id=?)"
+        ]
+      ],
+      "old_query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_group (identity_group=?)"
+        ]
+      ]
+    },
+    {
+      "rows": 674,
+      "with_pcm": true,
+      "new_vm": 71,
+      "unhinted_vm": 6807,
+      "equal_results": true,
+      "query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_session (session_id=? AND id=?)"
+        ]
+      ],
+      "old_query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_group (identity_group=?)"
+        ]
+      ]
+    },
+    {
+      "rows": 8461,
+      "with_pcm": false,
+      "new_vm": 67,
+      "unhinted_vm": 84673,
+      "equal_results": true,
+      "query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_session (session_id=? AND id=?)"
+        ]
+      ],
+      "old_query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_group (identity_group=?)"
+        ]
+      ]
+    },
+    {
+      "rows": 8461,
+      "with_pcm": true,
+      "new_vm": 71,
+      "unhinted_vm": 84677,
+      "equal_results": true,
+      "query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_session (session_id=? AND id=?)"
+        ]
+      ],
+      "old_query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_group (identity_group=?)"
+        ]
+      ]
+    },
+    {
+      "rows": 32916,
+      "with_pcm": false,
+      "new_vm": 67,
+      "unhinted_vm": 329223,
+      "equal_results": true,
+      "query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_session (session_id=? AND id=?)"
+        ]
+      ],
+      "old_query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_group (identity_group=?)"
+        ]
+      ]
+    },
+    {
+      "rows": 32916,
+      "with_pcm": true,
+      "new_vm": 71,
+      "unhinted_vm": 329227,
+      "equal_results": true,
+      "query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_session (session_id=? AND id=?)"
+        ]
+      ],
+      "old_query_plan": [
+        [
+          8,
+          0,
+          47,
+          "SEARCH sess USING INDEX sqlite_autoindex_sessions_1 (id=?)"
+        ],
+        [
+          17,
+          0,
+          47,
+          "SEARCH g USING INDEX sqlite_autoindex_speaker_identity_generations_1 (identity_group=?)"
+        ],
+        [
+          26,
+          0,
+          61,
+          "SEARCH s USING INDEX support_group (identity_group=?)"
+        ]
+      ]
+    }
+  ]
+}

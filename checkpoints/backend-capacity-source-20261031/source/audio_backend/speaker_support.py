@@ -551,7 +551,7 @@ def commit_support(store, db, chunk, offset, group, local_id, observation_id, pr
 def _row(db, sid, support_id, with_pcm=False, *, payload=None):
     fields = f's.id,s.generation,substr(s.manifest,1,{MAX_MANIFEST_BYTES+1}) AS manifest,s.manifest_sha256,s.status,s.pcm_bytes,s.window_start,s.local_speaker_id,length(s.pcm) AS actual_pcm_bytes'
     if with_pcm:fields += f',substr(s.pcm,1,{MAX_PCM_BYTES+1}) AS pcm'
-    row = db.execute(f'''SELECT {fields} FROM speaker_support s
+    row = db.execute(f'''SELECT {fields} FROM speaker_support s INDEXED BY support_session
         JOIN sessions sess ON sess.id=s.session_id AND sess.deleted=0 AND sess.identity_group=s.identity_group
         JOIN speaker_identity_generations g ON g.identity_group=s.identity_group AND g.generation=s.generation
         WHERE s.session_id=? AND s.id=?''', (sid, support_id)).fetchone()

@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`e9e9bb62b99b0b8d54d498424994fb29a57a606d`. It includes the October 31 capacity reconstruction,
+`28ce7d5546c8ea5d26c29b7fe9751dedc0e69130`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `4e5712d998a429dddf2c349cedbaa9df6641ad40`; its tree and history
+The parent public commit is `f5105d48bb588a8f25c1e0b2e5ac646edc4dee9e`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -62,10 +62,30 @@ to kill legitimate active inference or verification. Phase-diagnostic write fail
 preserved through cleanup. Model-free tests are separate
 from actual-model capacity qualification.
 
-Final selected model-free aggregate at this exact source commit: 146 passed,
+Historical Oct31 source checkpoint selected aggregate: 146 passed,
 1 deselected (an existing capture fixture pins an older source SHA), and one
 dependency deprecation warning. This was a selected aggregate, not the full
 repository suite or an actual-model long-run qualification.
 
 The snapshot operation did not execute the complete test suite. It scanned common
 credential patterns and selects only tracked UTF-8 source/config/docs/test material.
+
+## Fresh Nov1 reconstruction: not recovered historical evidence
+
+Source was freshly restored from public f5105d and verified against its manifest.
+The Nov1 product change is a one-line explicit use of the existing support_session
+index for exact support reads. No DDL, authority predicate, deadline, or budget
+was changed. Newly generated synthetic in-memory SQLite evidence and tests are
+included; these are not restored Oct31 measurements or real user/audio data.
+
+At 674/8461/32916 synthetic support rows, metadata lookup consumed 67 VM steps
+instead of 6803/84673/329223; with PCM, 71 instead of 6807/84677/329227. Results
+matched. Final selected new/existing checks: 52 passed, 12 unselected. Initial
+missing-soundfile collection and temporary-filesystem disk-reserve failures are
+recorded in docs/SUPPORT_LOOKUP_NOV01.md, not converted into passes.
+
+No models, inference, capacity run, real recordings, transcriptions or long-run
+results were restored or executed for this change. All historical qualification
+statements above describe earlier work, not current-environment qualification.
+This source checkpoint does not restore the lost unpublished Oct31 fixes or
+private 12-hour run data and makes no new real-data/endurance/accuracy claim.
