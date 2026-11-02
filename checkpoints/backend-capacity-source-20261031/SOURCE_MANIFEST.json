@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "3f5dd9e80ffeb49dcd7a699746366efc2253f8fd",
+  "local_source_commit": "2b27d7e9599fb98bdc7cc092ee605dc9c8e85c90",
   "files": [
     {
       "path": ".gitignore",
@@ -1713,6 +1713,12 @@
       "sha256": "e9aaf20d27ac3c9c22b57691155ce6294bf033228ebaf8718f9b2f0940114820"
     },
     {
+      "path": "docs/PAYLOAD_PROCESS_CRASH_BOUNDARIES_20261102.md",
+      "size": 3738,
+      "sha": "d364e99b71bcb7d2dabc416a8a8370d1fb521bf3",
+      "sha256": "fa09682e43140c2133d2d909f6d10f8a7c3eccc23167af31cf2c5776fa315641"
+    },
+    {
       "path": "docs/POSITIVE_EVENT_SEAMS.md",
       "size": 8017,
       "sha": "a304e00d4ea25a2fb58b322fafad0535ecfba548",
@@ -2491,6 +2497,12 @@
       "size": 1874,
       "sha": "0376127f2655e22a5214e369c06888a21c63e622",
       "sha256": "5c5ba74eb75c954ea18ca8d00bee47b810bf992ccaf5629eafb05280aae702fc"
+    },
+    {
+      "path": "tests/helpers/synthetic_payload_crash.py",
+      "size": 11728,
+      "sha": "6f7475ada1a7f358525fd1ee896aed38e44feeaf",
+      "sha256": "df0fce993befff910332e5d9f609307b9f6f37aa504bae628ab5d2e7a6cbd13f"
     },
     {
       "path": "tests/helpers/synthetic_store_process.py",
@@ -3433,6 +3445,12 @@
       "size": 12108,
       "sha": "25a8238af6949bdbc1a59611b95bb007883a5ffe",
       "sha256": "81a70086b766748e136b5b5223793eba80567fd5e01af6895e41139e93acf820"
+    },
+    {
+      "path": "tests/test_payload_crash_boundary_nov02.py",
+      "size": 4195,
+      "sha": "b0ead443c42a1e478d454b5999cadb9fbcf28895",
+      "sha256": "1f52510a5684d6c2c85c151128b59656a7be47b1ed73ddccb7b5481e3d8e7e75"
     },
     {
       "path": "tests/test_payload_hot_quota.py",

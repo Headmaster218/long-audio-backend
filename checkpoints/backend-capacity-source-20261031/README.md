@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`3f5dd9e80ffeb49dcd7a699746366efc2253f8fd`. It includes the October 31 capacity reconstruction,
+`2b27d7e9599fb98bdc7cc092ee605dc9c8e85c90`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `48a8b4e0ba6ce88f0c02c11f6d10e006b8be3f17`; its tree and history
+The parent public commit is `e47746cff340f09089446cabd300f83d7068cbc4`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -141,3 +141,20 @@ parent. All unchanged source blobs and prior Git history are preserved.
 Additional independent automatic-probe/comparison tests: 186 passed, 12 failed,
 1 setup error; exact same failing IDs on the public baseline. No new regression
 was observed; this does not establish a full-suite pass.
+
+## November 2 generated process-crash boundaries
+
+This current increment adds only three test/helper/documentation files. Production
+source is unchanged from e47746c. Three real owned-child SIGKILL boundaries test
+reserved-before-link fail-closed behavior, published-before-placement-commit
+rollback plus exact same-unit resume, and committed-before-ack cold reading.
+Real new-process Store/instance locks, immutable archive bytes, exact PCM/vector
+reads and original budget refusal are verified; no production hook is added.
+
+Independent code review and six new cases passed. Related archive/payload/process
+regression: 97 passed. The final nonce-control atomic-write refinement was followed
+by another six-case pass; remote restoration reruns the same complete97 selection.
+Generated receipts, databases/audio/artifacts and runtime logs are excluded.
+This establishes only bounded component process-crash behavior, not power loss,
+fsync durability, whole-service recovery, real-model quality or long capacity.
+Details: `source/docs/PAYLOAD_PROCESS_CRASH_BOUNDARIES_20261102.md`.
