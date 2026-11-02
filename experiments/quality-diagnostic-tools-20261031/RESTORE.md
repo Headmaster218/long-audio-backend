@@ -142,3 +142,38 @@ only locality. Restoration tests do not exercise inference, native cleanup or
 resource bounds of these new scripts. Existing 19 synthetic controls remain
 model-free; compilation checks syntax only. Outputs remain private, never part
 of this source checkpoint. This backup does not itself authorize inference.
+
+## Context-zero separator control source
+
+Five added files are exact exports from 8c4dc77bba7e833280f5a1f0be7e7b74de756977:
+MOSS_CONTEXT0_CONTROL.md, prepare_moss_weights.py, moss_context0_supervisor.py,
+separated_asr_worker.py and separated_asr_supervisor.py. Earlier 27 source files
+are unchanged. No other ancestor files or private results are included.
+
+`prepare_moss_weights.py SOURCE DESTINATION RECEIPT` requires the exact externally
+acquired checkpoint hash/size embedded in its source and torch 2.10.0+cpu. It
+loads tensor state without constructing a model; it is not a model-free test.
+Destination must not exist; ensure receipt is fresh too because its write is not
+exclusive. The pinned runtime security rationale is preserved in the protocol;
+verify upstream advisories independently before any later runtime installation.
+This checkpoint installs nothing and does not certify any runtime safe forever.
+
+`moss_context0_supervisor.py SPEC OUTPUT` requires phase=`separator`, pins, repo
+and request (absolute external request path). It delegates to the separately
+restored backend's audio_backend/overlap_runner.py, with its own dependencies,
+request schema and model assets. No backend runner or checkpoint is bundled.
+`separated_asr_supervisor.py SPEC OUTPUT` accepts phase=`locality` (the preserved
+implementation label), pins, repo, audio, frames, audio_sha256 and config. Config
+requires language=`auto`, cpu_threads=2. Runtime needs psutil, soundfile and the
+compatible backend inference dependencies. Both output directories must be new.
+
+All input, model, source, runtime and config pin completeness must be independently
+reviewed; scripts only check supplied entries. Validate waveform finiteness,
+scopes and separator cleanup externally before ASR: metadata/hash checks do not
+prove finite samples. Ensure the actual runner uses the reviewed CPU runtime,
+not merely the environment used for weight extraction. Window planning, output
+validation, outer deadlines and sequence scheduling remain external. Never use
+-O/-OO; never directly invoke workers as guarded entry points. Existing 19
+synthetic controls and compilation do not test these new inference paths, model
+compatibility, resource bounds or cleanup. Private derived weights, requests,
+receipts, audio and transcription outputs are excluded from this checkpoint.
