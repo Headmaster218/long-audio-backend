@@ -119,3 +119,26 @@ and scorer before analysis. The utility only verifies entries supplied in that
 mapping, not completeness of the mapping. No inference is performed. Utterance
 activity intersections cannot establish per-character reference timing or DER.
 Three new synthetic tests cover interval primitives, not full private-case logic.
+
+## Native-turn locality control source
+
+Three additional files are exact exports from source commit
+76cd4a6464180c6459a9ee6f0b990c2289203ee8: turn_locality_worker.py,
+turn_locality_supervisor.py and TURN_LOCALITY_CONTROL.md. All earlier 24 source
+files are unchanged. No other files or ancestor notes from that commit are used.
+The supervisor takes an external JSON spec and a fresh output directory. Spec
+fields: phase=`locality`, pins (path-to-SHA256), audio, frames, pcm_sha256,
+config and repo. Supply absolute paths; config requires language=`auto` and
+cpu_threads=2. It needs Linux, psutil and a compatible externally installed
+backend AudioAnalyzer with its inference dependencies and existing model assets.
+The supervisor verifies supplied pins, not completeness of the pin set; external
+review must pin all inputs, scripts, runtime, configuration and model assets.
+
+Window construction, private specs, independent outer timeout and sequential
+cleanup review are external responsibilities described by the protocol, not
+implemented by these two scripts. Do not invoke the worker directly as a guarded
+entry point. The source has unreachable legacy phase branches; accepted phase is
+only locality. Restoration tests do not exercise inference, native cleanup or
+resource bounds of these new scripts. Existing 19 synthetic controls remain
+model-free; compilation checks syntax only. Outputs remain private, never part
+of this source checkpoint. This backup does not itself authorize inference.
