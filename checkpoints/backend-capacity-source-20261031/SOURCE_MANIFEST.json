@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "708d713e01ad6eec2659d8b3af40c012aa6d2c64",
+  "local_source_commit": "27a1c45292d0ccd551fb39469293c6d95a1517d2",
   "files": [
     {
       "path": ".gitignore",
@@ -862,9 +862,9 @@
     },
     {
       "path": "audio_backend/strict_payload_v2.py",
-      "size": 91949,
-      "sha": "a9ba3a0492ae2c7b928f2eb8f9798ac540b83141",
-      "sha256": "8018ee46951cb92e345da2bd1c3f27bd113a3f425f6f16c0b5e480d97763412e"
+      "size": 92596,
+      "sha": "56ffe6f56bade5dc7bcd35d5858fab62a5f8da44",
+      "sha256": "88435d422e2b4607b64619a6e77654c8f5e792fa654fb53e039b574b79cccdc1"
     },
     {
       "path": "audio_backend/strict_recording.py",
@@ -928,9 +928,9 @@
     },
     {
       "path": "audio_backend/worker.py",
-      "size": 56925,
-      "sha": "130052f19686ad9e7f96c9b588d5570648459ba1",
-      "sha256": "a0c30c6dc9a68db5febd13c3beabaefcfedc05dc8a1b9091bfa5de16f9fe1f41"
+      "size": 57005,
+      "sha": "6d9b55feb0a903ad4aaea90e3852f7aab9ef18f4",
+      "sha256": "dd9d0b5f69ce55f0ca81e17f3a3d10ae9e48bef202d8c20b692d9a633db5840f"
     },
     {
       "path": "dicow-model-manifest.json",
@@ -1717,6 +1717,12 @@
       "size": 1699,
       "sha": "d8ec2d6a35a54e0aaba4ea53b846053ea902f76a",
       "sha256": "e9aaf20d27ac3c9c22b57691155ce6294bf033228ebaf8718f9b2f0940114820"
+    },
+    {
+      "path": "docs/PAYLOAD_POSTPUBLICATION_BEGIN_BUSY_REPRO_20261102.md",
+      "size": 4095,
+      "sha": "3f1f1c365f3db18a2e88188e8cb53902c366f704",
+      "sha256": "9ca6036cb066786ff1d331709393aeff3330444d99cfd6e348642b968ff2b81a"
     },
     {
       "path": "docs/PAYLOAD_PROCESS_CRASH_BOUNDARIES_20261102.md",
@@ -3487,6 +3493,24 @@
       "size": 4618,
       "sha": "1ec0b17dc23a90c39ac548341f2e4c0e8bfb8bad",
       "sha256": "572efe4d78e8a35b91cbbfd39b5d0c7dc0d0d79bdc603c0166e9c081587c1d00"
+    },
+    {
+      "path": "tests/test_payload_postpublish_begin_busy_nov02.py",
+      "size": 9106,
+      "sha": "71a1c1494789d4db84379bbf61377df2424f032b",
+      "sha256": "1060bc8cf1cdd9d757c7742ebc8a8db8d349806af93dd548e46ee95d33a6582a"
+    },
+    {
+      "path": "tests/test_payload_receipt_faults_nov02.py",
+      "size": 8237,
+      "sha": "fd50b43339eba4fee4b6be2b9cc58478fdb1ae3f",
+      "sha256": "593e3f56662971ba349f1fa36e17340b00a7350ac6a9ca088241f6cd3c5a0fd0"
+    },
+    {
+      "path": "tests/test_payload_receipt_native_wait_nov02.py",
+      "size": 10196,
+      "sha": "b831c08eca7a5e37e6d8014f07b8db6a1c233643",
+      "sha256": "9d292a081179c2a9ab361dd015163048460c21f8916783c2a2e238a3959a1553"
     },
     {
       "path": "tests/test_positive_event_seams.py",

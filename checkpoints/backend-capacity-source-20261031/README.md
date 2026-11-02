@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`708d713e01ad6eec2659d8b3af40c012aa6d2c64`. It includes the October 31 capacity reconstruction,
+`27a1c45292d0ccd551fb39469293c6d95a1517d2`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `d7c2f8ccdf8ce2953dc51796b877e67b6d4d2feb`; its tree and history
+The parent public commit is `b1c6fb1e6d793071645144f11dea8b7dfc2beeb7`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -178,3 +178,14 @@ No actual service/model pause or12h run was performed for this source milestone.
 The existing broader-suite historical failures remain outside this focused scope.
 See `source/docs/CAPACITY_CLEAN_PAUSE_20261102.md` for exact timing, commands and
 limitations. Private checkpoints/data/runtime logs are deliberately not included.
+
+## 2026-11-02: published receipt admission
+
+Generated-only SQLite contention tests cover a bounded native BEGIN wait after
+file publication and fatal original-error preservation rather than Worker deferral.
+The original 250 ms acquisition cap and 5 second budget remain unchanged.
+No SQL-body, COMMIT, file or inference replay; no adoption of reserved artifacts.
+Independent reviews passed. Selected local regression: 267 tests passed, including
+crash boundaries, subprocess reopen, archive/payload and capacity harness coverage.
+This is not actual-model or long-duration qualification; failed run data is neither
+modified nor included. See source/docs/PAYLOAD_POSTPUBLICATION_BEGIN_BUSY_REPRO_20261102.md.

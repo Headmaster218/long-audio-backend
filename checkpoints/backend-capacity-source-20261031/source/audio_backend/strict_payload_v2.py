@@ -392,7 +392,7 @@ def _begin_shared_snapshot(owner,db,*,write):
 
 
 @contextmanager
-def _db(owner,*,write=False,witness=None,shared_acquire=False):
+def _db(owner,*,write=False,witness=None,shared_acquire=False,defer_begin_busy=True):
     _require(not owner._db_allowed,'payload_database_scope')
     owner._db_allowed=True
     begin_error=None;connection=None
@@ -413,7 +413,7 @@ def _db(owner,*,write=False,witness=None,shared_acquire=False):
                 yield (db,snapshot) if witness is not None else db
     except BaseException as error:
         code=getattr(error,'sqlite_errorcode',None)
-        if (write and error is begin_error and type(error) is sqlite3.OperationalError
+        if (defer_begin_busy and write and error is begin_error and type(error) is sqlite3.OperationalError
                 and type(code) is int and code&0xff==sqlite3.SQLITE_BUSY
                 and owner.original is None and not owner.unknown and _PENDING_PAYLOAD_OWNER is None
                 and not owner.store.strict_cleanup_uncertain()
@@ -424,6 +424,10 @@ def _db(owner,*,write=False,witness=None,shared_acquire=False):
             owner.budget.check()
             raise PayloadBeginBusy('payload_begin_busy') from error
         owner.remember(error)
+        if not defer_begin_busy:
+            # This phase follows irreversible file publication. Preserve the
+            # original object, but never let a Busy-shaped fault be deferred.
+            owner.original._payload_nondeferrable = True
         if owner.store.strict_cleanup_uncertain() or owner.budget.sql_outcome in ('commit_attempted','unknown'):
             owner.uncertain(error)
         raise owner.original
@@ -1366,7 +1370,11 @@ def maintain_payloads(store,witness,budget):
             _require(actual==file_hash,'payload_publication_changed');_close(owner,directory)
             # Positive file+directory close and then positive checkpoint COMMIT
             # permit only exact same-unit reconciliation, never replacement.
-            with _db(owner,write=True) as db:
+            # Reuse the existing <=250 ms native BEGIN acquisition wait, clipped
+            # to this same original budget. No transaction body/COMMIT replay.
+            # Once a final file exists, remaining contention is fatal, not a
+            # deferral that leaves an unreceipted reserved unit for next time.
+            with _db(owner,write=True,shared_acquire=True,defer_begin_busy=False) as db:
                 owner.transition_db=db;owner.transition={('unit',unit_id)}
                 try:
                     _require(db.execute("UPDATE strict_payload_unit SET state='published',file_sha256=?,signature=? WHERE unit_id=? AND state='reserved'",

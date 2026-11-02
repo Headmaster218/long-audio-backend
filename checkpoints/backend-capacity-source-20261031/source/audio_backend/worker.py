@@ -366,6 +366,7 @@ class Worker:
             return self.store.maintain_payloads(witness, budget)
         except BaseException as exc:
             if (type(exc) in (PayloadFrontierBusy, PayloadAdmissionBusy, PayloadBeginBusy)
+                    and getattr(exc,'_payload_nondeferrable',False) is not True
                     and not self._strict_cleanup_failed and not self.store.strict_cleanup_uncertain()):
                 # These exact producers prove ordinary contention.  A saved
                 # busy exception accompanied by unknown cleanup is not defer.
