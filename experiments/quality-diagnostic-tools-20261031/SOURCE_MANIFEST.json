@@ -1,16 +1,6 @@
 {
-  "source_commit": "3539738657009869d2a30752044cc8903c83dbef",
-  "source_tree": "6e0c8f6f86d54a43ead353d1604b4951d37ceb7e",
-  "export_transformations": [
-    {
-      "path": "REPLICATION_PROTOCOL.md",
-      "kind": "Internal coordination terminology replaced by generic authorization/input-pin or reference-preparation wording; executable files unchanged."
-    },
-    {
-      "path": "CHINESE_PROTOCOL.md",
-      "kind": "Internal coordination terminology replaced by generic authorization/input-pin or reference-preparation wording; executable files unchanged."
-    }
-  ],
+  "source_commit": "8022ddf091b58fc124f6619ef6818357e94e82d0",
+  "source_tree": "8607125d5ce0ec6160a38f144316def448bf2777",
   "files": [
     {
       "path": ".gitignore",
@@ -24,6 +14,20 @@
       "bytes": 2402,
       "sha256": "309c238dc429a6ba3d0dc0ec87b86fc711ee0aa791e6bc8912d147b701fcf65f",
       "git_blob": "bb0ada0fa77464b0b0d5718ee83e50d9e9e1632d",
+      "mode": "100644"
+    },
+    {
+      "path": "CN_CLEAN_COVERAGE_V2.md",
+      "bytes": 1449,
+      "sha256": "57954f7992cbadf19f583b6900664ae232566ec8bdcdf696556cec967188ac1e",
+      "git_blob": "5e018506fc1268e67f29060c42a341544fa2f22b",
+      "mode": "100644"
+    },
+    {
+      "path": "CN_CLEAN_PROTOCOL_V1.md",
+      "bytes": 2453,
+      "sha256": "80877cae158ebbe980824aae669141a0296c17c28dc7a96ccfaddbe2703f17c2",
+      "git_blob": "7b86fd9ff6a85292041032f49e5ead08314c064d",
       "mode": "100644"
     },
     {
@@ -90,10 +94,31 @@
       "mode": "100644"
     },
     {
+      "path": "select_clean_cn_coverage_v2.py",
+      "bytes": 4745,
+      "sha256": "811a7070d0f228fb4f49a176f69de6f7994aa172f4ffc2ad89e973307093edbd",
+      "git_blob": "7f3df15ed589554a3eaca10ca04e1f36192ea60b",
+      "mode": "100644"
+    },
+    {
+      "path": "select_clean_cn_v1.py",
+      "bytes": 4650,
+      "sha256": "f9e9c18461a5bff6f75317b9f85042f87a21a0a0eeaa89446094120dffdec7bc",
+      "git_blob": "76c683e19f3bf0199fb1e728e5db640819f8a0db",
+      "mode": "100644"
+    },
+    {
       "path": "select_complete_windows.py",
       "bytes": 847,
       "sha256": "0c83cfeced89e7db13c773c0ab78eaa0005e48f6e7657c06a1c3aa6ea515a179",
       "git_blob": "5f7e1edfd15a9286d355bd1a778b543e95f5f168",
+      "mode": "100644"
+    },
+    {
+      "path": "test_clean_cn_v1.py",
+      "bytes": 1619,
+      "sha256": "1a180fcfd9fc83b9791836a69de7ad002bc4ba0c293c0c5b1728a704225f181c",
+      "git_blob": "89a96d4dbde26656ca833f937055ff38850eb5f4",
       "mode": "100644"
     },
     {

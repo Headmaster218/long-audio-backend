@@ -1,15 +1,13 @@
 # Source-only diagnostic checkpoint
 
-Frozen source commit: `3539738657009869d2a30752044cc8903c83dbef`.
-The 17 source files preserve that separate local Git snapshot. All executable
-files are byte-identical; internal coordination wording in REPLICATION_PROTOCOL.md and CHINESE_PROTOCOL.md
-was replaced with generic authorization/input-pin or reference-preparation wording.
+Frozen source commit: `8022ddf091b58fc124f6619ef6818357e94e82d0`.
+All 22 source files are byte-identical to the frozen local Git snapshot.
 This additive checkpoint does not replace the backend and excludes all production
 reader fixes, corpus/model assets, reference text, inference outputs and private
 input specifications. It is not a self-contained reproducible benchmark package.
 
 Run `python verify_source.py`, then copy `source/` into an empty directory.
-With Python 3.11 or newer, run `python -m unittest -v` there: ten synthetic tests.
+With Python 3.11 or newer, run `python -m unittest -v test_model_free test_clean_cn_v1` there: sixteen synthetic tests.
 These tests require no models, corpus or third-party packages. They test only
 model-free arithmetic, synthetic PCM, edit matching and receipt validation.
 They do not certify native inference, general accuracy or complete content.
@@ -69,7 +67,7 @@ external `gold`, `scorer_dir`, `repo`, and complete `pins`, supply `frames`,
 `reference_words`, `baseline_result`, and `baseline_execution`; both baseline
 outputs must be pinned. Reference format matches the preceding whole-score
 contract. Outputs contain private text and must remain outside the repository.
-Ten synthetic tests verify limited model-free behavior only, not a full native
+Sixteen synthetic tests verify limited model-free behavior only, not a full native
 pipeline, native resource safety, quality results, or production qualification.
 
 ## Separate Chinese character diagnostic
@@ -89,3 +87,17 @@ https://huggingface.co/datasets/AISHELL/aishelltech/tree/aada72727856313b19d4a03
 No corpus material is included. Preserve the upstream CC BY-SA 4.0 terms and
 protocol's unverified mirror/full-archive identity caveat; the mirror's metadata
 does not replace upstream license obligations. No accuracy results are included.
+
+## Clean Chinese annotation-only selection
+
+CN_CLEAN_PROTOCOL_V1.md and CN_CLEAN_COVERAGE_V2.md define separate prospective
+selection domains. Their selector CLIs take external TextGrid, normalized mono
+16 kHz PCM16 WAV, RTTM and a new output directory. Selection may write reference
+text, audio and receipts: those outputs MUST stay private, outside this source
+checkpoint. No corpus text or outputs are included here. The fixed anchor hash
+validates a particular externally prepared recording and is not a general CLI.
+Do not use Python optimization. No model inference runs during the 16 synthetic
+controls. These tests cover the v1 selector; the v2 coverage extension requires
+its own independent review and is not fully covered by these synthetic tests.
+The original v2 external scorer and inference runtime still are not bundled.
+This is a source/protocol checkpoint, not a new performance-results publication.
