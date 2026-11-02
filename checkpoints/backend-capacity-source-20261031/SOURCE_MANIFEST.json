@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "8238751f7af23e0cc5980a8cca82b6130708b316",
+  "local_source_commit": "3f5dd9e80ffeb49dcd7a699746366efc2253f8fd",
   "files": [
     {
       "path": ".gitignore",
@@ -436,9 +436,9 @@
     },
     {
       "path": "audio_backend/moss_handy_controller.py",
-      "size": 36645,
-      "sha": "69504d6f097a7f5a15361cf93eead726ef0aa6c0",
-      "sha256": "e34f3df60b6241a7e7dd98081dde960e5ebe018ba3f8bb376e84b3a6062e38eb"
+      "size": 37409,
+      "sha": "6c67ccbf1b49431e28618cd8aed9a130bb9c254f",
+      "sha256": "5a61de691ec8d3636e41ad8d8673693cc77db3d5bd19cb618c772f22966eaa83"
     },
     {
       "path": "audio_backend/moss_handy_http.py",
@@ -448,9 +448,9 @@
     },
     {
       "path": "audio_backend/moss_handy_jobs.py",
-      "size": 169748,
-      "sha": "eb237e6b1c40985b701af400d80041261b8123d2",
-      "sha256": "16d8ef2d888e41e724b2a10268c7f1c3663b2ea802e0d38fb85a91ddae67d640"
+      "size": 171409,
+      "sha": "6ef1723c7fc60fd51b999b8485e3d2fc4ace3ef2",
+      "sha256": "c3bd40cd497a438ac85ac5b1a7ad00702999ec1220f55a6704ffc3c0e3ddcdf4"
     },
     {
       "path": "audio_backend/moss_handy_profile.py",
@@ -514,9 +514,9 @@
     },
     {
       "path": "audio_backend/native_execution_permit.py",
-      "size": 93953,
-      "sha": "e12d9f1465e0af9f81007c481d9661e33945b74a",
-      "sha256": "4f9640a374ca8d084df7b01f4edf8db99c0d2e5b590e491023067b9b0d9c6f43"
+      "size": 97133,
+      "sha": "1640851169a7b07f3f516daaa0c6deeec937dadf",
+      "sha256": "1efe376d9e326aad8c5e45976f2ba1ab5ee641b985dc484bd51ff6ffc7a511a6"
     },
     {
       "path": "audio_backend/native_lexical_alternatives.py",
@@ -1687,6 +1687,12 @@
       "size": 4584,
       "sha": "22acc64ddd530dd9df53e2129e3241b6df956f09",
       "sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391"
+    },
+    {
+      "path": "docs/OPTIONAL_EMPTY_CLAIM_SETTLING_20261102.md",
+      "size": 4289,
+      "sha": "73a79d782b0584d1d2cb2ca77f9ff352acb8d235",
+      "sha256": "6a2586105e974aff14f42f03ded9d4c18530af3c5c3e73e35561f95a45fc36c5"
     },
     {
       "path": "docs/OPTIONAL_RETENTION.md",
@@ -3349,6 +3355,24 @@
       "size": 1210,
       "sha": "6e5c575a7a8d5a57e838d46d929c68012ab50fa5",
       "sha256": "e6844bbf0df3dd1473bfe4cf4fbf46e07963a674cdd16e2f2b29184daa27542f"
+    },
+    {
+      "path": "tests/test_optional_claim_gate_budget.py",
+      "size": 7436,
+      "sha": "2a8129a3986ece41ac6d6adba87a169ba1c62ed0",
+      "sha256": "d0ccdce96b3fee2f17a6e12354ad6f4c3540811c83ebfda655169b6208269c26"
+    },
+    {
+      "path": "tests/test_optional_claim_probe_settle.py",
+      "size": 7461,
+      "sha": "bcbab94dfc4b722e07b12e7278ef83a16e3bbb2d",
+      "sha256": "b2286ce4c9e99275c825630f0723ffb4a671b6f7555b23c3cb67567823682b89"
+    },
+    {
+      "path": "tests/test_optional_claim_sample_budget.py",
+      "size": 3634,
+      "sha": "7ff21cc9997387ea132267af686a85fbe8f91004",
+      "sha256": "9b6d88b23886e141ee7f80c91503dad9d3e13aeb0cecf3aac73ffa5ea9eeb006"
     },
     {
       "path": "tests/test_optional_retention.py",

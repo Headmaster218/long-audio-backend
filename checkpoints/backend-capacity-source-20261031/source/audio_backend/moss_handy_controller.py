@@ -49,7 +49,8 @@ _ADMISSION_REASONS = frozenset(('optional_cancelled', 'primary_or_optional_busy'
     'process_identity_budget', 'remembered_identity_unobserved', 'caller_identity_uncertain',
     'process_sample_unavailable', 'resident_identity_uncertain', 'unclassified_service_child',
     'service_envelope_budget', 'service_host_envelope', 'jobs_configuration_unavailable',
-    'optional_ownership_changed', 'publication_fence_busy', 'optional_prelaunch_deadline'))
+    'optional_ownership_changed', 'publication_fence_busy', 'optional_prelaunch_deadline',
+    'optional_claim_check_deadline'))
 
 
 # Existing gate exceptions have fixed public reasons; never retain their messages.
@@ -197,7 +198,10 @@ class OwnedDriver:
                     if phase == 'before_admission' and self.proc.poll() is not None:
                         raise RuntimeError('Owned waiting child exited')
                 try:
-                    service.check(phase)
+                    if getattr(service, '_bounded_claim_check', False) is True:
+                        service.check(phase, _driver_deadline=self.guard.deadline,
+                            _driver_cancelled=cancelled)
+                    else:service.check(phase)
                     break
                 except ReadError as error:
                     if (not automatic or type(error) is not ReadError or
@@ -259,7 +263,8 @@ class OwnedDriver:
     def wait(self, cancelled):
         while self.proc.poll() is None:
             if self._service_gate is not None:
-                if getattr(self._service_gate, '_automatic_text', False) is True:
+                if (getattr(self._service_gate, '_automatic_text', False) is True
+                        or getattr(self._service_gate, '_bounded_claim_check', False) is True):
                     self._service_gate.check('running', _driver_deadline=self.guard.deadline,
                         _driver_cancelled=cancelled)
                 else:self._service_gate.check('running')
@@ -411,7 +416,10 @@ class MossController:
                 if self._cancel.is_set():raise Cancelled('Cancelled before child creation')
                 if last_owner_read is not None:owner_veto()
                 try:
-                    service.check('before_spawn')
+                    if getattr(service, '_bounded_claim_check', False) is True:
+                        service.check('before_spawn', _driver_deadline=self._driver.guard.deadline,
+                            _driver_cancelled=self._cancel)
+                    else:service.check('before_spawn')
                     if deferred:
                         if time.monotonic() >= self._driver.guard.deadline:
                             raise AdmissionError('optional_prelaunch_deadline')
@@ -461,6 +469,8 @@ class MossController:
             job['state'] = 'running'
         phase = 'before_input'
         try:
+            # The driver is constructed only after input publication. This gate
+            # uses the accepted-job deadline; never invent/reset a driver clock.
             if self._service_gate is not None:self._service_gate.check('before_input')
             if self._cancel.is_set():
                 raise Cancelled('Publication cancelled before start')

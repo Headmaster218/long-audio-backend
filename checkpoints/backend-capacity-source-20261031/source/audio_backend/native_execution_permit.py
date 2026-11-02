@@ -152,7 +152,7 @@ class ProcessSample:
 
 
 def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, comparison_deadline=False,
-                   primary_probe_deadline=False):
+                   primary_probe_deadline=False, optional_claim_deadline=False):
     """Bounded current accounting; a discarded census never proves an exit.
 
     One fresh census may replace an indeterminate non-caller identity read.
@@ -164,6 +164,7 @@ def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, c
     deadline = min(budget_deadline, deadline) if deadline is not None else budget_deadline
     clipped_comparison = comparison_deadline and deadline < budget_deadline
     clipped_probe = primary_probe_deadline and deadline < budget_deadline
+    clipped_claim = optional_claim_deadline and deadline < budget_deadline
     enumerated = 0
     def time_exhausted():
         nonlocal last_clock
@@ -176,6 +177,10 @@ def service_sample(settings, *, clock=time.monotonic, known=(), deadline=None, c
         if kind == 'wall' and clipped_comparison and last_clock < budget_deadline:
             error = AdmissionError('comparison_deadline')
             error._comparison_sample_deadline = _COMPARISON_SAMPLE_DEADLINE
+            return error
+        if kind == 'wall' and clipped_claim and last_clock < budget_deadline:
+            error = AdmissionError('optional_claim_check_deadline')
+            error._optional_claim_deadline = _OPTIONAL_SAMPLE
             return error
         if kind == 'wall' and clipped_probe and last_clock < budget_deadline:
             error = AdmissionError('optional_cancelled')
@@ -552,7 +557,7 @@ class NativeExecutionPermit:
         with self._condition:return not self._sampling_pending and not self._unavailable
 
     def _take_sample(self, *, observe=False, recovery_only=False, sample_deadline=None, comparison_deadline=False,
-                     primary_probe_deadline=False, sample_wait=None):
+                     primary_probe_deadline=False, sample_wait=None, optional_claim_deadline=False):
         token = None
         phase = 'sample'
         try:
@@ -575,7 +580,8 @@ class NativeExecutionPermit:
                 token = self._sample_flight = object()
             current = (service_sample(self.settings, known=known, deadline=sample_deadline,
                            comparison_deadline=comparison_deadline and not observe,
-                           primary_probe_deadline=primary_probe_deadline and not observe) if self._sampler is service_sample
+                           primary_probe_deadline=primary_probe_deadline and not observe,
+                           optional_claim_deadline=optional_claim_deadline and not observe) if self._sampler is service_sample
                        else self._sampler(self.settings))
             if len(current.identities) > MAX_IDENTITIES:
                 raise AdmissionError('process_identity_budget')
@@ -672,7 +678,10 @@ class NativeExecutionPermit:
                 and getattr(error, '_comparison_sample_deadline', None) is _COMPARISON_SAMPLE_DEADLINE)
             probe_expired = (primary_probe_deadline and not observe and self._sampler is service_sample
                 and _authenticated_probe_deadline(error))
-            if not caller_expired and not probe_expired and (observe or budget is not None):
+            claim_expired = (optional_claim_deadline and not observe and self._sampler is service_sample
+                and type(error) is AdmissionError and error.reason == 'optional_claim_check_deadline'
+                and getattr(error, '_optional_claim_deadline', None) is _OPTIONAL_SAMPLE)
+            if not caller_expired and not probe_expired and not claim_expired and (observe or budget is not None):
                 self._record_primary_failure('observe_primary' if observe else 'other', phase, error,
                                              sample_budget=budget)
             raise
@@ -799,12 +808,13 @@ class NativeExecutionPermit:
         for proc in processes:
             self.finish_primary(proc, normal=normal)
 
-    def _resource_check(self, *, reserve, sample_deadline=None, primary_probe_deadline=False, sample_wait=None):
+    def _resource_check(self, *, reserve, sample_deadline=None, primary_probe_deadline=False, sample_wait=None, optional_claim_deadline=False):
         # Callers must not hold the condition across the bounded census or any
         # original-handle/resident predicate. Recheck before using accounting.
         with self._condition:generation = self._sample_generation
         try:sample = self._take_sample(sample_deadline=sample_deadline,
-            primary_probe_deadline=primary_probe_deadline, sample_wait=sample_wait)
+            primary_probe_deadline=primary_probe_deadline, sample_wait=sample_wait,
+            optional_claim_deadline=optional_claim_deadline)
         except _SampleSkipped as skipped:
             error = AdmissionError('process_sample_unavailable')
             error._optional_sample_skip = (_OPTIONAL_SAMPLE,
@@ -983,10 +993,13 @@ class NativeExecutionPermit:
                     if self._primary_probe_admission is admission:self._primary_probe_admission = None
                     self._condition.notify_all()
 
-    def check_optional(self, token, phase='running', *, running_remaining=None, running_cancelled=None):
+    def check_optional(self, token, phase='running', *, running_remaining=None, running_cancelled=None,
+                       ownership_remaining=None, ownership_cancelled=None):
+        claim_until = time.monotonic() + SAMPLE_SECONDS
         # One absolute busy-flight grace, then one fresh census clipped to the
         # original deadline. No recursive condition hold spans either census.
         with self._condition:
+            manual = self._optional is token and self._optional_kind == 'preemptible'
             automatic = self._optional_kind == 'automatic_text' and phase == 'running'
             eligible = automatic and running_remaining is not None and running_cancelled is not None
             probe_deadline = self._optional_work_deadline
@@ -999,7 +1012,8 @@ class NativeExecutionPermit:
                     if self._optional_kind in ('automatic_text','automatic_primary_probe') else bool(self._primary))
                 if (self._closed or primary or self._cancel.is_set()
                         or not self._configuration_current() or self._unavailable
-                        or eligible and (self._optional_kind != 'automatic_text' or running_cancelled())):
+                        or eligible and (self._optional_kind != 'automatic_text' or running_cancelled())
+                        or manual and ownership_cancelled is not None and ownership_cancelled()):
                     raise AdmissionError('optional_cancelled')
                 if probe_eligible:
                     if (self._optional_work_deadline != probe_deadline
@@ -1018,6 +1032,43 @@ class NativeExecutionPermit:
                 primary_probe_running=primary_probe_running)
         began = grace_ended = None
         try:
+            if manual:
+                # Empty queue discovery is not an ownership change. Settle it
+                # before BOTH fingerprints, without dropping any fingerprint
+                # field or holding the condition across census/Store work.
+                def claim_remaining():
+                    nonlocal claim_until
+                    current()
+                    now = time.monotonic()
+                    if ownership_remaining is not None:
+                        left = ownership_remaining()
+                        if type(left) not in (int, float) or not math.isfinite(left) or left <= 0:
+                            raise AdmissionError('optional_claim_check_deadline')
+                        claim_until = min(claim_until, now + left)
+                    if now >= claim_until:
+                        raise AdmissionError('optional_claim_check_deadline')
+                    return claim_until - now
+                def settle_claim():
+                    left = claim_remaining()
+                    while self._probe:
+                        self._condition.wait(min(.01, left))
+                        left = claim_remaining()
+                with self._condition:
+                    settle_claim()
+                    state = self._optional_state_locked()
+                try:
+                    self._resource_check(reserve=phase in ('reserved','before_spawn'),
+                        sample_deadline=claim_until, optional_claim_deadline=True)
+                except Exception:
+                    # Preserve the caller's original expired job/driver cause.
+                    if ownership_remaining is not None:ownership_remaining()
+                    raise
+                with self._condition:
+                    settle_claim()
+                    if not self._optional_state_unchanged_locked(state):
+                        raise AdmissionError('optional_ownership_changed')
+                    self._state = 'OPTIONAL_RUNNING'
+                return
             with self._condition:remaining = current()
             try:
                 self._resource_check(reserve=phase in ('reserved','before_spawn'),

@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`8238751f7af23e0cc5980a8cca82b6130708b316`. It includes the October 31 capacity reconstruction,
+`3f5dd9e80ffeb49dcd7a699746366efc2253f8fd`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `cc1af631628ca4324df8a0bdafcaba97554a22ad`; its tree and history
+The parent public commit is `48a8b4e0ba6ce88f0c02c11f6d10e006b8be3f17`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -118,3 +118,26 @@ The final selected aggregate is 145 passed (142 existing including Worker handof
 plus three subprocess/watchdog cases), no deselections. This remains synthetic
 component/connected-thread validation, not real-model, mobile-device, crash,
 full-service restart, accuracy or long-duration qualification.
+
+## November 2 bounded empty-claim race repair
+
+The current source adds a reviewed manual optional-check repair: an empty Worker
+claim probe must settle at both ownership snapshots within one original <=250 ms
+envelope, clipped by accepted-job and existing driver deadlines. Real queued
+primary work still cancels promptly and waits for positive optional cleanup.
+Full fingerprints, automatic paths and observer budget failure policy remain.
+See `source/docs/OPTIONAL_EMPTY_CLAIM_SETTLING_20261102.md` for exact scope.
+
+New synthetic tests: 45 passed. Focused independently repeated selection: 179
+passed plus 4 subtests. Broader affected aggregate: 213 passed, 36 failed, 27
+subtests passed. The same 36 failures were independently reproduced on the
+unmodified public parent, not masked or deselected. This is not a full-suite pass.
+No actual model inference or long-duration qualification ran for this repair.
+
+Restore remains a standalone full source tree; no patch overlays are required.
+Only seven source/test/docs files and this README/manifest change from the public
+parent. All unchanged source blobs and prior Git history are preserved.
+
+Additional independent automatic-probe/comparison tests: 186 passed, 12 failed,
+1 setup error; exact same failing IDs on the public baseline. No new regression
+was observed; this does not establish a full-suite pass.

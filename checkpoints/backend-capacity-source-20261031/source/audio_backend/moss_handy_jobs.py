@@ -148,6 +148,10 @@ class _ServiceGate:
         return self.record.get('automatic_key') is not None
 
     @property
+    def _bounded_claim_check(self):
+        return not self._automatic_text
+
+    @property
     def _automatic_wait_remaining(self):
         return self.record['deadline'] - self.owner.clock()
 
@@ -185,6 +189,35 @@ class _ServiceGate:
                 running_remaining=remaining, running_cancelled=cancelled)
             # The bounded wait/sample may outlast a source generation change.
             # This existing in-memory guard runs after the permit lock is released.
+            if record['origin'] == 'durable_cell':owner.cell_source.publication_current(record['token'])
+            remaining()
+            if cancelled():
+                record['cancelled'].set()
+                raise AdmissionError('optional_cancelled')
+        elif not self._automatic_text:
+            # Manual reservation checks may wait for an empty queue probe to
+            # settle. Both accepted-job and original driver clocks bound it.
+            def remaining():
+                job_left = record['deadline'] - owner.clock()
+                if job_left <= 0:
+                    record['cancelled'].set()
+                    error = AdmissionError('optional_cancelled')
+                    error._optional_execution_deadline = True
+                    raise error
+                if _driver_deadline is not None:
+                    driver_left = _driver_deadline - time.monotonic()
+                    if driver_left <= 0:
+                        from .fragment_model_guard import ResourceLimit
+                        error = ResourceLimit('Candidate job deadline')
+                        error._optional_execution_deadline = True
+                        raise error
+                    return min(job_left, driver_left)
+                return job_left
+            def cancelled():
+                return (self._automatic_cancelled
+                    or _driver_cancelled is not None and _driver_cancelled.is_set())
+            owner.permit.check_optional(record, phase,
+                ownership_remaining=remaining, ownership_cancelled=cancelled)
             if record['origin'] == 'durable_cell':owner.cell_source.publication_current(record['token'])
             remaining()
             if cancelled():
