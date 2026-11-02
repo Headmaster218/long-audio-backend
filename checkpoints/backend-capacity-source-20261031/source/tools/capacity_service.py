@@ -56,6 +56,7 @@ async def serve(config,fd,out):
             save(out/'worker_health.json',{'schema':'actual-worker-health-v1','time':time.time(),'monotonic':time.monotonic(),
                 'worker_enabled':settings.start_worker,'worker_alive':worker.thread.is_alive(),
                 'worker_error_class':getattr(worker,'_terminal_error_class',None),
+                'committed_claim_late_count':getattr(worker,'_committed_claim_late_count',0),
                 'maintenance_failed':getattr(worker,'_payload_maintenance_error',None) is not None,
                 'strict_cleanup_failed':getattr(worker,'_strict_cleanup_failed',False),
                 'current_chunk':worker.current_chunk is not None})
@@ -73,6 +74,7 @@ async def serve(config,fd,out):
             'lock_closed':getattr(state,'instance_lock_cleanup_complete',False),
             'store_safe':state.store.strict_cleanup_confirmed(),
             'worker_alive':state.worker.thread.is_alive(),'permit_clear':permit_clear,
+            'committed_claim_late_count':getattr(state.worker,'_committed_claim_late_count',0),
             'shutdown_errors':{name:str(getattr(state,name))[:2048] for name in
                 ('worker_shutdown_error','moss_jobs_shutdown_error','native_owned_cells_shutdown_error',
                  'strict_store_cleanup_error','strict_lock_cleanup_error') if hasattr(state,name)}}

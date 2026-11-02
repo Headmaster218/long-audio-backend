@@ -138,6 +138,7 @@ class Worker:
         self.store=store; self.settings=settings; self.analyzer_factory=analyzer_factory
         self.stop_event=threading.Event(); self.wake=threading.Event(); self.current_chunk=None
         self._terminal_error_class=None
+        self._committed_claim_late_count=0
         self.native=None
         self._strict_active=False; self._strict_cleanup_failed=False
         self._strict_analyzer_owner=None; self._strict_native_owner=None
@@ -273,6 +274,20 @@ class Worker:
             if self.store.strict_cleanup_uncertain():
                 raise RuntimeError('Strict cleanup is uncertain')
             if intent is not None and not intent.entered:intent.wait(lambda:self.interrupted(chunk['id']))
+            if getattr(self, '_committed_late_claim', None) is chunk:
+                # Receipt delivery did not re-read or re-claim. This separate
+                # bounded execution admission validates the original lease
+                # before model preparation, including an already-entered fair
+                # intent. It never renews the failed claim's original budget.
+                from .native_owned_cell_store import Budget
+                from .strict_recording import active
+                if self.stop_event.is_set():raise InterruptedError()
+                with self.store.db(budget=Budget()) as db:
+                    db.execute('PRAGMA query_only=ON')
+                    db.execute('BEGIN')
+                    active(db, chunk, chunk['next_offset'])
+                if self.stop_event.is_set():raise InterruptedError()
+                self._committed_late_claim = None
             self._begin_native_support(chunk,watermark)
             self._fair_core_handoff=fair
             yielded=self.process(chunk)
@@ -383,6 +398,26 @@ class Worker:
                     if original is None:raise cleanup
 
     def notify(self): self.wake.set()
+    def _claim_for_worker(self, *, probe=False):
+        """Transfer a positively committed late claim inside the caller's probe.
+
+        This is ownership delivery, not another claim or native admission. The
+        original Store authenticates and consumes its one-shot receipt; ordinary
+        callers and workers without a primary permit keep the fail-closed API.
+        """
+        from .storage import CommittedClaimLate, Store
+        if type(self.store) is not Store or not self.store._strict_enabled:
+            return self.store.claim(probe=True) if probe else self.store.claim()
+        try:
+            return self.store.claim_for_worker(self, probe=probe)
+        except CommittedClaimLate as error:
+            if type(error) is not CommittedClaimLate:
+                raise
+            chunk = self.store.consume_committed_claim(error.receipt, self)
+            self._committed_claim_late_count = getattr(self, '_committed_claim_late_count', 0) + 1
+            self._committed_late_claim = chunk
+            return chunk
+
     def interrupted(self,cid):
         if self.stop_event.is_set(): return True
         try: return self.store.chunk(cid)['status']!='running'
@@ -457,13 +492,13 @@ class Worker:
                     chunk=self.store.claim()
                 else:
                     with permit.claim_probe():
-                        chunk=self.store.claim(probe=True) if fair else self.store.claim()
+                        chunk=self._claim_for_worker(probe=fair)
                         if chunk is not None:
                             intent=permit.primary_intent('worker')
                     if fair and intent is not None:
                         # The row stays queued throughout the optional wait.
                         intent.wait(self.stop_event.is_set, handoff=self._automatic_handoff)
-                        with permit.claim_probe():chunk=self.store.claim()
+                        with permit.claim_probe():chunk=self._claim_for_worker()
             except _ClaimDeferred:
                 if intent is not None:intent.release()
                 # An unknown queue is not an idle queue. Release the probe,

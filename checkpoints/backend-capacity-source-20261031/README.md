@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`27a1c45292d0ccd551fb39469293c6d95a1517d2`. It includes the October 31 capacity reconstruction,
+`23e63cc81818c042213f29b5e404fd3149e6d808`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `b1c6fb1e6d793071645144f11dea8b7dfc2beeb7`; its tree and history
+The parent public commit is `23865e7fca1b0853ab12c4b35f637b8b3b57519f`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -189,3 +189,19 @@ Independent reviews passed. Selected local regression: 267 tests passed, includi
 crash boundaries, subprocess reopen, archive/payload and capacity harness coverage.
 This is not actual-model or long-duration qualification; failed run data is neither
 modified nor included. See source/docs/PAYLOAD_POSTPUBLICATION_BEGIN_BUSY_REPRO_20261102.md.
+
+## 2026-11-02: authenticated committed-late claim delivery
+
+A positive COMMIT is no longer misreported as rollback. Only the original Worker
+inside the same original probe can consume an exact one-shot committed-late claim
+receipt after positive original close. No claim/SQL body/nonce is replayed. The
+original 0.5-second refusal remains visible, including a late count in qualification
+health/terminal metadata. A separate bounded read snapshot verifies the original
+strict lease before model preparation; stop/cancel/nonce mismatch refuse execution.
+
+Focused final model-free regression: 325 passed; independent review: 58 passed.
+Broader selected groups retain 16 failures also reproduced on the unchanged prior
+baseline (89 pass/13 fail and 41 pass/3 fail); this is not full-suite green.
+No actual-model rerun or long-duration qualification is claimed. All fixtures are
+generated; prior failed runs, databases and runtime logs are excluded and untouched.
+See source/docs/CLAIM_POSTCOMMIT_NOTICE_REPRO_20261102.md for exact scope.

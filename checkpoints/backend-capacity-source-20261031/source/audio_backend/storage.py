@@ -104,6 +104,18 @@ class _ClaimDeferred(Exception):
     """No work acquired: unobserved queue or positively rolled-back pre-claim."""
 
 
+class _CommittedClaimReceipt:
+    """Opaque identity only; all authority is retained in the issuing Store."""
+    __slots__ = ()
+
+
+class CommittedClaimLate(Exception):
+    """Original notice lateness after positive claim COMMIT and close."""
+    def __init__(self,receipt,original):
+        super().__init__('committed_claim_late')
+        self.receipt=receipt;self.original=original
+
+
 class StrictMutationBusy(Exception):
     """Only a failed pre-connection mutex admission; never a SQL/body outcome."""
 
@@ -161,6 +173,8 @@ class Store:
         self._strict_enabled = getattr(settings,'strict_primary_enabled',False)
         if type(self._strict_enabled) is not bool:
             _INITIALIZER_LOCK.release(); raise ValueError('strict_primary_enabled must be boolean')
+        self._claim_late_pending = None
+        self._claim_late_proof = None
         self._strict_gate = threading.RLock()
         self._strict_depth = 0
         self._strict_connections = [None, None]
@@ -378,6 +392,8 @@ class Store:
         global _PENDING_INITIALIZER
         acquired=False; db=None; slot=None; original=None; close_error=None
         payload_outcome='not_started'
+        if _claim and budget is not None:
+            budget._claim_commit_returned=False;budget._claim_close_returned=False
         phase=budget.notice_phase() if budget is not None else nullcontext()
         with phase:
             if budget is not None:budget.check()
@@ -447,6 +463,10 @@ class Store:
                 if self._strict_policy=='strict-primary-payload-v2' and self._strict_payload_snapshot_owner is not None:
                     payload_outcome='commit_attempted'
                 db.commit()
+                if _claim and budget is not None and getattr(budget,'claim_running_write',False):
+                    budget._claim_commit_returned=True
+                    proof=self._claim_late_proof
+                    if proof is not None and proof['budget'] is budget:proof['commit']=True
                 if payload_outcome=='commit_attempted':payload_outcome='committed'
                 if budget is not None:budget.sql_outcome='committed'; budget.check()
             except BaseException as exc:
@@ -454,7 +474,7 @@ class Store:
                 if db is not None:
                     try:
                         db.set_progress_handler(None,0); db.rollback()
-                        if budget is not None and budget.sql_outcome!='commit_attempted':budget.sql_outcome='rolled_back'
+                        if budget is not None and budget.sql_outcome not in ('commit_attempted','committed'):budget.sql_outcome='rolled_back'
                         if payload_outcome not in ('commit_attempted','committed'):payload_outcome='rolled_back'
                     except BaseException as cleanup:
                         self._strict_uncertain=True
@@ -473,6 +493,10 @@ class Store:
                         if self._strict_cleanup_error is None:self._strict_cleanup_error=exc
                         if self._initializing and (self._strict_enabled or self._strict_discovered or self._discovery):_PENDING_INITIALIZER=self
                     else:
+                        if _claim and budget is not None:
+                            budget._claim_close_returned=True
+                            proof=self._claim_late_proof
+                            if proof is not None and proof['budget'] is budget:proof['close']=True
                         self._strict_connections[slot]=None
                         self._strict_connection_budgets[slot]=None
                     if self._strict_policy=='strict-primary-payload-v2' and self._strict_payload_snapshot_owner is not None:
@@ -571,11 +595,18 @@ class Store:
                 observe('emit')
 
     @contextmanager
-    def _claim_database(self,budget):
+    def _claim_database(self,budget,late_owner=None):
         """Only a proven pre-claim rollback may become an ordinary defer."""
         from .native_owned_cells import Unavailable
         from .native_owned_support_cache import ReadError
         if budget is not None:budget.claim_running_write=False
+        proof=None
+        if late_owner is not None:
+            if self._claim_late_proof is not None:raise RuntimeError('committed_claim_inflight')
+            permit=getattr(self.settings,'_native_execution_permit',None)
+            proof={'budget':budget,'owner':late_owner,'thread':threading.get_ident(),'permit':permit,
+                'probe_token':getattr(permit,'_probe_token',None),'commit':False,'close':False,'row':None}
+            self._claim_late_proof=proof
         previous=getattr(self,'_automatic_claim_after',None)
         entered=False
         try:
@@ -585,6 +616,9 @@ class Store:
             if entered:raise
             raise _ClaimDeferred() from None
         except (Unavailable,ReadError,sqlite3.OperationalError) as exc:
+            if late_owner is not None:
+                receipt=self._late_claim_receipt(late_owner,budget,exc)
+                if receipt is not None:raise CommittedClaimLate(receipt,exc) from exc
             reason=str(exc) if isinstance(exc,Unavailable) else None
             if (isinstance(exc,sqlite3.OperationalError)
                     and getattr(exc,'sqlite_errorcode',None)==sqlite3.SQLITE_INTERRUPT and budget is not None):
@@ -597,6 +631,9 @@ class Store:
                 self._automatic_claim_after=previous
                 raise _ClaimDeferred() from None
             raise
+
+        finally:
+            if proof is not None and self._claim_late_proof is proof:self._claim_late_proof=None
 
     def recover(self):
         with self.db() as db:
@@ -738,7 +775,68 @@ class Store:
             db.execute('UPDATE sessions SET timeline_end=? WHERE id=?',((round(start*16000)+fragment_source.frames)/16000,sid))
         return cid, True
 
-    def claim(self, *, probe=False):
+    def _worker_claim_identity(self,worker):
+        from .worker import Worker
+        from .native_execution_permit import NativeExecutionPermit
+        permit=getattr(self.settings,'_native_execution_permit',None)
+        if (type(worker) is not Worker or worker.store is not self or worker.settings is not self.settings
+                or worker.thread is not threading.current_thread() or type(permit) is not NativeExecutionPermit
+                or permit.settings is not self.settings):
+            raise RuntimeError('committed_claim_owner')
+        with permit._condition:
+            if not permit._probe or permit._probe_token is None or permit._closed or permit._unavailable is not None:
+                raise RuntimeError('committed_claim_probe')
+        return permit,threading.get_ident(),permit._probe_token
+
+    def claim_for_worker(self,worker,*,probe=False):
+        return self.claim(probe=probe,_late_owner=worker if not probe else None)
+
+    def _late_claim_receipt(self,worker,budget,error):
+        from .native_owned_cells import Unavailable
+        from .native_owned_cell_store import Budget,SOURCE_READ_BYTES,SQL_STEPS,SQL_PROJECTION_BYTES
+        proof=self._claim_late_proof
+        if (proof is None or proof['budget'] is not budget or proof['owner'] is not worker
+                or proof['thread']!=threading.get_ident() or not proof['commit'] or not proof['close']
+                or type(error) is not Unavailable or str(error) not in ('bounded_planning_capacity','cooperative_deadline')
+                or type(budget) is not Budget or not self._strict_enabled
+                or not getattr(budget,'_claim_commit_returned',False)
+                or not getattr(budget,'_claim_close_returned',False)
+                or getattr(budget,'sql_outcome',None)!='committed'
+                or not getattr(budget,'claim_running_write',False)
+                or not getattr(budget,'_refusal_diagnosed',False)
+                or budget.elapsed<=.5 or budget.steps>SQL_STEPS or budget.sql_bytes>SQL_PROJECTION_BYTES
+                or budget.read_bytes>SOURCE_READ_BYTES or self.strict_cleanup_uncertain()
+                or self._strict_depth or any(self._strict_connections)):
+            return None
+        row=dict(proof['row']) if proof['row'] is not None else None
+        if (type(row) is not dict or row.get('_strict_primary') is not True
+                or type(row.get('_strict_attempt_nonce')) is not str
+                or len(row['_strict_attempt_nonce'])!=32):return None
+        try:permit,thread,probe_token=self._worker_claim_identity(worker)
+        except RuntimeError:return None
+        if proof['permit'] is not permit or proof['probe_token'] is not probe_token:return None
+        if self._claim_late_pending is not None:raise RuntimeError('committed_claim_pending')
+        # SQLite rows contain scalar immutable values. Retain the complete exact
+        # prepared return, including source, offset and newly committed nonce.
+        frozen=tuple(row.items())
+        receipt=_CommittedClaimReceipt()
+        self._claim_late_pending=(receipt,worker,permit,thread,probe_token,frozen,error)
+        return receipt
+
+    def consume_committed_claim(self,receipt,worker):
+        permit,thread,probe_token=self._worker_claim_identity(worker)
+        pending=self._claim_late_pending
+        if (type(receipt) is not _CommittedClaimReceipt or pending is None
+                or pending[0] is not receipt or pending[1] is not worker
+                or pending[2] is not permit or pending[3]!=thread or pending[4] is not probe_token
+                or self.strict_cleanup_uncertain()):
+            raise RuntimeError('committed_claim_receipt')
+        row=dict(pending[5])
+        self._claim_late_pending=None
+        return row
+
+    def claim(self, *, probe=False,_late_owner=None):
+        if self._claim_late_pending is not None:raise RuntimeError('committed_claim_pending')
         from .moss_automatic import enabled,recording,capacity,bounded_enabled,release_wait_pressure
         automatic=enabled(self.settings) and not getattr(getattr(self,'moss_automatic',None),'primary_only',False)
         from .settings import primary_only_enabled
@@ -747,7 +845,7 @@ class Store:
         from .native_owned_cell_store import Budget
         wait_budget=Budget() if cooperative and (bounded_enabled(self.settings)
             or getattr(getattr(self,'moss_automatic',None),'primary_only',False)) else None
-        with self._claim_database(wait_budget) as db:
+        with self._claim_database(wait_budget,late_owner=_late_owner) as db:
             if cooperative:db.execute('PRAGMA busy_timeout=0')
             try:
                 db.execute('BEGIN IMMEDIATE')
@@ -806,6 +904,10 @@ class Store:
                 if wait_budget is not None:wait_budget.claim_running_write=True
                 db.execute("UPDATE chunks SET status='running',error=NULL WHERE id=?",(row['id'],))
                 if automatic:self._automatic_claim_after=None
+                if wait_budget is not None:
+                    wait_budget._claim_prepared_return=dict(chosen)
+                    proof=self._claim_late_proof
+                    if proof is not None and proof['budget'] is wait_budget:proof['row']=tuple(chosen.items())
                 return dict(chosen)
             return None
 

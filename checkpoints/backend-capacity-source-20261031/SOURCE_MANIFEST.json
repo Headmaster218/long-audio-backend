@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "27a1c45292d0ccd551fb39469293c6d95a1517d2",
+  "local_source_commit": "23e63cc81818c042213f29b5e404fd3149e6d808",
   "files": [
     {
       "path": ".gitignore",
@@ -514,9 +514,9 @@
     },
     {
       "path": "audio_backend/native_execution_permit.py",
-      "size": 97133,
-      "sha": "1640851169a7b07f3f516daaa0c6deeec937dadf",
-      "sha256": "1efe376d9e326aad8c5e45976f2ba1ab5ee641b985dc484bd51ff6ffc7a511a6"
+      "size": 97248,
+      "sha": "c2c8ed4e24fb74a15a4452b4dfe6634f2ffc53eb",
+      "sha256": "ac2c51cf8c5ddceb7a19c0d63155ab8f8a6506ac4fcef11d9854b1fba900e095"
     },
     {
       "path": "audio_backend/native_lexical_alternatives.py",
@@ -844,9 +844,9 @@
     },
     {
       "path": "audio_backend/storage.py",
-      "size": 100602,
-      "sha": "92550d0b1bde6e8e9338184c580a4c6ec614cf43",
-      "sha256": "8dba9022bbca4d791262b1ce7a49f7d338b99d899579624a6d7cdbaab6e104c2"
+      "size": 106764,
+      "sha": "6143f116e804b7f044c036e3e2295fdd4eac6be1",
+      "sha256": "7cb1235e1f5362c1b4aa95f99e11b0b87b4349fc09e092f08d074b5e7fffe06f"
     },
     {
       "path": "audio_backend/strict_archive_v2.py",
@@ -928,9 +928,9 @@
     },
     {
       "path": "audio_backend/worker.py",
-      "size": 57005,
-      "sha": "6d9b55feb0a903ad4aaea90e3852f7aab9ef18f4",
-      "sha256": "dd9d0b5f69ce55f0ca81e17f3a3d10ae9e48bef202d8c20b692d9a633db5840f"
+      "size": 58963,
+      "sha": "04b96ce995e37f23467bf8174525fdf74c7cf46d",
+      "sha256": "86fd5362d7c048206889e47be010fc577ea251aabe515c243b4818789ed3df27"
     },
     {
       "path": "dicow-model-manifest.json",
@@ -1057,6 +1057,12 @@
       "size": 4769,
       "sha": "201673e31109363999d77c4b9d8706e79892b06b",
       "sha256": "0de7982fa005e6ece1e74d2a850e27c1874d607f3dc9807de1882853653af08d"
+    },
+    {
+      "path": "docs/CLAIM_POSTCOMMIT_NOTICE_REPRO_20261102.md",
+      "size": 5857,
+      "sha": "c36fbfcc79b3179922f7d4ef9c0ff8ad3da3b056",
+      "sha256": "29a0beb021fa2660532b1b5bd3ed2046633b25188d650a89a161ac08227362d8"
     },
     {
       "path": "docs/COMPACT_BOUNDED_INVENTORY.md",
@@ -2697,6 +2703,12 @@
       "sha256": "168325e0384a5c99b1e2f55d2e862761d1419d2207ee60332aa2bc099312e9ec"
     },
     {
+      "path": "tests/test_capacity_late_count_nov02.py",
+      "size": 3943,
+      "sha": "389642f14bff629593ff31fbf3638b33fce57bdb",
+      "sha256": "824aa30c36c95a619aa565e97e9b437dde67a779fea3f3075a613411526b6ed3"
+    },
+    {
       "path": "tests/test_capacity_liveness.py",
       "size": 4396,
       "sha": "d9226f020d42c15ba5c2283e903b439b212aebd7",
@@ -2719,6 +2731,18 @@
       "size": 6060,
       "sha": "58d48c9d6ad40b4450767928d5ff9e47d2402a6d",
       "sha256": "c758390a4a068eb1ad4009dace5d48f07e9ac06fcf1a826b6d1bf805efbe1b58"
+    },
+    {
+      "path": "tests/test_claim_late_review_nov02.py",
+      "size": 3147,
+      "sha": "e7533daf177193b93a8bdcacf4297f8c24405e53",
+      "sha256": "195641bfdc6bb83aa78aa8bdc26aeef7e62b4ae7963207bb056c387011d7e433"
+    },
+    {
+      "path": "tests/test_claim_postcommit_notice_nov02.py",
+      "size": 6448,
+      "sha": "97a0952ddfa5dd745fe5954c4737a88b5db63786",
+      "sha256": "1e30489d5eea87d6a76a55dc5bd2740d63f65fb890cced6cfe404979bda36f57"
     },
     {
       "path": "tests/test_cli.py",
@@ -4041,6 +4065,12 @@
       "sha256": "8180ac549ca6106b641d1af27ec5e18e389f3ad4e9064ed0f812b92d83dbff11"
     },
     {
+      "path": "tests/test_storage_committed_late_nov02.py",
+      "size": 13198,
+      "sha": "1491199d7ac6b5a6f910f6024d292f113ae1ac77",
+      "sha256": "ae9dfd3a4364f2093d63c65addc27bd63d0322e83f5ce24f36560d20d227d79c"
+    },
+    {
       "path": "tests/test_store_subprocess_reopen_nov01.py",
       "size": 3510,
       "sha": "0852015a5415865dc89dab1091f0c2ccc63c5d1a",
@@ -4269,6 +4299,12 @@
       "sha256": "c6ae4ed8d034d4405bfe1bdd38038e2222ebbdbc2b6d42eb0e8167feb16a57e4"
     },
     {
+      "path": "tests/test_worker_committed_late_nov02.py",
+      "size": 12489,
+      "sha": "1f259af248914e02a931376138044225632bf264",
+      "sha256": "7ebbfea6d08f60225c72e8992d95f94b850cb3c9fd7ec61d96f8bcad3737b234"
+    },
+    {
       "path": "tests/test_worker_liveness_health.py",
       "size": 4271,
       "sha": "84b5b7e3ed7faa9d66788214b7302374c73352fb",
@@ -4324,9 +4360,9 @@
     },
     {
       "path": "tools/capacity_service.py",
-      "size": 4324,
-      "sha": "0465c3847ba28f67a01cca9e4505024851be8b11",
-      "sha256": "28e6584f4750dabbbdf0287120309436fcd370798f3183d30337d72ed2147d59"
+      "size": 4514,
+      "sha": "382021ac250869b589debbb37781686ab7ad2e21",
+      "sha256": "90db1086282814366ace55b6664e83cf74b3caa829d74298a62ebfd56d077888"
     },
     {
       "path": "tools/dev63_ami_v2_operations/ATTRIBUTION.txt",

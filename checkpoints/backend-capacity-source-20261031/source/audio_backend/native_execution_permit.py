@@ -370,6 +370,7 @@ class NativeExecutionPermit:
         self._primary, self._handles = {}, {}
         self._observed = {}
         self._probe = False
+        self._probe_token = None
         self._optional = None
         self._optional_kind = None
         self._optional_work_deadline = None
@@ -401,11 +402,13 @@ class NativeExecutionPermit:
             if self._probe:
                 raise RuntimeError('Only the legacy Worker may claim')
             self._probe = True
+            self._probe_token = object()
         try:
             yield
         finally:
             with self._condition:
                 self._probe = False
+                self._probe_token = None
                 self._condition.notify_all()
 
     @contextmanager
