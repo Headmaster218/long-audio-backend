@@ -11,6 +11,11 @@ def require(value,message):
 def digest(path):
     with open(path,'rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 
+def server_cwd(spec):
+    root=Path(spec['repo']).resolve(strict=True)
+    require((root/'audio_backend'/'guard.py').is_file(),'backend guard source missing')
+    return str(root)
+
 def terminal_ok(job):
     return (job.get('state')=='returned_diagnostic' and job.get('cleanup_pending') is False
         and job.get('process_cleanup_verified') is True and job.get('memory_cleanup_pending') is False
@@ -83,7 +88,7 @@ def main(spec_path,out_path):
         return json.loads(request('POST',path,json.dumps(value).encode(),headers,expected,private=bool(key))[0])
     try:
         with (out/'stdout').open('wb') as so,(out/'stderr').open('wb') as se:
-            p=subprocess.Popen([sys.executable,'-I','-B',str(Path(__file__).with_name('manual_http_smoke_server.py')),str(Path(spec_path).resolve()),str(out.resolve())],stdout=so,stderr=se,env=env,start_new_session=True)
+            p=subprocess.Popen([sys.executable,'-I','-B',str(Path(__file__).with_name('manual_http_smoke_server.py')),str(Path(spec_path).resolve()),str(out.resolve())],stdout=so,stderr=se,env=env,cwd=server_cwd(spec),start_new_session=True)
             thread=threading.Thread(target=monitor,daemon=True);thread.start()
             deadline=time.monotonic()+45
             while not (out/'endpoint.json').exists():

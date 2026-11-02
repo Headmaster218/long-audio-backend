@@ -259,3 +259,15 @@ terminal/shutdown predicates and a tiny real server's SIGTERM/finally behavior,
 not the full application's native inference, shutdown, timeout or resource caps.
 Read the protocol's strict 20-second boundary and external outer deadline.
 All HTTP responses, raw output, identifiers, logs and receipts remain private.
+
+### HTTP harness child-module working-directory correction
+
+MANUAL_HTTP_SMOKE.md, manual_http_smoke.py and test_manual_http_smoke.py are
+updated exactly from dccb7cfa3ac3960505fdf5cc7e1ed035356ef754; the other 38 source
+files, including the server wrapper, remain unchanged. The real server now
+starts with the external backend directory as cwd so production child-module
+resolution has the intended package root. Use absolute spec/input/backend paths.
+One additional synthetic subprocess test checks this resolution; the preceding
+six-module command now runs 30 tests with zero skips in the documented runtime.
+This changes the harness only, not production source. No failed-run artifacts,
+private responses, database contents or model outputs are included.

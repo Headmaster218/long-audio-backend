@@ -1,6 +1,6 @@
 """Model-free exact lifecycle predicates; does not validate native execution."""
 import unittest
-from manual_http_smoke import terminal_ok,shutdown_ok
+from manual_http_smoke import terminal_ok,shutdown_ok,server_cwd
 
 class Checks(unittest.TestCase):
     def test_terminal_requires_positive_cleanup(self):
@@ -17,6 +17,19 @@ class Checks(unittest.TestCase):
             import copy
             changed=copy.deepcopy(good);changed['shutdown_decision_diagnostics']['predicates'][key]=None
             self.assertFalse(shutdown_ok(changed))
+    def test_real_child_module_resolves_from_server_cwd(self):
+        import subprocess,sys,tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);package=root/'audio_backend';package.mkdir()
+            (package/'__init__.py').write_text('')
+            (package/'guard.py').write_text("print('synthetic-guard-only')")
+            actual=server_cwd({'repo':str(root)})
+            child=subprocess.run([sys.executable,'-B','-m','audio_backend.guard'],cwd=actual,capture_output=True,text=True,timeout=5)
+            self.assertEqual(child.returncode,0,child.stderr)
+            self.assertEqual(child.stdout.strip(),'synthetic-guard-only')
+            with self.assertRaises(RuntimeError):server_cwd({'repo':str(package)})
+
     def test_real_uvicorn_sigterm_writes_finally(self):
         import json,os,signal,subprocess,sys,tempfile,time
         from pathlib import Path

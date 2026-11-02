@@ -7,3 +7,5 @@ The external manifest must pin all backend source, models, native closure, input
 Model-free tests: python -m unittest -v test_manual_http_smoke.py (from this directory). Execution: python -I -B manual_http_smoke.py EXTERNAL_SPEC NEW_PRIVATE_OUTPUT. Source backup and independent review must precede execution. External outer timeout must be at least the declared720s cap, with final bounded cleanup.
 
 Production context budgeting and Chinese normalization remain their actual defaults; this is not a bit-identical replay of direct-native quality experiments. Strict primary recorder settings remain incompatible with manual jobs, and permanently primary-cache-marked sources remain forbidden. No result implies stable cross-job identity, <=45s support, long-audio or actual recorder integration qualification.
+
+Launch the real server with backend source as its working directory: existing production subprocesses resolve `python -m audio_backend.guard` from that directory. In-process sys.path insertion alone is insufficient for child module resolution. This changes harness launch location only, not production code or guards.

@@ -1,10 +1,9 @@
 {
-  "base_public_commit": "933cc8b2226120a70139e337d30940725d460f7d",
-  "additional_source_commit": "ab4993a8521bd39a77384c5a06abac4d81d7f1ea",
-  "additional_files": [
+  "base_public_commit": "708b9cfb83ca81361a36125266a788c3278730b6",
+  "updated_source_commit": "dccb7cfa3ac3960505fdf5cc7e1ed035356ef754",
+  "updated_files": [
     "MANUAL_HTTP_SMOKE.md",
     "manual_http_smoke.py",
-    "manual_http_smoke_server.py",
     "test_manual_http_smoke.py"
   ],
   "files": [
@@ -45,9 +44,9 @@
     },
     {
       "path": "MANUAL_HTTP_SMOKE.md",
-      "bytes": 1788,
-      "sha256": "6e849fd8d792b5328a27c25968d2ba6caefa37dbaba95744786a2caa29a9d363",
-      "git_blob": "0fd628fad5374cf92f1bc8c4404558f2a37aa14e",
+      "bytes": 2107,
+      "sha256": "198fe8b2ff3f501caa459ed33a43072e25266c6ebec3557d942a520e5206dfb7",
+      "git_blob": "a428c867fbce4b7b9ea77413097b11510a1644c8",
       "mode": "100644"
     },
     {
@@ -101,9 +100,9 @@
     },
     {
       "path": "manual_http_smoke.py",
-      "bytes": 10897,
-      "sha256": "7d7a83774509caa52ee83272ba6677a6e5a5c24e0adab63d7e8f4df2d29f5cc0",
-      "git_blob": "75332f31b7eeca567d418019c63d83e3ad6208be",
+      "bytes": 11099,
+      "sha256": "1694c836b72c0968450835dbbea879e21ed6ff681b79043ac081e08c6f6a4cfd",
+      "git_blob": "27fdb969f97fd1930611d3c3ad84854bbde4090d",
       "mode": "100644"
     },
     {
@@ -227,9 +226,9 @@
     },
     {
       "path": "test_manual_http_smoke.py",
-      "bytes": 2885,
-      "sha256": "866148755cad3223d0cbad445b6e089a5d2cbc3f2bc431c25d0f42d4089ff303",
-      "git_blob": "e65509156466d95dd88379b445ec29d3c311fb47",
+      "bytes": 3692,
+      "sha256": "b7f6a48a877f1e25c50846f82dc606e7a28cdc859f513b394fdb75827eec11fb",
+      "git_blob": "040dc499a5fa2cf9ca8baebc3a1013f514d90571",
       "mode": "100644"
     },
     {
