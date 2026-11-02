@@ -1,13 +1,16 @@
 # Source-only diagnostic checkpoint
 
 Frozen source commit: `8022ddf091b58fc124f6619ef6818357e94e82d0`.
-All 22 source files are byte-identical to the frozen local Git snapshot.
+The original 22 source files are unchanged from that snapshot. Two additional
+files, diagnose_activity_geometry.py and test_activity_geometry.py, are exact
+exports from b05a7e18eb7ea1aa3b796e25b6687dd5d0fc2aac. No other files from that
+commit or its ancestors are included.
 This additive checkpoint does not replace the backend and excludes all production
 reader fixes, corpus/model assets, reference text, inference outputs and private
 input specifications. It is not a self-contained reproducible benchmark package.
 
 Run `python verify_source.py`, then copy `source/` into an empty directory.
-With Python 3.11 or newer, run `python -m unittest -v test_model_free test_clean_cn_v1` there: sixteen synthetic tests.
+With Python 3.11 or newer, run `python -m unittest -v test_model_free test_clean_cn_v1 test_activity_geometry` there: nineteen synthetic tests.
 These tests require no models, corpus or third-party packages. They test only
 model-free arithmetic, synthetic PCM, edit matching and receipt validation.
 They do not certify native inference, general accuracy or complete content.
@@ -67,7 +70,7 @@ external `gold`, `scorer_dir`, `repo`, and complete `pins`, supply `frames`,
 `reference_words`, `baseline_result`, and `baseline_execution`; both baseline
 outputs must be pinned. Reference format matches the preceding whole-score
 contract. Outputs contain private text and must remain outside the repository.
-Sixteen synthetic tests verify limited model-free behavior only, not a full native
+Nineteen synthetic tests verify limited model-free behavior only, not a full native
 pipeline, native resource safety, quality results, or production qualification.
 
 ## Separate Chinese character diagnostic
@@ -101,3 +104,18 @@ controls. These tests cover the v1 selector; the v2 coverage extension requires
 its own independent review and is not fully covered by these synthetic tests.
 The original v2 external scorer and inference runtime still are not bundled.
 This is a source/protocol checkpoint, not a new performance-results publication.
+
+## Read-only activity geometry utility
+
+`diagnose_activity_geometry.py CASE_DIRECTORY SCORER_DIRECTORY` reads an external
+case layout: raw-output-freeze.json (path-to-SHA256), reference.json (segments),
+native/native.json (turns), asr/structured.json (segments), asr/raw.json and
+asr/cropped.json (transcription). The external scorer must supply its frozen
+`tokens(text, language)` function. Reference segments require speaker/start/end/
+text_raw; structured units require text/ownership_anchor. These inputs and the
+printed diagnostic output remain private and are not included in this backup.
+Use absolute paths in the external freeze mapping; independently pin all inputs
+and scorer before analysis. The utility only verifies entries supplied in that
+mapping, not completeness of the mapping. No inference is performed. Utterance
+activity intersections cannot establish per-character reference timing or DER.
+Three new synthetic tests cover interval primitives, not full private-case logic.

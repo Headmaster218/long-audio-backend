@@ -1,6 +1,10 @@
 {
-  "source_commit": "8022ddf091b58fc124f6619ef6818357e94e82d0",
-  "source_tree": "8607125d5ce0ec6160a38f144316def448bf2777",
+  "base_source_commit": "8022ddf091b58fc124f6619ef6818357e94e82d0",
+  "additional_source_commit": "b05a7e18eb7ea1aa3b796e25b6687dd5d0fc2aac",
+  "additional_files": [
+    "diagnose_activity_geometry.py",
+    "test_activity_geometry.py"
+  ],
   "files": [
     {
       "path": ".gitignore",
@@ -59,6 +63,13 @@
       "mode": "100644"
     },
     {
+      "path": "diagnose_activity_geometry.py",
+      "bytes": 2946,
+      "sha256": "7f109f01d8b3a1c1fad23895c50a36297ceb9220f5a512bc4ae1ae861053ad00",
+      "git_blob": "2854ae30263ab5e7797e1479d088c600db5d1822",
+      "mode": "100644"
+    },
+    {
       "path": "paired_metric.py",
       "bytes": 2699,
       "sha256": "54501f8f4d5bd025ebe0f4d8edaa366d6f64c305706af297e2665f1ad1f3475a",
@@ -112,6 +123,13 @@
       "bytes": 847,
       "sha256": "0c83cfeced89e7db13c773c0ab78eaa0005e48f6e7657c06a1c3aa6ea515a179",
       "git_blob": "5f7e1edfd15a9286d355bd1a778b543e95f5f168",
+      "mode": "100644"
+    },
+    {
+      "path": "test_activity_geometry.py",
+      "bytes": 436,
+      "sha256": "da676d68910346aafb61f1d5d0ee857778665cc07079be43691c6ed77752a326",
+      "git_blob": "da267e935cc4d7ab909ba4a061faff1d09f2b117",
       "mode": "100644"
     },
     {
