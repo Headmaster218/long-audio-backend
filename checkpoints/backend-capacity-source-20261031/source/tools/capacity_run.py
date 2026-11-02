@@ -85,6 +85,21 @@ def allocated(root):
 class MutationAdmissionBusy(RuntimeError):pass
 
 
+class PauseBeforePage(RuntimeError):pass
+
+
+def classify_result(result,check=None):
+    if check is not None:
+        try:check()
+        except BaseException as error:
+            result.setdefault('stop_error',{'type':type(error).__name__,'message':str(error)[:128]})
+    failed = (result.get('source_unchanged') is not True or
+        any(k == 'error' or k.endswith('_error') for k in result) or
+        result.get('stream',{}).get('paused') is True and not result.get('pause_checkpoint'))
+    result['paused'] = bool(result.get('pause_checkpoint')) and not failed
+    result['passed'] = not failed and not result['paused']
+
+
 class ReadBusy(RuntimeError):pass
 class ReadObservationUnavailable(TimeoutError):pass
 
@@ -97,6 +112,29 @@ class Gate:
         self.known_processes={};self.error=None;self.stop_requested=False
         self._last_completed=0;self._last_advance=time.monotonic();self._last_advance_wall=time.time()
         self._last_liveness=0;self._ready_seen=None;self.worker_health=None;self.progress_alert=None;self.phase='starting';self.phase_observation_error=None
+        self.pause_requested=False;self.pause_deadline=None
+        self.stop_paths=(out/'STOP_REQUESTED',)
+        self._publishing_page=None;self._page_post_sent=False
+    def check_stop(self):
+        if self.stop_requested or any(path.exists() for path in self.stop_paths):
+            raise RuntimeError('manual_stop_requested')
+    def check_pause(self,now=None):
+        # Emergency stop remains immediate; PAUSE is a separately bounded drain.
+        self.check_stop()
+        now=time.monotonic() if now is None else now
+        if not self.pause_requested and (self.out/'PAUSE_REQUESTED').exists():
+            self.pause_requested=True
+            self.pause_deadline=min(self.deadline,now+900.)
+        if self.pause_requested and now>=self.pause_deadline:
+            raise TimeoutError('pause_drain_deadline')
+        return self.pause_requested
+    def pause_result(self,sid,cursor,all_hash):
+        self.check_pause()
+        assert self.pause_requested and self.completed==self.published*28
+        if self.published:self.wait_page(sid,self.published)
+        self.check_pause()
+        return {'paused':True,'target_pages':self.pages,'pages':self.published,'chunks':self.completed,
+            'session_id':sid,'cursor':cursor,'cid_order_sha256':all_hash.hexdigest()}
     def set_phase(self,phase):
         # Diagnostic publication must never mask the first failure or skip
         # original process shutdown/fd release in a finally block.
@@ -143,6 +181,7 @@ class Gate:
         now=time.monotonic()
         if self.stop_requested or (self.out/'STOP_REQUESTED').exists():raise RuntimeError('manual_stop_requested')
         if now>=self.deadline:raise TimeoutError('overall_deadline')
+        self.check_pause(now)
         self.check_liveness(now)
         rows=process_census(os.getpid(),self.process.pid if self.process is not None else None);rss=sum(row['rss'] for row in rows)+64*1024**2
         self.peak_rss=max(self.peak_rss,rss)
@@ -161,6 +200,7 @@ class Gate:
             save(self.out/'progress.json',{'completed':self.completed,'published_pages':self.published,
                 'audio_seconds_completed':self.completed*10.5,'peak_rss':self.peak_rss,
                 'peak_data':self.peak_data,'free':free,'http_requests':self.http_count,'time':time.time(),
+                'pause_requested':self.pause_requested,'pause_deadline_monotonic':self.pause_deadline,
                 'last_completed_advance':self._last_advance_wall,'worker_health':self.worker_health,'progress_alert':self.progress_alert,'phase':self.phase})
             self.last_heartbeat=now
         if self.process is not None and self.process.poll() is not None:raise RuntimeError('service_exited_early')
@@ -171,10 +211,15 @@ class Gate:
         while True:
             try:return self._request_once(description,until)
             except ReadBusy:
+                if self.pause_deadline is not None:until=min(until,self.pause_deadline)
                 if time.monotonic()+.05>=until:raise ReadObservationUnavailable('read_admission_deadline')
                 time.sleep(.05)
     def _request_once(self,description,until):
         self.check();method,path,expected,body,headers=description
+        if self.pause_deadline is not None:until=min(until,self.pause_deadline)
+        page_post=method=='POST' and re.fullmatch(r'/sessions/[^/]+/recordings/[^/]+/pages',path)
+        if page_post and self._publishing_page is not None and not self._page_post_sent and self.pause_requested:
+            raise PauseBeforePage('pause_before_page_post')
         raw=body if isinstance(body,bytes) else (json.dumps(body).encode() if body is not None else None)
         headers=dict(headers)
         if body is not None and not isinstance(body,bytes):headers['Content-Type']='application/json'
@@ -187,6 +232,7 @@ class Gate:
         conn=http.client.HTTPConnection('127.0.0.1',self.port,timeout=max(.001,until-time.monotonic()))
         self.http_count+=1
         try:
+            if page_post and self._publishing_page is not None:self._page_post_sent=True
             conn.request(method,path,body=raw,headers=headers);response=conn.getresponse();pieces=[];length=0
             while True:
                 remaining=until-time.monotonic()
@@ -302,30 +348,41 @@ class Gate:
     def create_page(self,sid,number):
         return self.request(request_plan.create_page(sid,'fixture',number))
     def publish(self,sid,number,sample):
-        self.create_page(sid,number)
-        for index,frames in enumerate(request_plan.SOURCE_FRAMES):
-            # Repeat only a tiny genuine speech fixture, stream one source at a time.
-            offset=((number-1)*request_plan.PAGE_FRAMES+sum(request_plan.SOURCE_FRAMES[:index]))*2
-            rotated=sample[offset%len(sample):]+sample[:offset%len(sample)]
-            pcm=(rotated*(frames*2//len(rotated)+1))[:frames*2]
-            buffer=io.BytesIO()
-            with wave.open(buffer,'wb') as wav:
-                wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(16000);wav.writeframes(pcm)
-            response=self.request(request_plan.put_source(sid,'fixture',number,index,buffer.getvalue()))
-        page=self.request(request_plan.inspect_page(sid,'fixture',number))
-        sealed=self.request(request_plan.seal_page(sid,'fixture',number,self.pages,page['revision']))
-        request_plan.check_page_geometry(sealed,number,self.pages)
-        self.published=number
-        return tuple(row['chunk_id'] for row in sealed['work_chunks'])
+        if self.check_pause():return None
+        self._publishing_page=number;self._page_post_sent=False
+        try:
+            try:self.create_page(sid,number)
+            except PauseBeforePage:return None
+            for index,frames in enumerate(request_plan.SOURCE_FRAMES):
+                # Repeat only a tiny genuine speech fixture, stream one source at a time.
+                offset=((number-1)*request_plan.PAGE_FRAMES+sum(request_plan.SOURCE_FRAMES[:index]))*2
+                rotated=sample[offset%len(sample):]+sample[:offset%len(sample)]
+                pcm=(rotated*(frames*2//len(rotated)+1))[:frames*2]
+                buffer=io.BytesIO()
+                with wave.open(buffer,'wb') as wav:
+                    wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(16000);wav.writeframes(pcm)
+                response=self.request(request_plan.put_source(sid,'fixture',number,index,buffer.getvalue()))
+            page=self.request(request_plan.inspect_page(sid,'fixture',number))
+            sealed=self.request(request_plan.seal_page(sid,'fixture',number,self.pages,page['revision']))
+            request_plan.check_page_geometry(sealed,number,self.pages)
+            self.published=number
+            return tuple(row['chunk_id'] for row in sealed['work_chunks'])
+        finally:
+            self._publishing_page=None;self._page_post_sent=False
     def stream(self,sample):
+        if self.check_pause():return self.pause_result(None,0,hashlib.sha256())
         health=self.request(('GET','/health',200,None,{}))
         if health['status']!='ok':raise RuntimeError('health_blocked')
         sid=self.request(request_plan.create_session('Repeated speech capacity; not accuracy'))['id']
         pending=[];cursor=0;last_page=0;all_hash=hashlib.sha256()
         while self.completed<self.pages*28:
-            if self.published<self.pages and len(pending)<=28:
+            pausing=self.check_pause()
+            if pausing and not pending:return self.pause_result(sid,cursor,all_hash)
+            if not pausing and self.published<self.pages and len(pending)<=28:
                 if self.published:self.wait_page(sid,self.published)
-                ids=self.publish(sid,self.published+1,sample);pending.extend(ids)
+                ids=self.publish(sid,self.published+1,sample)
+                if ids is None:continue
+                pending.extend(ids)
                 for cid in ids:all_hash.update((cid+'\n').encode())
             observation=self.observe(request_plan.chunk_progress(sid,cursor))
             if observation is None:
@@ -338,6 +395,7 @@ class Gate:
                     raise RuntimeError('completed_geometry')
                 pending.pop(0);cursor=row['cursor'];self.completed+=1
             time.sleep(.5)
+        if self.check_pause():return self.pause_result(sid,cursor,all_hash)
         self.wait_page(sid,self.pages)
         return {'session_id':sid,'chunks':self.completed,'cid_order_sha256':all_hash.hexdigest()}
     def force_cleanup(self,reason):
@@ -420,7 +478,13 @@ def main():
             except BaseException as cleanup:result['forced_cleanup_error']=str(cleanup)[:4096]
         gate.journal.close()
         result.update(ended=time.time(),peak_rss=gate.peak_rss,peak_data=gate.peak_data,http_requests=gate.http_count,read_observation_skips=gate.read_observation_skips)
-        if not any(k in result for k in ('error','shutdown_error')):
+        if not any(k in result for k in ('error','shutdown_error')) and result.get('stream',{}).get('paused'):
+            try:
+                gate.set_phase('integrity')
+                from capacity_pause import build_clean_pause
+                result['pause_checkpoint']=build_clean_pause(out,gate.data,cfg,pins,result['stream'],result['shutdown'],lock_fd=gate.hold,check=gate.check_stop)
+            except BaseException as error:result['pause_checkpoint_error']={'type':type(error).__name__,'message':str(error)[:4096]}
+        elif not any(k in result for k in ('error','shutdown_error')):
             try:
                 gate.set_phase('integrity')
                 from capacity_integrity import inspect
@@ -436,9 +500,9 @@ def main():
         if not result['source_unchanged']:result['source_error']='source_changed_during_run'
         gate.set_phase('terminal')
         if gate.phase_observation_error is not None:result['monitoring_error']=gate.phase_observation_error
-        result['passed']=not any(k in result for k in ('error','shutdown_error','integrity_error','source_error','resource_error','monitoring_error'))
+        classify_result(result,gate.check_stop)
         save(out/'RESULT.json',result)
-    if not result['passed']:raise SystemExit(1)
+    if not (result['passed'] or result['paused']):raise SystemExit(1)
 
 
 if __name__=='__main__':main()

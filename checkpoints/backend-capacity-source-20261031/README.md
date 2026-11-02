@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`2b27d7e9599fb98bdc7cc092ee605dc9c8e85c90`. It includes the October 31 capacity reconstruction,
+`708d713e01ad6eec2659d8b3af40c012aa6d2c64`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `e47746cff340f09089446cabd300f83d7068cbc4`; its tree and history
+The parent public commit is `d7c2f8ccdf8ce2953dc51796b877e67b6d4d2feb`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -158,3 +158,23 @@ Generated receipts, databases/audio/artifacts and runtime logs are excluded.
 This establishes only bounded component process-crash behavior, not power loss,
 fsync durability, whole-service recovery, real-model quality or long capacity.
 Details: `source/docs/PAYLOAD_PROCESS_CRASH_BOUNDARIES_20261102.md`.
+
+## November 2 capacity harness clean pause
+
+Current increment: six source/test/docs files, plus this README and manifest.
+Production backend files are unchanged. A separate PAUSE marker drains already
+started page publication exactly once, stops new pages and waits for completed+
+released work under one <=900-second deadline clipped to the original attempt.
+Original shutdown remains separately bounded. Clean-paused is never a capacity pass.
+Stopped proof binds exact source/config/assets, full data-file roster and immutable
+page/chunk/source state under a fixed1800-second envelope and actual inactive lock.
+Explicit same-build resume consumes its checkpoint once and preserves old receipts;
+STOP/unknown requests/errors cannot be hidden. Zero-page pause is not resumable.
+
+Independent exact-source review: 142 model-free capacity tests passed. Tests cover
+original main orchestration with an explicit non-service double, real empty Store
+schema, generated nonzero SQLite/control fixtures and fail-closed proof mutations.
+No actual service/model pause or12h run was performed for this source milestone.
+The existing broader-suite historical failures remain outside this focused scope.
+See `source/docs/CAPACITY_CLEAN_PAUSE_20261102.md` for exact timing, commands and
+limitations. Private checkpoints/data/runtime logs are deliberately not included.

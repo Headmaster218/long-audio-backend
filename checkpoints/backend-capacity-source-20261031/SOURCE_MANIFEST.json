@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "2b27d7e9599fb98bdc7cc092ee605dc9c8e85c90",
+  "local_source_commit": "708d713e01ad6eec2659d8b3af40c012aa6d2c64",
   "files": [
     {
       "path": ".gitignore",
@@ -1039,6 +1039,12 @@
       "size": 8280,
       "sha": "b37056958b2b2dfe621d4de326cfdd99c19fcd61",
       "sha256": "399e69a03b51602ea561da27fe83a723bd0173e3853a743e1371fd23587a6225"
+    },
+    {
+      "path": "docs/CAPACITY_CLEAN_PAUSE_20261102.md",
+      "size": 6016,
+      "sha": "aed3c5441de77ce690fadd5c32aced6748cdeabe",
+      "sha256": "172a8a46cb29db34bf3bd1ce96fbb4f76d0fc36800f7fd42267b6ddac8461522"
     },
     {
       "path": "docs/CAPACITY_MONITORING.md",
@@ -2667,6 +2673,18 @@
       "sha256": "5f93d255a0df04f6db58efe295a263e2150d2c81d5077672abd327af858b10bf"
     },
     {
+      "path": "tests/test_capacity_clean_pause.py",
+      "size": 10422,
+      "sha": "120b0958adff73d685eb0cbf50027bebfafadf7c",
+      "sha256": "4fc301a98c7d8d84cf20c32fefc44242dc8c401d1f9959cdb32674ef53c5b7c9"
+    },
+    {
+      "path": "tests/test_capacity_clean_pause_resume.py",
+      "size": 20107,
+      "sha": "01fe8798345fe29d4c1a4e26f5a470a44d051592",
+      "sha256": "53e5595eb294688f31358c723594ce639cc7cbe0d123a2c218a82f3f3f6e248a"
+    },
+    {
       "path": "tests/test_capacity_cli_rebuild.py",
       "size": 3280,
       "sha": "d4898ac71961f59d0b57b680f12cba8adb903189",
@@ -4257,6 +4275,12 @@
       "sha256": "873553b09e501ab8c5b4685805ed74b322dfe0ba5b7443328b4d0e00ce0565e0"
     },
     {
+      "path": "tools/capacity_pause.py",
+      "size": 16709,
+      "sha": "bf74e245db1256eb5ed324d8b36f152c9cfffeba",
+      "sha256": "923dcb13f5a3d0cba3458159d76163c1fbea25deb52a0375d490b3fe70bce25f"
+    },
+    {
       "path": "tools/capacity_requests.py",
       "size": 3469,
       "sha": "167f75ad96c385b0551bff33043808142e2453e0",
@@ -4264,15 +4288,15 @@
     },
     {
       "path": "tools/capacity_resume.py",
-      "size": 12367,
-      "sha": "40cbe35bf90363b07d0301196cdc0fe8d336fba8",
-      "sha256": "f44230079d6111fcad8dab068a34bebe6169be4e93008a14919ef68716e345ff"
+      "size": 16562,
+      "sha": "53c20f7037e6ebb86c9e8279bf06f555a3678323",
+      "sha256": "02932b8761835978b760d11cb5119ee4d3b6eaf6742f5277716fbc1b91a5911d"
     },
     {
       "path": "tools/capacity_run.py",
-      "size": 27193,
-      "sha": "e5889af000666a2fb30bf5f3c203eefc35df1d2e",
-      "sha256": "6ee00de8085e13291ad35764cea068cd480cdd1a41b8644e43cb212cf5934d2d"
+      "size": 30883,
+      "sha": "5d9503aa859353f0e9b9aacdb59bb5565b537842",
+      "sha256": "cb0089c7a6d42723bfee350f5eecb7a1dfec9414eae9713a676f992e004b0fb4"
     },
     {
       "path": "tools/capacity_service.py",
