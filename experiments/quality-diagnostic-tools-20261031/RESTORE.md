@@ -209,3 +209,13 @@ Restore backend source from public commit
 f5105d48bb588a8f25c1e0b2e5ac646edc4dee9e under
 checkpoints/backend-capacity-source-20261031/source/, verify its manifest and
 this helper hash. No backend source is changed or copied into this checkpoint.
+
+### Exact source-scope frame count hardening
+
+The validator and its synthetic test are now exact exports from
+17d09fe682ddae8991e0063e30c4d81ce1bed27d, superseding their earlier versions
+mentioned above. Other 32 source files remain unchanged. Each source's sample
+count must equal round(end*16000)-round(start*16000); a one-sample mismatch
+synthetic control rejects inconsistent metadata. With the documented external
+backend and runtime, the four-module command now runs 23 tests with zero skips.
+These are model-free validation tests, not a separator inference run.

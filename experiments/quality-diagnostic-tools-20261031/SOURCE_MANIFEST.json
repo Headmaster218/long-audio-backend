@@ -1,7 +1,7 @@
 {
-  "base_public_commit": "a2550835af661f5a2a0212d7fd5f14479a953e57",
-  "additional_source_commit": "4ce891da66c96c821a9ebb9c2d7f948c12a47458",
-  "additional_files": [
+  "base_public_commit": "346c916addfe62ddd10118550a2f0398fa5810ad",
+  "updated_source_commit": "17d09fe682ddae8991e0063e30c4d81ce1bed27d",
+  "updated_files": [
     "validate_moss_outputs.py",
     "test_separator_output_validation.py"
   ],
@@ -189,6 +189,13 @@
       "mode": "100644"
     },
     {
+      "path": "test_separator_output_validation.py",
+      "bytes": 1789,
+      "sha256": "a94b76a7a0972395a3013abdcb78583e483dc3ce0e65303fe2d1d79cce4b6794",
+      "git_blob": "cef283c4a7098008c4a34a9a23df1b08df2ddd04",
+      "mode": "100644"
+    },
+    {
       "path": "turn_locality_supervisor.py",
       "bytes": 3049,
       "sha256": "dbf70eb5ae557313b41cffc48e4478cca0ab17f6193cd19755f7bfff324d897d",
@@ -204,9 +211,9 @@
     },
     {
       "path": "validate_moss_outputs.py",
-      "bytes": 1470,
-      "sha256": "0289abd13ff4ce966bf0fe9b6f17eafe7a9ecc93eeb68badee453ccccd20d675",
-      "git_blob": "73d3d71bc27cf60ff66968ccd094d7124ff4dad1",
+      "bytes": 1593,
+      "sha256": "94715c90b1c5504378653557b642cda4817091e385c739169a3dba2d428b8503",
+      "git_blob": "e2727f789fa22bf5a899e72ad8922311a63c4f05",
       "mode": "100644"
     },
     {
@@ -236,14 +243,6 @@
       "sha256": "826d7437d6adea7917dd0e485c79498f984de3c3222d27461e063c4290e43452",
       "git_blob": "ae6d6aceff04d2927c4a2748cd8e8b0a5ab51104",
       "mode": "100644"
-    },
-    {
-      "path": "test_separator_output_validation.py",
-      "bytes": 1525,
-      "sha256": "8cef8c8cde40f19a765f97189ba076bc766b52a69cee94bb68179bb70fc81046",
-      "git_blob": "90f2036cd6c976cf76ab99821d198866443ddde7",
-      "mode": "100644"
     }
-  ],
-  "additional_test_commit": "c1bfbd808139e87270d0c66ab8270df878450482"
+  ]
 }

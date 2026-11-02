@@ -20,6 +20,10 @@ class SeparatorOutputControls(unittest.TestCase):
  def test_nan(self):
   with tempfile.TemporaryDirectory() as d:
    with self.assertRaises(ValueError):self.fixture(d,nan=True)()
+ def test_exact_length(self):
+  with tempfile.TemporaryDirectory() as d:
+   run=self.fixture(d);p=Path(d)/'result.json';x=json.loads(p.read_text());x['groups'][0]['tracks'][0]['end']=.1000625;p.write_text(json.dumps(x))
+   with self.assertRaises(ValueError):run()
  def test_missing(self):
   with tempfile.TemporaryDirectory() as d:
    with self.assertRaises(ValueError):self.fixture(d,missing=True)()
