@@ -1,10 +1,11 @@
 {
-  "base_public_commit": "d7ffcbcf001f8f0d604959e7fb2b8b7701aaf373",
-  "additional_source_commit": "9d46a733840432422f9244367dfad7fd2f0d561a",
+  "base_public_commit": "933cc8b2226120a70139e337d30940725d460f7d",
+  "additional_source_commit": "ab4993a8521bd39a77384c5a06abac4d81d7f1ea",
   "additional_files": [
-    "CN_PANEL_SELECTION.md",
-    "select_cn_panel.py",
-    "test_cn_panel.py"
+    "MANUAL_HTTP_SMOKE.md",
+    "manual_http_smoke.py",
+    "manual_http_smoke_server.py",
+    "test_manual_http_smoke.py"
   ],
   "files": [
     {
@@ -40,6 +41,13 @@
       "bytes": 1373,
       "sha256": "78eb0bcb4684ed409cfef020d4767685ebd75b97f78c92b128e775666eb8fd80",
       "git_blob": "65bd1c13feead9f3239e2d0b0758f0944161761e",
+      "mode": "100644"
+    },
+    {
+      "path": "MANUAL_HTTP_SMOKE.md",
+      "bytes": 1788,
+      "sha256": "6e849fd8d792b5328a27c25968d2ba6caefa37dbaba95744786a2caa29a9d363",
+      "git_blob": "0fd628fad5374cf92f1bc8c4404558f2a37aa14e",
       "mode": "100644"
     },
     {
@@ -89,6 +97,20 @@
       "bytes": 2946,
       "sha256": "7f109f01d8b3a1c1fad23895c50a36297ceb9220f5a512bc4ae1ae861053ad00",
       "git_blob": "2854ae30263ab5e7797e1479d088c600db5d1822",
+      "mode": "100644"
+    },
+    {
+      "path": "manual_http_smoke.py",
+      "bytes": 10897,
+      "sha256": "7d7a83774509caa52ee83272ba6677a6e5a5c24e0adab63d7e8f4df2d29f5cc0",
+      "git_blob": "75332f31b7eeca567d418019c63d83e3ad6208be",
+      "mode": "100644"
+    },
+    {
+      "path": "manual_http_smoke_server.py",
+      "bytes": 1494,
+      "sha256": "c794b7f95dbd560685638f6e7414ab94745174ab2d93914784b9a0bfee3893f9",
+      "git_blob": "fc6716b761d080cae69db7c3681c0caa4da7dc16",
       "mode": "100644"
     },
     {
@@ -201,6 +223,13 @@
       "bytes": 514,
       "sha256": "ab9e97ef7ece3128162fc857198935bb676fd953a608c3114956179dbedab10c",
       "git_blob": "b14bf0996161123107aef58861b7ee054d5a6118",
+      "mode": "100644"
+    },
+    {
+      "path": "test_manual_http_smoke.py",
+      "bytes": 2885,
+      "sha256": "866148755cad3223d0cbad445b6e089a5d2cbc3f2bc431c25d0f42d4089ff303",
+      "git_blob": "e65509156466d95dd88379b445ec29d3c311fb47",
       "mode": "100644"
     },
     {

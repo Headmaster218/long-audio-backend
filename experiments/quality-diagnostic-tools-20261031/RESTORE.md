@@ -235,3 +235,27 @@ Three new synthetic controls test half-open overlap, greedy choice and current
 interval exclusion only, not corpus/reference validity. Add test_cn_panel to
 the preceding four-module command for 26 tests with the external backend and
 numpy/soundfile runtime. No outcome-dependent replacement is authorized.
+
+## Existing manual HTTP smoke harness
+
+Four files are exact exports from ab4993a8521bd39a77384c5a06abac4d81d7f1ea:
+MANUAL_HTTP_SMOKE.md, manual_http_smoke.py, manual_http_smoke_server.py and
+test_manual_http_smoke.py. Earlier 37 sources are unchanged. The harness takes
+an external spec and fresh private output directory. Spec fields are repo,
+settings (including fresh data_dir and external model_dir), pins, audio, frames
+and pcm_sha256. Pin completeness, compatible backend API/settings and runtime
+must be independently reviewed. Use the original verified app interpreter,
+Linux, psutil and existing backend/native/model dependencies. No backend or
+model assets are bundled; no external spec, inputs or responses are included.
+It executes actual HTTP/model work only when explicitly invoked, not during
+restoration. The tiny server test uses FastAPI/Uvicorn on ephemeral loopback,
+no application/backend/models, and must run from the restored source directory
+so its child can import the wrapper. Existing runtime needs psutil, FastAPI and
+Uvicorn; no installation or model startup is required for that test.
+
+Append test_manual_http_smoke to the preceding five-module command: 29 tests
+with the documented external backend/runtime. The three new tests exercise
+terminal/shutdown predicates and a tiny real server's SIGTERM/finally behavior,
+not the full application's native inference, shutdown, timeout or resource caps.
+Read the protocol's strict 20-second boundary and external outer deadline.
+All HTTP responses, raw output, identifiers, logs and receipts remain private.
