@@ -219,3 +219,19 @@ count must equal round(end*16000)-round(start*16000); a one-sample mismatch
 synthetic control rejects inconsistent metadata. With the documented external
 backend and runtime, the four-module command now runs 23 tests with zero skips.
 These are model-free validation tests, not a separator inference run.
+
+## Additional annotation-only panel selector
+
+Three files are exact exports from 9d46a733840432422f9244367dfad7fd2f0d561a:
+CN_PANEL_SELECTION.md, select_cn_panel.py and test_cn_panel.py. Earlier 34 source
+files remain unchanged. The selector takes external TextGrid, mono16k PCM16 WAV,
+RTTM and new output directory; it reuses the v2 eligibility module in this
+checkpoint and greedily selects up to three nonoverlapping windows in its
+pre-sorted eligible sequence. Corpus/input identity and annotation review must
+be established externally before invoking it; input hashes in its receipt are
+not by themselves verification against expected source identity. Its reference,
+audio and receipt outputs are private and excluded here. No model is invoked.
+Three new synthetic controls test half-open overlap, greedy choice and current
+interval exclusion only, not corpus/reference validity. Add test_cn_panel to
+the preceding four-module command for 26 tests with the external backend and
+numpy/soundfile runtime. No outcome-dependent replacement is authorized.
