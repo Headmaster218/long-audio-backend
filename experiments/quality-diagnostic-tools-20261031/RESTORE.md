@@ -177,3 +177,35 @@ validation, outer deadlines and sequence scheduling remain external. Never use
 synthetic controls and compilation do not test these new inference paths, model
 compatibility, resource bounds or cleanup. Private derived weights, requests,
 receipts, audio and transcription outputs are excluded from this checkpoint.
+
+## External separator-output validator
+
+Only validate_moss_outputs.py is added from source commit
+4ce891da66c96c821a9ebb9c2d7f948c12a47458; earlier 32 source files are unchanged.
+CLI arguments: external backend directory, request JSON, regions JSON and
+separator output directory. It requires numpy, soundfile and the compatible
+backend's private _validate_separator_response helper. It reads result.json,
+checks reported group coverage against filtered region jobs, and verifies each
+reported track is nonempty mono 16 kHz FLOAT with finite samples. The emitted
+receipt includes external paths/scope metadata and hashes; keep it private.
+Independent preflight must still establish complete request-to-region coverage,
+input/source pins, backend compatibility and observed cleanup. This checkpoint
+includes no requests, regions, tracks or receipts. Existing 19 synthetic tests
+and syntax checks do not exercise this backend-dependent validator.
+
+### Synthetic separator-output controls
+
+Additionally test_separator_output_validation.py is exported exactly from
+c1bfbd808139e87270d0c66ab8270df878450482; validator bytes remain exact4ce891d.
+Set QUALITY_BACKEND_SOURCE to an externally restored compatible backend root
+and use an existing runtime with numpy/soundfile. Run all four test modules:
+`python -m unittest test_model_free test_clean_cn_v1 test_activity_geometry test_separator_output_validation`.
+The three new synthetic controls cover valid finite FLOAT, missing group and
+NaN rejection, without model loading. They skip if backend path is unset;
+19 tests plus 3 skips must not be reported as 22 passing tests. The reviewed
+backend overlap_candidates.py SHA256 is
+`a539c4adaa1b9b5616ff7fd5b6a6ea543f7c664040498aef3b78e5be82cbbb31`.
+Restore backend source from public commit
+f5105d48bb588a8f25c1e0b2e5ac646edc4dee9e under
+checkpoints/backend-capacity-source-20261031/source/, verify its manifest and
+this helper hash. No backend source is changed or copied into this checkpoint.
