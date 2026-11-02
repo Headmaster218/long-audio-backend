@@ -271,3 +271,18 @@ One additional synthetic subprocess test checks this resolution; the preceding
 six-module command now runs 30 tests with zero skips in the documented runtime.
 This changes the harness only, not production source. No failed-run artifacts,
 private responses, database contents or model outputs are included.
+
+## Synthetic affected-backend scheduling reproducer
+
+Only reproduce_empty_probe_race.py is added from source commit
+6d6605d0348b71fe5d269de2cc18fce5e1226496; other 41 sources remain unchanged.
+Run `python -I -B reproduce_empty_probe_race.py /absolute/affected/backend` with
+an independently pinned affected backend exposing NativeExecutionPermit and
+ProcessSample. It constructs a synthetic sampler and permit, not a model or
+application. It expects the old race signature; failure of that expectation on
+a fixed backend is not evidence of a regression. The affected public backend
+snapshot referenced earlier is an external dependency; no production source or
+fix is copied here. The script bounds coordination waits to five seconds and
+prints a synthetic diagnostic, not evidence about any actual recording/run.
+The general 30-test command is unchanged; test this reproducer separately
+against affected source, not against newer fixed production source.

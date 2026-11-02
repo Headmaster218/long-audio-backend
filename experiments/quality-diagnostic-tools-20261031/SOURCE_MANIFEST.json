@@ -1,10 +1,8 @@
 {
-  "base_public_commit": "708b9cfb83ca81361a36125266a788c3278730b6",
-  "updated_source_commit": "dccb7cfa3ac3960505fdf5cc7e1ed035356ef754",
-  "updated_files": [
-    "MANUAL_HTTP_SMOKE.md",
-    "manual_http_smoke.py",
-    "test_manual_http_smoke.py"
+  "base_public_commit": "bd0546ad1e50327245ad1ef75bebc2c8767eb44c",
+  "additional_source_commit": "6d6605d0348b71fe5d269de2cc18fce5e1226496",
+  "additional_files": [
+    "reproduce_empty_probe_race.py"
   ],
   "files": [
     {
@@ -159,6 +157,13 @@
       "bytes": 3128,
       "sha256": "637f0ec683376d81f67081361c17e2bb41a68a438a41f2e2cbd360dc420873ac",
       "git_blob": "61e359c002e255c08b7fe4f66cccf3fe68a6581a",
+      "mode": "100644"
+    },
+    {
+      "path": "reproduce_empty_probe_race.py",
+      "bytes": 1689,
+      "sha256": "24a5093c61ec1b7e4b21f9f4dff4200f5474296895126187e7c3439f5ea1ec51",
+      "git_blob": "0625345b311135c82e4623b223f43cfdce15f19b",
       "mode": "100644"
     },
     {
