@@ -2955,6 +2955,12 @@
       "sha256": "1fa74c99fab9f9ea7b1c18f610cb761b26e30a0647968825a110e5aa6df4c8e8"
     },
     {
+      "path": "qualification/snapshot_export_recovery_20261103/RESULT.md",
+      "size": 3550,
+      "sha": "06e4002c1fb8ac9d7ded909c4026332bd95fa788",
+      "sha256": "69fe2a38437273ba9bef89ceeefb66bae2a870d6d2f4cd5a6be84c51a0cf6ace"
+    },
+    {
       "path": "qualification/snapshot_export_recovery_20261103/audit_recovery.py",
       "size": 21954,
       "sha": "1be87e2b5c4a8a062ba659f8daac94b2a8fb0639",
@@ -5734,5 +5740,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Reviewed bounded snapshot GET-only recovery qualification, independent canonical audit and60controls; before execution."
+  "source_update": "Record passed bounded same-job snapshot export recovery, preserving original watch failure and all limits."
 }
