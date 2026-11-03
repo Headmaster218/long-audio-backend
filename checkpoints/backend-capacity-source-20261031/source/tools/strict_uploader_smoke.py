@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--assets', required=True, type=Path)
     parser.add_argument('--input', type=Path)
     parser.add_argument('--input-sha256')
+    parser.add_argument('--recorder-delivery', type=Path, help='Exercise explicit known-session intake with a complete <=30s delivery')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(mode=0o700, exist_ok=False)
@@ -57,9 +58,16 @@ def main():
     save(out / 'SOURCE_PINS.json', pins)
     try:
         frames = 176000
+        if args.recorder_delivery is not None:
+            from audio_backend.recorder_intake import validate_delivery
+            if args.input is not None or args.input_sha256 is not None:
+                raise ValueError('recorder_delivery_conflicts_with_input')
+            delivery_report = validate_delivery(args.recorder_delivery)
+            args.input = args.recorder_delivery / 'audio.wav'
+            args.input_sha256 = delivery_report['wav_sha256']
         if args.input is not None:
             frames = validate_input(args.input, args.input_sha256)
-            result['input_kind'] = 'explicit_public_sample'
+            result['input_kind'] = 'explicit_recorder_delivery' if args.recorder_delivery is not None else 'explicit_public_sample'
             result['input_sha256'] = args.input_sha256
         elif args.input_sha256 is not None:
             raise ValueError('input_path_required')
@@ -131,11 +139,22 @@ def main():
         def cancelled():
             gate.check()
             return False
-        uploader = Uploader(input=original, session_id=sid, capture_id='synthetic-smoke',
-            capture_origin_frame=0, state_dir=out / 'uploader', final=True,
-            api='http://127.0.0.1:' + str(gate.port), cancel=cancelled,
-            limits=Limits(deadline_seconds=240, poll_seconds=.1))
-        result['upload'] = uploader.run()
+        if args.recorder_delivery is not None:
+            from audio_backend.recorder_intake import run as intake_run
+            intake_args = dict(delivery=args.recorder_delivery, job_dir=out / 'intake',
+                session_id=sid, capture_id='synthetic-smoke', exclusive_writer=True,
+                api='http://127.0.0.1:' + str(gate.port), cancel=cancelled,
+                limits=Limits(deadline_seconds=120, poll_seconds=.1))
+            result['upload'] = intake_run(**intake_args)
+            result['upload_reconciled_resume'] = intake_run(**intake_args, resume=True)
+            if result['upload'] != result['upload_reconciled_resume']:
+                raise RuntimeError('intake_resume_changed_result')
+        else:
+            uploader = Uploader(input=original, session_id=sid, capture_id='synthetic-smoke',
+                capture_origin_frame=0, state_dir=out / 'uploader', final=True,
+                api='http://127.0.0.1:' + str(gate.port), cancel=cancelled,
+                limits=Limits(deadline_seconds=240, poll_seconds=.1))
+            result['upload'] = uploader.run()
         base = '/sessions/' + sid
         while True:
             rows = gate.request(('GET', base + '/chunks?limit=20', 200, None, {}))['chunks']

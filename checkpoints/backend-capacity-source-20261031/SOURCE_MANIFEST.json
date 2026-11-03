@@ -729,6 +729,12 @@
       "sha256": "68dc235392e06584ca4b90ce317156dc893bb7065df47703b1cacca6e9f8f40c"
     },
     {
+      "path": "audio_backend/recorder_intake.py",
+      "size": 12670,
+      "sha": "b09d7588891c09f330ad73ff8dfa1f430a444c7b",
+      "sha256": "f3017ce159e13c8d52fe9ff9829031a60c76e8a97509259e2ac94ba95deb0561"
+    },
+    {
       "path": "audio_backend/recorder_metadata.py",
       "size": 8915,
       "sha": "57807bb014de26548f6a9696ba4c10bd82ad448a",
@@ -1551,6 +1557,12 @@
       "sha256": "59a3befe465e0de6bf2a93fc155108a90ac3b510c30bc9f9581217f8e2096b6e"
     },
     {
+      "path": "docs/EXPLICIT_RECORDER_INTAKE.md",
+      "size": 6668,
+      "sha": "fdfc939ff45413dc4330700d783f97ef617c4e79",
+      "sha256": "5d277991a95428b7ceabfad87b20e6b04ece8a5e9ee95fb1454bcea54bdada61"
+    },
+    {
       "path": "docs/FRAGMENT_BRIDGE_SOURCE_ALLOWLIST.json",
       "size": 10911,
       "sha": "f05a0b07ac8ad87a9d25bd95979ad1b564803cc2",
@@ -2293,6 +2305,12 @@
       "size": 10258,
       "sha": "30f5dfb98135cce63f64686763f3518753498498",
       "sha256": "deb2727ce2e0d811a9fdd260ffc945a76e20fc9005baeda5bbd54b33bddac209"
+    },
+    {
+      "path": "qualification/independent_explicit_intake_audit_20261103.py",
+      "size": 4021,
+      "sha": "9fc287558028e9360e22444ecd7cc713e7d2f55e",
+      "sha256": "209c7b5f738d96507a45fb4825d18208b4ca0ac81aed5651672d8810aa9b8592"
     },
     {
       "path": "qualification/independent_ftps_chain_audit_20261103.py",
@@ -4053,6 +4071,18 @@
       "sha256": "ab7cf9d2b512ae4649db836e48a4e5928681cb7efb2246c595494d2e360b5751"
     },
     {
+      "path": "tests/test_recorder_intake.py",
+      "size": 9166,
+      "sha": "d05e12921df685ff7d747832335fe0d6e7545699",
+      "sha256": "65e275ff353575a8b27a7715be7168c2e1d8070057c80013ed9f41dec58a2f89"
+    },
+    {
+      "path": "tests/test_recorder_intake_adversarial.py",
+      "size": 3895,
+      "sha": "65a8deb070ed0bc6990edb030cde0eb2c7c00383",
+      "sha256": "edb654f87638207542663f12a0c558d511943ca617d8946516d5c3fa316ebaa2"
+    },
+    {
       "path": "tests/test_recorder_metadata.py",
       "size": 10362,
       "sha": "2086f1c0dc6fb57073ff12468f58fdf1eaca1a57",
@@ -4792,11 +4822,11 @@
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 9608,
-      "sha": "905ca5fb3729ab4438caef490c6b08ad082193c4",
-      "sha256": "6343184a534aee77161add279ea8fcfaeb7361f3f4c5e831b46cf0ddafa4ee44"
+      "size": 11033,
+      "sha": "497f72ac000d58f95a1ec35aa86eca7db1d53428",
+      "sha256": "d0076534b26831d40f163038cd4bc5eed78c9e9255c9c6d00ded4e25f0e2c51b"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 narrow atomic feature/strict schema correction independently proven in isolated candidate; existing base-init gap remains; stop qualification and prioritize explicit known-session intake"
+  "source_update": "2026-11-03 explicit existing-session recorder intake with immutable local binding, safe resume/refusal categories, independent negative tests and real FTPS-received native publication/resume audit; default runtime pins and session-idempotency patches unchanged"
 }
