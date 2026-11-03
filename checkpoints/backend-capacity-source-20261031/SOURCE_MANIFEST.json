@@ -759,6 +759,12 @@
       "sha256": "aa773486e507296794da07f24d68a1e1b1449fcae67e91ab19b1a089a5ad45ac"
     },
     {
+      "path": "audio_backend/recorder_inbox_runner.py",
+      "size": 28622,
+      "sha": "ae0a48bb57181f63d72f257b92f72c53a9291da7",
+      "sha256": "c615babf1127f5e37b2dc27a6eb53276a3c733ab172d18392c5276c37781431d"
+    },
+    {
       "path": "audio_backend/recorder_incremental_span_export.py",
       "size": 22909,
       "sha": "c2ce62b3c8efad0cbe5aff083bdd980a52e4eaad",
@@ -2097,6 +2103,12 @@
       "sha256": "73583be3d1a5a4ed3964f9878fb1269d9e08e4e9a2409963e80bcd406e0c6eca"
     },
     {
+      "path": "docs/RECORDER_INBOX_RUNNER.md",
+      "size": 11644,
+      "sha": "1de04979e44ceec493355b6330ec1d4561835755",
+      "sha256": "e519b409fa4323d335f657d7437fcb5a5979fc1a4056ab6d94f2bf874147101f"
+    },
+    {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
       "size": 9276,
       "sha": "45103ec0bd99ca0f6443d8b8609308787b988da4",
@@ -2421,6 +2433,12 @@
       "sha256": "112cf85f4d1ae442a291507ba906026a469bced1c823e0019c568e6f6886a0da"
     },
     {
+      "path": "qualification/LOCAL_INBOX_LOOPBACK_PLAN_20261103.md",
+      "size": 5187,
+      "sha": "08e7d37e65d193a8a1ed3ddddf80de2a1d063187",
+      "sha256": "053bf18e57e9fe7563bf0c7817c038dd0069c1e46aee251f8bfd6a863765a69c"
+    },
+    {
       "path": "qualification/NineProducerDeliveries.java",
       "size": 4599,
       "sha": "a0dd2fe37bda44a9c49035dc3ac82007b6173c40",
@@ -2649,6 +2667,12 @@
       "sha256": "417c7cfb45b2861f20f52da73380be7eaba031b04df7b67709436858bd4f033a"
     },
     {
+      "path": "qualification/qualify_local_inbox_loopback.py",
+      "size": 24026,
+      "sha": "e8b54d412d88583a2e09174aaeb93b976b5b1242",
+      "sha256": "4841585b3c00e4c8817788c6bf93306425dd6b7b76f926773e4eca478d0a1eea"
+    },
+    {
       "path": "qualification/qualify_nine_java_incremental_span.py",
       "size": 19937,
       "sha": "634c37fd1bbd1687cddd4392f56be8a708559270",
@@ -2707,6 +2731,12 @@
       "size": 6537,
       "sha": "28a59c75f571139541fcdcb42ff65642551f81fb",
       "sha256": "37cf5b693bf3352e8bf02b18a4a2b1dfb077d9d221c597916f7a8620c5fc6cf2"
+    },
+    {
+      "path": "qualification/test_local_inbox_loopback.py",
+      "size": 6837,
+      "sha": "d4b207ce02bfee1d004d0291e1a0766a01338bf4",
+      "sha256": "94e349462098d916461d6a952a1e4054c1463de4f3ecc6f83c6eb4a785898ba6"
     },
     {
       "path": "qualification/test_session_request_atomic_init.py",
@@ -4497,6 +4527,18 @@
       "sha256": "23c3f8da2256d3f389197755e8589fbc2099b51483a4b653f7cabae422daa550"
     },
     {
+      "path": "tests/test_recorder_inbox_runner.py",
+      "size": 10054,
+      "sha": "5f717dec477c5a927ea21d5860e6f3372723b68a",
+      "sha256": "29cb167116ad0c155d0aca364e6bfdf059b5c9384e1a7781e20b48eabf3ea6c1"
+    },
+    {
+      "path": "tests/test_recorder_inbox_runner_review.py",
+      "size": 21779,
+      "sha": "893f0af7703d8844409a61d3713c09830b412660",
+      "sha256": "82d01f1dc02f284f24a40bde5caa3596d19801e736e3905f36933a2f5c294ffd"
+    },
+    {
       "path": "tests/test_recorder_incremental_span_adversarial.py",
       "size": 12490,
       "sha": "6c1963dd97b3d97f9cb1b36fa54221c68f4f8b61",
@@ -5350,5 +5392,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Qualify real public-speech native ASR and private selected-span transcript export with exact receipt/text/time linkage, clean lifecycle, source-only independent verifier and aggregate report."
+  "source_update": "Add opt-in bounded local inbox reconciliation for one explicitly bound span/session, durable exact selection/replay, conflict refusal and safe private export; prepare isolated loopback qualification."
 }

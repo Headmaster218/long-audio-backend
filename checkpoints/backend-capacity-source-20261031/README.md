@@ -570,3 +570,21 @@ cleanup receipts passed. This proves the bounded transcription/export path, not
 recognition accuracy, person identity, complete speech capture, devices or
 endurance. Source-only verifier and aggregate report are included at
 source/qualification/PUBLIC_SPEECH_EXPORT_NATIVE_20261103.md.
+
+## Opt-in local inbox reconciliation
+
+A separate one-shot runner now binds one operator-selected span and existing
+empty session to immutable private configuration. It inventories up to256 local
+entries, freezes exact delivery paths before intake and composes the existing
+bounded intake/status/private export commands. Initial duplicate attempts need
+explicit selection; later exact duplicates preserve the selected original while
+conflicting content refuses. Gaps, incomplete arrivals and ambiguous recovery
+remain visible. Finalization and export require explicit flags; no session
+creation, daemon, receiver deployment or credential setup is added.
+
+Durable receipts support exact input/finalize replay across clean or interrupted
+runner invocations. An output created before a missing runner export receipt is
+preserved as uncertain rather than overwritten or silently adopted. This source
+checkpoint includes synthetic/ASGI/crash tests and a prepared real-loopback
+qualification harness; its native run is pending. See
+source/docs/RECORDER_INBOX_RUNNER.md for setup, bounds and recovery limits.
