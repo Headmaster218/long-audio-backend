@@ -2613,6 +2613,12 @@
       "sha256": "0ca4f1574831e08eb9c4fb95672d8d70fbc25f63b1ce560e192ad9b3786571f8"
     },
     {
+      "path": "qualification/combined_chain_20261103/RESULT.md",
+      "size": 6704,
+      "sha": "1a243b0108dd27f04c68bf2004f34a57df579ad6",
+      "sha256": "596266d64068f1daba9e1fe8c08a2f7d5c0057f663e44a86f27940b40a283d22"
+    },
+    {
       "path": "qualification/combined_chain_20261103/RUNTIME_PREFLIGHT.md",
       "size": 14555,
       "sha": "5c1d8a0febae87d0fb77c1690feac75483e8b6cc",
@@ -2626,15 +2632,15 @@
     },
     {
       "path": "qualification/combined_chain_20261103/qualify_chain.py",
-      "size": 19081,
-      "sha": "b1dde0fa3a5c88f09ea4e8b0e17d0300e8324174",
-      "sha256": "d57984bfc2d037477dcf89753090c2e508c442daf5578386645a392c9a28e926"
+      "size": 19294,
+      "sha": "8402bd5542d8d0b861ad8ad06fe39cc74c42dd2f",
+      "sha256": "965b4f47f41187b6ed90827e6ca332081fbed0a66eb42b430353dea95c651c24"
     },
     {
       "path": "qualification/combined_chain_20261103/test_qualify_chain.py",
-      "size": 5542,
-      "sha": "c479e3d1da5951fe938f8215556b3298a67e555f",
-      "sha256": "3b22d9810e77447f454e0d0ff09e6da16069a940773fb64411fe6fc92d30ef63"
+      "size": 6275,
+      "sha": "067e892480e6b53c4c845016886a02ba812d108f",
+      "sha256": "a98e31dd4e5cc0cedb1f7c0bee4e6c856d5760f7d7b7cfc987ade01f1900b1b6"
     },
     {
       "path": "qualification/generate_nine_java_deliveries.py",
@@ -5656,5 +5662,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Review and harden combined FTPS/native qualification preflight, exact inventories, true public STOP input and fail-closed cleanup; 24 new guards plus 126 adapter/watch tests passed, native chain not yet executed."
+  "source_update": "Preserve actual combined FTPS/native negative export result: real ASR completed but revision conflict correctly refused export; fix harness-only terminal poll race,26 controls pass, no native retry or product gate change."
 }

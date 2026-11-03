@@ -187,7 +187,12 @@ def wire_driver(spec, output):
 def wait(gate, process, predicate, label, seconds=30):
     until=min(gate.deadline,time.monotonic()+seconds)
     while not predicate():
-        gate.check();need(process.poll() is None,'child_early_exit:'+label)
+        gate.check()
+        if process.poll() is not None:
+            # The child may finish between the first predicate and poll.
+            # Reobserve the expected terminal condition before calling it early.
+            need(predicate(), 'child_early_exit:'+label)
+            break
         need(time.monotonic()<until,'deadline:'+label);time.sleep(.025)
     gate.check()
 

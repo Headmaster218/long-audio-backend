@@ -107,3 +107,27 @@ def test_cleanup_always_removes_keys(tmp_path,outcome):
     assert not keys.exists() and report['ephemeral_keys_removed']
     assert report['passed'] == (outcome=='ok')
     assert report['peak_rss']==123
+
+
+def test_wait_reobserves_completion_race():
+    target=module()
+    class Gate:
+        deadline=target.time.monotonic()+10
+        def check(self): pass
+    class Process:
+        calls=0
+        def poll(self):
+            self.calls+=1
+            return None if self.calls==1 else 0
+    process=Process()
+    target.wait(Gate(),process,lambda:process.poll() is not None,'completion')
+
+def test_wait_still_refuses_missing_terminal_evidence():
+    target=module()
+    class Gate:
+        deadline=target.time.monotonic()+10
+        def check(self): pass
+    class Process:
+        def poll(self):return 0
+    with pytest.raises(RuntimeError,match='child_early_exit'):
+        target.wait(Gate(),Process(),lambda:False,'missing')
