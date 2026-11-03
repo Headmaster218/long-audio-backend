@@ -303,3 +303,14 @@ identical private exports over actual loopback HTTP. The independent closed-copy
 audit verifies source/native/export linkage and clean process shutdown. This is
 not a deployed or always-on receiver, Android/FTPS test, accuracy score,
 whole-capture proof or native-service restart qualification.
+
+
+A separate [finite-watch native qualification](../qualification/LOCAL_INBOX_WATCH_NATIVE_20261103.md)
+passed in one foreground process: nine genuine host-Java public-speech deliveries,
+actual marker-absent observations with zero HTTP activity, final producer STOP,
+real native completion, five nonempty primary ASR units and exact repeated private
+exports. Its controlled atomic local publication is not ordinary FTPS STOR.
+The independent closed-copy audit verifies original producer/native/export
+linkage, request boundaries and safe shutdown. It covers one short selected span,
+not an installed daemon, deployment, long endurance, recognition accuracy,
+speaker identity or whole-capture completeness.

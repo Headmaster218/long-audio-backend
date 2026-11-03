@@ -624,5 +624,24 @@ frozen originals are checked first, and a waiting pass performs no remote or
 intake action. Invalid present markers, replacements and unsupported files still
 refuse. This is not arbitrary FTPS robustness or an installed daemon. Tests cover
 delayed arrival, cumulative budgets, signals, crash/restart and conflict exits;
-no new native/endurance qualification is claimed. See
+those orchestration tests alone do not establish native/endurance behavior. See
 source/docs/RECORDER_INBOX_RUNNER.md for invocation and exact limitations.
+
+
+## Short native watch with genuine producer STOP
+
+One finite foreground watch now also passed a controlled nine-second public
+speech run over real loopback HTTP. Eight inputs arrived after watch startup;
+the first selected input was supplied during explicit setup. Two successful
+marker-absent validations showed no HTTP activity and unchanged intake state.
+All nine original producer deliveries were admitted before genuine STOP caused
+explicit selected-span finalization, real native ASR and private transcript export.
+Independent copied-DB audit verified five primary units and identical repeated
+exports, exact PCM/receipt linkage, bounded watch counters and clean shutdown.
+
+The test used staged atomic no-overwrite local publication, not ordinary FTPS
+STOR or a physical recorder. It does not establish ASR accuracy, person identity,
+whole-capture completeness or endurance. Production runtime pins and all guards
+remain unchanged. Source-only audit/tests and the aggregate report are included
+at source/qualification/LOCAL_INBOX_WATCH_NATIVE_20261103.md; no raw audio,
+transcripts, model files, logs or databases are backed up.

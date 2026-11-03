@@ -2104,9 +2104,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 18642,
-      "sha": "f5aff37be6baff9ddd6aaf18136c5271e1c0e07d",
-      "sha256": "90de925bba48b682463166bf9b69218f39d74b3c507812103d48cf0db949bdcd"
+      "size": 19348,
+      "sha": "5d941327830116960c82c0b9b2d3cb38c4ca7ef8",
+      "sha256": "e5bdab0ed15871fad1ada22ac1617159e9da1b41c3b45fe50592ac8d6a8de006"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -2445,6 +2445,12 @@
       "sha256": "93bea366913f831214945fd0972e347c89007159d3c0f13443533b0d8c233195"
     },
     {
+      "path": "qualification/LOCAL_INBOX_WATCH_NATIVE_20261103.md",
+      "size": 9764,
+      "sha": "ed24d5b96113db2f0690a6677c42524231214f4d",
+      "sha256": "9e28fe4cef3c841d01f8a0af4598ab8022c1255bcd24bd686ff13431baff2472"
+    },
+    {
       "path": "qualification/LOCAL_INBOX_WATCH_PLAN_20261103.md",
       "size": 4494,
       "sha": "c7a6da4c2bcc8a86649647d9acb06428bffd71ef",
@@ -2671,6 +2677,24 @@
       "size": 17065,
       "sha": "3663c6e0dad418bda52f1cbd1cb9d5d346c7390c",
       "sha256": "bc1f2ef9ce111a7f73ffee67fcfc0638bccb1a040843de64af1ed340d34bb0ad"
+    },
+    {
+      "path": "qualification/native_inbox_watch_audit_20261103/README.md",
+      "size": 3860,
+      "sha": "98d40d932e6867465762433d0106207cb7730be9",
+      "sha256": "69ccc58dab7e35ddbcb5cda0fd00b8991c2d5ef7a6c83aad5b82143f3277518a"
+    },
+    {
+      "path": "qualification/native_inbox_watch_audit_20261103/audit_inbox_watch.py",
+      "size": 54346,
+      "sha": "0654dd91c7e92063f60f157fc7963bebf625c18d",
+      "sha256": "9a6d6e1b18e5d0a668cce4a6fdda63c9263c3286f824271157959ef6ff264f6e"
+    },
+    {
+      "path": "qualification/native_inbox_watch_audit_20261103/test_audit_inbox_watch.py",
+      "size": 13316,
+      "sha": "e6881cc2d5819d347a9e6f13f544f027d9c04f9e",
+      "sha256": "a66444c5eea122fe7849d17f7de4014adcf75138e8b89e8868c485a39c2a11c0"
     },
     {
       "path": "qualification/nine_native_audit_20261103/audit_nine.py",
@@ -5446,5 +5470,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Prepare bounded real-loopback watch qualification with genuine Java STOP deliveries, controlled atomic marker-last publication, exact event observations and focused source-only controls; native result pending."
+  "source_update": "Qualify one bounded native watch with genuine producer STOP, controlled atomic marker-last arrivals, zero-HTTP pending observations and exact ASR/export linkage; preserve source-only audit/tests and explicit accuracy/deployment limits."
 }
