@@ -1575,6 +1575,12 @@
       "sha256": "59a3befe465e0de6bf2a93fc155108a90ac3b510c30bc9f9581217f8e2096b6e"
     },
     {
+      "path": "docs/EXACT_BOUNDARY_STOP_INTEGRATION.md",
+      "size": 3861,
+      "sha": "238649b62ab41b4ac2b164fd8870bf02f4ba5283",
+      "sha256": "04512dad5268de714d90c73e1af366edbd97596a2cfe4a367885a2a753730c0b"
+    },
+    {
       "path": "docs/EXPLICIT_RECORDER_BATCH_INTAKE.md",
       "size": 5933,
       "sha": "7a12fe424e226e843c684ab77e610c61048951f2",
@@ -2020,9 +2026,9 @@
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
-      "size": 5419,
-      "sha": "6e92408aaca405449f06c82141c4437c02a9fec7",
-      "sha256": "658e0cf2c23cdc2ade7fb507874a181ad8f8e11f13159813c229e8fac8816d9c"
+      "size": 6115,
+      "sha": "4ec376c19a91e9525516e1f617e8960ec4d0f10d",
+      "sha256": "a60a05461fcdd116b9544d2b46af0e5790453d9560a5c7eb48ea583c3a88bf6e"
     },
     {
       "path": "docs/RECORDER_SEQUENCE_RECONCILIATION.md",
@@ -2341,6 +2347,12 @@
       "size": 10258,
       "sha": "30f5dfb98135cce63f64686763f3518753498498",
       "sha256": "deb2727ce2e0d811a9fdd260ffc945a76e20fc9005baeda5bbd54b33bddac209"
+    },
+    {
+      "path": "qualification/independent_exact_stop_audit_20261103.py",
+      "size": 13922,
+      "sha": "deb4360abe65d5042f5b79d37183a10e20d7722d",
+      "sha256": "0189b8b25d8cdf8f2851fa36c4ab1d378963810ac48475cf534022dbcfc7956c"
     },
     {
       "path": "qualification/independent_explicit_intake_audit_20261103.py",
@@ -4155,6 +4167,18 @@
       "sha256": "ab7cf9d2b512ae4649db836e48a4e5928681cb7efb2246c595494d2e360b5751"
     },
     {
+      "path": "tests/test_recorder_exact_stop.py",
+      "size": 5041,
+      "sha": "dc9dffce3d5b9828acaf58eacc4e86108c808f4f",
+      "sha256": "f83a1be042ff4ba602ee7b50a936f7aa1532f237ea7bd96dd19e2c8e8bf861bf"
+    },
+    {
+      "path": "tests/test_recorder_exact_stop_independent.py",
+      "size": 7485,
+      "sha": "b034edc244a8f1a8a047a81780a03f4050b70ae6",
+      "sha256": "2a297a6515f346bd389132c2bb98acb0c5c0dc05093b4bc40b4c52aa7c767fc4"
+    },
+    {
       "path": "tests/test_recorder_intake.py",
       "size": 9166,
       "sha": "d05e12921df685ff7d747832335fe0d6e7545699",
@@ -4912,5 +4936,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 read-only recorder segment profile preflight separates default source-slot safety, input-count limits and exact-boundary STOP absence. 24 tests and independent arithmetic review passed; no ingestion, default or device changes."
+  "source_update": "Verify terminal-aware exact-full STOP through batch, incremental and isolated native publication; preserve historical ROTATION refusal and strict gates."
 }

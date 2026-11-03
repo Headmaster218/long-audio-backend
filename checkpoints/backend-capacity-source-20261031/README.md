@@ -321,3 +321,7 @@ Unchanged CellStore DDL/indexes, production limits/accounting,6144page actualSQL
 2026-11-03: independent11s native incremental audit passed from restored source: three separate appends remained local/noEOS, explicit finalization recovered a lost successful seal response, finalization replay matched, exactPCM/3sourceplacements/2completedchunks and cleanup verified. 344focused tests pass. Audit source and scope documentation backed up; no generated media/DB/report included and no long-duration or quality claim.
 
 2026-11-03: added read-only segment profile planner and independent arithmetic oracle. Android source defaults to 300-second segments; 64 inputs limit the capture to about 5h20m, while tiny profiles can exhaust 16 page slots. Explicitly allowing 128 inputs accommodates roughly seven hours. Exact-boundary missing STOP declarations remain unresolved. 24 planner tests pass; the independent 86,400-profile oracle matched. No intake/default/device change or native/resource qualification claim.
+
+## Exact-full STOP compatibility
+
+Actual Android terminal-aware output (three full four-second segments, final STOP) passes batch and incremental strict admission. A short isolated native run published explicit EOS and reconciled retry, with independent source/PCM/history/cleanup audit. Historical ROTATION-only remains nonterminal. No backend ingestion, production pin or default change. See source/docs/EXACT_BOUNDARY_STOP_INTEGRATION.md. Source/tests/docs only; generated media and state remain local.

@@ -6,7 +6,7 @@ Default five-minute segments are not close to the backend's 16-piece page limit:
 
 ## The practical default limit is delivery count
 
-The incremental wrapper deliberately retains the existing default of 64 deliveries. At five minutes each, that is 5h20m of full rotations, **not twelve hours**, even though the independent software frame cap defaults to twelve hours. A STOP-bearing tail must end before the exact count boundary.
+The incremental wrapper deliberately retains the existing default of 64 deliveries. At five minutes each, that is 5h20m of full rotations, **not twelve hours**, even though the independent software frame cap defaults to twelve hours. Under the planner's conservative legacy eager-rotation assumption, a STOP-bearing tail must end before the exact count boundary. New terminal-aware producer behavior is described below.
 
 A roughly seven-hour capture with five-minute rotations needs about 85 delivery slots when reserving a nonempty STOP tail. The existing explicit `--max-inputs 128` option can accommodate it. That option must be selected when starting a NEW intake job; it cannot rewrite a frozen existing journal. At five minutes per segment, even 128 inputs reach only 10h40m of full rotations, so twelve hours needs a different planned profile or separately qualified history-capacity work.
 
@@ -32,15 +32,15 @@ That plan reports the input-count limitation and refuses the seven-hour expectat
 
 Results distinguish the independent duration cap, input count, source-slot exhaustion, peak pieces within the planned prefix, and maximum frames ending in a nonempty shorter STOP tail. They do not guarantee disk, network, native processing speed, long-duration resource stability, device behavior, accurate transcription or physical continuity. Path/metadata and other runtime refusal conditions still apply.
 
-## Exact-boundary STOP is a separate unresolved limitation
+## Exact-boundary STOP depends on the producer mode
 
-The producer immediately seals a ROTATION and clears its open writer at the target frame count. If recording is stopped before another PCM frame arrives, there is no open tail to emit a STOP manifest. The backend therefore sees a last ROTATION and **must not infer EOS**.
+The legacy eager producer immediately seals a ROTATION and clears its open writer at the target frame count. If recording is stopped before another PCM frame arrives, there is no open tail to emit a STOP manifest. The backend therefore sees a last ROTATION and **must not infer EOS**.
 
-For an expected duration exactly divisible by the segment target, the planner reserves one additional input and at least one additional PCM frame for a nonempty STOP tail. That is a minimum arithmetic reservation, not a guarantee that a physical device can stop at a chosen sample. If a recording has already ended with only ROTATION and no STOP declaration, the current explicit intake cannot finalize it. Do not fabricate metadata or bypass the STOP check. A separate trustworthy terminal-declaration workflow remains future work.
+For an expected duration exactly divisible by the segment target, the planner reserves one additional input and at least one additional PCM frame for a nonempty STOP tail. That is a minimum arithmetic reservation, not a guarantee that a physical device can stop at a chosen sample. If a recording has already ended with only ROTATION and no STOP declaration, the current explicit intake cannot finalize it. Do not fabricate metadata or bypass the STOP check. The new opt-in terminal-aware Android writer instead keeps one full segment staged until another nonempty append or explicit close. A normal stop can therefore publish that full segment directly as STOP. Backend admission accepts this existing metadata shape without a schema or gate change. Historical ROTATION-only files remain nonterminal. The planner has not changed modes: its shorter-tail reservation remains conservative for compatibility and must not be read as a requirement for terminal-aware output. See [exact STOP validation](EXACT_BOUNDARY_STOP_INTEGRATION.md).
 
 ## Source and validation scope
 
-Android defaults and accepted ranges are defined in the active `RecordingSettings.java` overlay; `MainActivity.java` exposes the duration field. `PcmSegmentWriter.append` immediately finishes ROTATION at its byte target, while `stop` only seals when a staging writer exists. The source assembly instructions select these overlays over the older baseline.
+Android defaults and accepted ranges are defined in the active `RecordingSettings.java` overlay; `MainActivity.java` exposes the duration field. The legacy `PcmSegmentWriter` constructor immediately finishes ROTATION at its byte target, while the new explicit terminal-aware factory defers that publication until the next append or close. The source assembly instructions select these overlays over the older baseline.
 
 Backend page/piece limits and the admission reservation are taken from `recording_uploader.py` and `recorder_capture_intake.py`. The planner uses those constants without changing either path. Tests cover the default, explicit 128-input case, tiny profiles, count/frame boundaries, exact rotation termination and invalid settings. These are arithmetic checks, not another audio/native qualification run.
 
