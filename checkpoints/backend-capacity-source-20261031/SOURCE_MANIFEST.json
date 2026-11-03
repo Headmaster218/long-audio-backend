@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 101346,
-      "sha": "375480f7167a6940cbd3513d7964d38e882f7f6d",
-      "sha256": "9b48ef06629f70c36f8dc743109864970449444a87454a886f9855093d956b10"
+      "size": 101586,
+      "sha": "408fa7d4c4c7a4d78087288085a501332dff7b6d",
+      "sha256": "3c93eb654c7cc56a17d0d44cb1b00a8fd835386dc00c0ac43bd6e850ea0bf850"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -742,9 +742,15 @@
     },
     {
       "path": "audio_backend/recorder_delivery.py",
-      "size": 9472,
-      "sha": "0ac7df821d696f5be338bd94285b051ed06ec1f7",
-      "sha256": "68dc235392e06584ca4b90ce317156dc893bb7065df47703b1cacca6e9f8f40c"
+      "size": 9667,
+      "sha": "783ce1d6082d3f060c7807265dfc6c9359a1729f",
+      "sha256": "27062fee264c5ef30a506dfa5cd36c4fdcc007ececfdbe73a8bb15da1ab90c4a"
+    },
+    {
+      "path": "audio_backend/recorder_inbox.py",
+      "size": 7051,
+      "sha": "d7c477e7750a573193eb123dabebc394717ede26",
+      "sha256": "aa773486e507296794da07f24d68a1e1b1449fcae67e91ab19b1a089a5ad45ac"
     },
     {
       "path": "audio_backend/recorder_intake.py",
@@ -2025,6 +2031,12 @@
       "sha256": "69044669e9cb74b7814bcfb59c55c5c0bc8cc927c5cbbe9c98aaffba8782007e"
     },
     {
+      "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
+      "size": 7590,
+      "sha": "19e8f3b8ae92668b490ab5e9d63da4507092fd23",
+      "sha256": "8d5eee288e7c59b6fce8a3251b322a70fc27a62b26943d46222a57ee5cd18d0a"
+    },
+    {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
       "size": 6115,
       "sha": "4ec376c19a91e9525516e1f617e8960ec4d0f10d",
@@ -2323,6 +2335,12 @@
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
       "sha256": "3a97845bf13b00e402ce73cb9990ce72f2696b9d82254cf442fbfde18a46afe8"
+    },
+    {
+      "path": "qualification/audit_ftps_sequence_linkage_20261103.py",
+      "size": 3974,
+      "sha": "5b25197362a15d43ca8b1e8aa91340f726be7bb5",
+      "sha256": "0be95805afcbd343f241335e939ae235fe41263b91ccc18468493db7fe985c84"
     },
     {
       "path": "qualification/cellstore_crash_probe.py",
@@ -4179,6 +4197,18 @@
       "sha256": "2a297a6515f346bd389132c2bb98acb0c5c0dc05093b4bc40b4c52aa7c767fc4"
     },
     {
+      "path": "tests/test_recorder_inbox.py",
+      "size": 4937,
+      "sha": "4c6d749d5e24ab9e132c43e8c87d34751ddaf05a",
+      "sha256": "8bdf4d0415a37666e83a79d05a81dee0d0ef38939bceadb6b44d728860e1eac8"
+    },
+    {
+      "path": "tests/test_recorder_inbox_adversarial.py",
+      "size": 3162,
+      "sha": "c4e572305370ae436759183a667dc1ec5cd4e61e",
+      "sha256": "23c3f8da2256d3f389197755e8589fbc2099b51483a4b653f7cabae422daa550"
+    },
+    {
       "path": "tests/test_recorder_intake.py",
       "size": 9166,
       "sha": "d05e12921df685ff7d747832335fe0d6e7545699",
@@ -4936,5 +4966,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Verify terminal-aware exact-full STOP through batch, incremental and isolated native publication; preserve historical ROTATION refusal and strict gates."
+  "source_update": "Add bounded read-only receiver inventory and explicit operational workflow; verify actual three-segment FTPS receipts through strict native publication without production activation."
 }

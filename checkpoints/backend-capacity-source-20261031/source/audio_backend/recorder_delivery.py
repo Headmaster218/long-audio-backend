@@ -87,7 +87,7 @@ def _stamp(value):
     return (value.st_dev, value.st_ino, value.st_mode, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
 
 
-def inspect_delivery(directory, *, deadline_seconds=120, validate_metadata=False):
+def inspect_delivery(directory, *, deadline_seconds=120, validate_metadata=False, max_wav_bytes=MAX_WAV):
     """Observe three held regular files without writes; never emit an import plan.
 
     Caller supplies an already-downloaded directory. Parent path resolution and
@@ -96,6 +96,7 @@ def inspect_delivery(directory, *, deadline_seconds=120, validate_metadata=False
     """
     require(type(deadline_seconds) in (int, float) and 0 < deadline_seconds <= 120, 'deadline_bounds')
     require(type(validate_metadata) is bool, 'metadata_option')
+    require(type(max_wav_bytes) is int and 44 < max_wav_bytes <= MAX_WAV, 'wav_budget_bounds')
     deadline = time.monotonic() + deadline_seconds
     def check():
         require(time.monotonic() <= deadline, 'deadline_exceeded')
@@ -117,6 +118,7 @@ def inspect_delivery(directory, *, deadline_seconds=120, validate_metadata=False
             require(len(result) <= maximum, 'file_size')
             return result
         marker = parse_marker(bounded(names[0], MAX_MARKER))
+        require(marker['wav_bytes'] <= max_wav_bytes, 'wav_budget_exceeded')
         local = parse_envelope(bounded(names[1], MAX_METADATA), marker, return_local=True)
         version = struct.unpack_from('>i', local, 4)[0]
         wav = files[names[2]]

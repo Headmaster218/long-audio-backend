@@ -325,3 +325,7 @@ Unchanged CellStore DDL/indexes, production limits/accounting,6144page actualSQL
 ## Exact-full STOP compatibility
 
 Actual Android terminal-aware output (three full four-second segments, final STOP) passes batch and incremental strict admission. A short isolated native run published explicit EOS and reconciled retry, with independent source/PCM/history/cleanup audit. Historical ROTATION-only remains nonterminal. No backend ingestion, production pin or default change. See source/docs/EXACT_BOUNDARY_STOP_INTEGRATION.md. Source/tests/docs only; generated media and state remain local.
+
+## Explicit receiver workflow
+
+A bounded read-only inbox command reports validated attempts and ordinal gaps without choosing retries or invoking ingestion. Complete multi-segment linkage now exercises actual three-session FTPS loopback receipts through one strict incremental capture and explicit native EOS, with saved artifact audit. Source/tests/docs only; no receiver deployment, credentials, media or databases. See source/docs/RECORDER_RECEIVER_WORKFLOW.md.
