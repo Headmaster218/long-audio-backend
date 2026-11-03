@@ -140,4 +140,4 @@ least one nonempty native primary ASR unit, otherwise it explicitly fails speech
 export qualification. Any actual fixture/run results must be reported separately;
 this option alone is not evidence that a native run passed.
 
-Native public-speech validation is pending at this source checkpoint. No deployment or runtime/model pin change is included.
+A nine-second public-speech native run and independent closed-copy audit passed: five nonempty primary ASR units, two exact GET-only exports, and clean shutdown. See [the bounded qualification and reproduction report](../qualification/PUBLIC_SPEECH_EXPORT_NATIVE_20261103.md) for evidence and limits. Acoustic accuracy, speaker identity, whole-capture completeness and longer-duration behavior remain unqualified. No deployment or runtime/model pin change is included.

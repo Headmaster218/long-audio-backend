@@ -551,7 +551,22 @@ exported. Unknown gaps, source-local speaker uncertainty and unverified segment
 timing/recognition remain explicit; empty text is not proof of silence.
 
 This checkpoint includes model-free adversarial validation and a pinned public
-AMI replay fixture generator. Public-speech native export qualification is still
-pending and must use a separately reviewed isolated candidate with unchanged
-guards. No raw audio, reference text, exported transcript, model or DB is included.
+AMI replay fixture generator. The subsequent bounded public-speech qualification
+below used a separately reviewed isolated candidate with unchanged guards.
+No raw audio, reference text, exported transcript, model or DB is included.
 See source/docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md for commands and limits.
+
+
+## Public-speech native transcript/export qualification
+
+The exact published exporter source completed a nine-second public AMI replay
+through genuine Java producer deliveries, real native diarization and SenseVoice
+CPU ASR. Two private GET-only exports produced identical JSON/text with five
+nonempty primary units. Independent audit matched every text/time/hash to copied
+DB rows and retained native PCM/core/source receipts, and reconstructed readable
+text exactly. Both observations preserved original span mapping, INTERRUPTION,
+unknown gaps and anonymous source-local speaker limits. All child waits and
+cleanup receipts passed. This proves the bounded transcription/export path, not
+recognition accuracy, person identity, complete speech capture, devices or
+endurance. Source-only verifier and aggregate report are included at
+source/qualification/PUBLIC_SPEECH_EXPORT_NATIVE_20261103.md.

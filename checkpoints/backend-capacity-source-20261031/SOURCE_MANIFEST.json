@@ -2098,9 +2098,9 @@
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
-      "size": 8932,
-      "sha": "7dccea502964ab1cc87ac27c339c9073751e888c",
-      "sha256": "51ea19e8ed985d9e9b9871ba35a76e518fab5d2d8f37952a07d0e5342aee3ac8"
+      "size": 9276,
+      "sha": "45103ec0bd99ca0f6443d8b8609308787b988da4",
+      "sha256": "ae2118b3cba362e9a9d341b8fd72d24dcd1567e5d5fe03d405d1038e798eb490"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_STATUS.md",
@@ -2433,6 +2433,12 @@
       "sha256": "6aaf50055d112049bad4bf4c5511ed9383cd2ddc0adb2c8d1feb0676834e0650"
     },
     {
+      "path": "qualification/PUBLIC_SPEECH_EXPORT_NATIVE_20261103.md",
+      "size": 11189,
+      "sha": "dbfb5086813aa74863b8a566052e249a7e6715ad",
+      "sha256": "b8eaff46961d70251e635eaff510d60273ba14c3af4f9d3cddf1c6cb2ede6dc2"
+    },
+    {
       "path": "qualification/PublicSpeechProducerDeliveries.java",
       "size": 5086,
       "sha": "9f216e2afe842db6dae706c2e3485cecbb17731d",
@@ -2629,6 +2635,18 @@
       "size": 2646,
       "sha": "575ca01c671fbac08987066a5c75e4e16c08dced",
       "sha256": "49e05dd2674c0eeaf4afd0487ce8805e922a7eeefaad1af8ca0731494cde3d8c"
+    },
+    {
+      "path": "qualification/public_speech_native_audit_20261103/audit_public_speech.py",
+      "size": 36350,
+      "sha": "23eb85c12ab52dfa91dec3da4ebfc9476a2c4e4e",
+      "sha256": "701b351dc772a35c39add64ec6dd07829b9b23afb0e2afeac307e1577693585e"
+    },
+    {
+      "path": "qualification/public_speech_native_audit_20261103/test_audit_public_speech.py",
+      "size": 8153,
+      "sha": "ea9c3dc421ca5927000f9d8be92dce6c77751576",
+      "sha256": "417c7cfb45b2861f20f52da73380be7eaba031b04df7b67709436858bd4f033a"
     },
     {
       "path": "qualification/qualify_nine_java_incremental_span.py",
@@ -5332,5 +5350,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add explicit private GET-only completed selected-span primary transcript export with bounded hash/work binding, no-overwrite artifacts, adversarial tests and source-only public-speech fixture preparation."
+  "source_update": "Qualify real public-speech native ASR and private selected-span transcript export with exact receipt/text/time linkage, clean lifecycle, source-only independent verifier and aggregate report."
 }
