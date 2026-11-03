@@ -766,9 +766,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 42300,
-      "sha": "260a172dda9b0f5ade513607672860c611e78ab9",
-      "sha256": "0508e2094da35d2c4a825521748b798bc86574ca8da0ebc44681d05e1b995b52"
+      "size": 51142,
+      "sha": "47e5bfe6adaec83fd2fc803d6c15ab0b6efd56da",
+      "sha256": "d6dbed92dee7128360b41c74d949c87a161f020af5cba97f59e9cb320245d82e"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -2127,6 +2127,12 @@
       "sha256": "8fdc590d061a77d040ecf4564abbdd067c20e133bcd102771933125494943a2a"
     },
     {
+      "path": "docs/RECORDER_INBOX_EXPORT_RECOVERY.md",
+      "size": 3149,
+      "sha": "6ac92aaae95de21435af2a44894632e2de9dfb4c",
+      "sha256": "ab721f1b5fee14f83008073d709aee213cd620a409e734f8b9aa844ea478cc91"
+    },
+    {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
       "size": 19831,
       "sha": "30890a3760563b196272f5bb9e2a7ab9b3ac908f",
@@ -2755,6 +2761,18 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/live_revision_recovery_20261103/PLAN.md",
+      "size": 2487,
+      "sha": "2ef881dcc7a74a82455f45547c46df1050206529",
+      "sha256": "3f7d3ab4ad3f7de5db150cbe3353f9b0823eaa048c52543bc53d00b33e2aaaa5"
+    },
+    {
+      "path": "qualification/live_revision_recovery_20261103/test_live_revision_routes.py",
+      "size": 8661,
+      "sha": "e16c769f0aa3638ee22ed7b71de4fcb8e6d8d1a8",
+      "sha256": "3a2cb305cb6edad40f1e6b5cc166afb10940901b2999129f440150f8ee682c1c"
     },
     {
       "path": "qualification/local_inbox_native_audit_20261103/README.md",
@@ -4839,6 +4857,12 @@
       "sha256": "23c3f8da2256d3f389197755e8589fbc2099b51483a4b653f7cabae422daa550"
     },
     {
+      "path": "tests/test_recorder_inbox_export_recovery.py",
+      "size": 8384,
+      "sha": "d70581ea98c55b89919b3bbc17841f3e39a25cfa",
+      "sha256": "f9841df8118c5243f63ef69eabac5ff08c9baa6bed2e6e8fef1f234fd1e8a186"
+    },
+    {
       "path": "tests/test_recorder_inbox_runner.py",
       "size": 10054,
       "sha": "5f717dec477c5a927ea21d5860e6f3372723b68a",
@@ -5740,5 +5764,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Record passed bounded same-job snapshot export recovery, preserving original watch failure and all limits."
+  "source_update": "Independently reviewed opt-in runner revision recovery;210 regression tests pass, controlled real-route validation pending final report."
 }

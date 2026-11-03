@@ -2,7 +2,8 @@
 
 Configuration alone performs no HTTP or intake. Every run requires an explicit
 exclusive writer and span-local closure acknowledgment. There is no daemon,
-session creation, inference retry, directory cleanup, or replacement export.
+session creation, inference retry or directory cleanup. Export conflicts stop by
+default; explicit recovery permits bounded fresh GET-only attempts, never replacement.
 """
 import argparse
 from dataclasses import replace
@@ -20,6 +21,7 @@ from . import recorder_capture_intake as engine
 from . import recorder_incremental_span_intake as intake
 from . import recorder_incremental_span_status as status
 from . import recorder_incremental_span_export as exporter
+from . import recorder_export_recovery as export_recovery
 from . import recorder_inbox as inbox
 from . import recorder_receiver_publication as receiver
 from . import recorder_intake as single
@@ -210,7 +212,12 @@ def _ledger(root, config):
             require(not pending and intents, 'runner_terminal_with_pending_input')
             expected = dict(schema=SCHEMA, config_sha256=_hash(config), kind=kind,
                             input_intents_sha256=_hash(intents))
-            require(_same(single.manifest_read(ip), expected), 'runner_terminal_intent_binding')
+            saved = single.manifest_read(ip)
+            if kind == 'export' and type(saved) is dict and 'recovery_attempts' in saved:
+                bound = saved['recovery_attempts']
+                require(type(bound) is int and 2 <= bound <= 3, 'runner_export_recovery_bound')
+                expected['recovery_attempts'] = bound
+            require(_same(saved, expected), 'runner_terminal_intent_binding')
             if kind == 'finalize' and os.path.lexists(dp):
                 require(_same(single.manifest_read(dp), _done(expected)), 'runner_finalize_receipt_binding')
             if kind == 'export': require(os.path.lexists(root/'finalize.done.json'), 'runner_export_before_finalize')
@@ -340,37 +347,49 @@ class _Transport:
         self.max_requests, self.max_writes = max_requests, max_writes
         self.requests = self.writes = self.bytes = 0
         self.watch, self.max_bytes = watch, max_bytes
+        self.export_recovery_phase = False
 
     def request(self, method, path, **kwargs):
         self.guard.check(); require(method in ('GET','PUT','POST'), 'runner_http_method')
+        require(not self.export_recovery_phase or (method == 'GET' and not kwargs),
+                'runner_export_recovery_get_only')
         base = '/sessions/'+self.config['session_id']
         require(path == base or path.startswith(base+'/'), 'runner_http_target')
         if method != 'GET':
             require(path.startswith(base+'/recordings/'+self.config['capture_id']+'/'), 'runner_http_write_target')
         require(self.requests < self.max_requests and (method == 'GET' or self.writes < self.max_writes),
                 'runner_network_request_bound')
-        if self.watch:
+        if self.watch or self.export_recovery_phase:
             # Reserve the largest decoded response before issuing the request.
             require(self.bytes + u.JSON_BYTES <= self.max_bytes, 'runner_network_byte_bound')
         self.check(method != 'GET')
         self.requests += 1; self.writes += method != 'GET'
+        if self.export_recovery_phase: self.bytes += u.JSON_BYTES
         try:
             value = self.http.request(method, path, **kwargs)
         except (u.HTTPFailure, u.Uncertain) as exc:
             # Missing resources are a normal part of exact initial reconciliation.
             # Every other failure stops watch, including helper-internal retries.
-            if self.watch and not (method == 'GET' and isinstance(exc, u.HTTPFailure) and exc.status == 404):
+            revision = (self.export_recovery_phase and method == 'GET' and not kwargs and
+                type(exc) is u.HTTPFailure and exc.status == 409 and
+                exc.response_reason == 'transcript_revision_changed' and
+                path.startswith(base+'/transcript?cursor=') and
+                path.endswith('&projection=whole-primary-v1'))
+            if self.watch and not revision and not (method == 'GET' and isinstance(exc, u.HTTPFailure) and exc.status == 404):
                 raise _WatchTransportStopped(exc) from exc
             raise
         self.guard.check()
         require(type(value) is dict, 'runner_response_object')
         raw = single._json(value)
         require(len(raw) <= u.JSON_BYTES, 'runner_response_bound')
-        self.bytes += len(raw); require(self.bytes <= self.max_bytes, 'runner_network_byte_bound')
+        if not self.export_recovery_phase: self.bytes += len(raw)
+        require(self.bytes <= self.max_bytes, 'runner_network_byte_bound')
         return value
 
 
 def _export_receipt(root, config, intent, guard):
+    if 'recovery_attempts' in intent:
+        return _recovery_export_receipt(root, config, intent, guard)
     output = Path(config['output_dir']); single.private_directory(output)
     directory = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
@@ -420,14 +439,101 @@ def _export_receipt(root, config, intent, guard):
     finally: os.close(directory)
 
 
+def _recovery_export_receipt(root, config, intent, guard):
+    """Bind all attempt files, not just the successful child; never adopt a crash."""
+    output = Path(config['output_dir']); single.private_directory(output)
+    original = u._signature(output.lstat()); tree = {}; identities = {output:original}; total = 0
+    def read(path, cap):
+        nonlocal total
+        guard.check(); single.control(path)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            before = os.fstat(fd)
+            require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and
+                    before.st_uid == os.geteuid() and stat.S_IMODE(before.st_mode) == 0o600 and
+                    0 <= before.st_size <= cap, 'runner_recovery_artifact_bound')
+            total += before.st_size
+            require(total <= exporter.MAX_OUTPUT_BYTES + 16384, 'runner_recovery_output_bound')
+            digest = hashlib.sha256(); chunks = []; size = 0
+            while size < before.st_size:
+                guard.check(); data = os.read(fd, min(u.READ_BYTES, before.st_size-size))
+                require(bool(data), 'runner_recovery_artifact_changed')
+                size += len(data); digest.update(data)
+                if path.name == 'recovery.jsonl': chunks.append(data)
+            require(os.read(fd, 1) == b'' and u._signature(before) == u._signature(os.fstat(fd)) ==
+                    u._signature(path.lstat()), 'runner_recovery_artifact_changed')
+            identities[path] = u._signature(before)
+            tree[str(path.relative_to(output))] = dict(bytes=size, sha256=digest.hexdigest())
+            return b''.join(chunks)
+        finally: os.close(fd)
+    raw = read(output/'recovery.jsonl', 16384)
+    records = [json.loads(line) for line in raw.splitlines()]
+    require(3 <= len(records) <= 7 and len(records) % 2 == 1, 'runner_recovery_audit_shape')
+    count = (len(records)-1)//2
+    require(count <= intent['recovery_attempts'], 'runner_recovery_attempt_bound')
+    limits = export_recovery.RecoveryLimits(attempts=intent['recovery_attempts'])
+    expected = dict(schema=export_recovery.SCHEMA, job_dir=config['job_dir'],
+        session_id=config['session_id'], capture_id=config['capture_id'], remote_read_only=True,
+        inference_replay=False, attempts=limits.attempts, requests_bound=limits.requests,
+        reserved_network_bound=limits.network_bytes, output_bound=limits.output_bytes, audit_output_bound=16384)
+    require(_same(records[0], expected), 'runner_recovery_audit_binding')
+    expected_names = {'recovery.jsonl', *(f'attempt-{n:02d}' for n in range(1,count+1))}
+    require(_names(output,4) == expected_names, 'runner_recovery_tree_changed')
+    previous_requests = 0
+    for number in range(1,count+1):
+        name = f'attempt-{number:02d}'; directory = output/name
+        single.private_directory(directory); identity = u._signature(directory.lstat())
+        identities[directory] = identity
+        require(_same(records[2*number-1],dict(attempt=number,output=name,status='started')),
+                'runner_recovery_audit_binding')
+        end = records[2*number]
+        require(type(end) is dict and end.get('attempt') == number and
+                end.get('status') == ('exported' if number == count else 'revision_changed'),
+                'runner_recovery_audit_binding')
+        keys = {'attempt','status','requests','reserved_network_bytes'} | (
+            {'partial_preserved'} if number < count else {'manifest','transcript_revision'})
+        require(set(end) == keys and type(end['requests']) is int and
+                previous_requests < end['requests'] <= limits.requests and
+                type(end['reserved_network_bytes']) is int and
+                end['reserved_network_bytes'] == end['requests'] * u.JSON_BYTES <= limits.network_bytes,
+                'runner_recovery_audit_budget')
+        previous_requests = end['requests']
+        if number < count:
+            require(end.get('partial_preserved') is True, 'runner_recovery_audit_binding')
+        else:
+            require(end.get('manifest') == name+'/complete.json', 'runner_recovery_audit_binding')
+        names = {'export.json','transcript.txt','complete.json'} if number == count else {
+            'export.json.partial','transcript.txt.partial'}
+        require(_names(directory,3) == names, 'runner_recovery_attempt_changed')
+        for filename in sorted(names): read(directory/filename, exporter.MAX_OUTPUT_BYTES)
+        require(u._signature(directory.lstat()) == identity, 'runner_recovery_attempt_changed')
+    require(u._signature(output.lstat()) == original and _names(output,4) == expected_names,
+            'runner_recovery_tree_changed')
+    child_intent = {key:value for key,value in intent.items() if key != 'recovery_attempts'}
+    selected = dict(config, output_dir=str(output/f'attempt-{count:02d}'))
+    child = _export_receipt(root, selected, child_intent, guard)
+    manifest = single.manifest_read(Path(selected['output_dir'])/'complete.json')
+    require(manifest.get('transcript_revision') == records[-1]['transcript_revision'],
+            'runner_recovery_audit_revision')
+    guard.check()
+    require(all(u._signature(path.lstat()) == identity for path,identity in identities.items()),
+            'runner_recovery_artifact_changed')
+    return dict(**_done(intent), complete_sha256=child['complete_sha256'],
+                recovery_tree_sha256=_hash(tree), export_attempts=count,
+                revision_conflicts=count-1, selected_attempt=f'attempt-{count:02d}')
+
+
 def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
-         finalize=False, export=False, select_attempt=None, max_actions=1, max_requests=1024,
+         finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=1, max_requests=1024,
          max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None,
          poll_seconds=None, max_polls=1, max_network_bytes=MAX_NETWORK_BYTES, wait_for_marker_last=False, watching=False):
     started = time.monotonic()
     require(exclusive_writer is True and acknowledge_span_local_closure is True,
             'runner_explicit_acknowledgments_required')
     require(type(finalize) is bool and type(export) is bool, 'runner_authorization_type')
+    require(type(export_recovery_attempts) is int and export_recovery_attempts in (0,2,3),
+            'runner_export_recovery_bound')
+    require(not export_recovery_attempts or export, 'runner_export_recovery_requires_export')
     for value, maximum in ((max_actions,MAX_WATCH_ACTIONS if watching else MAX_ACTIONS),(max_requests,MAX_REQUESTS),(max_network_writes,MAX_NETWORK_WRITES)):
         require(type(value) is int and 1 <= value <= maximum, 'runner_invocation_bound')
     require(type(deadline_seconds) in (int,float) and 0 < deadline_seconds <= 86400,
@@ -452,7 +558,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
         effective = replace(limits or u.Limits(), deadline_seconds=deadline_seconds,
                             output_frames=config['max_hours']*3600*u.RATE)
         guard = u.Guard(effective, cancel)
-        if watching: guard.end = started + deadline_seconds
+        if watching or export_recovery_attempts: guard.end = started + deadline_seconds
         def remaining():
             guard.check(); return min(120, max(.000001, guard.end-time.monotonic()))
         intents, completed = _ledger(root, config)
@@ -488,7 +594,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                 actions=actions, network_requests=http.requests, network_writes=http.writes,
                 automatic_intake_enabled=watching, eos_meaning='selected_span_only',
                 analysis_completion_verified=False, capture_completeness_proven=False,
-                physical_continuity_proven=False, **extra)
+                physical_continuity_proven=False, **(dict(network_response_bytes_include_recovery_reservations=True)
+                    if export_recovery_attempts else {}), **extra)
         def helper(function, **kwargs):
             nonlocal helper_actions
             guard.check(); helper_actions += 1
@@ -510,6 +617,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
         def terminal_intent(kind):
             value = dict(schema=SCHEMA, config_sha256=_hash(config), kind=kind,
                          input_intents_sha256=_hash(intents))
+            if kind == 'export' and export_recovery_attempts:
+                value['recovery_attempts'] = export_recovery_attempts
             path = root/(kind+'.intent.json')
             if not os.path.lexists(path): single.manifest_write(path,value)
             _durable(path,value); return value
@@ -552,7 +661,9 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                     saved = single.manifest_read(root/'export.done.json')
                     expected = _export_receipt(root,config,single.manifest_read(root/'export.intent.json'),guard)
                     require(_same(saved,expected),'runner_export_receipt_changed')
-                    return result('exported',export_completed=True)
+                    return result('exported',export_completed=True, **({key:saved[key] for key in
+                        ('export_attempts','revision_conflicts','selected_attempt')} if 'recovery_attempts' in
+                        single.manifest_read(root/'export.intent.json') else {}))
                 if os.path.lexists(root/'finalize.done.json'):
                     if os.path.lexists(root/'export.intent.json') and os.path.lexists(config['output_dir']):
                         raise Refused('runner_export_publication_uncertain_preserve_output')
@@ -563,10 +674,23 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                         terminal = terminal_intent('export')
                         require(not os.path.lexists(config['output_dir']), 'runner_export_publication_uncertain_preserve_output')
                         if watching: actions += 1
-                        helper(exporter.run, **options(), output_dir=config['output_dir'])
+                        if export_recovery_attempts:
+                            def recovery_cancel():
+                                guard.check()
+                                return False
+                            http.export_recovery_phase = True
+                            try:
+                                selected = options(); selected['cancel'] = recovery_cancel
+                                helper(export_recovery.run, **selected, output_dir=config['output_dir'],
+                                    recovery_limits=export_recovery.RecoveryLimits(attempts=export_recovery_attempts))
+                            finally:
+                                http.export_recovery_phase = False
+                        else:
+                            helper(exporter.run, **options(), output_dir=config['output_dir'])
                         receipt = _export_receipt(root,config,terminal,guard)
                         single.manifest_write(root/'export.done.json',receipt)
-                        return result('exported',export_completed=True)
+                        return result('exported',export_completed=True, **({key:receipt[key] for key in
+                            ('export_attempts','revision_conflicts','selected_attempt')} if export_recovery_attempts else {}))
                     if watching and observed['status'] == 'pending':
                         require(observed['analysis_completion_verified'] is False, 'runner_pending_result_changed')
                         stopped = pause('pending')
@@ -637,29 +761,30 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
 
 
 def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
-        finalize=False, export=False, select_attempt=None, max_actions=1, max_requests=1024,
+        finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=1, max_requests=1024,
         max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None):
     """One bounded reconciliation. Existing manual-resume behavior is unchanged."""
     return _run(state_dir=state_dir, exclusive_writer=exclusive_writer,
         acknowledge_span_local_closure=acknowledge_span_local_closure, finalize=finalize,
-        export=export, select_attempt=select_attempt, max_actions=max_actions,
+        export=export, export_recovery_attempts=export_recovery_attempts, select_attempt=select_attempt, max_actions=max_actions,
         max_requests=max_requests, max_network_writes=max_network_writes,
         deadline_seconds=deadline_seconds, limits=limits, transport=transport, cancel=cancel)
 
 
 def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
-          finalize=False, export=False, select_attempt=None, max_actions=256, max_requests=1024,
+          finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=256, max_requests=1024,
           max_network_writes=512, max_network_bytes=MAX_NETWORK_BYTES, deadline_seconds=120,
           poll_seconds=5, max_polls=256, wait_for_marker_last=False, limits=None, transport=None, cancel=None):
-    """Finite foreground watch. Only clean missing input and pending status repeat.
+    """Finite watch. By default only clean missing input and pending status repeat.
 
     The original runner lock, exact configuration, transport and all budgets stay
     live for the entire invocation. Every refusal/uncertain effect requires an
-    explicit new invocation; no helper retries a failed/uncertain HTTP request.
+    explicit new invocation. Opt-in export recovery alone can start fresh GET-only
+    attempts after exact typed transcript revision conflicts; other failures stop.
     """
     return _run(state_dir=state_dir, exclusive_writer=exclusive_writer,
         acknowledge_span_local_closure=acknowledge_span_local_closure, finalize=finalize,
-        export=export, select_attempt=select_attempt, max_actions=max_actions,
+        export=export, export_recovery_attempts=export_recovery_attempts, select_attempt=select_attempt, max_actions=max_actions,
         max_requests=max_requests, max_network_writes=max_network_writes,
         max_network_bytes=max_network_bytes, deadline_seconds=deadline_seconds,
         poll_seconds=poll_seconds, max_polls=max_polls, wait_for_marker_last=wait_for_marker_last, watching=True, limits=limits,
@@ -682,6 +807,7 @@ def main(argv=None):
         execute.add_argument('--exclusive-writer',action='store_true',required=True)
         execute.add_argument('--acknowledge-span-local-closure',action='store_true',required=True)
         execute.add_argument('--finalize',action='store_true'); execute.add_argument('--export',action='store_true')
+        execute.add_argument('--export-recovery-attempts',type=int,choices=(0,2,3),default=0)
         execute.add_argument('--select-attempt'); execute.add_argument('--max-actions',type=int,default=256 if mode == 'watch' else 1)
         execute.add_argument('--max-requests',type=int,default=1024); execute.add_argument('--max-network-writes',type=int,default=512)
         execute.add_argument('--deadline-seconds',type=float,default=120)
