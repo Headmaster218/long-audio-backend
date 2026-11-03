@@ -635,3 +635,13 @@ capacity, frozen-job compatibility, source-slot limits and verification scope.
 144 tiny inputs and twelve-hour metadata geometry are not twelve-hour native
 runtime or acoustic-quality qualification. Session creation and watchers remain
 disabled; no model, primary gate, server quota or runtime pin is changed.
+
+## Recorder interruption and epoch observations
+
+Use the [read-only boundary report](docs/RECORDER_BOUNDARY_REPORT.md) to inspect
+verified snapshots without flattening interrupted captures into one timeline.
+It separates declaration-adjacent spans, quarantines conflicting ordinals, and
+leaves physical gap durations unknown. Reports are not import plans: existing
+intake still refuses interruption/recovered tails and epoch transitions. Separate
+span ingestion needs its own explicit session binding and terminal semantics;
+no automatic rebasing, silence insertion, metadata rewriting or EOS is provided.

@@ -437,3 +437,19 @@ Separate tiny-file intake suite: 3 passed, including old-cap preservation. Initi
 test-only expectations for the old default/maximum and exact-full-page EOS were
 corrected; existing full-page capture finish behavior was not changed. These are
 selected tests, not a full-repository or actual long-duration qualification.
+
+## Explicit interruption and epoch boundary observations
+
+The bounded read-only recorder boundary report validates owned snapshots, splits
+unresolved boundaries, preserves epoch-local coordinates and close reasons, and
+quarantines all conflicting variants without selecting a winner. Exact repeats
+are not counted as extra audio. Physical gap durations remain unknown; mismatched
+coordinate declarations are not subtracted. Stable span identifiers do not grant
+upload authority or establish physical continuity.
+
+This is a diagnostic path, not cross-epoch ingestion. Existing strict intake,
+server one-capture-per-session semantics and STOP/finalize requirements stay
+unchanged. A future span-local importer requires separate explicit known-empty
+session targets and honest interruption closure, preserving producer declarations.
+No source mutation, network operation, model, watcher, session creation or
+production activation is added. See source/docs/RECORDER_BOUNDARY_REPORT.md.

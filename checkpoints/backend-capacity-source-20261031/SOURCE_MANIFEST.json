@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 102745,
-      "sha": "853bd6efe8420ffb289498e5633a56c42f88bcd7",
-      "sha256": "b60611a9146140306ffde1821ada6ce8db012f7786ae2a24eb74edfdb784ccc2"
+      "size": 103352,
+      "sha": "98acaa0bd65543c4165db1e01f863d213e420032",
+      "sha256": "1231a986a24fb577b8cacc14555cdbbfb07eb0d149443d76d11af67ea08a889f"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -727,6 +727,12 @@
       "size": 9127,
       "sha": "037d5c84074f519e5e5b22a1c47533f9f333d63e",
       "sha256": "6ef446980c06c8f37d90cc6c8eaf226b1ffc749cb51bef133cfd8f0a83e2f694"
+    },
+    {
+      "path": "audio_backend/recorder_boundary_report.py",
+      "size": 11451,
+      "sha": "410743ea8844b9c09a8a3fc0cea4010f2b5a6f35",
+      "sha256": "2d7e412b104f9bb567d81a7ee4d753dd37d760881e6ba0a278f8a1463cc25b56"
     },
     {
       "path": "audio_backend/recorder_capture_intake.py",
@@ -2023,6 +2029,12 @@
       "size": 7104,
       "sha": "6544e1cc44455b335003661d7361299cc40214ff",
       "sha256": "cd1f1e87237ab3afa98f43b8942484310d758cfb4426d69e1ba1e886e3cb53b7"
+    },
+    {
+      "path": "docs/RECORDER_BOUNDARY_REPORT.md",
+      "size": 7638,
+      "sha": "2930731a682cd5ffe8a61cc9c2d03402cda50105",
+      "sha256": "5cab9199d2f5e0367004048f4d4d4d9c5fe03fb5065518f711985e766db323b8"
     },
     {
       "path": "docs/RECORDER_DELIVERY_INTEGRATION_EXPERIMENT.md",
@@ -4245,6 +4257,12 @@
       "sha256": "73442cfeaaaab3e0380f715fa4e90b3f1b30dcd82888203419487e94607f1f53"
     },
     {
+      "path": "tests/test_recorder_boundary_report.py",
+      "size": 14849,
+      "sha": "c5f9cd2d957692106f02c63fcb6bad4131932b66",
+      "sha256": "61f188d23d03ac35e91ae53960f891ac4a234c144afe6befa19b9bca9c72d8a7"
+    },
+    {
       "path": "tests/test_recorder_capture_intake.py",
       "size": 10334,
       "sha": "a6dbecd940bb9fe046d839e99f17016cac9e9990",
@@ -5092,5 +5110,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Support finite 192-input new v3/intake jobs while preserving old frozen caps; correct terminal-aware STOP planning and verify 144-input replay plus bounded metadata histories without long-runtime claims."
+  "source_update": "Add bounded read-only interruption/epoch spans and conflict quarantine without fabricated physical gap durations or relaxing strict ingestion."
 }
