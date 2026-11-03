@@ -601,3 +601,12 @@ dev10 产品源码的 205 个既有 authority/store/API 选定用例与 46 个�
 一个数据目录只运行一个服务进程，不使用多 worker 或 reload。默认绑定 `127.0.0.1`；跨设备暴露前须自行配置访问控制和安全传输。`/health` 表示存活和能力状态，不证明模型内容正确。
 
 升级前正常停服并完整备份。含 recording 数据的目录不能直接交给旧版本或仅改写 `chunks.path` 的旧迁移工具。模型和 native runtime 的独立许可证及第三方 notices 必须保留；下载、使用和分发前审阅安装指南中的上游条款。
+
+### Explicit recorder delivery intake
+
+For an existing qualified strict session, the opt-in operator commands can import a verified complete delivery or a fixed batch of 2–8 declared-adjacent mono16k segments, with private snapshots, durable uploader state and explicit resume. These commands do not create sessions or enable unattended ingestion.
+
+- [One complete delivery](docs/EXPLICIT_RECORDER_INTAKE.md)
+- [Fixed sequential delivery batch](docs/EXPLICIT_RECORDER_BATCH_INTAKE.md)
+
+Missing segments, epoch changes and uncertain boundaries are refused rather than repaired. Acceptance with EOS is distinct from analysis completion, accuracy or physical continuity. Existing runtime qualification requirements still apply.

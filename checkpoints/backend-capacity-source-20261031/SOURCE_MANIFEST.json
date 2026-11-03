@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 100063,
-      "sha": "512caf22805c9203adffcef18a060c3d3c58c673",
-      "sha256": "b26b35d8445d3ef84957968d07171c8b834970a77c66d20aa11321267c431115"
+      "size": 100791,
+      "sha": "ab7955eef9a4045202b3165ea640a6f85cf0e418",
+      "sha256": "e985525b2e2e204d7c1790080e32b41f7a2d3246f8561b744af2ac6f7e548b9f"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -715,6 +715,12 @@
       "size": 11177,
       "sha": "4cc94dbb5e7718620f560bba3b574f36594d5432",
       "sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f"
+    },
+    {
+      "path": "audio_backend/recorder_batch_intake.py",
+      "size": 11677,
+      "sha": "1237594d6b5efc803a4351988951508d68f42f69",
+      "sha256": "316856f7d8366a3398a0bf5a5b0d13586d44b7a45f463c114a8193487f2401a6"
     },
     {
       "path": "audio_backend/recorder_binding.py",
@@ -1557,6 +1563,12 @@
       "sha256": "59a3befe465e0de6bf2a93fc155108a90ac3b510c30bc9f9581217f8e2096b6e"
     },
     {
+      "path": "docs/EXPLICIT_RECORDER_BATCH_INTAKE.md",
+      "size": 5933,
+      "sha": "7a12fe424e226e843c684ab77e610c61048951f2",
+      "sha256": "e0c723f8e7ed6530a0cbf3d7f3bf3974c8432e973ad992ecfa25178d276a4872"
+    },
+    {
       "path": "docs/EXPLICIT_RECORDER_INTAKE.md",
       "size": 6668,
       "sha": "fdfc939ff45413dc4330700d783f97ef617c4e79",
@@ -2317,6 +2329,12 @@
       "size": 15358,
       "sha": "65683b7df602ce077cdc24a6abe32d18768dd295",
       "sha256": "63af05561c2a0203c4177b7622e3e7d8a1dd0a8d8a343c0ba44f15351c4f2a64"
+    },
+    {
+      "path": "qualification/independent_recorder_batch_audit_20261103.py",
+      "size": 12140,
+      "sha": "35d7d2c44ca109604acd83b2aa5dbfb9b0c1958d",
+      "sha256": "02a250677d4921fcb300434b516120c53f9c023fd980d99df3fd2f73f395976b"
     },
     {
       "path": "qualification/independent_recorder_integration_audit_20261103.py",
@@ -4053,6 +4071,18 @@
       "sha256": "6cc6edfd4c6cd4df6d6322eb0419d2418c189d5a56bf1f3a57d5e6773e726bf4"
     },
     {
+      "path": "tests/test_recorder_batch_intake.py",
+      "size": 6642,
+      "sha": "f98331da802f046bd621aee4636baf3f76bfa281",
+      "sha256": "ded7edfd9ac236e011204bdd9d8dd8e6535d3203dc27601db304b9c24a26b006"
+    },
+    {
+      "path": "tests/test_recorder_batch_intake_adversarial.py",
+      "size": 4969,
+      "sha": "8fc13bb3f99be51ec737d6af36e54ba3b304946b",
+      "sha256": "ee6d1eb1c13070b6d03fb893270fbf60a38ce6ac2f6f3a07f957d296555c9351"
+    },
+    {
       "path": "tests/test_recorder_binding.py",
       "size": 10376,
       "sha": "d5b7f178f15e3a976f1d4656a04e22fc8933a3c8",
@@ -4822,11 +4852,11 @@
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 11033,
-      "sha": "497f72ac000d58f95a1ec35aa86eca7db1d53428",
-      "sha256": "d0076534b26831d40f163038cd4bc5eed78c9e9255c9c6d00ded4e25f0e2c51b"
+      "size": 14776,
+      "sha": "599fd1ef90bff633c23d58a3829ff5736010d504",
+      "sha256": "15b52bf995533e83893ddd093610a2a29bb774a17bbaad0a293aef030d57b82a"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 explicit existing-session recorder intake with immutable local binding, safe resume/refusal categories, independent negative tests and real FTPS-received native publication/resume audit; default runtime pins and session-idempotency patches unchanged"
+  "source_update": "2026-11-03 explicit fixed2-8segment known-session batch intake, visible boundary refusals, exact active-tail recovery, bounded capacity planning, real3segment native publication/lost-seal response/completed resume independently audited; no watcher, default pin change or session-idempotency activation"
 }

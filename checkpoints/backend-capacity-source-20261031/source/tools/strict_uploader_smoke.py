@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--assets', required=True, type=Path)
     parser.add_argument('--input', type=Path)
     parser.add_argument('--input-sha256')
+    parser.add_argument('--recorder-batch-delivery', type=Path, action='append', help='Repeat for a fixed complete batch with total duration <=30s')
     parser.add_argument('--recorder-delivery', type=Path, help='Exercise explicit known-session intake with a complete <=30s delivery')
     args = parser.parse_args()
     out = args.output.resolve()
@@ -58,6 +59,19 @@ def main():
     save(out / 'SOURCE_PINS.json', pins)
     try:
         frames = 176000
+        batch_reports = None
+        if args.recorder_batch_delivery is not None:
+            from audio_backend.recorder_delivery import inspect_delivery
+            if args.input is not None or args.input_sha256 is not None or args.recorder_delivery is not None:
+                raise ValueError('recorder_batch_conflicts_with_other_input')
+            if not 2 <= len(args.recorder_batch_delivery) <= 8:
+                raise ValueError('recorder_batch_input_count')
+            batch_reports = [inspect_delivery(p, validate_metadata=True) for p in args.recorder_batch_delivery]
+            frames = sum(validate_input(p / 'audio.wav', r['wav_sha256'])
+                         for p, r in zip(args.recorder_batch_delivery, batch_reports))
+            if frames > 30 * 16000:
+                raise ValueError('recorder_batch_duration_bound')
+            result['input_kind'] = 'explicit_recorder_batch'
         if args.recorder_delivery is not None:
             from audio_backend.recorder_intake import validate_delivery
             if args.input is not None or args.input_sha256 is not None:
@@ -123,7 +137,14 @@ def main():
         sid = gate.request(('POST', '/sessions', 201, {'name': 'Synthetic strict uploader smoke'}, {}))['id']
         result['session_id'] = sid
         original = out / ('sample.wav' if args.input is not None else 'synthetic.wav')
-        if args.input is not None:
+        if batch_reports is not None:
+            with wave.open(str(original), 'wb') as output:
+                output.setnchannels(1); output.setsampwidth(2); output.setframerate(16000)
+                for path in args.recorder_batch_delivery:
+                    with wave.open(str(path / 'audio.wav'), 'rb') as source:
+                        while block := source.readframes(32768):
+                            output.writeframesraw(block)
+        elif args.input is not None:
             shutil.copyfile(args.input, original)
             if validate_input(original, args.input_sha256) != frames:
                 raise RuntimeError('copied_input_frames')
@@ -139,7 +160,31 @@ def main():
         def cancelled():
             gate.check()
             return False
-        if args.recorder_delivery is not None:
+        if batch_reports is not None:
+            from audio_backend.recorder_batch_intake import run as intake_run
+            intake_args = dict(deliveries=args.recorder_batch_delivery, job_dir=out / 'intake',
+                session_id=sid, capture_id='synthetic-smoke', exclusive_writer=True,
+                api='http://127.0.0.1:' + str(gate.port), cancel=cancelled,
+                limits=Limits(deadline_seconds=120, poll_seconds=.1))
+            # Actual service commit/publication, then discard exactly one
+            # successful EOS response to exercise saved seal reconciliation.
+            from audio_backend.recording_uploader import HTTPTransport, Guard, Uncertain
+            class LosePublishedSeal(HTTPTransport):
+                lost = 0
+                def request(self, method, path, **kwargs):
+                    reply = super().request(method, path, **kwargs)
+                    if method == 'POST' and path.endswith('/seal') and reply.get('released') and not self.lost:
+                        self.lost += 1
+                        raise Uncertain('Injected response loss after actual published seal')
+                    return reply
+            transport = LosePublishedSeal(intake_args['api'], Guard(intake_args['limits'], cancelled))
+            intake_args['transport'] = transport
+            result['upload'] = intake_run(**intake_args)
+            result['upload_reconciled_resume'] = intake_run(**intake_args, resume=True)
+            result['injected_lost_published_seal_responses'] = transport.lost
+            if result['upload'] != result['upload_reconciled_resume'] or transport.lost != 1:
+                raise RuntimeError('batch_intake_resume_or_loss_test_failed')
+        elif args.recorder_delivery is not None:
             from audio_backend.recorder_intake import run as intake_run
             intake_args = dict(delivery=args.recorder_delivery, job_dir=out / 'intake',
                 session_id=sid, capture_id='synthetic-smoke', exclusive_writer=True,
@@ -199,6 +244,14 @@ def main():
             except OSError:
                 result['external_input_unchanged'] = False
             result['passed'] = result['passed'] and result['external_input_unchanged']
+        if args.recorder_batch_delivery is not None:
+            try:
+                from audio_backend.recorder_delivery import inspect_delivery
+                result['external_batch_unchanged'] = batch_reports is not None and [inspect_delivery(p, validate_metadata=True)
+                    for p in args.recorder_batch_delivery] == batch_reports
+            except Exception:
+                result['external_batch_unchanged'] = False
+            result['passed'] = result['passed'] and result['external_batch_unchanged']
         save(out / 'RESULT.json', result)
     return 0 if result['passed'] else 1
 
