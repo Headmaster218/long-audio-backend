@@ -22,9 +22,9 @@
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
-      "size": 1153,
-      "sha": "a43e2a3b3453b058fba3e4cb0c749a5b3d32a061",
-      "sha256": "3a5e419412102e1a8f94b893a2b472e2b285bc562a926c477e271aee737e7424"
+      "size": 3472,
+      "sha": "1f6f81429b0ef058c8514ab8c21c7b0c9ae8f7af",
+      "sha256": "b7e56a4ef13ad40cba1b673cca031a3c1780d5c881cbb2bce5e3a6640920018a"
     },
     {
       "path": "RECOVERED_COMMIT_DIAGNOSTICS_REVIEW.md",
@@ -4263,6 +4263,12 @@
       "sha256": "8075643c936f7dd2816ef48f3302b80314adcfcd091517c8cfedcf174ef07892"
     },
     {
+      "path": "tests/test_strict_uploader_smoke.py",
+      "size": 1835,
+      "sha": "9d9081993212101282298d65e79e1259e1d3e36a",
+      "sha256": "3127440dd38fefcfb2d027d9abe15243d6859d1c9076936272ba19436fbe9f40"
+    },
+    {
       "path": "tests/test_strict_worker_capture.py",
       "size": 21555,
       "sha": "a0221d24c0f161f72d9104664e88af75a9b59fef",
@@ -4585,8 +4591,14 @@
       "size": 3965,
       "sha": "7c00326e52cab1309e0cc4df902fb540718319fe",
       "sha256": "3860407d3c1b58acbbace7887f1a1e46cb8ed2d9ddc04c24761348e62acc4b4a"
+    },
+    {
+      "path": "tools/strict_uploader_smoke.py",
+      "size": 7585,
+      "sha": "54568b216ddc6350ab31bc714d26592a84ea03c9",
+      "sha256": "3ae803d0b50b14d34de30d1e8efcbea75b490bc8d314f7c0ef1b30bc1ebb0d5d"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 existing bounded uploader strict admission and durable resume tests; no seal or native startup qualification"
+  "source_update": "2026-11-03 bounded native uploader smoke and fail-closed runtime preflight; startup blocked by current SQLite package fingerprint, no seal/publication qualification"
 }

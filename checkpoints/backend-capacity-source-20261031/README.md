@@ -279,3 +279,7 @@ uploader activation occurs. See source/docs/RECORDING_SESSION_CONTRACT.md.
 ## Strict uploader admission checkpoint (2026-11-03)
 
 Existing uploader tested against strict ASGI admission with two deterministic pieces, lost successful PUT response, and fresh-invocation resume. Stops before seal/native work. Source-only checkpoint; 764 manifest files.
+
+## Native smoke diagnostic checkpoint (2026-11-03)
+
+Real strict startup refused current SQLite package fingerprint. Added bounded synthetic smoke harness and immediate read-only refusal preflight, with two refusal tests. No runtime pin/cache changed; no actual source/seal/publication occurred. Source-only checkpoint: 766 manifest files.
