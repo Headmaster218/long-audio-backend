@@ -759,6 +759,12 @@
       "sha256": "aa773486e507296794da07f24d68a1e1b1449fcae67e91ab19b1a089a5ad45ac"
     },
     {
+      "path": "audio_backend/recorder_incremental_span_export.py",
+      "size": 22909,
+      "sha": "c2ce62b3c8efad0cbe5aff083bdd980a52e4eaad",
+      "sha256": "5a72be66995cd5f175a1bff1231270492ccc1675739027cabe9591ebc5dfc0bf"
+    },
+    {
       "path": "audio_backend/recorder_incremental_span_intake.py",
       "size": 9311,
       "sha": "f7639fc188658f82766155d447fd74db65998aee",
@@ -766,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_incremental_span_status.py",
-      "size": 21039,
-      "sha": "1a91ae72e769850d8272fcda412f345f659a193f",
-      "sha256": "f70965a57c50d710b7c22fa8a92409f723becf3673dd6d9b6485f6ece38bb556"
+      "size": 22860,
+      "sha": "fa85f4d1b7ef781abfde557006fa5521a42316a8",
+      "sha256": "fe3837557b04a1ec8553a1f2de2a5e715590eb357b8830944da7bf4bbeefe6b9"
     },
     {
       "path": "audio_backend/recorder_initial_intent.py",
@@ -2091,6 +2097,12 @@
       "sha256": "73583be3d1a5a4ed3964f9878fb1269d9e08e4e9a2409963e80bcd406e0c6eca"
     },
     {
+      "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
+      "size": 8932,
+      "sha": "7dccea502964ab1cc87ac27c339c9073751e888c",
+      "sha256": "51ea19e8ed985d9e9b9871ba35a76e518fab5d2d8f37952a07d0e5342aee3ac8"
+    },
+    {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_STATUS.md",
       "size": 9114,
       "sha": "2769f331b1e1d4df3c1b16437a63602f05f5049c",
@@ -2403,10 +2415,28 @@
       "sha256": "417f1d85a371df35733136c4dc8e725816f15f93093e5bbd9876865ed1cf39bf"
     },
     {
+      "path": "qualification/INDEPENDENT_SPAN_EXPORT_REVIEW_20261103.md",
+      "size": 6026,
+      "sha": "9eefc2fc73c678d6f4fc5366da07041f73334894",
+      "sha256": "112cf85f4d1ae442a291507ba906026a469bced1c823e0019c568e6f6886a0da"
+    },
+    {
       "path": "qualification/NineProducerDeliveries.java",
       "size": 4599,
       "sha": "a0dd2fe37bda44a9c49035dc3ac82007b6173c40",
       "sha256": "b22caa5f6cf28a013dd0ecb679270374a80b895b522a21d1ba92e46574cf69be"
+    },
+    {
+      "path": "qualification/PUBLIC_SPEECH_EXPORT_FIXTURE_20261103.md",
+      "size": 6192,
+      "sha": "1cedc5b36248fc0aa9f7f75b582b7f3121775a17",
+      "sha256": "6aaf50055d112049bad4bf4c5511ed9383cd2ddc0adb2c8d1feb0676834e0650"
+    },
+    {
+      "path": "qualification/PublicSpeechProducerDeliveries.java",
+      "size": 5086,
+      "sha": "9f216e2afe842db6dae706c2e3485cecbb17731d",
+      "sha256": "1c7f79de7e1a3d55506e5145a5894643747a21ac4cd22918fb7b1d4991f20151"
     },
     {
       "path": "qualification/README.md",
@@ -2491,6 +2521,12 @@
       "size": 7316,
       "sha": "e4b74a1bf6284042d418feb28e82fa9bd6d6795e",
       "sha256": "80e9084c6adf9bd71cfc41c43c09e833a113292d0133c12fed8e7b7edda81498"
+    },
+    {
+      "path": "qualification/generate_public_speech_java_deliveries.py",
+      "size": 9387,
+      "sha": "00e13a88fd4068e160c061cc84b51b98164b8e91",
+      "sha256": "2fa84d0a455ed29dcb9d98c7dfa4591bf8e1551f7dfe1db8b650c5ed7b824af4"
     },
     {
       "path": "qualification/independent_acceptance_20261103.py",
@@ -4311,6 +4347,12 @@
       "sha256": "3b43527f1e71c3da9d083c3f8b3e3532f34700454d525c7ce5ce3866d1ad4f34"
     },
     {
+      "path": "tests/test_public_speech_producer_fixture.py",
+      "size": 1712,
+      "sha": "7f77d0b01de9ecac0fd327a7d2b22fb4ba9b1513",
+      "sha256": "b0732257d2a0b62496d59a249b697c0f622d0986712d67dc255c522b336d2095"
+    },
+    {
       "path": "tests/test_punctuation_boundary.py",
       "size": 2709,
       "sha": "127d4dad4c0e746f43ddca5a67faca52c67dc162",
@@ -4441,6 +4483,18 @@
       "size": 12490,
       "sha": "6c1963dd97b3d97f9cb1b36fa54221c68f4f8b61",
       "sha256": "90ffaed4ddf977758bbbbcac2c5806df7d7bfdc63fb7b5b08ee72b003010d57d"
+    },
+    {
+      "path": "tests/test_recorder_incremental_span_export.py",
+      "size": 8692,
+      "sha": "aa102c5e25efa1ea2a94a5c14a3ad4651cce5452",
+      "sha256": "32d3cbc4464a8bcfa1f0669174315d3c2052ad310409190a0c11dbed7b7081a5"
+    },
+    {
+      "path": "tests/test_recorder_incremental_span_export_review.py",
+      "size": 21743,
+      "sha": "e993832a27fa7593e2dc37525df98e37a3b461f0",
+      "sha256": "e59d9b5cee3ac02dd1e08f6fa6e863a8d7382ccfeec1556a940671f8c40204d1"
     },
     {
       "path": "tests/test_recorder_incremental_span_intake.py",
@@ -4888,9 +4942,9 @@
     },
     {
       "path": "tests/test_strict_incremental_span_probe.py",
-      "size": 7228,
-      "sha": "ad78582e5ad39a41e3515ec3423df0a5ce816ef0",
-      "sha256": "39ca57e466c849c41e5f09d51fa2780dcd5bb77ec6d7d0b0fbbc80c1fd8b660e"
+      "size": 8439,
+      "sha": "bf98dd3fc1a1e07c439d076f870a2cbb01c118ca",
+      "sha256": "977bd0dd5250a36f920b1d54e212d89010530918860988b167e65fd65d5cc306"
     },
     {
       "path": "tests/test_strict_lifetime.py",
@@ -5266,17 +5320,17 @@
     },
     {
       "path": "tools/strict_incremental_span_probe.py",
-      "size": 9331,
-      "sha": "05b58f55bd3494be093cdfa56b799349da73316d",
-      "sha256": "09f293761da5b55d5d11e6ef5655527a476cf9aea9af7f6407fdca97475ee0a1"
+      "size": 12136,
+      "sha": "91e3909afb3873594002a3f5f7defdcd4cdae6f1",
+      "sha256": "20345d36f96e880b300f0041367fc161a7654046e6ef27bb5b9cf6a8c9b8aa36"
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 24212,
-      "sha": "d5f988c62ec00a3a9301a98469ca85e81c6027d1",
-      "sha256": "898718a3863719a46c533a4ec279003f9990adff08548173bbe01ba62f23c5de"
+      "size": 25072,
+      "sha": "32727543d5f6fafdb016c2c9adfa463585f46375",
+      "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Qualify nine pinned Java-producer deliveries through bounded isolated native diarization and actual GET-only v3 completion status; preserve source-only harness, tests and independent audit."
+  "source_update": "Add explicit private GET-only completed selected-span primary transcript export with bounded hash/work binding, no-overwrite artifacts, adversarial tests and source-only public-speech fixture preparation."
 }

@@ -67,6 +67,7 @@ def main():
     parser.add_argument('--language', choices=('auto', 'zh', 'en', 'ja', 'ko', 'yue'),
                         help='Explicit decode language; omission preserves the capacity profile default')
     parser.add_argument('--recorder-span-delivery', type=Path, action='append', help='Repeat for one selected closed span totaling <=30s; EOS is span-local only')
+    parser.add_argument('--export-transcript', action='store_true', help='Opt-in two fresh GET-only private primary transcript exports; incremental span input required')
     parser.add_argument('--recorder-incremental-span-delivery', type=Path, action='append', help='Repeat 2..32 inputs totaling <10.5s; fresh append processes, native completion, then GET-only v3 status')
     parser.add_argument('--recorder-incremental-delivery', type=Path, action='append', help='Repeat to test separate append calls then explicit finalize')
     parser.add_argument('--recorder-batch-delivery', type=Path, action='append', help='Repeat for a fixed complete batch with total duration <=30s')
@@ -85,6 +86,8 @@ def main():
         frames = 176000
         batch_reports = None
         incremental_span_mode = args.recorder_incremental_span_delivery is not None
+        if args.export_transcript and not incremental_span_mode:
+            raise ValueError('transcript_export_requires_incremental_span')
         if incremental_span_mode:
             if any(x is not None for x in (args.input, args.input_sha256, args.recorder_delivery,
                     args.recorder_span_delivery, args.recorder_batch_delivery, args.recorder_incremental_delivery)):
@@ -345,6 +348,13 @@ def main():
             result['original_span_inventory_unchanged'] = inventory(args.recorder_batch_delivery) == original_span_inventory
             if not result['status_get_only'] or not result['original_span_inventory_unchanged']:
                 raise RuntimeError('incremental_span_status_or_originals_changed')
+            if args.export_transcript:
+                from strict_incremental_span_probe import verify_export_repeat
+                exported = child_phase(gate, spec_path, 'export')
+                exported_repeat = child_phase(gate, spec_path, 'export-repeat')
+                result['transcript_export'] = verify_export_repeat(exported, exported_repeat, out, batch_reports)
+                if inventory(args.recorder_batch_delivery) != original_span_inventory:
+                    raise RuntimeError('incremental_span_export_changed_originals')
         result['input_unchanged'] = digest_file(original) == before
         if not result['input_unchanged']:
             raise RuntimeError('input_changed')

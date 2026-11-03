@@ -538,3 +538,20 @@ gaps. ASR was skipped for silence; this is not speech accuracy, device or
 long-duration qualification. Independent saved-byte/DB-copy audit passed and
 clean shutdown receipts were verified. Runtime guards and production pins stay
 unchanged. Only reusable harness/tests and the bounded report are backed up.
+
+## Explicit private selected-span transcript export
+
+A bounded GET-only exporter now binds primary-baseline transcript text and hashes
+to the exact completed selected-span work chunks while holding the existing local
+locks. It rechecks transcript pages and status before publishing private JSON and
+timestamped text into an explicit fresh output directory. Existing destinations,
+symlinks and real source checkouts refuse; completion uses a manifest over the
+artifact pair. Optional transcript substitutions and person identities are not
+exported. Unknown gaps, source-local speaker uncertainty and unverified segment
+timing/recognition remain explicit; empty text is not proof of silence.
+
+This checkpoint includes model-free adversarial validation and a pinned public
+AMI replay fixture generator. Public-speech native export qualification is still
+pending and must use a separately reviewed isolated candidate with unchanged
+guards. No raw audio, reference text, exported transcript, model or DB is included.
+See source/docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md for commands and limits.

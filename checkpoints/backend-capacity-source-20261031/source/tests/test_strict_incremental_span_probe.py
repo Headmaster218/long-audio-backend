@@ -135,3 +135,25 @@ def test_clean_exit_racing_gate_failure_is_still_waited(tmp_path, monkeypatch):
         probe.child_phase(SimpleNamespace(out=tmp_path, check=fail), tmp_path / 'spec', 'first')
     assert process.waits == 1
     assert json.loads((tmp_path / 'incremental-first-wait.json').read_bytes())['exit_code'] == 0
+
+
+def test_export_requires_incremental_span_before_service(tmp_path, monkeypatch):
+    smoke = module('strict_uploader_smoke')
+    monkeypatch.setattr(sys, 'argv', ['smoke', str(tmp_path / 'out'), '--assets', 'unused', '--export-transcript'])
+    monkeypatch.setattr(smoke.subprocess, 'Popen', lambda *a, **kw: pytest.fail('no service'))
+    assert smoke.main() == 1
+    assert json.loads((tmp_path / 'out/RESULT.json').read_bytes())['error']['message'] == 'transcript_export_requires_incremental_span'
+
+
+def test_export_phases_use_original_wait_and_explicit_names():
+    probe = module('strict_incremental_span_probe')
+    assert probe.PHASES[-2:] == ('export', 'export-repeat')
+
+
+def test_export_verifier_requires_nonempty_primary_text(tmp_path):
+    probe = module('strict_incremental_span_probe')
+    result = dict(schema=probe.export.SCHEMA, status='exported', projection='primary-baseline-v1',
+                  complete_content=False, nonempty_text_units=0, text_status='no_primary_text_observed')
+    value = dict(result=result, requests=[], local_files_unchanged=True)
+    with pytest.raises(RuntimeError, match='no_primary_speech_text'):
+        probe.verify_export_repeat(value, value, tmp_path, [])

@@ -16,10 +16,11 @@ sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve
 from capacity_run import REPO, digest_file, save
 from audio_backend import recorder_incremental_span_intake as intake
 from audio_backend import recorder_incremental_span_status as status
+from audio_backend import recorder_incremental_span_export as export
 from audio_backend import recording_uploader as u
 
 MAX_INPUTS = 32
-PHASES = ('first', 'second', 'finalize', 'repeat', 'status', 'status-repeat')
+PHASES = ('first', 'second', 'finalize', 'repeat', 'status', 'status-repeat', 'export', 'export-repeat')
 
 
 def need(value, reason):
@@ -87,20 +88,54 @@ def verify_status(value, reports):
          and value['capture_completeness_proven'] is False, 'native_status_scope_changed')
 
 
+def verify_export_repeat(first, repeated, output, reports):
+    """Retain exact private artifacts, return only a bounded aggregate result."""
+    need(first['result'] == repeated['result'], 'native_export_repeat_changed')
+    value = first['result']
+    need(value.get('schema') == export.SCHEMA and value.get('status') == 'exported' and
+         value.get('projection') == 'primary-baseline-v1' and value.get('complete_content') is False and
+         type(value.get('nonempty_text_units')) is int and value['nonempty_text_units'] > 0 and
+         value.get('text_status') == 'primary_text_observed', 'native_export_no_primary_speech_text')
+    need(all(row['method'] == 'GET' and row['body'] is None and row['file_sha256'] is None
+             for phase in (first, repeated) for row in phase['requests']), 'native_export_mutation')
+    need(first['local_files_unchanged'] and repeated['local_files_unchanged'], 'native_export_changed_inputs')
+    need(set(value['artifacts']) == {'export.json', 'transcript.txt'}, 'native_export_artifact_inventory')
+    for name in ('export.json', 'transcript.txt', 'complete.json'):
+        paths = [Path(output) / phase / name for phase in ('export', 'export-repeat')]
+        need(all(path.is_file() and not path.is_symlink() and path.stat().st_mode & 0o077 == 0
+                 for path in paths), 'native_export_unsafe_artifact')
+        need(paths[0].read_bytes() == paths[1].read_bytes(), 'native_export_artifact_repeat_changed')
+        if name in value['artifacts']:
+            need(paths[0].stat().st_size == value['artifacts'][name]['bytes'] and
+                 digest_file(paths[0]) == value['artifacts'][name]['sha256'], 'native_export_artifact_changed')
+    document = json.loads((Path(output) / 'export/export.json').read_bytes())
+    verify_status(document['completion'], reports)
+    need(document['summary'] == {key: value[key] for key in document['summary']}, 'native_export_summary_changed')
+    need(len(document['units']) == value['units'] and
+         sum(bool(unit['text'].strip()) for unit in document['units']) == value['nonempty_text_units'],
+         'native_export_text_count_changed')
+    return dict(get_only=True, repeat_identical=True, local_files_unchanged=True,
+                nonempty_primary_text_observed=True, units=value['units'],
+                nonempty_text_units=value['nonempty_text_units'], frames=value['frames'],
+                artifacts=value['artifacts'], accuracy_verified=False,
+                speaker_identity_verified=False, capture_completeness_proven=False)
+
+
 def run_phase(spec, phase, output):
     paths = [Path(path) for path in spec['deliveries']]
     need(2 <= len(paths) <= MAX_INPUTS and 1 <= spec['split'] < len(paths), 'probe_input_count')
     limits = u.Limits(deadline_seconds=120, poll_seconds=.1)
     transport = Trace(spec['api'], u.Guard(limits), lose_seal=phase == 'finalize',
-                      get_only=phase.startswith('status'))
+                      get_only=phase.startswith(('status', 'export')))
     args = dict(job_dir=Path(spec['job_dir']), api=spec['api'], session_id=spec['session_id'],
                 capture_id=spec['capture_id'], exclusive_writer=True, limits=limits, transport=transport)
     report = dict(schema='native-incremental-span-probe-v1', phase=phase, pid=os.getpid(),
                   passed=False, requests=transport.calls)
     try:
-        if phase.startswith('status'):
+        if phase.startswith(('status', 'export')):
             before = inventory([*paths, args['job_dir']])
-            report['result'] = status.run(**args)
+            report['result'] = (export.run(**args, output_dir=Path(output).parent / phase)
+                                if phase.startswith('export') else status.run(**args))
             report['local_files_unchanged'] = inventory([*paths, args['job_dir']]) == before
             need(report['local_files_unchanged'], 'status_mutated_local_files')
         else:

@@ -264,7 +264,7 @@ def _contract(contract, session_id, capture_id, frames):
 
 
 def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
-        limits=None, transport=None, cancel=None):
+        limits=None, transport=None, cancel=None, _completed_read=None):
     require(exclusive_writer is True, 'span_status_exclusive_writer_ack_required')
     destination = single.target(api, 'operator-selected-unverified', session_id, capture_id, 0)
     guard = u.Guard(limits or u.Limits(output_frames=history.MAX_FRAMES, deadline_seconds=120), cancel)
@@ -315,7 +315,7 @@ def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
             mapping.append(dict(ordinal=ordinal, original_sequence=report['sequence'], original_epoch=report['epoch'],
                 original_epoch_frame_start=report['frame_start'], original_epoch_frame_end=report['frame_start'] + report['frames'],
                 span_start_frame=start, span_end_frame=end)); start = end
-        return dict(schema=SCHEMA, status=status, analysis_completion_observed=complete,
+        result = dict(schema=SCHEMA, status=status, analysis_completion_observed=complete,
             analysis_completion_verified=complete, observation_atomic=False,
             exclusive_writer_assumed=True, concurrent_writer_safety_guaranteed=False,
             remote_request_identity_verified=False, target_identity_authenticated=False,
@@ -328,6 +328,31 @@ def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
             session_status_counts=dict(sorted(Counter(chunks.values()).items())),
             warning_codes=sorted({warning for record in records for warning in engine._record_warnings(record['metadata'])}),
             read_only=True)
+        if _completed_read is not None:
+            # Internal read-only extension used by the explicit transcript exporter.
+            # Both existing locks and the exact bound local observation stay alive.
+            require(complete, 'incremental_span_export_completed_required')
+            reader.max_requests *= 2
+            protected = (root, *(Path(receipt['path']) for receipt in receipts))
+            with _completed_read(result, work, guard, protected):
+                after_work, after_optional = observer._pages(reader, base, d, destination,
+                    max_work_chunks=max_work)
+                after_chunks = observer._chunks(reader, '/sessions/' + session_id + '/chunks',
+                    after_work, max_work_chunks=max_work)
+                require(u._json((after_work, after_optional, after_chunks)) ==
+                        u._json((work, optional, chunks)),
+                        'incremental_span_status_work_changed_during_read')
+            require(u._json(reader.get(base)) == u._json(capture) and
+                    u._json(reader.get(contract_path)) == u._json(contract),
+                    'span_status_remote_history_changed_during_read')
+            require(_local(root, destination, guard) == local and
+                    _control(root / 'uploader/uploader.json', guard, journal=True)[1] == checkpoint_identity,
+                    'incremental_span_status_local_history_changed_during_read')
+            _inventory_history(journal); journal.validate_history(); _piece_hashes(journal, guard)
+            guard.check()
+            require(all(u._signature(os.fstat(fd)) == u._signature(path.lstat()) == identity
+                        for (fd, path), identity in zip(locks, lock_identities)), 'span_status_lock_changed')
+        return result
     finally:
         if owner is not None: os.close(owner)
         os.close(outer)
