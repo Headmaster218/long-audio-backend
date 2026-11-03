@@ -5,11 +5,11 @@ from pathlib import Path
 import sqlite3
 import sys
 import hashlib
+import os
 
 import pytest
 
 HERE=Path(__file__).resolve().parent
-ROOT=HERE.parents[1]
 
 
 def module():
@@ -18,6 +18,9 @@ def module():
 
 
 def real_spec(tmp_path):
+    evidence=os.environ.get('AUDIO_RECOVERY_EVIDENCE_ROOT')
+    if not evidence:pytest.skip('Set AUDIO_RECOVERY_EVIDENCE_ROOT explicitly for retained-evidence ASGI tests')
+    ROOT=Path(evidence).resolve(strict=True)
     m=module();p=ROOT/'chain-validation-20261103/prelaunch';run=ROOT/'chain-validation-20261103/combined-run02/run'
     snapshot=tmp_path/'jobs.sqlite3';snapshot.write_bytes((ROOT/'chain-validation-20261103/failed-run02-audit/jobs.sqlite3').read_bytes())
     cfg=run/'config.json';job=run/'intake';header=json.loads((job/'capture.json').read_bytes());target=header['target']

@@ -2950,9 +2950,33 @@
     },
     {
       "path": "qualification/snapshot_export_recovery_20261103/PLAN.md",
-      "size": 5764,
-      "sha": "8e34456ff2a593956d125396cb1fc7c5f1e800c0",
-      "sha256": "0df5b5e49fdf1fb78412454c6ad469f2f9bc6173d8fb97790e43779c5e6949ee"
+      "size": 8807,
+      "sha": "d44b99f801c3eca55341ddbdd94dd2933b264b25",
+      "sha256": "1fa74c99fab9f9ea7b1c18f610cb761b26e30a0647968825a110e5aa6df4c8e8"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/audit_recovery.py",
+      "size": 21954,
+      "sha": "1be87e2b5c4a8a062ba659f8daac94b2a8fb0639",
+      "sha256": "1ff681e9347375c5f73d390d01331c58d903daedd3737958e8de21a503406df3"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/launch_recovery.py",
+      "size": 7513,
+      "sha": "d34dbf60162bb650c6f96e420656cb3e59a4acbd",
+      "sha256": "d000932a74e40656fbddb242257e8106ba9ebeeab0ed3d0317cbbe9692d06908"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/qualify_recovery.py",
+      "size": 12617,
+      "sha": "e51fe0fb75d47c7d80c098279d5e27fb60090cd5",
+      "sha256": "31a0d4c0c74cbc240bc06b49d677e9fa060863fd20f0d21ed7d36d9beaec030a"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/recovery_client.py",
+      "size": 2540,
+      "sha": "4a84f0058db7bb381f92858465ca7d4c718dda57",
+      "sha256": "de53f6d0fb85a1c9e1f253005fe8e2dc12b8ef470be3d3bb34c902659feaec80"
     },
     {
       "path": "qualification/snapshot_export_recovery_20261103/snapshot_http.py",
@@ -2961,10 +2985,22 @@
       "sha256": "8dec5a771af190df4aa83901eb4f7d7a9389447ad3f3053c7ece95381c788616"
     },
     {
+      "path": "qualification/snapshot_export_recovery_20261103/test_audit_recovery.py",
+      "size": 5657,
+      "sha": "30ce99c084b84dd902776d7c2c38c52eafc5e6e6",
+      "sha256": "888c5b5ec55733aead94012eefa76faea16f5191d6899f7b7a8e1ff4f291a99a"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/test_qualify_recovery.py",
+      "size": 7230,
+      "sha": "b9c9bd11924f5cb426f6e1b353411af78f7778d2",
+      "sha256": "436a353fccf942ae4d053a50ac53195243d5a6fc5d26d74c722ccce9aff708e4"
+    },
+    {
       "path": "qualification/snapshot_export_recovery_20261103/test_snapshot_http.py",
-      "size": 8556,
-      "sha": "909a2ad3e8cfa40dbb3a4effb740d5d476d505a7",
-      "sha256": "6897b0943490c2670b132b72111e1e59356f7fa9430f0d5851410d35553db0d4"
+      "size": 8762,
+      "sha": "2585d96f7a14a1015ae0fd874b493796a6b6188f",
+      "sha256": "9630d95cbd760ecf54caa10a485fac7a91d70d1995120b4859419be6a3cea9ff"
     },
     {
       "path": "qualification/sqlite_crash_probe.py",
@@ -5698,5 +5734,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Reviewed snapshot-only GET host; no native rerun or recovery execution yet."
+  "source_update": "Reviewed bounded snapshot GET-only recovery qualification, independent canonical audit and60controls; before execution."
 }
