@@ -40,6 +40,15 @@ def _record(path,index,remaining):
                 local_metadata_sha256=hashlib.sha256(local).hexdigest())
 
 
+def _record_warnings(metadata):
+    anchors=metadata['anchors']
+    if anchors is None:return ['anchor_observations_absent']
+    warnings=[]
+    if anchors['flags'] & ~1 or anchors['anomaly_count']>0:warnings.append('anchor_anomaly_observations_present')
+    if anchors['unavailable_count']>0:warnings.append('anchor_queries_unavailable')
+    return warnings
+
+
 def _edge(previous,current,conflicted):
     a,b=previous['metadata'],current['metadata']
     reasons=[];warnings=[];missing=b['sequence']-a['sequence']-1
@@ -76,12 +85,7 @@ def _edge(previous,current,conflicted):
                 elif step==1:
                     if last_read['samples_after']!=first_read['samples_before']:reasons.append('anchor_read_samples_discontinuous')
                 else:reasons.append('anchor_read_ordinals_discontinuous')
-    for record in (a,b):
-        anchors=record['anchors']
-        if anchors is None:warnings.append('anchor_observations_absent')
-        else:
-            if anchors['flags'] & ~1 or anchors['anomaly_count']>0:warnings.append('anchor_anomaly_observations_present')
-            if anchors['unavailable_count']>0:warnings.append('anchor_queries_unavailable')
+    for record in (a,b):warnings.extend(_record_warnings(record))
     return dict(previous_input=previous['input_index'],current_input=current['input_index'],
                 previous_sequence=a['sequence'],current_sequence=b['sequence'],
                 relation='declared_adjacent' if not reasons else 'unresolved_boundary',
@@ -116,16 +120,17 @@ def _report(records):
                              first_supplied_frame_start=unique[0]['metadata']['frame_start'],
                              predecessor_not_supplied=(first_seq!=0 or unique[0]['metadata']['frame_start']!=0 or unique[0]['metadata']['trusted_previous_seam']),
                              last_supplied_close=unique[-1]['metadata']['close_reason'],capture_completeness_proven=False,
-                             conflicting_ordinals=sorted(conflicted),duplicates=duplicates,edges=edges))
+                             conflicting_ordinals=sorted(conflicted),duplicates=duplicates,edges=edges,
+                             warning_codes=sorted({warning for row in rows for warning in _record_warnings(row['metadata'])})))
     return dict(schema='recorder-sequence-observation-v1',snapshot_count=len(records),captures=captures,
                 observations_only=True,physical_continuity_proven=False,
                 hardware_frame_mapping='UNESTABLISHED',strict_import_ready=False,
                 gap_repair_performed=False)
 
 
-def reconcile_snapshots(paths,*,deadline_seconds=120):
+def _verified_records(paths,remaining):
     require(type(paths) in (list,tuple) and 1<=len(paths)<=MAX_SNAPSHOTS,'sequence_snapshot_count')
-    remaining=_deadline(deadline_seconds);records=[];total=0
+    records=[];total=0
     for index,path in enumerate(paths):
         # Point-in-time precheck bounds ordinary inputs; not a hard global I/O
         # meter against concurrent same-user mutation. Each inspector also bounds
@@ -137,9 +142,13 @@ def reconcile_snapshots(paths,*,deadline_seconds=120):
         require(row['delivery']['wav_bytes']==info.st_size,'sequence_input_changed')
         total+=row['delivery']['wav_bytes'];records.append(row)
     remaining()
+    return records,total
+
+
+def reconcile_snapshots(paths,*,deadline_seconds=120):
+    records,total=_verified_records(paths,_deadline(deadline_seconds))
     report=_report(records);report['observed_wav_bytes']=total
     return report
-
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)

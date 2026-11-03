@@ -24,7 +24,7 @@ cd ../backend-restored-20261031
 python -m pip install -e '.[test]'
 ```
 
-No application-source overlay or older checkout is required: all 154 tracked product
+No application-source overlay or older checkout is required: all 155 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
 The parent public commit is `b33172a7f584a0b60b76a58eefd0ca3ba2ab0a6a`; its tree and history
@@ -257,3 +257,12 @@ Java rotation and reused-ordinal conflict controls. Matching declarations never
 prove physical continuity, hardware mapping or whole-capture completeness.
 No ingestion, gap fill, source deletion or MOSS dispatch is enabled. Details:
 source/docs/RECORDER_SEQUENCE_RECONCILIATION.md.
+
+## Nov3 disabled local target/source binding proposals
+
+Added explicit local proposal keys and optional private frozen journals. Exact
+retries are read-only observations; changed bodies/coordinates/targets conflict.
+Only resolved canonical mono16k prefixes are proposed. Target labels are unverified,
+activation stays disabled, and no server request or strict ingestion occurs.
+255 selected tests pass, including three abrupt-exit journal controls. Singleton
+anchor warnings are retained. See source/docs/RECORDER_BINDING_PROPOSAL.md.

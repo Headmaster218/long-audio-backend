@@ -711,6 +711,12 @@
       "sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f"
     },
     {
+      "path": "audio_backend/recorder_binding.py",
+      "size": 9127,
+      "sha": "037d5c84074f519e5e5b22a1c47533f9f333d63e",
+      "sha256": "6ef446980c06c8f37d90cc6c8eaf226b1ffc749cb51bef133cfd8f0a83e2f694"
+    },
+    {
       "path": "audio_backend/recorder_delivery.py",
       "size": 9472,
       "sha": "0ac7df821d696f5be338bd94285b051ed06ec1f7",
@@ -724,9 +730,9 @@
     },
     {
       "path": "audio_backend/recorder_sequence.py",
-      "size": 8620,
-      "sha": "0033ef7faed7d5dc4882fbfc4ff543f8e048d65d",
-      "sha256": "c1b9c41e9ef5669d59d1591b4041a87bfae93da16357275142fd581222fbd180"
+      "size": 8913,
+      "sha": "ed0d7b2c4c8372f90324021393f8f4a200243503",
+      "sha256": "8aefdabd1e9ffcc98de98b2d1ec859834cbccaeff5b77d9704499f320c7b9314"
     },
     {
       "path": "audio_backend/recorder_snapshot.py",
@@ -1939,6 +1945,12 @@
       "size": 4705,
       "sha": "ceff535c0e9b0bf6f70f3da387df28407b190944",
       "sha256": "641c78b2bbc2edfdd421d43d3976c9162665c79601a7680729bd91c8c5ad4aa6"
+    },
+    {
+      "path": "docs/RECORDER_BINDING_PROPOSAL.md",
+      "size": 7104,
+      "sha": "6544e1cc44455b335003661d7361299cc40214ff",
+      "sha256": "cd1f1e87237ab3afa98f43b8942484310d758cfb4426d69e1ba1e886e3cb53b7"
     },
     {
       "path": "docs/RECORDER_DELIVERY_PREFLIGHT.md",
@@ -3831,6 +3843,12 @@
       "sha256": "6cc6edfd4c6cd4df6d6322eb0419d2418c189d5a56bf1f3a57d5e6773e726bf4"
     },
     {
+      "path": "tests/test_recorder_binding.py",
+      "size": 10376,
+      "sha": "d5b7f178f15e3a976f1d4656a04e22fc8933a3c8",
+      "sha256": "73442cfeaaaab3e0380f715fa4e90b3f1b30dcd82888203419487e94607f1f53"
+    },
+    {
       "path": "tests/test_recorder_delivery.py",
       "size": 7488,
       "sha": "8e524c106d4530b0e9a8a110b8350400590b96dc",
@@ -3844,9 +3862,9 @@
     },
     {
       "path": "tests/test_recorder_sequence.py",
-      "size": 9562,
-      "sha": "fb8bf75e477c06313d77015bb107557a633bac77",
-      "sha256": "e8c1a8196a3fdf138e6e6df279406a1889c723d7baeaffe5b4d94016235eae55"
+      "size": 10042,
+      "sha": "656f258d1cfb642f731970c47e81e6ea17d9e95c",
+      "sha256": "1420bcc62cb030191e5635396ce010fedbcc613e1ea8aebbbfdb275522d7ef02"
     },
     {
       "path": "tests/test_recorder_snapshot.py",
@@ -4546,5 +4564,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 bounded read-only recorder sequence and gap declaration reconciliation; remote commit and file hashes are authoritative"
+  "source_update": "2026-11-03 disabled local target/source binding proposals and exact durable journal reconciliation; remote commit and hashes are authoritative"
 }

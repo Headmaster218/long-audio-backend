@@ -95,8 +95,9 @@ def test_conflicting_ordinal_blocks_adjacent_claim():
 
 def fixture(root,seq=0,**changes):
     root.mkdir()
-    pcm=b'\x00\x01'*4
-    wav=struct.pack('<4sI8sIHHIIHH4sI',b'RIFF',44,b'WAVEfmt ',16,1,1,16000,32000,2,16,b'data',8)+pcm
+    channels=changes.get('channels',1);rate=changes.get('rate',16000)
+    pcm=b'\x00\x01'*(4*channels)
+    wav=struct.pack('<4sI8sIHHIIHH4sI',b'RIFF',36+len(pcm),b'WAVEfmt ',16,1,channels,rate,rate*channels*2,channels*2,16,b'data',len(pcm))+pcm
     options=dict(sequence=seq,start=seq*4,frames=4,close='ROTATION',seam=seq>0,
                  pcm=hashlib.sha256(pcm).hexdigest(),wav=hashlib.sha256(wav).hexdigest())
     options.update(changes);local=metadata(**options);parsed=decode(local)
@@ -196,3 +197,10 @@ def test_next_consecutive_distinct_read_is_allowed():
     for observation in b['metadata']['anchors']['observations']:
         observation['ordinal']=1;observation['samples_before']=4
     assert edge(a,b)['relation']=='declared_adjacent'
+
+
+def test_single_record_warning_summary_is_not_lost():
+    a=row(0)
+    assert report(a)['captures'][0]['warning_codes']==['anchor_observations_absent']
+    a['metadata']['anchors']={'flags':2,'anomaly_count':1,'unavailable_count':1}
+    assert report(a)['captures'][0]['warning_codes']==['anchor_anomaly_observations_present','anchor_queries_unavailable']
