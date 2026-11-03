@@ -354,3 +354,24 @@ skips, 2 deselected, one existing dependency warning. The two deselected real-HT
 logical-hour tests were attempted and failed before server startup because this
 restored test runtime lacks `sitecustomize`; their processing was not exercised.
 This is a selected model-free regression, not a full-suite or native long-run pass.
+
+## Durable initial intent and partial-prefix recovery
+
+New incremental jobs now persist exact initial intent before header/scaffold or
+snapshot creation. Explicit `--recover-initial` can complete missing/partial initial
+header, snapshot and admission bytes only when every existing byte is a verified
+prefix of the bound original/control content, the uploader is pristine, and the
+known strict session is positively empty. Existing bytes/inodes are retained;
+no truncate, overwrite, rename, deletion or blind replay is used. Recovery itself
+can be interrupted and reconciled again. Partial/missing intent, missing intake
+lock, conflicting data and legacy partial jobs remain preserved refusals.
+
+Seven real subprocess hard-exit scenarios cover initial admission and interruption
+during repair; the snapshot helper separately tests short writes, fsync failures,
+publication hardlinks and hostile filesystem types. Independent review approved
+the scoped protocol. Selected recorder/uploader aggregate: 612 passed, 9 optional
+Java-fixture skips, 2 previously blocked real-HTTP tests deselected, one dependency
+warning. This is not a power-loss test, native inference qualification or full
+repository pass. No session autocreation, watcher, new server reservation, model
+promotion or production runtime pin change. See the updated incremental intake
+and receiver workflow documents for exact operator steps and remaining limits.

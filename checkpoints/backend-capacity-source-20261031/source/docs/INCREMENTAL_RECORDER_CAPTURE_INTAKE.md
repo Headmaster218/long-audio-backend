@@ -53,19 +53,65 @@ There is no separately mutable central index. Bounded ordinal enumeration plus t
 
 After an interrupted append, repeat the exact latest `--delivery` call, without `--start`. A complete admission whose uploader registration did not finish can resume. An incomplete active input must resume before the next delivery; a missing owned spool piece can be rebuilt from its unchanged snapshot. Repeating an older delivery once a newer one has been admitted is refused. After finalization begins, use `--finalize` again to reconcile the saved EOS request.
 
-Missing uploader checkpoints, missing committed admissions, partial snapshots/receipts, unexpected files or changed metadata preserve state and refuse. A narrowly bounded explicit recovery is available only when the first complete admission exists and the uploader directory contains only its lock. See below; every other initial interruption still requires investigation. Do not replace the capture, delete the job or edit its records to bypass a refusal. No automatic cleanup or adoption is attempted.
+Missing uploader checkpoints, missing committed admissions, unexpected files or changed metadata preserve state and refuse in ordinary retry mode. Explicit initial recovery is available within the boundaries below. New jobs carry durable initial intent, allowing exact prefix completion of interrupted bootstrap files. Legacy jobs without that intent still require a complete first admission. Do not replace the capture, delete the job or edit its records to bypass a refusal. No automatic cleanup or adoption is attempted.
 
 ## Explicit recovery before the initial uploader checkpoint
 
-If the process exited after publishing the complete ordinal-zero admission but before creating any uploader checkpoint, repeat the exact original delivery/target/job call with `--recover-initial` instead of `--start`. This is an explicit operator decision, not automatic retry. Keep `--exclusive-writer` and all original arguments; capacity options must match if supplied.
+Use `--recover-initial` instead of `--start` with the exact original delivery, job,
+API, session and capture. Keep `--exclusive-writer`; supplied capacity options must
+match. This is an explicit operator decision, not a watcher or automatic retry.
 
-Recovery requires an intact private job header and both original locks, exactly one complete ordinal-zero admission, the exact admitted original path and bytes, and a fully verified owned snapshot. Its uploader directory must contain **only** `uploader.lock`: an existing checkpoint (including an empty one), temporary file, history directory, spool, symlink or unknown entry refuses before HTTP. The backend recording contract must freshly report no capture and no chunks; the uploader independently checks empty session/capture/chunks again before initializing. All reads must succeed, and the original exclusive-writer precondition remains required because these observations are not a server-side reservation. This does not authenticate a backend incarnation or protect against a competing external writer.
+New jobs write immutable `initial-intent.json` under the intake lock **before**
+creating the capture header, uploader scaffold or snapshot. The intent binds the
+absolute job and original delivery paths, complete verified delivery report,
+stable source/capture identity and frozen capacity header. It is retained for the
+job's lifetime. A partial/missing intent or missing intake lock is never guessed.
+Legacy jobs without the new header marker retain the earlier complete-admission
+recovery path; their incomplete header/snapshot/admission is not reconstructible.
 
-Every bound snapshot and admission file is positively fsynced and reverified before initialization. The same session, capture, source ID, ordinal, input path, frame origin and capacity are retained. No previous remote request is replayed from guessed state. The existing uploader initializes its first local checkpoint and handles subsequent interruptions through ordinary exact-delivery retries. After that checkpoint exists, omit `--recover-initial`; the recovery option deliberately refuses an already started uploader, even after successful recovery. A nonempty or uncertain remote result does not authorize adoption.
+For an intent-backed initial job, recovery first verifies that exact original and
+all existing control/snapshot bytes. Each existing file must be an exact prefix of
+the intended bytes with permitted private ownership, type and hardlink structure.
+Only ordinal zero is allowed. Unknown entries, changed source bytes, mismatched
+prefixes, symlinks, unexpected hardlinks and oversized files refuse. A published
+snapshot receipt must already be complete and share its canonical pending inode;
+recovery does not treat an impossible partially published snapshot as a valid
+copy-in-progress. Existing bytes and inodes are preserved. Missing files may be
+created and missing suffixes appended, but nothing is overwritten, truncated,
+deleted, renamed or substituted. This is bounded reconciliation of known bytes,
+not permission to replay arbitrary input.
 
-Partial snapshot copies, missing/partial admission receipts, incomplete header/locks, extra admissions and lost checkpoints with remaining artifacts are still preserved and refused. Do not delete or rename evidence to satisfy the recovery preconditions. No session creation, watcher, automatic snapshot repair, EOS, inference retry, native runtime activation or cleanup is added.
+Before repairing anything, the uploader directory must be absent, empty or contain
+only its empty lock. An existing uploader checkpoint, temporary checkpoint,
+history directory, media spool or other artifact refuses. Any existing uploader
+lock is held before remote observation. The strict recording contract must report
+no capture and no chunks. Missing/unavailable or nonempty remote state refuses.
+All local candidates are preflighted before writes; the intent is positively
+fsynced again, missing scaffold and the exact snapshot/receipt are completed and
+synced, and the ordinary immutable registry and uploader checks run afterward.
+The uploader independently checks session/capture/chunks before initializing.
 
-The regression test starts an actual subprocess and exits with `os._exit(73)` immediately before the first uploader run, bypassing Python cleanup. The parent uses real strict ASGI/SQLite handlers for recovery, verifies exact source identity and frame accounting, retries without duplicate input, and appends the next ordinal. Remote uncertainty, nonempty sessions, altered originals/snapshots/receipts, substitute paths, partial admissions and any uploader artifacts remain refusal cases. These are model-free admission tests, not native inference or power-loss/filesystem durability qualification.
+Exclusive control remains a precondition: GET observations do not reserve the
+session, authenticate its incarnation or protect against another OS/account
+writer. The command retains the existing refusal when the session changes before
+initialization. No server reservation, session creation or watcher is introduced.
+Disk reserve, frozen frame/byte/input caps, cancellation and the enclosing deadline
+remain enforced; snapshot recovery also has its own 120-second cooperative bound.
+
+The same session, capture, source ID, ordinal, original/snapshot path, frame origin
+and capacity survive recovery. After a valid uploader checkpoint exists, omit
+`--recover-initial` and use the ordinary exact-delivery retry, even if recovery
+itself was interrupted. Do not delete evidence to satisfy recovery preconditions.
+No EOS, inference retry, native runtime activation or cleanup is implicit.
+
+Tests use actual subprocess `os._exit` at six initial stages: after durable
+intent, during header writing, after scaffold creation, during WAV copying, after
+snapshot completion and during admission writing. A seventh exit interrupts
+suffix completion during recovery itself. Tests verify preserved inode/prefixes,
+exact frame/source identity, no duplicate input, next-ordinal append and fail-closed
+conflicts. Separate helper tests cover short writes, fsync failures, immutable
+publication, hardlinks and filesystem types. These are model-free admission tests,
+not physical power-loss, native inference or filesystem durability qualification.
 
 ## Capacity and work bounds
 

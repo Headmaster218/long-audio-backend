@@ -730,9 +730,9 @@
     },
     {
       "path": "audio_backend/recorder_capture_intake.py",
-      "size": 20274,
-      "sha": "5ad7d2739de3f134a87a9bcc3d8cc1a1b3b03b8e",
-      "sha256": "fb649244818a395475985f854828fd12884b80c2e532b57edb77f3c4b5c37965"
+      "size": 23771,
+      "sha": "8ff8758f1159be6ef6edbcbf76e152b4b3afc820",
+      "sha256": "ac937e31e7968582a64df2b6f7d8a90808adbd394b13c55b0cc55ef039c46745"
     },
     {
       "path": "audio_backend/recorder_capture_profile.py",
@@ -751,6 +751,18 @@
       "size": 7051,
       "sha": "d7c477e7750a573193eb123dabebc394717ede26",
       "sha256": "aa773486e507296794da07f24d68a1e1b1449fcae67e91ab19b1a089a5ad45ac"
+    },
+    {
+      "path": "audio_backend/recorder_initial_intent.py",
+      "size": 5009,
+      "sha": "8e159c6a77b7cedd4cf7f368274a38dfaee4d576",
+      "sha256": "0b965429deb0d17b382de21254a82c55e5090081f2c575700a93b6bcd5471ec9"
+    },
+    {
+      "path": "audio_backend/recorder_initial_snapshot.py",
+      "size": 9897,
+      "sha": "4a36be19d5338748daa0b5118b9f1a23064efd66",
+      "sha256": "265980cf8e0f58e05e169992d2cd09d5d9f666351f9d7ff633c3b2b53e7976d9"
     },
     {
       "path": "audio_backend/recorder_intake.py",
@@ -1678,9 +1690,9 @@
     },
     {
       "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
-      "size": 13196,
-      "sha": "bcefc8a9db426aad9be5d10bd61ebe3cf980e60b",
-      "sha256": "710914a8e00873d78dec2f750ec93ae9eba49fc4fb38159f9953d675b6e48cd0"
+      "size": 14334,
+      "sha": "ac8fe8b0399a24f2544388143d1fccb632b5ed61",
+      "sha256": "0c502221952e67290b5a831da3b5c267656275dc9d8b5e29935f934dbbf582f0"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -2032,9 +2044,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
-      "size": 7821,
-      "sha": "e3c27550326feedf298cd20e892425cc99e88582",
-      "sha256": "d3abd033faba05f40fc8a2a81676cc5e01f9e12e8b0e7a331d03856bcddbdd75"
+      "size": 7918,
+      "sha": "0b35a787b1a056c95ccd8e3641821d9a5455de1e",
+      "sha256": "c1f5a432de8a541bc168b1f4e5dc72826308382cebba77b6a43393f3a3fef5c4"
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
@@ -4221,10 +4233,22 @@
       "sha256": "23c3f8da2256d3f389197755e8589fbc2099b51483a4b653f7cabae422daa550"
     },
     {
+      "path": "tests/test_recorder_initial_intent.py",
+      "size": 7820,
+      "sha": "bafef6daf2bc5d8c1b2ccca0f4697b8f3dc9a618",
+      "sha256": "5874f3fee616946950d94ceffc36cdcfcf2553c8d7f7778395bdab6d60cfb21f"
+    },
+    {
       "path": "tests/test_recorder_initial_recovery.py",
-      "size": 8197,
-      "sha": "5b59b8d2b8c7946b24d8fbf62e33ef1a7d71214d",
-      "sha256": "46cccaee93f7f71c8708705f0b4cc0d4be0738ed37eb5e0eb312fd098cfd438f"
+      "size": 8199,
+      "sha": "05bb42e9d6d4cf53530612df02913c5774e1f87e",
+      "sha256": "8abd7fdaf1d949878b48272ae8d1b27010ae19b1f02db562b5833901dd120882"
+    },
+    {
+      "path": "tests/test_recorder_initial_snapshot.py",
+      "size": 7636,
+      "sha": "bda7a7db7e5060344b27dcf19f903c74403ee28d",
+      "sha256": "a94f50c10ee29b0f1df145b9e73e46b37d4da0da21c6dbdaea5b56c6440d8a5c"
     },
     {
       "path": "tests/test_recorder_intake.py",
@@ -4990,5 +5014,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add explicit exact initial-admission recovery before uploader checkpoint and bounded speech diagnostic refinements; preserve partial-state refusal, production defaults, and independent qualification scopes."
+  "source_update": "Persist durable initial recorder intent and explicitly complete only verified partial prefixes under pristine-uploader/empty-session checks; retain legacy and ambiguous-state refusals."
 }

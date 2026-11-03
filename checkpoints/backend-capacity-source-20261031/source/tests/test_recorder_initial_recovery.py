@@ -73,7 +73,7 @@ def test_any_uploader_artifact_refuses_before_http(tmp_path,kind):
         assert not args['transport'].calls
 
 
-@pytest.mark.parametrize('kind',['path','next','original','snapshot','receipt','partial'])
+@pytest.mark.parametrize('kind',['path','next','original','snapshot','receipt'])
 def test_changed_or_partial_admission_preserved(tmp_path,kind):
     with handler_app(tmp_path/'server') as (client,app):
         paths,args=interrupted(tmp_path,client); selected=paths[0]
@@ -106,7 +106,7 @@ def test_remote_not_positively_empty_never_starts_uploader(tmp_path,kind):
                 return value
         args['transport']=Remote()
         if kind=='uncertain':args['limits']=u.Limits(disk_floor=0,deadline_seconds=1,poll_seconds=.001)
-        with pytest.raises((capture.Refused,u.Incomplete)):
+        with pytest.raises((capture.Refused,u.Incomplete,u.Uncertain)):
             capture.run(**args,delivery=paths[0],recover_initial=True)
         assert not (args['job_dir']/'uploader/uploader.json').exists()
 

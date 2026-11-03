@@ -19,6 +19,7 @@ import time
 
 from . import recording_uploader as u
 from . import recorder_intake as single
+from . import recorder_initial_intent as initial
 from .recorder_batch_intake import BoundaryRefused
 from .recorder_delivery import inspect_delivery, Refused, parse_envelope, MAX_METADATA
 from .recorder_metadata import decode
@@ -200,28 +201,73 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
             'capture_recovery_requires_existing_initial_delivery')
     destination = single.target(api, 'operator-selected-unverified', session_id, capture_id, 0)
     root = Path(job_dir).absolute(); single.private_directory(root.parent)
+    guard = u.Guard(limits or u.Limits(),cancel)
+    def remaining():
+        guard.check()
+        return min(120,max(.000001,guard.end-time.monotonic()))
     if start:
         hours = 12 if max_hours is None else max_hours; count = 64 if max_inputs is None else max_inputs
         require(type(hours) is int and 1 <= hours <= 48 and type(count) is int and 1 <= count <= 128, 'capture_capacity_options')
+        path=Path(delivery).absolute()
+        report=inspect_delivery(path,validate_metadata=True,deadline_seconds=remaining())
+        validate_edge(None,candidate_record(path,report,0,remaining))
         root.mkdir(mode=0o700,exist_ok=False); u._fsync_dir(root.parent)
-        for name in ('admissions','uploader'):(root/name).mkdir(mode=0o700)
-        header = dict(schema=SCHEMA,target=destination,max_hours=hours,max_inputs=count,input_bytes=BYTES)
-        single.manifest_write(root/'capture.json',header)
     single.private_directory(root)
     outer = held_lock(root/'intake.lock',create=start)
     owner = None
     try:
-        require(set(p.name for p in root.iterdir()) == {'capture.json','intake.lock','admissions','uploader'}, 'capture_unexpected_job_files')
-        header = single.manifest_read(root/'capture.json')
-        require(set(header) == {'schema','target','max_hours','max_inputs','input_bytes'} and header['schema'] == SCHEMA
+        if start:
+            header = dict(schema=SCHEMA,target=destination,max_hours=hours,max_inputs=count,input_bytes=BYTES,initial_intent=True)
+            initial_value=initial.intent(root,header,path,report)
+            single.manifest_write(root/initial.NAME,initial_value)
+            # The immutable intent must be durable before any scaffold/admission.
+            initial.complete_scaffold(root,initial_value,remaining)
+        intent_recovery=recover_initial and os.path.lexists(root/initial.NAME)
+        if intent_recovery:
+            initial_value=initial.read(root,destination,delivery,remaining)
+            header=initial_value['header']
+        else:
+            header=single.manifest_read(root/'capture.json')
+        require(set(header) == {'schema','target','max_hours','max_inputs','input_bytes'} |
+                ({'initial_intent'} if header.get('initial_intent') is True else set()) and header['schema'] == SCHEMA
                 and header['target'] == destination and header['input_bytes'] == BYTES
                 and type(header['max_hours']) is int and 1 <= header['max_hours'] <= 48
                 and type(header['max_inputs']) is int and 1 <= header['max_inputs'] <= 128,
                 'capture_header_identity_changed')
         require((max_hours is None or max_hours == header['max_hours']) and
                 (max_inputs is None or max_inputs == header['max_inputs']), 'capture_frozen_capacity_changed')
+        effective = replace(limits or u.Limits(), output_frames=header['max_hours']*3600*u.RATE,input_bytes=BYTES)
+        guard.limits=effective
+        http = transport or u.HTTPTransport(destination['origin'],guard)
+        if intent_recovery:
+            from .recorder_initial_snapshot import recover_snapshot
+            require(header.get('initial_intent') is True,'capture_initial_intent_header')
+            report=initial_value['delivery'];path=Path(initial_value['path'])
+            validate_edge(None,candidate_record(path,report,0,remaining))
+            require(report['frames']<=header['max_hours']*3600*u.RATE and report['wav_bytes']<=BYTES,
+                    'capture_remaining_capacity')
+            initial.scaffold_preflight(root,initial_value)
+            recover_snapshot(path,root/'admissions/0/snapshot',report,remaining,validate_only=True)
+            # Hold any existing uploader lock before observing/repairing state.
+            lock=root/'uploader/uploader.lock'
+            if os.path.lexists(lock):owner=held_lock(lock)
+            contract=http.request('GET','/sessions/'+session_id+'/recording-contract')
+            single.check_contract(contract,session_id,report['frames'])
+            require(contract['capture'] is None and not contract['has_chunks'],'capture_existing_session_not_empty')
+            reserve=effective.disk_floor+effective.spool_bytes+report['wav_bytes']+16*1024**2
+            require(shutil.disk_usage(root).free>=reserve,'capture_snapshot_disk_reserve')
+            initial.complete_file(root/initial.NAME,single._json(initial_value),remaining)
+            initial.complete_scaffold(root,initial_value,remaining)
+        expected={'capture.json','intake.lock','admissions','uploader'}
+        if header.get('initial_intent') is True:
+            expected.add(initial.NAME)
+            initial_value=single.manifest_read(root/initial.NAME)
+            require(initial_value==initial.intent(root,header,Path(initial_value['path']),initial_value['delivery']),
+                    'capture_initial_intent_binding')
+        require(set(p.name for p in root.iterdir()) == expected,'capture_unexpected_job_files')
         single.private_directory(root/'uploader')
-        owner = held_lock(root/'uploader/uploader.lock',create=start)
+        if owner is None:
+            owner=held_lock(root/'uploader/uploader.lock',create=start or (intent_recovery and not os.path.lexists(root/'uploader/uploader.lock')))
         # Reject lost initial state, including an admitted first delivery whose
         # upload checkpoint never became durable. No implicit fresh adoption.
         if recover_initial:
@@ -231,12 +277,13 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
                     'capture_recovery_requires_pristine_uploader')
         elif not start:
             single.control(root/'uploader/uploader.json')
-        effective = replace(limits or u.Limits(), output_frames=header['max_hours']*3600*u.RATE,input_bytes=BYTES)
-        guard = u.Guard(effective,cancel)
-        def remaining():
-            guard.check()
-            return min(120, max(.000001,guard.end-time.monotonic()))
-        http = transport or u.HTTPTransport(destination['origin'],guard)
+        if intent_recovery:
+            parent=root/'admissions/0'
+            if not parent.exists():parent.mkdir(mode=0o700)
+            recover_snapshot(path,parent/'snapshot',report,remaining)
+            receipt=dict(schema=SCHEMA,ordinal=0,target=destination,path=str(path),snapshot_path=str(parent/'snapshot'),delivery=report)
+            initial.complete_file(parent/'admission.json',single._json(receipt),remaining)
+            u._fsync_dir(parent.parent)
         def make(**mode):
             inherited = u.InstanceLock(root/'uploader/uploader.lock').adopt(os.dup(owner))
             try:
@@ -249,6 +296,9 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
             except BaseException:
                 inherited.release();raise
         receipts, records = registry(root,header,remaining)
+        if header.get('initial_intent') is True and receipts:
+            require(receipts[0]['path']==initial_value['path'] and receipts[0]['delivery']==initial_value['delivery'],
+                    'capture_initial_admission_intent_changed')
         if recover_initial:
             require(len(receipts) == 1 and receipts[0]['ordinal'] == 0
                     and receipts[0]['path'] == str(Path(delivery).absolute()),
@@ -286,7 +336,8 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
                     reserve=effective.disk_floor+effective.spool_bytes+report['wav_bytes']+16*1024**2
                     require(shutil.disk_usage(root).free >= reserve,'capture_snapshot_disk_reserve')
                     # Validate candidate metadata+adjacency before publishing its
-                    # receipt. A partial snapshot is preserved, never repaired.
+                    # receipt. Ordinary append never repairs a partial snapshot;
+                    # explicit initial recovery requires its durable intent.
                     parent=root/'admissions'/str(index);parent.mkdir(mode=0o700)
                     snapshot=parent/'snapshot';create_snapshot(path,snapshot,deadline_seconds=remaining())
                     record=_record(snapshot,index,remaining)
@@ -329,7 +380,7 @@ def main(argv=None):
     for name in ('job-dir','api','session-id','capture-id'):parser.add_argument('--'+name,required=True)
     group=parser.add_mutually_exclusive_group(required=True);group.add_argument('--delivery');group.add_argument('--finalize',action='store_true')
     parser.add_argument('--recover-initial',action='store_true',
-                        help='Explicitly reconcile one complete first admission before any uploader checkpoint; never repair partial files')
+                        help='Explicit initial recovery before any uploader checkpoint; exact partial prefixes require durable initial intent')
     parser.add_argument('--start',action='store_true');parser.add_argument('--exclusive-writer',action='store_true',required=True)
     parser.add_argument('--max-hours',type=int);parser.add_argument('--max-inputs',type=int)
     parser.add_argument('--deadline-seconds',type=float,default=12*3600)
