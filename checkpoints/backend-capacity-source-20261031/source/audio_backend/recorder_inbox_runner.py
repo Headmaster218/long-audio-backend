@@ -21,6 +21,7 @@ from . import recorder_incremental_span_intake as intake
 from . import recorder_incremental_span_status as status
 from . import recorder_incremental_span_export as exporter
 from . import recorder_inbox as inbox
+from . import recorder_receiver_publication as receiver
 from . import recorder_intake as single
 from . import recording_uploader as u
 from .recorder_delivery import Refused, inspect_delivery, MAX_METADATA
@@ -69,7 +70,7 @@ def _outside_git(path):
 
 
 def _config(value, state):
-    require(type(value) is dict and set(value) == CONFIG_KEYS and
+    require(type(value) is dict and set(value) in (CONFIG_KEYS, CONFIG_KEYS | {'receiver_publication'}) and
             value['schema'] == CONFIG_SCHEMA, 'runner_config_fields')
     destination = single.target(value['api'], 'operator-selected-unverified',
                                 value['session_id'], value['capture_id'], 0)
@@ -87,6 +88,11 @@ def _config(value, state):
         require(not any(path.is_relative_to(other) or other.is_relative_to(path)
                         for other in paths[:index]), 'runner_trees_must_be_disjoint')
     single.private_directory(paths[1])
+    if 'receiver_publication' in value:
+        received = receiver.validate_binding(value['receiver_publication'], value['inbox_dir'])
+        private_roots = [Path(received['state_dir']), Path(received['staging_dir'])]
+        require(not any(path.is_relative_to(other) or other.is_relative_to(path)
+                        for path in paths for other in private_roots), 'runner_trees_must_be_disjoint')
     for path in (state, paths[2], *paths[3:]): _outside_git(path)
     require(len(single._json(value)) <= single.MAX_MANIFEST, 'runner_config_size')
     return destination
@@ -97,7 +103,7 @@ def _origin(record):
 
 
 def config_from_delivery(*, first_delivery, inbox_dir, job_dir, output_dir, api,
-                         session_id, capture_id, max_hours=12, max_inputs=192):
+                         session_id, capture_id, max_hours=12, max_inputs=192, receiver_state_dir=None):
     """Read only an operator-selected first delivery; never search/select newest."""
     path = _path(str(first_delivery)); root = _path(str(inbox_dir))
     require(path.parent == root and inbox.NAME.fullmatch(path.name), 'runner_first_delivery_outside_inbox')
@@ -106,10 +112,14 @@ def config_from_delivery(*, first_delivery, inbox_dir, job_dir, output_dir, api,
     record = engine.candidate_record(path, report, 0, lambda: 120)
     intake.POLICY.validate_edge(None, record)
     destination = single.target(api, 'operator-selected-unverified', session_id, capture_id, 0)
-    return dict(schema=CONFIG_SCHEMA, inbox_dir=str(root), job_dir=str(job_dir),
+    config = dict(schema=CONFIG_SCHEMA, inbox_dir=str(root), job_dir=str(job_dir),
         output_dir=None if output_dir is None else str(output_dir), api=destination['origin'],
         session_id=session_id, capture_id=capture_id, span_origin=_origin(record),
         max_hours=max_hours, max_inputs=max_inputs)
+    if receiver_state_dir is not None:
+        config['receiver_publication'] = receiver.bind(receiver_state_dir)
+        receiver.validate_binding(config['receiver_publication'], root)
+    return config
 
 
 def _intent(config, path, report, ordinal):
@@ -240,8 +250,9 @@ def _unpublished(path, remaining):
 
 
 def _inspect(config, intents, remaining, *, unpublished=None):
-    observed = inbox.inventory(config['inbox_dir'], max_entries=256,
-                               max_bytes=inbox.MAX_BYTES, deadline_seconds=remaining())
+    options = dict(max_entries=256, max_bytes=inbox.MAX_BYTES, deadline_seconds=remaining())
+    observed = (receiver.inventory(config['receiver_publication'], config['inbox_dir'], check=remaining, **options)
+                if 'receiver_publication' in config else inbox.inventory(config['inbox_dir'], **options))
     unresolved = [row for row in observed['deliveries'] if row['status'] != 'observed_valid']
     require(unpublished is not None or not unresolved, 'runner_quarantined_unresolved_delivery')
     by_sequence = {}; by_path = {}
@@ -661,7 +672,8 @@ def main(argv=None):
     setup = modes.add_parser('configure',help='Local-only immutable binding from an explicitly selected first delivery')
     for name in ('state-dir','inbox-dir','job-dir','first-delivery','api','session-id','capture-id'):
         setup.add_argument('--'+name,required=True)
-    setup.add_argument('--output-dir'); setup.add_argument('--max-hours',type=int,default=12)
+    setup.add_argument('--output-dir'); setup.add_argument('--receiver-state-dir')
+    setup.add_argument('--max-hours',type=int,default=12)
     setup.add_argument('--max-inputs',type=int,default=192)
     for mode in ('run', 'watch'):
         execute = modes.add_parser(mode,help=('One bounded reconciliation' if mode == 'run'

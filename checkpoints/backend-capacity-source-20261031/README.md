@@ -645,3 +645,7 @@ whole-capture completeness or endurance. Production runtime pins and all guards
 remain unchanged. Source-only audit/tests and the aggregate report are included
 at source/qualification/LOCAL_INBOX_WATCH_NATIVE_20261103.md; no raw audio,
 transcripts, model files, logs or databases are backed up.
+
+## Nov 3: local receiver publication boundary
+
+Opt-in receiver-owned staging now validates independent completed-delivery copies and atomically publishes exact original attempt names without replacement. A short shared publication lock coordinates runner inventory; default runner behavior is unchanged. Retained preparation plus published file bytes are capped at 8 GiB. See `source/docs/RECORDER_RECEIVER_PUBLICATION.md` for ownership, completion, restart and cancellation contracts. Focused local/model-free review passed 37 tests, including actual process concurrency, crash recovery and SIGTERM. Actual live FTPS linkage remains pending separate qualification; no deployment, phone or native ASR claim.

@@ -760,9 +760,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 41360,
-      "sha": "bac2ee23a59e1d605446b198f496c6df462241b2",
-      "sha256": "4cfd3118f7b075574696ea5e26fe891e56f73b7dbb4596b2f874d16d4d1c8d8e"
+      "size": 42300,
+      "sha": "260a172dda9b0f5ade513607672860c611e78ab9",
+      "sha256": "0508e2094da35d2c4a825521748b798bc86574ca8da0ebc44681d05e1b995b52"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -805,6 +805,12 @@
       "size": 8915,
       "sha": "57807bb014de26548f6a9696ba4c10bd82ad448a",
       "sha256": "fd8bb8ec51246fd62564773612a8e1ed4a2c4ba13bb0e2ede21d7532cda3c0fd"
+    },
+    {
+      "path": "audio_backend/recorder_receiver_publication.py",
+      "size": 19629,
+      "sha": "f201af24c78f230d544853e49bd1f07ebb3dcbe0",
+      "sha256": "d216c97afab9198cb4d14c8424658f4d1eef51efa76750960572c785dff51fd8"
     },
     {
       "path": "audio_backend/recorder_sequence.py",
@@ -2104,9 +2110,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 19348,
-      "sha": "5d941327830116960c82c0b9b2d3cb38c4ca7ef8",
-      "sha256": "e5bdab0ed15871fad1ada22ac1617159e9da1b41c3b45fe50592ac8d6a8de006"
+      "size": 19831,
+      "sha": "30890a3760563b196272f5bb9e2a7ab9b3ac908f",
+      "sha256": "cd980a9727ed39457c2fdcfa50fd647a24a25e83b14f99dfeab80fd8d58ce4a3"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -2125,6 +2131,12 @@
       "size": 6229,
       "sha": "9fbe1abda32e5db8bc4fdca07182c734913783eb",
       "sha256": "69044669e9cb74b7814bcfb59c55c5c0bc8cc927c5cbbe9c98aaffba8782007e"
+    },
+    {
+      "path": "docs/RECORDER_RECEIVER_PUBLICATION.md",
+      "size": 8459,
+      "sha": "dcdfcc58a9eaf5ba485ae5cb403b4b8eac17fe8e",
+      "sha256": "e088dfe043fcff7d33f4b3a0e89ac477e62d0e881faa57e0271a88bbe7cb2a02"
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
@@ -4689,6 +4701,18 @@
       "sha256": "e047997baf244afbb433d94c8513df5cc79dbdea23ca9faefed3d5b8eb7bf63b"
     },
     {
+      "path": "tests/test_recorder_receiver_publication.py",
+      "size": 13726,
+      "sha": "40aacc6836583afcbb04561d0ef35ebca252a109",
+      "sha256": "9a571a82c88bdd219982a0a193ffe23042055436187e06be54b9722a82eeb6ae"
+    },
+    {
+      "path": "tests/test_recorder_receiver_publication_review.py",
+      "size": 15201,
+      "sha": "ad8842836c178b5bfc38f86a8d2a1fd11aa2f6a8",
+      "sha256": "ce695dcb24e2a712eb9b28285178e9d4ccb59e8d1153c15fcca8cb0d4b272c5a"
+    },
+    {
       "path": "tests/test_recorder_sequence.py",
       "size": 10042,
       "sha": "656f258d1cfb642f731970c47e81e6ea17d9e95c",
@@ -5470,5 +5494,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Qualify one bounded native watch with genuine producer STOP, controlled atomic marker-last arrivals, zero-HTTP pending observations and exact ASR/export linkage; preserve source-only audit/tests and explicit accuracy/deployment limits."
+  "source_update": "Add opt-in local receiver-owned completed-delivery snapshot publication and coordinated inbox inventory, preserving exact identities, no-overwrite restart reconciliation, finite storage and cancellation; local model-free qualification only, live FTPS integration pending."
 }

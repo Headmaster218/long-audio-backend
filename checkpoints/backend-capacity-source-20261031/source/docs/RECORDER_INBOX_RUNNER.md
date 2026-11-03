@@ -314,3 +314,7 @@ The independent closed-copy audit verifies original producer/native/export
 linkage, request boundaries and safe shutdown. It covers one short selected span,
 not an installed daemon, deployment, long endurance, recognition accuracy,
 speaker identity or whole-capture completeness.
+
+## Receiver-owned publication boundary
+
+For ordinary live FTPS writes, use the opt-in [local completed-delivery publisher](RECORDER_RECEIVER_PUBLICATION.md) with a separate raw staging tree and a frozen runner receiver binding. Its shared inventory/publication lock preserves the existing strict inventory checks while allowing arrivals during a watch. Marker-last alone is not a live-transfer completion protocol. This is local library/CLI support, not an installed FTPS receiver.
