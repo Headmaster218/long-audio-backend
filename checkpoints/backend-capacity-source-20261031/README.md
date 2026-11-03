@@ -287,3 +287,7 @@ Real strict startup refused current SQLite package fingerprint. Added bounded sy
 ## Startup refusal cleanup checkpoint (2026-11-03)
 
 Bounded graceful service task settlement before terminal receipt, with four asynchronous tests. Fresh actual runtime refusal exits failed but confirms normal worker/Store/lock/permit cleanup with no descendants. Exact original runtime package restoration remains blocked; no qualification pin or cache modified. Source-only checkpoint: 767 manifest files.
+
+## Finite SQLite evidence checkpoint (2026-11-03)
+
+Source-only generic physical probe and12 parser controls. Actual SQLITE_FULL6144pages, confirmed changed-page rollback-journal capture, original child kill/reap and separate-copy exact recovery observed. Production qualification unchanged; not acoustic or power-loss evidence. No generated database/journal or runtime/cache asset included. 771 manifest files. Independent saved-byte audit accepted generic evidence only; audit source preserved.

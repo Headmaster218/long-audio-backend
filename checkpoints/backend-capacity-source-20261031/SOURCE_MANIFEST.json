@@ -2217,6 +2217,24 @@
       "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
     },
     {
+      "path": "qualification/README.md",
+      "size": 4552,
+      "sha": "d6cfe15a2326873aca757bc5a24b6b550f9fa363",
+      "sha256": "329181c9092e46ff96dce15c84d5d74e2a945d37258dd8e46d4d2137ef94852d"
+    },
+    {
+      "path": "qualification/independent_saved_audit_20261103.py",
+      "size": 6947,
+      "sha": "e22a864adec9af652ab09028cd03bcdcbb4ae86e",
+      "sha256": "69f14c4bc514ea5cd4a8723fc9cd0273a740cb05ab59e7b0e3f3e232ab636654"
+    },
+    {
+      "path": "qualification/sqlite_crash_probe.py",
+      "size": 17973,
+      "sha": "cef6b56f9265cc84191fc4d114668d95f88ec330",
+      "sha256": "2734c588d033bd705f21b7586bb3b88c03dc31e485a1439bb52ca64917aca95c"
+    },
+    {
       "path": "requirements-build-dev9.lock.txt",
       "size": 286,
       "sha": "b59233e88aaa959a344d70bf5dc9719a3e80048d",
@@ -4185,6 +4203,12 @@
       "sha256": "41c28959adc374f5cbbc371a6f7c215a69ec1c370856617ac4c0bb62aa6e0eec"
     },
     {
+      "path": "tests/test_sqlite_crash_probe.py",
+      "size": 2212,
+      "sha": "7a61dcb0c1b046a565532afdd2d9636fc11d3c0d",
+      "sha256": "21ed1714df43a5b897f48e1de210f05d4b0077f2fdbe99a40b43225ad4949ec8"
+    },
+    {
       "path": "tests/test_staged_stream_visibility.py",
       "size": 14488,
       "sha": "243694e12a30ef8a25571b3cf08b4d1ee3716f90",
@@ -4606,5 +4630,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 strict startup-refusal graceful lifecycle cleanup; exact original runtime assets unavailable, qualification unchanged"
+  "source_update": "2026-11-03 finite synthetic SQLite physical evidence harness and parser controls; no production runtime profile activation"
 }
