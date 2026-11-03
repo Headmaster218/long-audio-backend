@@ -387,3 +387,16 @@ The diagnostic defaults to hash/count output; all raw outputs, recordings and
 model assets remain outside this backup. See
 source/qualification/SPEECH_CONTEXT_DIAGNOSTICS_20261103.md for the predeclared
 comparison, confounds, provenance and independent review scope.
+
+## Labeled AMI diagnostic, no product change
+
+Five source/test/report files add fixed human-reference lexical scoring and a
+separate native-activity coverage diagnostic. On four preselected short AMI clips,
+two-second context worsens aggregate WER and low-share-speaker word matches, so
+no production defaults are changed. Native oracle midpoint coverage is explicitly
+not diarization accuracy and does not penalize false alarms. Annotation provenance,
+forced-alignment uncertainty, overlap/scoring limitations and independent review
+are documented in source/qualification/AMI_LABELED_QUALITY_20261103.md.
+Only reproducible tools, synthetic model-free tests and aggregate documentation
+are included; annotation archives/text, audio, hypotheses, models, databases and
+raw run summaries remain outside the source checkpoint.

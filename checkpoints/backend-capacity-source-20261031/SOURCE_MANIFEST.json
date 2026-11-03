@@ -2307,6 +2307,12 @@
       "sha256": "27e9f806302f01da31d2f3bd2be0de327f195ccc63d0fd93c6b18ccb760a5589"
     },
     {
+      "path": "qualification/AMI_LABELED_QUALITY_20261103.md",
+      "size": 8067,
+      "sha": "8a2be92c460c5f672644f03d390dc6c11af08ca9",
+      "sha256": "16646efaf0bd2f98e01429f658dc8b35868a170ae547e90ea2133ba846eacc8b"
+    },
+    {
       "path": "qualification/EXPERIMENTAL_PROFILE_BASIS.json",
       "size": 638,
       "sha": "97535585059a2b80bd55c5db319c550098132170",
@@ -2359,6 +2365,18 @@
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
       "sha256": "3a97845bf13b00e402ce73cb9990ce72f2696b9d82254cf442fbfde18a46afe8"
+    },
+    {
+      "path": "qualification/ami_labeled_context_diagnostic_20261103.py",
+      "size": 11696,
+      "sha": "130ee0f4569fdaec9767ea4e2de48fbe0a897992",
+      "sha256": "64542396beecfe221d80f40d13ebad78aac37e0f3963570b17a8ff5c454b26dc"
+    },
+    {
+      "path": "qualification/ami_native_midpoint_diagnostic_20261103.py",
+      "size": 6527,
+      "sha": "a17b8cebf1c3f412c9fc4b04cffe4178c148d2c3",
+      "sha256": "c20d10db1f7dbfec67b6eb0c8aba4af365812688ab4c9d8aad4bb5b889240788"
     },
     {
       "path": "qualification/audit_ftps_sequence_linkage_20261103.py",
@@ -2911,6 +2929,18 @@
       "size": 18895,
       "sha": "4a8b00eb46fb0203689d701fec67b570c57c9e07",
       "sha256": "d0014c60ffd9e0ea866dc215f4165f4276362313b7ecabb1483d2f5d91f58fda"
+    },
+    {
+      "path": "tests/test_ami_labeled_context_diagnostic.py",
+      "size": 2209,
+      "sha": "236763f3a9e3dc5c2e1d657d62896ef2f166ee86",
+      "sha256": "201249cacc4cf70c7c94b12f80e53b1f37b338a7aef1f71336a48d740266ee42"
+    },
+    {
+      "path": "tests/test_ami_native_midpoint_diagnostic.py",
+      "size": 2145,
+      "sha": "4acc966f0fd80dcc065b6d206402435eca93e880",
+      "sha256": "c6fafe528a32778af871a7c501299bc9a2649c86d9b642f00075e16bb5c41b72"
     },
     {
       "path": "tests/test_api_storage.py",
@@ -5032,5 +5062,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Back up fixed context/lexical-ownership speech diagnostic and model-free guards only; mixed whole-input agreement does not authorize production behavior changes."
+  "source_update": "Back up fixed labeled AMI lexical and native-activity diagnostics, synthetic tests and aggregate report only; no product defaults, gates or acoustic policies changed."
 }
