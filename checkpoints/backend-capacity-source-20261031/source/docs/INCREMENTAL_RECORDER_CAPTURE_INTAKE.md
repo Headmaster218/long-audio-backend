@@ -1,6 +1,6 @@
 # Explicit incremental recorder capture intake
 
-Development checkpoint: native incremental execution has not yet been verified for this new wrapper. Existing default runtime pins and deployment remain unchanged.
+Verification checkpoint: a separate 11-second incremental native fixture passed independent artifact audit. This is not long-duration qualification. Existing default runtime pins and deployment remain unchanged.
 
 This command admits one immutable recorder delivery at a time into a known strict session. It reuses the existing v3 paged append uploader, rather than extending the fixed-batch journal or creating sessions automatically. Each invocation is explicit. No watcher, FTPS poller, server reservation, model/runtime activation or original-file deletion is added.
 
@@ -69,3 +69,10 @@ Missing uploader checkpoints, missing committed admissions, partial snapshots/re
 Tests cover actual strict ASGI/SQLite admission without native lifespan, explicit STOP/EOS fencing, successful PUT response loss, exact outstanding-admission recovery, active spool reconstruction, invalid-boundary refusal without poisoning the job, actual uploader-lock exclusion, missing-checkpoint refusal, and source-slot exhaustion. A synthetic real-geometry 294-second input checks that a full page requests a **non-EOS** seal, stopping before native publication. A metadata-only three-hour capacity case tests arithmetic beyond two hours; it is not three hours of ingestion or resource evidence.
 
 The bounded native smoke can separately append the producer's 4s+4s+3s fixture, verify no premature EOS, retry its latest input, explicitly finalize with one lost published-seal response, and replay completed finalization. This short silence experiment cannot establish long-duration stability, transcription accuracy, speaker identity, real device capture, physical continuity or FTPS transport of this fixture.
+
+
+## Observed bounded incremental run, 2026-11-03
+
+From restored GitHub source in the isolated accepted runtime candidate, three independent 4s/4s/3s append calls returned 64,000, 128,000 and 176,000 staged frames, all with zero published frames and no EOS. The latest-delivery retry equality check passed in the pinned harness. Explicit finalization then recovered one discarded successful published-seal response; a second finalization call returned the same result.
+
+Independent audit verified all 177 pinned Python source files, one session/page, three source placements, exact original/snapshot/backend/chunk PCM, two completed chunks (168,000 and 8,000 frames), persisted EOS seal and one stream-final marker, empty final uploader spool, database integrity and clean shutdown. Lost-response count and the unsaved separate latest-delivery retry are supported by the frozen harness and completed result, not a retained full HTTP transcript. The run used local Android producer silence outputs, not a new FTPS/device recording or speech-accuracy test. Source backups exclude all media, databases, model assets and generated reports.

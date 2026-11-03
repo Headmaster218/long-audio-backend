@@ -1660,9 +1660,9 @@
     },
     {
       "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
-      "size": 8667,
-      "sha": "cbc4aeb84c6228b20a01ea6a354c4d96883a0b7f",
-      "sha256": "da61a9883cff786df0ad3f3305795f4ef34e72964e7e12ddf99ee5e3ce5efb66"
+      "size": 9851,
+      "sha": "0da9495c99f6726f05669ef4d45cf5c19654f910",
+      "sha256": "aa199ce2606d723c6f2bd92468150b90dbe56cd10010724525d9a9ffc0aabf4f"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -2341,6 +2341,12 @@
       "size": 15358,
       "sha": "65683b7df602ce077cdc24a6abe32d18768dd295",
       "sha256": "63af05561c2a0203c4177b7622e3e7d8a1dd0a8d8a343c0ba44f15351c4f2a64"
+    },
+    {
+      "path": "qualification/independent_incremental_capture_audit_20261103.py",
+      "size": 12441,
+      "sha": "2a076191c92da17793fc20d948e2a2b808830f9f",
+      "sha256": "1dfaa645576bb4f271b6d0e63971856e42204b0450b17aca53c18c84812f22f5"
     },
     {
       "path": "qualification/independent_recorder_batch_audit_20261103.py",
@@ -4882,5 +4888,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 incremental recorder intake development checkpoint: explicit append/finalize using existingv3 bounded history, both ownership locks, immutable admission bindings and positive retryfsync;23focused tests pass; native incremental execution pending; no rollout or long-duration qualification"
+  "source_update": "2026-11-03 incremental intake native audit: three independent appends withoutEOS, explicitfinalize withlostpublishedsealreply andexactfinalizereplay, exactPCM/sourceplacements+cleanup verified;344focused tests pass;11sactualnative only,12hsoftwarecap/4.9hmetadata are notlongrunqualification"
 }
