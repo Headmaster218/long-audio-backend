@@ -24,7 +24,7 @@ cd ../backend-restored-20261031
 python -m pip install -e '.[test]'
 ```
 
-No application-source overlay or older checkout is required: all 151 tracked product
+No application-source overlay or older checkout is required: all 152 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
 The parent public commit is `b33172a7f584a0b60b76a58eefd0ca3ba2ab0a6a`; its tree and history
@@ -227,3 +227,13 @@ transport integrity are checked. Inner metadata semantics, immutable publication
 strict ingestion and speaker identity are explicitly not qualified. No audio,
 models, runtime databases, credentials or raw run data are included. See
 source/docs/RECORDER_DELIVERY_PREFLIGHT.md for bounds and the remaining intake contract.
+
+## Nov3 opt-in recorder metadata declaration validation
+
+Added --validate-metadata to the read-only delivery checker. It validates bounded
+Java PCM1 v1/v2 declarations, source identity and observed WAV/PCM bindings.
+130 selected tests passed; nine actual Java-generated synthetic deliveries passed
+cross-language checks. Strict ingestion remains disabled; no immutable snapshot,
+clock mapping, sequence-gap repair or physical-continuity claim is introduced.
+Default transport behavior remains unchanged. Details and deliberate canonical
+text/surrogate restrictions are in source/docs/RECORDER_DELIVERY_PREFLIGHT.md.

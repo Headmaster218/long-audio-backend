@@ -108,8 +108,8 @@ def test_envelope_failures_even_when_outer_hash_recomputed(tmp_path, mutation):
 
 def test_replacement_detected(tmp_path, monkeypatch):
     fixture(tmp_path); original = d.parse_envelope
-    def replace(data, marker):
-        value = original(data, marker)
+    def replace(data, marker, **kwargs):
+        value = original(data, marker, **kwargs)
         path = tmp_path/'audio.wav'; replacement = tmp_path/'new.wav'
         replacement.write_bytes(path.read_bytes()); replacement.replace(path)
         return value

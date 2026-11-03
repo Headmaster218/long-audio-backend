@@ -8,9 +8,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from audio_backend.recorder_delivery import inspect_delivery
 
 
-def main(directory):
+def main(directory, expanded=False):
     expected = {'v1-mono': (1, 16000, 1), 'v2-mono': (2, 16000, 1),
                 'v2-unicode-stereo': (2, 48000, 2)}
+    if expanded:
+        expected.update({name: (2, 16000, 1) for name in ('v2-not-polled', 'v2-unavailable', 'v2-query-exception')})
     for case, geometry in expected.items():
         paths = list((directory / case).glob('r-*/delivery.v1.txt'))
         if len(paths) != 1:
@@ -20,10 +22,22 @@ def main(directory):
             raise ValueError('fixture geometry mismatch')
         if result['frames'] != 3 or not result['transport_bytes_match'] or result['strict_import_ready']:
             raise ValueError('fixture observation mismatch')
-        print(case + ': transport bytes match; strict import remains disabled')
+        semantic = inspect_delivery(paths[0].parent, validate_metadata=True)
+        if not semantic['metadata_semantics_validated'] or semantic['strict_import_ready']:
+            raise ValueError('semantic validation boundary mismatch')
+        print(case + ': transport and producer declarations match; strict import remains disabled')
+    if expanded:
+        paths = list((directory / 'v2-rotations').glob('r-*/delivery.v1.txt'))
+        if len(paths) != 3:
+            raise ValueError('expected three rotation declarations')
+        rows = sorted((inspect_delivery(p.parent, validate_metadata=True) for p in paths), key=lambda r: r['sequence'])
+        for n, row in enumerate(rows):
+            if (row['sequence'], row['frame_start'], row['frames'], row['trusted_previous_seam']) != (n, n*4, 4 if n < 2 else 2, n > 0):
+                raise ValueError('rotation declaration mismatch')
+        print('v2-rotations: three producer declarations match; not proof of cross-file continuity')
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != '--expanded'):
         raise SystemExit('Pass the generated fixture root directory')
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]), expanded=len(sys.argv) == 3)

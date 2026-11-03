@@ -1,7 +1,8 @@
 """Read-only local transport preflight for Android RECORDER-DELIVERY-V1.
 
 A hash-consistent local observation is not immutable publication, trusted capture
-provenance, metadata semantic validation, or permission to ingest/delete files.
+provenance, or permission to ingest/delete files. Metadata semantic validation
+is a separate explicit option; default transport preflight keeps it opaque.
 No application, model, database, network, or uploader imports occur here.
 """
 from contextlib import ExitStack
@@ -53,7 +54,7 @@ def parse_marker(data):
                 wav_sha256=wav_hash, metadata_bytes=int(metadata_size), metadata_sha256=metadata_hash)
 
 
-def parse_envelope(data, marker):
+def parse_envelope(data, marker, *, return_local=False):
     require(len(data) == marker['metadata_bytes'] and hashlib.sha256(data).hexdigest() == marker['metadata_sha256'], 'envelope_hash_or_size')
     require(data[:4] == b'RFT1', 'envelope_magic')
     offset = 4
@@ -79,14 +80,14 @@ def parse_envelope(data, marker):
     version = struct.unpack_from('>i', local, 4)[0]
     require(version in (1, 2), 'metadata_version')
     require(hashlib.sha256(local[:-32]).digest() == local[-32:], 'metadata_checksum')
-    return version
+    return local if return_local else version
 
 
 def _stamp(value):
     return (value.st_dev, value.st_ino, value.st_mode, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
 
 
-def inspect_delivery(directory, *, deadline_seconds=120):
+def inspect_delivery(directory, *, deadline_seconds=120, validate_metadata=False):
     """Observe three held regular files without writes; never emit an import plan.
 
     Caller supplies an already-downloaded directory. Parent path resolution and
@@ -94,6 +95,7 @@ def inspect_delivery(directory, *, deadline_seconds=120):
     importer must use its own owned snapshot and complete metadata validation.
     """
     require(type(deadline_seconds) in (int, float) and 0 < deadline_seconds <= 120, 'deadline_bounds')
+    require(type(validate_metadata) is bool, 'metadata_option')
     deadline = time.monotonic() + deadline_seconds
     def check():
         require(time.monotonic() <= deadline, 'deadline_exceeded')
@@ -115,7 +117,8 @@ def inspect_delivery(directory, *, deadline_seconds=120):
             require(len(result) <= maximum, 'file_size')
             return result
         marker = parse_marker(bounded(names[0], MAX_MARKER))
-        version = parse_envelope(bounded(names[1], MAX_METADATA), marker)
+        local = parse_envelope(bounded(names[1], MAX_METADATA), marker, return_local=True)
+        version = struct.unpack_from('>i', local, 4)[0]
         wav = files[names[2]]
         require(stamps[names[2]][3] == marker['wav_bytes'], 'wav_size')
         header = wav.read(44)
@@ -139,15 +142,33 @@ def inspect_delivery(directory, *, deadline_seconds=120):
                       frames=length // align, pcm_sha256=pcm.hexdigest(),
                       transport_bytes_match=True, metadata_semantics_validated=False,
                       immutable_publication_proven=False, strict_import_ready=False)
+        if validate_metadata:
+            from .recorder_metadata import decode, check_delivery_binding, InvalidMetadata
+            try:
+                metadata = decode(local)
+                check_delivery_binding(metadata, result)
+            except InvalidMetadata as exc:
+                raise Refused(str(exc)) from exc
+            anchors = metadata['anchors']
+            result.update(metadata_semantics_validated=True,
+                          metadata_validation_scope='producer-declarations-and-observed-wav',
+                          capture_identity_sha256=hashlib.sha256(metadata['capture_id'].encode('utf-8')).hexdigest(),
+                          run_identity_sha256=hashlib.sha256(metadata['run_id'].encode('utf-8')).hexdigest(),
+                          epoch=metadata['epoch'], sequence=metadata['sequence'],
+                          frame_start=metadata['frame_start'], close_reason=metadata['close_reason'],
+                          boundary=metadata['boundary'], trusted_previous_seam=metadata['trusted_previous_seam'],
+                          hardware_frame_mapping='UNESTABLISHED',
+                          anchor_flags=anchors['flags'] if anchors else None)
     return result
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
+    parser.add_argument('--validate-metadata', action='store_true', help='Also validate producer declarations and their binding to the observed WAV; never authorize import')
     args = parser.parse_args(argv)
     try:
-        result = inspect_delivery(args.directory)
+        result = inspect_delivery(args.directory, validate_metadata=args.validate_metadata)
     except (OSError, Refused) as exc:
         # Do not print paths, sidecar bodies, or incidental operating-system data.
         print(json.dumps({'transport_bytes_match': False, 'error': str(exc) if isinstance(exc, Refused) else 'file_access_failed'}))
