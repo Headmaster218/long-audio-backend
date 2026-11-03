@@ -608,3 +608,21 @@ narrow tested harness fix received a new source checkpoint and independent plan
 review. There was one actual native run. Only source-only verifier/tests and the
 aggregate report are backed up. See
 source/qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md.
+
+## Bounded opt-in foreground inbox polling
+
+An explicit watch command now keeps the existing runner lock and frozen binding
+for one finite invocation. Polls, helper actions, HTTP requests/mutations,
+decoded-response bytes and the cooperative deadline share cumulative budgets.
+SIGINT/SIGTERM stop the foreground command and preserve evidence; they do not
+undo accepted backend work. Conflicts, ambiguous effects and missing authority
+stop without automatic retry. The one-shot default remains unchanged.
+
+A separate opt-in marker-last wait permits only new unselected directories with
+no marker and a bounded expected regular-file subset. Complete conflicts and
+frozen originals are checked first, and a waiting pass performs no remote or
+intake action. Invalid present markers, replacements and unsupported files still
+refuse. This is not arbitrary FTPS robustness or an installed daemon. Tests cover
+delayed arrival, cumulative budgets, signals, crash/restart and conflict exits;
+no new native/endurance qualification is claimed. See
+source/docs/RECORDER_INBOX_RUNNER.md for invocation and exact limitations.

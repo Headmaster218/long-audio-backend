@@ -1,4 +1,4 @@
-"""Opt-in, bounded one-shot local inbox reconciliation for one explicit span.
+"""Opt-in, bounded local inbox reconciliation for one explicit span.
 
 Configuration alone performs no HTTP or intake. Every run requires an explicit
 exclusive writer and span-local closure acknowledgment. There is no daemon,
@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import stat
 import sys
 import time
@@ -22,7 +23,7 @@ from . import recorder_incremental_span_export as exporter
 from . import recorder_inbox as inbox
 from . import recorder_intake as single
 from . import recording_uploader as u
-from .recorder_delivery import Refused, inspect_delivery
+from .recorder_delivery import Refused, inspect_delivery, MAX_METADATA
 
 SCHEMA = 'recorder-inbox-runner-v1'
 CONFIG_SCHEMA = 'recorder-inbox-runner-config-v1'
@@ -32,6 +33,8 @@ MAX_ACTIONS = 195
 MAX_REQUESTS = 65536
 MAX_NETWORK_WRITES = 8192
 MAX_NETWORK_BYTES = 256 * 1024**2
+MAX_WATCH_POLLS = 4096
+MAX_WATCH_ACTIONS = 4096
 require = single.require
 
 
@@ -209,14 +212,42 @@ def _stable(report):
     return {key: value for key, value in report.items() if key != 'attempt'}
 
 
-def _inspect(config, intents, remaining):
+def _unpublished(path, remaining):
+    """Observe a narrow marker-absent publication shape; never authorize intake."""
+    remaining()
+    directory = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        before = os.fstat(directory)
+        names = _names(path, 2)
+        require(names <= {'audio.wav','segment.v1.bin'}, 'runner_unpublished_members')
+        sizes = 0; signatures = {}
+        for name in names:
+            remaining()
+            item = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            maximum = inbox.MAX_WAV if name == 'audio.wav' else MAX_METADATA
+            require(stat.S_ISREG(item.st_mode) and item.st_nlink == 1 and
+                    0 <= item.st_size <= maximum, 'runner_unpublished_file_bound')
+            signatures[name] = u._signature(item)
+            if name == 'audio.wav': sizes += item.st_size
+        require(_names(path, 2) == names, 'runner_unpublished_changed')
+        for name, signature in signatures.items():
+            require(u._signature(os.stat(name, dir_fd=directory, follow_symlinks=False)) == signature,
+                    'runner_unpublished_changed')
+        require(u._signature(before) == u._signature(os.fstat(directory)) == u._signature(path.lstat()),
+                'runner_unpublished_changed')
+        remaining(); return sizes
+    finally: os.close(directory)
+
+
+def _inspect(config, intents, remaining, *, unpublished=None):
     observed = inbox.inventory(config['inbox_dir'], max_entries=256,
                                max_bytes=inbox.MAX_BYTES, deadline_seconds=remaining())
-    require(all(row['status'] == 'observed_valid' for row in observed['deliveries']),
-            'runner_quarantined_unresolved_delivery')
+    unresolved = [row for row in observed['deliveries'] if row['status'] != 'observed_valid']
+    require(unpublished is not None or not unresolved, 'runner_quarantined_unresolved_delivery')
     by_sequence = {}; by_path = {}
     origin = config['span_origin']
     for row in observed['deliveries']:
+        if row['status'] != 'observed_valid': continue
         report = row['delivery']; path = Path(config['inbox_dir'])/row['directory']
         by_path[str(path)] = report
         if report['capture_identity_sha256'] != origin['capture_identity_sha256']: continue
@@ -229,6 +260,16 @@ def _inspect(config, intents, remaining):
     for value in intents:
         require(value['path'] in by_path and _same(by_path[value['path']], value['delivery']),
                 'runner_frozen_original_missing_or_changed')
+    if unresolved:
+        # Complete conflicts and every frozen original have already been checked.
+        total = sum(row['delivery']['wav_bytes'] for row in observed['deliveries']
+                    if row['status'] == 'observed_valid')
+        for row in unresolved:
+            require(row.get('reason') == 'delivery_incomplete_or_extra_files',
+                    'runner_quarantined_unresolved_delivery')
+            total += _unpublished(Path(config['inbox_dir'])/row['directory'], remaining)
+            require(total <= inbox.MAX_BYTES, 'runner_unpublished_aggregate_byte_bound')
+            unpublished.append(row['directory'])
     return by_sequence
 
 
@@ -274,11 +315,20 @@ def _job_prefix(config, intents, completed, *, writes=False):
     if writes: require(len(names) == len(intents), 'runner_pending_admission_before_write')
 
 
+class _WatchTransportStopped(Refused):
+    """Do not let the underlying uploader retry an uncertain watch request."""
+    def __init__(self, cause):
+        super().__init__('runner_watch_transport_stopped_no_retry')
+        self.cause = cause
+
+
 class _Transport:
-    def __init__(self, http, guard, config, max_requests, max_writes, check):
+    def __init__(self, http, guard, config, max_requests, max_writes, check, *,
+                 watch=False, max_bytes=MAX_NETWORK_BYTES):
         self.http, self.guard, self.config, self.check = http, guard, config, check
         self.max_requests, self.max_writes = max_requests, max_writes
         self.requests = self.writes = self.bytes = 0
+        self.watch, self.max_bytes = watch, max_bytes
 
     def request(self, method, path, **kwargs):
         self.guard.check(); require(method in ('GET','PUT','POST'), 'runner_http_method')
@@ -288,14 +338,24 @@ class _Transport:
             require(path.startswith(base+'/recordings/'+self.config['capture_id']+'/'), 'runner_http_write_target')
         require(self.requests < self.max_requests and (method == 'GET' or self.writes < self.max_writes),
                 'runner_network_request_bound')
+        if self.watch:
+            # Reserve the largest decoded response before issuing the request.
+            require(self.bytes + u.JSON_BYTES <= self.max_bytes, 'runner_network_byte_bound')
         self.check(method != 'GET')
         self.requests += 1; self.writes += method != 'GET'
-        value = self.http.request(method, path, **kwargs)
+        try:
+            value = self.http.request(method, path, **kwargs)
+        except (u.HTTPFailure, u.Uncertain) as exc:
+            # Missing resources are a normal part of exact initial reconciliation.
+            # Every other failure stops watch, including helper-internal retries.
+            if self.watch and not (method == 'GET' and isinstance(exc, u.HTTPFailure) and exc.status == 404):
+                raise _WatchTransportStopped(exc) from exc
+            raise
         self.guard.check()
         require(type(value) is dict, 'runner_response_object')
         raw = single._json(value)
         require(len(raw) <= u.JSON_BYTES, 'runner_response_bound')
-        self.bytes += len(raw); require(self.bytes <= MAX_NETWORK_BYTES, 'runner_network_byte_bound')
+        self.bytes += len(raw); require(self.bytes <= self.max_bytes, 'runner_network_byte_bound')
         return value
 
 
@@ -349,26 +409,39 @@ def _export_receipt(root, config, intent, guard):
     finally: os.close(directory)
 
 
-def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
-        finalize=False, export=False, select_attempt=None, max_actions=1, max_requests=1024,
-        max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None):
+def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
+         finalize=False, export=False, select_attempt=None, max_actions=1, max_requests=1024,
+         max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None,
+         poll_seconds=None, max_polls=1, max_network_bytes=MAX_NETWORK_BYTES, wait_for_marker_last=False, watching=False):
+    started = time.monotonic()
     require(exclusive_writer is True and acknowledge_span_local_closure is True,
             'runner_explicit_acknowledgments_required')
     require(type(finalize) is bool and type(export) is bool, 'runner_authorization_type')
-    for value, maximum in ((max_actions,MAX_ACTIONS),(max_requests,MAX_REQUESTS),(max_network_writes,MAX_NETWORK_WRITES)):
+    for value, maximum in ((max_actions,MAX_WATCH_ACTIONS if watching else MAX_ACTIONS),(max_requests,MAX_REQUESTS),(max_network_writes,MAX_NETWORK_WRITES)):
         require(type(value) is int and 1 <= value <= maximum, 'runner_invocation_bound')
     require(type(deadline_seconds) in (int,float) and 0 < deadline_seconds <= 86400,
             'runner_deadline_bound')
+    if watching:
+        require(type(wait_for_marker_last) is bool, 'runner_marker_wait_type')
+        require(type(poll_seconds) in (int,float) and .1 <= poll_seconds <= 3600,
+                'runner_poll_interval_bound')
+        require(type(max_polls) is int and 1 <= max_polls <= MAX_WATCH_POLLS,
+                'runner_poll_bound')
+        require(type(max_network_bytes) is int and u.JSON_BYTES <= max_network_bytes <= MAX_NETWORK_BYTES,
+                'runner_network_byte_bound')
     require(select_attempt is None or type(select_attempt) is str and inbox.NAME.fullmatch(select_attempt),
             'runner_selection_format')
     root = _path(str(state_dir)); single.private_directory(root.parent); single.private_directory(root)
     lock = engine.held_lock(root/'runner.lock')
     try:
+        root_identity = (root.stat().st_dev, root.stat().st_ino)
+        lock_identity = u._signature(os.fstat(lock))
         config = single.manifest_read(root/'config.json'); _config(config, root)
         require(not export or config['output_dir'] is not None, 'runner_export_destination_required')
         effective = replace(limits or u.Limits(), deadline_seconds=deadline_seconds,
                             output_frames=config['max_hours']*3600*u.RATE)
         guard = u.Guard(effective, cancel)
+        if watching: guard.end = started + deadline_seconds
         def remaining():
             guard.check(); return min(120, max(.000001, guard.end-time.monotonic()))
         intents, completed = _ledger(root, config)
@@ -377,6 +450,12 @@ def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fal
             require(not os.path.lexists(config['job_dir']), 'runner_unbound_existing_job')
         def check(writes):
             guard.check()
+            if watching:
+                single.private_directory(root)
+                single.control(root/'runner.lock')
+                require((root.stat().st_dev,root.stat().st_ino) == root_identity and
+                        u._signature(os.fstat(lock)) == u._signature((root/'runner.lock').lstat()) == lock_identity,
+                        'runner_lock_or_state_replaced')
             require(_same(single.manifest_read(root/'config.json'), config), 'runner_config_changed')
             current, count = _ledger(root, config)
             require(_same(current,intents) and count == completed, 'runner_ledger_changed')
@@ -384,15 +463,33 @@ def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fal
             if intents and len(intents) > completed:
                 _binding(config, intents[-1], len(intents)-1, remaining)
         http = _Transport(transport or u.HTTPTransport(config['api'], guard), guard, config,
-                          max_requests, max_network_writes, check)
-        actions = 0
+                          max_requests, max_network_writes, check,
+                          watch=watching, max_bytes=max_network_bytes)
+        actions = 0; helper_actions = 0; polls = 0; last_status = None
         def result(outcome, **extra):
+            if watching:
+                extra.update(polls=polls, helper_actions=helper_actions,
+                    network_response_bytes=http.bytes, last_status=last_status,
+                    continuous_polling_enabled=True, automatic_resume_enabled=False,
+                    daemon_installed=False, invocation_bounded=True)
             return dict(schema=SCHEMA, status=outcome, inputs=completed,
                 next_sequence=config['span_origin']['first_sequence']+completed,
                 actions=actions, network_requests=http.requests, network_writes=http.writes,
-                automatic_intake_enabled=False, eos_meaning='selected_span_only',
+                automatic_intake_enabled=watching, eos_meaning='selected_span_only',
                 analysis_completion_verified=False, capture_completeness_proven=False,
                 physical_continuity_proven=False, **extra)
+        def helper(function, **kwargs):
+            nonlocal helper_actions
+            guard.check(); helper_actions += 1
+            return function(**kwargs)
+        def pause(outcome):
+            nonlocal last_status
+            last_status = outcome
+            if actions >= max_actions: return result('action_limit')
+            if polls >= max_polls: return result('poll_limit')
+            guard.pause(min(poll_seconds, max(.000001, guard.end-time.monotonic())))
+            check(False)
+            return None
         def options():
             guard.check()
             return dict(job_dir=config['job_dir'], api=config['api'], session_id=config['session_id'],
@@ -405,72 +502,157 @@ def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fal
             path = root/(kind+'.intent.json')
             if not os.path.lexists(path): single.manifest_write(path,value)
             _durable(path,value); return value
-        while actions < max_actions:
-            candidates = _inspect(config,intents,remaining)
-            _durable(root/'config.json',config)
-            if os.path.lexists(root/'export.done.json'):
-                saved = single.manifest_read(root/'export.done.json')
-                expected = _export_receipt(root,config,single.manifest_read(root/'export.intent.json'),guard)
-                require(_same(saved,expected),'runner_export_receipt_changed')
-                return result('exported',export_completed=True)
-            if os.path.lexists(root/'finalize.done.json'):
-                if os.path.lexists(root/'export.intent.json') and os.path.lexists(config['output_dir']):
-                    raise Refused('runner_export_publication_uncertain_preserve_output')
-                actions += 1
-                observed = status.run(**options())
-                if export and observed['status'] == 'completed':
-                    terminal = terminal_intent('export')
-                    require(not os.path.lexists(config['output_dir']), 'runner_export_publication_uncertain_preserve_output')
-                    exporter.run(**options(), output_dir=config['output_dir'])
-                    receipt = _export_receipt(root,config,terminal,guard)
-                    single.manifest_write(root/'export.done.json',receipt)
+        def reconcile():
+            nonlocal actions, helper_actions, polls, completed, select_attempt
+            while actions < max_actions:
+                if watching:
+                    check(False)
+                    if polls >= max_polls: return result('poll_limit')
+                    polls += 1
+                unpublished = [] if watching and wait_for_marker_last else None
+                candidates = _inspect(config,intents,remaining,unpublished=unpublished)
+                guard.check()
+                if unpublished:
+                    # Known interrupted terminal work is not a benign arrival
+                    # wait, even though this pass would otherwise make no calls.
+                    if os.path.lexists(root/'finalize.intent.json') and not os.path.lexists(root/'finalize.done.json'):
+                        require(finalize, 'runner_finalize_resume_authorization_required')
+                    if os.path.lexists(root/'export.intent.json') and not os.path.lexists(root/'export.done.json') and os.path.lexists(config['output_dir']):
+                        raise Refused('runner_export_publication_uncertain_preserve_output')
+                    # A waiting publication must not mask an already known
+                    # selection error among otherwise complete next arrivals.
+                    if len(intents) > completed and select_attempt is not None:
+                        require(Path(intents[-1]['path']).name == select_attempt,
+                                'runner_frozen_selection_changed')
+                    if len(intents) == completed and not os.path.lexists(root/'finalize.intent.json') and not (
+                            intents and intake.POLICY.finalizable(intents[-1]['delivery'])):
+                        available = candidates.get(config['span_origin']['first_sequence']+completed, [])
+                        if available:
+                            if select_attempt is None:
+                                require(len(available) == 1, 'runner_explicit_duplicate_selection_required')
+                            else:
+                                require(sum(path.name == select_attempt for path, _ in available) == 1,
+                                        'runner_selected_attempt_not_found')
+                    stopped = pause('waiting_for_publication')
+                    if stopped is not None: return stopped
+                    continue
+                _durable(root/'config.json',config)
+                if os.path.lexists(root/'export.done.json'):
+                    saved = single.manifest_read(root/'export.done.json')
+                    expected = _export_receipt(root,config,single.manifest_read(root/'export.intent.json'),guard)
+                    require(_same(saved,expected),'runner_export_receipt_changed')
                     return result('exported',export_completed=True)
-                return result(observed['status'],analysis_status=observed['status'],
-                              primary_completion_observed=observed['analysis_completion_verified'])
-            if os.path.lexists(root/'finalize.intent.json'):
-                require(finalize, 'runner_finalize_resume_authorization_required')
-                _durable(root/'finalize.intent.json')
-                actions += 1; intake.run(**options(),finalize=True,acknowledge_span_local_closure=True)
-                terminal = single.manifest_read(root/'finalize.intent.json')
-                single.manifest_write(root/'finalize.done.json',_done(terminal)); continue
-            if completed == len(intents) and intents and intake.POLICY.finalizable(intents[-1]['delivery']):
-                if not finalize: return result('awaiting_finalize')
-                terminal_intent('finalize'); continue
-            if len(intents) == completed:
-                if completed == config['max_inputs']: return result('input_capacity_reached')
-                next_sequence = config['span_origin']['first_sequence']+completed
-                available = candidates.get(next_sequence, [])
-                if not available: return result('waiting_for_input')
-                if select_attempt is None:
-                    require(len(available) == 1, 'runner_explicit_duplicate_selection_required')
-                    path, report = available[0]
+                if os.path.lexists(root/'finalize.done.json'):
+                    if os.path.lexists(root/'export.intent.json') and os.path.lexists(config['output_dir']):
+                        raise Refused('runner_export_publication_uncertain_preserve_output')
+                    actions += 1
+                    observed = helper(status.run, **options())
+                    if export and observed['status'] == 'completed':
+                        if watching and actions >= max_actions: return result('action_limit')
+                        terminal = terminal_intent('export')
+                        require(not os.path.lexists(config['output_dir']), 'runner_export_publication_uncertain_preserve_output')
+                        if watching: actions += 1
+                        helper(exporter.run, **options(), output_dir=config['output_dir'])
+                        receipt = _export_receipt(root,config,terminal,guard)
+                        single.manifest_write(root/'export.done.json',receipt)
+                        return result('exported',export_completed=True)
+                    if watching and observed['status'] == 'pending':
+                        require(observed['analysis_completion_verified'] is False, 'runner_pending_result_changed')
+                        stopped = pause('pending')
+                        if stopped is not None: return stopped
+                        continue
+                    return result(observed['status'],analysis_status=observed['status'],
+                                  primary_completion_observed=observed['analysis_completion_verified'])
+                if os.path.lexists(root/'finalize.intent.json'):
+                    require(finalize, 'runner_finalize_resume_authorization_required')
+                    _durable(root/'finalize.intent.json')
+                    actions += 1; helper(intake.run, **options(),finalize=True,acknowledge_span_local_closure=True)
+                    terminal = single.manifest_read(root/'finalize.intent.json')
+                    single.manifest_write(root/'finalize.done.json',_done(terminal)); continue
+                if completed == len(intents) and intents and intake.POLICY.finalizable(intents[-1]['delivery']):
+                    if not finalize: return result('awaiting_finalize')
+                    terminal_intent('finalize'); continue
+                if len(intents) == completed:
+                    if completed == config['max_inputs']: return result('input_capacity_reached')
+                    next_sequence = config['span_origin']['first_sequence']+completed
+                    available = candidates.get(next_sequence, [])
+                    if not available:
+                        if not watching: return result('waiting_for_input')
+                        stopped = pause('waiting_for_input')
+                        if stopped is not None: return stopped
+                        continue
+                    if select_attempt is None:
+                        require(len(available) == 1, 'runner_explicit_duplicate_selection_required')
+                        path, report = available[0]
+                    else:
+                        chosen = [(path,report) for path,report in available if path.name == select_attempt]
+                        require(len(chosen) == 1,'runner_selected_attempt_not_found')
+                        path,report = chosen[0]; select_attempt = None
+                    value = _intent(config,path,report,completed)
+                    current = _binding(config,value,completed,remaining)
+                    previous = _binding(config,intents[-1],completed-1,remaining) if intents else None
+                    intake.POLICY.validate_edge(previous,current)
+                    single.manifest_write(_file(root,completed,'intent'),value); intents.append(value)
                 else:
-                    chosen = [(path,report) for path,report in available if path.name == select_attempt]
-                    require(len(chosen) == 1,'runner_selected_attempt_not_found')
-                    path,report = chosen[0]; select_attempt = None
-                value = _intent(config,path,report,completed)
-                current = _binding(config,value,completed,remaining)
-                previous = _binding(config,intents[-1],completed-1,remaining) if intents else None
-                intake.POLICY.validate_edge(previous,current)
-                single.manifest_write(_file(root,completed,'intent'),value); intents.append(value)
-            else:
-                if select_attempt is not None:
-                    require(Path(intents[-1]['path']).name == select_attempt,'runner_frozen_selection_changed')
-                    select_attempt = None
-            value = intents[-1]
-            _durable(_file(root,completed,'intent'),value)
-            _binding(config,value,completed,remaining)
-            job = Path(config['job_dir']); fresh = not os.path.lexists(job)
-            recovery = not fresh and not os.path.lexists(job/'uploader/uploader.json')
-            require(not recovery or completed == 0, 'runner_checkpoint_missing_after_admission')
-            actions += 1
-            accepted = intake.run(**options(),delivery=value['path'],start=fresh,recover_initial=recovery,
-                acknowledge_span_local_closure=True,max_hours=config['max_hours'],max_inputs=config['max_inputs'])
-            require(accepted['inputs'] == completed+1 and not accepted['capture_finalized'], 'runner_intake_result_changed')
-            _job_prefix(config,intents,completed,writes=True)
-            single.manifest_write(_file(root,completed,'done'),_done(value)); completed += 1
-        return result('action_limit')
+                    if select_attempt is not None:
+                        require(Path(intents[-1]['path']).name == select_attempt,'runner_frozen_selection_changed')
+                        select_attempt = None
+                value = intents[-1]
+                _durable(_file(root,completed,'intent'),value)
+                _binding(config,value,completed,remaining)
+                job = Path(config['job_dir']); fresh = not os.path.lexists(job)
+                recovery = not fresh and not os.path.lexists(job/'uploader/uploader.json')
+                require(not recovery or completed == 0, 'runner_checkpoint_missing_after_admission')
+                actions += 1
+                accepted = helper(intake.run, **options(),delivery=value['path'],start=fresh,recover_initial=recovery,
+                    acknowledge_span_local_closure=True,max_hours=config['max_hours'],max_inputs=config['max_inputs'])
+                require(accepted['inputs'] == completed+1 and not accepted['capture_finalized'], 'runner_intake_result_changed')
+                _job_prefix(config,intents,completed,writes=True)
+                single.manifest_write(_file(root,completed,'done'),_done(value)); completed += 1
+            guard.check()
+            return result('action_limit')
+        try:
+            return reconcile()
+        except (Exception, KeyboardInterrupt) as exc:
+            if not watching: raise
+            cause = exc.cause if isinstance(exc, _WatchTransportStopped) else exc
+            failure = single.failure_report(cause)
+            failure.pop('schema'); failure.pop('status')
+            if isinstance(exc, _WatchTransportStopped): failure['reason'] = str(exc)
+            stopped = 'cancelled' if isinstance(cause, (InterruptedError, KeyboardInterrupt)) or (cancel and cancel()) else (
+                'deadline_reached' if time.monotonic() >= guard.end else 'unresolved')
+            return result(stopped, preserve_inbox_state_job_and_output=True, **failure)
     finally: os.close(lock)
+
+
+def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
+        finalize=False, export=False, select_attempt=None, max_actions=1, max_requests=1024,
+        max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None):
+    """One bounded reconciliation. Existing manual-resume behavior is unchanged."""
+    return _run(state_dir=state_dir, exclusive_writer=exclusive_writer,
+        acknowledge_span_local_closure=acknowledge_span_local_closure, finalize=finalize,
+        export=export, select_attempt=select_attempt, max_actions=max_actions,
+        max_requests=max_requests, max_network_writes=max_network_writes,
+        deadline_seconds=deadline_seconds, limits=limits, transport=transport, cancel=cancel)
+
+
+def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
+          finalize=False, export=False, select_attempt=None, max_actions=256, max_requests=1024,
+          max_network_writes=512, max_network_bytes=MAX_NETWORK_BYTES, deadline_seconds=120,
+          poll_seconds=5, max_polls=256, wait_for_marker_last=False, limits=None, transport=None, cancel=None):
+    """Finite foreground watch. Only clean missing input and pending status repeat.
+
+    The original runner lock, exact configuration, transport and all budgets stay
+    live for the entire invocation. Every refusal/uncertain effect requires an
+    explicit new invocation; no helper retries a failed/uncertain HTTP request.
+    """
+    return _run(state_dir=state_dir, exclusive_writer=exclusive_writer,
+        acknowledge_span_local_closure=acknowledge_span_local_closure, finalize=finalize,
+        export=export, select_attempt=select_attempt, max_actions=max_actions,
+        max_requests=max_requests, max_network_writes=max_network_writes,
+        max_network_bytes=max_network_bytes, deadline_seconds=deadline_seconds,
+        poll_seconds=poll_seconds, max_polls=max_polls, wait_for_marker_last=wait_for_marker_last, watching=True, limits=limits,
+        transport=transport, cancel=cancel)
 
 
 def main(argv=None):
@@ -481,25 +663,44 @@ def main(argv=None):
         setup.add_argument('--'+name,required=True)
     setup.add_argument('--output-dir'); setup.add_argument('--max-hours',type=int,default=12)
     setup.add_argument('--max-inputs',type=int,default=192)
-    execute = modes.add_parser('run',help='One bounded opt-in reconciliation; repeat manually for later arrivals/status')
-    execute.add_argument('--state-dir',required=True)
-    execute.add_argument('--exclusive-writer',action='store_true',required=True)
-    execute.add_argument('--acknowledge-span-local-closure',action='store_true',required=True)
-    execute.add_argument('--finalize',action='store_true'); execute.add_argument('--export',action='store_true')
-    execute.add_argument('--select-attempt'); execute.add_argument('--max-actions',type=int,default=1)
-    execute.add_argument('--max-requests',type=int,default=1024); execute.add_argument('--max-network-writes',type=int,default=512)
-    execute.add_argument('--deadline-seconds',type=float,default=120)
+    for mode in ('run', 'watch'):
+        execute = modes.add_parser(mode,help=('One bounded reconciliation' if mode == 'run'
+            else 'Finite foreground polling; explicit resume after any refusal'))
+        execute.add_argument('--state-dir',required=True)
+        execute.add_argument('--exclusive-writer',action='store_true',required=True)
+        execute.add_argument('--acknowledge-span-local-closure',action='store_true',required=True)
+        execute.add_argument('--finalize',action='store_true'); execute.add_argument('--export',action='store_true')
+        execute.add_argument('--select-attempt'); execute.add_argument('--max-actions',type=int,default=256 if mode == 'watch' else 1)
+        execute.add_argument('--max-requests',type=int,default=1024); execute.add_argument('--max-network-writes',type=int,default=512)
+        execute.add_argument('--deadline-seconds',type=float,default=120)
+        if mode == 'watch':
+            execute.add_argument('--poll-seconds',type=float,default=5)
+            execute.add_argument('--max-polls',type=int,default=256)
+            execute.add_argument('--wait-for-marker-last',action='store_true')
+            execute.add_argument('--max-network-bytes',type=int,default=MAX_NETWORK_BYTES)
     args = vars(parser.parse_args(argv)); command=args.pop('command')
+    previous_signals = {}; received_signal = []
     try:
+        if command == 'watch':
+            def cancelled(signum, frame):
+                if not received_signal: received_signal.append(signum)
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                previous_signals[signum] = signal.signal(signum, cancelled)
+            args['cancel'] = lambda: bool(received_signal)
         if command == 'configure':
             state=args.pop('state_dir'); first=args['first_delivery']; config=config_from_delivery(**args)
             value=configure(state_dir=state,config=config,first_delivery=first)
-        else: value=run(**args)
+        else: value=(watch if command == 'watch' else run)(**args)
     except (Exception,KeyboardInterrupt) as exc:
         value=single.failure_report(exc); value.update(schema=SCHEMA,automatic_intake_enabled=False,
             preserve_inbox_state_job_and_output=True)
-        print(json.dumps(value,sort_keys=True),file=sys.stderr); return 2
-    print(json.dumps(value,sort_keys=True)); return 0
+        print(json.dumps(value,sort_keys=True),file=sys.stderr)
+        return (128 + received_signal[0]) if received_signal else 2
+    finally:
+        for signum, handler in previous_signals.items(): signal.signal(signum, handler)
+    failed = value['status'] in ('unresolved','cancelled','deadline_reached')
+    print(json.dumps(value,sort_keys=True),file=sys.stderr if failed else sys.stdout)
+    return (128 + received_signal[0]) if received_signal else (2 if failed else 0)
 
 
 if __name__ == '__main__': raise SystemExit(main())

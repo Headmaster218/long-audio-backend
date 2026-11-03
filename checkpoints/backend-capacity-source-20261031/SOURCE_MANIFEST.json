@@ -760,9 +760,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 28622,
-      "sha": "ae0a48bb57181f63d72f257b92f72c53a9291da7",
-      "sha256": "c615babf1127f5e37b2dc27a6eb53276a3c733ab172d18392c5276c37781431d"
+      "size": 41360,
+      "sha": "bac2ee23a59e1d605446b198f496c6df462241b2",
+      "sha256": "4cfd3118f7b075574696ea5e26fe891e56f73b7dbb4596b2f874d16d4d1c8d8e"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -2104,9 +2104,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 12288,
-      "sha": "489818eb26521ba5ac154752f6888dd7db4aae45",
-      "sha256": "a7eb4b2ccceedf1af0634bd4e9c713a2c82abe12633f660d37ba479a6cd99df0"
+      "size": 18642,
+      "sha": "f5aff37be6baff9ddd6aaf18136c5271e1c0e07d",
+      "sha256": "90de925bba48b682463166bf9b69218f39d74b3c507812103d48cf0db949bdcd"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -4563,6 +4563,18 @@
       "sha256": "82d01f1dc02f284f24a40bde5caa3596d19801e736e3905f36933a2f5c294ffd"
     },
     {
+      "path": "tests/test_recorder_inbox_watch.py",
+      "size": 8245,
+      "sha": "d5a7db8610bf11a914f93653ee2d942811db91dc",
+      "sha256": "eeabac417416d11a4d1ef3801b587b9e8fe571a9010cb14c2fbcdbdbd0d74b0b"
+    },
+    {
+      "path": "tests/test_recorder_inbox_watch_review.py",
+      "size": 21273,
+      "sha": "b61aaa4aba6d75521cfb9af7854f15b2b6be05c1",
+      "sha256": "00caa96984700363371778a683d9c36113b15d98bc023c4e1e7d831120b9711f"
+    },
+    {
       "path": "tests/test_recorder_incremental_span_adversarial.py",
       "size": 12490,
       "sha": "6c1963dd97b3d97f9cb1b36fa54221c68f4f8b61",
@@ -5416,5 +5428,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Qualify opt-in local inbox runner over real loopback HTTP through native ASR/private export with exact admission, conflict/restart evidence and independent copied-DB audit; preserve initial pre-service harness failure scope."
+  "source_update": "Add opt-in finite foreground inbox watch with shared lock/budgets/deadline, clear cancellation and narrowly bounded marker-last waiting; preserve one-shot defaults and uncertainty refusal."
 }

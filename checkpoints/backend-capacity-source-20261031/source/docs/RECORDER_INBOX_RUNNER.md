@@ -4,7 +4,8 @@
 intake, read-only status and private primary export. It handles **one explicitly
 bound selected span and one operator-provided, initially empty strict session**.
 It does not create sessions, discover a target, join epochs, infer gaps, retry
-analysis, delete deliveries, choose the newest attempt, or run a daemon.
+analysis, delete deliveries, choose the newest attempt, or run a daemon. The default `run` remains one-shot; `watch` is a separate,
+explicitly bounded foreground command.
 Importing the module and configuring a binding send no network requests.
 
 ## Set up one binding, then explicitly run
@@ -51,9 +52,9 @@ python -m audio_backend.recorder_inbox_runner run \
   --max-actions 8 --deadline-seconds 120
 ```
 
-Repeat manually after further delivery arrivals or to resume an interrupted
-invocation. No installed service, automatic polling, deployment or permanent
-process is introduced. `waiting_for_input` leaves a missing next sequence
+Repeat `run` manually after further delivery arrivals or to resume an interrupted
+invocation. One-shot runs do not poll automatically. No command installs a
+service, deploys anything, or starts a permanent process. `waiting_for_input` leaves a missing next sequence
 unfilled. `action_limit` means the bounded batch stopped, not that analysis is
 complete. `awaiting_finalize` means a genuine terminal producer input is staged
 but no EOS was authorized.
@@ -76,6 +77,100 @@ status observation. A run with both flags can stage incoming inputs, finalize,
 observe status and export if the finite action budget permits; it does not wait
 indefinitely for future inputs or analysis. A pending finalization must be resumed
 with `--finalize` again, never by an implicit unapproved EOS.
+
+## Optional finite foreground watch
+
+To process arrivals and observe pending primary analysis within **one finite
+invocation**, explicitly choose `watch` instead of `run`:
+
+```sh
+python -m audio_backend.recorder_inbox_runner watch \
+  --state-dir /private/runner/span-23 \
+  --exclusive-writer --acknowledge-span-local-closure \
+  --poll-seconds 5 --max-polls 256 --max-actions 256 \
+  --max-requests 1024 --max-network-writes 512 --deadline-seconds 600
+```
+
+This command holds the **same runner lock** for its whole lifetime, including
+sleep, so another compliant one-shot run or watch cannot interleave. The original
+configuration, session/capture identity, exact paths, state directory and lock
+identity remain checked across waits. There is no target discovery, new session,
+background installation, automatic restart, or change to the configured span.
+The operator must still exclude direct API writers and standalone intake tools.
+
+Only `waiting_for_input` and verified `pending` primary status repeat by default.
+A poll is one inventory/reconciliation pass, including an immediate productive
+pass. A clean wait sleeps before the next pass. Each intake, finalization, status
+observation **and export** consumes a separate action in watch mode. All polls,
+actions, attempted requests, network mutations and decoded JSON response bytes
+share one invocation-wide budget and one monotonic deadline; none reset after a
+sleep. An export needs a remaining action after its completion observation.
+
+`--finalize` and `--export` are optional, frozen permissions for this invocation,
+with exactly the same genuine-terminal and fixed-destination restrictions as
+`run`. Without `--finalize`, terminal input stops at `awaiting_finalize`. Without
+`--export`, verified primary completion stops at `completed`. A gap or latest
+ROTATION never grants closure. A completed export is revalidated, not regenerated.
+
+Every conflict, quarantine, changed original/configuration, blocked worker,
+authorization gap and uncertain transport result stops the watch for explicit
+operator investigation and a new invocation. Watch does **not** repeat failed
+HTTP requests inside an intake helper either: failed/uncertain requests stop it
+immediately, except an expected GET 404 that the existing reconciliation uses to
+identify an absent resource. This stricter behavior is watch-only; one-shot exact
+reconciliation remains unchanged. A crashed process never restarts itself.
+
+### Explicit marker-last waiting
+
+The default remains conservative: even a new partial delivery stops watch.
+Operators whose publisher writes the completion marker last may explicitly add
+`--wait-for-marker-last`. It permits a narrower `waiting_for_publication` state:
+only an **unselected**, marker-absent attempt directory containing a subset of
+`audio.wav` and `segment.v1.bin`, both regular bounded files, may wait. Empty
+unpublished directories are allowed. Extra files, symlinks, excessive sizes,
+observed replacement/mutation, a present invalid marker, or a missing/changed
+selected original remain fatal. Complete same-ordinal conflicts and all frozen
+originals are validated before deciding to wait.
+
+If any such unpublished attempt exists, the **entire pass performs no HTTP,
+intake, finalization or export**, even when other complete arrivals are ready.
+The same poll/deadline budgets apply. Later publication is fully validated before
+selection. This is not a proof of publisher identity or arbitrary FTPS robustness;
+active uploads that change during inspection may still require explicit resume.
+Do not enable it for an untrusted shared inbox.
+
+### Watch limits, cancellation and exit states
+
+- Defaults: 256 polls, 256 helper actions, 1,024 HTTP requests, 512 HTTP mutations,
+  256 MiB decoded JSON response bytes, five-second intervals and a 120-second
+  deadline. All are per **whole watch**, not per poll.
+- Hard maxima: 4,096 polls/actions, 65,536 requests, 8,192 mutations, 256 MiB decoded
+  response bytes, 3,600-second intervals and an 86,400-second deadline. Minimum
+  interval is 0.1 seconds. The existing 256-entry/8-GiB inventory cap applies to
+  each pass and also bounds complete plus unpublished WAV sizes in marker mode.
+- `--max-network-bytes` bounds successfully decoded JSON responses, not outbound
+  WAV data, error bodies, headers or total wire traffic. Before each request watch
+  reserves a full 512-KiB response allowance, so it may stop early rather than
+  exceed that decoded-response budget. Outgoing traffic retains the request,
+  mutation, source and spool limits of the existing intake.
+- SIGINT/SIGTERM request cooperative cancellation; guarded sleeps check at least
+  every 0.1 seconds. In-flight bounded network/media operations and individual
+  filesystem syscalls may take longer to return. The deadline is cooperative,
+  not an OS process-kill guarantee. Evidence is retained for explicit resume.
+  Cancellation stops only this foreground watch; it does not cancel or undo
+  already accepted backend work.
+- `poll_limit`/`action_limit` exit 0 and report `last_status`; they are not
+  completion. `awaiting_finalize`, `input_capacity_reached`, `blocked`, `completed`
+  and `exported` stop immediately. Inspect `status`, not just the exit code.
+- Errors return `unresolved`; time exhaustion returns `deadline_reached`; both
+  exit 2. Cooperative cancellation returns `cancelled`; CLI SIGINT exits 130 and
+  SIGTERM exits 143. Results include cumulative `polls`, `actions`,
+  `helper_actions`, `network_requests`, `network_writes` and
+  `network_response_bytes` when the run context has initialized.
+- Watch reports `automatic_intake_enabled: true`,
+  `continuous_polling_enabled: true`, `invocation_bounded: true` and
+  `daemon_installed: false`. Those describe this explicit foreground invocation,
+  not a persistent permission or service. Budgets are not renewed automatically.
 
 ## Selection, duplicates and quarantine
 
@@ -194,7 +289,13 @@ and do not qualify transcript generation. Any actual producer/native/loopback
 qualification must be reported separately with its fixture and stopping limits.
 
 
-A separate [public-speech native loopback qualification](../qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md)
+Watch tests separately exercise delayed arrivals, marker-last waiting/refusal,
+shared cumulative budgets, terminal statuses, uncertain-request stop, exact crash
+resume, exclusive locks and real subprocess SIGINT/SIGTERM cancellation. These
+are model-free orchestration tests, not an additional native or deployment
+qualification.
+
+A prior one-shot [public-speech native loopback qualification](../qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md)
 passed for the bounded one-span path: nine unchanged host-Java deliveries,
 controlled incremental local arrivals, clean runner reopen, duplicate/conflict
 refusals, explicit terminal finalization, five real primary ASR units and two
