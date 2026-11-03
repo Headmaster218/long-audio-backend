@@ -291,3 +291,7 @@ Bounded graceful service task settlement before terminal receipt, with four asyn
 ## Finite SQLite evidence checkpoint (2026-11-03)
 
 Source-only generic physical probe and12 parser controls. Actual SQLITE_FULL6144pages, confirmed changed-page rollback-journal capture, original child kill/reap and separate-copy exact recovery observed. Production qualification unchanged; not acoustic or power-loss evidence. No generated database/journal or runtime/cache asset included. 771 manifest files. Independent saved-byte audit accepted generic evidence only; audit source preserved.
+
+## Isolated CellStore candidate checkpoint (2026-11-03)
+
+Nine actual verifier/SQLite schema, ownership, restart and refusal tests passed on an isolated two-literal candidate; independent result review accepted this limited evidence. Initial wrong-device failure retained. Production profile remains unchanged. Experimental patch/test/evidence basis only; no databases/runtime/cache assets included. 774 manifest files.

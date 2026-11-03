@@ -1,0 +1,11 @@
+{
+  "schema": "isolated-runtime-candidate-basis-v1",
+  "production_activation_approved": false,
+  "scope": "Generic finite SQLite physical evidence; production CellStore regressions and independent acceptance still required",
+  "sqlite3_package_sha256": "6ac9a15ee2c393bd994e6b3784ed3f5fb97c9b4f986cbce03dccbad6226778df",
+  "physical_result_sha256": "cac203b1b63256a811033f19d831698c9087a06b185ddecb258a14db250ec4a8",
+  "independent_audit_sha256": "5d13f9aa35aae1b2cf31c7bfa26e4ead66fc963f86ffbdfe0a6e35906661317a",
+  "existing_store_migration_authorized": false,
+  "power_loss_qualified": false,
+  "model_or_accuracy_qualified": false
+}

@@ -2217,10 +2217,16 @@
       "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
     },
     {
+      "path": "qualification/EXPERIMENTAL_PROFILE_BASIS.json",
+      "size": 638,
+      "sha": "97535585059a2b80bd55c5db319c550098132170",
+      "sha256": "417f1d85a371df35733136c4dc8e725816f15f93093e5bbd9876865ed1cf39bf"
+    },
+    {
       "path": "qualification/README.md",
-      "size": 4552,
-      "sha": "d6cfe15a2326873aca757bc5a24b6b550f9fa363",
-      "sha256": "329181c9092e46ff96dce15c84d5d74e2a945d37258dd8e46d4d2137ef94852d"
+      "size": 7289,
+      "sha": "ee6ab644cad1de6657125bd910c77811e7dfda18",
+      "sha256": "2225580505749658a956d0dd41116eea881aa1a07e4fd6dac66af6ed9099af9b"
     },
     {
       "path": "qualification/independent_saved_audit_20261103.py",
@@ -2229,10 +2235,22 @@
       "sha256": "69f14c4bc514ea5cd4a8723fc9cd0273a740cb05ab59e7b0e3f3e232ab636654"
     },
     {
+      "path": "qualification/isolated_candidate_20261103.patch",
+      "size": 1070,
+      "sha": "de1355bb8f5a9b7f039b1489764baeb13df1cf65",
+      "sha256": "aa84c6d8c0244a57e0d08d3312f695b2d2919ded51f8be2afb399256beeb9b39"
+    },
+    {
       "path": "qualification/sqlite_crash_probe.py",
       "size": 17973,
       "sha": "cef6b56f9265cc84191fc4d114668d95f88ec330",
       "sha256": "2734c588d033bd705f21b7586bb3b88c03dc31e485a1439bb52ca64917aca95c"
+    },
+    {
+      "path": "qualification/test_candidate_cellstore.py",
+      "size": 6537,
+      "sha": "28a59c75f571139541fcdcb42ff65642551f81fb",
+      "sha256": "37cf5b693bf3352e8bf02b18a4a2b1dfb077d9d221c597916f7a8620c5fc6cf2"
     },
     {
       "path": "requirements-build-dev9.lock.txt",
@@ -4630,5 +4648,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 finite synthetic SQLite physical evidence harness and parser controls; no production runtime profile activation"
+  "source_update": "2026-11-03 isolated two-literal candidate CellStore schema/ownership/refusal regressions independently accepted; production profile unchanged"
 }

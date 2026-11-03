@@ -71,3 +71,45 @@ Original independent audit script SHA256:
 `69f14c4bc514ea5cd4a8723fc9cd0273a740cb05ab59e7b0e3f3e232ab636654`.
 Raw synthetic database/journal evidence is retained locally and excluded from
 source backup. This acceptance does not activate or replace the shipped profile.
+
+## Isolated production-schema candidate regressions
+
+A separate source copy of checkpoint d64aa5e3991ca94780a43887131f84816e5e7b2c
+was prepared. Its only production-code differences are the two literals in
+`isolated_candidate_20261103.patch`. The working backend profile remains unchanged.
+`EXPERIMENTAL_PROFILE_BASIS.json` explicitly does not approve activation and binds
+the actual physical result and independent audit hashes. Candidate module SHA256:
+`1422352f2b0b88ddfeb6c50ca10ac824ef9899057f5fdc19762cf23d532cb2b1`.
+
+Nine isolated tests passed: the eight cases in `test_candidate_cellstore.py` plus
+the unchanged existing
+`AdmissionTests.test_seam_synthetic_real_runtime_a_profile_restart_dispatch_and_off`.
+Checks include actual schema creation, publish/replay/conflicting-proof ownership,
+pinned read/release, restart, real runtime/build/device refusal before disk access,
+existing qualification binding refusal without changing namespace bytes, and
+unresolved-owner lock-token retention. The real production verifier and SQLite
+are used. Primary authority and instance-lock token are synthetic, so this is not
+real OS/factory lock, recorder provenance, native inference or service evidence.
+
+The original first run failed because default /tmp is on a different filesystem:
+the unchanged selector correctly returned no profile. That failure was preserved.
+The second run used a fresh workspace directory for both pytest basetemp and
+TemporaryDirectory, asserting device 27 before proceeding. It passed 9 tests in
+1.08 seconds with exit zero. It verified exact candidate import path, actual
+success branch rather than alternate runtime refusal, unchanged full source
+manifest, evidence hashes and the exact two-literal diff. Work was bounded by
+120-second alarm, 90/100 CPU seconds and 1 GiB address-space limit, on two CPUs.
+
+To reproduce, restore the cited source checkpoint into a separate candidate,
+add the experimental basis/test file, apply the patch only there, use the original
+isolated runtime with -I -B and required test dependencies, and put all temporary
+files on the qualified filesystem. Explicitly run the qualification test file
+and the named unchanged seam test. The repository's default testpaths remain
+`tests`; experimental candidate tests are opt-in and must not run against the
+unchanged production profile expecting success.
+
+Independent result review accepted these nine tests as isolated candidate
+schema/ownership/refusal evidence. It verified saved results, all candidate pins,
+unchanged production module and exact two-literal candidate diff. Production
+activation is still a separate decision. Original regression result SHA256:
+`56004ce3fb32499f96234962870884c931389d9a65be88db5802a0917f9df361`.
