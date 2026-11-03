@@ -1,0 +1,216 @@
+--- a/audio_backend/app.py
++++ b/audio_backend/app.py
+@@ -655,0 +656,23 @@
++    def session_requests_enabled():
++        if not settings.session_requests_experimental:
++            raise HTTPException(404,'Experimental session requests are disabled')
++        if not settings.api_key or not settings.strict_primary_enabled:
++            raise HTTPException(409,'Session requests require authenticated strict mode')
++
++    @app.put('/session-requests/{key}')
++    def put_session_request(key:str,body:SessionRequest):
++        session_requests_enabled()
++        from .session_requests import put, RequestConflict, RequestGone
++        try: result=put(store,key,body.model_dump())
++        except RequestGone as exc: raise HTTPException(410,str(exc)) from exc
++        except RequestConflict as exc: raise HTTPException(409,str(exc)) from exc
++        return JSONResponse(result,headers={'Cache-Control':'private, no-store'})
++
++    @app.get('/session-requests/{key}')
++    def get_session_request(key:str):
++        session_requests_enabled()
++        from .session_requests import get, RequestGone
++        try: result=get(store,key)
++        except RequestGone as exc: raise HTTPException(410,str(exc)) from exc
++        return JSONResponse(result,headers={'Cache-Control':'private, no-store'})
++
+--- a/audio_backend/storage.py
++++ b/audio_backend/storage.py
+@@ -168,0 +169,3 @@
++        opted=getattr(settings,'session_requests_experimental',False)
++        if opted and (not settings.strict_primary_enabled or not settings.api_key):
++            raise ValueError('session_requests_require_authenticated_strict_opt_in')
+@@ -322,0 +326,5 @@
++        if getattr(settings,'session_requests_experimental',False):
++            from .session_requests import initialize
++            with self.db() as db:
++                db.execute('BEGIN IMMEDIATE')
++                initialize(db)
+@@ -445,0 +454,2 @@
++                    from .session_requests import preflight
++                    preflight(db,getattr(self.settings,'session_requests_experimental',False))
+@@ -647,0 +658,23 @@
++    def _create_session_row(self, db, name, identity_group="default", identity_mode=None, processing_mode="legacy"):
++        if db.execute('SELECT COUNT(*) FROM sessions WHERE deleted=0').fetchone()[0] >= self.settings.max_sessions:
++            raise OverflowError('Session capacity reached; delete unused sessions')
++        sid = ident()
++        if processing_mode not in ('legacy', 'fragment_pcm16_v1'):
++            raise ValueError('Unknown session processing mode')
++        if self._strict_enabled and processing_mode != 'legacy':raise ValueError('Strict sessions require primary recording mode')
++        if processing_mode != 'legacy':
++            if identity_mode is not None or identity_group != 'default':
++                raise ValueError('Experimental sessions use isolated, disabled global identity')
++            identity_group = 'fragment.' + sid
++        verified_identity.create_group(self,db,identity_group,identity_mode)
++        db.execute('INSERT INTO sessions(id,name,identity_group,created) VALUES(?,?,?,?)', (sid,name,identity_group,time.time()))
++        if self._strict_enabled:
++            from .strict_recording import new_policy
++            new_policy(db,sid,self.settings)
++        if processing_mode != 'legacy':
++            if not hasattr(self, 'fragment_http'):
++                raise ValueError('Experimental fragment provider is not configured')
++            self.fragment_http.create_session(db,sid)
++            db.execute('UPDATE sessions SET processing_mode=? WHERE id=?',(processing_mode,sid))
++        return sid
++
+@@ -651,20 +684 @@
+-            if db.execute('SELECT COUNT(*) FROM sessions WHERE deleted=0').fetchone()[0] >= self.settings.max_sessions:
+-                raise OverflowError('Session capacity reached; delete unused sessions')
+-            sid = ident()
+-            if processing_mode not in ('legacy', 'fragment_pcm16_v1'):
+-                raise ValueError('Unknown session processing mode')
+-            if self._strict_enabled and processing_mode != 'legacy':raise ValueError('Strict sessions require primary recording mode')
+-            if processing_mode != 'legacy':
+-                if identity_mode is not None or identity_group != 'default':
+-                    raise ValueError('Experimental sessions use isolated, disabled global identity')
+-                identity_group = 'fragment.' + sid
+-            verified_identity.create_group(self,db,identity_group,identity_mode)
+-            db.execute('INSERT INTO sessions(id,name,identity_group,created) VALUES(?,?,?,?)', (sid,name,identity_group,time.time()))
+-            if self._strict_enabled:
+-                from .strict_recording import new_policy
+-                new_policy(db,sid,self.settings)
+-            if processing_mode != 'legacy':
+-                if not hasattr(self, 'fragment_http'):
+-                    raise ValueError('Experimental fragment provider is not configured')
+-                self.fragment_http.create_session(db,sid)
+-                db.execute('UPDATE sessions SET processing_mode=? WHERE id=?',(processing_mode,sid))
++            sid=self._create_session_row(db,name,identity_group,identity_mode,processing_mode)
+--- a/audio_backend/settings.py
++++ b/audio_backend/settings.py
+@@ -107,0 +108 @@
++    session_requests_experimental: bool = False
+--- /dev/null
++++ b/audio_backend/session_requests.py
+@@ -0,0 +1,122 @@
++"""Isolated experimental session-request receipts; not automatic intake.
++
++One authenticated store/domain only. No cross-instance identity or deduplication.
++Fixed lifetime bound, no eviction, no key reuse after deletion. Never stores raw
++request text; the receipt hashes the exact normalized API field representation.
++"""
++import hashlib
++import json
++import re
++
++MAX_REQUESTS = 4096
++TABLE = 'session_requests_v1'
++POLICY = 'session_requests_policy_v1'
++DDL = (
++    f'''CREATE TABLE {POLICY} (singleton INTEGER PRIMARY KEY CHECK(singleton=1),
++        schema_version INTEGER NOT NULL CHECK(schema_version=1),
++        lifetime_limit INTEGER NOT NULL CHECK(lifetime_limit=4096))''',
++    f'''CREATE TABLE {TABLE} (request_key TEXT NOT NULL PRIMARY KEY CHECK(typeof(request_key)='text' AND length(request_key)=32 AND request_key NOT GLOB '*[^0-9a-f]*'),
++        request_sha256 TEXT CHECK(request_sha256 IS NULL OR (typeof(request_sha256)='text' AND length(request_sha256)=64 AND request_sha256 NOT GLOB '*[^0-9a-f]*')),
++        sid TEXT NOT NULL UNIQUE REFERENCES sessions(id))''',
++    f'''CREATE TRIGGER session_requests_no_update_v1 BEFORE UPDATE ON {TABLE}
++        WHEN NOT (NEW.request_key IS OLD.request_key AND NEW.sid IS OLD.sid
++          AND OLD.request_sha256 IS NOT NULL AND NEW.request_sha256 IS NULL
++          AND EXISTS(SELECT 1 FROM sessions WHERE id=OLD.sid AND deleted=1))
++        BEGIN SELECT RAISE(ABORT,'session_request_immutable'); END''',
++    f'''CREATE TRIGGER session_requests_scrub_v1 AFTER UPDATE OF deleted ON sessions
++        WHEN NEW.deleted=1 AND OLD.deleted=0
++        BEGIN UPDATE {TABLE} SET request_sha256=NULL WHERE sid=NEW.id; END''',
++    f'''CREATE TRIGGER session_requests_no_delete_v1 BEFORE DELETE ON {TABLE}
++        BEGIN SELECT RAISE(ABORT,'session_request_tombstone_required'); END''',
++    f'''CREATE TRIGGER session_requests_capacity_v1 BEFORE INSERT ON {TABLE}
++        WHEN (SELECT COUNT(*) FROM {TABLE})>=4096
++        BEGIN SELECT RAISE(ABORT,'session_request_lifetime_capacity'); END''',
++)
++
++
++class RequestConflict(ValueError): pass
++class RequestGone(ValueError): pass
++
++
++def key_valid(key):
++    if type(key) is not str or re.fullmatch('[0-9a-f]{32}', key) is None:
++        raise ValueError('session_request_key_requires_32_lowercase_hex')
++
++
++def canonical(body):
++    if type(body) is not dict or set(body) != {'name','identity_group','identity_mode','processing_mode'}:
++        raise ValueError('session_request_fields')
++    if (type(body['name']) is not str or len(body['name']) > 200
++            or body['identity_group'] != 'default' or body['identity_mode'] is not None
++            or body['processing_mode'] != 'legacy'):
++        raise ValueError('session_request_requires_default_primary_identity')
++    data=json.dumps(body,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode('utf-8')
++    if len(data)>1024:raise ValueError('session_request_body_bound')
++    return hashlib.sha256(data).hexdigest()
++
++
++def schema(db):
++    expected={sql.split()[2]:(sql.split()[1].lower(),''.join(sql.split())) for sql in DDL}
++    rows=db.execute("SELECT name,type,sql FROM sqlite_master WHERE name GLOB 'session_requests_*' LIMIT 9").fetchall()
++    if len(rows)!=len(expected):raise ValueError('session_request_schema_mismatch')
++    for name,kind,sql in rows:
++        if expected.get(name)!=(kind,''.join((sql or '').split())):raise ValueError('session_request_schema_mismatch')
++    if list(map(tuple,db.execute(f'SELECT * FROM {POLICY} LIMIT 2')))!=[(1,1,MAX_REQUESTS)]:
++        raise ValueError('session_request_policy_mismatch')
++
++
++def preflight(db, enabled):
++    """Discovery on the existing tracked, admitted Store initialization connection."""
++    if type(enabled) is not bool:raise ValueError('session_request_opt_in_boolean')
++    present=db.execute("SELECT 1 FROM sqlite_master WHERE name GLOB 'session_requests_*' LIMIT 1").fetchone() is not None
++    if present:
++        if not enabled:raise ValueError('session_request_namespace_requires_opt_in')
++        schema(db)
++    elif enabled and db.execute('SELECT 1 FROM sqlite_master LIMIT 1').fetchone():
++        raise ValueError('session_requests_fresh_store_only')
++
++
++def initialize(db):
++    if db.execute('SELECT 1 FROM sqlite_master WHERE name=?',(TABLE,)).fetchone():
++        schema(db);return
++    if db.execute('SELECT 1 FROM sessions LIMIT 1').fetchone():raise ValueError('session_requests_fresh_store_only')
++    for sql in DDL:db.execute(sql)
++    db.execute(f'INSERT INTO {POLICY} VALUES(1,1,4096)')
++    schema(db)
++
++
++def enabled(store):
++    if not store.settings.session_requests_experimental or not store._strict_enabled or not store.settings.api_key:
++        raise ValueError('session_requests_require_authenticated_strict_opt_in')
++
++
++def receipt(db, key, expected=None):
++    row=db.execute(f'SELECT r.request_sha256,r.sid,s.deleted FROM {TABLE} r LEFT JOIN sessions s ON s.id=r.sid WHERE r.request_key=?',(key,)).fetchone()
++    if row is None:return None
++    if row[2] is None:raise ValueError('session_request_missing_session')
++    if row[2]:raise RequestGone('session_request_deleted_no_recreation')
++    if row[0] is None:raise ValueError('session_request_missing_body_digest')
++    if expected is not None and row[0]!=expected:raise RequestConflict('session_request_changed_body')
++    return dict(schema='session-request-receipt-v1',request_key=key,request_sha256=row[0],session_id=row[1])
++
++
++def put(store,key,body):
++    enabled(store);key_valid(key);digest=canonical(body)
++    with store.db() as db:
++        db.execute('BEGIN IMMEDIATE');schema(db)
++        result=receipt(db,key,digest)
++        if result is None:
++            if db.execute(f'SELECT COUNT(*) FROM {TABLE}').fetchone()[0]>=MAX_REQUESTS:
++                raise OverflowError('session_request_lifetime_capacity')
++            sid=store._create_session_row(db,**body)
++            db.execute(f'INSERT INTO {TABLE}(request_key,request_sha256,sid) VALUES(?,?,?)',(key,digest,sid))
++            result=receipt(db,key,digest)
++    return result
++
++
++def get(store,key):
++    enabled(store);key_valid(key)
++    with store.db() as db:
++        db.execute('BEGIN');schema(db);result=receipt(db,key)
++        if result is None:raise KeyError('Session request not found')
++    return result

@@ -305,3 +305,5 @@ Unchanged CellStore DDL/indexes, production limits/accounting,6144page actualSQL
 2026-11-03: added explicit local recorder-delivery integration experiment and audit. Android producer bytes pass semantic preflight/snapshot, strict upload and publication; exact source/chunk PCM verified. 252 focused tests passed. No microphone/FTPS/continuity/importer-activation claim; generated data excluded.
 
 2026-11-03: actual loopback FTPS/JVM TLS received delivery passed strict backend publication. Independent audit matches remote, snapshot, source and chunk PCM. Added audit source and clarified current versus historical session integration status. No device/automatic-intake claim; source-only backup.
+
+2026-11-03: isolated server session-request idempotency experiment backed up as unapplied patch, test source, design and hash basis. 33 focused tests passed; independent review reran22 candidate cases. Working application/native pins unchanged. No activation, migration, primary-store allocation or crash qualification.

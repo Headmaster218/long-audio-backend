@@ -2241,6 +2241,18 @@
       "sha256": "d58ba56440aca2ff6839aec3b6592dd2fd712ff23d244c0e12bc3176ab111029"
     },
     {
+      "path": "qualification/SESSION_REQUESTS_CANDIDATE_BASIS_20261103.json",
+      "size": 1255,
+      "sha": "39c214c85a17273ceb28f86f2715df3440febb18",
+      "sha256": "f8783f331aadb5d9ea7096af3525d41bcb241babe8a4b7a599ac9629aad864a9"
+    },
+    {
+      "path": "qualification/SESSION_REQUESTS_EXPERIMENT.md",
+      "size": 6872,
+      "sha": "812bde611a1b8d777ffb0cc47b6b9596ffe85287",
+      "sha256": "5444f158ff7af5674ed4abb34cc77b28593fe9729863b01e7bfc38a7906d3593"
+    },
+    {
       "path": "qualification/accepted_candidate_20261103.patch",
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
@@ -2295,6 +2307,12 @@
       "sha256": "aa84c6d8c0244a57e0d08d3312f695b2d2919ded51f8be2afb399256beeb9b39"
     },
     {
+      "path": "qualification/isolated_session_requests_20261103.patch",
+      "size": 11815,
+      "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
+      "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
       "path": "qualification/sqlite_crash_probe.py",
       "size": 17973,
       "sha": "cef6b56f9265cc84191fc4d114668d95f88ec330",
@@ -2311,6 +2329,12 @@
       "size": 6537,
       "sha": "28a59c75f571139541fcdcb42ff65642551f81fb",
       "sha256": "37cf5b693bf3352e8bf02b18a4a2b1dfb077d9d221c597916f7a8620c5fc6cf2"
+    },
+    {
+      "path": "qualification/test_session_requests_candidate.py",
+      "size": 9430,
+      "sha": "c9a5b2d8904b88dd1084d0b5463ddb56148dbaa0",
+      "sha256": "acc5d698c008ba0ecdb866655ab7dcd95d79bd93c63b4de923d99e9fd82917be"
     },
     {
       "path": "requirements-build-dev9.lock.txt",
@@ -4726,5 +4750,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 actual loopback FTPS received delivery published through strict backend; independent byte chain audit; automatic intake still disabled"
+  "source_update": "2026-11-03 isolated disabled-default server session idempotency design and unapplied candidate patch; 33 focused tests; activation not qualified"
 }

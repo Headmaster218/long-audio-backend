@@ -1,0 +1,23 @@
+{
+  "activation_approved": false,
+  "candidate_source_pins": {
+    "audio_backend/app.py": "1ea963e1507d5d07b52af04b4db8d5e3a27ac2008b6cd582a79c644c7e57e921",
+    "audio_backend/session_requests.py": "54b35c2f29e72eec2652e62119bbbc0127cd0bb67972de4e13d7387c7b88c0d9",
+    "audio_backend/settings.py": "ac8c7081a2be5e2652e50a9cf70100d5991674724f46c77cfc86b15711720c94",
+    "audio_backend/storage.py": "d96c45a3ce0861bd76eacb9cf282a2ace52b96585e6e7a67b61e0bb422e9aa2f",
+    "qualification/test_session_requests_candidate.py": "acc5d698c008ba0ecdb866655ab7dcd95d79bd93c63b4de923d99e9fd82917be"
+  },
+  "candidate_test_count": 22,
+  "combined_focused_test_count": 33,
+  "crash_recovery_qualified": false,
+  "limits": [
+    "No native lifespan or runtime activation",
+    "One store/authentication domain only; no server identity binding",
+    "No actual network loss, ambiguous commit, or power-loss qualification",
+    "Capacity test directly constructs historical tombstones"
+  ],
+  "patch_sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a",
+  "primary_store_allocation_qualified": false,
+  "result_sha256": "68639774ae0d6312a438dc81612a6de656e0f0a459cf829bda01969f0b57b3de",
+  "schema": "isolated-session-requests-experiment-v1"
+}
