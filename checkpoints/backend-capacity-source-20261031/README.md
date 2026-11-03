@@ -412,3 +412,28 @@ cleanup evidence, scoring limits and the baseline /tmp disk-reserve fixture issu
 are documented in source/qualification/AMI_HANDY_CANDIDATE_20261103.md.
 Only source, synthetic tests and aggregate documentation are included. No audio,
 annotations, hypotheses, weights, candidate scratch or raw results are backed up.
+
+## Twelve-hour delivery-count capacity and terminal-aware planner
+
+Fresh v3 uploader and incremental-intake jobs now use a finite 192-input default
+and maximum, allowing 144 five-minute deliveries within the unchanged twelve-hour
+duration default. Existing 64/128-input v3 jobs keep their frozen caps; legacy v2
+stays at 32. The planner models current terminal-aware full-sized STOP, with
+explicit legacy rotation-only compatibility and no inferred EOS.
+
+Authentication is bounded to 24,960 bytes. Existing 32 MiB metadata, 48 MiB total
+owned state, 12 MiB spool, source-slot, byte/duration and disk checks are unchanged.
+Real journal/archive tests cover 144 × 300-second geometry with 147 pages, and 192
+padded inputs across 588 pages, with restarts and late-record tamper refusals. A
+separate fixture runs 144 tiny real input files through intake/uploader/replay and
+explicit finish using scaled geometry and a synthetic protocol peer. Neither is
+a twelve-hour native/audio runtime test. Independent review approved the scoped
+changes; the planner oracle checked 259,200 profiles. No server quota, model,
+primary gate, watcher, session creation or production pin change.
+
+Final selected recorder/uploader aggregate: 628 passed, 9 optional Java-fixture
+skips, 2 previously blocked real-HTTP tests deselected, one dependency warning.
+Separate tiny-file intake suite: 3 passed, including old-cap preservation. Initial
+test-only expectations for the old default/maximum and exact-full-page EOS were
+corrected; existing full-page capture finish behavior was not changed. These are
+selected tests, not a full-repository or actual long-duration qualification.

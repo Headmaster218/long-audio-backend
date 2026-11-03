@@ -1,11 +1,11 @@
 """Independent recorder profile arithmetic and no-operation-I/O audit.
 
 Run from the backend checkout:
-  PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python /tmp/test_recorder_capture_profile_independent_20261103.py
-  PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python /tmp/test_recorder_capture_profile_independent_20261103.py --full
-  PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider /tmp/test_recorder_capture_profile_independent_20261103.py
+  PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python tests/test_recorder_capture_profile_independent.py
+  PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python tests/test_recorder_capture_profile_independent.py --full
+  PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider tests/test_recorder_capture_profile_independent.py
 
-The default/pytest matrix is bounded. --full checks 86,400 profiles.
+The default/pytest matrix is bounded. --full checks 259,200 profiles.
 This tests arithmetic, not media ingestion, devices or sustained runtime.
 The I/O check starts after normal imports: it does not claim Python imports
 perform zero filesystem reads or never create bytecode caches.
@@ -30,7 +30,7 @@ PAGE = 294 * RATE
 SOURCE = 120 * RATE
 SLOTS = 16
 HOURS = (1, 7, 12, 48)
-COUNTS = (1, 2, 16, 64, 85, 128)
+COUNTS = (1, 2, 16, 64, 85, 128, 143, 144, 192)
 REPRESENTATIVE_SECONDS = (
     1, 2, 4, 10, 18, 19, 20, 21, 30, 60, 119, 120, 121,
     146, 147, 148, 293, 294, 295, 299, 300, 301, 337, 338,
@@ -48,7 +48,7 @@ def piece_count(start, end, target):
     )
 
 
-def oracle(seconds, hours, inputs):
+def oracle(seconds, hours, inputs, terminal_aware):
     target = seconds * RATE
     cap = hours * 3600 * RATE
     maxima = []
@@ -61,7 +61,7 @@ def oracle(seconds, hours, inputs):
         reservation = math.ceil(min(PAGE - (position - page_start), cap - position) / SOURCE)
         if used + reservation > SLOTS:
             return max(maxima), index, 'page_source_slots', index
-        maxima.append(min(position + target - 1, cap))
+        maxima.append(min(position + target - (0 if terminal_aware else 1), cap))
         if position + target > cap:
             return max(maxima), index, 'duration', None
     return max(maxima), inputs, ('duration' if inputs * target == cap else 'input_count'), None
@@ -72,17 +72,21 @@ def check_matrix(seconds):
     for segment in seconds:
         for hours in HOURS:
             for inputs in COUNTS:
-                result = plan(segment_seconds=segment, max_hours=hours, max_inputs=inputs)
-                refusal = result['first_source_slot_refusal']
-                actual = (
-                    result['maximum_frames_with_nonempty_stop_tail'],
-                    result['full_rotations_before_limit'],
-                    result['limiting_factor'],
-                    None if refusal is None else refusal['input_ordinal'],
-                )
-                expected = oracle(segment, hours, inputs)
-                assert actual == expected, (segment, hours, inputs, actual, expected)
-                checked += 1
+                for mode in ('terminal-aware', 'legacy-rotation-only'):
+                    result = plan(segment_seconds=segment, max_hours=hours, max_inputs=inputs,
+                                  producer_mode=mode)
+                    refusal = result['first_source_slot_refusal']
+                    actual = (
+                        result['maximum_frames_with_stop'],
+                        result['full_rotations_before_limit'],
+                        result['limiting_factor'],
+                        None if refusal is None else refusal['input_ordinal'],
+                    )
+                    expected = oracle(segment, hours, inputs, mode == 'terminal-aware')
+                    assert actual == expected, (segment, hours, inputs, mode, actual, expected)
+                    assert result['maximum_frames_with_nonempty_stop_tail'] == oracle(
+                        segment, hours, inputs, False)[0]
+                    checked += 1
     return checked
 
 
@@ -108,7 +112,7 @@ def check_no_operation_io():
 
 
 def test_representative_independent_oracle():
-    assert check_matrix(REPRESENTATIVE_SECONDS) == 696
+    assert check_matrix(REPRESENTATIVE_SECONDS) == 2088
 
 
 def test_plan_does_not_perform_media_state_backend_io():
@@ -117,7 +121,7 @@ def test_plan_does_not_perform_media_state_backend_io():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--full', action='store_true', help='Check all 86,400 profiles')
+    parser.add_argument('--full', action='store_true', help='Check all 259,200 profiles')
     args = parser.parse_args(argv)
     count = check_matrix(range(1, 3601) if args.full else REPRESENTATIVE_SECONDS)
     blocked = check_no_operation_io()

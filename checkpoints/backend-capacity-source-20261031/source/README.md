@@ -616,3 +616,22 @@ Experimental incremental successor: [explicit append and separate finalize](docs
 Before recording a long capture, check the [read-only segment profile planner](docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md). Duration, input count, short-segment fragmentation and terminal STOP availability are separate limits; defaults do not promise twelve hours at every segment size.
 
 For received recorder files, use the [explicit receiver workflow](docs/RECORDER_RECEIVER_WORKFLOW.md). Its bounded read-only inbox inspection shows candidate ordinals and unresolved attempts without choosing retries or starting ingestion.
+
+
+## Twelve-hour recorder input-count compatibility
+
+New v3 uploader and incremental-recorder jobs default to 192 input identities
+(maximum 192), retaining their twelve-hour duration default. Existing v3 jobs
+keep their frozen 64/128 counts; legacy v2 stays at 32. The modern terminal-aware
+recorder can use 144 five-minute deliveries with explicit STOP on the final full
+segment, followed by separate explicit finalization. The profile planner exposes
+legacy ROTATION-only behavior separately. Old counts in historical release notes
+above describe their original versions, not the current fresh-job default.
+
+Authentication is bounded to 24,960 bytes; metadata/state/spool limits remain
+32/48/12 MiB. See [incremental intake](docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md)
+and [profile planning](docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md) for exact
+capacity, frozen-job compatibility, source-slot limits and verification scope.
+144 tiny inputs and twelve-hour metadata geometry are not twelve-hour native
+runtime or acoustic-quality qualification. Session creation and watchers remain
+disabled; no model, primary gate, server quota or runtime pin is changed.

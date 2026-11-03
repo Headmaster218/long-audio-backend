@@ -206,8 +206,8 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
         guard.check()
         return min(120,max(.000001,guard.end-time.monotonic()))
     if start:
-        hours = 12 if max_hours is None else max_hours; count = 64 if max_inputs is None else max_inputs
-        require(type(hours) is int and 1 <= hours <= 48 and type(count) is int and 1 <= count <= 128, 'capture_capacity_options')
+        hours = 12 if max_hours is None else max_hours; count = u.APPEND_DEFAULT_INPUTS if max_inputs is None else max_inputs
+        require(type(hours) is int and 1 <= hours <= 48 and type(count) is int and 1 <= count <= u.APPEND_MAX_INPUTS, 'capture_capacity_options')
         path=Path(delivery).absolute()
         report=inspect_delivery(path,validate_metadata=True,deadline_seconds=remaining())
         validate_edge(None,candidate_record(path,report,0,remaining))
@@ -232,7 +232,7 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
                 ({'initial_intent'} if header.get('initial_intent') is True else set()) and header['schema'] == SCHEMA
                 and header['target'] == destination and header['input_bytes'] == BYTES
                 and type(header['max_hours']) is int and 1 <= header['max_hours'] <= 48
-                and type(header['max_inputs']) is int and 1 <= header['max_inputs'] <= 128,
+                and type(header['max_inputs']) is int and 1 <= header['max_inputs'] <= u.APPEND_MAX_INPUTS,
                 'capture_header_identity_changed')
         require((max_hours is None or max_hours == header['max_hours']) and
                 (max_inputs is None or max_inputs == header['max_inputs']), 'capture_frozen_capacity_changed')

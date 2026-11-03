@@ -4,7 +4,7 @@ Verification checkpoint: a separate 11-second incremental native fixture passed 
 
 This command admits one immutable recorder delivery at a time into a known strict session. It reuses the existing v3 paged append uploader, rather than extending the fixed-batch journal or creating sessions automatically. Each invocation is explicit. No watcher, FTPS poller, server reservation, model/runtime activation or original-file deletion is added.
 
-The frozen default capacity is **12 logical hours and 64 deliveries**, selectable at the first call up to 48 hours and 128 deliveries. These are finite software bounds, **not measured long-duration runtime qualification**. Mono16k PCM16 is required. Individual delivery validation retains its 512 MiB WAV bound, and this wrapper caps aggregate snapshot WAV bytes at 8 GiB. Per-page source slots can be reached earlier than these duration/count limits.
+The frozen default capacity is **12 logical hours and 192 deliveries**, selectable at the first call up to 48 hours and 192 deliveries. These are finite software bounds, **not measured long-duration runtime qualification**. Mono16k PCM16 is required. Individual delivery validation retains its 512 MiB WAV bound, and this wrapper caps aggregate snapshot WAV bytes at 8 GiB. Per-page source slots can be reached earlier than these duration/count limits.
 
 ## Start, append, then explicitly finalize
 
@@ -115,7 +115,7 @@ not physical power-loss, native inference or filesystem durability qualification
 
 ## Capacity and work bounds
 
-- At most 128 admission records, each bounded to 16 KiB. Long paths can trigger that metadata bound.
+- At most 192 admission records, each bounded to 16 KiB. Long paths can trigger that metadata bound.
 - Snapshot WAV bytes are capped separately from uploader spool/history/state. They remain retained with originals, and are not part of the uploader's 12 MiB working spool.
 - Before copying a new snapshot, free space must cover its bytes, the configured disk reserve, uploader spool and an additional 16 MiB margin. This is a preflight check, not an OS disk-space reservation against other processes.
 - Known duration and byte limits are checked before admission, so an already known over-cap delivery is not partly accepted first.
@@ -135,4 +135,26 @@ From restored GitHub source in the isolated accepted runtime candidate, three in
 
 Independent audit verified all 177 pinned Python source files, one session/page, three source placements, exact original/snapshot/backend/chunk PCM, two completed chunks (168,000 and 8,000 frames), persisted EOS seal and one stream-final marker, empty final uploader spool, database integrity and clean shutdown. Lost-response count and the unsaved separate latest-delivery retry are supported by the frozen harness and completed result, not a retained full HTTP transcript. The run used local Android producer silence outputs, not a new FTPS/device recording or speech-accuracy test. Source backups exclude all media, databases, model assets and generated reports.
 
-Before selecting segment size and frozen limits, run the [read-only profile preflight](RECORDER_SEGMENT_PROFILE_PREFLIGHT.md). The Android source default of five-minute segments is source-slot safe but reaches the default 64-input limit around 5h20m. Roughly seven hours needs an explicitly larger input budget. Exact-boundary ROTATION-only endings still cannot imply STOP/EOS.
+Before selecting segment size and frozen limits, run the [read-only profile preflight](RECORDER_SEGMENT_PROFILE_PREFLIGHT.md). New jobs default to 192 deliveries, enough for 144 five-minute segments across twelve logical hours. Terminal-aware Android can mark the exact-full last segment STOP; separate explicit finalization is still required. Older jobs keep their frozen 64/128 limits and cannot be upgraded by retry options. Legacy ROTATION-only endings still cannot imply STOP/EOS; choose the planner’s explicit legacy mode for those producers.
+
+
+## Extended input-capacity evidence
+
+The 192-input maximum is finite, not an unbounded recorder queue. The journal's
+maximum authentication bytes are 24,960 across 588 page and 192 input receipts;
+32 MiB metadata, 48 MiB owned state and 12 MiB spool limits are unchanged. At the
+individual record-size limits, conservative allocation/reservation arithmetic is
+26,628,096 metadata bytes and 39,211,008 bytes including spool. Runtime allocation
+checks still refuse unsupported filesystem geometry or exhausted resources.
+Intake may retain 192 bounded admission/decoded records; it revalidates historical
+originals/snapshots and journal history on each invocation. Startup and replay work
+is bounded by count/bytes but grows with history, including quadratic duplicate
+checks. This is not constant-time append or a throughput guarantee.
+
+Tests exercise real tiny original files and intake/uploader journals across inputs
+129–144, explicit STOP/finalize, outstanding-admission retries, fresh object reloads
+and a lost committed source response, using a scaled synthetic protocol peer.
+Separate real-geometry metadata-only fixtures cover 144×300s/147 pages and maximum
+192 padded inputs/588 pages, frozen old caps, restarts and late-history tampering.
+Neither fixture processes twelve or forty-eight hours of real audio or qualifies
+native inference. Existing strict-handler admission tests are separate evidence.

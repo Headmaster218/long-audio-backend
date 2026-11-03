@@ -165,19 +165,21 @@ success still does not mean analysis is complete.
 
 ### Bounded v3 registry and recovery
 
-Fresh append-v3 journals default to **12 logical hours and 64 original IDs**.
+Fresh append-v3 journals default to **12 logical hours and 192 original IDs**.
 The duration is normalized emitted PCM, independent of the invocation timeout.
 Caller order determines placement; names, dates and timestamps are not sorted or
 used for automatic alignment.
 
 - `--max-hours H`: integer 1..48, default 12 on creation.
-- `--max-inputs M`: integer 1..128, default 64 on creation.
+- `--max-inputs M`: integer 1..192, default 192 on creation.
 - `--max-original-bytes B`: aggregate read-only original-file bytes, default
   8 GiB, explicit finite maximum 64 GiB. This does not authorize server storage.
 - Omit these options on resume to load their frozen values. An explicit conflict
   refuses before new decode or HTTP mutation. The v1 finalized-file mode rejects
   append-only options; saved v2 journals retain 2 hours / at most 32 originals
-  and their old journal/reader behavior, with no automatic migration.
+  and their old journal/reader behavior, with no automatic migration. Existing v3
+  journals with 64 or 128 inputs also keep their stored capacities. New defaults
+  do not upgrade existing jobs; an explicit mismatching cap remains refused.
 - At 48 hours: 2,764,800,000 frames, at most 588 pages, and 16,458 derived
   10.5-second work chunks. The final page is 222 seconds and its final work
   chunk is 24,000 frames. Page/source geometry remains 294/120 seconds.
@@ -204,7 +206,7 @@ available; this is client bookkeeping, not new server provenance.
 
 Startup validates the entire local history and its committed terminal hashes
 before any archive drives mutation. Two compact authenticity-only bytearrays
-retain at most (588 + 128) × 32 = **22,912 bytes**, with no historical JSON record
+retain at most (588 + 192) × 32 = **24,960 bytes**, with no historical JSON record
 or remote-response map. Every later archive read verifies its exact bytes again
 against those terminal-checked bindings. A forward hash-chain prefix alone is
 never treated as authenticated. Missing, reordered, altered, unbound, aliased,

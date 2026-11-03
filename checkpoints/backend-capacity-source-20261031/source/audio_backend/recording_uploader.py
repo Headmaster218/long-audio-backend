@@ -1281,7 +1281,7 @@ class AppendUploader(LegacyAppendUploader):
         if input_start_frame is not None and (type(input_start_frame) is not int or not 0 <= input_start_frame <= (1 << 53) - 1):
             raise ValueError('Input start must be an exact integer capture frame')
         if max_inputs is not None and (type(max_inputs) is not int or not 1 <= max_inputs <= APPEND_MAX_INPUTS):
-            raise ValueError('Maximum inputs must be between 1 and 128')
+            raise ValueError('Maximum inputs must be between 1 and ' + str(APPEND_MAX_INPUTS))
         if max_hours is not None and (type(max_hours) is not int or not 1 <= max_hours <= 48):
             raise ValueError('Maximum hours must be an integer between 1 and 48')
         if max_original_bytes is not None and (type(max_original_bytes) is not int or not 1 <= max_original_bytes <= APPEND_MAX_INPUT_BYTES):

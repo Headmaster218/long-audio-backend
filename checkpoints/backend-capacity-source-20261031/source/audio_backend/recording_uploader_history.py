@@ -1,7 +1,7 @@
 """Bounded append-v3 storage; immutable receipts plus one atomic checkpoint.
 
 No list/map of historical records is retained. Two authenticity-only bytearrays
-hold at most (588 + 128) * 32 = 22,912 bytes. A chain is fully checked against its
+hold at most (588 + 192) * 32 = 24,960 bytes. A chain is fully checked against its
 committed head before its bindings become usable; every later read checks the
 bound raw bytes again. This is a finite authentication cache, not constant-size
 history memory. JSON records and remote responses are consumed individually.
@@ -16,8 +16,8 @@ import stat
 POLICY = 'immutable-files-contiguous-mono16k-v3'
 MAX_FRAMES = 48 * 3600 * 16000
 DEFAULT_FRAMES = 12 * 3600 * 16000
-MAX_INPUTS = 128
-DEFAULT_INPUTS = 64
+MAX_INPUTS = 192
+DEFAULT_INPUTS = 192
 MAX_INPUT_BYTES = 64 * 1024**3
 METADATA_BYTES = 32 * 1024**2
 STATE_BYTES = 48 * 1024**2
@@ -422,7 +422,7 @@ class PagedJournal:
             self._input(entry); count += 1; size += entry['identity']['signature'][2]
             if entry['normalized_start'] != cursor or count <= d['inputs_done'] and not entry['clean_eof']:
                 self.fail('Input history order/EOF mismatch')
-            # <=128 bounded scans, without an ID/path/inode registry in RAM.
+            # <=192 bounded scans, without an ID/path/inode registry in RAM.
             for prior_number in range(1, min(count, d['inputs_done'] + 1)):
                 prior = self.read_archive('input', prior_number)
                 if (prior['id'] == entry['id'] or prior['identity']['path'] == entry['identity']['path']

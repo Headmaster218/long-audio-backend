@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 101586,
-      "sha": "408fa7d4c4c7a4d78087288085a501332dff7b6d",
-      "sha256": "3c93eb654c7cc56a17d0d44cb1b00a8fd835386dc00c0ac43bd6e850ea0bf850"
+      "size": 102745,
+      "sha": "853bd6efe8420ffb289498e5633a56c42f88bcd7",
+      "sha256": "b60611a9146140306ffde1821ada6ce8db012f7786ae2a24eb74edfdb784ccc2"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -730,15 +730,15 @@
     },
     {
       "path": "audio_backend/recorder_capture_intake.py",
-      "size": 23771,
-      "sha": "8ff8758f1159be6ef6edbcbf76e152b4b3afc820",
-      "sha256": "ac937e31e7968582a64df2b6f7d8a90808adbd394b13c55b0cc55ef039c46745"
+      "size": 23824,
+      "sha": "128f804c7f00e0a064fa2d6b66cae6dd78ed3124",
+      "sha256": "eaa948113710ac38ba23d7d9f28c4a7d104a35255a91c945a5b795ecd4d96345"
     },
     {
       "path": "audio_backend/recorder_capture_profile.py",
-      "size": 4692,
-      "sha": "d64269cbd69f8276dc3203342fa58ce8273ca71d",
-      "sha256": "ee3582790961ef1dcfcfe5fb608a852ca3407908e897f8d3d05dabd1812663ef"
+      "size": 5868,
+      "sha": "7a6fe957f0b8393440eefad5315a4b9ccb41ad0d",
+      "sha256": "a5e255813d463f67fcab933ff80df7ec2427a80300c5c7070fb0a857ded78d39"
     },
     {
       "path": "audio_backend/recorder_delivery.py",
@@ -844,15 +844,15 @@
     },
     {
       "path": "audio_backend/recording_uploader.py",
-      "size": 98876,
-      "sha": "b55fe77231392c65dfc694188f63e1dced89849e",
-      "sha256": "6eedd4e139438ed02835a1e066c623065f0fc6062149bcc39175be843829a31c"
+      "size": 98898,
+      "sha": "8915a7b1ff35433ed0e472c25e26b1796e2ef433",
+      "sha256": "2e07de96be8600b53c4a75cf38ced543ca39d9a2f15ee543ecbae0bbcd837138"
     },
     {
       "path": "audio_backend/recording_uploader_history.py",
-      "size": 36022,
-      "sha": "07a73a4d8faefd990ae5eeaf6d9e169ab47f9723",
-      "sha256": "706c0a5a51815469bbbe0317ae8a2ce299af6ea2662855fd72abe4271c91a350"
+      "size": 36023,
+      "sha": "20bc46fbeca742a6a7f74414c8e2f798ce61a55b",
+      "sha256": "7e3ae865af90fd9db59dffa90497cf1afca9247b1f32811760583f674eddf071"
     },
     {
       "path": "audio_backend/resident_analyzer.py",
@@ -1678,9 +1678,9 @@
     },
     {
       "path": "docs/HOUR_FILE_UPLOADER.md",
-      "size": 21448,
-      "sha": "de435416ca0da97505cdc133a1c82c880958daf8",
-      "sha256": "f28b73f1081e5e7d76a45b45713cef7af864b3d53c3d48c09bdab07f1dbc0c8e"
+      "size": 21620,
+      "sha": "12d6d4b5e92cd0ef11e79dffb2492e4f387dbbab",
+      "sha256": "6d3221450bf89ae972a7f8d2fddd3967471fc4a450693fd252c673c6f3362223"
     },
     {
       "path": "docs/IDENTITY_OVERLAP_GUARD.md",
@@ -1690,9 +1690,9 @@
     },
     {
       "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
-      "size": 14334,
-      "sha": "ac8fe8b0399a24f2544388143d1fccb632b5ed61",
-      "sha256": "0c502221952e67290b5a831da3b5c267656275dc9d8b5e29935f934dbbf582f0"
+      "size": 15922,
+      "sha": "d82a075f29bfa8d81198ca6d298d9c20657a2e96",
+      "sha256": "8fd14d1441ba87d111b1256b06c59653481e546e56f5c591140e7445b238d0fb"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -2050,9 +2050,9 @@
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
-      "size": 6115,
-      "sha": "4ec376c19a91e9525516e1f617e8960ec4d0f10d",
-      "sha256": "a60a05461fcdd116b9544d2b46af0e5790453d9560a5c7eb48ea583c3a88bf6e"
+      "size": 7594,
+      "sha": "50999eaedd5771f432ed00ecd6dd6352728ddf15",
+      "sha256": "0771c912ef1d0bfe7234ddbde9854486428bb14b0f843527824894e6e3204012"
     },
     {
       "path": "docs/RECORDER_SEQUENCE_RECONCILIATION.md",
@@ -3339,6 +3339,18 @@
       "sha256": "1971d3b5800b5771ff566e809626cd06303852f701369385c3b03180fc6cde0b"
     },
     {
+      "path": "tests/test_extended_input_registry.py",
+      "size": 8910,
+      "sha": "b439ac047269420f6579364edc2a4dd7d0c92d53",
+      "sha256": "0787f2622bfbc8363ff22e0a46dd5c7eab3db678e04461387e479774bab5db58"
+    },
+    {
+      "path": "tests/test_extended_recorder_intake.py",
+      "size": 7450,
+      "sha": "1e788b207e83a52a57ede1eca31815ff15a2d633",
+      "sha256": "accfdbde7835576d780de0c506e972864fea638cbb59e1b85e09bd422c50cd41"
+    },
+    {
       "path": "tests/test_final_audit.py",
       "size": 4242,
       "sha": "591975e1071b6b90eb443c1d8910554be1681d53",
@@ -4246,15 +4258,15 @@
     },
     {
       "path": "tests/test_recorder_capture_profile.py",
-      "size": 2929,
-      "sha": "d15460cc56df3b3ada368dd490060366e6704f04",
-      "sha256": "f66abfa49f65e1c87875c11bd0f199a6dce67db12d39c14f535f242ccbf6ba74"
+      "size": 5711,
+      "sha": "d10093ca0305ea68b91d8b28538eef10a522c57f",
+      "sha256": "b4aa0ccf0e02033f584ead5ba7182df8cbba08e36ec3a56d9a4f1589d4b174e3"
     },
     {
       "path": "tests/test_recorder_capture_profile_independent.py",
-      "size": 4800,
-      "sha": "f954b1585f209c0db401a4e9f798683fd1771284",
-      "sha256": "3e4983650031389fd263e9759cdd5792086876d6747bd76cd3cf7f74008adcf4"
+      "size": 5170,
+      "sha": "de514e9ddad8112e22a43a006c0b08c51b60737e",
+      "sha256": "400887cbc215b944db5469cfc95989f17fe4e83c6c7a641b9d674244f4e80a3d"
     },
     {
       "path": "tests/test_recorder_delivery.py",
@@ -4468,9 +4480,9 @@
     },
     {
       "path": "tests/test_recording_uploader.py",
-      "size": 98213,
-      "sha": "6a5f447e52b67f257026635fd151028ed74b3e1b",
-      "sha256": "092f3a75e351e5a271ac43d02a90fb5b8e386b53873e993a970fffcc058b4755"
+      "size": 98277,
+      "sha": "6f8cb66ab28de22c9dea6c0d1cb7fcf37dd966d5",
+      "sha256": "c84955dc91bde017b88335c6293b3a916de74a3c0afa5bbdf0145581214fbeef"
     },
     {
       "path": "tests/test_recovered_array_digest.py",
@@ -5080,5 +5092,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Back up bounded labeled Handy candidate diagnostic, synthetic tests and aggregate report only; no model promotion, product defaults, dispatch or safety gate changes."
+  "source_update": "Support finite 192-input new v3/intake jobs while preserving old frozen caps; correct terminal-aware STOP planning and verify 144-input replay plus bounded metadata histories without long-runtime claims."
 }

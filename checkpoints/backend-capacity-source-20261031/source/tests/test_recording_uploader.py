@@ -750,7 +750,7 @@ def test_many_originals_slot_reservation_and_frozen_registry(tmp_path, app):
             path = tmp_path / f'{number}.wav'; write_wav(path, 1, offset=number)
             result = u.AppendUploader(**append_arguments(tmp_path, sid, path, f'input-{number}', transport=routes)).run()
             assert result['frames'] == number + 1
-        saved = journal(tmp_path); assert saved['caps']['max_inputs'] == 64
+        saved = journal(tmp_path); assert saved['caps']['max_inputs'] == u.APPEND_DEFAULT_INPUTS
         assert saved['input_count'] == 14 and len(saved['active_page']['pieces']) == 14
         assert saved['active_page']['pieces'][13]['name'].endswith('-s13.wav')
         before = len(routes.calls); path = tmp_path / 'refused.wav'; write_wav(path, 1)
@@ -1426,7 +1426,7 @@ def test_exact_append_frame_cap_probes_eof_without_an_extra_page(tmp_path, app, 
 
 
 @pytest.mark.parametrize('option,value', [('max_hours', 0), ('max_hours', 49), ('max_hours', True),
-                                         ('max_inputs', 129), ('max_inputs', True),
+                                         ('max_inputs', u.APPEND_MAX_INPUTS + 1), ('max_inputs', True),
                                          ('max_original_bytes', 64 * 1024**3 + 1),
                                          ('input_start_frame', 2**53)])
 def test_v3_capacity_options_reject_invalid_values_before_state_creation(tmp_path, option, value):
@@ -1449,7 +1449,7 @@ def test_v3_origin_reserves_entire_frozen_duration_exactly(tmp_path, app):
         assert append_record(tmp_path, 'page', 1)['pieces'][0]['capture_start'] == maximum
 
 
-@pytest.mark.parametrize('option,value', [('--max-hours', '49'), ('--max-inputs', '129'),
+@pytest.mark.parametrize('option,value', [('--max-hours', '49'), ('--max-inputs', str(u.APPEND_MAX_INPUTS + 1)),
                                          ('--max-original-bytes', str(64 * 1024**3 + 1)),
                                          ('--deadline-seconds', 'inf')])
 def test_invalid_v3_cli_options_have_normal_errors_not_tracebacks(tmp_path, capsys, option, value):
