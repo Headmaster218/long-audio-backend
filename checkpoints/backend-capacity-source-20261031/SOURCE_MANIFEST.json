@@ -2769,10 +2769,16 @@
       "sha256": "3f7d3ab4ad3f7de5db150cbe3353f9b0823eaa048c52543bc53d00b33e2aaaa5"
     },
     {
+      "path": "qualification/live_revision_recovery_20261103/RESULT.md",
+      "size": 2196,
+      "sha": "40abc4aa283f150210b63045c2639cc0aa3271ea",
+      "sha256": "90bc69c221915075d8adbfd47d0e87780996ddbf25ab944d75cecec3a2099f99"
+    },
+    {
       "path": "qualification/live_revision_recovery_20261103/test_live_revision_routes.py",
-      "size": 8661,
-      "sha": "e16c769f0aa3638ee22ed7b71de4fcb8e6d8d1a8",
-      "sha256": "3a2cb305cb6edad40f1e6b5cc166afb10940901b2999129f440150f8ee682c1c"
+      "size": 8709,
+      "sha": "aea2f2695ac06201099c6e747280fdc121798067",
+      "sha256": "dbc6bcfd415c3f2dc8248d7deec4abd60109fbebe36cf1ea340b4f4851dd725e"
     },
     {
       "path": "qualification/local_inbox_native_audit_20261103/README.md",
@@ -5764,5 +5770,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Independently reviewed opt-in runner revision recovery;210 regression tests pass, controlled real-route validation pending final report."
+  "source_update": "Opt-in runner revision recovery:210 regressions and3 actual-route controlled conflict tests pass; default failure and bounded exhaustion preserved."
 }

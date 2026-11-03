@@ -69,6 +69,10 @@ class RouteTransport:
         self.output,self.attempts,self.failed_partials=output,attempts,{}
     def request(self,method,path,**kwargs):
         assert method=='GET' and not kwargs
+        if self.attempts and self.mutations:
+            folder=self.output/('attempt-%02d' % self.mutations)
+            if str(folder) not in self.failed_partials:
+                self.failed_partials[str(folder)]=inventory(folder)
         # All previous route connections have closed before this bounded write.
         # This deliberately bypasses the read-only connection wrapper only for
         # the disposable test copy, never for the original database or source.
@@ -83,9 +87,6 @@ class RouteTransport:
         response=self.client.request(method,path)
         self.rows.append((method,path,response.status_code,response.json()))
         if '/transcript?block=' in path and response.status_code==200:self.first_revisions.append(response.json()['revision'])
-        if response.status_code==409:
-            folder=self.output/('attempt-%02d' % self.mutations) if self.attempts else self.output
-            self.failed_partials[str(folder)]=inventory(folder)
         if not 200<=response.status_code<300:raise u.HTTPFailure(response.status_code,response.text)
         return response.json()
 
@@ -137,7 +138,7 @@ def test_real_revision_race(tmp_path,attempts,changes,outcome):
             assert all(row[3]=={'detail':'transcript_revision_changed'} for row in conflicts)
             assert all(row[0]=='GET' and row[2] in (200,409) for row in transport.rows)
             assert transport.mutations==changes
-            assert len(transport.failed_partials)==changes
+            assert len(transport.failed_partials)==(1 if attempts else 0)
             assert all(inventory(Path(folder))==saved for folder,saved in transport.failed_partials.items())
         assert app.state.response_budget._lease_count==0
         assert guard.denied==0
