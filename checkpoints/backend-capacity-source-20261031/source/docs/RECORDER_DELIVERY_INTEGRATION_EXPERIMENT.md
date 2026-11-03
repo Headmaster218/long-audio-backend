@@ -79,3 +79,47 @@ It is a historical local-path audit that writes its report beside itself, not a
 portable test to run within a manifest-verified source checkout. Raw evidence was
 not changed. A fresh remote Android source assembly reproduced the three original
 delivery files byte-for-byte with all 37 assertions passing again.
+
+## Actual loopback FTPS received delivery, 2026-11-03
+
+A later run extended the tested chain through actual production Android
+`FtpsTransfer` and `FtpsNetwork` code using real TCP sockets and JVM TLS, then
+fed the successful server-received directory directly into the same unchanged
+backend experiment tool. Android APIs were represented by explicit host fixtures;
+no Android SDK, device routing, trust provider, or OEM behavior was qualified.
+No permissive trust manager or hostname bypass was introduced.
+
+The bounded FTPS fixture covered protected upload/readback and three refusals:
+untrusted control certificate, wrong hostname, and wrong data-channel certificate.
+All four scenarios passed in 10.69 seconds. Successful transfer observed one
+control TLS and nine data TLS connections, 1,059,900 application wire bytes;
+refusals transferred zero file-data bytes (the trusted control connection may
+authenticate before the independent data-certificate check). Sockets/listeners/callbacks closed and
+ephemeral test keys were removed. No production credentials or external server
+were used; original producer files remained unchanged.
+
+The real received WAV matched the same 352,044-byte/176,000-frame hash above.
+Its actual received envelope and marker were validated, snapshotted and uploaded
+without manually reconstructing a delivery. Backend publication again completed
+two chunks (10.5 and 0.5 seconds), matching actual persisted source/page identities,
+frame origin and EOS, followed by clean shutdown. Result SHA-256:
+`8668bb25ae8ad22afa7fece8deb6105aa1c42a1a99339093051c1b0eb3d2a9ca`.
+Sampled backend peak RSS was 365,379,584 bytes; no endurance claim is made.
+This extends evidence to local FTPS/JVM TLS, not remote deployment, on-device
+recording, automatic intake, physical continuity or durable recorder binding.
+
+Independent saved-evidence chain audit matched the FTPS report's received-file
+hashes to the remote directory, snapshot, stored backend source and concatenated
+chunk PCM exactly. Report SHA-256:
+`1d22175614fb5fdc4fb7b64311e5ec65c7100c458fb22bde13ec8c625c5e0de1`.
+Audit source is preserved in `qualification/independent_ftps_chain_audit_20261103.py`
+with the same historical local-path/report-output caveat as the earlier audits.
+The wrong-data-certificate refusal left a zero-byte remote placeholder; it was
+not accepted as a complete delivery. Refusal does not imply no remote side effect.
+
+Android real-wire source checkpoint:
+[1ce1d321b6eba008b1f175f02a004fd51dce172c](https://github.com/Headmaster218/long-audio-recorder-android/commit/1ce1d321b6eba008b1f175f02a004fd51dce172c).
+Its remote tree matched tested source. Independent Android audit verified all
+54 compiled source hashes, exact received-file hashes, preserved source and
+cleanup receipts. The run report's `base_commit` is historical; the compiled
+source hashes and this checkpoint identify what actually ran.

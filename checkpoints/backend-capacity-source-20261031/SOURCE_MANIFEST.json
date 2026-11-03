@@ -22,9 +22,9 @@
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
-      "size": 4991,
-      "sha": "1334181a4ab16fd1825087650ed3ed1557b57e83",
-      "sha256": "168351a8957e8cd125c377cbc214b18712af13718f00d12e4f9bac65b6f0bf2b"
+      "size": 6838,
+      "sha": "1a9e261543497ec765b4c04684c4ac2aa72bb56b",
+      "sha256": "aef3ecf4f56fc7f29f907e7b39642ccd7502311bda451f64e39ae9c94b98139c"
     },
     {
       "path": "RECOVERED_COMMIT_DIAGNOSTICS_REVIEW.md",
@@ -1960,9 +1960,9 @@
     },
     {
       "path": "docs/RECORDER_DELIVERY_INTEGRATION_EXPERIMENT.md",
-      "size": 5187,
-      "sha": "bd30233e88d3d03c28688b346462093cdd580d06",
-      "sha256": "f4a24bfd54968d398199ceb62397b3ff3fdb1e83b24bbcebffe92e8f4977a7a5"
+      "size": 8093,
+      "sha": "ba815f5e10bd03a095fd5c17681c82a599e48bb5",
+      "sha256": "c0a72d080b47299f970cc092103df22155a83307df11c548befb1a09655f350d"
     },
     {
       "path": "docs/RECORDER_DELIVERY_PREFLIGHT.md",
@@ -2263,6 +2263,12 @@
       "size": 10258,
       "sha": "30f5dfb98135cce63f64686763f3518753498498",
       "sha256": "deb2727ce2e0d811a9fdd260ffc945a76e20fc9005baeda5bbd54b33bddac209"
+    },
+    {
+      "path": "qualification/independent_ftps_chain_audit_20261103.py",
+      "size": 15358,
+      "sha": "65683b7df602ce077cdc24a6abe32d18768dd295",
+      "sha256": "63af05561c2a0203c4177b7622e3e7d8a1dd0a8d8a343c0ba44f15351c4f2a64"
     },
     {
       "path": "qualification/independent_recorder_integration_audit_20261103.py",
@@ -4720,5 +4726,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 Android producer synthetic delivery through verified snapshot and strict uploader published; independent PCM linkage audit; no importer activation"
+  "source_update": "2026-11-03 actual loopback FTPS received delivery published through strict backend; independent byte chain audit; automatic intake still disabled"
 }

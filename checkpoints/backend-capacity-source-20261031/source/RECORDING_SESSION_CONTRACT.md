@@ -1,3 +1,32 @@
+# Recording session integration status
+
+## Current scope, 2026-11-03
+
+The earlier startup failure below is historical. A separately qualified isolated
+runtime candidate subsequently passed real silent and nonempty public-speech
+startup/upload/seal/publication/cleanup tests. The shipped working profile still
+has its original runtime pin; these results do not authorize migration or rollout.
+See `qualification/README.md` for the acceptance evidence and precise limits.
+
+An actual Android producer-codec synthetic delivery has also passed semantic
+preflight, owned snapshot, real strict uploader and backend publication. Independent
+audit matched the delivered source PCM exactly to both completed chunks. See
+`docs/RECORDER_DELIVERY_INTEGRATION_EXPERIMENT.md`; microphone, FTPS transport,
+physical continuity and automatic ingestion are not implied by that local test.
+A subsequent actual loopback FTPS/JVM TLS transfer was fed into the same backend
+experiment successfully; Android API host fixtures were used, so this still does
+not establish device networking or microphone capture.
+
+Automatic recorder intake remains disabled. `recording-contract` exposes durable
+session facts but intentionally advertises no authenticated backend-instance
+identity or idempotent session creation. A fresh known session can be used in an
+explicit bounded test; uncertain session creation must not be retried under a new
+identity. The existing uploader's journal and source reconciliation do not create
+a durable producer-to-backend session registry. The local binding proposal remains
+a disabled plan, not that registry or an authority to import metadata.
+Strict recovery also marks interrupted active processing for manual retry
+(`Store.recover`); an intake scheduler must not interpret every unfinished job
+as permission to replay inference automatically.
 
 ## Existing uploader admission bridge (2026-11-03)
 

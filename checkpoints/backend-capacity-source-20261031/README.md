@@ -303,3 +303,5 @@ Unchanged CellStore DDL/indexes, production limits/accounting,6144page actualSQL
 2026-11-03: bounded public speech smoke and independent audit source added;32 focused tests passed. Two nonempty primary packets, no owned PCM cells, short-tail speaker issue remains. No audio/transcripts/databases/models uploaded; production profile/main unchanged.
 
 2026-11-03: added explicit local recorder-delivery integration experiment and audit. Android producer bytes pass semantic preflight/snapshot, strict upload and publication; exact source/chunk PCM verified. 252 focused tests passed. No microphone/FTPS/continuity/importer-activation claim; generated data excluded.
+
+2026-11-03: actual loopback FTPS/JVM TLS received delivery passed strict backend publication. Independent audit matches remote, snapshot, source and chunk PCM. Added audit source and clarified current versus historical session integration status. No device/automatic-intake claim; source-only backup.
