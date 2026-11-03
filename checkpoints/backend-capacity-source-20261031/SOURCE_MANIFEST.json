@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 101058,
-      "sha": "3b0fd1015ffc8729399f4ec8708770ce44f63668",
-      "sha256": "741c50a192ccb3a81aa5d722ccf3364321484d0a2f60e443c7023b583b4d3d13"
+      "size": 101346,
+      "sha": "375480f7167a6940cbd3513d7964d38e882f7f6d",
+      "sha256": "9b48ef06629f70c36f8dc743109864970449444a87454a886f9855093d956b10"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -733,6 +733,12 @@
       "size": 19192,
       "sha": "e3a20615c53c5a6ce3d421b6c0e037bae3978900",
       "sha256": "382ecf0b88e44589b57ae59e3b6feb7ee192000c55a58df18c40880b4654f001"
+    },
+    {
+      "path": "audio_backend/recorder_capture_profile.py",
+      "size": 4692,
+      "sha": "d64269cbd69f8276dc3203342fa58ce8273ca71d",
+      "sha256": "ee3582790961ef1dcfcfe5fb608a852ca3407908e897f8d3d05dabd1812663ef"
     },
     {
       "path": "audio_backend/recorder_delivery.py",
@@ -1660,9 +1666,9 @@
     },
     {
       "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
-      "size": 9851,
-      "sha": "0da9495c99f6726f05669ef4d45cf5c19654f910",
-      "sha256": "aa199ce2606d723c6f2bd92468150b90dbe56cd10010724525d9a9ffc0aabf4f"
+      "size": 10230,
+      "sha": "5306fe90c7a9a184ccb0ce06d4e7cee60ece081d",
+      "sha256": "9c9097491f1fbe7621136ac613ca777fc89a7f07215b36f0c0b2d93a9026cddc"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -2011,6 +2017,12 @@
       "size": 6229,
       "sha": "9fbe1abda32e5db8bc4fdca07182c734913783eb",
       "sha256": "69044669e9cb74b7814bcfb59c55c5c0bc8cc927c5cbbe9c98aaffba8782007e"
+    },
+    {
+      "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
+      "size": 5419,
+      "sha": "6e92408aaca405449f06c82141c4437c02a9fec7",
+      "sha256": "658e0cf2c23cdc2ade7fb507874a181ad8f8e11f13159813c229e8fac8816d9c"
     },
     {
       "path": "docs/RECORDER_SEQUENCE_RECONCILIATION.md",
@@ -4119,6 +4131,18 @@
       "sha256": "53fb9ecdcad5d255aebca292a5ee5c35185039a4d44a0f7dd6750852acdef08d"
     },
     {
+      "path": "tests/test_recorder_capture_profile.py",
+      "size": 2929,
+      "sha": "d15460cc56df3b3ada368dd490060366e6704f04",
+      "sha256": "f66abfa49f65e1c87875c11bd0f199a6dce67db12d39c14f535f242ccbf6ba74"
+    },
+    {
+      "path": "tests/test_recorder_capture_profile_independent.py",
+      "size": 4800,
+      "sha": "f954b1585f209c0db401a4e9f798683fd1771284",
+      "sha256": "3e4983650031389fd263e9759cdd5792086876d6747bd76cd3cf7f74008adcf4"
+    },
+    {
       "path": "tests/test_recorder_delivery.py",
       "size": 7488,
       "sha": "8e524c106d4530b0e9a8a110b8350400590b96dc",
@@ -4888,5 +4912,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 incremental intake native audit: three independent appends withoutEOS, explicitfinalize withlostpublishedsealreply andexactfinalizereplay, exactPCM/sourceplacements+cleanup verified;344focused tests pass;11sactualnative only,12hsoftwarecap/4.9hmetadata are notlongrunqualification"
+  "source_update": "2026-11-03 read-only recorder segment profile preflight separates default source-slot safety, input-count limits and exact-boundary STOP absence. 24 tests and independent arithmetic review passed; no ingestion, default or device changes."
 }

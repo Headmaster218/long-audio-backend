@@ -612,3 +612,5 @@ For an existing qualified strict session, the opt-in operator commands can impor
 Missing segments, epoch changes and uncertain boundaries are refused rather than repaired. Acceptance with EOS is distinct from analysis completion, accuracy or physical continuity. Existing runtime qualification requirements still apply.
 
 Experimental incremental successor: [explicit append and separate finalize](docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md), using the existing paged v3 journal and finite longer-capture limits. See its current verification status and recovery restrictions before use.
+
+Before recording a long capture, check the [read-only segment profile planner](docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md). Duration, input count, short-segment fragmentation and terminal STOP availability are separate limits; defaults do not promise twelve hours at every segment size.
