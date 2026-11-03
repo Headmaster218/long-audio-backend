@@ -1,4 +1,4 @@
-"""Bounded synthetic uploader smoke through unchanged real strict native service.
+"""Bounded uploader smoke through unchanged real strict native service.
 
 Uses existing capacity resource/startup/cleanup guards. Never substitutes a model,
 changes strict gates, or retries session creation. Local output contains generated
@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -21,10 +22,29 @@ sys.path.insert(0, str(REPO))
 from audio_backend.recording_uploader import Uploader, Limits
 
 
+def validate_input(path, expected_sha):
+    """Read-only bounded canonical sample check, before starting any service."""
+    if not expected_sha or len(expected_sha) != 64 or any(c not in '0123456789abcdef' for c in expected_sha):
+        raise ValueError('input_sha256_required')
+    if not path.is_file() or path.stat().st_size > 16000 * 30 * 2 + 4096:
+        raise ValueError('input_file_bound')
+    if digest_file(path) != expected_sha:
+        raise ValueError('input_sha256_mismatch')
+    with wave.open(str(path), 'rb') as audio:
+        frames = audio.getnframes()
+        if (audio.getnchannels(), audio.getsampwidth(), audio.getframerate(), audio.getcomptype()) != (1, 2, 16000, 'NONE'):
+            raise ValueError('input_format')
+        if not 0 < frames <= 30 * 16000 or len(audio.readframes(frames + 1)) != frames * 2:
+            raise ValueError('input_frame_bound')
+    return frames
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
     parser.add_argument('--assets', required=True, type=Path)
+    parser.add_argument('--input', type=Path)
+    parser.add_argument('--input-sha256')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(mode=0o700, exist_ok=False)
@@ -36,6 +56,13 @@ def main():
     pins = source_pins()
     save(out / 'SOURCE_PINS.json', pins)
     try:
+        frames = 176000
+        if args.input is not None:
+            frames = validate_input(args.input, args.input_sha256)
+            result['input_kind'] = 'explicit_public_sample'
+            result['input_sha256'] = args.input_sha256
+        elif args.input_sha256 is not None:
+            raise ValueError('input_path_required')
         # Pin existing model/runtime assets, excluding the previously exposed speech sample.
         assets = json.loads(args.assets.read_text())
         checked = []
@@ -87,14 +114,19 @@ def main():
         # One single-shot POST. No session creation retry even on lost response.
         sid = gate.request(('POST', '/sessions', 201, {'name': 'Synthetic strict uploader smoke'}, {}))['id']
         result['session_id'] = sid
-        original = out / 'synthetic.wav'
-        with wave.open(str(original), 'wb') as audio:
-            audio.setnchannels(1)
-            audio.setsampwidth(2)
-            audio.setframerate(16000)
-            # Eleven seconds of digital silence. No speech sample/accuracy assertion.
-            for _ in range(11):
-                audio.writeframesraw(b'\0\0' * 16000)
+        original = out / ('sample.wav' if args.input is not None else 'synthetic.wav')
+        if args.input is not None:
+            shutil.copyfile(args.input, original)
+            if validate_input(original, args.input_sha256) != frames:
+                raise RuntimeError('copied_input_frames')
+        else:
+            with wave.open(str(original), 'wb') as audio:
+                audio.setnchannels(1)
+                audio.setsampwidth(2)
+                audio.setframerate(16000)
+                for _ in range(11):
+                    audio.writeframesraw(b'\0\0' * 16000)
+        result['input_frames'] = frames
         before = digest_file(original)
         def cancelled():
             gate.check()
@@ -110,7 +142,8 @@ def main():
             if any(row['status'] in ('failed', 'paused', 'cancelled') for row in rows):
                 raise RuntimeError('synthetic_chunk_failed:' + str([(r['id'], r['status']) for r in rows]))
             if rows and all(row['status'] == 'completed' for row in rows):
-                if len(rows) != 2 or [r['duration'] for r in rows] != [10.5, .5]:
+                expected = [min(168000, frames - start) / 16000 for start in range(0, frames, 168000)]
+                if len(rows) != len(expected) or [r['duration'] for r in rows] != expected:
                     raise RuntimeError('synthetic_chunk_geometry')
                 result['chunks'] = [{'id': r['id'], 'status': r['status'], 'duration': r['duration']} for r in rows]
                 break
@@ -141,6 +174,12 @@ def main():
         result['peak_sampled_rss'] = gate.peak_rss
         result['passed'] = (not any(k.endswith('error') for k in result) and result['source_unchanged']
                             and result.get('input_unchanged') is True)
+        if args.input is not None:
+            try:
+                result['external_input_unchanged'] = digest_file(args.input) == args.input_sha256
+            except OSError:
+                result['external_input_unchanged'] = False
+            result['passed'] = result['passed'] and result['external_input_unchanged']
         save(out / 'RESULT.json', result)
     return 0 if result['passed'] else 1
 

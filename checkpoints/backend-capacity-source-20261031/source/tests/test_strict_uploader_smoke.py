@@ -34,3 +34,25 @@ def test_known_runtime_refusal_starts_no_service(tmp_path, monkeypatch, profile)
     assert not (output / 'synthetic.wav').exists()
     assert not (output / 'config.json').exists()
     assert not (output / 'data/instance.lock').exists()
+
+
+def test_explicit_sample_validation(tmp_path):
+    import hashlib
+    import wave
+    script = Path(__file__).resolve().parents[1] / 'tools/strict_uploader_smoke.py'
+    spec = importlib.util.spec_from_file_location('strict_smoke_sample', script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    p = tmp_path / 'sample.wav'
+    def make(channels=1, frames=160):
+        with wave.open(str(p), 'wb') as w:
+            w.setnchannels(channels); w.setsampwidth(2); w.setframerate(16000)
+            w.writeframes(bytes(frames * 2 * channels))
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+    digest = make()
+    assert module.validate_input(p, digest) == 160
+    for bad in (None, 'a', '0' * 64):
+        with pytest.raises(ValueError): module.validate_input(p, bad)
+    with pytest.raises(ValueError, match='input_format'): module.validate_input(p, make(channels=2))
+    with pytest.raises(ValueError, match='input_frame_bound'): module.validate_input(p, make(frames=0))
+    with pytest.raises(ValueError, match='input_file_bound'): module.validate_input(p, make(frames=480000+3000))

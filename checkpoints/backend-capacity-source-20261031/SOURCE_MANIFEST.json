@@ -2230,9 +2230,9 @@
     },
     {
       "path": "qualification/README.md",
-      "size": 11868,
-      "sha": "bf8ca7131e4b64b2537e05cb7eccc3a1234e14cc",
-      "sha256": "651f725f83696cd4640f5a66c58d31fe83b0a2eb84483addddcf3074e874214f"
+      "size": 15645,
+      "sha": "ce425de917e2e289cd34b53ff9ea7d9fa88dfc56",
+      "sha256": "d58ba56440aca2ff6839aec3b6592dd2fd712ff23d244c0e12bc3176ab111029"
     },
     {
       "path": "qualification/accepted_candidate_20261103.patch",
@@ -2263,6 +2263,12 @@
       "size": 6947,
       "sha": "e22a864adec9af652ab09028cd03bcdcbb4ae86e",
       "sha256": "69f14c4bc514ea5cd4a8723fc9cd0273a740cb05ab59e7b0e3f3e232ab636654"
+    },
+    {
+      "path": "qualification/independent_speech_audit_20261103.py",
+      "size": 9815,
+      "sha": "8791d6a180b93f229bb751c6ec6a24b2e2cef1d1",
+      "sha256": "bb72c9a5821e848b0de5b77a4afe2ad7203c117ce9c5e1d78aca065b84524f48"
     },
     {
       "path": "qualification/isolated_candidate_20261103.patch",
@@ -4354,9 +4360,9 @@
     },
     {
       "path": "tests/test_strict_uploader_smoke.py",
-      "size": 1835,
-      "sha": "9d9081993212101282298d65e79e1259e1d3e36a",
-      "sha256": "3127440dd38fefcfb2d027d9abe15243d6859d1c9076936272ba19436fbe9f40"
+      "size": 2974,
+      "sha": "20cfb28246b815c8d436ac7371628f4f3c284547",
+      "sha256": "a161c01de8a1252113e9d28ea605cce590b0914d06817f5002f2ee5e987eae92"
     },
     {
       "path": "tests/test_strict_worker_capture.py",
@@ -4684,11 +4690,11 @@
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 7585,
-      "sha": "54568b216ddc6350ab31bc714d26592a84ea03c9",
-      "sha256": "3ae803d0b50b14d34de30d1e8efcbea75b490bc8d314f7c0ef1b30bc1ebb0d5d"
+      "size": 9608,
+      "sha": "905ca5fb3729ab4438caef490c6b08ad082193c4",
+      "sha256": "6343184a534aee77161add279ea8fcfaeb7361f3f4c5e831b46cf0ddafa4ee44"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 production-schema physical qualification independently accepted for exact fresh candidate; real strict11second smoke passed; production working profile unchanged"
+  "source_update": "2026-11-03 bounded public speech primary publication independently audited; nonempty packets verified, owned PCM retention and accuracy not claimed"
 }

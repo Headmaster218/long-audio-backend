@@ -185,3 +185,59 @@ verified the exact two-literal candidate change, configuration/source/CellStore
 binding, read-only database outcome and consistent cleanup receipts. Audit report
 SHA256: `49aa66a020c004b3a5426caa4f5f9866432240525c0b022df4fcba820a086e9f`.
 It confirms no gate or MOSS-dispatch change and no nonempty-speech claim.
+
+## Bounded nonempty public-speech smoke, 2026-11-03
+
+The optional `tools/strict_uploader_smoke.py --input PATH --input-sha256 SHA`
+accepts a hash-pinned existing PCM16 mono 16 kHz WAV of at most 30 seconds and
+checks its bytes before starting the service. It uses Python's WAV-compatible
+parser, not a general canonical-RIFF validator. Default input remains synthetic
+silence. Chunk expectations derive from input frames; startup, native ownership,
+asset verification, single-shot session creation, and cleanup gates are unchanged.
+The historical result schema/capture label still contains `synthetic`; explicit
+samples are distinguished by `input_kind` and `input_sha256`.
+
+One fresh isolated accepted-candidate run used the existing public release's
+`test_wavs/zh.wav`, not the earlier exposed English sample. Its 178,988 bytes and
+89,472 frames (5.592 seconds) matched SHA-256
+`b77f1794fe374a0ba1ee1dc458bfaf9349496cbbfc32780c50ba3c5a7ad8e373`.
+The original archived release was rehashed against the historical inventory:
+163,002,883 bytes, SHA-256
+`7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e`;
+the tar member independently matched the sample bytes.
+Source: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2
+
+The actual supervisor exited 0; strict native startup was ready, one uploaded
+source became one completed chunk, and the page was published/released with EOS.
+Two nonempty text segments and two retained primary provenance packets/outcomes
+were durable. The owned-cell database had zero PCM cells: this is intentional
+primary-only compact-observation behavior, not evidence of retained audio cells.
+No MOSS intents/results were created. Cleanup reported worker stopped, cells/jobs
+stopped, store safe, lock closed, and permit clear without cleanup errors.
+The input and executed source were unchanged. The sampled peak RSS was
+849,182,720 bytes; this short sample is not an endurance/stability measurement.
+The local RESULT.json SHA-256 is
+`7dc130d32f209a66c17837ef74caf8feff76762ee47c91fe4f87fb38f00a6155`.
+
+Accuracy remains unqualified. The unchanged test configuration selected English
+for a Chinese sample. Its first segment resembles the upstream int8 example
+(normalization aside), but the short final core emitted an extra English tail
+relative to that example. Tail speaker support was unknown with
+`embedding_dimension_mismatch`; it must not be described as complete speaker
+success. The upstream example is model output, not independently verified ground
+truth: https://k2-fsa.github.io/sherpa/onnx/sense-voice/pretrained.html
+No parameters, cut rules, or expected text were tuned after observing the sample.
+This proves bounded nonempty strict publication, not accuracy, recorder linkage,
+physical continuity, cross-chunk identity, PCM retention, migration, or rollout.
+Audio, transcripts, raw databases, model assets, and raw run reports stay local;
+only source/tests and this hash/count/limitation summary are backed up.
+
+The independent saved-evidence audit accepted this narrow nonempty primary path:
+REPORT SHA-256 `27b1422b290da6b25c7dfbfa87c8e4190bcfee8c682c9f9e67f993bc07914e92`.
+Its source is preserved as `independent_speech_audit_20261103.py`; like the earlier
+historical audit scripts it binds local evidence paths and writes a report beside
+itself, so it is not a portable test to run inside a verified source snapshot.
+It independently checked packet digests/links, two core compacts, binding and
+exact two-literal candidate module delta, assets, lifecycle receipts, and evidence
+unchanged. The updated focused source suite passed 32 tests, with one existing
+Starlette/httpx deprecation warning; this was not a full-repository test run.
