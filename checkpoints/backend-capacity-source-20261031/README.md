@@ -453,3 +453,22 @@ unchanged. A future span-local importer requires separate explicit known-empty
 session targets and honest interruption closure, preserving producer declarations.
 No source mutation, network operation, model, watcher, session creation or
 production activation is added. See source/docs/RECORDER_BOUNDARY_REPORT.md.
+
+## Explicit bounded span-local ingestion
+
+A separate opt-in importer now accepts one fixed declaration-contiguous closed
+span into an explicitly supplied known-empty strict session. It retains original
+source identities, epoch/ordinal/frame coordinates and interruption/recovered-tail
+closure in a durable local manifest, while the server timeline starts at local
+frame zero. Both exclusive ownership and selected-span-only EOS acknowledgments
+are mandatory. Existing whole-capture intake and boundary-report guards remain
+unchanged; the report does not invoke the importer.
+
+The path is limited to 1–8 inputs, 512 MiB and two hours; recovered tails are
+singletons and terminal ROTATION is refused. It never crosses an unresolved edge,
+creates sessions, claims missing gap lengths, changes metadata or retries failed
+inference. Exact intact journals resume; ambiguous missing initial journals stay
+preserved/refused. Strict-handler admission tests stop before native publication;
+full completion/repeat is separately tested against a synthetic protocol peer.
+True subprocess exits cover pre-journal refusal and active-piece exact restart.
+No deployment, raw-data backup, model or production pin changes are included.

@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 103352,
-      "sha": "98acaa0bd65543c4165db1e01f863d213e420032",
-      "sha256": "1231a986a24fb577b8cacc14555cdbbfb07eb0d149443d76d11af67ea08a889f"
+      "size": 103464,
+      "sha": "a85a7859ac9013d8eba16a8f7498cc0c47d5de6c",
+      "sha256": "fa96b5358d7889dbd513bbe599563d8c32177f537ccee729694ca716dc08aa11"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -793,6 +793,12 @@
       "size": 10296,
       "sha": "5bee9bba176ab64611f3f8ba4c9999e995695744",
       "sha256": "eef471e970797c5c68ebdb099ad92b0a89811f10bd032ca17fa66dd5714df13e"
+    },
+    {
+      "path": "audio_backend/recorder_span_intake.py",
+      "size": 12851,
+      "sha": "9f5fd9e62b44383425ac68e87b4b646bf472cb92",
+      "sha256": "fd71ddcf6926ea860ed7251a277c3dba45ae9a4dfd9f9d4f068743d81ac8d590"
     },
     {
       "path": "audio_backend/recording_overlap.py",
@@ -2032,9 +2038,9 @@
     },
     {
       "path": "docs/RECORDER_BOUNDARY_REPORT.md",
-      "size": 7638,
-      "sha": "2930731a682cd5ffe8a61cc9c2d03402cda50105",
-      "sha256": "5cab9199d2f5e0367004048f4d4d4d9c5fe03fb5065518f711985e766db323b8"
+      "size": 7706,
+      "sha": "2ba3951c8528b349db95fae817989a27ea9ff9ad",
+      "sha256": "c56d15808ed097821299b31202c9cb5f50f26675a7bd56e2a0e3d9c97a2e3bc6"
     },
     {
       "path": "docs/RECORDER_DELIVERY_INTEGRATION_EXPERIMENT.md",
@@ -2071,6 +2077,12 @@
       "size": 5807,
       "sha": "803b647793e734e7f220426ead3cd1263fc264fb",
       "sha256": "26bf26d64ffe79637575f33ece255cdc8f60aed8b5f0a09d129a61eda8dccfb6"
+    },
+    {
+      "path": "docs/RECORDER_SPAN_INTAKE.md",
+      "size": 7945,
+      "sha": "f505b9c04b74f76f2f6d4b332ba20404e983c15f",
+      "sha256": "f8f168d7c931f29bed94b4b647fd7aa84823ee70d6625adceb1f61f243921da1"
     },
     {
       "path": "docs/RECORDING_OVERLAP_BATCHES.md",
@@ -4371,6 +4383,12 @@
       "sha256": "5cb453837247862f3ea040289b0fb419e95419a2bbdfc61370fc87c776222f4d"
     },
     {
+      "path": "tests/test_recorder_span_intake.py",
+      "size": 19169,
+      "sha": "c3ddb4df406d1fa006c04858a67d343b021e5a61",
+      "sha256": "58fc85c9389248f0d949a890bdfe7a0ee87091d4927fda73d6a5369e73003e5c"
+    },
+    {
       "path": "tests/test_recording_overlap.py",
       "size": 54379,
       "sha": "e3a74b03f9d554f4d728779aad59050760ef909f",
@@ -5110,5 +5128,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add bounded read-only interruption/epoch spans and conflict quarantine without fabricated physical gap durations or relaxing strict ingestion."
+  "source_update": "Add opt-in bounded span-local ingestion with explicit EOS scope, original provenance, known-empty session checks and exact journal restart; never join unresolved recorder boundaries."
 }

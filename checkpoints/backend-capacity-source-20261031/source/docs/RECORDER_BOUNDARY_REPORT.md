@@ -100,12 +100,13 @@ explicit STOP-based finalization. It refuses interruptions, recovered tails,
 missing segments and epoch changes. This report does not relax those rules and
 does not create or recommend automatic session targets for spans.
 
-A future separately reviewed span importer would need a new known-empty session,
-preserved original ordinals/epoch/source hashes, and explicit span-local coordinates
-with durable provenance and idempotency. It must not rewrite producer metadata to
-make a later span look like original sequence 0. Mapping, lifecycle, finalization
-and uncertain physical gaps still need an explicit design and tests. None of that
-ingestion work is implemented or authorized by a successful report.
+A separate [explicit span-local importer](RECORDER_SPAN_INTAKE.md) accepts one
+closed declaration-contiguous selection into an operator-supplied known-empty
+session. It preserves original identities/coordinates and requires explicit
+acknowledgment that EOS closes only that selected span. The boundary report does
+not invoke it, select inputs or targets, or authorize any upload. The importer
+still refuses to cross unresolved edges. Unknown inter-span gaps remain unknown;
+there is no combined cross-epoch ingestion or automatic session creation.
 
 ## Verification scope
 
