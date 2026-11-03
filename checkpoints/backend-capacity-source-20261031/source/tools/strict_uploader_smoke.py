@@ -67,6 +67,7 @@ def main():
     parser.add_argument('--language', choices=('auto', 'zh', 'en', 'ja', 'ko', 'yue'),
                         help='Explicit decode language; omission preserves the capacity profile default')
     parser.add_argument('--recorder-span-delivery', type=Path, action='append', help='Repeat for one selected closed span totaling <=30s; EOS is span-local only')
+    parser.add_argument('--recorder-incremental-span-delivery', type=Path, action='append', help='Repeat 2..32 inputs totaling <10.5s; fresh append processes, native completion, then GET-only v3 status')
     parser.add_argument('--recorder-incremental-delivery', type=Path, action='append', help='Repeat to test separate append calls then explicit finalize')
     parser.add_argument('--recorder-batch-delivery', type=Path, action='append', help='Repeat for a fixed complete batch with total duration <=30s')
     parser.add_argument('--recorder-delivery', type=Path, help='Exercise explicit known-session intake with a complete <=30s delivery')
@@ -83,6 +84,16 @@ def main():
     try:
         frames = 176000
         batch_reports = None
+        incremental_span_mode = args.recorder_incremental_span_delivery is not None
+        if incremental_span_mode:
+            if any(x is not None for x in (args.input, args.input_sha256, args.recorder_delivery,
+                    args.recorder_span_delivery, args.recorder_batch_delivery, args.recorder_incremental_delivery)):
+                raise ValueError('recorder_incremental_span_conflicts_with_other_input')
+            from strict_incremental_span_probe import MAX_INPUTS, inventory
+            if not 2 <= len(args.recorder_incremental_span_delivery) <= MAX_INPUTS:
+                raise ValueError('recorder_incremental_span_input_count')
+            args.recorder_batch_delivery = args.recorder_incremental_span_delivery
+            original_span_inventory = inventory(args.recorder_batch_delivery)
         span_mode = args.recorder_span_delivery is not None
         if span_mode:
             if any(x is not None for x in (args.input, args.input_sha256, args.recorder_delivery,
@@ -98,14 +109,17 @@ def main():
             from audio_backend.recorder_delivery import inspect_delivery
             if args.input is not None or args.input_sha256 is not None or args.recorder_delivery is not None:
                 raise ValueError('recorder_batch_conflicts_with_other_input')
-            if not (1 if span_mode else 2) <= len(args.recorder_batch_delivery) <= 8:
+            if not incremental_span_mode and not (1 if span_mode else 2) <= len(args.recorder_batch_delivery) <= 8:
                 raise ValueError('recorder_batch_input_count')
             batch_reports = [inspect_delivery(p, validate_metadata=True) for p in args.recorder_batch_delivery]
             frames = sum(validate_input(p / 'audio.wav', r['wav_sha256'])
                          for p, r in zip(args.recorder_batch_delivery, batch_reports))
             if frames > 30 * 16000:
                 raise ValueError('recorder_batch_duration_bound')
-            result['input_kind'] = ('explicit_recorder_span' if span_mode else
+            # This probe intentionally stages one partial page, then finalizes.
+            if incremental_span_mode and frames >= 168000:
+                raise ValueError('recorder_incremental_span_short_probe_bound')
+            result['input_kind'] = ('explicit_recorder_incremental_span' if incremental_span_mode else 'explicit_recorder_span' if span_mode else
                 'explicit_recorder_incremental' if incremental_mode else 'explicit_recorder_batch')
         if args.recorder_delivery is not None:
             from audio_backend.recorder_intake import validate_delivery
@@ -197,7 +211,27 @@ def main():
         def cancelled():
             gate.check()
             return False
-        if batch_reports is not None:
+        if incremental_span_mode:
+            from strict_incremental_span_probe import child_phase, verify_completed_repeat
+            spec_path = out / 'incremental-spec.json'
+            spec = dict(deliveries=[str(p.resolve()) for p in args.recorder_batch_delivery],
+                frames=[r['frames'] for r in batch_reports], split=len(batch_reports) // 2,
+                job_dir=str(out / 'intake'), api='http://127.0.0.1:' + str(gate.port),
+                session_id=sid, capture_id='synthetic-smoke')
+            save(spec_path, spec)
+            first = child_phase(gate, spec_path, 'first')
+            second = child_phase(gate, spec_path, 'second')
+            final = child_phase(gate, spec_path, 'finalize')
+            repeated = child_phase(gate, spec_path, 'repeat')
+            result['incremental_stages'] = first['stages'] + second['stages']
+            result['incremental_clean_process_restart'] = dict(first_pid=first['pid'], second_pid=second['pid'],
+                midpoint_replay=second['midpoint_replay'], abrupt_crash_test=False, service_restart_test=False)
+            result['upload'] = final['result']; result['upload_reconciled_resume'] = repeated['result']
+            result['injected_lost_published_seal_responses'] = final['injected_lost_published_seal_responses']
+            result['incremental_repeat_check'] = verify_completed_repeat(final['requests'], repeated['requests'])
+            if result['upload'] != result['upload_reconciled_resume']:
+                raise RuntimeError('incremental_span_repeat_result_changed')
+        elif batch_reports is not None:
             from audio_backend.recorder_batch_intake import run as intake_run
             intake_args = dict(deliveries=args.recorder_batch_delivery, job_dir=out / 'intake',
                 session_id=sid, capture_id='synthetic-smoke', exclusive_writer=True,
@@ -291,12 +325,26 @@ def main():
             time.sleep(.2)
         page = gate.request(('GET', base + '/recordings/synthetic-smoke/pages/1', 200, None, {}))
         result['page'] = {'state': page['state'], 'released': page['released'], 'eos': page['eos']}
-        if span_mode:
+        if span_mode or incremental_span_mode:
             result['page']['source_count'] = len(page['sources'])
             if len(page['sources']) != len(batch_reports):
                 raise RuntimeError('span_source_count_changed_after_resume')
         if page['state'] != 'published' or not page['released'] or not page['eos']:
             raise RuntimeError('page_not_published_eos')
+        if incremental_span_mode:
+            from strict_incremental_span_probe import child_phase, verify_status, inventory
+            observed = child_phase(gate, spec_path, 'status')
+            repeated = child_phase(gate, spec_path, 'status-repeat')
+            verify_status(observed['result'], batch_reports)
+            if observed['result'] != repeated['result']:
+                raise RuntimeError('incremental_span_status_repeat_changed')
+            result['status_observation'] = observed['result']
+            result['status_repeat_identical'] = True
+            result['status_get_only'] = all(row['method'] == 'GET'
+                for phase in (observed, repeated) for row in phase['requests'])
+            result['original_span_inventory_unchanged'] = inventory(args.recorder_batch_delivery) == original_span_inventory
+            if not result['status_get_only'] or not result['original_span_inventory_unchanged']:
+                raise RuntimeError('incremental_span_status_or_originals_changed')
         result['input_unchanged'] = digest_file(original) == before
         if not result['input_unchanged']:
             raise RuntimeError('input_changed')

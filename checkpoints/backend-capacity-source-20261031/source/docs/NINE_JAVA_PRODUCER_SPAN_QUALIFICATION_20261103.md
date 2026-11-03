@@ -116,3 +116,8 @@ needed by its test helper modules. Each output path must be new. Java sources
 and the two Python qualification scripts plus this report are the publication
 allowlist. Audio, envelopes, class files, database/journals, logs, local receipts,
 and generated reports remain outside the source tree and must not be committed.
+
+A subsequent [short native completion qualification](NINE_JAVA_PRODUCER_NATIVE_COMPLETION_20261103.md)
+uses these same nine producer deliveries with the isolated accepted runtime.
+That separate run establishes native diarization and actual GET-only completion
+status for nine seconds of silence; ASR remains explicitly skipped.

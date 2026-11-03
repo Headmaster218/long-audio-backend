@@ -1839,10 +1839,16 @@
       "sha256": "a13d326fc7370b12ac7286767569f042719bdcbfcca8f958b1dd680f86bd8a48"
     },
     {
+      "path": "docs/NINE_JAVA_PRODUCER_NATIVE_COMPLETION_20261103.md",
+      "size": 8889,
+      "sha": "80ea5ca3790e048f189dcc1582a3981803aeff01",
+      "sha256": "670294036d46a962fedd1b735a1261e32404ebbff6e4d9194369749b9dbb19e4"
+    },
+    {
       "path": "docs/NINE_JAVA_PRODUCER_SPAN_QUALIFICATION_20261103.md",
-      "size": 6638,
-      "sha": "bb65f7bd4bbedbfd75bf8592536faf8bf7648d54",
-      "sha256": "66fced3cb1e7080468186636d31181f0c5864a72c8a912b639e826e021f5625a"
+      "size": 6967,
+      "sha": "f80ea910338ba54d7bbe4fa4eb794191d8bf486c",
+      "sha256": "06181eccf7145c465d1dc6f625c22748b71a45c5c8d2cc6c4fc8f538a64da4ad"
     },
     {
       "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
@@ -2575,6 +2581,18 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/nine_native_audit_20261103/audit_nine.py",
+      "size": 20116,
+      "sha": "8413879d636e7cc8da4e5a7c8e77cd7f3b17c5ed",
+      "sha256": "443d344b06d53bf67bb9204974cc8369bbdde4492b1413f80e49fa90d9f24d67"
+    },
+    {
+      "path": "qualification/nine_native_audit_20261103/test_audit_nine.py",
+      "size": 2646,
+      "sha": "575ca01c671fbac08987066a5c75e4e16c08dced",
+      "sha256": "49e05dd2674c0eeaf4afd0487ce8805e922a7eeefaad1af8ca0731494cde3d8c"
     },
     {
       "path": "qualification/qualify_nine_java_incremental_span.py",
@@ -4869,6 +4887,12 @@
       "sha256": "e36f0d9ee64f11d5c1f0f69d1df9120c9b13236685e5f5c9f382fe17afab9424"
     },
     {
+      "path": "tests/test_strict_incremental_span_probe.py",
+      "size": 7228,
+      "sha": "ad78582e5ad39a41e3515ec3423df0a5ce816ef0",
+      "sha256": "39ca57e466c849c41e5f09d51fa2780dcd5bb77ec6d7d0b0fbbc80c1fd8b660e"
+    },
+    {
       "path": "tests/test_strict_lifetime.py",
       "size": 7198,
       "sha": "24e33543d726b9a87a0a676d24595deaba47a16c",
@@ -5241,12 +5265,18 @@
       "sha256": "3bcc70d539714d80ffd270e324a2b50540b43757a8489691d00ba581f4f80e60"
     },
     {
+      "path": "tools/strict_incremental_span_probe.py",
+      "size": 9331,
+      "sha": "05b58f55bd3494be093cdfa56b799349da73316d",
+      "sha256": "09f293761da5b55d5d11e6ef5655527a476cf9aea9af7f6407fdca97475ee0a1"
+    },
+    {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 20261,
-      "sha": "fa869d6dfa900dc1f434836fb401d4e67773e57f",
-      "sha256": "4367f910c342b28d8cfaaa8166103c57bbda95985895b4c915336b0c6a269909"
+      "size": 24212,
+      "sha": "d5f988c62ec00a3a9301a98469ca85e81c6027d1",
+      "sha256": "898718a3863719a46c533a4ec279003f9990adff08548173bbe01ba62f23c5de"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add explicit bounded incremental selected-span intake and GET-only v3 completion observation, preserving original origins and truthful closure; qualify nine pinned Java producer deliveries with real admission and separately synthetic completion."
+  "source_update": "Qualify nine pinned Java-producer deliveries through bounded isolated native diarization and actual GET-only v3 completion status; preserve source-only harness, tests and independent audit."
 }

@@ -525,3 +525,16 @@ physical-device, 45-minute audio or 12-hour endurance evidence.
 Only source, synthetic tests and bounded qualification reports are included.
 See source/docs/INCREMENTAL_RECORDER_SPAN_INTAKE.md and
 source/docs/RECORDER_INCREMENTAL_SPAN_STATUS.md for commands and limits.
+
+## Nine-delivery native span qualification
+
+The bounded isolated candidate now also completed nine unchanged Java-produced
+one-second silence deliveries through incremental span intake. Two clean intake
+processes staged the inputs, lost-seal reconciliation and exact finalize replay
+added no sources, and one actual nine-second native diarization chunk completed.
+Two fresh GET-only status processes independently observed the same completed
+span and preserved original epoch/sequence mapping, INTERRUPTION and unknown
+gaps. ASR was skipped for silence; this is not speech accuracy, device or
+long-duration qualification. Independent saved-byte/DB-copy audit passed and
+clean shutdown receipts were verified. Runtime guards and production pins stay
+unchanged. Only reusable harness/tests and the bounded report are backed up.
