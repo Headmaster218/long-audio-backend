@@ -2595,6 +2595,42 @@
       "sha256": "30e884a7f2b6c57c68aa3ae75b29fd3fd78dfcbd911768bb4de15d3f4836ba9c"
     },
     {
+      "path": "qualification/combined_chain_20261103/PLAN.md",
+      "size": 4362,
+      "sha": "5c01510dca4739053c7ab255b1b952c5f5071855",
+      "sha256": "d0b07ed5b17853f21a88f54c1f4b92d33a86b8712409391f7589a162812498f8"
+    },
+    {
+      "path": "qualification/combined_chain_20261103/PublicSpeechSingleProducer.java",
+      "size": 5369,
+      "sha": "542392b2d1daac519ad95e4e750ee21a3eca2fb3",
+      "sha256": "3aec2f211f124bdca0ed277f6317c7cbad393d97e0fee339aa276bb70c65930a"
+    },
+    {
+      "path": "qualification/combined_chain_20261103/PublicSpeechWireClient.java",
+      "size": 16892,
+      "sha": "87751170a1806fb71554ef613137074e3da66f1b",
+      "sha256": "0ca4f1574831e08eb9c4fb95672d8d70fbc25f63b1ce560e192ad9b3786571f8"
+    },
+    {
+      "path": "qualification/combined_chain_20261103/RUNTIME_PREFLIGHT.md",
+      "size": 14555,
+      "sha": "5c1d8a0febae87d0fb77c1690feac75483e8b6cc",
+      "sha256": "5687e6340ca791315859fa4a24ced0169bdea2275bc5b7792c602c5d68735166"
+    },
+    {
+      "path": "qualification/combined_chain_20261103/prepare_single.py",
+      "size": 5004,
+      "sha": "ee15f61582728499442100fdd9f661719276ae41",
+      "sha256": "6a823cf4ea27c5fd7f36ef2ac7f0ed2cfac24a8650d159b936b5dd76478a110a"
+    },
+    {
+      "path": "qualification/combined_chain_20261103/qualify_chain.py",
+      "size": 14204,
+      "sha": "40992090519248dc469428268909037d24bb1572",
+      "sha256": "f933f901508547cf03b9e3b8616c72e295350ca2c6fefdee21534984818dd989"
+    },
+    {
       "path": "qualification/generate_nine_java_deliveries.py",
       "size": 7316,
       "sha": "e4b74a1bf6284042d418feb28e82fa9bd6d6795e",
@@ -5614,5 +5650,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Preserve three reviewed source-only English-language control diagnostic files; bounded AMI comparison found no useful improvement, no product or runtime default changes."
+  "source_update": "Prepare bounded combined owned FTPS callback/native watch/private export scenario; not yet executed, no product defaults changed."
 }
