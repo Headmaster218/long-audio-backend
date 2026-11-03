@@ -47,3 +47,13 @@ The actual terminal-aware producer's three four-second silence segments were sen
 The three calls staged 64,000/128,000/192,000 frames without EOS. Separate explicit finalize published and released one EOS page with three sources; native chunks of 10.5 and 1.5 seconds completed. A lost published-seal response reconciled and completed finalize replay matched. Source/input integrity and clean shutdown passed. The reusable `qualification/audit_ftps_sequence_linkage_20261103.py` binds each actual received path and file hashes from the saved wire report to its immutable intake admission, then runs the existing native PCM/history/source audit.
 
 Android fixture-runner source: [eb12c9d](https://github.com/Headmaster218/long-audio-recorder-android/commit/eb12c9d3ea44b62adba24954cb24d2012d45c043). Local wire report SHA-256: `5b51770d7c7d8165d62e5b1c9e5ef515bfb3560f1450fbf6de77efaf8f0fa943`. Local backend RESULT SHA-256: `3a3edfd2871dc17d9fafd173108b2055da9faa78a7c8ef0ab122bb3648c6e524`. Host Android API fixtures were used, not an Android device. This is a 12-second digital-silence linkage check, not speech accuracy or long-duration resource evidence. Generated media, reports, certificates, keys, model assets and databases remain outside source backups. Main and production runtime pins remain unchanged.
+
+## Explicit interrupted-span alternative
+
+For a selected closed span that starts after an unknown prefix or ends with an
+interruption, use the [separate span-local importer](RECORDER_SPAN_INTAKE.md)
+with its explicit closure acknowledgment and a separately supplied empty session.
+Never use it to join unresolved boundaries or manufacture whole-capture STOP.
+Its [read-only status command](RECORDER_SPAN_STATUS.md) can then observe primary
+analysis completion against the exact finalized span job without replaying any
+upload request. This is separate from the incremental whole-capture workflow.

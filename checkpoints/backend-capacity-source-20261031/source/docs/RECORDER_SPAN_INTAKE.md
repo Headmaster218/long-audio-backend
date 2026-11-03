@@ -144,3 +144,12 @@ original coordinates and an INTERRUPTION close. It verified exact completed
 resume without new sources while preserving span-local EOS. That narrow result
 is separate from these model-free tests and does not qualify acoustic accuracy,
 recorder hardware/provenance, continuity, capture completeness or long duration.
+
+## Observe downstream completion without replay
+
+After this fixed span job has finalized, use the separate
+[read-only span status command](RECORDER_SPAN_STATUS.md) to compare its intact
+local provenance and journal with the current backend page/source/chunk state.
+It does not resume intake, repeat the seal, retry inference or change the job.
+The importer still reports `analysis_completion_verified: false`; the status
+command provides a separate bounded observation, not an atomic future guarantee.

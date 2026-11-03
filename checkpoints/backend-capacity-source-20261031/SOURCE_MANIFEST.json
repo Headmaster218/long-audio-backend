@@ -801,6 +801,12 @@
       "sha256": "fd71ddcf6926ea860ed7251a277c3dba45ae9a4dfd9f9d4f068743d81ac8d590"
     },
     {
+      "path": "audio_backend/recorder_span_status.py",
+      "size": 24827,
+      "sha": "e21efbe734505c6391370264924fe095e6fe10bb",
+      "sha256": "2ff7dc33b17eb6050751351f784ac9b068df4a4b848e3f95e772dce276ac5c2d"
+    },
+    {
       "path": "audio_backend/recording_overlap.py",
       "size": 148792,
       "sha": "775ae7a1b8122aff4c21181a883cadb279595db0",
@@ -2062,9 +2068,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
-      "size": 7918,
-      "sha": "0b35a787b1a056c95ccd8e3641821d9a5455de1e",
-      "sha256": "c1f5a432de8a541bc168b1f4e5dc72826308382cebba77b6a43393f3a3fef5c4"
+      "size": 8516,
+      "sha": "b40650dc4c31135d13fb86c2f97e8f25af0b5b5d",
+      "sha256": "0d7077706a39ae9cdd26551ef9871d15f2bf97621a5ed273d73d285be0f7fe19"
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
@@ -2080,15 +2086,21 @@
     },
     {
       "path": "docs/RECORDER_SPAN_INTAKE.md",
-      "size": 8417,
-      "sha": "7270c72c007087e5b674f1ca2b22649650ec5153",
-      "sha256": "1ac2932f75c35bf8a9bb7e856d964c1efa494e29071a49286c08e5527510f07d"
+      "size": 8920,
+      "sha": "fab21de119b8c97bff1a4b1a90a5b2c460661fa6",
+      "sha256": "6f49860a5dcb554a9d04a73b2dd23c57dab845f130a3d62fdb1a7387eb5d5d30"
     },
     {
       "path": "docs/RECORDER_SPAN_NATIVE_SMOKE_20261103.md",
       "size": 8112,
       "sha": "8c702d6946d80d073a27efcada8038e9e1f338c2",
       "sha256": "7d2608bbce9b68d492717c6bad18572d79552453b14e14524f1c4afc56d32ed2"
+    },
+    {
+      "path": "docs/RECORDER_SPAN_STATUS.md",
+      "size": 7696,
+      "sha": "b9f0508a748fee28c3b484380cfe9c2aeefac252",
+      "sha256": "5cbd7604d4234864ee19a0d9f90bbdb44b78435852ca394f472671034601f452"
     },
     {
       "path": "docs/RECORDING_OVERLAP_BATCHES.md",
@@ -4413,6 +4425,12 @@
       "sha256": "9101e87dae04e5acaac476ff1f20700a4296e523d75e325142eebd32a137886d"
     },
     {
+      "path": "tests/test_recorder_span_status.py",
+      "size": 27221,
+      "sha": "d19da4af137afa88b66a01cca1a35eb0b66aa466",
+      "sha256": "9534e9efb33c51c1ad8c6349c8abe311e674d2e11664c06270a63ce04167c805"
+    },
+    {
       "path": "tests/test_recording_overlap.py",
       "size": 54379,
       "sha": "e3a74b03f9d554f4d728779aad59050760ef909f",
@@ -5152,5 +5170,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Qualify short generated-silence span publication with actual native diarization, truthful interruption EOS, exact seal replay and independent saved-byte audit; no ASR/device/endurance claim or production profile change."
+  "source_update": "Add explicit GET-only finalized span completion observations with exact local provenance, bounded remote coverage, distinct pending/blocked results and no seal replay or inference retry."
 }

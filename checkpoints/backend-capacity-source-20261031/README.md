@@ -487,3 +487,19 @@ harness permits only exact saved seal replay, never new sources/pages. Productio
 runtime/model gates remain unchanged. Only reusable fixture/harness/audit code,
 synthetic tests and the bounded report are backed up. See
 source/docs/RECORDER_SPAN_NATIVE_SMOKE_20261103.md for evidence hashes and limits.
+
+## Read-only finalized span completion status
+
+A separate explicit status command now checks the exact finalized span job and
+matching target using bounded GETs only. It verifies local provenance/PCM and
+remote source/page/work identities, finite chunk pagination and full coverage,
+then distinguishes completed, pending and blocked primary work. Optional receipt
+status remains separate. Missing or incompatible history is refused without
+repair, seal replay, inference retry, new sessions or local journal writes.
+
+This is a non-atomic observation under exclusive-writer assumptions, not proof of
+transcript accuracy or simultaneous immutable server state. GET cannot verify
+hidden seal/finish request identity, and unknown span gaps remain unknown. Tests
+use actual ASGI GET projections with explicitly synthetic publication/analysis
+records; they are not additional native or endurance qualification. See
+source/docs/RECORDER_SPAN_STATUS.md and the updated manual receiver workflow.
