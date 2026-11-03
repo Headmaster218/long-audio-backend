@@ -2613,6 +2613,12 @@
       "sha256": "30e884a7f2b6c57c68aa3ae75b29fd3fd78dfcbd911768bb4de15d3f4836ba9c"
     },
     {
+      "path": "qualification/combined_chain_20261103/FRESH_OPTIN_RESULT.md",
+      "size": 3745,
+      "sha": "ce5fa76d5de56b42f3c2794d7527deebc5f32042",
+      "sha256": "b76de7be4845ccb0a56f986459d8a858a7e0670ba54ffe194e0c6230f8535142"
+    },
+    {
       "path": "qualification/combined_chain_20261103/PLAN.md",
       "size": 4362,
       "sha": "5c01510dca4739053c7ab255b1b952c5f5071855",
@@ -5770,5 +5776,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Freeze minimal fresh actual-chain opt-in qualification;68focused controls pass; runtime-specific cellstore patch remains separate."
+  "source_update": "One fresh actual FTPS/owned-adapter/watch/native-ASR/private-export run passed with natural revision recovery and independent canonical audit; old failure preserved."
 }
