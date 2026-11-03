@@ -49,6 +49,15 @@ def smoke_configuration(workspace, data, language=None):
     return cfg
 
 
+
+def verify_span_resume_mutations(initial, resumed, seal_path, seal_body):
+    """Completed resume may replay only the exact already-frozen EOS seal."""
+    expected = dict(method='POST', path=seal_path, key=None, body=seal_body)
+    if expected not in initial or any(row != expected for row in resumed):
+        raise RuntimeError('span_resume_new_or_changed_mutation')
+    return dict(no_new_sources=True, exact_frozen_seal_replays=len(resumed))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
@@ -57,6 +66,7 @@ def main():
     parser.add_argument('--input-sha256')
     parser.add_argument('--language', choices=('auto', 'zh', 'en', 'ja', 'ko', 'yue'),
                         help='Explicit decode language; omission preserves the capacity profile default')
+    parser.add_argument('--recorder-span-delivery', type=Path, action='append', help='Repeat for one selected closed span totaling <=30s; EOS is span-local only')
     parser.add_argument('--recorder-incremental-delivery', type=Path, action='append', help='Repeat to test separate append calls then explicit finalize')
     parser.add_argument('--recorder-batch-delivery', type=Path, action='append', help='Repeat for a fixed complete batch with total duration <=30s')
     parser.add_argument('--recorder-delivery', type=Path, help='Exercise explicit known-session intake with a complete <=30s delivery')
@@ -73,6 +83,12 @@ def main():
     try:
         frames = 176000
         batch_reports = None
+        span_mode = args.recorder_span_delivery is not None
+        if span_mode:
+            if any(x is not None for x in (args.input, args.input_sha256, args.recorder_delivery,
+                    args.recorder_batch_delivery, args.recorder_incremental_delivery)):
+                raise ValueError('recorder_span_conflicts_with_other_input')
+            args.recorder_batch_delivery = args.recorder_span_delivery
         incremental_mode = args.recorder_incremental_delivery is not None
         if incremental_mode:
             if args.recorder_batch_delivery is not None:
@@ -82,14 +98,15 @@ def main():
             from audio_backend.recorder_delivery import inspect_delivery
             if args.input is not None or args.input_sha256 is not None or args.recorder_delivery is not None:
                 raise ValueError('recorder_batch_conflicts_with_other_input')
-            if not 2 <= len(args.recorder_batch_delivery) <= 8:
+            if not (1 if span_mode else 2) <= len(args.recorder_batch_delivery) <= 8:
                 raise ValueError('recorder_batch_input_count')
             batch_reports = [inspect_delivery(p, validate_metadata=True) for p in args.recorder_batch_delivery]
             frames = sum(validate_input(p / 'audio.wav', r['wav_sha256'])
                          for p, r in zip(args.recorder_batch_delivery, batch_reports))
             if frames > 30 * 16000:
                 raise ValueError('recorder_batch_duration_bound')
-            result['input_kind'] = 'explicit_recorder_incremental' if incremental_mode else 'explicit_recorder_batch'
+            result['input_kind'] = ('explicit_recorder_span' if span_mode else
+                'explicit_recorder_incremental' if incremental_mode else 'explicit_recorder_batch')
         if args.recorder_delivery is not None:
             from audio_backend.recorder_intake import validate_delivery
             if args.input is not None or args.input_sha256 is not None:
@@ -191,7 +208,13 @@ def main():
             from audio_backend.recording_uploader import HTTPTransport, Guard, Uncertain
             class LosePublishedSeal(HTTPTransport):
                 lost = 0
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.mutations = []
                 def request(self, method, path, **kwargs):
+                    if method != 'GET':
+                        self.mutations.append({'method': method, 'path': path, 'key': kwargs.get('key'),
+                            'body': json.loads(json.dumps(kwargs.get('body'), sort_keys=True))})
                     reply = super().request(method, path, **kwargs)
                     if method == 'POST' and path.endswith('/seal') and reply.get('released') and not self.lost:
                         self.lost += 1
@@ -199,7 +222,25 @@ def main():
                     return reply
             transport = LosePublishedSeal(intake_args['api'], Guard(intake_args['limits'], cancelled))
             intake_args['transport'] = transport
-            if incremental_mode:
+            if span_mode:
+                from audio_backend.recorder_span_intake import run as span_run
+                intake_args['acknowledge_span_local_closure'] = True
+                result['upload'] = span_run(**intake_args)
+                mutations = list(transport.mutations)
+                result['upload_reconciled_resume'] = span_run(**intake_args, resume=True)
+                result['upload_second_resume'] = span_run(**intake_args, resume=True)
+                result['span_mutations'] = mutations
+                result['span_resume_mutations'] = transport.mutations[len(mutations):]
+                frozen = json.loads((out / 'intake/uploader/uploader.json').read_text())['pages'][0]['seal']
+                result['span_resume_check'] = verify_span_resume_mutations(mutations,
+                    result['span_resume_mutations'],
+                    '/sessions/' + sid + '/recordings/synthetic-smoke/pages/1/seal', frozen)
+                if result['upload_second_resume'] != result['upload']:
+                    raise RuntimeError('span_repeat_resume_changed_result')
+                description = result['upload']['span']
+                if description['eos_meaning'] != 'selected_span_only' or description['capture_completeness_proven']:
+                    raise RuntimeError('span_closure_scope_changed')
+            elif incremental_mode:
                 from audio_backend.recorder_capture_intake import run as capture_run
                 incremental_args = {k:v for k,v in intake_args.items() if k != 'deliveries'}
                 stages=[]
@@ -250,6 +291,10 @@ def main():
             time.sleep(.2)
         page = gate.request(('GET', base + '/recordings/synthetic-smoke/pages/1', 200, None, {}))
         result['page'] = {'state': page['state'], 'released': page['released'], 'eos': page['eos']}
+        if span_mode:
+            result['page']['source_count'] = len(page['sources'])
+            if len(page['sources']) != len(batch_reports):
+                raise RuntimeError('span_source_count_changed_after_resume')
         if page['state'] != 'published' or not page['released'] or not page['eos']:
             raise RuntimeError('page_not_published_eos')
         result['input_unchanged'] = digest_file(original) == before

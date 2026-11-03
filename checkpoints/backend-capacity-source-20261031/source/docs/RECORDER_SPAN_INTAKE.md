@@ -137,3 +137,10 @@ is implied.
 - Refusal, bounded-size arithmetic, sparse oversized-file precheck, eight-input
   canonical-manifest capacity and shared guard tests cover client safeguards.
   Tiny fixtures and arithmetic checks are not two-hour runtime qualification.
+
+A separate [short real native smoke](RECORDER_SPAN_NATIVE_SMOKE_20261103.md)
+completed two native chunks from 11 seconds of generated silence with nonzero
+original coordinates and an INTERRUPTION close. It verified exact completed
+resume without new sources while preserving span-local EOS. That narrow result
+is separate from these model-free tests and does not qualify acoustic accuracy,
+recorder hardware/provenance, continuity, capture completeness or long duration.

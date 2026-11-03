@@ -472,3 +472,18 @@ preserved/refused. Strict-handler admission tests stop before native publication
 full completion/repeat is separately tested against a synthetic protocol peer.
 True subprocess exits cover pre-journal refusal and active-piece exact restart.
 No deployment, raw-data backup, model or production pin changes are included.
+
+## Short native span-publication qualification
+
+An isolated accepted-runtime candidate completed an 11-second generated-silence
+span with epoch7, original ordinals11–13 and INTERRUPTION closure. Real source
+publication and both native diarization chunks completed, exact resume added no
+sources, and clean shutdown was independently audited. ASR was skipped for
+silence; this does not qualify speech accuracy, devices or long-duration behavior.
+
+The first attempt's overstrict no-mutation test assertion stopped inference early;
+its evidence is retained and not counted as native completion. The corrected
+harness permits only exact saved seal replay, never new sources/pages. Production
+runtime/model gates remain unchanged. Only reusable fixture/harness/audit code,
+synthetic tests and the bounded report are backed up. See
+source/docs/RECORDER_SPAN_NATIVE_SMOKE_20261103.md for evidence hashes and limits.

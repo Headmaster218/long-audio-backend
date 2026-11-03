@@ -2080,9 +2080,15 @@
     },
     {
       "path": "docs/RECORDER_SPAN_INTAKE.md",
-      "size": 7945,
-      "sha": "f505b9c04b74f76f2f6d4b332ba20404e983c15f",
-      "sha256": "f8f168d7c931f29bed94b4b647fd7aa84823ee70d6625adceb1f61f243921da1"
+      "size": 8417,
+      "sha": "7270c72c007087e5b674f1ca2b22649650ec5153",
+      "sha256": "1ac2932f75c35bf8a9bb7e856d964c1efa494e29071a49286c08e5527510f07d"
+    },
+    {
+      "path": "docs/RECORDER_SPAN_NATIVE_SMOKE_20261103.md",
+      "size": 8112,
+      "sha": "8c702d6946d80d073a27efcada8038e9e1f338c2",
+      "sha256": "7d2608bbce9b68d492717c6bad18572d79552453b14e14524f1c4afc56d32ed2"
     },
     {
       "path": "docs/RECORDING_OVERLAP_BATCHES.md",
@@ -2481,6 +2487,12 @@
       "sha256": "f7160e19f03f2549b8ae0ad52f6e1fc092858a9627361f1021a5e0ea4498bdc2"
     },
     {
+      "path": "qualification/independent_recorder_span_audit_20261103.py",
+      "size": 21183,
+      "sha": "6a2ea8135a0b458020cb9d2e1911a3a8700c8f3e",
+      "sha256": "032b8fa7f9760e32efe386655d435b0ae57a9cc48988a874c3258e825fbed55e"
+    },
+    {
       "path": "qualification/independent_saved_audit_20261103.py",
       "size": 6947,
       "sha": "e22a864adec9af652ab09028cd03bcdcbb4ae86e",
@@ -2509,6 +2521,12 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/recorder_span_synthetic_fixture.py",
+      "size": 2985,
+      "sha": "62f73b22b4520cd32e74fd1595c2e9de9ad007cf",
+      "sha256": "ddd8c4099d951b5a2f555f30b97b0674a7a68ac7ff94c2a50e96c683ede28b93"
     },
     {
       "path": "qualification/sensevoice_context_diagnostic_20261103.py",
@@ -4389,6 +4407,12 @@
       "sha256": "58fc85c9389248f0d949a890bdfe7a0ee87091d4927fda73d6a5369e73003e5c"
     },
     {
+      "path": "tests/test_recorder_span_native_audit.py",
+      "size": 4066,
+      "sha": "d6310fc42af4392243a46f2c6d6a81be30cfadd7",
+      "sha256": "9101e87dae04e5acaac476ff1f20700a4296e523d75e325142eebd32a137886d"
+    },
+    {
       "path": "tests/test_recording_overlap.py",
       "size": 54379,
       "sha": "e3a74b03f9d554f4d728779aad59050760ef909f",
@@ -4786,9 +4810,9 @@
     },
     {
       "path": "tests/test_strict_uploader_smoke.py",
-      "size": 4475,
-      "sha": "3ba765e610302d1856a73d646e31df7d86f630c3",
-      "sha256": "1da559c582fc301b395a0bd9c0dea15e7917ae613b05b04096ce1ebc28f18b95"
+      "size": 8375,
+      "sha": "6b0701ae604b92d85951f785e7e3b77f28be40ad",
+      "sha256": "c59f8fbabe1ac86bd02112a81c9a556ace5f3ea7ec8b42259b322040352e4522"
     },
     {
       "path": "tests/test_strict_worker_capture.py",
@@ -5122,11 +5146,11 @@
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 17202,
-      "sha": "e1f4a85f0b93084f09adaa7e9e83e9c3a47de176",
-      "sha256": "a87648af466a7095544f6c96d496bf237534ad980caa1ac771ae0f00b6287fb9"
+      "size": 20261,
+      "sha": "fa869d6dfa900dc1f434836fb401d4e67773e57f",
+      "sha256": "4367f910c342b28d8cfaaa8166103c57bbda95985895b4c915336b0c6a269909"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add opt-in bounded span-local ingestion with explicit EOS scope, original provenance, known-empty session checks and exact journal restart; never join unresolved recorder boundaries."
+  "source_update": "Qualify short generated-silence span publication with actual native diarization, truthful interruption EOS, exact seal replay and independent saved-byte audit; no ASR/device/endurance claim or production profile change."
 }
