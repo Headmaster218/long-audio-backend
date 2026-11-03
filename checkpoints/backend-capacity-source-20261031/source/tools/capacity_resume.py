@@ -16,6 +16,8 @@ import subprocess
 import sys
 import time
 import wave
+# Isolated direct CLI execution does not add this script's directory to sys.path.
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 from capacity_run import Gate, REPO, DATA_CAP, FLOOR, allocated, digest_file, save, source_pins
 import capacity_requests as plan
 

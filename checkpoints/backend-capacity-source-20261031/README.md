@@ -2,7 +2,7 @@
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
 The `source/` directory is a self-contained source tree frozen from local commit
-`23e63cc81818c042213f29b5e404fd3149e6d808`. It includes the October 31 capacity reconstruction,
+`4e910ce57b1f976cdf78b00224bbc94db5d05964`. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -25,7 +25,7 @@ python -m pip install -e '.[test]'
 No application-source overlay or older checkout is required: all 150 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
-The parent public commit is `23865e7fca1b0853ab12c4b35f637b8b3b57519f`; its tree and history
+The parent public commit is `b33172a7f584a0b60b76a58eefd0ca3ba2ab0a6a`; its tree and history
 are preserved unchanged outside this new checkpoint. Existing public identical Git
 blobs are reused, but restoration does not require assembling prior checkpoints.
 
@@ -205,3 +205,13 @@ baseline (89 pass/13 fail and 41 pass/3 fail); this is not full-suite green.
 No actual-model rerun or long-duration qualification is claimed. All fixtures are
 generated; prior failed runs, databases and runtime logs are excluded and untouched.
 See source/docs/CLAIM_POSTCOMMIT_NOTICE_REPRO_20261102.md for exact scope.
+
+## Nov3 isolated resume CLI portability
+
+The standalone source was restored and all 743 predecessor files verified against
+the public manifest and Git tree. The resume harness now adds its resolved tools
+directory before importing sibling modules, so direct `python -I -B .../capacity_resume.py
+--help` works outside the repository. Product code and recovery policies are unchanged.
+Three new CLI/launch contract tests and existing capacity harness tests pass:
+148 selected model-free tests. See `source/docs/CAPACITY_RESUME_CLI_PORTABILITY_20261103.md`.
+No lost runtime data or receipts are reconstructed or included. No long-run pass is claimed.

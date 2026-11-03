@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "23e63cc81818c042213f29b5e404fd3149e6d808",
+  "local_source_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
   "files": [
     {
       "path": ".gitignore",
@@ -1057,6 +1057,12 @@
       "size": 4769,
       "sha": "201673e31109363999d77c4b9d8706e79892b06b",
       "sha256": "0de7982fa005e6ece1e74d2a850e27c1874d607f3dc9807de1882853653af08d"
+    },
+    {
+      "path": "docs/CAPACITY_RESUME_CLI_PORTABILITY_20261103.md",
+      "size": 1608,
+      "sha": "b2469ed2cac2709bc7fc0189a20b980b22375412",
+      "sha256": "cbb995f40b0e2a40a4dc3f133824bd340cd4aab8464a6c5fb52b9f2b3c47405d"
     },
     {
       "path": "docs/CLAIM_POSTCOMMIT_NOTICE_REPRO_20261102.md",
@@ -2727,6 +2733,12 @@
       "sha256": "1d4d83a0cd319be211e5c963ab415e2bc31c59fc72ec0304f3109ed45d3f4393"
     },
     {
+      "path": "tests/test_capacity_resume_cli.py",
+      "size": 2677,
+      "sha": "97a57b257b58cc6ccc6720381e3e2ba9595e40a2",
+      "sha256": "0b1c85cbc329aa1e13e3e182b005a886195911f6a85f37123907ec353c2b9c60"
+    },
+    {
       "path": "tests/test_capture_review_boundaries_nov01.py",
       "size": 6060,
       "sha": "58d48c9d6ad40b4450767928d5ff9e47d2402a6d",
@@ -4348,9 +4360,9 @@
     },
     {
       "path": "tools/capacity_resume.py",
-      "size": 16562,
-      "sha": "53c20f7037e6ebb86c9e8279bf06f555a3678323",
-      "sha256": "02932b8761835978b760d11cb5119ee4d3b6eaf6742f5277716fbc1b91a5911d"
+      "size": 16700,
+      "sha": "0f1a9a03abd07d1cc9faeefcd2fd07c09db48a08",
+      "sha256": "6729be7fed3e9db26dd57e651aa89e7d8cec530f4c8de6655cec54a47018bf95"
     },
     {
       "path": "tools/capacity_run.py",
