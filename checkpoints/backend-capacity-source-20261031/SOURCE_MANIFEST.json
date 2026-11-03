@@ -2445,6 +2445,12 @@
       "sha256": "16646efaf0bd2f98e01429f658dc8b35868a170ae547e90ea2133ba846eacc8b"
     },
     {
+      "path": "qualification/AMI_LANGUAGE_CONTROL_20261103.md",
+      "size": 6384,
+      "sha": "3cd0e638165a3f5e81df16a4fd4ded974d07b3c0",
+      "sha256": "0fc8978742b26f509fbe8a1c584342deec31b9e1abb2ac45211d013b452120e8"
+    },
+    {
       "path": "qualification/EXPERIMENTAL_PROFILE_BASIS.json",
       "size": 638,
       "sha": "97535585059a2b80bd55c5db319c550098132170",
@@ -2563,6 +2569,12 @@
       "size": 11696,
       "sha": "130ee0f4569fdaec9767ea4e2de48fbe0a897992",
       "sha256": "64542396beecfe221d80f40d13ebad78aac37e0f3963570b17a8ff5c454b26dc"
+    },
+    {
+      "path": "qualification/ami_language_control_diagnostic_20261103.py",
+      "size": 7779,
+      "sha": "371034f8cb6148334f5f542cad1d53c0e9467e0e",
+      "sha256": "6711f7f68283b0969f886a5daedbb7faaedc2055d9a1116c504f0115ac0ce90a"
     },
     {
       "path": "qualification/ami_native_midpoint_diagnostic_20261103.py",
@@ -3325,6 +3337,12 @@
       "size": 2209,
       "sha": "236763f3a9e3dc5c2e1d657d62896ef2f166ee86",
       "sha256": "201249cacc4cf70c7c94b12f80e53b1f37b338a7aef1f71336a48d740266ee42"
+    },
+    {
+      "path": "tests/test_ami_language_control_diagnostic.py",
+      "size": 2165,
+      "sha": "dc7020164306f026e41ec5e4842f4e31167f860f",
+      "sha256": "2c362e7dd4af4baa19b170862960c00dcdf0bd66202ed85e41fa4942d6c86041"
     },
     {
       "path": "tests/test_ami_native_midpoint_diagnostic.py",
@@ -5596,5 +5614,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Record independently audited actual automatic FTPS lifecycle callback qualification, failure/duplicate/restart safety and cleanup, with reusable read-only audit and source-only sanitized evidence; model-free backend, no deployment or native ASR claim."
+  "source_update": "Preserve three reviewed source-only English-language control diagnostic files; bounded AMI comparison found no useful improvement, no product or runtime default changes."
 }

@@ -661,3 +661,7 @@ Server-neutral opt-in lifecycle support now owns bounded upload streams before w
 ## Nov 3: automatic completion callback qualification
 
 The bounded real FTPS lifecycle callback run passed on its first launch in 12.714 seconds. Six real closed-handle callbacks drove automatic publication of exactly one complete input and refusal of the interrupted attempt. Independent audit verified marker-open isolation, exact snapshot identities, sealed-write and restart refusals, unchanged pins and complete cleanup. Source-only tools, seven audit tests and sanitized reports are under `source/qualification/receiver_callback_20261103`. The backend peer was model-free; no deployed service or native inference claim. Broad recorder regression passed 1,128 tests with nine fixture-dependent skips; the final focused gate separately includes two tests added after broad collection.
+
+## Nov 3: bounded language-control comparison
+
+Three source-only diagnostic/test/report files preserve a finite auto-versus-English comparison on two fresh public AMI clips. Both arms produced 94/183 lexical errors; low-share retention changed 31/77 to 30/77 and overlap retention stayed 23/95. No product or language default changed. The comparison is not independent held-out speakers or strict-service qualification. See `source/qualification/AMI_LANGUAGE_CONTROL_20261103.md`. The 23-test model-free focused suite passed; raw audio, annotations, hypotheses, outputs and models are excluded.
