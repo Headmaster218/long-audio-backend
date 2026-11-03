@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--assets', required=True, type=Path)
     parser.add_argument('--input', type=Path)
     parser.add_argument('--input-sha256')
+    parser.add_argument('--recorder-incremental-delivery', type=Path, action='append', help='Repeat to test separate append calls then explicit finalize')
     parser.add_argument('--recorder-batch-delivery', type=Path, action='append', help='Repeat for a fixed complete batch with total duration <=30s')
     parser.add_argument('--recorder-delivery', type=Path, help='Exercise explicit known-session intake with a complete <=30s delivery')
     args = parser.parse_args()
@@ -60,6 +61,11 @@ def main():
     try:
         frames = 176000
         batch_reports = None
+        incremental_mode = args.recorder_incremental_delivery is not None
+        if incremental_mode:
+            if args.recorder_batch_delivery is not None:
+                raise ValueError('recorder_incremental_conflicts_with_batch')
+            args.recorder_batch_delivery = args.recorder_incremental_delivery
         if args.recorder_batch_delivery is not None:
             from audio_backend.recorder_delivery import inspect_delivery
             if args.input is not None or args.input_sha256 is not None or args.recorder_delivery is not None:
@@ -71,7 +77,7 @@ def main():
                          for p, r in zip(args.recorder_batch_delivery, batch_reports))
             if frames > 30 * 16000:
                 raise ValueError('recorder_batch_duration_bound')
-            result['input_kind'] = 'explicit_recorder_batch'
+            result['input_kind'] = 'explicit_recorder_incremental' if incremental_mode else 'explicit_recorder_batch'
         if args.recorder_delivery is not None:
             from audio_backend.recorder_intake import validate_delivery
             if args.input is not None or args.input_sha256 is not None:
@@ -179,8 +185,24 @@ def main():
                     return reply
             transport = LosePublishedSeal(intake_args['api'], Guard(intake_args['limits'], cancelled))
             intake_args['transport'] = transport
-            result['upload'] = intake_run(**intake_args)
-            result['upload_reconciled_resume'] = intake_run(**intake_args, resume=True)
+            if incremental_mode:
+                from audio_backend.recorder_capture_intake import run as capture_run
+                incremental_args = {k:v for k,v in intake_args.items() if k != 'deliveries'}
+                stages=[]
+                for index, delivery in enumerate(args.recorder_batch_delivery):
+                    stage=capture_run(**incremental_args, delivery=delivery, start=index==0)
+                    if stage['capture_finalized'] or stage['published_frames'] or stage['status'] != 'delivery_staged_without_eos':
+                        raise RuntimeError('short_incremental_stage_premature_eos_or_publication')
+                    stages.append(stage)
+                result['incremental_stages']=stages
+                repeated=capture_run(**incremental_args,delivery=args.recorder_batch_delivery[-1])
+                if repeated != stages[-1]:
+                    raise RuntimeError('incremental_latest_retry_changed_result')
+                result['upload']=capture_run(**incremental_args,finalize=True)
+                result['upload_reconciled_resume']=capture_run(**incremental_args,finalize=True)
+            else:
+                result['upload'] = intake_run(**intake_args)
+                result['upload_reconciled_resume'] = intake_run(**intake_args, resume=True)
             result['injected_lost_published_seal_responses'] = transport.lost
             if result['upload'] != result['upload_reconciled_resume'] or transport.lost != 1:
                 raise RuntimeError('batch_intake_resume_or_loss_test_failed')

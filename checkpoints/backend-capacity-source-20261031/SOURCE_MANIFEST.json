@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 100791,
-      "sha": "ab7955eef9a4045202b3165ea640a6f85cf0e418",
-      "sha256": "e985525b2e2e204d7c1790080e32b41f7a2d3246f8561b744af2ac6f7e548b9f"
+      "size": 101058,
+      "sha": "3b0fd1015ffc8729399f4ec8708770ce44f63668",
+      "sha256": "741c50a192ccb3a81aa5d722ccf3364321484d0a2f60e443c7023b583b4d3d13"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -727,6 +727,12 @@
       "size": 9127,
       "sha": "037d5c84074f519e5e5b22a1c47533f9f333d63e",
       "sha256": "6ef446980c06c8f37d90cc6c8eaf226b1ffc749cb51bef133cfd8f0a83e2f694"
+    },
+    {
+      "path": "audio_backend/recorder_capture_intake.py",
+      "size": 19192,
+      "sha": "e3a20615c53c5a6ce3d421b6c0e037bae3978900",
+      "sha256": "382ecf0b88e44589b57ae59e3b6feb7ee192000c55a58df18c40880b4654f001"
     },
     {
       "path": "audio_backend/recorder_delivery.py",
@@ -1651,6 +1657,12 @@
       "size": 5933,
       "sha": "46764c4abb79c37824d17f9999e3a7cb23951c1e",
       "sha256": "f52babfcf112cb98f41f93db5c7cf77285401a7d4a32869bc52f3b5bc57ea747"
+    },
+    {
+      "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
+      "size": 8667,
+      "sha": "cbc4aeb84c6228b20a01ea6a354c4d96883a0b7f",
+      "sha256": "da61a9883cff786df0ad3f3305795f4ef34e72964e7e12ddf99ee5e3ce5efb66"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -4089,6 +4101,18 @@
       "sha256": "73442cfeaaaab3e0380f715fa4e90b3f1b30dcd82888203419487e94607f1f53"
     },
     {
+      "path": "tests/test_recorder_capture_intake.py",
+      "size": 10334,
+      "sha": "a6dbecd940bb9fe046d839e99f17016cac9e9990",
+      "sha256": "25e32191ca10054faa345fbdf61e980c01e9e9f794cf3d87cf65fb3468b7de24"
+    },
+    {
+      "path": "tests/test_recorder_capture_intake_adversarial.py",
+      "size": 10139,
+      "sha": "8ad308b1656829e52be6b200e59978ad7c575f5e",
+      "sha256": "53fb9ecdcad5d255aebca292a5ee5c35185039a4d44a0f7dd6750852acdef08d"
+    },
+    {
       "path": "tests/test_recorder_delivery.py",
       "size": 7488,
       "sha": "8e524c106d4530b0e9a8a110b8350400590b96dc",
@@ -4852,11 +4876,11 @@
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 14776,
-      "sha": "599fd1ef90bff633c23d58a3829ff5736010d504",
-      "sha256": "15b52bf995533e83893ddd093610a2a29bb774a17bbaad0a293aef030d57b82a"
+      "size": 16464,
+      "sha": "a239162d28f26592b29cc346a9515abb21ec9974",
+      "sha256": "d12ac53958a32e0f2e2cec663891af47ee1ece6f6bf3ab220491fbdfe5b20d5b"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 explicit fixed2-8segment known-session batch intake, visible boundary refusals, exact active-tail recovery, bounded capacity planning, real3segment native publication/lost-seal response/completed resume independently audited; no watcher, default pin change or session-idempotency activation"
+  "source_update": "2026-11-03 incremental recorder intake development checkpoint: explicit append/finalize using existingv3 bounded history, both ownership locks, immutable admission bindings and positive retryfsync;23focused tests pass; native incremental execution pending; no rollout or long-duration qualification"
 }
