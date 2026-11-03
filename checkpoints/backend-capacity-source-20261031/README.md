@@ -295,3 +295,7 @@ Source-only generic physical probe and12 parser controls. Actual SQLITE_FULL6144
 ## Isolated CellStore candidate checkpoint (2026-11-03)
 
 Nine actual verifier/SQLite schema, ownership, restart and refusal tests passed on an isolated two-literal candidate; independent result review accepted this limited evidence. Initial wrong-device failure retained. Production profile remains unchanged. Experimental patch/test/evidence basis only; no databases/runtime/cache assets included. 774 manifest files.
+
+## Production-schema physical evidence checkpoint (2026-11-03)
+
+Unchanged CellStore DDL/indexes, production limits/accounting,6144page actualSQLITE_FULL,177changed-page crash capture and exact separate recovery with complete typed six-table oracle observed. Independent saved-byte audit passed. Production profile unchanged. No generated DB/journal assets included. 781 manifest files. Independent limited runtime acceptance and accepted-candidate patch preserved; real strict11second silence startup/upload/seal/publication and clean shutdown passed. Working production profile remains unchanged.

@@ -2217,6 +2217,12 @@
       "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
     },
     {
+      "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
+      "size": 1365,
+      "sha": "df5b40472e83939eb511ab51e08f2463085d4ba0",
+      "sha256": "27e9f806302f01da31d2f3bd2be0de327f195ccc63d0fd93c6b18ccb760a5589"
+    },
+    {
       "path": "qualification/EXPERIMENTAL_PROFILE_BASIS.json",
       "size": 638,
       "sha": "97535585059a2b80bd55c5db319c550098132170",
@@ -2224,9 +2230,33 @@
     },
     {
       "path": "qualification/README.md",
-      "size": 7289,
-      "sha": "ee6ab644cad1de6657125bd910c77811e7dfda18",
-      "sha256": "2225580505749658a956d0dd41116eea881aa1a07e4fd6dac66af6ed9099af9b"
+      "size": 11868,
+      "sha": "bf8ca7131e4b64b2537e05cb7eccc3a1234e14cc",
+      "sha256": "651f725f83696cd4640f5a66c58d31fe83b0a2eb84483addddcf3074e874214f"
+    },
+    {
+      "path": "qualification/accepted_candidate_20261103.patch",
+      "size": 1079,
+      "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
+      "sha256": "3a97845bf13b00e402ce73cb9990ce72f2696b9d82254cf442fbfde18a46afe8"
+    },
+    {
+      "path": "qualification/cellstore_crash_probe.py",
+      "size": 22221,
+      "sha": "b0cea479ad0e19a726c07970605dae2a2e5d1020",
+      "sha256": "30e884a7f2b6c57c68aa3ae75b29fd3fd78dfcbd911768bb4de15d3f4836ba9c"
+    },
+    {
+      "path": "qualification/independent_acceptance_20261103.py",
+      "size": 5894,
+      "sha": "1153e80cee35537e88f9ae6ab9886fd31156ac30",
+      "sha256": "f94ec8f5c2fe9e30ef31c21fc8ac561387df3a094dc237edf74f611b17b7671c"
+    },
+    {
+      "path": "qualification/independent_cellstore_audit_20261103.py",
+      "size": 10258,
+      "sha": "30f5dfb98135cce63f64686763f3518753498498",
+      "sha256": "deb2727ce2e0d811a9fdd260ffc945a76e20fc9005baeda5bbd54b33bddac209"
     },
     {
       "path": "qualification/independent_saved_audit_20261103.py",
@@ -2245,6 +2275,12 @@
       "size": 17973,
       "sha": "cef6b56f9265cc84191fc4d114668d95f88ec330",
       "sha256": "2734c588d033bd705f21b7586bb3b88c03dc31e485a1439bb52ca64917aca95c"
+    },
+    {
+      "path": "qualification/test_accepted_candidate_cellstore.py",
+      "size": 6600,
+      "sha": "1935e74c7d5a241db285226d37f3508153966592",
+      "sha256": "0e641937426168c60cf8b8f3131b63730039e77b31f99b40bcae733461f61b60"
     },
     {
       "path": "qualification/test_candidate_cellstore.py",
@@ -2857,6 +2893,12 @@
       "size": 6060,
       "sha": "58d48c9d6ad40b4450767928d5ff9e47d2402a6d",
       "sha256": "c758390a4a068eb1ad4009dace5d48f07e9ac06fcf1a826b6d1bf805efbe1b58"
+    },
+    {
+      "path": "tests/test_cellstore_physical_oracle.py",
+      "size": 1599,
+      "sha": "1eabcf9d80ff5ada02d8ee1f9fb378547659700d",
+      "sha256": "5839c818fae3803e2e98f1b543d215ed1707a148b2ce350f2e96928f1eb7e160"
     },
     {
       "path": "tests/test_claim_late_review_nov02.py",
@@ -4648,5 +4690,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 isolated two-literal candidate CellStore schema/ownership/refusal regressions independently accepted; production profile unchanged"
+  "source_update": "2026-11-03 production-schema physical qualification independently accepted for exact fresh candidate; real strict11second smoke passed; production working profile unchanged"
 }

@@ -1,0 +1,28 @@
+{
+  "accepted_for_fresh_bounded_smoke": true,
+  "evidence": {
+    "candidate_regressions": {
+      "sha256": "56004ce3fb32499f96234962870884c931389d9a65be88db5802a0917f9df361"
+    },
+    "independent_acceptance": {
+      "sha256": "f329d6403f2b3c2ef6267e054530aadb897c349bc7752c34d638017552e07156"
+    },
+    "independent_physical_audit": {
+      "sha256": "b75df7a97d927825a360b108d62f370e2b6b5b78c9f67605070b202d0fb101bc"
+    },
+    "physical_result": {
+      "sha256": "1d8971d14719c7ddecdedd245184270b8a18b64e9f05ff04420785e0402f4f41"
+    }
+  },
+  "existing_store_migration_authorized": false,
+  "general_production_rollout_approved": false,
+  "limits": [
+    "Sampled allocation is not an instantaneous kernel quota.",
+    "No power-loss, hardware failure, hostile concurrent mutation or acoustic accuracy qualification.",
+    "Original stop/wait receipts are not independently re-observed later.",
+    "All original verifier, selector, schema, budget and feature-default rules remain unchanged."
+  ],
+  "schema": "limited-runtime-acceptance-v1",
+  "scope": "Exact current interpreter, SQLite build/package, local unix VFS and device27; finite application-schema allocation and process-crash recovery only. Fresh bounded service smoke may now test integration.",
+  "sqlite3_package_sha256": "6ac9a15ee2c393bd994e6b3784ed3f5fb97c9b4f986cbce03dccbad6226778df"
+}

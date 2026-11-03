@@ -113,3 +113,75 @@ schema/ownership/refusal evidence. It verified saved results, all candidate pins
 unchanged production module and exact two-literal candidate diff. Production
 activation is still a separate decision. Original regression result SHA256:
 `56004ce3fb32499f96234962870884c931389d9a65be88db5802a0917f9df361`.
+
+## Production-DDL full-capacity physical evidence
+
+An independent acceptance review correctly declined to activate from the generic
+physical run and tiny schema regressions alone: the documented allocation envelope
+is application/schema/transaction-specific. That decision is preserved locally.
+The separate `cellstore_crash_probe.py` closes this experimental evidence gap with
+unchanged `CellStore._schema`, all production indexes/PRAGMAs/SQLite limits,
+positive-length synthetic cell spans and source/dependency receipt relationships.
+Opaque synthetic proofs are structural fixtures, not authentic primary evidence.
+
+The fresh run reached actual SQLITE_FULL five times during progressively smaller
+atomic cell/dependency insertions, with exactly 6144 pages, 2048 sources and
+55 cells/dependencies. It captured 177 changed pages and a single 6044-record
+journal during commit. Original child waits were 0/-9/0. Recovery used a separate
+copy and matched both exact baseline bytes and the complete typed six-table oracle
+(store_meta, sources, cells, dependencies, sqlite_master and sqlite_sequence),
+including all column names, schema SQL/rootpages, integrity and reference checks.
+
+Production charging, max(logical size, allocated blocks) plus directory, observed
+49,975,296 bytes with 4384 bytes slack for the interrupted namespace. Baseline and
+recovery each charged 25,169,920 bytes. Limits remain sampled/cooperative and do
+not prove power-loss behavior or instantaneous global quotas. Original interrupted
+files remain untouched for independent audit. Production qualification is still
+unchanged pending explicit independent acceptance of the combined evidence.
+
+## Explicit limited acceptance and real strict-service smoke
+
+Independent acceptance decision SHA256
+`f329d6403f2b3c2ef6267e054530aadb897c349bc7752c34d638017552e07156`
+accepted the combined production-schema physical evidence and nine real-owner
+regressions for the exact fresh bounded service candidate. Independent physical
+audit SHA256 is
+`b75df7a97d927825a360b108d62f370e2b6b5b78c9f67605070b202d0fb101bc`.
+Physical result SHA256 is
+`1d8971d14719c7ddecdedd245184270b8a18b64e9f05ff04420785e0402f4f41`.
+
+`ACCEPTED_RUNTIME_BASIS_20261103.json` binds that acceptance and its evidence;
+SHA256 `27e9f806302f01da31d2f3bd2be0de327f195ccc63d0fd93c6b18ccb760a5589`.
+The accepted patch again changes only package/evidence literals in a separate
+source copy. All selectors, verifier methods, schema, bounds and feature defaults
+remain unchanged. The working production copy and main are not updated.
+General production rollout and old-store migration are not approved by this
+limited acceptance. The accepted basis replaces the earlier generic-only
+experimental basis for this new candidate, without rewriting historical evidence.
+
+Nine regressions passed again against the accepted evidence digest (0.94 seconds).
+`test_accepted_candidate_cellstore.py` preserves those opt-in tests. The real
+unchanged strict service then started with its inherited lock, real owner/Worker,
+and all normal gates. The existing bounded uploader submitted 176000 frames of
+synthetic digital silence. Two chunks completed (10.5 and 0.5 seconds); the page
+was published and released with EOS. Startup, uploader, processing and graceful
+shutdown completed with original process exit zero. Shutdown confirmed worker
+stopped, lock closed, Store safe and permit clear, with no shutdown errors.
+
+This is eleven-second functional integration evidence, not resource endurance,
+real-recorder provenance, cross-chunk speaker identity or speech accuracy. No
+claim about those follows from silence. Raw generated WAV/SQLite/runtime assets
+remain local. Historical audit/decision scripts are preserved verbatim and use
+fixed local paths; do not execute them in a source checkout expecting no writes.
+
+Saved-database inspection further narrows the smoke: its three strict outcomes
+were empty, with zero retained cells, zero primary packets and zero MOSS
+intents/results. This qualifies the silent processing/publication path only;
+nonempty speech retention and transcription remain untested here. The strict
+primary-only MOSS-dispatch boundary is preserved.
+
+Independent saved-smoke audit accepted this narrow result. It rehashed 32 assets,
+verified the exact two-literal candidate change, configuration/source/CellStore
+binding, read-only database outcome and consistent cleanup receipts. Audit report
+SHA256: `49aa66a020c004b3a5426caa4f5f9866432240525c0b022df4fcba820a086e9f`.
+It confirms no gate or MOSS-dispatch change and no nonempty-speech claim.
