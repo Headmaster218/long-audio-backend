@@ -24,7 +24,7 @@ cd ../backend-restored-20261031
 python -m pip install -e '.[test]'
 ```
 
-No application-source overlay or older checkout is required: all 152 tracked product
+No application-source overlay or older checkout is required: all 153 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
 The parent public commit is `b33172a7f584a0b60b76a58eefd0ca3ba2ab0a6a`; its tree and history
@@ -237,3 +237,13 @@ cross-language checks. Strict ingestion remains disabled; no immutable snapshot,
 clock mapping, sequence-gap repair or physical-continuity claim is introduced.
 Default transport behavior remains unchanged. Details and deliberate canonical
 text/surrogate restrictions are in source/docs/RECORDER_DELIVERY_PREFLIGHT.md.
+
+## Nov3 explicit owned local snapshots
+
+Added a separate operator-invoked snapshot tool with exclusive creation, bounded
+copy/revalidation, fsync/close and non-overwriting receipt publication. 159 selected
+tests pass including four abrupt-process-exit/fresh-process inspection cases;
+nine generated Java deliveries copied and inspected. Existing or interrupted
+destinations are not overwritten/resumed. Requires an exclusively controlled
+private parent; no same-UID adversarial rename protection, physical power-loss
+qualification or strict ingestion is claimed. Details: source/docs/RECORDER_OWNED_SNAPSHOT.md.

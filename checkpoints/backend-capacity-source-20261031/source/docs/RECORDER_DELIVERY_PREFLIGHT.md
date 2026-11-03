@@ -141,3 +141,12 @@ silence. V2 observations do not settle those gaps. Even the generated three-piec
 rotation example only demonstrates matching declarations, not physical continuity.
 This design review is not an implementation or qualification of snapshot ownership,
 crash recovery, strict API ingestion or global speaker identity.
+
+### Subsequent bounded snapshot step
+
+An explicit local copy/receipt tool is now implemented separately; see
+[RECORDER_OWNED_SNAPSHOT.md](RECORDER_OWNED_SNAPSHOT.md). It requires an exclusively
+controlled private destination parent and never enables ingestion. The earlier
+"no owned snapshot is created" description above still applies to this preflight
+command: only the separate operator-invoked snapshot tool writes new copies.
+Sequence/gap mapping and strict API publication remain unimplemented.

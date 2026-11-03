@@ -723,6 +723,12 @@
       "sha256": "fd8bb8ec51246fd62564773612a8e1ed4a2c4ba13bb0e2ede21d7532cda3c0fd"
     },
     {
+      "path": "audio_backend/recorder_snapshot.py",
+      "size": 10296,
+      "sha": "5bee9bba176ab64611f3f8ba4c9999e995695744",
+      "sha256": "eef471e970797c5c68ebdb099ad92b0a89811f10bd032ca17fa66dd5714df13e"
+    },
+    {
       "path": "audio_backend/recording_overlap.py",
       "size": 148792,
       "sha": "775ae7a1b8122aff4c21181a883cadb279595db0",
@@ -1930,9 +1936,15 @@
     },
     {
       "path": "docs/RECORDER_DELIVERY_PREFLIGHT.md",
-      "size": 8495,
-      "sha": "22762e7c754ed14da171602c8e11a933413d2d62",
-      "sha256": "be7df2be890d3cd6816aa745d78e09ab977efff99fac107df0796b868c5272ee"
+      "size": 8997,
+      "sha": "53dcf7bfb118123f8a5444dc989bb971af47fec4",
+      "sha256": "73583be3d1a5a4ed3964f9878fb1269d9e08e4e9a2409963e80bcd406e0c6eca"
+    },
+    {
+      "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
+      "size": 6229,
+      "sha": "9fbe1abda32e5db8bc4fdca07182c734913783eb",
+      "sha256": "69044669e9cb74b7814bcfb59c55c5c0bc8cc927c5cbbe9c98aaffba8782007e"
     },
     {
       "path": "docs/RECORDING_OVERLAP_BATCHES.md",
@@ -3819,6 +3831,12 @@
       "sha256": "e047997baf244afbb433d94c8513df5cc79dbdea23ca9faefed3d5b8eb7bf63b"
     },
     {
+      "path": "tests/test_recorder_snapshot.py",
+      "size": 8459,
+      "sha": "229f95015f0b4247f2915575b7eaaf387587d54d",
+      "sha256": "5cb453837247862f3ea040289b0fb419e95419a2bbdfc61370fc87c776222f4d"
+    },
+    {
       "path": "tests/test_recording_overlap.py",
       "size": 54379,
       "sha": "e3a74b03f9d554f4d728779aad59050760ef909f",
@@ -4510,5 +4528,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 opt-in recorder metadata declaration validation; containing remote commit plus per-file hashes is authoritative"
+  "source_update": "2026-11-03 explicit bounded owned snapshots and readonly interruption reconciliation; remote commit and file hashes are authoritative"
 }
