@@ -283,3 +283,7 @@ Existing uploader tested against strict ASGI admission with two deterministic pi
 ## Native smoke diagnostic checkpoint (2026-11-03)
 
 Real strict startup refused current SQLite package fingerprint. Added bounded synthetic smoke harness and immediate read-only refusal preflight, with two refusal tests. No runtime pin/cache changed; no actual source/seal/publication occurred. Source-only checkpoint: 766 manifest files.
+
+## Startup refusal cleanup checkpoint (2026-11-03)
+
+Bounded graceful service task settlement before terminal receipt, with four asynchronous tests. Fresh actual runtime refusal exits failed but confirms normal worker/Store/lock/permit cleanup with no descendants. Exact original runtime package restoration remains blocked; no qualification pin or cache modified. Source-only checkpoint: 767 manifest files.

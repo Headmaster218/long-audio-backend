@@ -52,3 +52,26 @@ Remaining blocker: restore the genuinely qualified runtime or obtain independent
 finite requalification evidence under the existing policy. Seal/publication and
 recorder-to-backend linkage remain unqualified. Gate's request journal covers its
 own calls, not uploader traffic. A missing result is unknown, never success.
+
+## Startup-refusal cleanup correction (2026-11-03)
+
+The service launcher now recognizes the observed terminal binary-qualification
+refusal immediately and requests normal uvicorn lifespan shutdown before writing
+its terminal receipt. It observes the service task for at most 60 seconds; a
+still-live task is not cancelled during that graceful wait or declared safe.
+On exit, the top-level asyncio runner may cancel pending tasks; cancellation is
+not proof of safe ownership cleanup. The supervisor still must confirm process
+and descendant termination. Original startup errors remain failures.
+
+Four focused asynchronous tests verify that cleanup awaits lifespan finally,
+that helper timeout retains an uncancelled task, that runner teardown subsequently
+cancels a pending task, and that completed task exceptions are observed. A separate fresh real strict-service refusal check exited 1 as expected
+and confirmed worker stopped, Store safe, lock closed, permit clear, no shutdown
+errors and no surviving descendants. No forced cleanup was needed. This validates
+the refusal path only, not model startup, successful shutdown under inference,
+seal/publication, or a full runtime qualification.
+
+Read-only local asset searches have not established an exact restorable original
+SQLite package for the shipped fingerprint. The older October attribution report
+concerns different package fingerprints and cannot authorize substituting files.
+No runtime/cache files, qualification constants or application policies changed.

@@ -22,9 +22,9 @@
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
-      "size": 3472,
-      "sha": "1f6f81429b0ef058c8514ab8c21c7b0c9ae8f7af",
-      "sha256": "b7e56a4ef13ad40cba1b673cca031a3c1780d5c881cbb2bce5e3a6640920018a"
+      "size": 4991,
+      "sha": "1334181a4ab16fd1825087650ed3ed1557b57e83",
+      "sha256": "168351a8957e8cd125c377cbc214b18712af13718f00d12e4f9bac65b6f0bf2b"
     },
     {
       "path": "RECOVERED_COMMIT_DIAGNOSTICS_REVIEW.md",
@@ -2811,6 +2811,12 @@
       "sha256": "0b1c85cbc329aa1e13e3e182b005a886195911f6a85f37123907ec353c2b9c60"
     },
     {
+      "path": "tests/test_capacity_service_cleanup.py",
+      "size": 2731,
+      "sha": "0e90a7454bff04dfd2b952905757b73abd8640c2",
+      "sha256": "21e9f1b2d1e3159539e537db19cb0424bca1aa2b57aa36255fd32e9295595476"
+    },
+    {
       "path": "tests/test_capture_review_boundaries_nov01.py",
       "size": 6060,
       "sha": "58d48c9d6ad40b4450767928d5ff9e47d2402a6d",
@@ -4492,9 +4498,9 @@
     },
     {
       "path": "tools/capacity_service.py",
-      "size": 4514,
-      "sha": "382021ac250869b589debbb37781686ab7ad2e21",
-      "sha256": "90db1086282814366ace55b6664e83cf74b3caa829d74298a62ebfd56d077888"
+      "size": 5749,
+      "sha": "5de3807250d7bc473122eb592b6be423471aeb12",
+      "sha256": "6452b9e66ddafc9cbb18c49c5b3f73f1028d47606fc4011edfafc4fbc38446d6"
     },
     {
       "path": "tools/dev63_ami_v2_operations/ATTRIBUTION.txt",
@@ -4600,5 +4606,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 bounded native uploader smoke and fail-closed runtime preflight; startup blocked by current SQLite package fingerprint, no seal/publication qualification"
+  "source_update": "2026-11-03 strict startup-refusal graceful lifecycle cleanup; exact original runtime assets unavailable, qualification unchanged"
 }

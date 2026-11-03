@@ -21,6 +21,25 @@ def save(path,value):
     temporary.replace(path)
 
 
+async def settle_service(server, task, seconds=60):
+    """Request normal lifespan shutdown and observe it before cleanup receipt.
+
+    This helper does not cancel during its grace period. If the caller exits
+    after timeout, asyncio.run may cancel pending tasks; that does not establish
+    safe closure. The supervisor must still confirm process/descendant exit.
+    """
+    server.should_exit = True
+    if not task.done():
+        await asyncio.wait({task}, timeout=seconds)
+    if not task.done():
+        return {'type': 'TimeoutError', 'message': 'service_lifespan_cleanup_deadline'}
+    try:
+        await task
+    except BaseException as exc:
+        return {'type': type(exc).__name__, 'message': str(exc)[:2048]}
+    return None
+
+
 async def serve(config,fd,out):
     import uvicorn
     settings=Settings(**config)
@@ -43,6 +62,8 @@ async def serve(config,fd,out):
         permit=getattr(settings,'_native_execution_permit',None)
         cells=app.state.worker.native_owned_cells
         while not cells.owner.health()['ready']:
+            if cells.owner.health().get('status') == 'runtime_binary_qualification_mismatch':
+                raise RuntimeError('cells_startup_runtime_binary_qualification_mismatch')
             if time.monotonic()>=startup_deadline:raise TimeoutError('cells_startup_deadline:'+str(cells.owner.health()))
             if task.done():
                 await task
@@ -66,11 +87,15 @@ async def serve(config,fd,out):
         failure={'type':type(exc).__name__,'message':str(exc)[:2048]}
         raise
     finally:
+        # Readiness failure used to emit a premature receipt while uvicorn was
+        # still live. Observe its normal shutdown before checking ownership.
+        service_cleanup_error = await settle_service(server, task)
         state=app.state
         permit_clear=(permit is not None and not permit._handles and permit._comparison is None
             and permit._unavailable is None and permit._primary_observation_failure is None)
         result={'schema':'actual-service-cleanup-v1','error':failure,
             'shutdown':getattr(state,'shutdown_decision_diagnostics',None),
+            'service_cleanup_error':service_cleanup_error,
             'lock_closed':getattr(state,'instance_lock_cleanup_complete',False),
             'store_safe':state.store.strict_cleanup_confirmed(),
             'worker_alive':state.worker.thread.is_alive(),'permit_clear':permit_clear,
@@ -80,7 +105,7 @@ async def serve(config,fd,out):
                  'strict_store_cleanup_error','strict_lock_cleanup_error') if hasattr(state,name)}}
         save(out/'terminal.json',result)
         if failure is None and (not result['lock_closed'] or not result['store_safe'] or
-                result['worker_alive'] or not permit_clear or result['shutdown_errors']):
+                result['worker_alive'] or not permit_clear or result['shutdown_errors'] or service_cleanup_error):
             raise RuntimeError('application_cleanup_not_confirmed')
 
 
