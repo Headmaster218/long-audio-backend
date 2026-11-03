@@ -1,8 +1,10 @@
 # Backend capacity reconstruction — source checkpoint, 2026-10-31
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
-The `source/` directory is a self-contained source tree frozen from local commit
-`4e910ce57b1f976cdf78b00224bbc94db5d05964`. It includes the October 31 capacity reconstruction,
+The `source/` directory is a self-contained source tree based on local commit
+`4e910ce57b1f976cdf78b00224bbc94db5d05964`, with the Nov3 transport-preflight
+addition described below. The containing remote commit and per-file manifest
+pin the current snapshot. It includes the October 31 capacity reconstruction,
 strict shared sources and quota changes, bounded hot-only payload accounting, and explicit
 safe page-admission reconciliation in the preserved-capture test controller.
 It is not recovery of the lost unpublished October 30 source bytes.
@@ -22,7 +24,7 @@ cd ../backend-restored-20261031
 python -m pip install -e '.[test]'
 ```
 
-No application-source overlay or older checkout is required: all 150 tracked product
+No application-source overlay or older checkout is required: all 151 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
 The parent public commit is `b33172a7f584a0b60b76a58eefd0ca3ba2ab0a6a`; its tree and history
@@ -215,3 +217,13 @@ directory before importing sibling modules, so direct `python -I -B .../capacity
 Three new CLI/launch contract tests and existing capacity harness tests pass:
 148 selected model-free tests. See `source/docs/CAPACITY_RESUME_CLI_PORTABILITY_20261103.md`.
 No lost runtime data or receipts are reconstructed or included. No long-run pass is claimed.
+
+## Nov3 recorder transport preflight
+
+Added an opt-in read-only local delivery preflight and Java/Python fixture checker.
+58 selected model-free tests passed; three generated Java producer fixtures matched.
+Independent review reran the 32 new tests. Only marker/envelope/checksum and WAV
+transport integrity are checked. Inner metadata semantics, immutable publication,
+strict ingestion and speaker identity are explicitly not qualified. No audio,
+models, runtime databases, credentials or raw run data are included. See
+source/docs/RECORDER_DELIVERY_PREFLIGHT.md for bounds and the remaining intake contract.

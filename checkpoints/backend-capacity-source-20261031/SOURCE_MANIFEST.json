@@ -1,6 +1,6 @@
 {
   "schema": "standalone-source-checkpoint-v1",
-  "local_source_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
+  "local_source_commit": null,
   "files": [
     {
       "path": ".gitignore",
@@ -709,6 +709,12 @@
       "size": 11177,
       "sha": "4cc94dbb5e7718620f560bba3b574f36594d5432",
       "sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f"
+    },
+    {
+      "path": "audio_backend/recorder_delivery.py",
+      "size": 7774,
+      "sha": "11b61e731b5962898dfa54a6bbb83e4b4fd694dc",
+      "sha256": "5a371ba5213ba3b659c4902b085e2477a78486b59ffe37524e50f0ec0c7043f0"
     },
     {
       "path": "audio_backend/recording_overlap.py",
@@ -1917,6 +1923,12 @@
       "sha256": "641c78b2bbc2edfdd421d43d3976c9162665c79601a7680729bd91c8c5ad4aa6"
     },
     {
+      "path": "docs/RECORDER_DELIVERY_PREFLIGHT.md",
+      "size": 4525,
+      "sha": "3484723f8b5ef0aa345fe4a037108e39855d79a5",
+      "sha256": "02c72f1c77c4bcf72ad20696922f6c8c32c92c0e45828ae87d7be2412fb192ed"
+    },
+    {
       "path": "docs/RECORDING_OVERLAP_BATCHES.md",
       "size": 11071,
       "sha": "4ca0b22bbaae693241707dad1d9441b25468e2ba",
@@ -2335,6 +2347,12 @@
       "size": 13111,
       "sha": "5ba5046d62c4ec3b19c9623d7c69e7401750ea1a",
       "sha256": "36977ecc8d6feb423a101c42afe2c34c489f585ba51530d942cc3864a9f7e3b6"
+    },
+    {
+      "path": "scripts/check_recorder_delivery_fixtures.py",
+      "size": 1388,
+      "sha": "162d6ffe738c3c736dd21f2b89636807d635e231",
+      "sha256": "38152b8e43f4c3a5d118c734bb9c99213376b24932c3d21c2c4faf9940413174"
     },
     {
       "path": "scripts/measure_command.py",
@@ -3783,6 +3801,12 @@
       "sha256": "6cc6edfd4c6cd4df6d6322eb0419d2418c189d5a56bf1f3a57d5e6773e726bf4"
     },
     {
+      "path": "tests/test_recorder_delivery.py",
+      "size": 7468,
+      "sha": "5c6dee1c0864de1d3b105560199a7e15b4be1c34",
+      "sha256": "81ee6a69ce7567d1171e3f2aa9388ae74014a0a880ed52bed922678514d596a3"
+    },
+    {
       "path": "tests/test_recording_overlap.py",
       "size": 54379,
       "sha": "e3a74b03f9d554f4d728779aad59050760ef909f",
@@ -4472,5 +4496,7 @@
       "sha": "7c00326e52cab1309e0cc4df902fb540718319fe",
       "sha256": "3860407d3c1b58acbbace7887f1a1e46cb8ed2d9ddc04c24761348e62acc4b4a"
     }
-  ]
+  ],
+  "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
+  "source_update": "2026-11-03 recorder transport preflight; containing remote commit plus per-file hashes is authoritative"
 }
