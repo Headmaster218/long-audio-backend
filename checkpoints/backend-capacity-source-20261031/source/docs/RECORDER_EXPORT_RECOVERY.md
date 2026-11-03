@@ -11,8 +11,8 @@ Run `python -m audio_backend.recorder_export_recovery` with the original
 `--output-dir`, and `--exclusive-writer`. The latter acknowledges the unchanged
 exporter's exclusive-writer precondition. The API must already provide safely
 available production read projections; this command does not initialize it.
-Do not start the full application on original evidence or clone databases with
-original filesystem paths: application startup can recover or delete files.
+Do not start the full application on original evidence or on cloned databases
+that retain original filesystem paths: startup can recover or delete files.
 
 Before any output write, the existing production local-status validators run
 under the existing read-only locks and validate canonical job and receipt source

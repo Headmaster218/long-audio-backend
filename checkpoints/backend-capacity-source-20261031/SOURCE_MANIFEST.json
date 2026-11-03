@@ -2122,9 +2122,9 @@
     },
     {
       "path": "docs/RECORDER_EXPORT_RECOVERY.md",
-      "size": 4522,
-      "sha": "72914cfc90f2c963b7324a9d05ffb6cf8a7a2b30",
-      "sha256": "89fe3ab5a5b48e1cee948ab218611b2519fed42e768d2b4597cf566cfc9a62ee"
+      "size": 4521,
+      "sha": "6ff9b6c2a80c9b9f85abb5ef0ad4e5db61f6355b",
+      "sha256": "8fdc590d061a77d040ecf4564abbdd067c20e133bcd102771933125494943a2a"
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
@@ -2947,6 +2947,24 @@
       "size": 14416,
       "sha": "825280aac4f6a86f6e2c3fcbb3d54d75fb1f31dd",
       "sha256": "6f829bfac5a71a7bb4214f4b34a8e0053ed40bea8471c436d3b7baecf4d4e468"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/PLAN.md",
+      "size": 5764,
+      "sha": "8e34456ff2a593956d125396cb1fc7c5f1e800c0",
+      "sha256": "0df5b5e49fdf1fb78412454c6ad469f2f9bc6173d8fb97790e43779c5e6949ee"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/snapshot_http.py",
+      "size": 23462,
+      "sha": "32ee8dde0cdc062bab1966fc83b9e06ba62f152b",
+      "sha256": "8dec5a771af190df4aa83901eb4f7d7a9389447ad3f3053c7ece95381c788616"
+    },
+    {
+      "path": "qualification/snapshot_export_recovery_20261103/test_snapshot_http.py",
+      "size": 8556,
+      "sha": "909a2ad3e8cfa40dbb3a4effb740d5d476d505a7",
+      "sha256": "6897b0943490c2670b132b72111e1e59356f7fa9430f0d5851410d35553db0d4"
     },
     {
       "path": "qualification/sqlite_crash_probe.py",
@@ -5680,5 +5698,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add independently reviewed explicit bounded GET-only export recovery with exact typed revision-conflict recognition, same-job pins, protected output and preserved attempts;151 focused tests pass; no recovery or new native execution yet."
+  "source_update": "Reviewed snapshot-only GET host; no native rerun or recovery execution yet."
 }
