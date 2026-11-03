@@ -167,3 +167,7 @@ wiring needs separate qualification of the chosen receiver's open, success,
 incomplete and disconnect hooks. Neither those tests nor a synthetic FTPS
 fixture establish a deployed authenticated receiver, phone lifecycle correctness
 or native ASR quality.
+
+## Actual callback qualification
+
+The [independently audited real FTPS callback run](../qualification/receiver_callback_20261103/RESULT.md) passed on its first live launch. Actual success/incomplete callbacks drove automatic publication and failure refusal while the same inbox watch remained active. It also verified sealed-write rejection, duplicate callbacks and crash/restart fences. This proves the reviewed fixture integration, not a production receiver installation, authentication architecture, device behavior or native ASR.

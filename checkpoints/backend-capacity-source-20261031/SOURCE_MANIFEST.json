@@ -2140,9 +2140,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_COMPLETION.md",
-      "size": 10385,
-      "sha": "0bd965664a7db22a3ec2645cf21ae6b7179dd29f",
-      "sha256": "6521d899471cdd3971c662d99007ff7359bce9fbb82f1072dcd3a9c43152e739"
+      "size": 10920,
+      "sha": "962ac45e342b598c089ed43a46fcefbc6078434d",
+      "sha256": "8602cc2ed2b46e95055ca3283d370856fd570430b7e9a5643342244a046dbb39"
     },
     {
       "path": "docs/RECORDER_RECEIVER_PUBLICATION.md",
@@ -2763,10 +2763,28 @@
       "sha256": "b90287d9bac4618f300d85ec1714362e5e7a04b5a2d7bf8112288045b500ee0b"
     },
     {
+      "path": "qualification/receiver_callback_20261103/INDEPENDENT_AUDIT.md",
+      "size": 3816,
+      "sha": "340f68daa3c4d74565c5cbe5d6c6cbbc106c9938",
+      "sha256": "4949ccf7d0a9f1fd9cca3439e5eddffa3a41ad43acec86086caf076a2de69f64"
+    },
+    {
       "path": "qualification/receiver_callback_20261103/PLAN.md",
       "size": 4163,
       "sha": "29dbeed460de58cfbc3cea7c027f3bedc001fb6e",
       "sha256": "9c43d01261ce154df4fe87b4b7f4a01907df0805f7663854eb93e945e443d57a"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/RESULT.md",
+      "size": 10481,
+      "sha": "c51615b45922e15c571d2dfc3a18ee47e9b3ec1d",
+      "sha256": "1a64afb711f0e06bb110e1d7a3851f0a5117422ff375f6b59eac2ae6f2e2f776"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/audit_receiver_callback.py",
+      "size": 14422,
+      "sha": "52462c0f818810dd91abd10963afd80607c4c39a",
+      "sha256": "b7d884f5ebff91e417bc1d1231c43b735d569764b3fce431a504c717c9d4787c"
     },
     {
       "path": "qualification/receiver_callback_20261103/fixture_support.py",
@@ -2785,6 +2803,12 @@
       "size": 10548,
       "sha": "af0c3ae8a1ea6ddf3be38487cef3288b2726dbd7",
       "sha256": "3e2986251469e898fac80dc456ee3dd572f8f21a3e2a3a8861c9e191eafc63e4"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/test_callback_audit.py",
+      "size": 3310,
+      "sha": "08f44b60ccd1eeace1c71f8128f1153225704413",
+      "sha256": "de5b35143888522a8fd293629c6a3dcc6b4aef822a2b180b08056f20805ba361"
     },
     {
       "path": "qualification/receiver_callback_20261103/test_qualifier_safety.py",
@@ -5572,5 +5596,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add server-neutral trusted receiver completion adapter with owned bounded streams, successful closed-handle lifecycle checks, automatic strict publication, restart fences and exclusive staging ownership; local tests only, callback wire qualification pending. Reviewed finite automatic-callback FTPS harness and seven pre-server safety tests included before execution."
+  "source_update": "Record independently audited actual automatic FTPS lifecycle callback qualification, failure/duplicate/restart safety and cleanup, with reusable read-only audit and source-only sanitized evidence; model-free backend, no deployment or native ASR claim."
 }
