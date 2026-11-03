@@ -104,3 +104,69 @@ immutable-key comparisons are NULL-safe. The direct SQL regression is included.
 `SESSION_REQUESTS_CANDIDATE_BASIS_20261103.json` pins the tested candidate files,
 patch and local result hash. It explicitly denies activation and crash/allocation
 qualification. No raw database, request name, audio or transcript is backed up.
+
+## Finite process-crash and primary-store allocation probe
+
+`session_request_crash_probe.py` is an explicit opt-in probe to run only from a
+fresh patched isolated candidate. It does not activate a native runtime, enter
+lifespan, open models or change production qualification. The actual native Python
+binary/SQLite package and source are pinned in local evidence. Children install
+parent-death kill protection before heavy imports, finite resource limits, and
+blocked-signal launch ownership; the supervisor positively observes SIGSTOP,
+SIGKILLs and reaps each interrupted child before copying evidence.
+
+Observed on 2026-11-03:
+
+- Kill after inserting mapping, before commit: recovery of a separate copy had
+  zero session/policy/receipt rows; same-key creation then produced exactly one.
+- Kill after commit, before returning the ASGI response: the recovery copy's GET
+  and repeated same-key PUT matched the committed receipt and exactly one session.
+  This uses real authenticated ASGI routing but no network socket. It does not
+  establish behavior during SQLite COMMIT itself, power loss or hardware faults.
+- Kill after base-schema initialization but before feature-schema initialization:
+  opt-in reopening the recovery copy refused `session_requests_fresh_store_only`.
+  This is expected fail-closed behavior, NOT successful application recovery.
+  The initializer gap remains an operational blocker; no binding was rewritten,
+  missing schema silently repaired, or old store promoted.
+- Original interrupted databases and all existing sidecars were preserved;
+  recovery occurred only on separate copies. All eight child phases ended in
+  expected states: three acknowledged stopped/killed children and five clean exits.
+
+Allocation inspection exposed an important existing bound: strict session-policy
+rows remain after deletion and limit creation to min(max_sessions,1000). The 4096
+receipt cap is defensive and is not reachable through this normal strict path.
+The earlier full 4096 fixture was directly constructed, not an API lifetime claim.
+The physical probe respected that policy: feature-disabled and feature-enabled
+stores each performed 1000 actual creation transactions with 200 four-byte Unicode
+characters in the name, then 999 actual deletions. One session remained active;
+1000 policies remained. A further new request refused `strict_policy_capacity`;
+the enabled store still replayed its surviving original key exactly.
+
+At the sampled full-active and post-deletion points, complete data-directory
+allocated charge (files plus directory blocks) was 2,383,872 bytes disabled and
+2,637,824 bytes enabled: an observed 253,952-byte difference. Per-file logical and
+allocated charges, including any observed WAL/sidecars, are recorded locally.
+The final snapshots had checkpointed data; transient WAL allocation may occur
+between samples. This is NOT a hard disk bound, worst-case page-packing bound,
+maximum combined media/payload workload, or throughput comparison. Different
+creation methods exercised existing POST-equivalent versus PUT-equivalent Store
+operations, with otherwise matching strict settings/body geometry.
+
+The supervisor's sampled child-only RSS peaked at 61,460,480 bytes and total probe
+artifact allocation at 12,382,208 bytes. These are sampled observations, not hard
+aggregate RSS guarantees. Removing the digest from current rows is logical
+scrubbing, not secure erasure from SQLite free pages or historical WAL copies.
+The local final result SHA-256 is
+`5466a128b15bc54c33beba64c5fd018906f3a147e37ba70ea530fc8dcc622474`.
+Generated stores, logs, responses and raw reports remain local.
+
+Independent saved-evidence audit accepted these limited outcomes. It inspected
+SQLite only in further audit copies and confirmed original interrupted artifacts
+unchanged, exact atomic row/receipt states, runtime/source pins and allocation
+receipts. Report SHA-256:
+`ea5e6152ecd2fc870ee471bb420de42ed4ed773cfd03669dbc1b9b6f172ab5ce`.
+Source is preserved in `independent_session_request_probe_audit_20261103.py`;
+its historical local paths create audit-copy/output files, so it is not intended
+to run within a manifest-verified source snapshot. Only the audit script is
+backed up, never its directory containing copied databases. Activation remains
+unapproved: initializer recovery and wider primary-store/crash acceptance remain.

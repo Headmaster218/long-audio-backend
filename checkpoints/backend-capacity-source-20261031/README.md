@@ -307,3 +307,5 @@ Unchanged CellStore DDL/indexes, production limits/accounting,6144page actualSQL
 2026-11-03: actual loopback FTPS/JVM TLS received delivery passed strict backend publication. Independent audit matches remote, snapshot, source and chunk PCM. Added audit source and clarified current versus historical session integration status. No device/automatic-intake claim; source-only backup.
 
 2026-11-03: isolated server session-request idempotency experiment backed up as unapplied patch, test source, design and hash basis. 33 focused tests passed; independent review reran22 candidate cases. Working application/native pins unchanged. No activation, migration, primary-store allocation or crash qualification.
+
+2026-11-03: backed up finite session-request process-kill/allocation probe and independent audit source. Precommit rollback and committed lost-response replay verified; actual strict lifetime1000 boundary respected. Initializer interruption remains unrecovered fail-closed. No activation or midcommit/power-loss claim; raw database artifacts excluded.

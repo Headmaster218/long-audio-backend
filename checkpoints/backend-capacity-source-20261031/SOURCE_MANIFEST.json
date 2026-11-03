@@ -2248,9 +2248,9 @@
     },
     {
       "path": "qualification/SESSION_REQUESTS_EXPERIMENT.md",
-      "size": 6872,
-      "sha": "812bde611a1b8d777ffb0cc47b6b9596ffe85287",
-      "sha256": "5444f158ff7af5674ed4abb34cc77b28593fe9729863b01e7bfc38a7906d3593"
+      "size": 11238,
+      "sha": "9b909af882d4c9c78223f6b5fb9a2de70c91e18a",
+      "sha256": "8f5fba3c6ff715ef03caa881c34c2db82326e0bc55145d30b1f4042954840a9f"
     },
     {
       "path": "qualification/accepted_candidate_20261103.patch",
@@ -2295,6 +2295,12 @@
       "sha256": "69f14c4bc514ea5cd4a8723fc9cd0273a740cb05ab59e7b0e3f3e232ab636654"
     },
     {
+      "path": "qualification/independent_session_request_probe_audit_20261103.py",
+      "size": 7488,
+      "sha": "d6ffe0b9619fc658063908ce68467a14d2fcd022",
+      "sha256": "078cf4f7179eb5a406985ee8ccd8750b50242ba7970bdc38b85cae4eb8354c46"
+    },
+    {
       "path": "qualification/independent_speech_audit_20261103.py",
       "size": 9815,
       "sha": "8791d6a180b93f229bb751c6ec6a24b2e2cef1d1",
@@ -2311,6 +2317,12 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/session_request_crash_probe.py",
+      "size": 14416,
+      "sha": "825280aac4f6a86f6e2c3fcbb3d54d75fb1f31dd",
+      "sha256": "6f829bfac5a71a7bb4214f4b34a8e0053ed40bea8471c436d3b7baecf4d4e468"
     },
     {
       "path": "qualification/sqlite_crash_probe.py",
@@ -4750,5 +4762,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 isolated disabled-default server session idempotency design and unapplied candidate patch; 33 focused tests; activation not qualified"
+  "source_update": "2026-11-03 isolated session request process-kill and allocation evidence independently audited; initializer refusal remains; no activation"
 }
