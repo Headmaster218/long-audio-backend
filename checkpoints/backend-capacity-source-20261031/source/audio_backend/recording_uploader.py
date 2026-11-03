@@ -51,6 +51,23 @@ class HTTPFailure(Incomplete):
     def __init__(self, status, detail='', retry_after=1):
         self.status = status
         self.retry_after = retry_after
+        # Retain only an exact, bounded typed error. Never recover by parsing the
+        # truncated human exception string, which can omit or spoof evidence.
+        self.response_reason = None
+        if type(detail) is str and len(detail) <= JSON_BYTES:
+            try:
+                def unique(pairs):
+                    result = {}
+                    for name, value in pairs:
+                        if name in result: raise ValueError('duplicate error key')
+                        result[name] = value
+                    return result
+                value = json.loads(detail, object_pairs_hook=unique)
+                if (type(value) is dict and set(value) == {'detail'} and
+                        value['detail'] == 'transcript_revision_changed'):
+                    self.response_reason = 'transcript_revision_changed'
+            except (ValueError, TypeError, RecursionError):
+                pass
         super().__init__(f'HTTP {status}: {detail[:1000]}')
 
 

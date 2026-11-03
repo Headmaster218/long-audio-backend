@@ -108,3 +108,12 @@ new native execution is claimed here.
 Only source, synthetic tests and this sanitized report are backed up. Public
 speech bytes, partial transcripts, model files, databases, compiled classes,
 private receipts and keys are excluded. Main remains untouched.
+
+Independent failed-run diagnosis SHA256:
+`145a97014a633e7dbea964a89873bfaf5dbca47234ea6d0c820f3e6a93179743`.
+The audit copied only closed databases into a fresh private directory, verified
+five staged units against canonical ASR rows and source/content hashes, and found
+all original evidence bytes, sizes, mtimes and ctimes unchanged afterward. CPU
+SenseVoice metadata recorded two ASR batches and approximately 0.456 seconds of
+ASR stage time. The precise revision-changing transaction was not recorded and
+is not attributed to a particular worker or feature.

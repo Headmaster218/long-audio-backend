@@ -753,6 +753,12 @@
       "sha256": "27062fee264c5ef30a506dfa5cd36c4fdcc007ececfdbe73a8bb15da1ab90c4a"
     },
     {
+      "path": "audio_backend/recorder_export_recovery.py",
+      "size": 10760,
+      "sha": "5335e00c514fde9efc0c7941ca039424f8da9b5c",
+      "sha256": "038b7aabf2d654b21ff0bacd7b3602a53dd30248532febedeae7a71d148783b7"
+    },
+    {
       "path": "audio_backend/recorder_inbox.py",
       "size": 7051,
       "sha": "d7c477e7750a573193eb123dabebc394717ede26",
@@ -898,9 +904,9 @@
     },
     {
       "path": "audio_backend/recording_uploader.py",
-      "size": 98898,
-      "sha": "8915a7b1ff35433ed0e472c25e26b1796e2ef433",
-      "sha256": "2e07de96be8600b53c4a75cf38ced543ca39d9a2f15ee543ecbae0bbcd837138"
+      "size": 99819,
+      "sha": "31159570644363bf5f77ade334d7269b0fc6dafc",
+      "sha256": "6d9e2573c8d0a7b99c2dc9bbfe6880804a040292b01ef61118458ed8b46f58fb"
     },
     {
       "path": "audio_backend/recording_uploader_history.py",
@@ -2115,6 +2121,12 @@
       "sha256": "73583be3d1a5a4ed3964f9878fb1269d9e08e4e9a2409963e80bcd406e0c6eca"
     },
     {
+      "path": "docs/RECORDER_EXPORT_RECOVERY.md",
+      "size": 4522,
+      "sha": "72914cfc90f2c963b7324a9d05ffb6cf8a7a2b30",
+      "sha256": "89fe3ab5a5b48e1cee948ab218611b2519fed42e768d2b4597cf566cfc9a62ee"
+    },
+    {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
       "size": 19831,
       "sha": "30890a3760563b196272f5bb9e2a7ab9b3ac908f",
@@ -2614,9 +2626,9 @@
     },
     {
       "path": "qualification/combined_chain_20261103/RESULT.md",
-      "size": 6704,
-      "sha": "1a243b0108dd27f04c68bf2004f34a57df579ad6",
-      "sha256": "596266d64068f1daba9e1fe8c08a2f7d5c0057f663e44a86f27940b40a283d22"
+      "size": 7267,
+      "sha": "2d018e71afa1c76eda5dfa6ba590421daf1f2c47",
+      "sha256": "a7e914412862102aec116324d2dbf7a848e3a3120f2c44a4fb0e8ca9bc972080"
     },
     {
       "path": "qualification/combined_chain_20261103/RUNTIME_PREFLIGHT.md",
@@ -4749,6 +4761,12 @@
       "sha256": "2a297a6515f346bd389132c2bb98acb0c5c0dc05093b4bc40b4c52aa7c767fc4"
     },
     {
+      "path": "tests/test_recorder_export_recovery.py",
+      "size": 13382,
+      "sha": "686b3e3989eac7ebc9fa21c1e7c0b3a9f2a33ddb",
+      "sha256": "37b1c1ebe6b624f1a377e732fa5904f20b4a297a026d225a3700b0400463ea32"
+    },
+    {
       "path": "tests/test_recorder_inbox.py",
       "size": 4937,
       "sha": "4c6d749d5e24ab9e132c43e8c87d34751ddaf05a",
@@ -5662,5 +5680,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Preserve actual combined FTPS/native negative export result: real ASR completed but revision conflict correctly refused export; fix harness-only terminal poll race,26 controls pass, no native retry or product gate change."
+  "source_update": "Add independently reviewed explicit bounded GET-only export recovery with exact typed revision-conflict recognition, same-job pins, protected output and preserved attempts;151 focused tests pass; no recovery or new native execution yet."
 }
