@@ -400,3 +400,15 @@ are documented in source/qualification/AMI_LABELED_QUALITY_20261103.md.
 Only reproducible tools, synthetic model-free tests and aggregate documentation
 are included; annotation archives/text, audio, hypotheses, models, databases and
 raw run summaries remain outside the source checkpoint.
+
+## Bounded Handy labeled comparison, no promotion
+
+Three diagnostic source/test/report files compare unchanged primary chunked,
+primary whole-window and explicit Handy Q8 candidate output on two fresh labeled
+AMI clips. Handy does not improve aggregate lexical errors or resolve low-share
+speech retention; no model promotion, service dispatch or safety gate changes.
+Candidate EOS/token completeness remains unknown. Exact profile, frozen plan,
+cleanup evidence, scoring limits and the baseline /tmp disk-reserve fixture issue
+are documented in source/qualification/AMI_HANDY_CANDIDATE_20261103.md.
+Only source, synthetic tests and aggregate documentation are included. No audio,
+annotations, hypotheses, weights, candidate scratch or raw results are backed up.

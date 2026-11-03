@@ -2307,6 +2307,12 @@
       "sha256": "27e9f806302f01da31d2f3bd2be0de327f195ccc63d0fd93c6b18ccb760a5589"
     },
     {
+      "path": "qualification/AMI_HANDY_CANDIDATE_20261103.md",
+      "size": 7174,
+      "sha": "24054b4a53a551fc40630091b85b9e86296fa78c",
+      "sha256": "d270e7857f24412abe346a73acef5b820d5d9e0c596b1ee876e998b48cc0d8db"
+    },
+    {
       "path": "qualification/AMI_LABELED_QUALITY_20261103.md",
       "size": 8067,
       "sha": "8a2be92c460c5f672644f03d390dc6c11af08ca9",
@@ -2365,6 +2371,12 @@
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
       "sha256": "3a97845bf13b00e402ce73cb9990ce72f2696b9d82254cf442fbfde18a46afe8"
+    },
+    {
+      "path": "qualification/ami_handy_candidate_diagnostic_20261103.py",
+      "size": 10163,
+      "sha": "98665844cf56c4e2df89cd4e626ce60082e952d7",
+      "sha256": "83ac1ac206593d8f9909a946deb0c88700a23b52316bffccfc2290b781d65307"
     },
     {
       "path": "qualification/ami_labeled_context_diagnostic_20261103.py",
@@ -2929,6 +2941,12 @@
       "size": 18895,
       "sha": "4a8b00eb46fb0203689d701fec67b570c57c9e07",
       "sha256": "d0014c60ffd9e0ea866dc215f4165f4276362313b7ecabb1483d2f5d91f58fda"
+    },
+    {
+      "path": "tests/test_ami_handy_candidate_diagnostic.py",
+      "size": 1741,
+      "sha": "a4508a47b3df19d17156c481c1eb3dd973f17770",
+      "sha256": "aabf99d95e583f83383b0fa3ccae03f07433c6d3e785b4ee3476b0039563abf1"
     },
     {
       "path": "tests/test_ami_labeled_context_diagnostic.py",
@@ -5062,5 +5080,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Back up fixed labeled AMI lexical and native-activity diagnostics, synthetic tests and aggregate report only; no product defaults, gates or acoustic policies changed."
+  "source_update": "Back up bounded labeled Handy candidate diagnostic, synthetic tests and aggregate report only; no model promotion, product defaults, dispatch or safety gate changes."
 }
