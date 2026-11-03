@@ -2751,6 +2751,24 @@
       "sha256": "b90287d9bac4618f300d85ec1714362e5e7a04b5a2d7bf8112288045b500ee0b"
     },
     {
+      "path": "qualification/receiver_wire_20261103/PLAN.md",
+      "size": 6593,
+      "sha": "bed4939169ae12bb3d880b818613b62f8fa469a7",
+      "sha256": "f79d7472a3dc6c1f5f3c18d406961a29a6e4a3ea85743c70c1892d9b1850c2b3"
+    },
+    {
+      "path": "qualification/receiver_wire_20261103/qualify_receiver_wire.py",
+      "size": 31934,
+      "sha": "1969683b107dd7d06cbaac3e039162e611c008f6",
+      "sha256": "1c74a73d4458fe651baae045758224f46ea14156c9285421fad966c936920dd1"
+    },
+    {
+      "path": "qualification/receiver_wire_20261103/receiver_wire_server.py",
+      "size": 6604,
+      "sha": "667ca91095d12e2c0cb07a6d26c001260d6d1619",
+      "sha256": "e49c1c003d33c9fbb23f098d885cd3dd1723144d4bf26af059ae79ea6b1d27a4"
+    },
+    {
       "path": "qualification/recorder_span_synthetic_fixture.py",
       "size": 2985,
       "sha": "62f73b22b4520cd32e74fd1595c2e9de9ad007cf",
@@ -5494,5 +5512,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add opt-in local receiver-owned completed-delivery snapshot publication and coordinated inbox inventory, preserving exact identities, no-overwrite restart reconciliation, finite storage and cancellation; local model-free qualification only, live FTPS integration pending."
+  "source_update": "Back up reviewed bounded loopback FTPS receiver-publication qualification harness before execution; core checkpoint91b9f812 verified, live wire result still pending."
 }
