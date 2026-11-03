@@ -641,8 +641,11 @@ disabled; no model, primary gate, server quota or runtime pin is changed.
 Use the [read-only boundary report](docs/RECORDER_BOUNDARY_REPORT.md) to inspect
 verified snapshots without flattening interrupted captures into one timeline.
 It separates declaration-adjacent spans, quarantines conflicting ordinals, and
-leaves physical gap durations unknown. Reports are not import plans: existing
-intake still refuses interruption/recovered tails and epoch transitions. For explicitly selected closed spans, the separate
-[span-local importer](docs/RECORDER_SPAN_INTAKE.md) binds original provenance to
-a new known-empty session and requires acknowledgment of span-only EOS. It does
-not join epochs, fill silence, rewrite metadata or create sessions.
+leaves physical gap durations unknown. Reports are not import plans: whole-capture
+intake still refuses interruption/recovered tails and epoch transitions. For an
+explicitly selected span, use the [fixed span-local importer](docs/RECORDER_SPAN_INTAKE.md)
+or the separate [192-input incremental span importer](docs/INCREMENTAL_RECORDER_SPAN_INTAKE.md).
+Both bind original provenance to a separate existing known-empty session and
+require acknowledgment of span-only EOS. Neither joins epochs, fills silence,
+rewrites metadata or creates sessions. Incremental appends require a separate
+explicit finalization after a terminal declaration.

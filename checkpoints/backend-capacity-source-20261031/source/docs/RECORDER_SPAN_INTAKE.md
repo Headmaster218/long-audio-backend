@@ -1,5 +1,7 @@
 # Explicit bounded recorder span intake
 
+For more than eight deliveries or one-at-a-time admission of a selected span, use the separate [incremental span intake](INCREMENTAL_RECORDER_SPAN_INTAKE.md). It preserves original provenance with a distinct v3 job schema and requires explicit finalization; this fixed adapter and its existing jobs remain unchanged.
+
 `python -m audio_backend.recorder_span_intake` accepts one explicitly selected,
 already available declaration-contiguous span into a **separate, existing,
 known-empty strict-primary-payload-v2 session**. It does not create sessions or

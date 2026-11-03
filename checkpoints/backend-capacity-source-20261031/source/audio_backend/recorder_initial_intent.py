@@ -17,14 +17,15 @@ def intent(root, header, delivery, report):
                 path=str(delivery), delivery=report)
 
 
-def read(root, destination, delivery, remaining):
+def read(root, destination, delivery, remaining, *, same=None):
+    same = same or (lambda actual, expected: actual == expected)
     value=single.manifest_read(root/NAME)
     require(type(value) is dict and set(value)=={'schema','job_dir','header','path','delivery'}
             and value['schema']==SCHEMA and value['job_dir']==str(root)
             and value['path']==str(Path(delivery).absolute()), 'capture_initial_intent_binding')
     header=value['header']
-    require(type(header) is dict and header.get('target')==destination,'capture_initial_intent_target')
-    require(inspect_delivery(value['path'],validate_metadata=True,deadline_seconds=remaining())==value['delivery'],
+    require(type(header) is dict and same(header.get('target'),destination),'capture_initial_intent_target')
+    require(same(inspect_delivery(value['path'],validate_metadata=True,deadline_seconds=remaining()),value['delivery']),
             'capture_initial_intent_original_changed')
     return value
 

@@ -57,3 +57,15 @@ Never use it to join unresolved boundaries or manufacture whole-capture STOP.
 Its [read-only status command](RECORDER_SPAN_STATUS.md) can then observe primary
 analysis completion against the exact finalized span job without replaying any
 upload request. This is separate from the incremental whole-capture workflow.
+
+
+For more than eight inputs in one declaration-contiguous span, use the
+[explicit incremental span intake](INCREMENTAL_RECORDER_SPAN_INTAKE.md), not a
+series of fixed-span jobs pretending to be one timeline. It admits one exact
+original delivery per call with frozen capacity up to 192 inputs, retains the
+original nonzero sequence/epoch/frame origin, and requires a genuine terminal
+STOP, INTERRUPTION or singleton recovered tail before explicit span-local EOS.
+Use its distinct [v3 read-only status](RECORDER_INCREMENTAL_SPAN_STATUS.md).
+Unknown prefixes, suffixes and inter-span gaps stay unknown; each separate span
+still needs its own explicitly supplied empty session. This does not enable a
+receiver watcher or automatic session binding.

@@ -503,3 +503,25 @@ hidden seal/finish request identity, and unknown span gaps remain unknown. Tests
 use actual ASGI GET projections with explicitly synthetic publication/analysis
 records; they are not additional native or endurance qualification. See
 source/docs/RECORDER_SPAN_STATUS.md and the updated manual receiver workflow.
+
+
+## Incremental selected-span ingestion beyond eight deliveries
+
+A distinct explicit v3 span command now reuses the bounded 192-input capture
+machinery while preserving original sequence, epoch and frame declarations.
+It maps only the selected proven span onto backend-local coordinates, requires
+an existing empty session and explicit span-closure acknowledgment, and refuses
+epoch joins, ambiguous retries and inferred STOP. Durable initial recovery,
+mid-input process restarts and frozen capacity checks remain enforced.
+
+A separate GET-only v3 status observer validates authenticated history,
+provenance, allocated metadata/state bounds and exact remote coverage without
+repair or inference retry. Nine unchanged Java-producer deliveries from pinned
+Android source were exercised through real ASGI source admission with separate
+handler-process restarts and exact retries. Completion/status projections in
+that qualification are explicitly synthetic; it is not native inference,
+physical-device, 45-minute audio or 12-hour endurance evidence.
+
+Only source, synthetic tests and bounded qualification reports are included.
+See source/docs/INCREMENTAL_RECORDER_SPAN_INTAKE.md and
+source/docs/RECORDER_INCREMENTAL_SPAN_STATUS.md for commands and limits.

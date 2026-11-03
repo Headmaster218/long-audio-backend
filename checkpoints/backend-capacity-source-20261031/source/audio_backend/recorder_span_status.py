@@ -207,19 +207,26 @@ def _journal(root, destination, reports, snapshots, guard):
 
 
 class _Reader:
-    def __init__(self, http, guard):
+    def __init__(self, http, guard, *, max_pages=25, max_work_chunks=None,
+                 max_response_bytes=None):
+        if max_work_chunks is None: max_work_chunks = MAX_WORK_CHUNKS
+        if max_response_bytes is None: max_response_bytes = MAX_RESPONSE_BYTES
+        require(all(type(v) is int and v > 0 for v in
+                    (max_pages, max_work_chunks, max_response_bytes)), 'span_status_invalid_reader_bound')
         self.http = http; self.guard = guard; self.bytes = 0; self.requests = 0
+        self.max_requests = 2 * max_pages + max_work_chunks + 5
+        self.max_response_bytes = max_response_bytes
 
     def get(self, path):
         self.guard.check(); self.requests += 1
-        require(self.requests <= 2 * 25 + MAX_WORK_CHUNKS + 5, 'span_status_request_bound')
+        require(self.requests <= self.max_requests, 'span_status_request_bound')
         value = self.http.request('GET', path)  # No retry or mutation, including on 429.
         self.guard.check()
         require(type(value) is dict, 'span_status_response_object')
         raw = u._json(value)
         require(len(raw) <= u.JSON_BYTES, 'span_status_response_byte_bound')
         self.bytes += len(raw)
-        require(self.bytes <= MAX_RESPONSE_BYTES, 'span_status_total_response_byte_bound')
+        require(self.bytes <= self.max_response_bytes, 'span_status_total_response_byte_bound')
         return value
 
 
@@ -242,7 +249,7 @@ def _capture(value, d, destination):
             'span_status_capture_history_changed')
 
 
-def _pages(reader, base, d, destination):
+def _pages(reader, base, d, destination, *, max_work_chunks=MAX_WORK_CHUNKS):
     work = {}; source_ids = set(); page_ids = set(); cursor = 0
     receipts = dict(pending=0, durable=0, gaps=0, ready=True)
     matcher = SimpleNamespace(capture=destination['capture_id'], origin=0)
@@ -291,13 +298,13 @@ def _pages(reader, base, d, destination):
                     item.get('status') in STATES, 'span_status_work_geometry_changed')
             work[cid] = dict(position=item['position'], frames=frames, start=cursor, status=item['status'])
             cursor += frames
-        require(cursor == remote['end_frame'] and len(work) <= MAX_WORK_CHUNKS,
+        require(cursor == remote['end_frame'] and len(work) <= max_work_chunks,
                 'span_status_work_coverage_changed')
     require(cursor == d['emitted_frames'], 'span_status_work_coverage_changed')
     return work, receipts
 
 
-def _chunks(reader, path, work):
+def _chunks(reader, path, work, *, max_work_chunks=MAX_WORK_CHUNKS):
     after = 0; found = {}
     while True:
         page = reader.get(path + '?after=' + str(after) + '&limit=' + str(CHUNK_LIMIT))
@@ -320,7 +327,7 @@ def _chunks(reader, path, work):
             if item['status'] == 'completed':
                 require(_seconds(progress, frames), 'span_status_completed_progress_shortfall')
             found[cid] = item['status']; after = cursor
-            require(len(found) <= MAX_WORK_CHUNKS, 'span_status_chunk_count_bound')
+            require(len(found) <= max_work_chunks, 'span_status_chunk_count_bound')
         require(next_cursor == after, 'span_status_chunk_cursor_changed')
     require(set(found) == set(work), 'span_status_missing_session_chunks')
     return found

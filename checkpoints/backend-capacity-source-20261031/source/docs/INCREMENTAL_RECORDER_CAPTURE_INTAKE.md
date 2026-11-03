@@ -1,5 +1,7 @@
 # Explicit incremental recorder capture intake
 
+This whole-capture command still requires original START at sequence/epoch/frame zero and a final STOP. For an explicitly selected uninterrupted declaration span that starts later or ends in INTERRUPTION, use the separate [incremental selected-span command](INCREMENTAL_RECORDER_SPAN_INTAKE.md). Its selected-span-only EOS and job schema are distinct.
+
 Verification checkpoint: a separate 11-second incremental native fixture passed independent artifact audit. This is not long-duration qualification. Existing default runtime pins and deployment remain unchanged.
 
 This command admits one immutable recorder delivery at a time into a known strict session. It reuses the existing v3 paged append uploader, rather than extending the fixed-batch journal or creating sessions automatically. Each invocation is explicit. No watcher, FTPS poller, server reservation, model/runtime activation or original-file deletion is added.

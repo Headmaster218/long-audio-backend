@@ -16,9 +16,9 @@
     },
     {
       "path": "README.md",
-      "size": 103464,
-      "sha": "a85a7859ac9013d8eba16a8f7498cc0c47d5de6c",
-      "sha256": "fa96b5358d7889dbd513bbe599563d8c32177f537ccee729694ca716dc08aa11"
+      "size": 103670,
+      "sha": "d3e187d00db753c24969bf6658de47cc388796be",
+      "sha256": "3502003b86f11690e6a273f98e477b1f138089f6c156e602df8702f549011252"
     },
     {
       "path": "RECORDING_SESSION_CONTRACT.md",
@@ -736,9 +736,9 @@
     },
     {
       "path": "audio_backend/recorder_capture_intake.py",
-      "size": 23824,
-      "sha": "128f804c7f00e0a064fa2d6b66cae6dd78ed3124",
-      "sha256": "eaa948113710ac38ba23d7d9f28c4a7d104a35255a91c945a5b795ecd4d96345"
+      "size": 26843,
+      "sha": "c10b08dd8d3a37c0aca13b9a57e115e715f30571",
+      "sha256": "52eb4a1915b6d012660ebd597ca063f8ee9d167c89576651fd9ea6b06225cc31"
     },
     {
       "path": "audio_backend/recorder_capture_profile.py",
@@ -759,10 +759,22 @@
       "sha256": "aa773486e507296794da07f24d68a1e1b1449fcae67e91ab19b1a089a5ad45ac"
     },
     {
+      "path": "audio_backend/recorder_incremental_span_intake.py",
+      "size": 9311,
+      "sha": "f7639fc188658f82766155d447fd74db65998aee",
+      "sha256": "8c601fbf0385cde7705859b25135365f7939c4144e1702c52f0fe95e84584bcd"
+    },
+    {
+      "path": "audio_backend/recorder_incremental_span_status.py",
+      "size": 21039,
+      "sha": "1a91ae72e769850d8272fcda412f345f659a193f",
+      "sha256": "f70965a57c50d710b7c22fa8a92409f723becf3673dd6d9b6485f6ece38bb556"
+    },
+    {
       "path": "audio_backend/recorder_initial_intent.py",
-      "size": 5009,
-      "sha": "8e159c6a77b7cedd4cf7f368274a38dfaee4d576",
-      "sha256": "0b965429deb0d17b382de21254a82c55e5090081f2c575700a93b6bcd5471ec9"
+      "size": 5098,
+      "sha": "f7f37fb5beda258188fce751c06f953b0e38fe49",
+      "sha256": "617cea9d7466a10944dca766f61c26a21d4c109f283eac01fcbc302a3add8ac0"
     },
     {
       "path": "audio_backend/recorder_initial_snapshot.py",
@@ -802,9 +814,9 @@
     },
     {
       "path": "audio_backend/recorder_span_status.py",
-      "size": 24827,
-      "sha": "e21efbe734505c6391370264924fe095e6fe10bb",
-      "sha256": "2ff7dc33b17eb6050751351f784ac9b068df4a4b848e3f95e772dce276ac5c2d"
+      "size": 25401,
+      "sha": "e18af73415f7013192e75ace6c0664e47d3e169f",
+      "sha256": "a393540bfb2eb111ef6abe5218c648425e87fe17713986829334c36dd0360226"
     },
     {
       "path": "audio_backend/recording_overlap.py",
@@ -1708,9 +1720,15 @@
     },
     {
       "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
-      "size": 15922,
-      "sha": "d82a075f29bfa8d81198ca6d298d9c20657a2e96",
-      "sha256": "8fd14d1441ba87d111b1256b06c59653481e546e56f5c591140e7445b238d0fb"
+      "size": 16275,
+      "sha": "352ecb2a5165928d3619490f26c4bcc179c5c858",
+      "sha256": "232c14fc1cb24ea11633bd32c1df3fbb5a214a8777a6893df563330a3aa90278"
+    },
+    {
+      "path": "docs/INCREMENTAL_RECORDER_SPAN_INTAKE.md",
+      "size": 8809,
+      "sha": "c03a2ceac135d8f9540bb1a62b0a81f5d9dcc2e5",
+      "sha256": "937188c58b86e0021f58403ea713c59aa4a9a3ddf5dd287b0e2208a7308ea7c4"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -1819,6 +1837,12 @@
       "size": 9248,
       "sha": "14b37aaf77ded66aeb1b0b695f583461d3aec3a8",
       "sha256": "a13d326fc7370b12ac7286767569f042719bdcbfcca8f958b1dd680f86bd8a48"
+    },
+    {
+      "path": "docs/NINE_JAVA_PRODUCER_SPAN_QUALIFICATION_20261103.md",
+      "size": 6638,
+      "sha": "bb65f7bd4bbedbfd75bf8592536faf8bf7648d54",
+      "sha256": "66fced3cb1e7080468186636d31181f0c5864a72c8a912b639e826e021f5625a"
     },
     {
       "path": "docs/OFFLINE_FRAGMENTS_INTERNAL.md",
@@ -2061,6 +2085,12 @@
       "sha256": "73583be3d1a5a4ed3964f9878fb1269d9e08e4e9a2409963e80bcd406e0c6eca"
     },
     {
+      "path": "docs/RECORDER_INCREMENTAL_SPAN_STATUS.md",
+      "size": 9114,
+      "sha": "2769f331b1e1d4df3c1b16437a63602f05f5049c",
+      "sha256": "d7b94a5d47521556bf7c1536d1c64b7ff104d18a7f9e9e5aec9903b422614baa"
+    },
+    {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
       "size": 6229,
       "sha": "9fbe1abda32e5db8bc4fdca07182c734913783eb",
@@ -2068,9 +2098,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
-      "size": 8516,
-      "sha": "b40650dc4c31135d13fb86c2f97e8f25af0b5b5d",
-      "sha256": "0d7077706a39ae9cdd26551ef9871d15f2bf97621a5ed273d73d285be0f7fe19"
+      "size": 9262,
+      "sha": "dce31c66bff402aa45fe757a784bf8c507525351",
+      "sha256": "cc7d4f3727814ef738004c34173c297cce72e5de2e0709268a0eb7c41ef2b4bf"
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
@@ -2086,9 +2116,9 @@
     },
     {
       "path": "docs/RECORDER_SPAN_INTAKE.md",
-      "size": 8920,
-      "sha": "fab21de119b8c97bff1a4b1a90a5b2c460661fa6",
-      "sha256": "6f49860a5dcb554a9d04a73b2dd23c57dab845f130a3d62fdb1a7387eb5d5d30"
+      "size": 9238,
+      "sha": "376a0aaeefbaa95e67e40b80e9729cc6583866b4",
+      "sha256": "b375e049c092b0aa0c317fd732c03ecf7db2564a8c11358f91d34fd8544c94c3"
     },
     {
       "path": "docs/RECORDER_SPAN_NATIVE_SMOKE_20261103.md",
@@ -2367,6 +2397,12 @@
       "sha256": "417f1d85a371df35733136c4dc8e725816f15f93093e5bbd9876865ed1cf39bf"
     },
     {
+      "path": "qualification/NineProducerDeliveries.java",
+      "size": 4599,
+      "sha": "a0dd2fe37bda44a9c49035dc3ac82007b6173c40",
+      "sha256": "b22caa5f6cf28a013dd0ecb679270374a80b895b522a21d1ba92e46574cf69be"
+    },
+    {
       "path": "qualification/README.md",
       "size": 15645,
       "sha": "ce425de917e2e289cd34b53ff9ea7d9fa88dfc56",
@@ -2443,6 +2479,12 @@
       "size": 22221,
       "sha": "b0cea479ad0e19a726c07970605dae2a2e5d1020",
       "sha256": "30e884a7f2b6c57c68aa3ae75b29fd3fd78dfcbd911768bb4de15d3f4836ba9c"
+    },
+    {
+      "path": "qualification/generate_nine_java_deliveries.py",
+      "size": 7316,
+      "sha": "e4b74a1bf6284042d418feb28e82fa9bd6d6795e",
+      "sha256": "80e9084c6adf9bd71cfc41c43c09e833a113292d0133c12fed8e7b7edda81498"
     },
     {
       "path": "qualification/independent_acceptance_20261103.py",
@@ -2533,6 +2575,12 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/qualify_nine_java_incremental_span.py",
+      "size": 19937,
+      "sha": "634c37fd1bbd1687cddd4392f56be8a708559270",
+      "sha256": "b90287d9bac4618f300d85ec1714362e5e7a04b5a2d7bf8112288045b500ee0b"
     },
     {
       "path": "qualification/recorder_span_synthetic_fixture.py",
@@ -3555,6 +3603,12 @@
       "sha256": "f2bfdbed65e741a45e9facdb445b96e1fceaa24f0e05a13ae96608cca9580bc6"
     },
     {
+      "path": "tests/test_incremental_span_review.py",
+      "size": 12011,
+      "sha": "9eb6aa630f069c343d867bb85487b42000dbb002",
+      "sha256": "06dd433e5a5a66d80dd55b093f4f28d9335ca8499e6469a57aeebbf52b899ea1"
+    },
+    {
       "path": "tests/test_inference.py",
       "size": 9001,
       "sha": "316e14c13ee463eb36c9794f6807d0731aad1a27",
@@ -4365,6 +4419,30 @@
       "sha256": "23c3f8da2256d3f389197755e8589fbc2099b51483a4b653f7cabae422daa550"
     },
     {
+      "path": "tests/test_recorder_incremental_span_adversarial.py",
+      "size": 12490,
+      "sha": "6c1963dd97b3d97f9cb1b36fa54221c68f4f8b61",
+      "sha256": "90ffaed4ddf977758bbbbcac2c5806df7d7bfdc63fb7b5b08ee72b003010d57d"
+    },
+    {
+      "path": "tests/test_recorder_incremental_span_intake.py",
+      "size": 9632,
+      "sha": "d2d19904940fcc4531201d807b815f6c58f0266a",
+      "sha256": "fd4862fd50679815f7a164c51e543bd9ee62e9702a433a93ec653aa2e3d9bdff"
+    },
+    {
+      "path": "tests/test_recorder_incremental_span_status.py",
+      "size": 13968,
+      "sha": "9a785c7c201f86921a455fd877d7da1bb26dfab3",
+      "sha256": "502ba921f15b1489b70d835baed97ddd914364a2961d22f07b5738e547c4c9dc"
+    },
+    {
+      "path": "tests/test_recorder_incremental_span_status_review.py",
+      "size": 15806,
+      "sha": "288ca3c3f057584baf0cc7627c0af69f0e8a8ce9",
+      "sha256": "e1914e9edb40436e87b498fc4e5d95829313ebcb1e00979467d59f937ebd43a9"
+    },
+    {
       "path": "tests/test_recorder_initial_intent.py",
       "size": 7820,
       "sha": "bafef6daf2bc5d8c1b2ccca0f4697b8f3dc9a618",
@@ -5170,5 +5248,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add explicit GET-only finalized span completion observations with exact local provenance, bounded remote coverage, distinct pending/blocked results and no seal replay or inference retry."
+  "source_update": "Add explicit bounded incremental selected-span intake and GET-only v3 completion observation, preserving original origins and truthful closure; qualify nine pinned Java producer deliveries with real admission and separately synthetic completion."
 }
