@@ -2343,6 +2343,12 @@
       "sha256": "677ef46847abfd0f580ac01cb448af6fdf537ac76e79464821e9ce96e652da5e"
     },
     {
+      "path": "qualification/SPEECH_CONTEXT_DIAGNOSTICS_20261103.md",
+      "size": 6772,
+      "sha": "b7afb8b246dd9d65a0fae387897766035f6f2f83",
+      "sha256": "681d5cd0cbfe8c0b742a109ba7be5fd5abfed7723ded804dc2920753fd7fb7b8"
+    },
+    {
       "path": "qualification/SPEECH_CORE_DIAGNOSTICS_20261103.md",
       "size": 6272,
       "sha": "825c02e7959f495650746306e2493e3680318baf",
@@ -2449,6 +2455,12 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/sensevoice_context_diagnostic_20261103.py",
+      "size": 8933,
+      "sha": "a81418a04eb5a90adefaf29b48cd59cf4e9d57ee",
+      "sha256": "4fd24edb599fe02cf0fb8aea37e8c07492a922d7f7d3a8751f4d9fbd9e078265"
     },
     {
       "path": "qualification/sensevoice_core_language_diagnostic_20261103.py",
@@ -4527,6 +4539,12 @@
       "sha256": "90c14ea29a0da536f9601879b3c9ae87fc193ef8acdc26dc888f742b645a78e4"
     },
     {
+      "path": "tests/test_sensevoice_context_diagnostic.py",
+      "size": 1540,
+      "sha": "f8a4fa9e3ec84db4f130c2770ed14ee94f4b7d9d",
+      "sha256": "b053748434d23d8086d0f761d2a2b9331d034cf8fe66b03838245a3cbd59307c"
+    },
+    {
       "path": "tests/test_shared_snapshot_acquisition_rebuild.py",
       "size": 3263,
       "sha": "f84d4dfe7b1086d99472e7b5706b88769a902174",
@@ -5014,5 +5032,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Persist durable initial recorder intent and explicitly complete only verified partial prefixes under pristine-uploader/empty-session checks; retain legacy and ambiguous-state refusals."
+  "source_update": "Back up fixed context/lexical-ownership speech diagnostic and model-free guards only; mixed whole-input agreement does not authorize production behavior changes."
 }

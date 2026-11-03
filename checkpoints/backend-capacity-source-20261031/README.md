@@ -375,3 +375,15 @@ warning. This is not a power-loss test, native inference qualification or full
 repository pass. No session autocreation, watcher, new server reservation, model
 promotion or production runtime pin change. See the updated incremental intake
 and receiver workflow documents for exact operator steps and remaining limits.
+
+## Context-aware speech diagnostic only
+
+The source-only context study compares zero and two-second context through the
+existing SenseVoice/lexical ownership adapter on fixed public release samples and
+AMI crops. Whole-input agreement is a proxy, not human-reference accuracy; one
+AMI crop worsens despite aggregate improvement. No production context, language,
+model, threshold, suppression, speaker assignment or strict gate is changed.
+The diagnostic defaults to hash/count output; all raw outputs, recordings and
+model assets remain outside this backup. See
+source/qualification/SPEECH_CONTEXT_DIAGNOSTICS_20261103.md for the predeclared
+comparison, confounds, provenance and independent review scope.
