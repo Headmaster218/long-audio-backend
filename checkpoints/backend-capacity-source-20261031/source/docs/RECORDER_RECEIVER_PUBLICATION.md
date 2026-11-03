@@ -41,6 +41,16 @@ benign partial input. Once published, later raw writes cannot alter the separate
 owned copy. The original raw attempt is never renamed, deleted, or modified, so
 existing FTPS readback/reconciliation remains available.
 
+## Trusted lifecycle adapter
+
+The optional [server-neutral completion adapter](RECORDER_RECEIVER_COMPLETION.md)
+owns new attempt creation and bounded stream opens, records the real receiver
+transfer outcomes, and automatically invokes this publisher only after all three
+exact streams close successfully. It adds process-lifetime ownership and raw
+retention bounds without changing this lower-level API. It must be wired into
+the actual receiver before any write-open; a final callback alone is insufficient.
+It installs no service and does not adopt/replay old attempts after restart.
+
 ## Configure, publish, bind a runner
 
 Create the raw/inbox roots and their private parent first. Choose an absent

@@ -807,6 +807,12 @@
       "sha256": "fd8bb8ec51246fd62564773612a8e1ed4a2c4ba13bb0e2ede21d7532cda3c0fd"
     },
     {
+      "path": "audio_backend/recorder_receiver_completion.py",
+      "size": 17967,
+      "sha": "897fac03569168ef543cb1d48928db8213a4af71",
+      "sha256": "be093da17069898f2be09652de406c28353c01b0618f78444cb82470bfb399f2"
+    },
+    {
       "path": "audio_backend/recorder_receiver_publication.py",
       "size": 19629,
       "sha": "f201af24c78f230d544853e49bd1f07ebb3dcbe0",
@@ -2133,10 +2139,16 @@
       "sha256": "69044669e9cb74b7814bcfb59c55c5c0bc8cc927c5cbbe9c98aaffba8782007e"
     },
     {
+      "path": "docs/RECORDER_RECEIVER_COMPLETION.md",
+      "size": 10385,
+      "sha": "0bd965664a7db22a3ec2645cf21ae6b7179dd29f",
+      "sha256": "6521d899471cdd3971c662d99007ff7359bce9fbb82f1072dcd3a9c43152e739"
+    },
+    {
       "path": "docs/RECORDER_RECEIVER_PUBLICATION.md",
-      "size": 8946,
-      "sha": "45668faf8e7a434dd704def51cd08d2bbbfc7399",
-      "sha256": "4380a6918f0ce8f43d61abe6d7a7f4af50b5a08853a16aab745ffed406ad0824"
+      "size": 9533,
+      "sha": "70e569ffeed229e07994949ca28e988d3a83902c",
+      "sha256": "baaf08c36c6bc76ae036670ea87909d5040b6ec595cb543608e666d2c1e11b55"
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
@@ -2749,6 +2761,36 @@
       "size": 19937,
       "sha": "634c37fd1bbd1687cddd4392f56be8a708559270",
       "sha256": "b90287d9bac4618f300d85ec1714362e5e7a04b5a2d7bf8112288045b500ee0b"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/PLAN.md",
+      "size": 4163,
+      "sha": "29dbeed460de58cfbc3cea7c027f3bedc001fb6e",
+      "sha256": "9c43d01261ce154df4fe87b4b7f4a01907df0805f7663854eb93e945e443d57a"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/fixture_support.py",
+      "size": 6676,
+      "sha": "2b623a09fcacf4923c2eaeb91170a938ba00839b",
+      "sha256": "f023a759b96f4347903b7c17faf457608975c705ce87f21e6e728744f9b09238"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/qualify_receiver_callback.py",
+      "size": 25035,
+      "sha": "558505fac19f51c254cd1bba68f4500b8f2e6e5f",
+      "sha256": "295ff9e884b4e7bb27dbb88fbed154158736e0e4f487b96e13a5c8e8a1b0b450"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/receiver_callback_server.py",
+      "size": 10548,
+      "sha": "af0c3ae8a1ea6ddf3be38487cef3288b2726dbd7",
+      "sha256": "3e2986251469e898fac80dc456ee3dd572f8f21a3e2a3a8861c9e191eafc63e4"
+    },
+    {
+      "path": "qualification/receiver_callback_20261103/test_qualifier_safety.py",
+      "size": 4794,
+      "sha": "42130b64f39a490a52e9991a684226dc2660a9c5",
+      "sha256": "b65eb3d3d1c590c88d7b702ea6c969da36b14bd2621dcab94832552d3cb75094"
     },
     {
       "path": "qualification/receiver_wire_20261103/PLAN.md",
@@ -4725,6 +4767,18 @@
       "sha256": "e047997baf244afbb433d94c8513df5cc79dbdea23ca9faefed3d5b8eb7bf63b"
     },
     {
+      "path": "tests/test_recorder_receiver_completion.py",
+      "size": 12799,
+      "sha": "daeff391d53fb487b9db59312b4ce754229e95a5",
+      "sha256": "32b1a05020658071a4941d26cd899c9cd957362bc0f6b63f6e3cecbb56c87794"
+    },
+    {
+      "path": "tests/test_recorder_receiver_completion_review.py",
+      "size": 14233,
+      "sha": "65d1333708248a88356da55fd53f83c64012fbc1",
+      "sha256": "bba789fe3b8d47cd28c7bab69ad52d13962e01fb54b7ad1fc1d4a58b1ebb5676"
+    },
+    {
       "path": "tests/test_recorder_receiver_publication.py",
       "size": 13726,
       "sha": "40aacc6836583afcbb04561d0ef35ebca252a109",
@@ -5518,5 +5572,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Record independently audited actual loopback FTPS partial-marker isolation, same-watch completed publication, raw-overwrite/conflict refusal and exact restart; source-only sanitized report, explicitly model-free backend and no deployment."
+  "source_update": "Add server-neutral trusted receiver completion adapter with owned bounded streams, successful closed-handle lifecycle checks, automatic strict publication, restart fences and exclusive staging ownership; local tests only, callback wire qualification pending. Reviewed finite automatic-callback FTPS harness and seven pre-server safety tests included before execution."
 }
