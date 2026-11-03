@@ -11,6 +11,8 @@ import signal
 import subprocess
 import sys
 import time
+import wave
+import stat
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -24,11 +26,73 @@ from strict_incremental_span_probe import inventory, need, verify_status
 def load(path): return json.loads(Path(path).read_bytes())
 
 def check_pins(pins):
+    need(type(pins) is list and bool(pins), 'pins_empty')
+    need(len({row['path'] for row in pins}) == len(pins), 'pins_duplicate')
     for row in pins:
         path = Path(row['path'])
         need(path.is_file() and not path.is_symlink() and path.stat().st_size == row['bytes']
              and digest_file(path) == row['sha256'], 'pin_mismatch:'+str(path))
 
+
+
+def check_inventories(spec):
+    roles = {'source', 'runtime', 'classes', 'dependencies', 'test_tools'}
+    need(set(spec['inventories']) == roles, 'inventory_roles')
+    roots = {}
+    for role, binding in spec['inventories'].items():
+        manifest = Path(binding['path'])
+        need(manifest.is_file() and not manifest.is_symlink() and digest_file(manifest) == binding['sha256'], 'inventory_manifest:'+role)
+        root = Path(binding['root'])
+        need(root.is_dir() and not root.is_symlink() and root.resolve() == root, 'inventory_root:'+role)
+        roots[role] = root
+        record = load(manifest); rows = record['files']
+        need(bool(rows), 'inventory_empty:'+role)
+        expected = {}
+        for row in rows:
+            relative = Path(row['path'])
+            need(not relative.is_absolute() and '..' not in relative.parts and str(relative) not in expected, 'inventory_relative:'+role)
+            expected[str(relative)] = row
+        actual = {}; links = {}
+        for path in root.rglob('*'):
+            relative = str(path.relative_to(root)); mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode): links[relative] = os.readlink(path)
+            elif stat.S_ISREG(mode):
+                if '__pycache__' in path.parts or path.suffix in ('.pyc', '.pyo'): continue
+                actual[relative] = path
+            elif not stat.S_ISDIR(mode): raise AssertionError('inventory_special:'+role)
+        need(set(actual) == set(expected), 'inventory_roster:'+role)
+        need(links == {row['path']:row['target'] for row in record.get('symlinks', [])}, 'inventory_symlinks:'+role)
+        for relative, path in actual.items():
+            row = expected[relative]
+            need(path.stat().st_size == row.get('bytes', row.get('size')) and digest_file(path) == row['sha256'], 'inventory_hash:'+role+':'+relative)
+    need(roots['source'] == ROOT.resolve(), 'source_root_binding')
+    need(roots['runtime'] == Path(sys.prefix).resolve(), 'runtime_root_binding')
+    for role in ('classes', 'dependencies', 'test_tools'):
+        need(roots[role] == Path(spec[role]).resolve(), 'spec_root_binding:'+role)
+
+
+def validate_producer(spec):
+    from audio_backend.recorder_metadata import decode
+    from strict_uploader_smoke import validate_input
+    manifest = Path(spec['manifest']); wav = Path(spec['input_wav'])
+    need(not manifest.is_symlink() and not wav.is_symlink(), 'producer_symlink')
+    need(digest_file(manifest) == spec['manifest_sha256'], 'producer_manifest_pin')
+    metadata = decode(manifest.read_bytes())
+    need(metadata['frames'] == metadata['target_frames'] == 144000 and
+         metadata['sequence'] == metadata['frame_start'] == 0 and
+         metadata['sample_rate_hz'] == 16000 and metadata['channels'] == 1 and
+         metadata['close_reason'] == 'STOP' and
+         metadata['capture_id'] == 'host-java-public-nine-second-wire-span', 'producer_stop_shape')
+    need(validate_input(wav, spec['wav_sha256']) == 144000 and
+         metadata['wav_sha256'] == spec['wav_sha256'], 'producer_wav_binding')
+    with wave.open(str(wav), 'rb') as source:
+        pcm = source.readframes(144001)
+    need(hashlib.sha256(pcm).hexdigest() == metadata['pcm_sha256'] ==
+         '824962e469c1b5c3969804b2846b1428fe4a194a1744d5599aa595ae7f69af73', 'producer_public_pcm')
+    pinned = {Path(row['path']).resolve() for row in spec['pins']}
+    need({manifest.resolve(), wav.resolve(), Path(spec['assets']).resolve()} <= pinned, 'required_input_asset_pins')
+    need(manifest.parent.parent.resolve() == Path(spec['spool']).resolve(), 'producer_spool_binding')
+    return metadata
 
 def watch_child(spec, output):
     from audio_backend import recorder_receiver_publication as receiver
@@ -44,6 +108,21 @@ def watch_child(spec, output):
         receiver.inbox.inventory = original
         events.close()
 
+
+
+def cleanup_wire(guard, keys, report):
+    try:
+        report['cleanup']=guard.cleanup()
+        need(all(row['reaped'] and row['returncode'] == 0 for row in report['cleanup']), 'fixture_child_cleanup')
+    except BaseException as error:
+        report['cleanup_error']=str(error); report['passed']=False
+    finally:
+        report['peak_rss']=guard.peak
+        try:
+            shutil.rmtree(keys); report['ephemeral_keys_removed']=not keys.exists()
+            need(report['ephemeral_keys_removed'], 'ephemeral_key_cleanup')
+        except BaseException as error:
+            report['key_cleanup_error']=str(error); report['passed']=False
 
 def wire_driver(spec, output):
     """Own only the bounded TLS fixture subtree, separately from native workers."""
@@ -97,8 +176,7 @@ def wire_driver(spec, output):
     except BaseException as error:
         report['error']=dict(type=type(error).__name__,message=str(error)[:2048])
     finally:
-        report['cleanup']=guard.cleanup(); report['peak_rss']=guard.peak
-        shutil.rmtree(keys);report['ephemeral_keys_removed']=not keys.exists()
+        cleanup_wire(guard, keys, report)
         for signum,handler in old.items():signal.signal(signum,handler)
         try:check_pins(spec['pins']);report['pins_unchanged']=True
         except BaseException as error:report['pin_error']=str(error);report['passed']=False
@@ -116,7 +194,7 @@ def wait(gate, process, predicate, label, seconds=30):
 
 def run(spec, output):
     os.umask(0o077);output=Path(output).resolve();baseline.require_nonrepository_output(output)
-    check_pins(spec['pins'])
+    check_pins(spec['pins']); check_inventories(spec); metadata=validate_producer(spec)
     output.mkdir(mode=0o700);(output/'data').mkdir(mode=0o700)
     gate=Gate(output,1,300);gate.journal=(output/'http.jsonl').open('x')
     owned=[];report=dict(passed=False,device_test=False,deployed=False,accuracy_verified=False,
@@ -129,7 +207,7 @@ def run(spec, output):
         report['startup']=baseline.start_service(gate,spec['assets'])
         sid=gate.request(('POST','/sessions',201,{'name':'Bounded public-speech FTPS native chain'},{}))['id']
         save(output/'wire-spec.json',spec)
-        driver=spawn([sys.executable,'-B',__file__,'wire',output/'wire-spec.json',output/'ftps'],'wire')
+        driver=spawn([sys.executable,'-I','-B',__file__,'wire',output/'wire-spec.json',output/'ftps','--spec-sha256',digest_file(output/'wire-spec.json')],'wire')
         wait(gate,driver,lambda:(output/'ftps/wire/marker-held.json').exists(),'wire_marker_hold')
         ready=load(output/'ftps/ready.json');held=load(output/'ftps/wire/marker-held.json')
         need(not held['handle_closed'] and held['live_writers']==1 and 0<held['size']<=32,'not_live_marker')
@@ -151,7 +229,7 @@ def run(spec, output):
                   watch_events=str(output/'watch-events.jsonl'),receiver_events=str(output/'receiver-events.jsonl'))
         save(output/'watch-spec.json',base)
         before=inventory([Path(ready['inbox']),output/'runner',output/'intake'])
-        watcher=spawn([sys.executable,'-I','-B',__file__,'watch',output/'watch-spec.json',output/'watch-result.json'],'watch')
+        watcher=spawn([sys.executable,'-I','-B',__file__,'watch',output/'watch-spec.json',output/'watch-result.json','--spec-sha256',digest_file(output/'watch-spec.json')],'watch')
         wait(gate,watcher,lambda:len(watchbase.read_events(base['receiver_events']))>=2,'two_held_empty_scans',10)
         scans=watchbase.read_events(base['receiver_events']);events=watchbase.read_events(base['watch_events'])
         need(all(x['entries']==0 for x in scans) and not any(x['event']=='request_start' for x in events),'held_marker_exposed')
@@ -167,7 +245,9 @@ def run(spec, output):
         completion=load(output/'ftps/RESULT.json')['completion'];raw=Path(completion['path']).parent
         selected=Path(ready['inbox'])/raw.name
         from audio_backend.recorder_delivery import inspect_delivery
-        original=inspect_delivery(raw,validate_metadata=True);need(inspect_delivery(selected,validate_metadata=True)==original,'snapshot_metadata')
+        original=inspect_delivery(raw,validate_metadata=True)
+        need(original['close_reason']=='STOP' and original['frames']==144000 and original['sequence']==0 and original['frame_start']==0,'actual_stop_shape')
+        need(inspect_delivery(selected,validate_metadata=True)==original,'snapshot_metadata')
         for name in baseline.FILES:
             need((raw/name).read_bytes()==(selected/name).read_bytes(),'snapshot_bytes')
             need((raw/name).stat().st_ino!=(selected/name).stat().st_ino,'snapshot_not_independent')
@@ -181,7 +261,7 @@ def run(spec, output):
         repeat=baseline.child_phase(gate,base,'independent-export-repeat',operation='export-repeat');baseline.assert_reads_only(repeat);baseline.assert_returned(repeat)
         exported=baseline.check_exports(output,[original])
         report.update(session_id=sid,selected_delivery=str(selected),raw_delivery=str(raw),watch=outcome,private_export=exported,
-                      genuine_stop=original['close_reason']=='STOP',input_frames=144000,scenario_complete=True)
+                      genuine_stop=original['close_reason']=='STOP',input_frames=original['frames'],scenario_complete=True)
     except BaseException as error:
         report['error']=dict(type=type(error).__name__,message=str(error)[:2048])
     finally:
@@ -199,7 +279,7 @@ def run(spec, output):
             except BaseException as cleanup:report['forced_cleanup_error']=str(cleanup)
         if gate.hold is not None and 'forced_cleanup_error' not in report:os.close(gate.hold)
         gate.journal.close()
-        try:check_pins(spec['pins']);report['pins_unchanged']=True
+        try:check_pins(spec['pins']);check_inventories(spec);report['pins_unchanged']=True
         except BaseException as error:report['pin_error']=str(error)
         report['peak_sampled_rss']=gate.peak_rss
         report['passed']=report.get('scenario_complete') is True and not any(k.endswith('error') for k in report)
@@ -209,6 +289,9 @@ def run(spec, output):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['run','watch','wire']);parser.add_argument('spec',type=Path);parser.add_argument('output',type=Path)
-    args=parser.parse_args();spec=load(args.spec)
+    parser.add_argument('--spec-sha256',required=True)
+    args=parser.parse_args()
+    need(args.spec.is_file() and not args.spec.is_symlink() and digest_file(args.spec)==args.spec_sha256,'spec_hash')
+    spec=load(args.spec)
     return {'run':run,'watch':watch_child,'wire':wire_driver}[args.mode](spec,args.output)
 if __name__=='__main__':raise SystemExit(main())

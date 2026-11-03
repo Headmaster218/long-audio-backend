@@ -2626,9 +2626,15 @@
     },
     {
       "path": "qualification/combined_chain_20261103/qualify_chain.py",
-      "size": 14204,
-      "sha": "40992090519248dc469428268909037d24bb1572",
-      "sha256": "f933f901508547cf03b9e3b8616c72e295350ca2c6fefdee21534984818dd989"
+      "size": 19081,
+      "sha": "b1dde0fa3a5c88f09ea4e8b0e17d0300e8324174",
+      "sha256": "d57984bfc2d037477dcf89753090c2e508c442daf5578386645a392c9a28e926"
+    },
+    {
+      "path": "qualification/combined_chain_20261103/test_qualify_chain.py",
+      "size": 5542,
+      "sha": "c479e3d1da5951fe938f8215556b3298a67e555f",
+      "sha256": "3b22d9810e77447f454e0d0ff09e6da16069a940773fb64411fe6fc92d30ef63"
     },
     {
       "path": "qualification/generate_nine_java_deliveries.py",
@@ -5650,5 +5656,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Prepare bounded combined owned FTPS callback/native watch/private export scenario; not yet executed, no product defaults changed."
+  "source_update": "Review and harden combined FTPS/native qualification preflight, exact inventories, true public STOP input and fail-closed cleanup; 24 new guards plus 126 adapter/watch tests passed, native chain not yet executed."
 }
