@@ -1959,6 +1959,12 @@
       "sha256": "cd1f1e87237ab3afa98f43b8942484310d758cfb4426d69e1ba1e886e3cb53b7"
     },
     {
+      "path": "docs/RECORDER_DELIVERY_INTEGRATION_EXPERIMENT.md",
+      "size": 5187,
+      "sha": "bd30233e88d3d03c28688b346462093cdd580d06",
+      "sha256": "f4a24bfd54968d398199ceb62397b3ff3fdb1e83b24bbcebffe92e8f4977a7a5"
+    },
+    {
       "path": "docs/RECORDER_DELIVERY_PREFLIGHT.md",
       "size": 8997,
       "sha": "53dcf7bfb118123f8a5444dc989bb971af47fec4",
@@ -2257,6 +2263,12 @@
       "size": 10258,
       "sha": "30f5dfb98135cce63f64686763f3518753498498",
       "sha256": "deb2727ce2e0d811a9fdd260ffc945a76e20fc9005baeda5bbd54b33bddac209"
+    },
+    {
+      "path": "qualification/independent_recorder_integration_audit_20261103.py",
+      "size": 13430,
+      "sha": "250d2ff6248256640db9dcf775c802d723e91ed0",
+      "sha256": "f7160e19f03f2549b8ae0ad52f6e1fc092858a9627361f1021a5e0ea4498bdc2"
     },
     {
       "path": "qualification/independent_saved_audit_20261103.py",
@@ -3957,6 +3969,12 @@
       "sha256": "ad7bf9b0238edeb45132e9fc5b8fd8a1eca94ea73d0b9f177b48c0d302914356"
     },
     {
+      "path": "tests/test_recorder_delivery_smoke.py",
+      "size": 3283,
+      "sha": "4fc7372de793d57eee0c8e9c098be60cbdec8bda",
+      "sha256": "ab7cf9d2b512ae4649db836e48a4e5928681cb7efb2246c595494d2e360b5751"
+    },
+    {
       "path": "tests/test_recorder_metadata.py",
       "size": 10362,
       "sha": "2086f1c0dc6fb57073ff12468f58fdf1eaca1a57",
@@ -4689,6 +4707,12 @@
       "sha256": "3860407d3c1b58acbbace7887f1a1e46cb8ed2d9ddc04c24761348e62acc4b4a"
     },
     {
+      "path": "tools/recorder_delivery_smoke.py",
+      "size": 6495,
+      "sha": "6d892ec52b6c829bbba24df785d31a303feda36e",
+      "sha256": "3bcc70d539714d80ffd270e324a2b50540b43757a8489691d00ba581f4f80e60"
+    },
+    {
       "path": "tools/strict_uploader_smoke.py",
       "size": 9608,
       "sha": "905ca5fb3729ab4438caef490c6b08ad082193c4",
@@ -4696,5 +4720,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 bounded public speech primary publication independently audited; nonempty packets verified, owned PCM retention and accuracy not claimed"
+  "source_update": "2026-11-03 Android producer synthetic delivery through verified snapshot and strict uploader published; independent PCM linkage audit; no importer activation"
 }
