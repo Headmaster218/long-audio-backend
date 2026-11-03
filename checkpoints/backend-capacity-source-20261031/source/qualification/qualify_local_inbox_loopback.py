@@ -31,6 +31,13 @@ FIXTURE_SHA256 = '735895855f8de14f84992216ee7b28fb7359ce74fb30a86aed6ed5e93e80dd
 FILES = ('audio.wav', 'segment.v1.bin', 'delivery.v1.txt')
 
 
+def require_nonrepository_output(output):
+    # Managed workspaces may expose empty synthetic .git directories. As in the
+    # established exporter, only a gitfile or actual HEAD denotes a repository.
+    need(not any((p / '.git').is_file() or os.path.lexists(p / '.git/HEAD')
+                 for p in (output, *output.parents)), 'output_in_repository')
+
+
 def private_directory(path):
     Path(path).mkdir(mode=0o700, exist_ok=False)
 
@@ -361,7 +368,7 @@ def exercise(gate, fixture, reports):
 def run(output, assets, fixture_path):
     os.umask(0o077)
     output = Path(output).resolve()
-    need(not any((p / '.git').exists() for p in (output, *output.parents)), 'output_in_repository')
+    require_nonrepository_output(output)
     fixture, reports = verify_fixture(fixture_path)
     originals = inventory([Path(row['path']) for row in fixture['deliveries']])
     private_directory(output); private_directory(output / 'data')

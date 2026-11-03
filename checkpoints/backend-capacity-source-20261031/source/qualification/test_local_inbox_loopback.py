@@ -140,3 +140,19 @@ def test_export_requires_actual_nonempty_unit_count(tmp_path, monkeypatch):
         (tmp_path/directory/'complete.json').write_text(json.dumps(manifest))
     with pytest.raises(RuntimeError, match='no_real_primary_speech_text'):
         harness.check_exports(tmp_path, [])
+
+
+def test_empty_managed_git_marker_is_not_repository(tmp_path):
+    (tmp_path / '.git').mkdir()
+    harness.require_nonrepository_output(tmp_path / 'private-output' / 'run')
+
+
+@pytest.mark.parametrize('kind', ['head', 'gitfile'])
+def test_actual_repository_output_is_refused(tmp_path, kind):
+    if kind == 'head':
+        (tmp_path / '.git').mkdir()
+        (tmp_path / '.git/HEAD').write_text('ref: refs/heads/main\n')
+    else:
+        (tmp_path / '.git').write_text('gitdir: /not-followed-by-this-check\n')
+    with pytest.raises(RuntimeError, match='output_in_repository'):
+        harness.require_nonrepository_output(tmp_path / 'private-output' / 'run')

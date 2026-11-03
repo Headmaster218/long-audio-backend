@@ -2668,9 +2668,9 @@
     },
     {
       "path": "qualification/qualify_local_inbox_loopback.py",
-      "size": 24026,
-      "sha": "e8b54d412d88583a2e09174aaeb93b976b5b1242",
-      "sha256": "4841585b3c00e4c8817788c6bf93306425dd6b7b76f926773e4eca478d0a1eea"
+      "size": 24325,
+      "sha": "1f5d19cf915acf5c313cac6f7702b12829584d9b",
+      "sha256": "d38b5c6426ec9de87f0c671f092c720f5877062477701a3503bcc65c87f65d65"
     },
     {
       "path": "qualification/qualify_nine_java_incremental_span.py",
@@ -2734,9 +2734,9 @@
     },
     {
       "path": "qualification/test_local_inbox_loopback.py",
-      "size": 6837,
-      "sha": "d4b207ce02bfee1d004d0291e1a0766a01338bf4",
-      "sha256": "94e349462098d916461d6a952a1e4054c1463de4f3ecc6f83c6eb4a785898ba6"
+      "size": 7499,
+      "sha": "924711e8c26dca747456770493b25a855752df2e",
+      "sha256": "fca23482513f1d2ae84400d0d51fb09bc13d26b080395ea1377f45160906de22"
     },
     {
       "path": "qualification/test_session_request_atomic_init.py",
@@ -5392,5 +5392,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add opt-in bounded local inbox reconciliation for one explicitly bound span/session, durable exact selection/replay, conflict refusal and safe private export; prepare isolated loopback qualification."
+  "source_update": "Fix loopback qualification output repository detection for empty managed markers while retaining real checkout exclusion; add targeted tests, no product/runtime changes."
 }
