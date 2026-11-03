@@ -21,6 +21,12 @@
       "sha256": "b26b35d8445d3ef84957968d07171c8b834970a77c66d20aa11321267c431115"
     },
     {
+      "path": "RECORDING_SESSION_CONTRACT.md",
+      "size": 1153,
+      "sha": "a43e2a3b3453b058fba3e4cb0c749a5b3d32a061",
+      "sha256": "3a5e419412102e1a8f94b893a2b472e2b285bc562a926c477e271aee737e7424"
+    },
+    {
       "path": "RECOVERED_COMMIT_DIAGNOSTICS_REVIEW.md",
       "size": 5189,
       "sha": "f8bdf7b0fae47e207559696186a6482bda9676b4",
@@ -4251,6 +4257,12 @@
       "sha256": "27c4dcdc0ca948fb9058883747d508acb0f3863de4c41d49e57e02c356613cb2"
     },
     {
+      "path": "tests/test_strict_uploader_admission.py",
+      "size": 4988,
+      "sha": "80832b1ea4e023bba3024ffcbaa155acc6c537e6",
+      "sha256": "8075643c936f7dd2816ef48f3302b80314adcfcd091517c8cfedcf174ef07892"
+    },
+    {
       "path": "tests/test_strict_worker_capture.py",
       "size": 21555,
       "sha": "a0221d24c0f161f72d9104664e88af75a9b59fef",
@@ -4576,5 +4588,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 read-only persisted recording session contract and actual strict handler idempotency checks; remote commit and hashes are authoritative"
+  "source_update": "2026-11-03 existing bounded uploader strict admission and durable resume tests; no seal or native startup qualification"
 }

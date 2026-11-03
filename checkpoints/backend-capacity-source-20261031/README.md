@@ -275,3 +275,7 @@ ASGI handlers and strict SQLite checks confirm non-idempotent session creation,
 source replay and changed-body/placement refusal. 266 selected checks pass with
 one dependency deprecation warning. No native lifespan, model execution or new
 uploader activation occurs. See source/docs/RECORDING_SESSION_CONTRACT.md.
+
+## Strict uploader admission checkpoint (2026-11-03)
+
+Existing uploader tested against strict ASGI admission with two deterministic pieces, lost successful PUT response, and fresh-invocation resume. Stops before seal/native work. Source-only checkpoint; 764 manifest files.
