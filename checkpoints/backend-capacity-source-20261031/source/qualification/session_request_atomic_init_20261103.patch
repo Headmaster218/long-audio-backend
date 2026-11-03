@@ -1,0 +1,9 @@
+--- a/audio_backend/storage.py
++++ b/audio_backend/storage.py
+@@ -326,4 +326,2 @@
+-        if getattr(settings,'session_requests_experimental',False):
+-            from .session_requests import initialize
+-            with self.db() as db:
+-                db.execute('BEGIN IMMEDIATE')
++            if getattr(settings,'session_requests_experimental',False):
++                from .session_requests import initialize

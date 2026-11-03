@@ -2253,6 +2253,18 @@
       "sha256": "8f5fba3c6ff715ef03caa881c34c2db82326e0bc55145d30b1f4042954840a9f"
     },
     {
+      "path": "qualification/SESSION_REQUEST_ATOMIC_INIT.md",
+      "size": 4888,
+      "sha": "ceb1be78841e6fc311b3d38f70437ec2181a7f8a",
+      "sha256": "4e96c695759c4453bf768da694a2022ce93c3007b46db9d317d960d3931f492e"
+    },
+    {
+      "path": "qualification/SESSION_REQUEST_ATOMIC_INIT_BASIS_20261103.json",
+      "size": 1223,
+      "sha": "abd11101baffeaf96812123cd9359a7bd3f054e3",
+      "sha256": "677ef46847abfd0f580ac01cb448af6fdf537ac76e79464821e9ce96e652da5e"
+    },
+    {
       "path": "qualification/accepted_candidate_20261103.patch",
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
@@ -2269,6 +2281,12 @@
       "size": 5894,
       "sha": "1153e80cee35537e88f9ae6ab9886fd31156ac30",
       "sha256": "f94ec8f5c2fe9e30ef31c21fc8ac561387df3a094dc237edf74f611b17b7671c"
+    },
+    {
+      "path": "qualification/independent_atomic_init_audit_20261103.py",
+      "size": 3931,
+      "sha": "40e368355cd1ac00ecc36347ec1ff2eecd672cd2",
+      "sha256": "6f94c397339c4377b1a90ebd6bc6dd32da1aea9e49eb8355d6f6875a9d23dd57"
     },
     {
       "path": "qualification/independent_cellstore_audit_20261103.py",
@@ -2319,6 +2337,18 @@
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
     },
     {
+      "path": "qualification/session_request_atomic_init_20261103.patch",
+      "size": 418,
+      "sha": "ec95f8377423f97274fe77e9be26b84d29990c9e",
+      "sha256": "d47e25fd2432ef1e831466f292b91844eea0515bb87e7c6784468a2febcd1cb1"
+    },
+    {
+      "path": "qualification/session_request_atomic_init_probe.py",
+      "size": 9513,
+      "sha": "6b0fd8a797acce773bd6f7b58710d8cfc27cc89a",
+      "sha256": "fcb01f5fecab828921c06d85d330cc23e96f36ca48a11b759687098694658aae"
+    },
+    {
       "path": "qualification/session_request_crash_probe.py",
       "size": 14416,
       "sha": "825280aac4f6a86f6e2c3fcbb3d54d75fb1f31dd",
@@ -2341,6 +2371,12 @@
       "size": 6537,
       "sha": "28a59c75f571139541fcdcb42ff65642551f81fb",
       "sha256": "37cf5b693bf3352e8bf02b18a4a2b1dfb077d9d221c597916f7a8620c5fc6cf2"
+    },
+    {
+      "path": "qualification/test_session_request_atomic_init.py",
+      "size": 2514,
+      "sha": "0ae73a5b9648840854be05b8b1562a3720c7f492",
+      "sha256": "2b55df1ec7dd3313961816d5b951c5683f150b4c5d39d6b9b055bb959c6e3d69"
     },
     {
       "path": "qualification/test_session_requests_candidate.py",
@@ -4762,5 +4798,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 isolated session request process-kill and allocation evidence independently audited; initializer refusal remains; no activation"
+  "source_update": "2026-11-03 narrow atomic feature/strict schema correction independently proven in isolated candidate; existing base-init gap remains; stop qualification and prioritize explicit known-session intake"
 }

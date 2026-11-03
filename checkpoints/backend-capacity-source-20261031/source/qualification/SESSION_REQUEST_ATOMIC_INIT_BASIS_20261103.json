@@ -1,0 +1,18 @@
+{
+  "activation_approved": false,
+  "candidate_source_pins": {
+    "audio_backend/app.py": "1ea963e1507d5d07b52af04b4db8d5e3a27ac2008b6cd582a79c644c7e57e921",
+    "audio_backend/session_requests.py": "54b35c2f29e72eec2652e62119bbbc0127cd0bb67972de4e13d7387c7b88c0d9",
+    "audio_backend/settings.py": "ac8c7081a2be5e2652e50a9cf70100d5991674724f46c77cfc86b15711720c94",
+    "audio_backend/storage.py": "a4069c52d65a8f0647e2fe738cfcbd3d5c49cfe6d00d0b1ae59513bf84ac7b3d",
+    "qualification/session_request_atomic_init_probe.py": "fcb01f5fecab828921c06d85d330cc23e96f36ca48a11b759687098694658aae",
+    "qualification/test_session_request_atomic_init.py": "2b55df1ec7dd3313961816d5b951c5683f150b4c5d39d6b9b055bb959c6e3d69",
+    "qualification/test_session_requests_candidate.py": "acc5d698c008ba0ecdb866655ab7dcd95d79bd93c63b4de923d99e9fd82917be"
+  },
+  "prior_patch_sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a",
+  "result_sha256": "a9b15e6e612e55cec9779f6654401e8d7dace29b6b308961137b4267b420deea",
+  "schema": "isolated-session-atomic-init-v1",
+  "second_patch_sha256": "d47e25fd2432ef1e831466f292b91844eea0515bb87e7c6784468a2febcd1cb1",
+  "tests_passed": 25,
+  "whole_store_recovery": false
+}
