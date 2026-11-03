@@ -2650,15 +2650,15 @@
     },
     {
       "path": "qualification/combined_chain_20261103/qualify_chain.py",
-      "size": 19294,
-      "sha": "8402bd5542d8d0b861ad8ad06fe39cc74c42dd2f",
-      "sha256": "965b4f47f41187b6ed90827e6ca332081fbed0a66eb42b430353dea95c651c24"
+      "size": 20350,
+      "sha": "0b22aae16276edabca106e80db7b7f69dcb6fd9e",
+      "sha256": "52637ef21488dc460d77c22fb3f5e0cc9537f188a478c6871251051ef53e1838"
     },
     {
       "path": "qualification/combined_chain_20261103/test_qualify_chain.py",
-      "size": 6275,
-      "sha": "067e892480e6b53c4c845016886a02ba812d108f",
-      "sha256": "a98e31dd4e5cc0cedb1f7c0bee4e6c856d5760f7d7b7cfc987ade01f1900b1b6"
+      "size": 9985,
+      "sha": "135762314e2d8676ee27bb468435c10816b46110",
+      "sha256": "7530852fe08b0b56024af39f1c16a4bb26fccff29bb52c7ea7d4530dbcd0d06b"
     },
     {
       "path": "qualification/generate_nine_java_deliveries.py",
@@ -2842,15 +2842,15 @@
     },
     {
       "path": "qualification/qualify_local_inbox_loopback.py",
-      "size": 24325,
-      "sha": "1f5d19cf915acf5c313cac6f7702b12829584d9b",
-      "sha256": "d38b5c6426ec9de87f0c671f092c720f5877062477701a3503bcc65c87f65d65"
+      "size": 24427,
+      "sha": "91925aa754dabfeff817792f0cf8358b375f9946",
+      "sha256": "6a2a0797bdb9db00d15546f747523779b2cf4a94cb7bf73286386298d29b1310"
     },
     {
       "path": "qualification/qualify_local_inbox_watch.py",
-      "size": 18816,
-      "sha": "72b855fc97b6cf9c452521f76be243b395501f69",
-      "sha256": "608819db228249bb5d8da88a8dc6caa572bed109c841a530f031acbe838f5861"
+      "size": 18894,
+      "sha": "e19ecb318dde2fac906d88ddf62c3c5f56c95c4b",
+      "sha256": "e9232a929aab0d038772099d0ca10571f178f967aa50e846081feefce1633957"
     },
     {
       "path": "qualification/qualify_nine_java_incremental_span.py",
@@ -5770,5 +5770,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Opt-in runner revision recovery:210 regressions and3 actual-route controlled conflict tests pass; default failure and bounded exhaustion preserved."
+  "source_update": "Freeze minimal fresh actual-chain opt-in qualification;68focused controls pass; runtime-specific cellstore patch remains separate."
 }

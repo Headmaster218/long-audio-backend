@@ -193,8 +193,10 @@ def assert_refused(phase):
     assert_reads_only(phase)
 
 
-def check_exports(output, reports):
+def check_exports(output, reports, *, selected_export=None):
     paths = [Path(output) / directory for directory in ('export', 'export-repeat')]
+    if selected_export is not None:
+        paths[0] = Path(selected_export)
     for name in ('export.json', 'transcript.txt', 'complete.json'):
         files = [path / name for path in paths]
         need(all(p.is_file() and not p.is_symlink() and p.stat().st_mode & 0o077 == 0 for p in files),

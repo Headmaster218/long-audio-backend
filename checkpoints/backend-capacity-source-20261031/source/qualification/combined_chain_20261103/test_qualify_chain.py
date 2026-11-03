@@ -131,3 +131,69 @@ def test_wait_still_refuses_missing_terminal_evidence():
         def poll(self):return 0
     with pytest.raises(RuntimeError,match='child_early_exit'):
         target.wait(Gate(),Process(),lambda:False,'missing')
+
+
+def optin_fixture(tmp_path, count=1):
+    root=tmp_path/'export';root.mkdir(mode=0o700)
+    (root/'recovery.jsonl').write_text('audit preserved')
+    for n in range(1,count+1):(root/('attempt-%02d'%n)).mkdir(mode=0o700)
+    return dict(export_attempts=count,revision_conflicts=count-1,selected_attempt='attempt-%02d'%count)
+
+
+@pytest.mark.parametrize('count',[1,2])
+def test_selected_attempt_in_place(tmp_path,count):
+    target=module();outcome=optin_fixture(tmp_path,count)
+    before={p: p.stat() for p in tmp_path.rglob('*')}
+    assert target.selected_export_path(tmp_path,outcome)==tmp_path/'export'/outcome['selected_attempt']
+    assert before=={p:p.stat() for p in tmp_path.rglob('*')}
+
+
+@pytest.mark.parametrize('change,label',[
+ ('count','optin_export_attempt_count'),('bool','optin_export_attempt_count'),
+ ('conflicts','optin_revision_conflict_count'),('escape','optin_selected_attempt'),
+ ('symlink','optin_private_attempt'),('public','optin_private_attempt'),
+ ('extra','optin_attempt_roster')])
+def test_selected_attempt_refuses(tmp_path,change,label):
+    target=module();outcome=optin_fixture(tmp_path);root=tmp_path/'export';selected=root/'attempt-01'
+    if change=='count':outcome['export_attempts']=3
+    elif change=='bool':outcome['export_attempts']=True
+    elif change=='conflicts':outcome['revision_conflicts']=1
+    elif change=='escape':outcome['selected_attempt']='../elsewhere'
+    elif change=='symlink':selected.rmdir();selected.symlink_to(tmp_path,target_is_directory=True)
+    elif change=='public':selected.chmod(0o755)
+    elif change=='extra':(root/'attempt-02').mkdir()
+    with pytest.raises(RuntimeError,match=label):target.selected_export_path(tmp_path,outcome)
+
+
+def test_optin_explicit_and_default_preserved():
+    import ast
+    target=module()
+    tree=ast.parse((HERE/'qualify_chain.py').read_text())
+    assert any(isinstance(n,ast.keyword) and n.arg=='export_recovery_attempts'
+               and isinstance(n.value,ast.Constant) and n.value.value==2 for n in ast.walk(tree))
+    signature=__import__('inspect').signature(__import__('audio_backend.recorder_inbox_runner',fromlist=['watch']).watch)
+    assert signature.parameters['export_recovery_attempts'].default==0
+
+
+@pytest.mark.parametrize('corrupt',[False,True])
+def test_nested_export_keeps_original_byte_gates(tmp_path,monkeypatch,corrupt):
+    target=module();outcome=optin_fixture(tmp_path);selected=target.selected_export_path(tmp_path,outcome)
+    repeat=tmp_path/'export-repeat';repeat.mkdir(mode=0o700)
+    document={'completion':{},'units':[{'text':'synthetic control'}]}
+    payload={'export.json':json.dumps(document).encode(),'transcript.txt':b'synthetic control'}
+    manifest=dict(status='exported',schema='recorder-incremental-span-export-v1',
+        artifacts={name:dict(bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()) for name,raw in payload.items()},
+        nonempty_text_units=1,units=1,frames=144000,complete_content=False)
+    payload['complete.json']=json.dumps(manifest).encode()
+    for directory in (selected,repeat):
+        for name,raw in payload.items():
+            p=directory/name;p.write_bytes(raw);p.chmod(0o600)
+    monkeypatch.setattr(target.baseline,'verify_status',lambda document,reports:None)
+    if corrupt:(repeat/'transcript.txt').write_bytes(b'changed')
+    before={p:p.stat() for p in tmp_path.rglob('*')}
+    if corrupt:
+        with pytest.raises(RuntimeError,match='export_repeat_changed'):
+            target.baseline.check_exports(tmp_path,[],selected_export=selected)
+    else:
+        assert target.baseline.check_exports(tmp_path,[],selected_export=selected)['repeat_identical']
+    assert before=={p:p.stat() for p in tmp_path.rglob('*')}

@@ -156,6 +156,7 @@ def run_watch_child(spec, output):
         events.emit('watch_enter', bounds=WATCH_BOUNDS, finalize=True, export=True, wait_for_marker_last=True)
         report['result'] = runner.watch(state_dir=Path(spec['state_dir']), exclusive_writer=True,
             acknowledge_span_local_closure=True, finalize=True, export=True, wait_for_marker_last=True,
+            export_recovery_attempts=spec.get('export_recovery_attempts', 0),
             limits=limits, transport=transport, cancel=lambda: bool(cancelled), **WATCH_BOUNDS)
         report['returned'] = True
         events.emit('watch_return', result=report['result'])

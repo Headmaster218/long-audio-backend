@@ -197,6 +197,24 @@ def wait(gate, process, predicate, label, seconds=30):
     gate.check()
 
 
+def selected_export_path(output, outcome):
+    """Read the runner-selected nested attempt in place; never move artifacts."""
+    count = outcome.get('export_attempts')
+    need(type(count) is int and 1 <= count <= 2, 'optin_export_attempt_count')
+    need(type(outcome.get('revision_conflicts')) is int and
+         outcome['revision_conflicts'] == count-1, 'optin_revision_conflict_count')
+    name = 'attempt-%02d' % count
+    need(outcome.get('selected_attempt') == name, 'optin_selected_attempt')
+    root = Path(output)/'export'; selected = root/name
+    need(root.is_dir() and not root.is_symlink() and root.stat().st_mode & 0o077 == 0
+         and selected.is_dir() and not selected.is_symlink()
+         and selected.stat().st_mode & 0o077 == 0, 'optin_private_attempt')
+    need({p.name for p in root.iterdir()} ==
+         {'recovery.jsonl', *('attempt-%02d' % n for n in range(1,count+1))},
+         'optin_attempt_roster')
+    return selected
+
+
 def run(spec, output):
     os.umask(0o077);output=Path(output).resolve();baseline.require_nonrepository_output(output)
     check_pins(spec['pins']); check_inventories(spec); metadata=validate_producer(spec)
@@ -231,6 +249,7 @@ def run(spec, output):
         runner.configure(state_dir=output/'runner',config=config)
         base=dict(api=config['api'],session_id=sid,capture_id=config['capture_id'],state_dir=str(output/'runner'),
                   job_dir=str(output/'intake'),repeat_output_dir=str(output/'export-repeat'),deliveries=[],
+                  export_recovery_attempts=2,
                   watch_events=str(output/'watch-events.jsonl'),receiver_events=str(output/'receiver-events.jsonl'))
         save(output/'watch-spec.json',base)
         before=inventory([Path(ready['inbox']),output/'runner',output/'intake'])
@@ -264,7 +283,7 @@ def run(spec, output):
         status=baseline.child_phase(gate,base,'independent-status',operation='status');baseline.assert_reads_only(status)
         verify_status(baseline.assert_returned(status),[original])
         repeat=baseline.child_phase(gate,base,'independent-export-repeat',operation='export-repeat');baseline.assert_reads_only(repeat);baseline.assert_returned(repeat)
-        exported=baseline.check_exports(output,[original])
+        exported=baseline.check_exports(output,[original],selected_export=selected_export_path(output,outcome))
         report.update(session_id=sid,selected_delivery=str(selected),raw_delivery=str(raw),watch=outcome,private_export=exported,
                       genuine_stop=original['close_reason']=='STOP',input_frames=original['frames'],scenario_complete=True)
     except BaseException as error:
