@@ -329,3 +329,28 @@ Actual Android terminal-aware output (three full four-second segments, final STO
 ## Explicit receiver workflow
 
 A bounded read-only inbox command reports validated attempts and ordinal gaps without choosing retries or invoking ingestion. Complete multi-segment linkage now exercises actual three-session FTPS loopback receipts through one strict incremental capture and explicit native EOS, with saved artifact audit. Source/tests/docs only; no receiver deployment, credentials, media or databases. See source/docs/RECORDER_RECEIVER_WORKFLOW.md.
+
+## Explicit initial admission recovery and speech diagnostics
+
+A new opt-in `--recover-initial` reconciles exactly one complete initial recorder
+admission before any uploader checkpoint exists. Exact original/snapshot identity,
+lock-only uploader state, positive remote emptiness and renewed fsync checks are
+required. Hard process exit and retry tests retain the same source/capture/frame
+identities without implicit EOS. Partial snapshots/receipts, unexpected artifacts,
+foreign or uncertain remote state still preserve and refuse. Session autocreation
+and watchers remain disabled. See source/docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md.
+
+Independent speech work adds explicit per-experiment language selection (omission
+keeps English), correct missing-versus-malformed embedding diagnostics, and a
+hash/count-only bounded SenseVoice experiment. It does not claim improved acoustic
+accuracy, activate new models/pins, or change the two-second embedding threshold.
+See source/qualification/SPEECH_CORE_DIAGNOSTICS_20261103.md for evidence and the
+unchanged baseline extended-suite failures. Combined focused verification: 142
+passed with one existing dependency deprecation warning. Source/tests/docs only;
+no audio, transcripts, model weights, databases or raw experiment outputs included.
+
+Selected recorder/uploader regression: 560 passed, 9 optional Java-producer fixture
+skips, 2 deselected, one existing dependency warning. The two deselected real-HTTP
+logical-hour tests were attempted and failed before server startup because this
+restored test runtime lacks `sitecustomize`; their processing was not exercised.
+This is a selected model-free regression, not a full-suite or native long-run pass.

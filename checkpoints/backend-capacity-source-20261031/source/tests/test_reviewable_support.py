@@ -606,3 +606,34 @@ def test_corrupted_analyzer_hash_is_rejected_before_metadata_or_audio_output(tmp
     failed=support.metadata(store,sid,meta['support_id'])
     assert failed['reason']=='manifest_integrity_mismatch' and '/private/source' not in json.dumps(failed)
     with pytest.raises(ValueError):support.audio(store,sid,meta['support_id'])
+
+
+@pytest.mark.parametrize('vector,reason', [
+    (None, 'missing_embedding'),
+    ([], 'embedding_dimension_mismatch'),
+    ([1.], 'embedding_dimension_mismatch'),
+    ([float('nan')] * 8, 'embedding_dimension_mismatch'),
+])
+def test_missing_embedding_is_not_dimension_mismatch(tmp_path, vector, reason):
+    _, store = setup(tmp_path)
+    sid, chunk, result, wav, samples, lineage, generation = prepare(store)
+    for item in result['segments'] + result['speaker_turns']:
+        item['speaker_embedding'] = vector
+    before = copy.deepcopy(result['segments']) if vector is None else None
+    prepared = support.prepare_window(result, wav, lineage, generation,
+        core_start=0, analyzer_start=0, settings=store.settings)
+    assert prepared['A']['status'] == reason
+    assert prepared['A']['pcm'] is None
+    assert prepared['A']['manifest'] == {}
+    if vector is None:
+        assert result['segments'] == before
+        result['_speaker_support'] = prepared
+        assert store.commit_window(chunk, 0, 3, result)
+        segment = store.results(sid)['segments'][0]
+        assert segment['text'] == 'unchanged'
+        assert segment['speaker_status'] == 'unknown'
+        with store.db() as db:
+            assert db.execute('SELECT speaker_support_status FROM segments WHERE id=?',
+                              (segment['id'],)).fetchone()[0] == 'missing_embedding'
+        meta = support.metadata(store, sid, segment_id=segment['id'])
+        assert meta['reason'] == 'missing_embedding' and not meta['audio_available']

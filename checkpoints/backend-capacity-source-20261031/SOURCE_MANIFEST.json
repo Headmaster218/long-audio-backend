@@ -730,9 +730,9 @@
     },
     {
       "path": "audio_backend/recorder_capture_intake.py",
-      "size": 19192,
-      "sha": "e3a20615c53c5a6ce3d421b6c0e037bae3978900",
-      "sha256": "382ecf0b88e44589b57ae59e3b6feb7ee192000c55a58df18c40880b4654f001"
+      "size": 20274,
+      "sha": "5ad7d2739de3f134a87a9bcc3d8cc1a1b3b03b8e",
+      "sha256": "fb649244818a395475985f854828fd12884b80c2e532b57edb77f3c4b5c37965"
     },
     {
       "path": "audio_backend/recorder_capture_profile.py",
@@ -898,9 +898,9 @@
     },
     {
       "path": "audio_backend/speaker_support.py",
-      "size": 41781,
-      "sha": "f1a1e8fab478c74c8b9124fa27e3e0d30d856a17",
-      "sha256": "f97ab59654d87f0a03e4f8fb485ff1f63b0d3e7c2b5756e8a2e441f29636e588"
+      "size": 42113,
+      "sha": "4d32711a50f6ec467122efe754871116d47e85e9",
+      "sha256": "0c7acbc893ba8c0bb51efbf5708663e6de231c26cb454f82163096f0f3d7e9e3"
     },
     {
       "path": "audio_backend/sqlite_admission.py",
@@ -1678,9 +1678,9 @@
     },
     {
       "path": "docs/INCREMENTAL_RECORDER_CAPTURE_INTAKE.md",
-      "size": 10230,
-      "sha": "5306fe90c7a9a184ccb0ce06d4e7cee60ece081d",
-      "sha256": "9c9097491f1fbe7621136ac613ca777fc89a7f07215b36f0c0b2d93a9026cddc"
+      "size": 13196,
+      "sha": "bcefc8a9db426aad9be5d10bd61ebe3cf980e60b",
+      "sha256": "710914a8e00873d78dec2f750ec93ae9eba49fc4fb38159f9953d675b6e48cd0"
     },
     {
       "path": "docs/INHERITED_LOCK_ADOPTION.md",
@@ -2032,9 +2032,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
-      "size": 7590,
-      "sha": "19e8f3b8ae92668b490ab5e9d63da4507092fd23",
-      "sha256": "8d5eee288e7c59b6fce8a3251b322a70fc27a62b26943d46222a57ee5cd18d0a"
+      "size": 7821,
+      "sha": "e3c27550326feedf298cd20e892425cc99e88582",
+      "sha256": "d3abd033faba05f40fc8a2a81676cc5e01f9e12e8b0e7a331d03856bcddbdd75"
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
@@ -2331,6 +2331,12 @@
       "sha256": "677ef46847abfd0f580ac01cb448af6fdf537ac76e79464821e9ce96e652da5e"
     },
     {
+      "path": "qualification/SPEECH_CORE_DIAGNOSTICS_20261103.md",
+      "size": 6272,
+      "sha": "825c02e7959f495650746306e2493e3680318baf",
+      "sha256": "c88ab2c4badde9a23d4561db2a1f1e46f8dbea23cb94848919258edc0aada77a"
+    },
+    {
       "path": "qualification/accepted_candidate_20261103.patch",
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
@@ -2431,6 +2437,12 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/sensevoice_core_language_diagnostic_20261103.py",
+      "size": 3634,
+      "sha": "d083ef22442e9c9acdfd1f48fbe527e0df06afab",
+      "sha256": "b392fd0acd4b191dfa09c282c8ece45bfd6fa2d9d3dc9cf431805532d2adeda9"
     },
     {
       "path": "qualification/session_request_atomic_init_20261103.patch",
@@ -4209,6 +4221,12 @@
       "sha256": "23c3f8da2256d3f389197755e8589fbc2099b51483a4b653f7cabae422daa550"
     },
     {
+      "path": "tests/test_recorder_initial_recovery.py",
+      "size": 8197,
+      "sha": "5b59b8d2b8c7946b24d8fbf62e33ef1a7d71214d",
+      "sha256": "46cccaee93f7f71c8708705f0b4cc0d4be0738ed37eb5e0eb312fd098cfd438f"
+    },
+    {
       "path": "tests/test_recorder_intake.py",
       "size": 9166,
       "sha": "d05e12921df685ff7d747832335fe0d6e7545699",
@@ -4420,9 +4438,9 @@
     },
     {
       "path": "tests/test_reviewable_support.py",
-      "size": 33690,
-      "sha": "c4fe57a7e9b272c224cae15d2e74e75d9d20e1e8",
-      "sha256": "2669697aea922b1adae473217bae19b73cf1a708b66c3d4371875ac950366a59"
+      "size": 35227,
+      "sha": "398322759b791e4d0f87c0cc2447d35bdd73350e",
+      "sha256": "21799056ad51e13e376232a90446a6722d508311d11fed8dc2e78169735a23a8"
     },
     {
       "path": "tests/test_reviewed_primary_persons.py",
@@ -4495,6 +4513,12 @@
       "size": 6964,
       "sha": "fa7daf004227c4313bc2961dafbb479e080a87ad",
       "sha256": "5e8fe0577c0cac2d4107467d44b74a9285246c39426d4ca1b765a6e31f1d7064"
+    },
+    {
+      "path": "tests/test_short_embedding_abstention.py",
+      "size": 1679,
+      "sha": "ee4f0d20f04e4fe9fdb6f379092d7ccc953e9f9e",
+      "sha256": "9e1ebab49b4d5616c8e367f111f6bb6a71ff3ef2e77e1aa2b47c941647a2d401"
     },
     {
       "path": "tests/test_speaker_calibration_profile.py",
@@ -4624,9 +4648,9 @@
     },
     {
       "path": "tests/test_strict_uploader_smoke.py",
-      "size": 2974,
-      "sha": "20cfb28246b815c8d436ac7371628f4f3c284547",
-      "sha256": "a161c01de8a1252113e9d28ea605cce590b0914d06817f5002f2ee5e987eae92"
+      "size": 4475,
+      "sha": "3ba765e610302d1856a73d646e31df7d86f630c3",
+      "sha256": "1da559c582fc301b395a0bd9c0dea15e7917ae613b05b04096ce1ebc28f18b95"
     },
     {
       "path": "tests/test_strict_worker_capture.py",
@@ -4960,11 +4984,11 @@
     },
     {
       "path": "tools/strict_uploader_smoke.py",
-      "size": 16464,
-      "sha": "a239162d28f26592b29cc346a9515abb21ec9974",
-      "sha256": "d12ac53958a32e0f2e2cec663891af47ee1ece6f6bf3ab220491fbdfe5b20d5b"
+      "size": 17202,
+      "sha": "e1f4a85f0b93084f09adaa7e9e83e9c3a47de176",
+      "sha256": "a87648af466a7095544f6c96d496bf237534ad980caa1ac771ae0f00b6287fb9"
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add bounded read-only receiver inventory and explicit operational workflow; verify actual three-segment FTPS receipts through strict native publication without production activation."
+  "source_update": "Add explicit exact initial-admission recovery before uploader checkpoint and bounded speech diagnostic refinements; preserve partial-state refusal, production defaults, and independent qualification scopes."
 }

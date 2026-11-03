@@ -56,3 +56,32 @@ def test_explicit_sample_validation(tmp_path):
     with pytest.raises(ValueError, match='input_format'): module.validate_input(p, make(channels=2))
     with pytest.raises(ValueError, match='input_frame_bound'): module.validate_input(p, make(frames=0))
     with pytest.raises(ValueError, match='input_file_bound'): module.validate_input(p, make(frames=480000+3000))
+
+
+@pytest.mark.parametrize('language', [None, 'auto', 'zh', 'en', 'ja', 'ko', 'yue'])
+def test_explicit_smoke_language_changes_only_language(tmp_path, language):
+    script = Path(__file__).resolve().parents[1] / 'tools/strict_uploader_smoke.py'
+    spec = importlib.util.spec_from_file_location('strict_smoke_language', script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    before = module.configuration(tmp_path, tmp_path / 'data')
+    expected = dict(before)
+    if language is not None:
+        expected['language'] = language
+    assert module.smoke_configuration(tmp_path, tmp_path / 'data', language) == expected
+    assert module.configuration(tmp_path, tmp_path / 'data') == before
+    with pytest.raises(ValueError, match='unsupported_smoke_language'):
+        module.smoke_configuration(tmp_path, tmp_path / 'data', 'invalid')
+
+
+def test_invalid_smoke_language_refused_before_output(tmp_path, monkeypatch):
+    script = Path(__file__).resolve().parents[1] / 'tools/strict_uploader_smoke.py'
+    spec = importlib.util.spec_from_file_location('strict_smoke_invalid_language', script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = tmp_path / 'output'
+    monkeypatch.setattr(sys, 'argv', [str(script), str(output), '--assets', 'unused', '--language', 'invalid'])
+    with pytest.raises(SystemExit) as error:
+        module.main()
+    assert error.value.code == 2
+    assert not output.exists()

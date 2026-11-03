@@ -152,10 +152,10 @@ def durable_admission(receipt, remaining):
             and single.manifest_read(parent/'admission.json')==receipt,'capture_admission_changed_after_sync')
 
 
-def verify_prefix(uploader, receipts, header):
+def verify_prefix(uploader, receipts, header, *, recover_initial=False):
     d = uploader.journal.load()
     if d is None:
-        require(not receipts, 'capture_missing_uploader_journal')
+        require(not receipts or recover_initial, 'capture_missing_uploader_journal')
         return None, []
     expected = dict(api=header['target']['origin'], session_id=header['target']['session_id'],
                     capture_id=header['target']['capture_id'], origin=0, format=u.FORMAT)
@@ -192,9 +192,12 @@ def check_capacity(d, report, header):
 
 
 def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, finalize=False,
-        exclusive_writer=False, max_hours=None, max_inputs=None, limits=None, transport=None, cancel=None):
+        exclusive_writer=False, max_hours=None, max_inputs=None, limits=None, transport=None, cancel=None,
+        recover_initial=False):
     require(exclusive_writer is True, 'intake_exclusive_writer_ack_required')
     require((delivery is not None) != bool(finalize) and not (start and finalize), 'capture_choose_delivery_or_finalize')
+    require(type(recover_initial) is bool and not (recover_initial and (start or finalize)),
+            'capture_recovery_requires_existing_initial_delivery')
     destination = single.target(api, 'operator-selected-unverified', session_id, capture_id, 0)
     root = Path(job_dir).absolute(); single.private_directory(root.parent)
     if start:
@@ -221,7 +224,13 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
         owner = held_lock(root/'uploader/uploader.lock',create=start)
         # Reject lost initial state, including an admitted first delivery whose
         # upload checkpoint never became durable. No implicit fresh adoption.
-        if not start: single.control(root/'uploader/uploader.json')
+        if recover_initial:
+            # Only an unstarted uploader can be reconstructed. No checkpoint,
+            # temp checkpoint, history or media may be ignored or overwritten.
+            require(set(p.name for p in (root/'uploader').iterdir()) == {'uploader.lock'},
+                    'capture_recovery_requires_pristine_uploader')
+        elif not start:
+            single.control(root/'uploader/uploader.json')
         effective = replace(limits or u.Limits(), output_frames=header['max_hours']*3600*u.RATE,input_bytes=BYTES)
         guard = u.Guard(effective,cancel)
         def remaining():
@@ -240,9 +249,13 @@ def run(*, job_dir, api, session_id, capture_id, delivery=None, start=False, fin
             except BaseException:
                 inherited.release();raise
         receipts, records = registry(root,header,remaining)
+        if recover_initial:
+            require(len(receipts) == 1 and receipts[0]['ordinal'] == 0
+                    and receipts[0]['path'] == str(Path(delivery).absolute()),
+                    'capture_recovery_requires_exact_initial_admission')
         probe = make(finalize=True)
         try:
-            d, entries = verify_prefix(probe,receipts,header)
+            d, entries = verify_prefix(probe,receipts,header,recover_initial=recover_initial)
             contract = probe.get('/sessions/'+session_id+'/recording-contract')
             if d is None:
                 require(contract['capture'] is None and not contract['has_chunks'], 'capture_existing_session_not_empty')
@@ -315,6 +328,8 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('job-dir','api','session-id','capture-id'):parser.add_argument('--'+name,required=True)
     group=parser.add_mutually_exclusive_group(required=True);group.add_argument('--delivery');group.add_argument('--finalize',action='store_true')
+    parser.add_argument('--recover-initial',action='store_true',
+                        help='Explicitly reconcile one complete first admission before any uploader checkpoint; never repair partial files')
     parser.add_argument('--start',action='store_true');parser.add_argument('--exclusive-writer',action='store_true',required=True)
     parser.add_argument('--max-hours',type=int);parser.add_argument('--max-inputs',type=int)
     parser.add_argument('--deadline-seconds',type=float,default=12*3600)

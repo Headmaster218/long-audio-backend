@@ -34,7 +34,7 @@ python -m audio_backend.recorder_capture_intake \
   --max-hours 8 --max-inputs 128
 ```
 
-For later deliveries omit `--start`, keep the same target/job/capture, and pass the next explicitly selected attempt path. On an interrupted append, repeat the exact latest delivery without `--start`. An incomplete initial journal or snapshot requires investigation; no automatic repair or adoption is provided.
+For later deliveries omit `--start`, keep the same target/job/capture, and pass the next explicitly selected attempt path. On an interrupted append, repeat the exact latest delivery without `--start`. For a complete ordinal-zero admission interrupted before any uploader checkpoint, the incremental command documents narrowly bounded explicit `--recover-initial` reconciliation. An incomplete snapshot/header/receipt or any uncertain state outside those preconditions still requires investigation; no automatic repair or adoption is provided.
 
 An append success can mean only local staging. Check `published_frames` separately from `staged_frames`; neither establishes transcription completion. The terminal-aware recorder may legitimately publish a full-sized STOP segment. Old ROTATION-only endings remain nonterminal. Even after STOP append succeeds, issue the separate explicit `--finalize` command only when intended. If that call is uncertain, repeat `--finalize` against the same intact job and target. Do not append or create a replacement capture.
 

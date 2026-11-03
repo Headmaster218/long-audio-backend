@@ -300,7 +300,13 @@ def prepare_window(result, wav, lineage, expected_generation, *, core_start, ana
                 continue
             embeddings=[item.get('speaker_embedding') for item in result.get('speaker_turns',[])+result.get('segments',[])
                         if str(item.get('speaker_local_id'))==str(local_id) and item.get('speaker_embedding') is not None]
-            if not embeddings or any(not isinstance(vector,list) or len(vector)!=dimension
+            # Absence is not proof of a wrong-dimensional model. In particular,
+            # short clean support can legitimately fail the minimum query length.
+            # Keep abstaining; do not invent a vector or relax the length gate.
+            if not embeddings:
+                value['status']='missing_embedding'
+                continue
+            if any(not isinstance(vector,list) or len(vector)!=dimension
                     or any(not finite(v) for v in vector) for vector in embeddings):
                 value['status']='embedding_dimension_mismatch'
                 continue

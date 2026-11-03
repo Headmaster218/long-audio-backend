@@ -39,12 +39,24 @@ def validate_input(path, expected_sha):
     return frames
 
 
+def smoke_configuration(workspace, data, language=None):
+    """Explicit experiment language; inherited capacity defaults stay unchanged."""
+    if language is not None and language not in {'auto', 'zh', 'en', 'ja', 'ko', 'yue'}:
+        raise ValueError('unsupported_smoke_language')
+    cfg = configuration(workspace, data)
+    if language is not None:
+        cfg['language'] = language
+    return cfg
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
     parser.add_argument('--assets', required=True, type=Path)
     parser.add_argument('--input', type=Path)
     parser.add_argument('--input-sha256')
+    parser.add_argument('--language', choices=('auto', 'zh', 'en', 'ja', 'ko', 'yue'),
+                        help='Explicit decode language; omission preserves the capacity profile default')
     parser.add_argument('--recorder-incremental-delivery', type=Path, action='append', help='Repeat to test separate append calls then explicit finalize')
     parser.add_argument('--recorder-batch-delivery', type=Path, action='append', help='Repeat for a fixed complete batch with total duration <=30s')
     parser.add_argument('--recorder-delivery', type=Path, help='Exercise explicit known-session intake with a complete <=30s delivery')
@@ -119,7 +131,9 @@ def main():
         if len(available) < 2:
             raise RuntimeError('two_cpu_unavailable')
         os.sched_setaffinity(0, set(available[:2]))
-        cfg = configuration(REPO.parent, gate.data)
+        cfg = smoke_configuration(REPO.parent, gate.data, args.language)
+        result['asr_language'] = cfg['language']
+        result['asr_language_explicit'] = args.language is not None
         save(out / 'config.json', cfg)
         lock = gate.data / 'instance.lock'
         gate.hold = os.open(lock, os.O_RDONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
