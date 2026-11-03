@@ -585,6 +585,26 @@ creation, daemon, receiver deployment or credential setup is added.
 Durable receipts support exact input/finalize replay across clean or interrupted
 runner invocations. An output created before a missing runner export receipt is
 preserved as uncertain rather than overwritten or silently adopted. This source
-checkpoint includes synthetic/ASGI/crash tests and a prepared real-loopback
-qualification harness; its native run is pending. See
+checkpoint includes synthetic/ASGI/crash tests and a real-loopback qualification
+harness, with the bounded native result below. See
 source/docs/RECORDER_INBOX_RUNNER.md for setup, bounds and recovery limits.
+
+
+## Local inbox to real loopback transcript qualification
+
+The opt-in runner completed a controlled nine-second public-speech scenario over
+actual loopback HTTP: marker-last partial arrival, exact duplicate handling,
+conflicting-content refusal, explicit test-operator isolation, clean runner
+restart, genuine INTERRUPTION finalization, native ASR and private export.
+Independent copied-DB audit verified nine exact admissions, no runner-created
+session, five primary transcript units and identical export JSON/text. All34
+child waits and shutdown checks passed; source and conflict evidence remained
+unchanged. This is a local workflow check, not a deployed receiver/watcher,
+physical device, recognition-quality or endurance qualification.
+
+An earlier harness preflight exited before creating any run/service because an
+empty managed Git marker was misclassified. Its evidence is preserved; the
+narrow tested harness fix received a new source checkpoint and independent plan
+review. There was one actual native run. Only source-only verifier/tests and the
+aggregate report are backed up. See
+source/qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md.

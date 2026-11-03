@@ -2104,9 +2104,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 11644,
-      "sha": "1de04979e44ceec493355b6330ec1d4561835755",
-      "sha256": "e519b409fa4323d335f657d7437fcb5a5979fc1a4056ab6d94f2bf874147101f"
+      "size": 12288,
+      "sha": "489818eb26521ba5ac154752f6888dd7db4aae45",
+      "sha256": "a7eb4b2ccceedf1af0634bd4e9c713a2c82abe12633f660d37ba479a6cd99df0"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -2433,10 +2433,16 @@
       "sha256": "112cf85f4d1ae442a291507ba906026a469bced1c823e0019c568e6f6886a0da"
     },
     {
+      "path": "qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md",
+      "size": 10874,
+      "sha": "5f4a9640c848da567c9d5e055243bb35bfa32af3",
+      "sha256": "99830b845e80e972f73f7cbaa397e89823cc9d4c94faa3b4f2f7ed13f57881bc"
+    },
+    {
       "path": "qualification/LOCAL_INBOX_LOOPBACK_PLAN_20261103.md",
-      "size": 5187,
-      "sha": "08e7d37e65d193a8a1ed3ddddf80de2a1d063187",
-      "sha256": "053bf18e57e9fe7563bf0c7817c038dd0069c1e46aee251f8bfd6a863765a69c"
+      "size": 5291,
+      "sha": "cb61ff4b3005a37d289a393fb1d99da2737608c9",
+      "sha256": "93bea366913f831214945fd0972e347c89007159d3c0f13443533b0d8c233195"
     },
     {
       "path": "qualification/NineProducerDeliveries.java",
@@ -2641,6 +2647,24 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/local_inbox_native_audit_20261103/README.md",
+      "size": 3579,
+      "sha": "953a9c96caeb2b66635cd8b7b1775b7b86a88ace",
+      "sha256": "ec09d52e22405b5d08d7f7ce253511f65e6c6d73eb88d7bbb32fd7bf5364ca44"
+    },
+    {
+      "path": "qualification/local_inbox_native_audit_20261103/audit_local_inbox.py",
+      "size": 44061,
+      "sha": "dc2a032d43e89fc9b75af51311ab1eeaa82486cf",
+      "sha256": "1e65d4db4a2ca190cfd57087845580771d3c11997c6544744e8c21445cd6dced"
+    },
+    {
+      "path": "qualification/local_inbox_native_audit_20261103/test_audit_local_inbox.py",
+      "size": 17065,
+      "sha": "3663c6e0dad418bda52f1cbd1cb9d5d346c7390c",
+      "sha256": "bc1f2ef9ce111a7f73ffee67fcfc0638bccb1a040843de64af1ed340d34bb0ad"
     },
     {
       "path": "qualification/nine_native_audit_20261103/audit_nine.py",
@@ -5392,5 +5416,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Fix loopback qualification output repository detection for empty managed markers while retaining real checkout exclusion; add targeted tests, no product/runtime changes."
+  "source_update": "Qualify opt-in local inbox runner over real loopback HTTP through native ASR/private export with exact admission, conflict/restart evidence and independent copied-DB audit; preserve initial pre-service harness failure scope."
 }

@@ -1,6 +1,7 @@
 # Local inbox runner loopback qualification plan
 
-This file describes the bounded test, not a passing native result. The exact
+This file describes the bounded test. The completed result is reported separately
+in [`LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md`](LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md). The exact
 source commit, candidate hashes, runtime/asset pins, output paths and command must
 be frozen outside the repository and independently reviewed before launch.
 

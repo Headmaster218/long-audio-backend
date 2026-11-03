@@ -192,3 +192,13 @@ including a lost successful PUT response and restart at the seal boundary; they
 stop before native execution. Unit publication stubs are explicitly synthetic
 and do not qualify transcript generation. Any actual producer/native/loopback
 qualification must be reported separately with its fixture and stopping limits.
+
+
+A separate [public-speech native loopback qualification](../qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md)
+passed for the bounded one-span path: nine unchanged host-Java deliveries,
+controlled incremental local arrivals, clean runner reopen, duplicate/conflict
+refusals, explicit terminal finalization, five real primary ASR units and two
+identical private exports over actual loopback HTTP. The independent closed-copy
+audit verifies source/native/export linkage and clean process shutdown. This is
+not a deployed or always-on receiver, Android/FTPS test, accuracy score,
+whole-capture proof or native-service restart qualification.
