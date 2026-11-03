@@ -266,3 +266,12 @@ Only resolved canonical mono16k prefixes are proposed. Target labels are unverif
 activation stays disabled, and no server request or strict ingestion occurs.
 255 selected tests pass, including three abrupt-exit journal controls. Singleton
 anchor warnings are retained. See source/docs/RECORDER_BINDING_PROPOSAL.md.
+
+## Nov3 actual recording-session admission contract
+
+Added a narrow read-only session recording-contract endpoint reporting durable
+strict policy/capture state and existing source limits/idempotency scope. Real
+ASGI handlers and strict SQLite checks confirm non-idempotent session creation,
+source replay and changed-body/placement refusal. 266 selected checks pass with
+one dependency deprecation warning. No native lifespan, model execution or new
+uploader activation occurs. See source/docs/RECORDING_SESSION_CONTRACT.md.

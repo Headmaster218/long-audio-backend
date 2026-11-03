@@ -679,6 +679,23 @@ class Store:
             result.pop('lexical_evidence_bytes', None)
             return result
 
+    def recording_session_contract(self, sid):
+        """Read durable session/capture facts, never reserve or admit work."""
+        with self.db() as db:
+            db.execute('BEGIN')
+            session=db.execute('SELECT id,processing_mode FROM sessions WHERE id=? AND deleted=0',(sid,)).fetchone()
+            if session is None:raise KeyError('Session not found')
+            policy=None
+            if self._strict_enabled:
+                row=db.execute('SELECT policy FROM strict_recording_policy WHERE sid=?',(sid,)).fetchone()
+                if row is None:raise ValueError('Strict session policy is missing')
+                policy=row[0]
+            batch=db.execute('SELECT capture_id,mode,capture_origin_frame,capture_end_frame,eos,state FROM recording_batches WHERE session_id=?',(sid,)).fetchone()
+            has_chunks=db.execute('SELECT 1 FROM chunks WHERE session_id=? LIMIT 1',(sid,)).fetchone() is not None
+            return {'session_id':session['id'],'processing_mode':session['processing_mode'],
+                    'strict_primary_enabled':self._strict_enabled,'strict_primary_policy':policy,
+                    'has_chunks':has_chunks,'capture':dict(batch) if batch is not None else None}
+
     def chunk(self, cid):
         with self.db() as db:
             row = db.execute('SELECT * FROM chunks WHERE id=?',(cid,)).fetchone()

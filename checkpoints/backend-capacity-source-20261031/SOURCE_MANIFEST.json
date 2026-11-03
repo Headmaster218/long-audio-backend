@@ -46,9 +46,9 @@
     },
     {
       "path": "audio_backend/app.py",
-      "size": 64829,
-      "sha": "bb35ca76ebafca3a98e9063e070200938efe4ca1",
-      "sha256": "0b99d34cfcf22c29d708d5cd709bb67c7a963890ce6043b29575e850248c1060"
+      "size": 65916,
+      "sha": "66c8a7bf75e876c6999c0e6781b032e2587cb305",
+      "sha256": "931dc65a5ef79553cf0ab231696f0c374f0ef2e883f54ef0d5f99aafc790f34a"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -874,9 +874,9 @@
     },
     {
       "path": "audio_backend/storage.py",
-      "size": 106764,
-      "sha": "6143f116e804b7f044c036e3e2295fdd4eac6be1",
-      "sha256": "7cb1235e1f5362c1b4aa95f99e11b0b87b4349fc09e092f08d074b5e7fffe06f"
+      "size": 107987,
+      "sha": "a4480df3664891a9c5b9f475f6780f23d1976c0b",
+      "sha256": "dfcc254048a65cdfd178a24dc6f76ae6c0d04ffc401f428d0ae9b2f199ae24f1"
     },
     {
       "path": "audio_backend/strict_archive_v2.py",
@@ -1981,6 +1981,12 @@
       "size": 11161,
       "sha": "ad9a75b7f002ee933434892834291c6f28ae6c05",
       "sha256": "94c87d20635f1c4f073ad280a4d0e344f8e99992bcc4a9dc9a36af86dd42fb1b"
+    },
+    {
+      "path": "docs/RECORDING_SESSION_CONTRACT.md",
+      "size": 5131,
+      "sha": "3b57a08667774078d7b60d4862ee620b9c7dc41e",
+      "sha256": "39e70d9a7bd445a58f1ad0a275813a09e06dadd5e942edb5669605dddfbb4498"
     },
     {
       "path": "docs/RECORDING_SPEAKER_LINKS.md",
@@ -3939,6 +3945,12 @@
       "sha256": "4deb76fa20d796433293e97d2c543014cc44407084630aa9a4f199e3f0e1d165"
     },
     {
+      "path": "tests/test_recording_session_contract.py",
+      "size": 8798,
+      "sha": "3f35eb01f2056f3bfdfe1aefed52eb9d3d3af949",
+      "sha256": "a1c2596247272009dea9d8183e9483c41f61b1544754ce48a86872a97610b6c1"
+    },
+    {
       "path": "tests/test_recording_speaker_history.py",
       "size": 118427,
       "sha": "a0485dc164f665b00ef29b3547bd0f88b3d0b2bb",
@@ -4564,5 +4576,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 disabled local target/source binding proposals and exact durable journal reconciliation; remote commit and hashes are authoritative"
+  "source_update": "2026-11-03 read-only persisted recording session contract and actual strict handler idempotency checks; remote commit and hashes are authoritative"
 }

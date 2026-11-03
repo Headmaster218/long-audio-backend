@@ -657,6 +657,22 @@ def _create_app(settings,analyzer_factory=None,*,fragment_provider_factory=None,
     def create_session(body:SessionRequest): return store.create_session(body.name,body.identity_group,body.identity_mode,body.processing_mode)
     @app.get('/sessions/{sid}')
     def get_session(sid:str): return store.session(sid)
+    @app.get('/sessions/{sid}/recording-contract')
+    def recording_contract(sid:str):
+        from .recording_overlap import (RATE,MAX_SOURCE_FRAMES,MAX_SOURCE_BYTES,
+            MAX_PAGE_CHUNKS,CHUNK_FRAMES,FORMAT)
+        observed=store.recording_session_contract(sid)
+        return JSONResponse({'schema':'recording-session-contract-v1',**observed,
+            'backend_instance_identity':None,'readiness':'not_assessed',
+            'session_creation_idempotent':False,
+            'source_idempotency':{'scope':'session_capture','bound_fields':['page','wav_sha256','source_start_frame','format'],
+                                  'changed_body':'conflict'},
+            'source_format':FORMAT,'sample_rate_hz':RATE,'channels':1,'sample_width_bytes':2,
+            'max_source_frames':min(MAX_SOURCE_FRAMES,math.floor(settings.max_audio_seconds*RATE)),
+            'max_source_bytes':min(MAX_SOURCE_BYTES,settings.max_upload_bytes),
+            'max_page_work_chunks':MAX_PAGE_CHUNKS,'work_chunk_frames':CHUNK_FRAMES},
+            headers={'Cache-Control':'private, no-store'})
+
     @app.get('/sessions/{sid}/chunks')
     def chunks(sid:str,after:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
         store.session(sid)
