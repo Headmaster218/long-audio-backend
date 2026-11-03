@@ -20,7 +20,9 @@ public final class PublicSpeechProducerDeliveries {
         return PcmSegmentWriter.hex(PcmSegmentWriter.sha256().digest(value));
     }
     public static void main(String[] args) throws Exception {
-        if (args.length != 3) throw new IllegalArgumentException("fresh output, raw PCM, SHA-256 required");
+        if (args.length < 3 || args.length > 4) throw new IllegalArgumentException("fresh output, raw PCM, SHA-256, optional terminal reason required");
+        String terminal = args.length == 4 ? args[3] : "INTERRUPTION";
+        need(terminal.equals("STOP") || terminal.equals("INTERRUPTION"));
         Path input = Paths.get(args[1]);
         need(!Files.isSymbolicLink(input) && Files.isRegularFile(input));
         need(Files.size(input) == 11 * 32000);
@@ -48,7 +50,10 @@ public final class PublicSpeechProducerDeliveries {
                     second == 0 ? CaptureAnchors.RUN_START : 0);
                 writer.append(pcm, 0, pcm.length, read);
             }
-            writer.interrupt();
+            // Call the real terminal API after the last full segment. Never
+            // manufacture or rewrite a close reason in serialized metadata.
+            if (terminal.equals("STOP")) writer.stop();
+            else writer.interrupt();
         }
         CommittedSegments catalog = new CommittedSegments(spool);
         CommittedSegments.Page page = catalog.page(null);
@@ -62,7 +67,7 @@ public final class PublicSpeechProducerDeliveries {
             need(m.schemaVersion == 2);
             need(m.intent.sequence == sequence && m.intent.frameStart == sequence * 16000L);
             need(m.intent.epoch.number == 7 && m.frameCount == 16000 && m.intent.targetFrames == 16000);
-            need(m.closeReason == (sequence == 10 ? CaptureTimeline.Close.INTERRUPTION : CaptureTimeline.Close.ROTATION));
+            need(m.closeReason == (sequence == 10 ? CaptureTimeline.Close.valueOf(terminal) : CaptureTimeline.Close.ROTATION));
             need(m.trustedPreviousSeam == (sequence > 0));
             need(m.captureAnchors.runSampleStart == sequence * 16000L);
             need(m.captureAnchors.runSampleEnd == (sequence + 1) * 16000L);

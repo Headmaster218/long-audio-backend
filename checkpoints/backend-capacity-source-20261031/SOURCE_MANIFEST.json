@@ -2445,6 +2445,12 @@
       "sha256": "93bea366913f831214945fd0972e347c89007159d3c0f13443533b0d8c233195"
     },
     {
+      "path": "qualification/LOCAL_INBOX_WATCH_PLAN_20261103.md",
+      "size": 4494,
+      "sha": "c7a6da4c2bcc8a86649647d9acb06428bffd71ef",
+      "sha256": "03ec4f3dd320bba4eeb284515a9b356be5c44b25f048dc5d618ce992242ebeb2"
+    },
+    {
       "path": "qualification/NineProducerDeliveries.java",
       "size": 4599,
       "sha": "a0dd2fe37bda44a9c49035dc3ac82007b6173c40",
@@ -2464,9 +2470,9 @@
     },
     {
       "path": "qualification/PublicSpeechProducerDeliveries.java",
-      "size": 5086,
-      "sha": "9f216e2afe842db6dae706c2e3485cecbb17731d",
-      "sha256": "1c7f79de7e1a3d55506e5145a5894643747a21ac4cd22918fb7b1d4991f20151"
+      "size": 5495,
+      "sha": "fb11ac2fdd304c3c021f3392cc46170c7d863b82",
+      "sha256": "63fba4e8843c59adeb8d8dd6b1eef56cc1700481a80d3a77d136b82bd94767e6"
     },
     {
       "path": "qualification/README.md",
@@ -2554,9 +2560,9 @@
     },
     {
       "path": "qualification/generate_public_speech_java_deliveries.py",
-      "size": 9387,
-      "sha": "00e13a88fd4068e160c061cc84b51b98164b8e91",
-      "sha256": "2fa84d0a455ed29dcb9d98c7dfa4591bf8e1551f7dfe1db8b650c5ed7b824af4"
+      "size": 10004,
+      "sha": "37cc3f9647446cee2707d77e4752d73e1e73be42",
+      "sha256": "d85a07fc23c98a1220b314bc4456c7ab135ac7e6fbf1e7ed3fcb65897548dbc3"
     },
     {
       "path": "qualification/independent_acceptance_20261103.py",
@@ -2697,6 +2703,12 @@
       "sha256": "d38b5c6426ec9de87f0c671f092c720f5877062477701a3503bcc65c87f65d65"
     },
     {
+      "path": "qualification/qualify_local_inbox_watch.py",
+      "size": 18816,
+      "sha": "72b855fc97b6cf9c452521f76be243b395501f69",
+      "sha256": "608819db228249bb5d8da88a8dc6caa572bed109c841a530f031acbe838f5861"
+    },
+    {
       "path": "qualification/qualify_nine_java_incremental_span.py",
       "size": 19937,
       "sha": "634c37fd1bbd1687cddd4392f56be8a708559270",
@@ -2761,6 +2773,12 @@
       "size": 7499,
       "sha": "924711e8c26dca747456770493b25a855752df2e",
       "sha256": "fca23482513f1d2ae84400d0d51fb09bc13d26b080395ea1377f45160906de22"
+    },
+    {
+      "path": "qualification/test_local_inbox_watch.py",
+      "size": 7442,
+      "sha": "dcce421198177f443578b32c9f029a8543e7a1e0",
+      "sha256": "950d07f3de78a4373da0be94a91bee7c3a604ed45b752746160d8c17a96565e9"
     },
     {
       "path": "qualification/test_session_request_atomic_init.py",
@@ -5428,5 +5446,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add opt-in finite foreground inbox watch with shared lock/budgets/deadline, clear cancellation and narrowly bounded marker-last waiting; preserve one-shot defaults and uncertainty refusal."
+  "source_update": "Prepare bounded real-loopback watch qualification with genuine Java STOP deliveries, controlled atomic marker-last publication, exact event observations and focused source-only controls; native result pending."
 }

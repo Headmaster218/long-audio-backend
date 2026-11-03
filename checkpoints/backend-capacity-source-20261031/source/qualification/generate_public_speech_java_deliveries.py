@@ -7,6 +7,7 @@ Output contains public audio and must remain outside all source trees and Git.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -52,7 +53,9 @@ def main():
     parser.add_argument('--source-url', required=True)
     parser.add_argument('--license-url', required=True)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--terminal-reason', choices=('STOP', 'INTERRUPTION'), default='INTERRUPTION')
     args = parser.parse_args()
+    os.umask(0o077)
     source, output = args.recorder_source.resolve(), args.output.resolve()
     backend = Path(__file__).resolve().parents[1]
     checkout = args.producer_checkout.resolve()
@@ -84,8 +87,12 @@ def main():
     pcm_sha = digest(raw_path)
     java = sorted((source / 'app/src/main/java/io/github/headmaster218/recorder/core').glob('*.java'))
     need(java and not any(p.is_symlink() for p in java), 'regular production Java required')
+    verified_paths = {row['path'] for row in receipt['files']}
+    need(all(str(path.relative_to(source)) in verified_paths for path in java),
+         'unverified production Java source')
     before = pins(source, java)
     harness = Path(__file__).with_name('PublicSpeechProducerDeliveries.java')
+    harness_sha = digest(harness)
     flags = ['-Xmx64m', '-XX:MaxMetaspaceSize=48m', '-XX:ReservedCodeCacheSize=8m',
              '-XX:+UseSerialGC', '-XX:ActiveProcessorCount=1', '-Xss256k']
     with (output / 'compile.log').open('wb') as log:
@@ -96,9 +103,10 @@ def main():
     with (output / 'producer.log').open('wb') as log:
         subprocess.run(['java', *flags, '-cp', str(classes),
             'io.github.headmaster218.recorder.core.PublicSpeechProducerDeliveries',
-            str(output / 'producer'), str(raw_path), pcm_sha],
+            str(output / 'producer'), str(raw_path), pcm_sha, args.terminal_reason],
             stdout=log, stderr=subprocess.STDOUT, check=True, timeout=60)
     need(before == pins(source, java), 'production Java changed')
+    need(harness_sha == digest(harness), 'producer harness changed')
     need(digest(raw_path) == pcm_sha and digest(input_wav) == args.input_sha256, 'public input changed')
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(backend))
@@ -110,7 +118,7 @@ def main():
         sequence = ordinal + 2
         need(report['sequence'] == sequence and report['epoch'] == 7, 'original sequence or epoch changed')
         need(report['frame_start'] == sequence * 16000 and report['frames'] == 16000, 'original frames changed')
-        need(report['close_reason'] == ('INTERRUPTION' if ordinal == 8 else 'ROTATION'), 'terminal reason changed')
+        need(report['close_reason'] == (args.terminal_reason if ordinal == 8 else 'ROTATION'), 'terminal reason changed')
         with wave.open(str(directory / 'audio.wav'), 'rb') as audio:
             actual = audio.readframes(16001)
         need(actual == pcm[sequence * 32000:(sequence + 1) * 32000], 'producer PCM differs from source')
@@ -135,6 +143,8 @@ def main():
         generated_segments=11, selected_deliveries=9, total_selected_frames=144000,
         original_first_sequence=2, original_last_sequence=10, original_epoch=7,
         original_start_frame=32000, original_end_frame=176000,
+        terminal_reason=args.terminal_reason,
+        terminal_api='PcmSegmentWriter.stop()' if args.terminal_reason == 'STOP' else 'PcmSegmentWriter.interrupt()',
         recorder_source=str(source), production_source_pins=before,
         harness_sha256=digest(harness), generator_sha256=digest(__file__),
         generator_helper_sha256=digest(Path(__file__).with_name('generate_nine_java_deliveries.py')),
