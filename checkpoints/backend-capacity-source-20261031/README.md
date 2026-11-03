@@ -649,3 +649,7 @@ transcripts, model files, logs or databases are backed up.
 ## Nov 3: local receiver publication boundary
 
 Opt-in receiver-owned staging now validates independent completed-delivery copies and atomically publishes exact original attempt names without replacement. A short shared publication lock coordinates runner inventory; default runner behavior is unchanged. Retained preparation plus published file bytes are capped at 8 GiB. See `source/docs/RECORDER_RECEIVER_PUBLICATION.md` for ownership, completion, restart and cancellation contracts. Focused local/model-free review passed 37 tests, including actual process concurrency, crash recovery and SIGTERM. Actual live FTPS linkage remains pending separate qualification; no deployment, phone or native ASR claim.
+
+## Nov 3: actual FTPS publication/watch linkage
+
+The reviewed local receiver boundary passed one actual loopback TLS transfer qualification in 9.493 seconds. A genuinely partial marker remained outside the watched inbox, and the same watch admitted the validated independent copy after explicit receiver publication. Four TLS sessions and ten STORs covered duplicate replay, conflicting content, later raw overwrite and fresh-process restart. Independent audit verified bytes, identities and cleanup. The backend peer was model-free, with no finalize/export or inference. See `source/qualification/receiver_wire_20261103/RESULT.md`; this does not install an automatic server callback. The earlier import-only launch failure and corrected explicit test-tools path are documented.

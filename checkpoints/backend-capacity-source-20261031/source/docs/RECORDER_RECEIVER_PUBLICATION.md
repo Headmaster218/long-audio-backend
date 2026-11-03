@@ -146,3 +146,7 @@ continuity, proof of whole-capture completion, or an ASR quality result. The
 existing runner/intake validation and authorization remain responsible for those
 separate stages. Unit/protocol tests here use local fixtures and model-free
 peers, not a deployed receiver, real phone or native inference qualification.
+
+## Separate actual FTPS qualification
+
+The [bounded live-wire result](../qualification/receiver_wire_20261103/RESULT.md) passed with independent audit: a real partial marker remained isolated during the same running watch, then completed publication admitted one exact source. Later actual STOR writes, same-attempt conflict and fresh-process replay were verified. The backend peer was model-free; this is not native ASR, device, automatic callback installation or deployment evidence.

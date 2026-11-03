@@ -2134,9 +2134,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_PUBLICATION.md",
-      "size": 8459,
-      "sha": "dcdfcc58a9eaf5ba485ae5cb403b4b8eac17fe8e",
-      "sha256": "e088dfe043fcff7d33f4b3a0e89ac477e62d0e881faa57e0271a88bbe7cb2a02"
+      "size": 8946,
+      "sha": "45668faf8e7a434dd704def51cd08d2bbbfc7399",
+      "sha256": "4380a6918f0ce8f43d61abe6d7a7f4af50b5a08853a16aab745ffed406ad0824"
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
@@ -2755,6 +2755,12 @@
       "size": 6593,
       "sha": "bed4939169ae12bb3d880b818613b62f8fa469a7",
       "sha256": "f79d7472a3dc6c1f5f3c18d406961a29a6e4a3ea85743c70c1892d9b1850c2b3"
+    },
+    {
+      "path": "qualification/receiver_wire_20261103/RESULT.md",
+      "size": 9131,
+      "sha": "968a0fbfa872803db3e03b28c0d8ff88f07c23fe",
+      "sha256": "21393aaf9cdab684e63f439f3305a806b08f8d1edd323d31216bd67fb5c759fb"
     },
     {
       "path": "qualification/receiver_wire_20261103/qualify_receiver_wire.py",
@@ -5512,5 +5518,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Back up reviewed bounded loopback FTPS receiver-publication qualification harness before execution; core checkpoint91b9f812 verified, live wire result still pending."
+  "source_update": "Record independently audited actual loopback FTPS partial-marker isolation, same-watch completed publication, raw-overwrite/conflict refusal and exact restart; source-only sanitized report, explicitly model-free backend and no deployment."
 }
