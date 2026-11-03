@@ -24,7 +24,7 @@ cd ../backend-restored-20261031
 python -m pip install -e '.[test]'
 ```
 
-No application-source overlay or older checkout is required: all 153 tracked product
+No application-source overlay or older checkout is required: all 154 tracked product
 files and the selected source/tests/docs/configuration are present under `source/`.
 `SOURCE_MANIFEST.json` pins every included path, byte length, SHA-256 and Git blob SHA-1.
 The parent public commit is `b33172a7f584a0b60b76a58eefd0ca3ba2ab0a6a`; its tree and history
@@ -247,3 +247,13 @@ nine generated Java deliveries copied and inspected. Existing or interrupted
 destinations are not overwritten/resumed. Requires an exclusively controlled
 private parent; no same-UID adversarial rename protection, physical power-loss
 qualification or strict ingestion is claimed. Details: source/docs/RECORDER_OWNED_SNAPSHOT.md.
+
+## Nov3 read-only sequence and gap reconciliation
+
+Added bounded reporting over explicit verified snapshots: duplicate content,
+ordinal conflicts, missing sequences, frame/epoch/run/format/input boundaries and
+cross-segment observed-read contradictions. 203 selected tests passed, with
+Java rotation and reused-ordinal conflict controls. Matching declarations never
+prove physical continuity, hardware mapping or whole-capture completeness.
+No ingestion, gap fill, source deletion or MOSS dispatch is enabled. Details:
+source/docs/RECORDER_SEQUENCE_RECONCILIATION.md.

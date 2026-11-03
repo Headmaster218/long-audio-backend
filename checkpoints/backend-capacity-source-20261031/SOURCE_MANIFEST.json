@@ -723,6 +723,12 @@
       "sha256": "fd8bb8ec51246fd62564773612a8e1ed4a2c4ba13bb0e2ede21d7532cda3c0fd"
     },
     {
+      "path": "audio_backend/recorder_sequence.py",
+      "size": 8620,
+      "sha": "0033ef7faed7d5dc4882fbfc4ff543f8e048d65d",
+      "sha256": "c1b9c41e9ef5669d59d1591b4041a87bfae93da16357275142fd581222fbd180"
+    },
+    {
       "path": "audio_backend/recorder_snapshot.py",
       "size": 10296,
       "sha": "5bee9bba176ab64611f3f8ba4c9999e995695744",
@@ -1945,6 +1951,12 @@
       "size": 6229,
       "sha": "9fbe1abda32e5db8bc4fdca07182c734913783eb",
       "sha256": "69044669e9cb74b7814bcfb59c55c5c0bc8cc927c5cbbe9c98aaffba8782007e"
+    },
+    {
+      "path": "docs/RECORDER_SEQUENCE_RECONCILIATION.md",
+      "size": 5807,
+      "sha": "803b647793e734e7f220426ead3cd1263fc264fb",
+      "sha256": "26bf26d64ffe79637575f33ece255cdc8f60aed8b5f0a09d129a61eda8dccfb6"
     },
     {
       "path": "docs/RECORDING_OVERLAP_BATCHES.md",
@@ -3831,6 +3843,12 @@
       "sha256": "e047997baf244afbb433d94c8513df5cc79dbdea23ca9faefed3d5b8eb7bf63b"
     },
     {
+      "path": "tests/test_recorder_sequence.py",
+      "size": 9562,
+      "sha": "fb8bf75e477c06313d77015bb107557a633bac77",
+      "sha256": "e8c1a8196a3fdf138e6e6df279406a1889c723d7baeaffe5b4d94016235eae55"
+    },
+    {
       "path": "tests/test_recorder_snapshot.py",
       "size": 8459,
       "sha": "229f95015f0b4247f2915575b7eaaf387587d54d",
@@ -4528,5 +4546,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "2026-11-03 explicit bounded owned snapshots and readonly interruption reconciliation; remote commit and file hashes are authoritative"
+  "source_update": "2026-11-03 bounded read-only recorder sequence and gap declaration reconciliation; remote commit and file hashes are authoritative"
 }
