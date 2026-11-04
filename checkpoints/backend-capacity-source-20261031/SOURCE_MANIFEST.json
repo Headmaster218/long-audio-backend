@@ -2517,6 +2517,12 @@
       "sha256": "112cf85f4d1ae442a291507ba906026a469bced1c823e0019c568e6f6886a0da"
     },
     {
+      "path": "qualification/ISOLATED_TARGET_SMOKE_BASIS_20261104.json",
+      "size": 674,
+      "sha": "af2ef2aab6caa188ccf673ce9c3498d212a8e206",
+      "sha256": "5bde13b4a586f53b9d28738bebd8915d3e3c2abf994ade33cef6acb72aaf922e"
+    },
+    {
       "path": "qualification/LOCAL_INBOX_LOOPBACK_NATIVE_20261103.md",
       "size": 10874,
       "sha": "5f4a9640c848da567c9d5e055243bb35bfa32af3",
@@ -2617,6 +2623,12 @@
       "size": 3343,
       "sha": "18d022d6cc7eea632e001a932ead885aa77711c6",
       "sha256": "c778037148a39ee4e17ed2e1e8b5e9f35db19f2d4da2c5f6d5401002a7443049"
+    },
+    {
+      "path": "qualification/TARGET_RUNTIME_SMOKE_20261104.md",
+      "size": 3629,
+      "sha": "3961316414b70cc01c6577f94a399e18c896e36a",
+      "sha256": "6fe2d86732bf89f2a6c7127c092e19258dfabdb42d6bc7cacdd8bcef62fe7a7f"
     },
     {
       "path": "qualification/accepted_candidate_20261103.patch",
@@ -2821,6 +2833,12 @@
       "size": 11815,
       "sha": "8abdc5371b6bde20cd46c99e25d5665b4c52fb86",
       "sha256": "3b7b96eb0f575a3099d9f7beaff54cc5fc72fb12d12d4f3027a6ea9ea93eb19a"
+    },
+    {
+      "path": "qualification/isolated_target_smoke_20261104.patch",
+      "size": 1058,
+      "sha": "3ba637accf6e1c6eb99c312e0592341fcebd8580",
+      "sha256": "afb1970633be864830c3511364690b1417eed910786618f132f2907463955173"
     },
     {
       "path": "qualification/live_revision_recovery_20261103/PLAN.md",
