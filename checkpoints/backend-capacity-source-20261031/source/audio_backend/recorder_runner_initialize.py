@@ -71,6 +71,8 @@ def initialize(*, state_dir, inbox_dir, job_dir, first_delivery, api, capture_id
     require(not os.path.lexists(job_dir),'runner_fresh_job_required')
     if output_dir is not None:runner.exporter._destination(output_dir)
     report=inspect_delivery(first,validate_metadata=True)
+    require(runner.capacity.inspect(template,[],0,report,guard)['allowed'],
+            'first_delivery_capacity')
     intent=_intent(template,first,report,session_name)
     guard.check()
     if not resume:

@@ -381,3 +381,43 @@ speaker identity or whole-capture completeness.
 ## Receiver-owned publication boundary
 
 For ordinary live FTPS writes, use the opt-in [local completed-delivery publisher](RECORDER_RECEIVER_PUBLICATION.md) with a separate raw staging tree and a frozen runner receiver binding. Its shared inventory/publication lock preserves the existing strict inventory checks while allowing arrivals during a watch. Marker-last alone is not a live-transfer completion protocol. This is local library/CLI support, not an installed FTPS receiver.
+
+## Local capacity preflight
+
+`python -m audio_backend.recorder_inbox_runner preflight --state-dir /private/runner/span-23`
+performs a bounded, local-only check. It makes no HTTP requests, writes no
+selection or recovery checkpoint, and never finalizes. It validates the existing
+append history and reports remaining frame/input-byte budgets, published frames,
+staged tail frames and the next complete delivery's capacity result. Duplicate
+next attempts require `--select-attempt`; this is only a hypothetical selection.
+A saved pending selection is reported as `pending_selection_preserved`, not
+removed or reassigned. Resume that exact existing selection through normal run.
+
+Run/watch now check capacity before saving a new selection intent. Exhaustion
+returns `capacity_reached` with `capacity.reason` (`duration`, `input_bytes`, or
+`pending_page_source_slots`); the historical count-limit result remains
+`input_capacity_reached` with reason `input_count`. Existing originals, admissions,
+checkpoint and selections remain intact. A partial tail may remain staged.
+
+This is not permission to finalize ROTATION, switch sessions, delete data, or
+claim a complete transcript. No automatic rollover is implemented. It is a local
+preflight, not a reservation or server/disk-capacity guarantee; normal intake
+still performs all original checks. Page/history bounds remain enforced by the
+validated checkpoint and frozen duration limit, and source-slot checks use the
+same intake rule. A waiting-for-input report has not checked a future delivery.
+
+Preflight preserves terminal-state precedence: `pending_selection_preserved`
+first, then `exported_locally_verified` (saved receipt and artifact hashes),
+`finalized_locally_recorded` (saved finalize receipt), `finalize_pending` (saved
+intent requiring explicit finalize resume), and `awaiting_finalize` (an admitted
+true terminal delivery). Only a nonterminal span proceeds to next-input capacity
+checks. These statuses are local observations: every response explicitly sets
+`remote_completion_checked=false` and `analysis_completion_verified=false`.
+Saved finalize/export receipts are validated without HTTP, recovery, new export,
+or modification; a damaged receipt/artifact is refused. Finalized local state
+alone does not establish current server state or completed analysis.
+
+An explicitly selected first delivery is also checked against deterministic
+fresh-span capacity before `configure` creates state or `initialize` creates
+state or makes HTTP requests. Oversized input refuses with
+`first_delivery_capacity`; this does not assert free disk or remote capacity.

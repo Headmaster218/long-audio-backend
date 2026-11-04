@@ -72,3 +72,10 @@ Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安�
 交付，在watch运行中陆续送达，完成原生分析与选定段导出。详见
 [操作链结果与剩余缺口](checkpoints/backend-capacity-source-20261031/source/docs/OPERATIONAL_FLOW_RESULT_20261104.md)。
 该结果仍绑定受审目标候选，不把短时闭环写成长期连续、跨人声质量或独立服务器验收。
+
+## 容量保护与下一代际准备
+
+新增本地preflight和选择前容量检查，避免容量不足后才留下新的pending选择；
+首份交付超出冻结容量时也不会创建session/状态。新增prepare-only接收代际命令，
+严格保留旧录音、状态和端点，不自动切换手机。它们不等于连续轮换，详见
+[持续录音阻塞与安全边界](checkpoints/backend-capacity-source-20261031/source/docs/CONTINUOUS_RECORDING_LIMITS_ZH.md)。

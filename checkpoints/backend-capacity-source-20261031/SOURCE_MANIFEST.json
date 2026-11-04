@@ -772,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 52435,
-      "sha": "06b36494aa4edb2ab88cfeb2aa57f7948b719d19",
-      "sha256": "aa5860747342853c82ad506155ffd3ad3a916d58dc276b92f041fdcb1ebc16be"
+      "size": 57153,
+      "sha": "3cdc0a23e0373b3c8fedd708c497d4344a94a9c3",
+      "sha256": "229e745c1d4603d999b119e401144d982c042927f59064d5e9285e8cf2480b23"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -825,6 +825,12 @@
       "sha256": "be093da17069898f2be09652de406c28353c01b0618f78444cb82470bfb399f2"
     },
     {
+      "path": "audio_backend/recorder_receiver_generation.py",
+      "size": 10439,
+      "sha": "8654846c5a2daa2914ed5ddb2b92b151b37a9c2a",
+      "sha256": "93207a54bbd5573d3c4bf4fa57ae8af717096fbc390b2d8d9a21d2392e27d8aa"
+    },
+    {
       "path": "audio_backend/recorder_receiver_publication.py",
       "size": 19629,
       "sha": "f201af24c78f230d544853e49bd1f07ebb3dcbe0",
@@ -837,10 +843,16 @@
       "sha256": "189b3c17651c7bbb4c0d75585d9d25f0dac9425625d0eb880535274d1c705fbc"
     },
     {
+      "path": "audio_backend/recorder_runner_capacity.py",
+      "size": 3990,
+      "sha": "6c4f5bc236caf7c40d9b16d824830107b6e2b9f7",
+      "sha256": "7ee3f545380c770583bf84225a68281efa31d4657712e552183c3c37ce473316"
+    },
+    {
       "path": "audio_backend/recorder_runner_initialize.py",
-      "size": 10277,
-      "sha": "96063316a607416c0c0323d16beed404baf13b87",
-      "sha256": "591f8ffa07d5ae4c7ac1af8415e00e70acdadc96c19247ba1ab0c85611e88174"
+      "size": 10392,
+      "sha": "4b3a13f42e06eaf0ba2076af39d4ec645e6eeb76",
+      "sha256": "6fc1523cf63d62adc36c14d5828878724464d77608b490cc18f28db5ec1e41dd"
     },
     {
       "path": "audio_backend/recorder_sequence.py",
@@ -1249,6 +1261,12 @@
       "size": 35129,
       "sha": "9c4d99ffdeb65590507701cbe3fc947c47ab38cc",
       "sha256": "bc03070766b737e9828c62e40c9830e994a33df55144321ac6b59fd4904625b7"
+    },
+    {
+      "path": "docs/CONTINUOUS_RECORDING_LIMITS_ZH.md",
+      "size": 4386,
+      "sha": "dca05377a49c86120fe85663cf25f37a4eba2dfe",
+      "sha256": "860a20c5decabfcc21a88310e04605125a7d5f91719228ab13ccdbb698864775"
     },
     {
       "path": "docs/DATA_MIGRATION.md",
@@ -2194,9 +2212,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 23526,
-      "sha": "08be35d0b370983a071f0ebfb63b9c8b2c12cd12",
-      "sha256": "8ef1a6fa10bcb370559fca9b5d7d8852bab7a5da4963defb5050430af4fd0639"
+      "size": 26141,
+      "sha": "4f911ebd4788b1dbbe63d603ba358e4acd637be2",
+      "sha256": "8249ab8de44225dee3c0423745072823aa6b6e2a5cb508a653ff9f657c7eeaf9"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -2212,9 +2230,9 @@
     },
     {
       "path": "docs/RECORDER_OPERATIONAL_START_ZH.md",
-      "size": 6682,
-      "sha": "c9f3376b6c84623536f20f6e8eb225faabd29988",
-      "sha256": "9bcbe1788d9ede98baff9afd5fb0d6cf93cf00ef18ff9b201781e98415a3e3a1"
+      "size": 7213,
+      "sha": "94c9911cdf715e63ebd5a6915f6c7412a1dfb5d2",
+      "sha256": "add7a0f7940d4de626380a128bde4399fc01d491125e62531f850e5e3671b04b"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2227,6 +2245,12 @@
       "size": 10920,
       "sha": "962ac45e342b598c089ed43a46fcefbc6078434d",
       "sha256": "8602cc2ed2b46e95055ca3283d370856fd570430b7e9a5643342244a046dbb39"
+    },
+    {
+      "path": "docs/RECORDER_RECEIVER_GENERATION.md",
+      "size": 5542,
+      "sha": "4f1fc4418044b0ef626d49f480670ba2cae1e6dc",
+      "sha256": "112ffd958c1f60835e23c57f36b4c11131ecfc4abb08c8a0cf1b6cd422d94a7e"
     },
     {
       "path": "docs/RECORDER_RECEIVER_PUBLICATION.md",
@@ -5289,6 +5313,12 @@
       "sha256": "bba789fe3b8d47cd28c7bab69ad52d13962e01fb54b7ad1fc1d4a58b1ebb5676"
     },
     {
+      "path": "tests/test_recorder_receiver_generation.py",
+      "size": 10144,
+      "sha": "901fcb0d6c1254bc1d9131be5a6761d4fec3439e",
+      "sha256": "64e879c7b0f3f97f39740bbf840d7867d5fbeb91667b478848767c53af967175"
+    },
+    {
       "path": "tests/test_recorder_receiver_publication.py",
       "size": 13726,
       "sha": "40aacc6836583afcbb04561d0ef35ebca252a109",
@@ -5305,6 +5335,12 @@
       "size": 5425,
       "sha": "8699a355aa3da04f4f71eb26601e0e9780b206c2",
       "sha256": "5cdcdae42edcd0f6b4f9596b6446ae1d2b4e3b919a2b1fc33c9d0bf987385b47"
+    },
+    {
+      "path": "tests/test_recorder_runner_capacity.py",
+      "size": 7321,
+      "sha": "6b10e3e2f40f293784878002c49c43040f02da30",
+      "sha256": "b201bfd17bd76172aed07d0da53cd57e2493fcc3757623198db92176d37eb24a"
     },
     {
       "path": "tests/test_recorder_runner_initialize.py",

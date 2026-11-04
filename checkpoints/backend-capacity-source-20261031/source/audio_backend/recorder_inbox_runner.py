@@ -23,6 +23,7 @@ from . import recorder_incremental_span_intake as intake
 from . import recorder_incremental_span_status as status
 from . import recorder_incremental_span_export as exporter
 from . import recorder_export_recovery as export_recovery
+from . import recorder_runner_capacity as capacity
 from . import recorder_inbox as inbox
 from . import recorder_receiver_publication as receiver
 from . import recorder_intake as single
@@ -164,6 +165,8 @@ def configure(*, state_dir, config, first_delivery=None):
         require(report['attempt'] == path.name and _same(_origin(record), config['span_origin']),
                 'runner_first_delivery_binding')
         intake.POLICY.validate_edge(None, record)
+        require(capacity.inspect(config,[],0,report,u.Guard(u.Limits()))['allowed'],
+                'first_delivery_capacity')
         intent = _intent(config, path, report, 0)
     state.mkdir(mode=0o700); u._fsync_dir(state.parent)
     single.manifest_write(state/'config.json', config)
@@ -712,7 +715,9 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                     if not finalize: return result('awaiting_finalize')
                     terminal_intent('finalize'); continue
                 if len(intents) == completed:
-                    if completed == config['max_inputs']: return result('input_capacity_reached')
+                    if completed == config['max_inputs']:
+                        observed_capacity = capacity.inspect(config,intents,completed,None,guard)
+                        return result('input_capacity_reached',capacity=observed_capacity)
                     next_sequence = config['span_origin']['first_sequence']+completed
                     available = candidates.get(next_sequence, [])
                     if not available:
@@ -731,6 +736,9 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                     current = _binding(config,value,completed,remaining)
                     previous = _binding(config,intents[-1],completed-1,remaining) if intents else None
                     intake.POLICY.validate_edge(previous,current)
+                    observed_capacity = capacity.inspect(config,intents,completed,report,guard)
+                    if not observed_capacity['allowed']:
+                        return result('capacity_reached',capacity=observed_capacity)
                     single.manifest_write(_file(root,completed,'intent'),value); intents.append(value)
                 else:
                     if select_attempt is not None:
@@ -795,6 +803,62 @@ def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=F
         transport=transport, cancel=cancel)
 
 
+def preflight(*, state_dir, select_attempt=None, deadline_seconds=120):
+    """Finite local-only next-delivery report, without selecting or admitting."""
+    require(type(deadline_seconds) in (int,float) and 0 < deadline_seconds <= 120,
+            'runner_deadline_bound')
+    require(select_attempt is None or type(select_attempt) is str and inbox.NAME.fullmatch(select_attempt),
+            'runner_selection_format')
+    root = _path(str(state_dir)); single.private_directory(root)
+    lock = engine.held_lock(root/'runner.lock')
+    try:
+        config = single.manifest_read(root/'config.json'); _config(config,root)
+        intents, completed = _ledger(root,config); _job_prefix(config,intents,completed)
+        if not intents:
+            require(not os.path.lexists(config['job_dir']), 'runner_unbound_existing_job')
+        base = dict(schema=SCHEMA, network_requests=0, network_writes=0,
+                    selection_written=False, automatic_intake_enabled=False,
+                    remote_completion_checked=False, analysis_completion_verified=False)
+        if len(intents) != completed:
+            return dict(base,status='pending_selection_preserved',inputs=completed,
+                        exact_existing_retry_required=True)
+        guard = u.Guard(u.Limits(deadline_seconds=deadline_seconds))
+        def remaining():
+            guard.check(); return max(.000001,guard.end-time.monotonic())
+        # Terminal receipt precedence is local-only. Never invoke status.run,
+        # uploader recovery or inference to turn saved receipts into live claims.
+        if os.path.lexists(root/'export.done.json'):
+            saved = single.manifest_read(root/'export.done.json')
+            expected = _export_receipt(root,config,single.manifest_read(root/'export.intent.json'),guard)
+            require(_same(saved,expected),'runner_export_receipt_changed')
+            return dict(base,status='exported_locally_verified',export_artifacts_verified=True)
+        if os.path.lexists(root/'finalize.done.json'):
+            return dict(base,status='finalized_locally_recorded',
+                        export_intent_present=os.path.lexists(root/'export.intent.json'))
+        if os.path.lexists(root/'finalize.intent.json'):
+            return dict(base,status='finalize_pending',explicit_finalize_resume_required=True)
+        if intents and intake.POLICY.finalizable(intents[-1]['delivery']):
+            _binding(config,intents[-1],completed-1,remaining)
+            return dict(base,status='awaiting_finalize',explicit_finalize_required=True)
+        if completed == config['max_inputs']:
+            return dict(base,status='capacity_reached',capacity=capacity.inspect(config,intents,completed,None,guard))
+        available = _inspect(config,intents,remaining).get(config['span_origin']['first_sequence']+completed,[])
+        if not available:
+            return dict(base,status='waiting_for_input',capacity=capacity.inspect(config,intents,completed,None,guard),
+                        next_delivery_checked=False)
+        if select_attempt is not None: available = [(p,r) for p,r in available if p.name == select_attempt]
+        require(len(available) == 1,'runner_explicit_duplicate_selection_required')
+        path, report = available[0]
+        current = _binding(config,_intent(config,path,report,completed),completed,remaining)
+        previous = _binding(config,intents[-1],completed-1,remaining) if intents else None
+        intake.POLICY.validate_edge(previous,current)
+        observed = capacity.inspect(config,intents,completed,report,guard)
+        return dict(base,status='capacity_available' if observed['allowed'] else 'capacity_reached',
+                    capacity=observed,next_delivery_checked=True)
+    finally:
+        os.close(lock)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_subparsers(dest='command',required=True)
@@ -815,6 +879,10 @@ def main(argv=None):
     initialize.add_argument('--resume',action='store_true')
     initialize.add_argument('--exclusive-writer',action='store_true',required=True)
     initialize.add_argument('--acknowledge-span-local-closure',action='store_true',required=True)
+    capacity_parser = modes.add_parser('preflight',help='Read-only local capacity report; no selection or HTTP')
+    capacity_parser.add_argument('--state-dir',required=True)
+    capacity_parser.add_argument('--select-attempt')
+    capacity_parser.add_argument('--deadline-seconds',type=float,default=120)
     for mode in ('run', 'watch'):
         execute = modes.add_parser(mode,help=('One bounded reconciliation' if mode == 'run'
             else 'Finite foreground polling; explicit resume after any refusal'))
@@ -846,6 +914,7 @@ def main(argv=None):
         elif command == 'initialize':
             from .recorder_runner_initialize import initialize
             value=initialize(**args)
+        elif command == 'preflight': value=preflight(**args)
         else: value=(watch if command == 'watch' else run)(**args)
     except (Exception,KeyboardInterrupt) as exc:
         value=single.failure_report(exc); value.update(schema=SCHEMA,automatic_intake_enabled=False,
