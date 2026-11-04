@@ -1,6 +1,6 @@
 # Fixed frontend compatibility research
 
-Status on 2026-11-04: prospective preparation only. No feature/model experiment has run and no numerical or recognition-quality conclusion is claimed. Production remains unchanged.
+Status on 2026-11-04: the single frozen experiment completed and was independently audited. Adapter compatibility passed; neither frontend emitted any identity on 18 known and 6 withheld queries, so usable coverage remained zero. Production remains unchanged. See RESULT_REPORT.md, PUBLIC_AGGREGATE_RESULT.json and PUBLIC_RESULT_AUDIT.json. The prospective sections below record the preparation state before inference.
 
 The source audit distinguishes an installed-model hash from a training provenance claim. The historical 512-D training recipe inherits frontend defaults consistent with the candidate, but the exact weights are not bound to that training revision or environment. The candidate is named **pinned test-source-derived frontend candidate**, not a proven training correction.
 

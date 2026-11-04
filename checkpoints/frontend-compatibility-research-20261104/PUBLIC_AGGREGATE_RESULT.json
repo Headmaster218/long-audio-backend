@@ -1,0 +1,87 @@
+{
+  "status": "completed_single_bounded_research_run_no_production_change",
+  "counts": {
+    "candidate": {
+      "coverage": 0.0,
+      "emission_precision": null,
+      "emissions": 0,
+      "known_abstained": 18,
+      "known_correct": 0,
+      "known_queries": 18,
+      "known_unavailable": 0,
+      "known_wrong": 0,
+      "planned_queries": 24,
+      "unknown_abstained": 6,
+      "unknown_false_accept": 0,
+      "unknown_queries": 6,
+      "unknown_unavailable": 0
+    },
+    "native": {
+      "coverage": 0.0,
+      "emission_precision": null,
+      "emissions": 0,
+      "known_abstained": 18,
+      "known_correct": 0,
+      "known_queries": 18,
+      "known_unavailable": 0,
+      "known_wrong": 0,
+      "planned_queries": 24,
+      "unknown_abstained": 6,
+      "unknown_false_accept": 0,
+      "unknown_queries": 6,
+      "unknown_unavailable": 0
+    }
+  },
+  "known_top1": {
+    "candidate": 18,
+    "native": 18
+  },
+  "dependent_primary_pairs_per_arm": 144,
+  "dependent_secondary_pairs_per_arm": 288,
+  "actual_identity_merges": "not_performed_or_evaluated",
+  "bridge": {
+    "features_max_absolute": 0.0,
+    "vectors_max_absolute": 3.371969796717167e-07,
+    "vectors_max_cosine_gap": 2.3544499683225695e-12
+  },
+  "known_median_true_score_change": 0.028950263954301142,
+  "known_median_true_margin_change": 0.015907508636154297,
+  "unknown_median_best_score_change": 0.035370278406757535,
+  "resources": {
+    "elapsed_seconds": 14.148719398999674,
+    "child_cpu_seconds": 20.57562,
+    "peak_sampled_owned_rss": 189460480,
+    "allocated_output_bytes": 12832768
+  },
+  "stages": [
+    {
+      "stage": "native",
+      "returncode": 0,
+      "positive_original_wait": true,
+      "owned_process_group_absent": true,
+      "termination_needed": false
+    },
+    {
+      "stage": "bridge",
+      "returncode": 0,
+      "positive_original_wait": true,
+      "owned_process_group_absent": true,
+      "termination_needed": false
+    },
+    {
+      "stage": "candidate",
+      "returncode": 0,
+      "positive_original_wait": true,
+      "owned_process_group_absent": true,
+      "termination_needed": false
+    }
+  ],
+  "total_encoder_calls": 120,
+  "source_unchanged_files": 1046,
+  "evidence": {
+    "TERMINAL.json": "fca43b46d413cce36e550bacbfd38c13282529b98080192d6217699549851f54",
+    "SUMMARY.json": "b863f6dd4e61a7492ca516dc6f6460c10df8b59d6a87aa1e2f4b0fcaf0ef879e",
+    "PREDICTION_SEAL.json": "537ea627eca87a36d1d019c95b14175c51ea37a50a2e9b38457875de193fad90",
+    "BRIDGE_GATE.json": "9920e6a5559c2e701068945419d0790208c87e32686f9881519272fecbfa590a"
+  }
+}

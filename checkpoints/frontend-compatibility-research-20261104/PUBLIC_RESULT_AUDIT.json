@@ -1,0 +1,255 @@
+{
+  "verdict": "completed bounded compatibility experiment independently verified; no demonstrated operational identification gain",
+  "new_encoder_calls": 0,
+  "new_feature_extractions": 0,
+  "recomputed_from_saved_arrays": true,
+  "errors": [],
+  "integrity": {
+    "freeze_sha256": "fbe31b4d31c8bb43af745618f93bda75ccda9e6e11e7de6254471e3a23b5bc3f",
+    "runtime_pin_entries": 2071,
+    "seal_pins": 9,
+    "bridge_gate_pins": 7,
+    "verified_pcm_crops": 36,
+    "encoder_attempts_completed": 120,
+    "model_sessions": 3,
+    "technical_repeats_bitwise_equal": 12,
+    "raw_feature_native_vs_bridge_bitwise_equal_crops": 36,
+    "feature_geometry": {
+      "N": [
+        36,
+        200,
+        80
+      ],
+      "H": [
+        36,
+        200,
+        80
+      ],
+      "S": [
+        36,
+        198,
+        80
+      ],
+      "C": [
+        36,
+        198,
+        80
+      ]
+    }
+  },
+  "bridge_vector_parity": {
+    "max_absolute": 3.371969796717167e-07,
+    "max_l2": 2.170249195364084e-06,
+    "max_cosine_gap": 2.3544499683225695e-12
+  },
+  "arms": {
+    "native": {
+      "counts": {
+        "known_correct": 0,
+        "known_wrong": 0,
+        "known_abstained": 18,
+        "unknown_false_accept": 0,
+        "unknown_abstained": 6
+      },
+      "known_top1": 18,
+      "known_true_score_summary": {
+        "n": 18,
+        "min": 0.3055303534480163,
+        "median": 0.38870807210620906,
+        "max": 0.6878034962150508,
+        "mean": 0.42360977993440035
+      },
+      "known_true_margin_summary": {
+        "n": 18,
+        "min": 0.10683152368038196,
+        "median": 0.20781977056346695,
+        "max": 0.5136653469871313,
+        "mean": 0.24153992633611024
+      },
+      "unknown_best_score_summary": {
+        "n": 6,
+        "min": 0.21779224376932027,
+        "median": 0.27328801289038174,
+        "max": 0.3669284637321631,
+        "mean": 0.2812607203253801
+      },
+      "refusal_counts": {
+        "unknown_below_threshold": 24
+      }
+    },
+    "bridge": {
+      "counts": {
+        "known_correct": 0,
+        "known_wrong": 0,
+        "known_abstained": 18,
+        "unknown_false_accept": 0,
+        "unknown_abstained": 6
+      },
+      "known_top1": 18,
+      "known_true_score_summary": {
+        "n": 18,
+        "min": 0.3055306211221906,
+        "median": 0.38870786200601176,
+        "max": 0.6878035178133076,
+        "mean": 0.42360983869243096
+      },
+      "known_true_margin_summary": {
+        "n": 18,
+        "min": 0.10683148321530161,
+        "median": 0.20781963891614905,
+        "max": 0.5136653773003284,
+        "mean": 0.24153993475564978
+      },
+      "unknown_best_score_summary": {
+        "n": 6,
+        "min": 0.21779210963122508,
+        "median": 0.27328801434680083,
+        "max": 0.3669283440632645,
+        "mean": 0.28126068303156104
+      },
+      "refusal_counts": {
+        "unknown_below_threshold": 24
+      }
+    },
+    "candidate": {
+      "counts": {
+        "known_correct": 0,
+        "known_wrong": 0,
+        "known_abstained": 18,
+        "unknown_false_accept": 0,
+        "unknown_abstained": 6
+      },
+      "known_top1": 18,
+      "known_true_score_summary": {
+        "n": 18,
+        "min": 0.31187897340139953,
+        "median": 0.43514227656720494,
+        "max": 0.6888918079016368,
+        "mean": 0.4558834476567937
+      },
+      "known_true_margin_summary": {
+        "n": 18,
+        "min": 0.0246529501281752,
+        "median": 0.23657321227104053,
+        "max": 0.5199011910860283,
+        "mean": 0.26422400709721333
+      },
+      "unknown_best_score_summary": {
+        "n": 6,
+        "min": 0.25329002431084474,
+        "median": 0.3020545513620311,
+        "max": 0.3879237703061826,
+        "mean": 0.3151710896810098
+      },
+      "refusal_counts": {
+        "unknown_below_threshold": 24
+      }
+    }
+  },
+  "paired_changes": {
+    "known_true_scores": {
+      "deltas": {
+        "n": 18,
+        "min": -0.03275331477097798,
+        "median": 0.028950263954301142,
+        "max": 0.11074574454401354,
+        "mean": 0.032273667722393366
+      },
+      "increased": 14,
+      "decreased": 4,
+      "equal": 0
+    },
+    "known_true_margins": {
+      "deltas": {
+        "n": 18,
+        "min": -0.08217857355220676,
+        "median": 0.015907508636154297,
+        "max": 0.1326511596749904,
+        "mean": 0.022684080761103096
+      },
+      "increased": 11,
+      "decreased": 7,
+      "equal": 0
+    },
+    "unknown_best_scores": {
+      "deltas": {
+        "n": 6,
+        "min": 0.019428202434617597,
+        "median": 0.035370278406757535,
+        "max": 0.052310523642159545,
+        "mean": 0.033910369355629716
+      },
+      "increased": 6,
+      "decreased": 0,
+      "equal": 0
+    },
+    "same_crop_vector_cosine": {
+      "n": 36,
+      "min": 0.657466956759429,
+      "median": 0.8228977110380883,
+      "max": 0.8841718535848071,
+      "mean": 0.8190249171410754
+    },
+    "same_crop_vector_l2": {
+      "n": 36,
+      "min": 0.48130686075664175,
+      "median": 0.595144708489789,
+      "max": 0.827687195401423,
+      "mean": 0.5967255069333759
+    }
+  },
+  "resource_receipt": {
+    "allocated_output_bytes": 12832768,
+    "child_cpu_seconds": 20.57562,
+    "elapsed_seconds": 14.148719398999674,
+    "freeze_sha256": "fbe31b4d31c8bb43af745618f93bda75ccda9e6e11e7de6254471e3a23b5bc3f",
+    "peak_sampled_owned_rss": 189460480,
+    "planned_queries": 24,
+    "planned_slots_per_stage": 36,
+    "reason": null,
+    "stages": [
+      {
+        "cleanup_error": null,
+        "owned_process_group_absent": true,
+        "positive_original_wait": true,
+        "returncode": 0,
+        "sampled_cpu_seconds": 6.67,
+        "stage": "native",
+        "stop_reason": null,
+        "termination_needed": false,
+        "waited_cpu_seconds": 6.732452
+      },
+      {
+        "cleanup_error": null,
+        "owned_process_group_absent": true,
+        "positive_original_wait": true,
+        "returncode": 0,
+        "sampled_cpu_seconds": 6.86,
+        "stage": "bridge",
+        "stop_reason": null,
+        "termination_needed": false,
+        "waited_cpu_seconds": 6.931687999999999
+      },
+      {
+        "cleanup_error": null,
+        "owned_process_group_absent": true,
+        "positive_original_wait": true,
+        "returncode": 0,
+        "sampled_cpu_seconds": 6.8100000000000005,
+        "stage": "candidate",
+        "stop_reason": null,
+        "termination_needed": false,
+        "waited_cpu_seconds": 6.91148
+      }
+    ],
+    "status": "completed_bounded_technical_experiment"
+  },
+  "interpretation": [
+    "Both arms abstained on all18 known queries and refused all6 unknown queries;0 emissions,0% coverage, undefined emission precision.",
+    "Known top1 is18/18 in both arms but is a ranking diagnostic, not18 successful identifications.",
+    "Candidate raises most known scores, but unknown best scores also rise. Score uplift alone does not establish improved useful recognition.",
+    "Only8 speakers and dependent pairs, with just6 unknown queries from2 speakers. Zero false accepts does not establish a low rare-error rate or low erroneous-merge risk; actual merging was not performed.",
+    "This establishes same-host adapter compatibility for the frozen samples, not installed-weight training truth, broad frontend equivalence, threshold calibration or production qualification."
+  ],
+  "original_full_audit_sha256": "f2e813c75894f20fbfe64205bbb68b307968b2566322f185cc2ab5bf312dbc1b"
+}

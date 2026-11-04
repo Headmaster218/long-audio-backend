@@ -1,0 +1,122 @@
+{
+  "created_utc": "2026-11-04T22:26:17.855619+00:00",
+  "measurement": "measurement-01",
+  "files": [
+    {
+      "path": "measurement-01/BRIDGE_GATE.json",
+      "bytes": 1553,
+      "sha256": "9920e6a5559c2e701068945419d0790208c87e32686f9881519272fecbfa590a"
+    },
+    {
+      "path": "measurement-01/PREDICTION_SEAL.json",
+      "bytes": 1959,
+      "sha256": "537ea627eca87a36d1d019c95b14175c51ea37a50a2e9b38457875de193fad90"
+    },
+    {
+      "path": "measurement-01/SUMMARY.json",
+      "bytes": 86494,
+      "sha256": "b863f6dd4e61a7492ca516dc6f6460c10df8b59d6a87aa1e2f4b0fcaf0ef879e"
+    },
+    {
+      "path": "measurement-01/TERMINAL.json",
+      "bytes": 2661,
+      "sha256": "fca43b46d413cce36e550bacbfd38c13282529b98080192d6217699549851f54"
+    },
+    {
+      "path": "measurement-01/bridge/features.npz",
+      "bytes": 9170878,
+      "sha256": "42a26910c646c88757de610b0eb1d245ae1b747853078896d686e76055db633c"
+    },
+    {
+      "path": "measurement-01/bridge/journal.jsonl",
+      "bytes": 4584,
+      "sha256": "1688175938aa745d9b150ba95e05bd086f062601fcb6b228b38b8681d640ec6a"
+    },
+    {
+      "path": "measurement-01/bridge/predictions.json",
+      "bytes": 10037,
+      "sha256": "94bf1961d37c3753d49392e711c3f89f9380cbed965d13db116fa47ed019ab15"
+    },
+    {
+      "path": "measurement-01/bridge/result.json",
+      "bytes": 687787,
+      "sha256": "fd06309c735b91bbf3e57314d22ef6509c46abc1aed45cb7d446789780ca6de4"
+    },
+    {
+      "path": "measurement-01/bridge/vectors.npz",
+      "bytes": 156406,
+      "sha256": "9edc896f84fae5eccb7df88c98133cb4f407572a12756b6a9d34c1d90e2936b5"
+    },
+    {
+      "path": "measurement-01/bridge.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "measurement-01/bridge.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "measurement-01/candidate/journal.jsonl",
+      "bytes": 4587,
+      "sha256": "6842e5e1e348bcf04dcad5048204d22bceffb50397d7193f43d4c4844b148064"
+    },
+    {
+      "path": "measurement-01/candidate/predictions.json",
+      "bytes": 10033,
+      "sha256": "a3adb3333483dd1d98526a426cda75a928ee0a655a60209991c20869f4a61e7e"
+    },
+    {
+      "path": "measurement-01/candidate/result.json",
+      "bytes": 12782,
+      "sha256": "e18851939db75b0f43f7f3b71bcc4401649eaa14b0139f265283ebb56efb81eb"
+    },
+    {
+      "path": "measurement-01/candidate/vectors.npz",
+      "bytes": 156406,
+      "sha256": "90a5819a8cef0fd1cadc795bb8c5f2bc95e4fe15474f43c316a142bb88f865c7"
+    },
+    {
+      "path": "measurement-01/candidate.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "measurement-01/candidate.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "measurement-01/native/journal.jsonl",
+      "bytes": 4584,
+      "sha256": "3d00f9a68c8893a31841b952ceaf96a9dbb38ba9d334fa1c10a36d2c0f90c88e"
+    },
+    {
+      "path": "measurement-01/native/predictions.json",
+      "bytes": 10029,
+      "sha256": "6037e2661d75333a60564649ffac0189ee50e05a6ce1e8b4e86bec6729f33a07"
+    },
+    {
+      "path": "measurement-01/native/result.json",
+      "bytes": 12765,
+      "sha256": "d0c4845d7b78be3fe9419951fa57b523bf53dbb31b8728cfade1cc17e18c55f9"
+    },
+    {
+      "path": "measurement-01/native/vectors.npz",
+      "bytes": 2460654,
+      "sha256": "3a2dd823cecd5d5262ee45bac6be41ebded61a812b62adae707bc594e618e7c8"
+    },
+    {
+      "path": "measurement-01/native.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "measurement-01/native.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "note": "Immutable single-run output inventory; no raw speech or output vector bytes are included in this manifest."
+}
