@@ -92,3 +92,24 @@ identity, overlap quality, long-running endurance, existing-store migration or
 production readiness. Raw evidence, logs, transcripts, databases, installed wheels
 and model weights remain outside Git. A different target must collect and review
 its own evidence before materializing an isolated candidate.
+
+## Same-target restart readback
+
+One additional bounded service restart used this exact installation and existing
+isolated test store, with GET-only readback and no new sessions/uploads or requested
+inference. Independent review verified one completed chunk and two persisted ASR
+segments, matching before/after durable ASR and chunk rows, clean integrity/FKs,
+no nonempty WAL/journal, normal 143 shutdown and no recorded remaining processes.
+All 176 installed source files still matched. Sampled peak RSS was 123,088,896 bytes.
+Private restart result SHA-256:
+`674de1e47fdea12217857d9290be41ecbaf8b8db49030344ff97db2907d228e9`.
+
+An initial harness precheck refused an empty WAL before launching any service.
+That distinct failure and empty-sidecar snapshots were retained; the subsequent
+single actual restart accepted an empty WAL under an exclusive instance lock.
+No product guard was weakened. Full stored segment rows happened to remain equal
+in this run, which does not establish optional cross-boot annotation validity or
+complete API-output equality. This restart is not an additional crash-recovery,
+endurance, migration or independent-server result.
+
+The final remote-restored source passed the 112 selected controls again.
