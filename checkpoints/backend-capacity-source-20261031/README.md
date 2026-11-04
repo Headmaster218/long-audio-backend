@@ -1,3 +1,5 @@
+See [the current repository delivery guide](../../START_HERE_ZH.md). For verified restoration without a manual copy, run `python3 -B checkpoints/backend-capacity-source-20261031/restore_source.py --output ../long-audio-backend-source` from the repository root. The output must not exist.
+
 # Backend capacity reconstruction — source checkpoint, 2026-10-31
 
 This is a development backup, not a release or a successful 12-hour/48-hour qualification.
