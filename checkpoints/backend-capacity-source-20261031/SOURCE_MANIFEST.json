@@ -2535,6 +2535,12 @@
       "sha256": "206f263be1962e0cdc0ec46293c26ad385f9d8e07f4b9e9eebd244b1c78a2bf1"
     },
     {
+      "path": "docs/VOICE_RUNTIME_OPERATIONAL_RETEST_20261104.md",
+      "size": 5151,
+      "sha": "339cd0daf40bd5cec0396519c9f7f1ee9ba16f12",
+      "sha256": "b6f94c818f6281c438a414d95f6e4155a0ce3768b5aae5595ea9fbdf651f4c46"
+    },
+    {
       "path": "docs/evidence/SUPPORT_LOOKUP_NOV01_SYNTHETIC.json",
       "size": 6469,
       "sha": "456f229ef1710e2de18becf3b5d392c2d85bf038",
@@ -6280,5 +6286,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev69: bounded typed busy GET recovery and constructor-free voice runtime diagnostic; preserves failed dev68 speech study; fresh CP312 qualification and repaired operational retest pending."
+  "source_update": "dev69 plus honest corrected operational interruption report; frozen runtime proof remains separately pinned; formal same-session recovery pending."
 }
