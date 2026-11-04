@@ -2607,6 +2607,18 @@
       "sha256": "c88ab2c4badde9a23d4561db2a1f1e46f8dbea23cb94848919258edc0aada77a"
     },
     {
+      "path": "qualification/TARGET_RUNTIME_OBSERVATION.md",
+      "size": 3325,
+      "sha": "bec9f7d456e9f4363f0b267cd84c00cf8304c9b5",
+      "sha256": "17dc7281db84a99785205eb9e650f5d175db4a44671077d1d4dbfd5c89ae9306"
+    },
+    {
+      "path": "qualification/TARGET_RUNTIME_RESULT_20261104.md",
+      "size": 2504,
+      "sha": "b5e3d4a9920523a06141753a8bccc11aed295d9e",
+      "sha256": "920009417033f49f55ad4c18db6e5f6398c411547d4dde24fa13a853ea0799b4"
+    },
+    {
       "path": "qualification/accepted_candidate_20261103.patch",
       "size": 1079,
       "sha": "7819807b098856e6f687a3d60ac124b1ca21e9ed",
@@ -2643,10 +2655,16 @@
       "sha256": "0be95805afcbd343f241335e939ae235fe41263b91ccc18468493db7fe985c84"
     },
     {
+      "path": "qualification/audit_target_cellstore_evidence.py",
+      "size": 12181,
+      "sha": "0fcd2580938170764db106544e6081c4fa8e1920",
+      "sha256": "353a228aa72a395e6086c09af9e3e931ca19709be150be010a7d86f48e1a7447"
+    },
+    {
       "path": "qualification/cellstore_crash_probe.py",
-      "size": 22221,
-      "sha": "b0cea479ad0e19a726c07970605dae2a2e5d1020",
-      "sha256": "30e884a7f2b6c57c68aa3ae75b29fd3fd78dfcbd911768bb4de15d3f4836ba9c"
+      "size": 23372,
+      "sha": "2a71001e96a25c0332c26ff1eb7196fd14d3bc50",
+      "sha256": "a7365c2812b41bf91ec52a335ba897e48f296a714d645482d30021029e0d4884"
     },
     {
       "path": "qualification/combined_chain_20261103/FRESH_OPTIN_RESULT.md",
@@ -3124,9 +3142,15 @@
     },
     {
       "path": "qualification/sqlite_crash_probe.py",
-      "size": 17973,
-      "sha": "cef6b56f9265cc84191fc4d114668d95f88ec330",
-      "sha256": "2734c588d033bd705f21b7586bb3b88c03dc31e485a1439bb52ca64917aca95c"
+      "size": 19124,
+      "sha": "df80d6fdeccca3a120f14b0e3812796e867e9191",
+      "sha256": "3d589628d74d0e00eb1a9c2c314246dba9b59b822714e2ee42cdb434ecb9ea71"
+    },
+    {
+      "path": "qualification/target_runtime_observation.py",
+      "size": 6869,
+      "sha": "87c328939057bd9195d9d4ba5c9682404456b101",
+      "sha256": "24d1c7eb6457fd754c1ad83bc708b7f53d53b65207e38d4296daee81b0598668"
     },
     {
       "path": "qualification/test_accepted_candidate_cellstore.py",
@@ -3163,6 +3187,18 @@
       "size": 9430,
       "sha": "c9a5b2d8904b88dd1084d0b5463ddb56148dbaa0",
       "sha256": "acc5d698c008ba0ecdb866655ab7dcd95d79bd93c63b4de923d99e9fd82917be"
+    },
+    {
+      "path": "qualification/test_target_cellstore_audit.py",
+      "size": 1925,
+      "sha": "726aab22b81ac1fc859e37985a18af4a33411f44",
+      "sha256": "b4f53ed7c7b230902f20d3b8e82a7df467804221aed15cf2b960ce4c6d683d58"
+    },
+    {
+      "path": "qualification/test_target_runtime_observation.py",
+      "size": 6108,
+      "sha": "3f7e97a8232ccc7e735c96f3bfdcf52c48244ea1",
+      "sha256": "0b81a7cba8cd20273d158611781fe29a163682b0d965ebc2463c1566a3cfe36e"
     },
     {
       "path": "requirements-build-dev9.lock.txt",

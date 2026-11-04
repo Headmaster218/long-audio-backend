@@ -48,7 +48,12 @@ def bounded_read(path, limit):
     return data
 
 
-def identity(directory):
+def identity(directory, target_observation=None, target_sha256=None):
+    if target_observation is not None:
+        from qualification.target_runtime_observation import probe_identity
+        return probe_identity(directory, target_observation, target_sha256)
+    if target_sha256 is not None:
+        raise ValueError('target_observation_path_required')
     fingerprints = runtime_fingerprints(Budget())
     active = asdict(QUALIFIED_RUNTIMES[0])
     db = sqlite3.connect(':memory:')
@@ -91,7 +96,7 @@ def connect(path):
     return db
 
 
-def child(phase, directory, parent_pid):
+def child(phase, directory, parent_pid, target_observation=None, target_sha256=None):
     # A stopped child must not outlive a killed supervisor.
     import ctypes
     if os.getppid() != parent_pid:raise RuntimeError('supervisor_already_gone')
@@ -103,7 +108,7 @@ def child(phase, directory, parent_pid):
     resource.setrlimit(resource.RLIMIT_CPU, (25, 30))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_JOURNAL, MAX_JOURNAL))
     signal.alarm(45)
-    current = identity(directory)
+    current = identity(directory, target_observation, target_sha256)
     path = directory / 'cells.sqlite3'
     db = connect(path)
     try:
@@ -195,7 +200,12 @@ def allocation(directory):
     return dict(charged_bytes=charged, logical_bytes=logical, slack_bytes=max(0, charged-logical))
 
 
-def supervise(out):
+def supervise(out, target_observation=None, target_sha256=None):
+    if target_observation is not None:
+        target_observation = Path(target_observation).absolute()
+        identity(out.parent, target_observation, target_sha256)
+    elif target_sha256 is not None:
+        raise ValueError('target_observation_path_required')
     out.mkdir(mode=0o700, exist_ok=False)
     resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))
     available = sorted(os.sched_getaffinity(0))
@@ -209,7 +219,7 @@ def supervise(out):
     result = {'schema': 'finite-sqlite-crash-probe-v1', 'passed': False,
               'production_profile_activated': False, 'power_loss_qualified': False}
     baseline_dir = out / 'baseline'
-    baseline_dir.mkdir()
+    baseline_dir.mkdir(mode=0o700)
     script_hash = sha(Path(__file__).read_bytes())
     source_hash = sha((ROOT / 'audio_backend/native_owned_cell_store.py').read_bytes())
     def manifest():
@@ -239,8 +249,9 @@ def supervise(out):
         oldmask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
         try:
             with (directory / (phase+'.stderr')).open('xb') as stderr:
+                from qualification.target_runtime_observation import child_arguments
                 active = subprocess.Popen([sys.executable, '-I', '-B', str(Path(__file__).resolve()),
-                    '--child', phase, '--parent-pid', str(os.getpid()), str(directory)],
+                    '--child', phase, '--parent-pid', str(os.getpid()), str(directory)] + child_arguments(target_observation, target_sha256),
                     stdout=subprocess.DEVNULL, stderr=stderr, start_new_session=True)
         finally:
             signal.pthread_sigmask(signal.SIG_SETMASK, oldmask)
@@ -269,7 +280,7 @@ def supervise(out):
             time.sleep(.001)
         raise TimeoutError('stop_ack_deadline')
     try:
-        result['identity'] = identity(out)
+        result['identity'] = identity(out, target_observation, target_sha256)
         waited(launch('fill', baseline_dir), 'fill', 0)
         baseline = bounded_read(baseline_dir/'cells.sqlite3', MAX_DB)
         result['fill_allocation'] = allocation(baseline_dir)
@@ -277,7 +288,7 @@ def supervise(out):
         result['full_capacity'] = json.loads(expected_rows)
         captured = None
         for attempt in range(1, 5):
-            directory = out / ('attempt-' + str(attempt)); directory.mkdir()
+            directory = out / ('attempt-' + str(attempt)); directory.mkdir(mode=0o700)
             with (directory/'cells.sqlite3').open('xb') as stream:
                 stream.write(baseline);stream.flush();os.fsync(stream.fileno())
             (directory/'expected_rows.json').write_bytes(expected_rows)
@@ -316,7 +327,7 @@ def supervise(out):
                 os.kill(proc.pid, signal.SIGCONT)
             waited(proc, 'missed-crash-attempt', 0)
         if captured is None:raise RuntimeError('no_valid_crash_captured')
-        recovery = out/'recovery';recovery.mkdir()
+        recovery = out/'recovery';recovery.mkdir(mode=0o700)
         (recovery/'cells.sqlite3').write_bytes(database)
         (recovery/'cells.sqlite3-journal').write_bytes(journal)
         (recovery/'expected_rows.json').write_bytes(expected_rows)
@@ -328,7 +339,7 @@ def supervise(out):
         result['recovery_allocation'] = allocation(recovery)
         if bounded_read(captured/'cells.sqlite3', MAX_DB) != database or bounded_read(captured/'cells.sqlite3-journal', MAX_JOURNAL) != journal:
             raise RuntimeError('captured_pair_changed')
-        result['identity_after'] = identity(out)
+        result['identity_after'] = identity(out, target_observation, target_sha256)
         if result['identity_after'] != result['identity']:raise RuntimeError('runtime_changed')
         if script_hash != sha(Path(__file__).read_bytes()) or source_hash != sha((ROOT/'audio_backend/native_owned_cell_store.py').read_bytes()):
             raise RuntimeError('source_changed')
@@ -356,8 +367,10 @@ if __name__ == '__main__':
     parser.add_argument('--child', choices=['fill','crash','recover'])
     parser.add_argument('--parent-pid', type=int)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--target-observation', type=Path)
+    parser.add_argument('--target-sha256')
     args = parser.parse_args()
     if args.child:
-        child(args.child, args.output.resolve(), args.parent_pid)
+        child(args.child, args.output.resolve(), args.parent_pid, args.target_observation, args.target_sha256)
     else:
-        raise SystemExit(supervise(args.output.resolve()))
+        raise SystemExit(supervise(args.output.resolve(), args.target_observation, args.target_sha256))
