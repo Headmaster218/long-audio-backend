@@ -2931,6 +2931,12 @@
       "sha256": "b65eb3d3d1c590c88d7b702ea6c969da36b14bd2621dcab94832552d3cb75094"
     },
     {
+      "path": "qualification/receiver_resource_20261104/NATIVE_RESULT.md",
+      "size": 5061,
+      "sha": "022eb24db7141a4e0759ae2715733981be79a977",
+      "sha256": "4017355bd7f7b025883be2a9d6928845da2ed9be85141b10015372d87cad3cca"
+    },
+    {
       "path": "qualification/receiver_resource_20261104/README.md",
       "size": 2198,
       "sha": "ed88c408e1db6aa5807a35a8978f1e6b3fc0ee03",
@@ -2947,6 +2953,12 @@
       "size": 1645,
       "sha": "9579f85b91355c94f522197e860b8b189e620313",
       "sha256": "067d260000bbaf7a6e53e3e6971cc553cf7c64c7c67d759aeb488d2a645a4836"
+    },
+    {
+      "path": "qualification/receiver_resource_20261104/native_summary.json",
+      "size": 3116,
+      "sha": "d8b0334908af5b832b7d6028b92f182bafec5ae1",
+      "sha256": "bb4d357b60143304472e81de270c8f2af94457110a641dbbfd22da2480918d4b"
     },
     {
       "path": "qualification/receiver_resource_20261104/receiver_resource_workload.py",
@@ -5842,5 +5854,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Make reusable receiver resource monitor fail closed on observer exceptions; three focused tests and one-segment smoke, original 256-segment evidence preserved separately."
+  "source_update": "Record independently reviewed two-page native resource gate: 56 chunks and 588 seconds with exact isolated runtime candidate; no target-server or FTPS-service qualification."
 }

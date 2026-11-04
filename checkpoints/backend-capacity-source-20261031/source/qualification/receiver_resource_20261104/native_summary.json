@@ -1,0 +1,99 @@
+{
+  "base_source_commit": "bda0ad6e87779b884a872cd4aedbde739976d829",
+  "runtime_patch": "accepted_candidate_20261103.patch",
+  "original_gate_passed": true,
+  "completed_chunks": 56,
+  "chunk_seconds": 10.5,
+  "audio_seconds": 588,
+  "repeated_real_speech": true,
+  "wall_seconds": 577.6490189039996,
+  "sample_count": 574,
+  "peak_sampled_process_tree_rss_bytes": 959766528,
+  "original_gate_peak_charged_rss_bytes_including_64MiB": 1006825472,
+  "final_allocated_bytes": 100315136,
+  "final_files": 131,
+  "resource_bands": [
+    {
+      "completed_min": 0,
+      "completed_max": 0,
+      "samples": 92,
+      "aggregate_rss_max": 812949504,
+      "service_rss_min": 2228224,
+      "service_rss_max": 93753344,
+      "allocated_last": 41394176
+    },
+    {
+      "completed_min": 1,
+      "completed_max": 14,
+      "samples": 107,
+      "aggregate_rss_max": 945475584,
+      "service_rss_min": 93753344,
+      "service_rss_max": 102584320,
+      "allocated_last": 49754112
+    },
+    {
+      "completed_min": 15,
+      "completed_max": 28,
+      "samples": 151,
+      "aggregate_rss_max": 959766528,
+      "service_rss_min": 95875072,
+      "service_rss_max": 107827200,
+      "allocated_last": 67125248
+    },
+    {
+      "completed_min": 29,
+      "completed_max": 42,
+      "samples": 121,
+      "aggregate_rss_max": 917176320,
+      "service_rss_min": 99414016,
+      "service_rss_max": 104415232,
+      "allocated_last": 86257664
+    },
+    {
+      "completed_min": 43,
+      "completed_max": 56,
+      "samples": 102,
+      "aggregate_rss_max": 916459520,
+      "service_rss_min": 100790272,
+      "service_rss_max": 108793856,
+      "allocated_last": 100159488
+    }
+  ],
+  "reopen_cleanup_confirmed": true,
+  "sqlite_databases_checked": 2,
+  "cold_reads_after_reopen": 3,
+  "shared_bodies": 29,
+  "shared_references": 54,
+  "shared_reused_bodies": 3,
+  "archive_count": 26,
+  "optional_attempt_counts": {
+    "success": 13
+  },
+  "optional_identity_success_claimed": false,
+  "worker_claim_late_count": 0,
+  "service_cleanup_confirmed": true,
+  "surviving_descendants": [],
+  "source_unchanged": true,
+  "warning": {
+    "count": 1,
+    "event": "moss_result_database_refusal",
+    "phase": "configure",
+    "operation": "write",
+    "budget_category": "deadline",
+    "sqlite_name": "SQLITE_INTERRUPT",
+    "vm_steps": 2800,
+    "body_entered": false,
+    "exact_caller_and_cause": "not established by bounded log"
+  },
+  "accuracy_qualified": false,
+  "long_wall_uptime_qualified": false,
+  "portable_runtime_qualified": false,
+  "evidence_sha256": {
+    "RESULT.json": "7a9fbbf608f5abb2c746827ce4843aea107689d8035998c8406e898a9d5bcdd4",
+    "SOURCE_PINS.json": "40bed199e76f2573337436470444510c64af5108b9a2fafc8e7475f39f86d225",
+    "timeseries.jsonl": "c7a84eb55f5ec6e9aee04434100d9dcfca8bbc3c54641764e3063041a60883fb",
+    "runtime.json": "1c4559e130f547ed16b964ed444020874b16cd17d6b0529f6e830704d3cac0ac",
+    "assets.json": "b43e531f38e2f954c9c86d10d7e02bfcbba8de22f529a65fc0274155140b26fd",
+    "regression-device27.log": "2bcb8e8441df2c0aab5de3cedbc8558317e686a9cec3dd3163b181d0814e4419"
+  }
+}
