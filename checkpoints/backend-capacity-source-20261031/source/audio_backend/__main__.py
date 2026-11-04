@@ -64,6 +64,8 @@ def main(argv=None):
     parser.add_argument('--whisper-cli', type=Path)
     parser.add_argument('--language', default='auto', help='auto, zh, en, or a supported Whisper language code')
     parser.add_argument('--window-seconds', type=float, default=30)
+    parser.add_argument('--context-seconds', type=float, default=2., help='Context on each side of a core; default unchanged')
+    parser.add_argument('--speaker-support-max-records', type=int, default=4096, help='Retained speaker support record cap; default unchanged')
     parser.add_argument('--event-threshold', type=float, default=.25)
     parser.add_argument('--framemn', action='store_true', help='EXPERIMENTAL default-off temporal Knock candidate side channel; does not change events or ASR')
     parser.add_argument('--framemn-checkpoint', type=Path, help='User-supplied local FrameMN10 checkpoint; no automatic downloads')
@@ -392,7 +394,8 @@ def _main(args,parser,argv,lock):
                         native_diarization_threads=args.native_diarization_threads,
                         inference_device=args.device, asr_backend=args.asr_backend, asr_model=args.asr_model,
                         whisper_cli=str(args.whisper_cli) if args.whisper_cli else None,
-                        language=args.language, window_seconds=args.window_seconds,
+                        language=args.language, window_seconds=args.window_seconds, context_seconds=args.context_seconds,
+                        speaker_support_max_records=args.speaker_support_max_records,
                         speaker_match_threshold=args.speaker_threshold, speaker_match_margin=args.speaker_margin,
                         speaker_new_threshold=args.new_speaker_threshold, speaker_profile_strategy=args.speaker_profile_strategy,
                         speaker_calibration_file=args.speaker_calibration,

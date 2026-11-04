@@ -46,9 +46,9 @@
     },
     {
       "path": "audio_backend/__main__.py",
-      "size": 35072,
-      "sha": "1bdc4874a6ddb69c01834f074bbf7f13627fec74",
-      "sha256": "41fc26dfa25d76abbb040035500ee7dcaa360218aa82fe97d192605a571b475a"
+      "size": 35467,
+      "sha": "f912dabc4825936b09708476753fdac2120505e0",
+      "sha256": "6998a911e5f8d3d72e22e3e0b187e184114ced4c1fc4f3f0216879cbadab6b22"
     },
     {
       "path": "audio_backend/app.py",
@@ -1027,6 +1027,12 @@
       "size": 10895,
       "sha": "5efec5f8824f678688d711693829ed4596ba1bd1",
       "sha256": "50482efc839a7d552336cea8b93704d0ef71b44e1dc50b69976e48fc672e6167"
+    },
+    {
+      "path": "audio_backend/strict_supervisor.py",
+      "size": 16920,
+      "sha": "74600ed950c397fb35ef1a5e471ae604c4acb066",
+      "sha256": "e576598cac4b36de8e3a951acae3fe74593eb58882812306dd2fc25e06c3d66a"
     },
     {
       "path": "audio_backend/support_vectors.py",
@@ -2289,6 +2295,12 @@
       "sha256": "03f3a2e7df30673eda01fa8dbc7df216e96611534f810c23468669967bcfe287"
     },
     {
+      "path": "docs/STRICT_BACKEND_SUPERVISOR.md",
+      "size": 9362,
+      "sha": "a0df3f4e17c86e915f7dcb0aefd9d7b796758e05",
+      "sha256": "b661a8d3e902f1fe2a027dc77737d18faa2bab32e0c7bd4fe129d53f103b5637"
+    },
+    {
       "path": "docs/STRICT_LIFETIME_QUOTAS.md",
       "size": 2963,
       "sha": "8e22a201ac7f18381cff78057cd0e43be048210f",
@@ -3547,6 +3559,12 @@
       "size": 5642,
       "sha": "71b8ae1e7473084705cf3093313910475d6fb645",
       "sha256": "f104e1da442c76f415e77772662af1e07ea13fd69e883d931b0dd04781d2cdb6"
+    },
+    {
+      "path": "tests/helpers/synthetic_supervisor_process.py",
+      "size": 5516,
+      "sha": "8b413cef07b8bfa91774b9b1bc6b04f73f26a2f6",
+      "sha256": "beda9957f614615ecdc3fc8c315296e7a812230136f76644d91b3c36883ad74a"
     },
     {
       "path": "tests/reviewed_person_bridge_fixtures.py",
@@ -5517,6 +5535,12 @@
       "sha256": "29a6999a21fae36742ec61579fca8b1a10c37bf5c75064a367992fe4517f177a"
     },
     {
+      "path": "tests/test_strict_supervisor.py",
+      "size": 15647,
+      "sha": "20fc2d7ef7df92bae1a231449673d27336aa8c51",
+      "sha256": "89ca5c48cab16a635fc47a4c6cd756440b983625f61b924af7c664582ba755e6"
+    },
+    {
       "path": "tests/test_strict_uploader_admission.py",
       "size": 4988,
       "sha": "80832b1ea4e023bba3024ffcbaa155acc6c537e6",
@@ -5872,5 +5896,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add read-only exact strict-runtime mismatch diagnostics and target qualification guide; no runtime profile activation or pin changes, 12 independent tests pass."
+  "source_update": "Add explicit product strict supervisor with original inherited locks, controlled child source, positive waits and fail-closed cleanup; 166 model-free adjacent tests pass, runtime pins unchanged."
 }
