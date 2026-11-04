@@ -1,0 +1,268 @@
+{
+  "source_commit": "bda0ad6e87779b884a872cd4aedbde739976d829",
+  "segments": 256,
+  "synthetic_audio_seconds": 30720,
+  "asr_run": false,
+  "production_limits_changed": false,
+  "phase_walls_seconds": [
+    186.05698996200044,
+    409.409929984
+  ],
+  "blocks": [
+    {
+      "first": 1,
+      "last": 32,
+      "publication": {
+        "n": 32,
+        "minimum": 0.08809786899973915,
+        "median": 0.13971605500000805,
+        "p95": 2.051969206999729,
+        "maximum": 3.162799086999712
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 0.02466461199992409,
+        "median": 0.2138340444998903,
+        "p95": 1.3300150700001723,
+        "maximum": 5.510780068999793
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 26914816,
+        "median": 34639872.0,
+        "p95": 38481920,
+        "maximum": 38481920
+      }
+    },
+    {
+      "first": 33,
+      "last": 64,
+      "publication": {
+        "n": 32,
+        "minimum": 0.07397246099981203,
+        "median": 0.13926334599977963,
+        "p95": 7.236809539000205,
+        "maximum": 17.26277840900002
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 0.3504911059999358,
+        "median": 0.6049049729999751,
+        "p95": 4.195889107999847,
+        "maximum": 6.366237541000373
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 30945280,
+        "median": 38486016.0,
+        "p95": 38662144,
+        "maximum": 38666240
+      }
+    },
+    {
+      "first": 65,
+      "last": 96,
+      "publication": {
+        "n": 32,
+        "minimum": 0.0813797290002185,
+        "median": 0.13097861949972867,
+        "p95": 0.16351521500018862,
+        "maximum": 0.2493693260003056
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 0.6992931300001146,
+        "median": 0.8361827014998653,
+        "p95": 3.782586371999969,
+        "maximum": 7.879660372999751
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 31129600,
+        "median": 36843520.0,
+        "p95": 38998016,
+        "maximum": 39010304
+      }
+    },
+    {
+      "first": 97,
+      "last": 128,
+      "publication": {
+        "n": 32,
+        "minimum": 0.08723595699939324,
+        "median": 0.1125434190003034,
+        "p95": 0.15827680199981842,
+        "maximum": 0.16376095400028134
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 0.9392344289999528,
+        "median": 1.0888525850004953,
+        "p95": 1.3092428190002465,
+        "maximum": 2.0072961939995366
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 31846400,
+        "median": 35594240.0,
+        "p95": 39350272,
+        "maximum": 39370752
+      }
+    },
+    {
+      "first": 129,
+      "last": 160,
+      "publication": {
+        "n": 32,
+        "minimum": 0.09295099900009518,
+        "median": 0.11224076049984433,
+        "p95": 0.19933533800031,
+        "maximum": 0.3009348579998914
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 1.1432756200001677,
+        "median": 1.3767767235003703,
+        "p95": 2.1838649350002015,
+        "maximum": 3.33346788200015
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 26972160,
+        "median": 34996224.0,
+        "p95": 39006208,
+        "maximum": 39018496
+      }
+    },
+    {
+      "first": 161,
+      "last": 192,
+      "publication": {
+        "n": 32,
+        "minimum": 0.09762592900005984,
+        "median": 0.13608772250017864,
+        "p95": 0.35099553400050354,
+        "maximum": 0.45927157400001306
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 1.412047495000479,
+        "median": 2.0143858364999687,
+        "p95": 12.547605790000489,
+        "maximum": 14.175233407000633
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 31539200,
+        "median": 39026688.0,
+        "p95": 39428096,
+        "maximum": 39428096
+      }
+    },
+    {
+      "first": 193,
+      "last": 224,
+      "publication": {
+        "n": 32,
+        "minimum": 0.09418416599964985,
+        "median": 0.12339598500011562,
+        "p95": 0.16624624199994287,
+        "maximum": 0.19620298800055025
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 1.7242955239998992,
+        "median": 2.0090080644999944,
+        "p95": 2.5787825260003956,
+        "maximum": 2.6214317260000826
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 31932416,
+        "median": 37619712.0,
+        "p95": 39788544,
+        "maximum": 39821312
+      }
+    },
+    {
+      "first": 225,
+      "last": 256,
+      "publication": {
+        "n": 32,
+        "minimum": 0.10104822499943111,
+        "median": 0.15508663250056998,
+        "p95": 0.4919061179998607,
+        "maximum": 1.110711954999715
+      },
+      "inventory": {
+        "n": 32,
+        "minimum": 2.0091746419993797,
+        "median": 2.784688516999722,
+        "p95": 7.055455947000155,
+        "maximum": 9.027900439000405
+      },
+      "rss": {
+        "n": 32,
+        "minimum": 32649216,
+        "median": 36378624.0,
+        "p95": 40144896,
+        "maximum": 40157184
+      }
+    }
+  ],
+  "fixed_inventory_seconds": {
+    "n": 32,
+    "minimum": 2.081689245999769,
+    "median": 2.329475486499632,
+    "p95": 3.0303106869996554,
+    "maximum": 3.5507022090005194
+  },
+  "fixed_inventory_rss": {
+    "n": 32,
+    "minimum": 36388864,
+    "median": 36417536.0,
+    "p95": 36417536,
+    "maximum": 36417536
+  },
+  "fixed_inventory_first_rss": 36388864,
+  "fixed_inventory_last_rss": 36417536,
+  "peak_sampled_rss": 40144896,
+  "peak_sampled_allocated": 1971478528,
+  "minimum_free_disk": 58818580480,
+  "sampling_count": 494,
+  "operation_end_fds": [
+    5,
+    6
+  ],
+  "receiver_opens": [
+    {
+      "count": 0,
+      "seconds": 0.010578331000033359
+    },
+    {
+      "count": 128,
+      "seconds": 0.04476981900006649
+    }
+  ],
+  "refusals": [
+    "completion_raw_attempt_capacity"
+  ],
+  "audit": {
+    "passed": true,
+    "raw_and_ready_deliveries": 256,
+    "compared_files": 768,
+    "raw_file_bytes": 983247648,
+    "ready_file_bytes": 983247648,
+    "all_deliveries_valid": true,
+    "restart_retains_capacity": true,
+    "wall_seconds": 5.091774505999638,
+    "fd_after": 4
+  },
+  "evidence_sha256": {
+    "workload.py": "e4bc6820fd971e41527b9398996a257626ab925df76814cacbb99349380367ac",
+    "operations.jsonl": "344b4d17ca6fdefab5e147e96d7412e4c575faf42b359b171328a910835a80ef",
+    "timeseries.jsonl": "d1b3633a275318e52afcee8753ab1c586b35608d49ce1c504c04da7f91c0484e",
+    "audit.json": "78da68fbaeecffbb46a568fd023b1ffff7c69f234ef1f476118d94955855e955",
+    "source-check.json": "95e22324bbb8f7c8cfc9876f403c159cc91cb7e2909e7e4b159ceca874fdb95a"
+  }
+}
