@@ -1828,9 +1828,9 @@
     },
     {
       "path": "docs/ISOLATED_TARGET_INSTALL_ZH.md",
-      "size": 5413,
-      "sha": "bb3dd1f46561d688b7c3abce3c620bac142e0f53",
-      "sha256": "469309c9f61623de75d3cd364742a1f057073d7cd1359a73474ae0693253b139"
+      "size": 6418,
+      "sha": "3aee4d5db5445e9bf1b29ca5b0e642dba600fb11",
+      "sha256": "c10678e0223f285d71221a9483a636e440bb6803005d948520d4273c8c6abc7e"
     },
     {
       "path": "docs/LEXICAL_EVIDENCE_RETENTION.md",
@@ -1933,6 +1933,12 @@
       "size": 4584,
       "sha": "22acc64ddd530dd9df53e2129e3241b6df956f09",
       "sha256": "c381288bdba80ad77f9f6b4fa381b43030aab44fda3d61cab8865664d25b7391"
+    },
+    {
+      "path": "docs/OPERATIONAL_FLOW_RESULT_20261104.md",
+      "size": 8625,
+      "sha": "488262bf9386dee7d5d30c36de6a8815261940fc",
+      "sha256": "e0611e0a4c33fbbbc1c926a7c14773179c86b773eb6c64af0a4f0444e94d2ed3"
     },
     {
       "path": "docs/OPTIONAL_EMPTY_CLAIM_SETTLING_20261102.md",
@@ -2206,9 +2212,9 @@
     },
     {
       "path": "docs/RECORDER_OPERATIONAL_START_ZH.md",
-      "size": 6590,
-      "sha": "a37f4dc885101b4940cd7f46340b564940816742",
-      "sha256": "975039e3941d77a7a0dc37fae6ef5a69d000a1ea7c1342419fa914f4404328a6"
+      "size": 6682,
+      "sha": "c9f3376b6c84623536f20f6e8eb225faabd29988",
+      "sha256": "9bcbe1788d9ede98baff9afd5fb0d6cf93cf00ef18ff9b201781e98415a3e3a1"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2979,6 +2985,18 @@
       "sha256": "49e05dd2674c0eeaf4afd0487ce8805e922a7eeefaad1af8ca0731494cde3d8c"
     },
     {
+      "path": "qualification/operational_install_20261104/candidate.patch",
+      "size": 2249,
+      "sha": "d3ec6df8b377932adad02c2a01f7262594952b87",
+      "sha256": "455e611bf6dbea40828236c81ceb3b4fd7f049b6165e911efe2d926af7678e8b"
+    },
+    {
+      "path": "qualification/operational_install_20261104/reviewed_basis.json",
+      "size": 757,
+      "sha": "b1451075fb611238db3eff2c48854273cf778387",
+      "sha256": "724380448a23dd5dbc8cb3505b184118c4b8921eab5a59f057df70c59d95d8c6"
+    },
+    {
       "path": "qualification/public_speech_native_audit_20261103/audit_public_speech.py",
       "size": 36350,
       "sha": "23eb85c12ab52dfa91dec3da4ebfc9476a2c4e4e",
@@ -3349,6 +3367,12 @@
       "size": 99,
       "sha": "124a505de4a2ddfbeff5f7461b1eb64d67368945",
       "sha256": "fff968364fb8867fa7d2395f1c97041c95bc2387eb4ebefd902ec845da92aca0"
+    },
+    {
+      "path": "requirements-linux-py313-runtime-and-receiver.lock.txt",
+      "size": 3400,
+      "sha": "57f0a4c922ab2d2dad01eb7bf5cc1146c99f84c4",
+      "sha256": "b1247c91baebe92b39be9250723822cf27ff6b217692755160f7b7632fa6845c"
     },
     {
       "path": "requirements-linux-py313-runtime.lock.txt",

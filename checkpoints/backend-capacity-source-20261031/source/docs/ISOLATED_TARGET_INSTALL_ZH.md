@@ -43,6 +43,25 @@ python -I -B -m pip install --no-deps --no-compile wheels/long_audio_backend-0.2
 `--no-compile` 防止安装生成产品字节码；首次验证前不导入产品。不要在服务的
 `PYTHONPATH` 中混入源码或测试工具。
 
+### 同环境运行推理与接收器
+
+Linux/Python3.13的整合环境使用
+`requirements-linux-py313-runtime-and-receiver.lock.txt`。不要强行叠加旧推理锁和
+接收器锁：合并锁明确采用接收器的pycparser3.12，替代推理单独锁中的3.1。
+pyftpdlib2.1.0使用官方sdist；锁保存其已验证源码包摘要和本次构建的wheel摘要。
+先安装固定构建依赖，再安装整合依赖：
+
+```sh
+python -I -B -m pip install --require-hashes -r requirements-build-dev9.lock.txt
+python -I -B -m pip install --no-build-isolation --no-compile --require-hashes \
+  -r requirements-linux-py313-runtime-and-receiver.lock.txt
+python -I -B -m pip check
+```
+
+可先在准备环境下载并构建wheel，再用`--no-index --find-links`离线安装。不要为
+离线安装猜测或修改hash。不同构建产物须单独记录摘要；来源sdist和本次本地wheel
+不是同一个文件。这个锁不是其他Python版本/平台的兼容承诺，也不批准目标资格。
+
 ## 3. 验证实际安装的产品字节
 
 用同一个解释器运行新工具的绝对路径，显式提供 materializer 回执及其已保存摘要：

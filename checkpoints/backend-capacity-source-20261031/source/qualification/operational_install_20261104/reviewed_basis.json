@@ -1,0 +1,12 @@
+{
+  "accepted_for_fresh_bounded_smoke": true,
+  "audit_sha256": "05ae8fbebd465fa4f309699a7d1ed7f0024c59bf2976f97f3903da9db6fa5375",
+  "candidate_tests_sha256": "193f3788e2dc377a3ecadb2579dd6883afb58de76c894073232bbc1a695c089a",
+  "existing_store_migration_authorized": false,
+  "general_production_rollout_approved": false,
+  "physical_result_sha256": "3f0c3e73d50cf52271e0656ecddd231051b1e7c52c2e52f96db25fc12ebb53ee",
+  "schema": "reviewed-isolated-target-materialization-v1",
+  "source_manifest_sha256": "91f4e815c10b1eed6020c4dd885bd24fee41a17f4bc9159d06c881249ec1caa3",
+  "source_module_sha256": "845bb9005fccc2fb6763abefac7781750b3d31ce390d841cca1a3fb4ef62f343",
+  "target_sha256": "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26"
+}

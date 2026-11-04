@@ -67,3 +67,8 @@ Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安�
 [从接收到分析的操作流程](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_OPERATIONAL_START_ZH.md)。
 这些入口减少手工步骤，不会自动批准新运行时，也不代表无限期录音、跨人声识别质量
 或用户服务器已经验收。不要提高上限或删除旧录音来掩盖连续运行限制。
+
+已在同一云主机的全新整合安装环境验证：实际Java连续三份ROTATION/ROTATION/STOP
+交付，在watch运行中陆续送达，完成原生分析与选定段导出。详见
+[操作链结果与剩余缺口](checkpoints/backend-capacity-source-20261031/source/docs/OPERATIONAL_FLOW_RESULT_20261104.md)。
+该结果仍绑定受审目标候选，不把短时闭环写成长期连续、跨人声质量或独立服务器验收。
