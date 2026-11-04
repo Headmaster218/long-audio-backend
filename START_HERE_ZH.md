@@ -79,3 +79,8 @@ Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安�
 首份交付超出冻结容量时也不会创建session/状态。新增prepare-only接收代际命令，
 严格保留旧录音、状态和端点，不自动切换手机。它们不等于连续轮换，详见
 [持续录音阻塞与安全边界](checkpoints/backend-capacity-source-20261031/source/docs/CONTINUOUS_RECORDING_LIMITS_ZH.md)。
+
+固定 FTPS 端点的有限代际路由已加入开发快照。配置帮助见
+`source/docs/RECORDER_RECEIVER_ROUTING.md`：保留旧 attempt 回读和新队列写入，
+当前代际切换需要停止/重启；最多八代，不删除原始数据，不等于热切换或无限期运行。
+真实 Android 生产传输代码的三份公开语音交付及旧回读已在同一云主机验证。

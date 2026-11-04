@@ -94,6 +94,7 @@ class Config:
     session_seconds: int = 3600
     max_commands: int = 10000
     publication_seconds: int = 30
+    generations: tuple | None = None
 
 
 def load_config(path):
@@ -106,7 +107,7 @@ def _validate_config(data):
     required = {'schema', 'binding', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file'}
     optional = {'bind_host', 'port', 'passive_ports', 'max_connections', 'max_connections_per_ip',
                 'max_attempts', 'max_raw_bytes', 'idle_seconds', 'session_seconds', 'max_commands',
-                'publication_seconds', 'allow_non_loopback', 'acknowledge_data_peer_ip_only', 'max_readback_bytes'}
+                'generations', 'publication_seconds', 'allow_non_loopback', 'acknowledge_data_peer_ip_only', 'max_readback_bytes'}
     _require(type(data) is dict and required <= data.keys() and not data.keys() - required - optional
              and data['schema'] == SCHEMA, 'receiver_config_fields')
     username = data['username']
@@ -150,7 +151,12 @@ def _validate_config(data):
               for name, bounds in ranges.items()}
     _require(values['max_connections_per_ip'] <= values['max_connections'], 'receiver_connection_bound')
     _require(ports is None or values['port'] not in ports, 'receiver_passive_control_overlap')
-    return Config(binding=data['binding'], inbox_dir=inbox, cert_file=cert, key_file=key,
+    generations = data.get('generations')
+    if generations is not None:
+        from .recorder_receiver_routing import validate
+        validate(generations,data['binding'],inbox)
+        generations = tuple(generations)
+    return Config(generations=generations,binding=data['binding'], inbox_dir=inbox, cert_file=cert, key_file=key,
                   username=username, password=password, bind_host=str(address), passive_ports=ports,
                   **values)
 
@@ -291,12 +297,38 @@ def create_server(config):
     staging = Path(receiver_config['staging_dir'])
 
     class OwnedFS(AbstractedFS):
+        def route(self, name):
+            try:
+                index = owner.resolve(name)
+                pins = self.cmd_channel._receiver_routes
+                if name in pins and pins[name] != index:
+                    raise publication.Refused('routing_connection_changed')
+                pins[name] = index
+                return index
+            except (publication.Refused, OSError):
+                raise OSError(errno.EPERM, 'Receive route refused') from None
+
+        def chdir(self, path):
+            if config.generations is None:
+                return super().chdir(path)
+            item = Path(path)
+            if item != staging:
+                if item.parent != staging:
+                    raise OSError(errno.EPERM, 'Receive directory refused')
+                self.route(item.name)
+            self.cwd = self.fs2ftp(path)
+
         def mkdir(self, path):
             item = Path(path)
             if item.parent != staging:
                 raise OSError(errno.EPERM, 'Receive directory refused')
             try:
-                self.cmd_channel._receiver_attempts[str(item)] = owner.begin_attempt(item.name)
+                if config.generations is None:
+                    self.cmd_channel._receiver_attempts[str(item)] = owner.begin_attempt(item.name)
+                else:
+                    selected, attempt = owner.begin(item.name)
+                    self.cmd_channel._receiver_attempts[str(item)] = (selected,attempt)
+                    self.route(item.name)
             except (publication.Refused, OSError):
                 raise OSError(errno.EPERM, 'Receive directory refused') from None
 
@@ -308,10 +340,15 @@ def create_server(config):
             if mode != 'wb' or str(item.parent) not in handler._receiver_attempts:
                 raise OSError(errno.EPERM, 'Receive file refused')
             try:
-                writer = owner.open_writer(handler._receiver_attempts[str(item.parent)], item.name)
+                selected = owner
+                attempt = handler._receiver_attempts[str(item.parent)]
+                if config.generations is not None:
+                    self.route(item.parent.name)
+                    selected, attempt = attempt
+                writer = selected.open_writer(attempt, item.name)
             except (publication.Refused, OSError):
                 raise OSError(errno.EPERM, 'Receive file refused') from None
-            stream = _Upload(writer, handler, owner)
+            stream = _Upload(writer, handler, selected)
             handler._receiver_uploads.append(stream)
             return stream
 
@@ -320,13 +357,17 @@ def create_server(config):
             if (item.parent.parent != staging or item.name not in publication.FILES
                     or publication.inbox.NAME.fullmatch(item.parent.name) is None):
                 raise OSError(errno.EPERM, 'Readback refused')
-            known = next((u for u in handler._receiver_uploads if u.name == str(item) and u.accepted), None)
+            binding, inbox_dir, raw_dir = config.binding, config.inbox_dir, staging
+            if config.generations is not None:
+                binding, inbox_dir, raw_dir = owner.generations[self.route(item.parent.name)]
+            actual = raw_dir/item.parent.name/item.name
+            known = next((u for u in handler._receiver_uploads if u.name == str(actual) and u.accepted), None)
             # Reconnect readback is served only from an already published,
             # immutable copy of this exact attempt. Never infer raw completion.
-            directory = item.parent if known else config.inbox_dir/item.parent.name
+            directory = actual.parent if known else inbox_dir/item.parent.name
             fd = raw = None
             try:
-                publication.validate_binding(config.binding, config.inbox_dir)
+                publication.validate_binding(binding, inbox_dir)
                 publication._private(directory)
                 fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
                 publication.snapshot._same_directory(directory, fd)
@@ -413,6 +454,7 @@ def create_server(config):
 
         def __init__(self, *args, **kwargs):
             self._receiver_attempts = {}
+            self._receiver_routes = {}
             self._receiver_uploads = []
             self._receiver_ending = False
             self._receiver_commands = 0
@@ -521,9 +563,13 @@ def create_server(config):
         authorizer.add_user(config.username, config.password, str(staging), perm='erwm')
         Handler.authorizer = authorizer
         loop = IOLoop()
-        owner = completion.ReceiverCompletion(binding=config.binding, inbox_dir=config.inbox_dir,
-            exclusive_receiver=True, max_attempts=config.max_attempts, max_raw_bytes=config.max_raw_bytes,
-            deadline_seconds=config.publication_seconds)
+        if config.generations is None:
+            owner = completion.ReceiverCompletion(binding=config.binding, inbox_dir=config.inbox_dir,
+                exclusive_receiver=True, max_attempts=config.max_attempts, max_raw_bytes=config.max_raw_bytes,
+                deadline_seconds=config.publication_seconds)
+        else:
+            from .recorder_receiver_routing import Routes
+            owner = Routes(config)
         server = FTPServer((config.bind_host, config.port), Handler, ioloop=loop)
         server.max_cons = config.max_connections
         server.max_cons_per_ip = config.max_connections_per_ip
