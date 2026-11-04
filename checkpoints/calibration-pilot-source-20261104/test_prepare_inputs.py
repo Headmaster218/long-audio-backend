@@ -21,7 +21,7 @@ class Preparation(unittest.TestCase):
                 original=acquired/'sources'/(row['utterance_id']+'.wav'); crop=acquired/'crops'/(row['utterance_id']+'.wav')
                 for path,channels,data in ((original,2,stereo),(crop,1,mono)):
                     with wave.open(str(path),'wb') as w:w.setparams((channels,2,16000,0,'NONE','not compressed'));w.writeframes(data)
-                row.update(status='qualified',source_local_path=str(original),crop_local_path=str(crop),
+                row.update(status='qualified',sample_rate=16000,source_local_path=str(original),crop_local_path=str(crop),
                            source_wav_sha256=hashlib.sha256(original.read_bytes()).hexdigest(),
                            crop_wav_sha256=hashlib.sha256(crop.read_bytes()).hexdigest(),
                            crop_pcm_sha256=hashlib.sha256(mono).hexdigest(),crop_start_sample=0)
@@ -44,6 +44,13 @@ class Preparation(unittest.TestCase):
             duplicate=copy.deepcopy(receipt);duplicate['candidates'].append(duplicate['candidates'][0])
             with self.assertRaisesRegex(ValueError,'candidate history'):run('dup-history',duplicate)
             duplicate=copy.deepcopy(receipt);duplicate['selected'][1]['crop_pcm_sha256']=duplicate['selected'][0]['crop_pcm_sha256']
+            row=next(r for r in duplicate['candidates'] if r['slot_id']==duplicate['selected'][1]['slot_id'] and r['candidate_rank']=='1')
+            row['crop_pcm_sha256']=duplicate['selected'][0]['crop_pcm_sha256']
             with self.assertRaisesRegex(ValueError,'duplicate crop_pcm'):run('dup-crop',duplicate)
+
+            malformed=copy.deepcopy(receipt);malformed['selected'][0]['source_wav_sha256']='0'*64
+            with self.assertRaisesRegex(ValueError,'selected candidate/history'):run('changed-selected',malformed)
+            malformed=copy.deepcopy(receipt);malformed['candidates'][0]['sample_rate']=True
+            with self.assertRaisesRegex(ValueError,'candidate source metadata'):run('bool-rate',malformed)
 
 if __name__=='__main__':unittest.main(verbosity=2)

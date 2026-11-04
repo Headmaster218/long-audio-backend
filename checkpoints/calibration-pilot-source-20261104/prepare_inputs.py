@@ -62,7 +62,16 @@ def main():
     if len(receipt['candidates'])!=len(expected_candidates) or len(candidates)!=len(expected_candidates): raise ValueError('candidate history incomplete')
     for e in expected_candidates:
         actual=candidates.get((e['slot_id'],str(e['candidate_rank'])))
-        if actual is None or any(actual.get(k)!=v for k,v in e.items()): raise ValueError('candidate source metadata changed')
+        if actual is None: raise ValueError('candidate source metadata missing')
+        for key,value in e.items():
+            observed=actual.get(key)
+            # The frozen acquisition retains source metadata but overwrites this
+            # one policy-string field with the measured WAV sample rate.
+            if key=='sample_rate' and type(observed) is int:
+                if observed==16000: continue
+                if actual.get('status')=='rejected' and actual.get('reason')=='required_16k_PCM16_stereo' and observed>=0: continue
+                raise ValueError('invalid observed sample rate/status')
+            if observed!=value: raise ValueError('candidate source metadata changed')
     selected={r['slot_id']:r for r in receipt['selected']}
     for slot,chosen in selected.items():
         rank=int(chosen['candidate_rank'])
@@ -70,7 +79,7 @@ def main():
         if actual is None or actual['status']!='qualified': raise ValueError('selected candidate not qualified')
         for earlier in range(1,rank):
             if candidates[(slot,str(earlier))]['status']!='rejected': raise ValueError('selected over unresolved earlier candidate')
-        if chosen['utterance_id']!=actual['utterance_id']: raise ValueError('selected candidate identity changed')
+        if chosen!={k:v for k,v in actual.items() if k!='status'}: raise ValueError('selected candidate/history binding differs')
     if len(receipt['selected'])!=108 or len(selected)!=108 or set(selected)!={r['id'] for r in rows}: raise ValueError('selected waveform population mismatch')
     for field in ('source_wav_sha256','crop_pcm_sha256'):
         seen={}
