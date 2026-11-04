@@ -2536,9 +2536,9 @@
     },
     {
       "path": "docs/VOICE_RUNTIME_OPERATIONAL_RETEST_20261104.md",
-      "size": 5151,
-      "sha": "339cd0daf40bd5cec0396519c9f7f1ee9ba16f12",
-      "sha256": "b6f94c818f6281c438a414d95f6e4155a0ce3768b5aae5595ea9fbdf651f4c46"
+      "size": 10562,
+      "sha": "6f33321db58428e2d1da31bf6e1b1341989196c2",
+      "sha256": "39bf75e018aea33e619518229e22a566903615c861394019aaa59324c3726a65"
     },
     {
       "path": "docs/evidence/SUPPORT_LOOKUP_NOV01_SYNTHETIC.json",
@@ -6286,5 +6286,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev69 plus honest corrected operational interruption report; frozen runtime proof remains separately pinned; formal same-session recovery pending."
+  "source_update": "dev69 plus audited formal same-session recovery and preserved negative post-recovery exploratory speaker result; no product changes or quality promotion."
 }
