@@ -421,3 +421,5 @@ An explicitly selected first delivery is also checked against deterministic
 fresh-span capacity before `configure` creates state or `initialize` creates
 state or makes HTTP requests. Oversized input refuses with
 `first_delivery_capacity`; this does not assert free disk or remote capacity.
+
+The optional existing reviewed-bank initializer and checked runner use versioned v2 receipts/config, with no change to unopted v1 controls. See [reviewed-bank handoff](RECORDER_REVIEWED_IDENTITY_HANDOFF.md) for all required arguments, checks, recovery, and concurrency limits.

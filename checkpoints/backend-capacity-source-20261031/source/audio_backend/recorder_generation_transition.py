@@ -53,12 +53,13 @@ def transition(*, state_dir, route_config, successor_attempt, next_state_dir,
                acknowledge_span_local_closure=False, deadline_seconds=120,
                max_actions=256, max_polls=256, poll_seconds=5, max_requests=1024,
                max_network_writes=512, max_network_bytes=runner.MAX_NETWORK_BYTES,
-               export_recovery_attempts=0, limits=None, transport=None, cancel=None):
+               export_recovery_attempts=0, limits=None, transport=None, cancel=None,
+               preserve_reviewed_identity_group=None,identity_generation=None,identity_policy_sha256=None):
     """Prepare the exact cut, finish/export the old span, then link one successor.
 
 All phases share a monotonic deadline. The old runner retains its independent
 action/request/byte bounds; next initialization adds at most six requests and one
-session POST, and never retries an uncertain POST. A bounded pause is not success.
+session POST (eleven requests with reviewed-bank preservation), and never retries an uncertain POST. A bounded pause is not success.
 """
     require(all(flag is True for flag in (acknowledge_logical_analysis_boundary,
         finalize, export, acknowledge_create_next_session, exclusive_writer,
@@ -99,6 +100,13 @@ session POST, and never retries an uncertain POST. A bounded pause is not succes
         job_dir=str(runner._path(str(next_job_dir))),
         output_dir=str(runner._path(str(next_output_dir))),
         capture_id=next_capture_id, session_name=next_session_name)
+    from . import recorder_runner_initialize as initialize
+    supplied_identity=any(item is not None for item in (preserve_reviewed_identity_group,identity_generation,identity_policy_sha256))
+    handoff=initialize.reviewed_handoff(config['session_id'] if supplied_identity else None,
+        preserve_reviewed_identity_group,identity_generation,identity_policy_sha256)
+    if handoff is not None:
+        nxt.update(reviewed_identity_handoff=handoff,session_creation_request=initialize.creation_request(
+            config['api'],next_session_name,handoff))
     # The caller supplies the exact attempt, never an inferred newest arrival.
     first = Path(pair['inbox_dir'])/successor_attempt
     expected = dict(next_session_intent=nxt, routing_provenance=provenance,
@@ -110,7 +118,9 @@ session POST, and never retries an uncertain POST. A bounded pause is not succes
             next_output_dir=nxt['output_dir'], next_capture_id=next_capture_id,
             next_session_name=next_session_name, acknowledge_logical_analysis_boundary=True,
             next_inbox_dir=pair['inbox_dir'], next_receiver_state_dir=pair['binding']['state_dir'],
-            route_config=provenance['config_path'], deadline_seconds=min(120, remaining()), cancel=cancel)
+            route_config=provenance['config_path'], deadline_seconds=min(120, remaining()), cancel=cancel,
+            preserve_reviewed_identity_group=preserve_reviewed_identity_group,identity_generation=identity_generation,
+            identity_policy_sha256=identity_policy_sha256)
     cut = _existing(state, config, expected, remaining)
     require(cut['successor']['path'] == str(first), 'transition_saved_successor_changed')
 
@@ -123,19 +133,35 @@ session POST, and never retries an uncertain POST. A bounded pause is not succes
 
     base = transport or u.HTTPTransport(config['api'], guard)
     class CheckedTransport:
+        requests=writes=response_bytes=0
         def request(self, method, path, **kwargs):
             guard.check()
+            if handoff is not None:
+                if method!='GET' and path.startswith('/sessions/'+config['session_id']+'/'):
+                    initialize.check_reviewed_identity(self.request,handoff,config['session_id'])
+                require(self.requests<max_requests and (method=='GET' or self.writes<max_network_writes),
+                        'transition_identity_network_request_bound')
+                require(self.response_bytes+u.JSON_BYTES<=max_network_bytes,
+                        'transition_identity_network_byte_bound')
+            self.requests+=1;self.writes+=method!='GET'
             value = base.request(method, path, **kwargs)
             guard.check()
+            if handoff is not None:
+                require(type(value) is dict and len(single._json(value))<=u.JSON_BYTES,
+                        'transition_identity_response_bound')
+                self.response_bytes+=len(single._json(value))
             return value
     checked = CheckedTransport()
+    if handoff is not None and not os.path.lexists(state/'export.done.json'):
+        initialize.check_reviewed_identity(checked.request,handoff,config['session_id'])
     finished = runner.watch(state_dir=state, exclusive_writer=True,
         acknowledge_span_local_closure=True, finalize=True, export=True,
         export_recovery_attempts=export_recovery_attempts, max_actions=max_actions,
         max_polls=max_polls, poll_seconds=poll_seconds, max_requests=max_requests,
         max_network_writes=max_network_writes, max_network_bytes=max_network_bytes,
         deadline_seconds=remaining(), limits=limits, transport=checked, cancel=cancel)
-    requests, writes = finished['network_requests'], finished['network_writes']
+    requests, writes = ((checked.requests,checked.writes) if handoff is not None else
+                        (finished['network_requests'],finished['network_writes']))
     if finished['status'] != 'exported':
         return result('transition_paused', 'finish_old_span', stop_reason=finished['status'],
             network_requests=requests, network_writes=writes,
@@ -147,13 +173,22 @@ session POST, and never retries an uncertain POST. A bounded pause is not succes
             old_export_verified=True, next_session_linked=False,
             preserve_existing_files=True, automatic_retry=False)
     _existing(state, config, expected, remaining)
+    if handoff is not None and not os.path.lexists(Path(nxt['state_dir'])/initialize.DIRECTORY/'complete.json'):
+        # Never strand post.intent on a coordinator budget refusal that is known
+        # not to have dispatched. Reserve the whole bounded bootstrap first.
+        if (checked.requests+11>max_requests or checked.writes+1>max_network_writes
+                or checked.response_bytes+11*u.JSON_BYTES>max_network_bytes):
+            return result('transition_paused','link_next_session',stop_reason='identity_initialization_budget',
+                network_requests=checked.requests,network_writes=checked.writes,
+                old_export_verified=True,next_session_linked=False,
+                preserve_existing_files=True,automatic_retry=False)
     following = advance.advance(state_dir=state, acknowledge_create_next_session=True,
         exclusive_writer=True, acknowledge_span_local_closure=True,
         deadline_seconds=min(120, remaining()), transport=checked)
     guard.check()
     return result('transition_complete', 'next_session_linked',
-        network_requests=requests+following['network_requests'],
-        network_writes=writes+following['network_writes'],
+        network_requests=checked.requests if handoff is not None else requests+following['network_requests'],
+        network_writes=checked.writes if handoff is not None else writes+following['network_writes'],
         old_export_verified=True, next_session_linked=True,
         next_config_sha256=following['next_config_sha256'],
         next_initialization_sha256=following['next_initialization_sha256'],
@@ -169,6 +204,7 @@ def main(argv=None):
                  'next-job-dir', 'next-output-dir', 'next-capture-id'):
         p.add_argument('--'+name, required=True)
     p.add_argument('--next-session-name', default='')
+    for name in ('preserve-reviewed-identity-group','identity-generation','identity-policy-sha256'):p.add_argument('--'+name)
     for name in ('acknowledge-logical-analysis-boundary', 'finalize', 'export',
                  'acknowledge-create-next-session', 'exclusive-writer',
                  'acknowledge-span-local-closure'):

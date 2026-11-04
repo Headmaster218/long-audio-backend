@@ -104,3 +104,5 @@ native task with one explicit retry, and zero-HTTP repeated handoffs. The exact
 scope, artifact hashes and remaining limits are recorded in
 INSTALLED_GENERATION_FLOW_RESULT_20261104.md. This does not authorize hot switching
 or replace qualification on another server.
+
+Optional existing reviewed-bank preservation adds bounded pre-effect checks and exact next-creation binding; see [reviewed-bank handoff](RECORDER_REVIEWED_IDENTITY_HANDOFF.md). This is observed group/generation/policy continuity, not an atomic inference-generation fence.

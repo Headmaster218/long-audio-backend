@@ -39,6 +39,31 @@ def arguments(data, action='check'):
         '--profile', 'strict-primary-payload-v2', '--strict-payload-source-storage', 'shared-source-v1']
 
 
+def provision_assets(data):
+    # Metadata fixtures only. These bytes are never loaded as models/libraries.
+    for name in ('native.gguf', 'native.so', 'speaker.onnx', 'models/speaker.onnx',
+                 'models/sensevoice/model.int8.onnx', 'models/sensevoice/tokens.txt',
+                 'models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx',
+                 'models/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv'):
+        path = data.parent / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'synthetic metadata fixture, not a model')
+
+
+def reviewed_policy(tmp_path, schema=1):
+    value = json.loads((ROOT / 'audio_backend/profiles/verified-review-experimental-v1.json').read_text())
+    if schema == 2:
+        from audio_backend.primary_crop_support import POLICY
+        value.update(schema_version=2, primary_query_overlap_policy=POLICY)
+    path = tmp_path / 'reviewed-policy.json'
+    path.write_text(json.dumps(value))
+    return path
+
+
+def reviewed_arguments(policy):
+    return ['--reviewed-primary-persons', '--verified-identity-policy', str(policy)]
+
+
 def available(data):
     with (data / 'instance.lock').open('rb') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -59,7 +84,8 @@ def until(predicate, process, timeout=15):
 
 
 @pytest.mark.parametrize('action', ['check', 'serve'])
-def test_unqualified_runtime_refuses_without_assets_service_or_data_mutation(tmp_path, monkeypatch, capsys, action):
+@pytest.mark.parametrize('reviewed', [False, True])
+def test_unqualified_runtime_refuses_without_assets_service_or_data_mutation(tmp_path, monkeypatch, capsys, action, reviewed):
     data = directory(tmp_path)
     def inspect(path):
         assert path == data
@@ -68,7 +94,8 @@ def test_unqualified_runtime_refuses_without_assets_service_or_data_mutation(tmp
     monkeypatch.setattr(runtime, 'inspect_runtime', inspect)
     monkeypatch.setattr(supervisor, '_assets', lambda _: pytest.fail('Assets touched after runtime refusal'))
     monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Child started on refusal'))
-    assert supervisor.main(arguments(data, action)) == 2
+    extra = reviewed_arguments(tmp_path / 'intentionally-missing-policy.json') if reviewed else []
+    assert supervisor.main(arguments(data, action) + extra) == 2
     assert json.loads(capsys.readouterr().out)['reason'] == 'unqualified_runtime'
     assert [p.name for p in data.iterdir()] == ['instance.lock']
     assert (data / 'instance.lock').read_bytes() == b'unchanged-lock-bytes'
@@ -86,6 +113,98 @@ def test_check_is_metadata_only_and_explicit_about_its_limits(tmp_path, monkeypa
     assert report['status'] == 'preflight_passed'
     assert report['service'] == 'not_started' and report['models'] == 'not_loaded'
     assert report['session'] == 'not_created'
+    assert report['reviewed_primary_persons_enabled'] is False
+    assert report['verified_identity_policy'] == 'not_requested'
+    assert report['person_bank'] == 'not_opened_or_activated'
+    available(data)
+
+
+@pytest.mark.parametrize('schema', [1, 2])
+def test_reviewed_check_validates_product_policy_without_mutation_or_bank_activation(tmp_path, monkeypatch, capsys, schema):
+    import sqlite3
+    from audio_backend import verified_identity
+    data = directory(tmp_path)
+    provision_assets(data)
+    policy = reviewed_policy(tmp_path, schema)
+    original = verified_identity.policy_file
+    validated = []
+    def validate(path):
+        conflict(data)
+        validated.append(path)
+        return original(path)
+    monkeypatch.setattr(verified_identity, 'policy_file', validate)
+    monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: {'status': 'matched'})
+    monkeypatch.setattr(sqlite3, 'connect', lambda *a, **k: pytest.fail('Check opened a database'))
+    monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Check launched a child'))
+    def snapshot():
+        return {str(p.relative_to(tmp_path)): (p.read_bytes(), p.stat().st_mode)
+                for p in tmp_path.rglob('*') if p.is_file()}
+    before = snapshot()
+    assert supervisor.main(arguments(data) + reviewed_arguments(policy)) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report['status'] == 'preflight_passed'
+    assert report['reviewed_primary_persons_enabled'] is True
+    assert report['verified_identity_policy'] == 'validated_configuration_only'
+    assert report['person_bank'] == 'not_opened_or_activated'
+    assert report['models'] == 'not_loaded' and report['service'] == 'not_started'
+    assert report['session'] == 'not_created'
+    assert validated == [policy]
+    assert snapshot() == before
+    assert [p.name for p in data.iterdir()] == ['instance.lock']
+    assert supervisor._PENDING_OWNER is None
+    available(data)
+
+
+@pytest.mark.parametrize('action', ['check', 'serve'])
+@pytest.mark.parametrize('flag', ['--reviewed-primary-persons', '--verified-identity-policy'])
+def test_reviewed_options_require_both_explicit_flags_before_ownership(tmp_path, monkeypatch, capsys, action, flag):
+    data = directory(tmp_path)
+    monkeypatch.setattr(supervisor, '_acquire', lambda _: pytest.fail('Partial opt-in acquired lock'))
+    extra = [flag] if flag == '--reviewed-primary-persons' else [flag, str(reviewed_policy(tmp_path))]
+    assert supervisor.main(arguments(data, action) + extra) == 1
+    assert 'must be supplied together' in capsys.readouterr().err
+    available(data)
+
+
+@pytest.mark.parametrize('action', ['check', 'serve'])
+@pytest.mark.parametrize('kind', ['missing', 'relative', 'symlink', 'parent_symlink', 'hardlink',
+    'directory', 'fifo', 'empty', 'oversized', 'invalid_json', 'wrong_shape', 'extra_key',
+    'missing_key', 'wrong_schema', 'not_experimental', 'threshold', 'boolean', 'nonfinite', 'duration'])
+def test_reviewed_policy_path_and_exact_bounded_schema_refuse_before_launch(tmp_path, monkeypatch, kind, action):
+    data = directory(tmp_path)
+    provision_assets(data)
+    path = reviewed_policy(tmp_path)
+    value = json.loads(path.read_text())
+    if kind == 'missing': path.unlink()
+    elif kind == 'relative': path = Path('reviewed-policy.json')
+    elif kind == 'symlink':
+        alias = tmp_path / 'policy-alias'; alias.symlink_to(path); path = alias
+    elif kind == 'parent_symlink':
+        alias = tmp_path / 'parent-alias'; alias.symlink_to(tmp_path, target_is_directory=True)
+        path = alias / path.name
+    elif kind == 'hardlink': os.link(path, tmp_path / 'policy-link')
+    elif kind == 'directory': path = tmp_path
+    elif kind == 'fifo': path.unlink(); os.mkfifo(path)
+    elif kind == 'empty': path.write_bytes(b'')
+    elif kind == 'oversized': path.write_bytes(b' ' * 8193)
+    elif kind == 'invalid_json': path.write_text('{')
+    else:
+        if kind == 'wrong_shape': value = []
+        elif kind == 'extra_key': value['unrecognized'] = True
+        elif kind == 'missing_key': del value['margin']
+        elif kind == 'wrong_schema': value['schema_version'] = 3
+        elif kind == 'not_experimental': value['experimental'] = False
+        elif kind == 'threshold': value['single_threshold'] = 1.01
+        elif kind == 'boolean': value['single_threshold'] = True
+        elif kind == 'nonfinite': value['single_threshold'] = float('nan')
+        elif kind == 'duration': value['minimum_enrollment_seconds'] = 21
+        path.write_text(json.dumps(value))
+    monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: {'status': 'matched'})
+    monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Invalid policy launched a child'))
+    assert supervisor.main(arguments(data, action) + reviewed_arguments(path)) == 1
+    assert [p.name for p in data.iterdir()] == ['instance.lock']
+    assert (data / 'instance.lock').read_bytes() == b'unchanged-lock-bytes'
+    assert supervisor._PENDING_OWNER is None
     available(data)
 
 
@@ -149,7 +268,40 @@ def test_command_is_exact_product_profile_without_private_harness_paths(tmp_path
     assert value('--strict-primary-receipt-records') == '8192'
     assert value('--lexical-evidence-session-mib') == '256'
     assert '--moss-jobs' not in command and '--native-owned-compact-gc' not in command
+    assert '--reviewed-primary-persons' not in command and '--verified-identity-policy' not in command
     assert not any('capacity_service' in item or 'audio-recovery' in item for item in command[1:])
+
+
+def test_reviewed_opt_in_only_appends_the_existing_product_flags(tmp_path):
+    data = directory(tmp_path)
+    policy = reviewed_policy(tmp_path)
+    baseline = supervisor._child_command(supervisor._parser().parse_args(arguments(data, 'serve')), 9)
+    args = supervisor._parser().parse_args(arguments(data, 'serve') + reviewed_arguments(policy))
+    assert supervisor._child_command(args, 9) == baseline + reviewed_arguments(policy)
+
+
+def test_reviewed_serve_forwards_validated_policy_with_original_lock_held(tmp_path, monkeypatch):
+    data = directory(tmp_path)
+    provision_assets(data)
+    policy = reviewed_policy(tmp_path)
+    # The existing product validator admits exactly 8 KiB, not one byte more.
+    policy.write_bytes(policy.read_bytes().ljust(8192, b' '))
+    monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: {'status': 'matched'})
+    captured = []
+    def run(owner, command, signals, grace):
+        conflict(data)
+        owner.lock.verify_inherited()
+        baseline = supervisor._child_command(
+            supervisor._parser().parse_args(arguments(data, 'serve')), owner.lock.file.fileno())
+        assert command == baseline + reviewed_arguments(policy)
+        captured.append(command)
+        return 23  # No actual service, model or bank is started by this test.
+    monkeypatch.setattr(supervisor, '_run_child', run)
+    assert supervisor.main(arguments(data, 'serve') + reviewed_arguments(policy)) == 23
+    assert len(captured) == 1
+    assert [p.name for p in data.iterdir()] == ['instance.lock']
+    assert supervisor._PENDING_OWNER is None
+    available(data)
 
 
 @pytest.mark.parametrize('mode,signum,expected,childcode', [
@@ -259,13 +411,16 @@ def test_signal_request_before_launch_creates_no_child(tmp_path, monkeypatch):
     available(data)
 
 
-def test_complete_supervisor_command_constructs_the_expected_product_settings(tmp_path, monkeypatch):
+@pytest.mark.parametrize('policy_schema', [None, 1, 2])
+def test_complete_supervisor_command_constructs_the_expected_product_settings(tmp_path, monkeypatch, policy_schema):
     from audio_backend import __main__ as server
     data = directory(tmp_path)
     lock = supervisor._acquire(data)
     captured = []
     monkeypatch.setattr(server, '_run_app', lambda settings, *a, **k: captured.append(settings))
-    args = supervisor._parser().parse_args(arguments(data, 'serve'))
+    policy = reviewed_policy(tmp_path, policy_schema) if policy_schema is not None else None
+    extra = reviewed_arguments(policy) if policy is not None else []
+    args = supervisor._parser().parse_args(arguments(data, 'serve') + extra)
     try:
         # Same-process invocation must duplicate; production Popen has separate fd tables.
         command = supervisor._child_command(args, os.dup(lock.file.fileno()))
@@ -283,6 +438,11 @@ def test_complete_supervisor_command_constructs_the_expected_product_settings(tm
         assert cfg.native_diarization_threads == cfg.cpu_threads == 2
         assert cfg.process_memory_limit_bytes == 6 * 1024**3
         assert not cfg.moss_jobs_enabled and not cfg.native_owned_compact_gc_enabled
+        assert cfg.reviewed_primary_persons_enabled is (policy is not None)
+        assert cfg.verified_identity_policy_file == (str(policy) if policy is not None else None)
+        assert cfg.verified_identity_policy == (json.loads(policy.read_text()) if policy is not None else None)
+        from audio_backend.settings import payload_live_enabled
+        assert payload_live_enabled(cfg)
         conflict(data)
     finally:
         lock.release()

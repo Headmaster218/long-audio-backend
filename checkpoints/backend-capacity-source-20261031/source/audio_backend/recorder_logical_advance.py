@@ -65,7 +65,9 @@ def advance(*, state_dir, acknowledge_create_next_session=False, exclusive_write
             job_dir=nxt['job_dir'],output_dir=nxt['output_dir'],api=config['api'],
             session_id=initialize.PENDING,capture_id=nxt['capture_id'],max_hours=config['max_hours'],
             max_inputs=config['max_inputs'],receiver_state_dir=selected_config.get('receiver_publication',{}).get('state_dir'))
-        expected=initialize._intent(template,first,successor['delivery'],nxt['session_name'])
+        handoff=nxt.get('reviewed_identity_handoff')
+        if handoff is not None:template=dict(template,schema=runner.CONFIG_SCHEMA_V2,reviewed_identity_handoff=handoff)
+        expected=initialize._intent(template,first,successor['delivery'],nxt['session_name'],handoff)
         def completed_link():
             single.private_directory(next_state)
             fd=runner.engine.held_lock(next_state/'runner.lock')
@@ -102,7 +104,10 @@ def advance(*, state_dir, acknowledge_create_next_session=False, exclusive_write
                 output_dir=nxt['output_dir'],receiver_state_dir=selected_config.get('receiver_publication',{}).get('state_dir'),
                 max_hours=config['max_hours'],max_inputs=config['max_inputs'],session_name=nxt['session_name'],
                 exclusive_writer=True,acknowledge_span_local_closure=True,resume=os.path.lexists(next_state),
-                deadline_seconds=min(120,left),transport=CheckedTransport())
+                deadline_seconds=min(120,left),transport=CheckedTransport(),
+                **(dict(preserve_reviewed_identity_group=handoff['identity_group'],
+                    identity_source_session_id=handoff['source_session_id'],identity_generation=handoff['generation'],
+                    identity_policy_sha256=handoff['policy_sha256']) if handoff else {}))
             requests=result['network_requests'];writes=result['network_writes']
             current=completed_link()
         check_old()

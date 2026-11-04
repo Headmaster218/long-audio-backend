@@ -1,8 +1,9 @@
 """Linux foreground supervisor for the existing strict CPU backend.
 
 No asset download, runtime qualification, session creation or automatic restart.
-The check command reads metadata and holds an existing lock without starting a
-service. The serve command uses the same preflight before one child launch.
+The check command reads metadata and an explicitly supplied policy, and holds an
+existing lock without starting a service. Serve uses the same preflight before
+one child launch.
 """
 from __future__ import annotations
 
@@ -81,6 +82,11 @@ def _assets(args):
                  args.model_dir / 'sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/model.onnx',
                  args.model_dir / 'sherpa-onnx-zipformer-small-audio-tagging-2024-04-15/class_labels_indices.csv'):
         _canonical(path)
+    if args.reviewed_primary_persons:
+        # Use the product's bounded exact-schema validator, just as Settings
+        # does. This reads configuration only, never opens or activates a bank.
+        from .verified_identity import policy_file
+        policy_file(_canonical(args.verified_identity_policy))
 
 
 def _child_command(args, fd):
@@ -114,6 +120,9 @@ def _child_command(args, fd):
         '--recording-primary-observation-policy', 'primary-clean-history-v1',
         '--recording-primary-sampling-policy', 'skip-bucket-v1',
         '--recording-primary-observation-interval-seconds', '60']
+    if args.reviewed_primary_persons:
+        command.extend(['--reviewed-primary-persons', '--verified-identity-policy',
+                        str(args.verified_identity_policy)])
     return command
 
 
@@ -293,6 +302,10 @@ def _parser():
     parser.add_argument('--strict-payload-source-storage', choices=('inline', 'shared-source-v1'), required=True)
     parser.add_argument('--strict-primary-lifetime-records', type=int, default=32768)
     parser.add_argument('--strict-primary-receipt-records', type=int, default=8192)
+    parser.add_argument('--reviewed-primary-persons', action='store_true',
+                        help='Opt in to existing reviewed person APIs; requires --verified-identity-policy')
+    parser.add_argument('--verified-identity-policy', type=Path,
+                        help='Existing absolute canonical experimental policy JSON; requires --reviewed-primary-persons')
     parser.add_argument('--shutdown-grace-seconds', type=float, default=90.)
     return parser
 
@@ -300,6 +313,8 @@ def _parser():
 def _validate(args):
     if sys.platform != 'linux':
         raise Refused('Strict supervisor requires Linux, procfs and flock')
+    if args.reviewed_primary_persons != (args.verified_identity_policy is not None):
+        raise Refused('--reviewed-primary-persons and --verified-identity-policy must be supplied together')
     if not 1 <= args.port <= 65535:
         raise Refused('Port must be between 1 and 65535')
     for name, low, high in (('memory_limit_gib', .25, 10.), ('shutdown_grace_seconds', .1, 600.),
@@ -337,6 +352,10 @@ def main(argv=None):
                 print(json.dumps({'schema': 'strict-supervisor-check-v1', 'status': 'preflight_passed',
                     'runtime': runtime, 'assets': 'existing_paths_only_not_content_or_license_verified',
                     'policy': args.profile, 'storage': args.strict_payload_source_storage,
+                    'reviewed_primary_persons_enabled': args.reviewed_primary_persons,
+                    'verified_identity_policy': ('validated_configuration_only' if args.reviewed_primary_persons
+                                                 else 'not_requested'),
+                    'person_bank': 'not_opened_or_activated',
                     'models': 'not_loaded', 'service': 'not_started', 'session': 'not_created'}, sort_keys=True))
                 return 0
             _notice('Preflight passed. Starting one strict CPU service on loopback; no automatic restart. '

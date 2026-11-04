@@ -125,6 +125,33 @@ ordinary `audio_backend` CLI retains its prior defaults; only two pass-through
 options, `--context-seconds` and `--speaker-support-max-records`, were added to
 express this existing profile.
 
+### Optional reviewed primary person bank
+
+The supervisor keeps reviewed person APIs disabled unless **both**
+`--reviewed-primary-persons` and `--verified-identity-policy /absolute/canonical/policy.json`
+are explicitly supplied to `check` or `serve`. Supplying only one is refused.
+Use an existing, nonempty, single-link regular policy file without symlinks.
+After runtime admission, preflight uses the same bounded 8 KiB, exact-schema
+experimental policy validator as the product Settings. It accepts the existing
+supported policy schemas without changing their thresholds or choosing one for
+the operator. The shipped example is
+`audio_backend/profiles/verified-review-experimental-v1.json`; pass its real
+absolute canonical path if that is the intended policy.
+
+Successful check output reports `reviewed_primary_persons_enabled` and
+`verified_identity_policy: validated_configuration_only` (or `not_requested`
+when disabled). `person_bank: not_opened_or_activated` is literal: no database,
+bank, person, association or reference is created or inspected. These fields
+report configuration, not bank availability, identity accuracy or model quality.
+The child receives the same two flags on explicit `serve`; all strict runtime,
+lock, CPU, profile, source-storage and capacity fences remain unchanged.
+
+Before enabling, read the [reviewed person schema and downgrade precautions](REVIEWED_PRIMARY_PERSONS.md).
+Serving with this opt-in can install the existing guarded schema; it does not
+activate a bank, enroll voices or associate a person automatically. Existing
+explicit bank activation/review APIs and immutable policy rules still apply.
+This launcher change adds no recognition, enrollment or quality qualification.
+
 ## Ownership and shutdown
 
 1. Open the existing lock read-only and take exclusive nonblocking `flock`.

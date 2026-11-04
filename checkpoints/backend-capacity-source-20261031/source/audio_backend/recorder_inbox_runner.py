@@ -32,6 +32,7 @@ from .recorder_delivery import Refused, inspect_delivery, MAX_METADATA
 
 SCHEMA = 'recorder-inbox-runner-v1'
 CONFIG_SCHEMA = 'recorder-inbox-runner-config-v1'
+CONFIG_SCHEMA_V2 = 'recorder-inbox-runner-config-v2'
 CONFIG_KEYS = frozenset(('schema', 'inbox_dir', 'job_dir', 'output_dir', 'api',
     'session_id', 'capture_id', 'span_origin', 'max_hours', 'max_inputs'))
 MAX_ACTIONS = 195
@@ -74,8 +75,12 @@ def _outside_git(path):
 
 
 def _config(value, state):
-    require(type(value) is dict and set(value) in (CONFIG_KEYS, CONFIG_KEYS | {'receiver_publication'}) and
-            value['schema'] == CONFIG_SCHEMA, 'runner_config_fields')
+    require(type(value) is dict and value.get('schema') in (CONFIG_SCHEMA,CONFIG_SCHEMA_V2), 'runner_config_fields')
+    keys=CONFIG_KEYS | ({'reviewed_identity_handoff'} if value['schema']==CONFIG_SCHEMA_V2 else set())
+    require(set(value) in (keys,keys|{'receiver_publication'}), 'runner_config_fields')
+    if value['schema']==CONFIG_SCHEMA_V2:
+        from .recorder_runner_initialize import validate_handoff
+        validate_handoff(value['reviewed_identity_handoff'])
     destination = single.target(value['api'], 'operator-selected-unverified',
                                 value['session_id'], value['capture_id'], 0)
     require(value['api'] == destination['origin'], 'runner_canonical_api_required')
@@ -189,7 +194,7 @@ def _ledger(root, config, *, logical_preparing=False):
     if os.path.lexists(root/logical.RUNNER_ANCHOR):
         allowed.add(logical.RUNNER_ANCHOR)
         if not logical_preparing:logical.verify_anchor(Path(config['job_dir']),root)
-    if os.path.lexists(root/'initialization'):
+    if config['schema']==CONFIG_SCHEMA_V2 or os.path.lexists(root/'initialization'):
         from .recorder_runner_initialize import validate_completed
         validate_completed(root,config);allowed.add('initialization')
     intents = []; completed = 0; pending = False
@@ -365,21 +370,31 @@ class _WatchTransportStopped(Refused):
 
 class _Transport:
     def __init__(self, http, guard, config, max_requests, max_writes, check, *,
-                 watch=False, max_bytes=MAX_NETWORK_BYTES):
+                 watch=False, max_bytes=MAX_NETWORK_BYTES, reviewed_identity_handoff=None):
         self.http, self.guard, self.config, self.check = http, guard, config, check
         self.max_requests, self.max_writes = max_requests, max_writes
         self.requests = self.writes = self.bytes = 0
         self.watch, self.max_bytes = watch, max_bytes
         self.export_recovery_phase = False
+        self.reviewed_identity_handoff = reviewed_identity_handoff
+
+    def check_identity(self):
+        if self.reviewed_identity_handoff is not None:
+            from .recorder_runner_initialize import check_reviewed_identity
+            check_reviewed_identity(self.request,self.reviewed_identity_handoff,self.config['session_id'])
 
     def request(self, method, path, **kwargs):
         self.guard.check(); require(method in ('GET','PUT','POST'), 'runner_http_method')
         require(not self.export_recovery_phase or (method == 'GET' and not kwargs),
                 'runner_export_recovery_get_only')
         base = '/sessions/'+self.config['session_id']
-        require(path == base or path.startswith(base+'/'), 'runner_http_target')
+        identity_read = self.reviewed_identity_handoff is not None and method=='GET' and not kwargs and path in (
+            '/sessions/'+self.reviewed_identity_handoff['source_session_id'],
+            '/identity-groups/'+self.reviewed_identity_handoff['identity_group']+'/reviewed-person-bank')
+        require(path == base or path.startswith(base+'/') or identity_read, 'runner_http_target')
         if method != 'GET':
             require(path.startswith(base+'/recordings/'+self.config['capture_id']+'/'), 'runner_http_write_target')
+            self.check_identity()
         require(self.requests < self.max_requests and (method == 'GET' or self.writes < self.max_writes),
                 'runner_network_request_bound')
         if self.watch or self.export_recovery_phase:
@@ -602,9 +617,11 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
             _job_prefix(config, intents, completed, writes=writes)
             if intents and len(intents) > completed:
                 _binding(config, intents[-1], len(intents)-1, remaining)
+        from .recorder_runner_initialize import completed_handoff
+        handoff = completed_handoff(root,config)
         http = _Transport(transport or u.HTTPTransport(config['api'], guard), guard, config,
                           max_requests, max_network_writes, check,
-                          watch=watching, max_bytes=max_network_bytes)
+                          watch=watching, max_bytes=max_network_bytes,reviewed_identity_handoff=handoff)
         actions = 0; helper_actions = 0; polls = 0; last_status = None
         def result(outcome, **extra):
             if watching:
@@ -768,6 +785,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                 job = Path(config['job_dir']); fresh = not os.path.lexists(job)
                 recovery = not fresh and not os.path.lexists(job/'uploader/uploader.json')
                 require(not recovery or completed == 0, 'runner_checkpoint_missing_after_admission')
+                http.check_identity()
                 actions += 1
                 accepted = helper(intake.run, **options(),delivery=value['path'],start=fresh,recover_initial=recovery,
                     acknowledge_span_local_closure=True,max_hours=config['max_hours'],max_inputs=config['max_inputs'])
@@ -893,6 +911,8 @@ def main(argv=None):
         initialize.add_argument('--'+name,required=True)
     initialize.add_argument('--output-dir');initialize.add_argument('--receiver-state-dir')
     initialize.add_argument('--session-name',default='')
+    for name in ('preserve-reviewed-identity-group','identity-generation','identity-policy-sha256','identity-source-session-id'):
+        initialize.add_argument('--'+name)
     initialize.add_argument('--max-hours',type=int,default=12)
     initialize.add_argument('--max-inputs',type=int,default=192)
     initialize.add_argument('--deadline-seconds',type=float,default=30)

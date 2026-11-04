@@ -23,3 +23,5 @@ This is a crash-resumable, serialized, one-transition operation, **not an atomic
 Normal CLI output contains hashes, counts and semantic flags, not private paths or session labels. Keep all private initialization, boundary and export artifacts. Do not delete uncertain state to force another POST.
 
 For an explicitly prepared v2 cross-inbox boundary, advance validates the pinned route bytes and selected publication/attempt identities again and initializes the next runner against that exact new inbox and publication binding. V1 retains its same-inbox behavior. Neither version activates the FTPS route configuration or proves that a receiver is listening.
+
+An explicitly selected v3 boundary can preserve its source session's existing reviewed bank through the supported session creation API. The next-session receipt binds the group/generation/policy; no labels or vectors are copied. See [reviewed-bank handoff](RECORDER_REVIEWED_IDENTITY_HANDOFF.md), including its non-atomic reset-race limit.

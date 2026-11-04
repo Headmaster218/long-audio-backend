@@ -15,6 +15,7 @@ ANCHOR = 'logical-boundary.intent.json'
 RUNNER_ANCHOR = 'logical-cut.intent.json'
 SCHEMA = 'recorder-logical-analysis-boundary-v1'
 SCHEMA_V2 = 'recorder-logical-analysis-boundary-v2'
+SCHEMA_V3 = 'recorder-logical-analysis-boundary-v3'
 require = single.require
 
 
@@ -47,10 +48,14 @@ def routing_selection(route_config, old_config):
     return new,provenance,configs
 
 
+def cross_inbox(value):
+    return value['schema']==SCHEMA_V2 or (value['schema']==SCHEMA_V3 and 'successor_publication' in value)
+
+
 def source_config(value, config):
     """Return the exact successor namespace; v1 never acquires cross-inbox scope."""
-    if value['schema']==SCHEMA:return config
-    require(value['schema']==SCHEMA_V2,'logical_boundary_schema')
+    if not cross_inbox(value):return config
+    require(value['schema'] in (SCHEMA_V2,SCHEMA_V3),'logical_boundary_schema')
     selected,provenance,_=routing_selection(value['routing_provenance']['config_path'],config)
     require(single._json(selected)==single._json(value['successor_publication']) and
             single._json(provenance)==single._json(value['routing_provenance']),
@@ -89,7 +94,7 @@ def verify_anchor(root, state=None):
     root=Path(root)
     anchor=single.manifest_read(root/ANCHOR)
     require(type(anchor) is dict and set(anchor)=={'schema','job_dir','runner_state_dir','receipt_sha256'}
-        and anchor['schema'] in (SCHEMA,SCHEMA_V2) and anchor['job_dir']==str(root),'logical_boundary_anchor_fields')
+        and anchor['schema'] in (SCHEMA,SCHEMA_V2,SCHEMA_V3) and anchor['job_dir']==str(root),'logical_boundary_anchor_fields')
     saved_state=Path(anchor['runner_state_dir'])
     require(saved_state.is_absolute() and saved_state==saved_state.resolve()
         and (state is None or saved_state==Path(state)),'logical_boundary_anchor_state')
@@ -104,7 +109,7 @@ def durable(root, expected=None):
     from . import recorder_inbox_runner as runner
     anchor=verify_anchor(root)
     value=single.manifest_read(Path(root)/NAME)
-    if value['schema']==SCHEMA_V2:
+    if cross_inbox(value):
         config=single.manifest_read(Path(value['runner_state_dir'])/'config.json')
         require(digest(config)==value['runner_config_sha256'],'logical_boundary_runner_changed')
         source_config(value,config)
@@ -137,8 +142,8 @@ def verify(root, header, receipts, records, remaining):
 def _verify_value(root,header,receipts,records,remaining,value,*,preparing=False):
     from . import recorder_inbox_runner as runner
     from . import recorder_incremental_span_intake as span
-    require(type(value) is dict and value.get('schema') in (SCHEMA,SCHEMA_V2), 'logical_boundary_schema')
-    added={'successor_publication','routing_provenance','successor_ownership'} if value['schema']==SCHEMA_V2 else set()
+    require(type(value) is dict and value.get('schema') in (SCHEMA,SCHEMA_V2,SCHEMA_V3), 'logical_boundary_schema')
+    added={'successor_publication','routing_provenance','successor_ownership'} if cross_inbox(value) else set()
     require(set(value) == {'schema','consent','recording_complete',
         'recognition_continuity_verified','job_dir','header_sha256','admissions_sha256',
         'runner_state_dir','runner_config_sha256','runner_intents_sha256',
@@ -164,7 +169,7 @@ def _verify_value(root,header,receipts,records,remaining,value,*,preparing=False
     path = runner._path(successor['path'])
     selected_config=source_config(value,config)
     require(path.parent == Path(selected_config['inbox_dir']), 'logical_boundary_successor_inbox')
-    if value['schema']==SCHEMA_V2:
+    if cross_inbox(value):
         pair,_,generations=routing_selection(value['routing_provenance']['config_path'],config)
         observed_path,report,ownership=_published_successor(pair,path.name,remaining,generations)
         require(observed_path==path and single._json(report)==single._json(successor['delivery']) and
@@ -173,17 +178,24 @@ def _verify_value(root,header,receipts,records,remaining,value,*,preparing=False
     current = runner._binding(selected_config,runner._intent(selected_config,path,successor['delivery'],completed),completed,remaining)
     span.POLICY.validate_edge(records[-1],current)
     nxt = value['next_session_intent']
-    require(type(nxt) is dict and set(nxt) == {'state_dir','job_dir','output_dir','capture_id','session_name'},
+    identity_fields={'reviewed_identity_handoff','session_creation_request'} if value['schema']==SCHEMA_V3 else set()
+    require(type(nxt) is dict and set(nxt) == {'state_dir','job_dir','output_dir','capture_id','session_name'}|identity_fields,
         'logical_boundary_next_intent_fields')
     require(type(nxt['session_name']) is str and len(nxt['session_name']) <= 200,
         'logical_boundary_next_name')
+    if identity_fields:
+        from . import recorder_runner_initialize as initialize
+        handoff=initialize.validate_handoff(nxt['reviewed_identity_handoff'])
+        require(handoff['source_session_id']==config['session_id'] and
+            single._json(nxt['session_creation_request'])==single._json(initialize.creation_request(
+                config['api'],nxt['session_name'],handoff)), 'logical_boundary_identity_binding')
     template = runner.config_from_delivery(first_delivery=path,inbox_dir=selected_config['inbox_dir'],
         job_dir=nxt['job_dir'],output_dir=nxt['output_dir'],api=config['api'],session_id='pending-logical-next',
         capture_id=nxt['capture_id'],max_hours=config['max_hours'],max_inputs=config['max_inputs'],
         receiver_state_dir=selected_config.get('receiver_publication',{}).get('state_dir'))
     next_state = runner._path(nxt['state_dir']);runner._config(template,next_state)
     protected = [state,root,Path(config['inbox_dir'])]
-    if value['schema']==SCHEMA_V2:
+    if cross_inbox(value):
         _,_,generations=routing_selection(value['routing_provenance']['config_path'],config)
         protected.extend(Path(g[k]) for g in generations for k in ('state_dir','staging_dir','inbox_dir'))
     if config['output_dir'] is not None:protected.append(Path(config['output_dir']))
@@ -199,7 +211,7 @@ def protected(value):
     successor=Path(value['successor']['path'])
     paths=(Path(value['runner_state_dir']),successor.parent,successor,
             *(Path(value['next_session_intent'][k]) for k in ('state_dir','job_dir','output_dir')))
-    if value['schema']==SCHEMA_V2:
+    if cross_inbox(value):
         config=single.manifest_read(Path(value['runner_state_dir'])/'config.json')
         require(digest(config)==value['runner_config_sha256'],'logical_boundary_runner_changed')
         source_config(value,config)
@@ -218,7 +230,8 @@ def summary(value):
 
 def prepare(*, state_dir, successor_attempt, next_state_dir, next_job_dir, next_output_dir,
             next_capture_id, next_session_name='', acknowledge_logical_analysis_boundary=False,
-            next_inbox_dir=None,next_receiver_state_dir=None,route_config=None,deadline_seconds=120,cancel=None):
+            next_inbox_dir=None,next_receiver_state_dir=None,route_config=None,deadline_seconds=120,cancel=None,
+            preserve_reviewed_identity_group=None,identity_generation=None,identity_policy_sha256=None):
     from . import recorder_inbox_runner as runner
     from . import recorder_incremental_span_intake as span
     require(acknowledge_logical_analysis_boundary is True,'logical_boundary_ack_required')
@@ -267,7 +280,14 @@ def prepare(*, state_dir, successor_attempt, next_state_dir, next_job_dir, next_
             path,report=selected[0]
         nxt=dict(state_dir=str(next_state_dir),job_dir=str(next_job_dir),output_dir=str(next_output_dir),
                  capture_id=next_capture_id,session_name=next_session_name)
-        value=dict(schema=SCHEMA_V2 if added else SCHEMA,**added,consent='explicit_logical_analysis_boundary',recording_complete=False,
+        from . import recorder_runner_initialize as initialize
+        supplied_identity=any(item is not None for item in (preserve_reviewed_identity_group,identity_generation,identity_policy_sha256))
+        handoff=initialize.reviewed_handoff(config['session_id'] if supplied_identity else None,
+            preserve_reviewed_identity_group,identity_generation,identity_policy_sha256)
+        if handoff is not None:
+            nxt.update(reviewed_identity_handoff=handoff,session_creation_request=initialize.creation_request(
+                config['api'],next_session_name,handoff))
+        value=dict(schema=SCHEMA_V3 if handoff else SCHEMA_V2 if added else SCHEMA,**added,consent='explicit_logical_analysis_boundary',recording_complete=False,
             recognition_continuity_verified=False,job_dir=str(root),header_sha256=digest(header),
             admissions_sha256=digest(receipts),runner_state_dir=str(state),runner_config_sha256=digest(config),
             runner_intents_sha256=digest(intents),inputs=completed,
@@ -308,6 +328,7 @@ def main(argv=None):
     for name in ('state-dir','successor-attempt','next-state-dir','next-job-dir','next-output-dir','next-capture-id'):
         p.add_argument('--'+name,required=True)
     p.add_argument('--next-session-name',default='')
+    for name in ('preserve-reviewed-identity-group','identity-generation','identity-policy-sha256'):p.add_argument('--'+name)
     for name in ('next-inbox-dir','next-receiver-state-dir','route-config'):p.add_argument('--'+name)
     p.add_argument('--deadline-seconds',type=float,default=120)
     p.add_argument('--acknowledge-logical-analysis-boundary',action='store_true',required=True)

@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "a114ff00e460280eca0fd9bd5c2aabfe58274aec",
-      "sha256": "e91d5c5e9cf425d825a2a3b1b40841757fa42e1d2d69bbcb59c50b16866b3995"
+      "sha": "7cecdacdd7081d3ef38689fcb5db0b286b6f9133",
+      "sha256": "0bff37bb4b9c91279516d8a5bee99b3ba7f97b5c15dc132f6f6f2bb4ea36c093"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -766,9 +766,9 @@
     },
     {
       "path": "audio_backend/recorder_generation_transition.py",
-      "size": 10964,
-      "sha": "ae3783c4b227747841a696c00376f830a0f8c4d7",
-      "sha256": "1a32e97d86c7bd01dfb49043482ac17510c36a3afcbf55a4674ff70e78dec65a"
+      "size": 13981,
+      "sha": "cb589cb0ed7d9fc4fd54fda3b42f9d713e3acda0",
+      "sha256": "a633abaa298f0b47854bb2bca5ca5b05cab56ccb33d03e5fdbfd8067a0340bfd"
     },
     {
       "path": "audio_backend/recorder_inbox.py",
@@ -778,9 +778,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 58276,
-      "sha": "7cdc260ce5d820f157f408e07dcfa415a3b5f7bb",
-      "sha256": "031a95a831fd764b4259092f752a26383e6138a036a0731ce054b2a15b4b7b94"
+      "size": 59742,
+      "sha": "e5b7375a321e6689df89ca1e08db58c803dbaff5",
+      "sha256": "c717752517067a0a53e8d9ec3b86ae49bd0e4953e7980e121fdb46cd92c5ec9e"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -820,15 +820,15 @@
     },
     {
       "path": "audio_backend/recorder_logical_advance.py",
-      "size": 8316,
-      "sha": "b54b1250e0c6f9aed13a89367f3fe2b0dd3dbaf8",
-      "sha256": "bb5169403be3f6f091ee1d6ee6738a309d59e984c260fb22d7853f6fce40188a"
+      "size": 8790,
+      "sha": "541acd0d678ba598cb8d2a3a96c07eb5b7b1fcd7",
+      "sha256": "f0d04f5211a73f57ac57f1018d0f7dd60c0108ef166bc569f039bb2005aae59c"
     },
     {
       "path": "audio_backend/recorder_logical_boundary.py",
-      "size": 19670,
-      "sha": "fbabea3a9985ab83f9532742fac978cd2dea7063",
-      "sha256": "179eeca941fde1d6737289e559838f33ef5fddf759b2409d32c00159f35f9002"
+      "size": 21261,
+      "sha": "d07b4f2b94fbc858a8ffd188179a0840fd2b197b",
+      "sha256": "3e5f424796c8a5b85d47df15c79a1c8bc93a01dc5f70947a42c372ea35a6f80e"
     },
     {
       "path": "audio_backend/recorder_metadata.py",
@@ -874,9 +874,9 @@
     },
     {
       "path": "audio_backend/recorder_runner_initialize.py",
-      "size": 10392,
-      "sha": "4b3a13f42e06eaf0ba2076af39d4ec645e6eeb76",
-      "sha256": "6fc1523cf63d62adc36c14d5828878724464d77608b490cc18f28db5ec1e41dd"
+      "size": 14871,
+      "sha": "ac46e465ffab9331f0eff927081a6c5708063e52",
+      "sha256": "59c86b01b274e17393ec9662e82ff16670da6531f7f78cf72d6593f5ee527741"
     },
     {
       "path": "audio_backend/recorder_sequence.py",
@@ -1084,9 +1084,9 @@
     },
     {
       "path": "audio_backend/strict_supervisor.py",
-      "size": 16920,
-      "sha": "74600ed950c397fb35ef1a5e471ae604c4acb066",
-      "sha256": "e576598cac4b36de8e3a951acae3fe74593eb58882812306dd2fc25e06c3d66a"
+      "size": 18334,
+      "sha": "9cf8df0e964a3dc695e73adcbc61b5e9b9a7d2cc",
+      "sha256": "854e95cb888ad342925a17eb98007ac81d606fe2aac97749b1fba693a30ee6e5"
     },
     {
       "path": "audio_backend/support_vectors.py",
@@ -1285,6 +1285,12 @@
       "size": 35129,
       "sha": "9c4d99ffdeb65590507701cbe3fc947c47ab38cc",
       "sha256": "bc03070766b737e9828c62e40c9830e994a33df55144321ac6b59fd4904625b7"
+    },
+    {
+      "path": "docs/CONTINUOUS_AUTOMATION_GAPS_ZH.md",
+      "size": 3751,
+      "sha": "e34804a96b6d14d437d4639027bd275b58616cfc",
+      "sha256": "3fc8512814d11e6e2ae483d7d8d1a8b63c90db7d147c0cfcebbc4d9b507d1340"
     },
     {
       "path": "docs/CONTINUOUS_RECORDING_LIMITS_ZH.md",
@@ -2242,9 +2248,9 @@
     },
     {
       "path": "docs/RECORDER_GENERATION_TRANSITION.md",
-      "size": 5844,
-      "sha": "bbeaa0c9a8571bafe6ce292a388227e30a8396f3",
-      "sha256": "777a8386128ded640cf926996cd8c722a6261db9066f72c07eec5c73551987f3"
+      "size": 6117,
+      "sha": "438948242cdf55a91cfcf1a1290d4bdb8a4edda5",
+      "sha256": "45337664388a748fec522400c7a2f27e965d7a103ca722d9f3850e55f5b7013b"
     },
     {
       "path": "docs/RECORDER_INBOX_EXPORT_RECOVERY.md",
@@ -2254,9 +2260,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 26141,
-      "sha": "4f911ebd4788b1dbbe63d603ba358e4acd637be2",
-      "sha256": "8249ab8de44225dee3c0423745072823aa6b6e2a5cb508a653ff9f657c7eeaf9"
+      "size": 26419,
+      "sha": "5e0e04c4398a45bdfe9b9d8fe0c680a1ca1cf1b0",
+      "sha256": "8c9de337cc5e8c87415b053b40b33be56fcf84503214d82a3eabe15425d7db1b"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -2272,15 +2278,15 @@
     },
     {
       "path": "docs/RECORDER_LOGICAL_ADVANCE.md",
-      "size": 3232,
-      "sha": "ecdc2beb5ec6e94580cb7abbfee13b359dd9c0de",
-      "sha256": "9c46cfc93a7bcf80fb751e008be195dea191122b9e0477e7130b439998bc558f"
+      "size": 3573,
+      "sha": "561b089f1a71dfcc82ed6ab7f49e49ed7fd161e5",
+      "sha256": "1147e230077ab6abe3557a6f83e7ec39da0c63035558f4823abad86b8bbceecd"
     },
     {
       "path": "docs/RECORDER_LOGICAL_BOUNDARY.md",
-      "size": 8390,
-      "sha": "45860a70eed9d8d48e47f648e124a13491ceb972",
-      "sha256": "8b88325f10fc017aba5583759b21ca6d41ff792936a5525036736d14fc8efcfe"
+      "size": 8597,
+      "sha": "b08d889db138ba0d62f687cc37f863cae7cdf887",
+      "sha256": "0fcc6af4e88056fee300006f07746c15a94465488c29905b574016dbbadef48a"
     },
     {
       "path": "docs/RECORDER_OPERATIONAL_RECOVERY_ZH.md",
@@ -2335,6 +2341,12 @@
       "size": 9262,
       "sha": "dce31c66bff402aa45fe757a784bf8c507525351",
       "sha256": "cc7d4f3727814ef738004c34173c297cce72e5de2e0709268a0eb7c41ef2b4bf"
+    },
+    {
+      "path": "docs/RECORDER_REVIEWED_IDENTITY_HANDOFF.md",
+      "size": 5478,
+      "sha": "8c15054f94fc43e35738dcc49168024cb81b24c0",
+      "sha256": "2af360f081c2b642e0c03a4404ab10d66397c49c240c1c26ef7ddf9455a32ad4"
     },
     {
       "path": "docs/RECORDER_SEGMENT_PROFILE_PREFLIGHT.md",
@@ -2434,9 +2446,9 @@
     },
     {
       "path": "docs/STRICT_BACKEND_SUPERVISOR.md",
-      "size": 9362,
-      "sha": "a0df3f4e17c86e915f7dcb0aefd9d7b796758e05",
-      "sha256": "b661a8d3e902f1fe2a027dc77737d18faa2bab32e0c7bd4fe129d53f103b5637"
+      "size": 11085,
+      "sha": "bebb67e21164995689aa3abb762499f2aa2c50ba",
+      "sha256": "f389bc4269bb109c37ddbb09053d4fbda4f4d961c9e3a11a3e1bf3289cbcfdcf"
     },
     {
       "path": "docs/STRICT_LIFETIME_QUOTAS.md",
@@ -2615,8 +2627,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "6418f2d7ef584f3e39196facdebff46a50e6b838",
-      "sha256": "33f76628fd44400893466c463c59163ce01b54cedd95fed6259062b66ed1bd31"
+      "sha": "9d1fe66140b004ff683ff1d8176159d0c7d5c3b7",
+      "sha256": "a7c7af44070088801430bc81896b6c27db4d5c22b1d7dbe14c2b1149b9ac7c2d"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5433,6 +5445,12 @@
       "sha256": "5cdcdae42edcd0f6b4f9596b6446ae1d2b4e3b919a2b1fc33c9d0bf987385b47"
     },
     {
+      "path": "tests/test_recorder_reviewed_identity_handoff.py",
+      "size": 19604,
+      "sha": "8f1dd3dd7d3e10bd324b6f75bc3f03cd1cc91eb0",
+      "sha256": "30e46d2833bd3522b250328c5dcc235d34025d06fa148456bb5b6389d45631e7"
+    },
+    {
       "path": "tests/test_recorder_runner_capacity.py",
       "size": 7321,
       "sha": "6b10e3e2f40f293784878002c49c43040f02da30",
@@ -5884,9 +5902,9 @@
     },
     {
       "path": "tests/test_strict_supervisor.py",
-      "size": 15647,
-      "sha": "20fc2d7ef7df92bae1a231449673d27336aa8c51",
-      "sha256": "89ca5c48cab16a635fc47a4c6cd756440b983625f61b924af7c664582ba755e6"
+      "size": 24351,
+      "sha": "b67f9f55f19cb96d607d003e95c7af65653e8487",
+      "sha256": "9e7b7c9ddef028ea834bd641a663b75913812373cb3eb47a3aa6bf1ebb757e15"
     },
     {
       "path": "tests/test_strict_uploader_admission.py",
@@ -6244,5 +6262,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add explicit product strict supervisor with original inherited locks, controlled child source, positive waits and fail-closed cleanup; 166 model-free adjacent tests pass, runtime pins unchanged."
+  "source_update": "dev68 opt-in reviewed identity group handoff and strict supervisor configuration; existing audio, models and identity matching policies unchanged. Observed checks are not atomic generation pinning."
 }
