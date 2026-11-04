@@ -1,0 +1,17 @@
+--- original/audio_backend/native_owned_cell_store.py
++++ candidate/audio_backend/native_owned_cell_store.py
+@@ -385,11 +385,11 @@
+     platform='linux', vfs='unix', filesystem_device=27,
+     sector_bytes_max=65536, journal_headers_max=1,
+     allocation_slack_bytes_max=2097152,
+-    evidence_sha256='d1eafbcf6bde0071d301f488ba82e69fa3bbadc446c62775276e4998efbdbe67',
++    evidence_sha256='82f574070d0b1f2a571b7e0086b28ace0441e9c532b67f629fdf46c48a1d5fb7',
+     interpreter_bytes=30894944,
+     interpreter_sha256='fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7',
+-    interpreter_realpath_sha256='65fe300dfb28a7ca3f663634ae0aac5615189445bde833a7409891e1a273b22b',
+-    sqlite3_package_sha256='096bb1a3902a75a2c3723f2d7863a8d3e9ed627bd862e6538eca2bc517d6e29b',
++    interpreter_realpath_sha256='092094acf32366e424bd8d232e9aef42dab43509ad31701f5a209e1a2e20d74e',
++    sqlite3_package_sha256='6ac9a15ee2c393bd994e6b3784ed3f5fb97c9b4f986cbce03dccbad6226778df',
+     sqlite3_binding='observed-built-in-no-separate-sqlite-mapping-v1',
+     sqlite3_extension_sha256=None, sqlite3_library_sha256=None,
+     sqlite3_library_realpath_sha256=None),)

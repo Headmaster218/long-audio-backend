@@ -35,6 +35,10 @@ python -m audio_backend.recorder_inbox_runner --help
 - 现有可运行 FTPS 接收进程：`python -m audio_backend.recorder_ftps_receiver`，安装单独的 `requirements-receiver.txt` 并提供已有私有配置、账号和 TLS 证书。已通过本机回环测试及实际 Android Java 传输代码测试；它不是公开互联网接收器，不自动创建凭据或部署服务。详见 `docs/RECORDER_FTPS_RECEIVER_SERVICE.md`。
 - 每个选定 span 仍需人工提供已有空 strict session 和首次交付路径。没有全自动每日 session 创建、无限期 daemon 或自动留存清理。原始收件与发布区各有 8 GiB 上限，保留目录也有上限；需要明确留存方案，不能依赖无限累积。
 
+## 受审隔离安装流程
+
+新增 `qualification/materialize_target_candidate.py` 与 `qualification/verify_installed_target.py`，分别用于从明确受审证据生成隔离源码、校验已安装的产品字节。详见恢复后源码内 `docs/ISOLATED_TARGET_INSTALL_ZH.md`。这不是绕过默认运行时拒绝的开关，也不表示任意服务器已通过。
+
 ## 运行前按顺序阅读
 
 以下路径相对恢复后的源码目录：

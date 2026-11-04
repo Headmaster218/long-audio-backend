@@ -1803,6 +1803,12 @@
       "sha256": "c07c2d6e3f94fc5342ea77d9ef8014a67bbccba546af5bd3df036bf56abd9820"
     },
     {
+      "path": "docs/ISOLATED_TARGET_INSTALL_ZH.md",
+      "size": 4484,
+      "sha": "d2a27ad8ce3793815c431c387d22e0330b99da30",
+      "sha256": "22215bdf390e7c2db0a81fd618eeadad3f7cd8cbb2d7ba71cd2fe6025a9a78bf"
+    },
+    {
       "path": "docs/LEXICAL_EVIDENCE_RETENTION.md",
       "size": 5974,
       "sha": "afe57c7922e27dbe69922f44c7bdd766c36e7712",
@@ -2547,6 +2553,12 @@
       "sha256": "03ec4f3dd320bba4eeb284515a9b356be5c44b25f048dc5d618ce992242ebeb2"
     },
     {
+      "path": "qualification/MATERIALIZE_TARGET_CANDIDATE.md",
+      "size": 3838,
+      "sha": "421d352e51d7d164da5bf7622d9037eebe456a10",
+      "sha256": "b67d753903f4b67de52cf4c7e644fa420326b35daf6d6adb8ba638fc5f193fd4"
+    },
+    {
       "path": "qualification/NineProducerDeliveries.java",
       "size": 4599,
       "sha": "a0dd2fe37bda44a9c49035dc3ac82007b6173c40",
@@ -2877,6 +2889,12 @@
       "sha256": "bc1f2ef9ce111a7f73ffee67fcfc0638bccb1a040843de64af1ed340d34bb0ad"
     },
     {
+      "path": "qualification/materialize_target_candidate.py",
+      "size": 11794,
+      "sha": "bbcf9d4ac656b88f6595653bef539259ffa8c6e2",
+      "sha256": "2eecea0104c9b8c78cc5e1a7e2c79773cc831b98f97b26d8768018faef78651c"
+    },
+    {
       "path": "qualification/native_inbox_watch_audit_20261103/README.md",
       "size": 3860,
       "sha": "98d40d932e6867465762433d0106207cb7730be9",
@@ -3069,6 +3087,24 @@
       "sha256": "ddd8c4099d951b5a2f555f30b97b0674a7a68ac7ff94c2a50e96c683ede28b93"
     },
     {
+      "path": "qualification/relocated_install_20261104/RESULT.md",
+      "size": 4502,
+      "sha": "1f83bcf33073a03cdf3d9c6590fda0125e223dcf",
+      "sha256": "69cd79429f568909a88f807812915ab8ecd38544163829e24f6e475348720ce7"
+    },
+    {
+      "path": "qualification/relocated_install_20261104/candidate.patch",
+      "size": 1160,
+      "sha": "4a12e05a10ebd04ed5a86336680330c440fa2bf1",
+      "sha256": "c23020ef402bba65ed383e5af2ac134db758ee7926ddaeeaa4b02ef9f5bee256"
+    },
+    {
+      "path": "qualification/relocated_install_20261104/reviewed_basis.json",
+      "size": 757,
+      "sha": "e9b32881711a487e14b93107b3d02028ab50f42c",
+      "sha256": "82f574070d0b1f2a571b7e0086b28ace0441e9c532b67f629fdf46c48a1d5fb7"
+    },
+    {
       "path": "qualification/sensevoice_context_diagnostic_20261103.py",
       "size": 8933,
       "sha": "a81418a04eb5a90adefaf29b48cd59cf4e9d57ee",
@@ -3195,6 +3231,12 @@
       "sha256": "950d07f3de78a4373da0be94a91bee7c3a604ed45b752746160d8c17a96565e9"
     },
     {
+      "path": "qualification/test_materialize_target_candidate.py",
+      "size": 9318,
+      "sha": "52109dccbe37e053d3bfb88fa4082282809e9603",
+      "sha256": "81b5a12be012fbc835b74fa8f951e39047be05f37248403f10b4a651750fd1d5"
+    },
+    {
       "path": "qualification/test_session_request_atomic_init.py",
       "size": 2514,
       "sha": "0ae73a5b9648840854be05b8b1562a3720c7f492",
@@ -3223,6 +3265,18 @@
       "size": 6108,
       "sha": "3f7e97a8232ccc7e735c96f3bfdcf52c48244ea1",
       "sha256": "0b81a7cba8cd20273d158611781fe29a163682b0d965ebc2463c1566a3cfe36e"
+    },
+    {
+      "path": "qualification/test_verify_installed_target.py",
+      "size": 1633,
+      "sha": "a5d97de040011c63c37898ab233989267a4e51ed",
+      "sha256": "0cda18a3e83b6d81bb666e39000ff99c713190d78ba002057db48879f564bf5a"
+    },
+    {
+      "path": "qualification/verify_installed_target.py",
+      "size": 4495,
+      "sha": "f3d8a0d50730a2218a88fdbb2bce50b6e25291f8",
+      "sha256": "38e825dc36e2f675a83bb223f9b34495c0725880ada3fdaebfe78fae58f363ff"
     },
     {
       "path": "requirements-build-dev9.lock.txt",
