@@ -5,7 +5,7 @@ frames start at zero for this selected span only. Every invocation acknowledges
 that EOS cannot establish full capture completeness or physical continuity.
 """
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 import re
@@ -32,6 +32,7 @@ require = single.require
 @dataclass(frozen=True)
 class SpanPolicy(engine.IntakePolicy):
     schema: str = SCHEMA
+    logical_boundary: dict | None = None
 
     @property
     def header_keys(self):
@@ -124,8 +125,17 @@ class SpanPolicy(engine.IntakePolicy):
         # selected prefix determines a backend-local input position.
         return sum(receipt['delivery']['frames'] for receipt in receipts[:index])
 
+    def extra_job_files(self, root):
+        from . import recorder_logical_boundary as logical
+        return logical.extra(root)
+
+    def for_job(self, root, header, receipts, records, remaining):
+        from . import recorder_logical_boundary as logical
+        return replace(self, logical_boundary=logical.verify(root,header,receipts,records,remaining))
+
     def finalizable(self, report):
-        return report['close_reason'] in TERMINAL_CLOSES
+        return report['close_reason'] in TERMINAL_CLOSES or (self.logical_boundary is not None
+            and self.same(report,self.logical_boundary['last_delivery']))
 
     @property
     def terminal_required_reason(self):
@@ -134,8 +144,12 @@ class SpanPolicy(engine.IntakePolicy):
     def result_fields(self, records, header):
         description = span_description([record['delivery'] for record in records])
         description['original_run_identity_sha256'] = header['span_origin']['run_identity_sha256']
-        return dict(span=description, capture_completeness_proven=False,
+        result = dict(span=description, capture_completeness_proven=False,
                     eos_meaning='selected_span_only')
+        if self.logical_boundary is not None:
+            from . import recorder_logical_boundary as logical
+            result.update(logical.summary(self.logical_boundary))
+        return result
 
 
 POLICY = SpanPolicy()

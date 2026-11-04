@@ -286,6 +286,14 @@ def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=Fa
     require(exclusive_writer is True, 'span_status_exclusive_writer_ack_required')
     destination = single.target(api, 'operator-selected-unverified', session_id, capture_id, 0)
     path = _destination(output_dir)
+    # Anchored logical input/reservation paths are available before any GET.
+    # This is only a no-write destination guard; status still performs full
+    # independent authority/original validation before granting completion.
+    from . import recorder_logical_boundary as logical
+    if logical.extra(Path(job_dir)):
+        logical.verify_anchor(Path(job_dir))
+        cut = single.manifest_read(Path(job_dir)/logical.NAME)
+        _destination(path,protected=(Path(job_dir),*logical.protected(cut)))
     bounds = export_limits or ExportLimits()
     require(type(bounds) is ExportLimits, 'span_export_invalid_limit')
     limits = limits or u.Limits(output_frames=history.MAX_FRAMES, deadline_seconds=120)
@@ -318,6 +326,8 @@ def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=Fa
             'Before/after capture gaps are unknown. Missing text does not establish silence.\n'
             'Optional MOSS substitutions and recording speaker links are not exported.\n'
             'Requires complete.json. Each transcript string is quoted; controls are escaped.\n\n').encode('utf-8'))
+        if report.get('closure_kind') == 'logical_analysis_boundary':
+            output.write('transcript.txt.partial', b'LOGICAL ANALYSIS BOUNDARY: recording is not declared complete. Recognition continuity across sessions is not verified.\n\n')
         known = {}; identities = set(); digests = []; revision = None
         coverage = {cid: dict(chunk_id=cid, span_start_frame=w['start'], span_end_frame=w['start']+w['frames'],
                              primary_units=0, nonempty_text_units=0) for cid, w in work.items()}
@@ -353,6 +363,9 @@ def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=Fa
             units=units, nonempty_text_units=nonempty, text_status='primary_text_observed' if nonempty else 'no_primary_text_observed',
             transcript_revision=revision, policy_sha256=c.POLICY_HASH, complete_content=False,
             observation_atomic=False, local_publication='manifest_commits_artifact_pair')
+        if report.get('closure_kind') == 'logical_analysis_boundary':
+            summary.update({key:report[key] for key in ('closure_kind','recording_complete',
+                'recognition_continuity_verified','logical_boundary_sha256','eos_meaning')})
         tail = dict(summary=summary, work_text_coverage=list(coverage.values()), transcript_page_sha256=digests)
         output.write('export.json.partial', b'],' + c.encoded(tail)[1:] + b'\n')
         if not nonempty:

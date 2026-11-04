@@ -78,12 +78,24 @@ class _LocalPin:
             for name in ('intake.lock', 'uploader/uploader.lock'):
                 locks.append(status.engine.held_lock(root/name))
             local = status._local(root, self.destination, self.guard)
-            header, receipts, _, _ = local
-            journal, checkpoint = status._journal(root, self.destination, header, receipts, self.guard)
+            header, receipts, records, _ = local
+            policy = status.span.POLICY.for_job(root,header,receipts,records,
+                lambda: status.observer._remaining(self.guard))
+            journal, checkpoint = status._journal(root, self.destination, header, receipts, self.guard, policy=policy)
             protected = (root, *(Path(receipt['path']) for receipt in receipts))
             paths = {root, root/'admissions', root/'uploader', root/'uploader/uploader.history',
                      root/'capture.json', root/status.initial.NAME, root/'intake.lock',
                      root/'uploader/uploader.lock', root/'uploader/uploader.json', *journal.observed_files}
+            if policy.logical_boundary is not None:
+                from . import recorder_logical_boundary as logical
+                cut = policy.logical_boundary
+                protected += logical.protected(cut)
+                state = Path(cut['runner_state_dir']); successor = Path(cut['successor']['path'])
+                paths.update((root/logical.NAME,root/logical.ANCHOR,state,state/'config.json',
+                              state/logical.RUNNER_ANCHOR,successor))
+                for index in range(cut['inputs']):
+                    paths.update(state/('input-%03d.%s.json' % (index,kind)) for kind in ('intent','done'))
+                paths.update(successor/name for name in ('audio.wav','segment.v1.bin','delivery.v1.txt'))
             for receipt in receipts:
                 source = Path(receipt['path']); snapshot = Path(receipt['snapshot_path'])
                 paths.update((source, snapshot, snapshot.parent, snapshot.parent/'admission.json'))

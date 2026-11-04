@@ -84,3 +84,9 @@ Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安�
 `source/docs/RECORDER_RECEIVER_ROUTING.md`：保留旧 attempt 回读和新队列写入，
 当前代际切换需要停止/重启；最多八代，不删除原始数据，不等于热切换或无限期运行。
 真实 Android 生产传输代码的三份公开语音交付及旧回读已在同一云主机验证。
+
+同一冻结 inbox 的显式逻辑切段和下一分析 session 已形成实际闭环，见
+`source/docs/RECORDER_LOGICAL_BOUNDARY.md`。公开语音 3 秒 + 6 秒的两份原生分析
+PCM 拼接与原 9 秒逐帧一致，准确下一 session 只创建一次；重复验证不发 HTTP。
+这不是无人值守跨代际轮换，也不证明识别或说话人质量连续。处理/导出为异步，
+中断后需显式检查和重试，见 `source/docs/RECORDER_OPERATIONAL_RECOVERY_ZH.md`。

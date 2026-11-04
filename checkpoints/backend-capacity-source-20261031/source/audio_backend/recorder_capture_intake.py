@@ -120,6 +120,12 @@ class IntakePolicy:
     def input_start(self, receipts, index):
         return receipts[index]['delivery']['frame_start']
 
+    def extra_job_files(self, root):
+        return set()
+
+    def for_job(self, root, header, receipts, records, remaining):
+        return self
+
     def finalizable(self, report):
         return report['close_reason'] == 'STOP'
 
@@ -324,7 +330,7 @@ def _run(*, policy, job_dir, api, session_id, capture_id, delivery=None, start=F
             require(shutil.disk_usage(root).free>=reserve,'capture_snapshot_disk_reserve')
             initial.complete_file(root/initial.NAME,single._json(initial_value),remaining)
             initial.complete_scaffold(root,initial_value,remaining)
-        expected={'capture.json','intake.lock','admissions','uploader'}
+        expected={'capture.json','intake.lock','admissions','uploader'} | policy.extra_job_files(root)
         if header.get('initial_intent') is True:
             expected.add(initial.NAME)
             initial_value=single.manifest_read(root/initial.NAME)
@@ -362,6 +368,12 @@ def _run(*, policy, job_dir, api, session_id, capture_id, delivery=None, start=F
             except BaseException:
                 inherited.release();raise
         receipts, records = registry(root,header,remaining,policy=policy)
+        policy = policy.for_job(root,header,receipts,records,remaining)
+        require(not getattr(policy, "logical_boundary", None) or finalize, "logical_boundary_fenced_finalize_only")
+        if getattr(policy, 'logical_boundary', None):
+            from . import recorder_logical_boundary as logical
+            logical.durable(root, policy.logical_boundary)
+            http = logical.EffectTransport(http, root, policy.logical_boundary)
         if header.get('initial_intent') is True and receipts:
             require(receipts[0]['path']==initial_value['path'] and policy.same(receipts[0]['delivery'],initial_value['delivery']),
                     'capture_initial_admission_intent_changed')

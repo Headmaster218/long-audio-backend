@@ -52,7 +52,7 @@ def _header(value, destination):
 
 def _local(root, destination, guard):
     """Validate originals, admissions and snapshots without changing a byte."""
-    observer._inventory(root, {'capture.json', initial.NAME, 'intake.lock', 'admissions', 'uploader'})
+    observer._inventory(root, {'capture.json', initial.NAME, 'intake.lock', 'admissions', 'uploader'} | span.POLICY.extra_job_files(root))
     for path in (root, root / 'admissions', root / 'uploader'):
         single.private_directory(path)
     header, header_identity = _control(root / 'capture.json', guard)
@@ -108,6 +108,8 @@ def _local(root, destination, guard):
                 'incremental_span_status_snapshot_receipt_changed')
     require(u._json(intent) == u._json(initial.intent(root, header, paths[0], records[0]['delivery'])),
             'incremental_span_status_initial_intent_changed')
+    logical_policy = span.POLICY.for_job(root,header,receipts,records,remaining)
+    controls.append(logical_policy.logical_boundary)
     identities = [u._signature(path.lstat()) for path in directories]
     return header, receipts, records, (header_identity, intent_identity, controls, identities)
 
@@ -154,7 +156,7 @@ def _inventory_history(journal):
                 'incremental_span_status_allocated_metadata_bound')
 
 
-def _journal(root, destination, header, receipts, guard):
+def _journal(root, destination, header, receipts, guard, policy=span.POLICY):
     d, checkpoint_identity = _control(root / 'uploader/uploader.json', guard, journal=True)
     # Do not instantiate an Uploader or Journal whose constructor may mkdir/lock/save.
     journal = _ReadOnlyJournal.__new__(_ReadOnlyJournal)
@@ -178,7 +180,7 @@ def _journal(root, destination, header, receipts, guard):
             not d['spool'] and 1 <= d['pages_done'] == d['page_count'] <= MAX_PAGES and
             1 <= d['inputs_done'] == d['input_count'] == len(receipts) <= header['max_inputs'],
             'incremental_span_status_finalized_checkpoint_required')
-    require(span.POLICY.finalizable(receipts[-1]['delivery']),
+    require(policy.finalizable(receipts[-1]['delivery']),
             'incremental_span_status_true_terminal_closure_required')
     _inventory_history(journal)
     journal._bind('input'); journal._bind('page')
@@ -279,7 +281,8 @@ def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
         lock_identities = [u._signature(os.fstat(fd)) for fd, _ in locks]
         local = _local(root, destination, guard)
         header, receipts, records, _ = local
-        journal, checkpoint_identity = _journal(root, destination, header, receipts, guard)
+        policy = span.POLICY.for_job(root,header,receipts,records,lambda:observer._remaining(guard))
+        journal, checkpoint_identity = _journal(root, destination, header, receipts, guard, policy=policy)
         d = dict(journal.data, pages=_Pages(journal))
         max_pages = journal.max_pages; max_work = max_pages * 28
         require(max_pages <= MAX_PAGES and max_work <= MAX_WORK_CHUNKS,
@@ -320,7 +323,7 @@ def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
             exclusive_writer_assumed=True, concurrent_writer_safety_guaranteed=False,
             remote_request_identity_verified=False, target_identity_authenticated=False,
             producer_identity_authenticated=False, accuracy_verified=False, physical_continuity_proven=False,
-            **span.POLICY.result_fields(records, header), input_mapping=mapping,
+            **policy.result_fields(records, header), input_mapping=mapping,
             session_id=session_id, capture_id=capture_id, frames=d['emitted_frames'], inputs=len(receipts),
             pages=d['page_count'], work_chunks=len(work), capture_state=capture['state'], blocked_chunks=blocked,
             optional_receipts=optional,
@@ -334,6 +337,9 @@ def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
             require(complete, 'incremental_span_export_completed_required')
             reader.max_requests *= 2
             protected = (root, *(Path(receipt['path']) for receipt in receipts))
+            if policy.logical_boundary is not None:
+                from . import recorder_logical_boundary as logical
+                protected += logical.protected(policy.logical_boundary)
             with _completed_read(result, work, guard, protected):
                 after_work, after_optional = observer._pages(reader, base, d, destination,
                     max_work_chunks=max_work)

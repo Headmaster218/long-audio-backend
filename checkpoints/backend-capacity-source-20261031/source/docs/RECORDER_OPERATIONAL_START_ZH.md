@@ -116,3 +116,10 @@ span/session绑定；已有音频、原始交付、runner状态和导出必须�
 运行中的后续选择会先做容量检查。容量拒绝保留staged尾段，不伪造结束。
 准备另一接收代际只能显式使用不同端口，且不会切换手机或原路由；新profile可能
 重扫历史，不能把它当作透明轮换。完整边界见CONTINUOUS_RECORDING_LIMITS_ZH.md。
+
+## 需要显式交接或恢复时
+
+固定接收端点的有限代际见RECORDER_RECEIVER_ROUTING.md；同一inbox内的显式逻辑
+切段和下一session见RECORDER_LOGICAL_BOUNDARY.md。它们分别验证，不代表已实现
+无人值守跨代际持续服务。pending是异步处理的正常状态；中断严格任务的明确恢复步骤
+见RECORDER_OPERATIONAL_RECOVERY_ZH.md。不要新建替代任务掩盖旧任务的未解决状态。

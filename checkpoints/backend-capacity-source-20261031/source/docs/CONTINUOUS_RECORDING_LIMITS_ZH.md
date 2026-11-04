@@ -41,11 +41,12 @@ exported_locally_verified，同时明确remote_completion_checked=false。
 
 ## 真正连续交接仍需要的实现
 
-- 保持FTPS目的地稳定，增加明确有界的代际命名空间路由、冲突拒绝和旧attempt回读，
-  同时保留尚未开始的旧队列所需写入能力。移动原路径不是该功能的替代品。
-- 新增独立、版本化的操作者逻辑切段授权，绑定精确前后交付与坐标；先可靠冲刷旧
-  尾段，再明确建立新session，断点只恢复已保存动作。status/export也须验证该回执，
-  保留原close_reason=ROTATION，明确没有观察到录音停止。此机制尚未实现。
+- 固定FTPS目的地的有限代际路由现已实现，保留旧attempt回读和新attempt写入。
+  当前代际需停止/重启切换，最多八代；还没有自动热切换。详见RECORDER_RECEIVER_ROUTING.md。
+- 同一冻结inbox内的显式逻辑切段、完整导出及准确下一session初始化现已实现，
+  保留原ROTATION并用独立标记绑定回执；3秒+6秒真实原生分析PCM逐帧等于原9秒。
+  详见RECORDER_LOGICAL_BOUNDARY.md和LOGICAL_SPAN_FLOW_RESULT_20261104.md。
+  尚未支持跨代际inbox的逻辑继任者，也没有自动选择/调度切段或原子轮换。
 - 对旧pending或部分接收输入设计经过验证的交接路径，不静默丢弃或重复归属。
 - 长期存储规划及人工确认的归档/留存策略。保留全部代际不会凭空增加磁盘容量；
   当前没有无损自动清理，也没有无限期daemon验收。

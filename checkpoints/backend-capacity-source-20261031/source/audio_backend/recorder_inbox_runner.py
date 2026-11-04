@@ -182,14 +182,18 @@ def _done(intent):
     return dict(schema=SCHEMA, config_sha256=intent['config_sha256'], intent_sha256=_hash(intent))
 
 
-def _ledger(root, config):
+def _ledger(root, config, *, logical_preparing=False):
     allowed = {'config.json', 'runner.lock', 'finalize.intent.json', 'finalize.done.json',
                'export.intent.json', 'export.done.json'}
+    from . import recorder_logical_boundary as logical
+    if os.path.lexists(root/logical.RUNNER_ANCHOR):
+        allowed.add(logical.RUNNER_ANCHOR)
+        if not logical_preparing:logical.verify_anchor(Path(config['job_dir']),root)
     if os.path.lexists(root/'initialization'):
         from .recorder_runner_initialize import validate_completed
         validate_completed(root,config);allowed.add('initialization')
     intents = []; completed = 0; pending = False
-    names = _names(root, 2*config['max_inputs']+7)
+    names = _names(root, 2*config['max_inputs']+8)
     for index in range(config['max_inputs']):
         name = _file(root, index, 'intent').name; done = _file(root, index, 'done').name
         if name not in names:
@@ -229,6 +233,18 @@ def _ledger(root, config):
                 require(_same(single.manifest_read(dp), _done(expected)), 'runner_finalize_receipt_binding')
             if kind == 'export': require(os.path.lexists(root/'finalize.done.json'), 'runner_export_before_finalize')
     return intents, completed
+
+
+def _terminal_allowed(config, intents, remaining):
+    if not intents:return False
+    job = Path(config['job_dir'])
+    from . import recorder_logical_boundary as logical
+    if logical.extra(job):
+        header = single.manifest_read(job/'capture.json')
+        receipts, records = engine.registry(job,header,remaining,policy=intake.POLICY)
+        policy = intake.POLICY.for_job(job,header,receipts,records,remaining)
+        return policy.finalizable(intents[-1]['delivery'])
+    return intake.POLICY.finalizable(intents[-1]['delivery'])
 
 
 def _stable(report):
@@ -652,7 +668,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                         require(Path(intents[-1]['path']).name == select_attempt,
                                 'runner_frozen_selection_changed')
                     if len(intents) == completed and not os.path.lexists(root/'finalize.intent.json') and not (
-                            intents and intake.POLICY.finalizable(intents[-1]['delivery'])):
+                            intents and _terminal_allowed(config,intents,remaining)):
                         available = candidates.get(config['span_origin']['first_sequence']+completed, [])
                         if available:
                             if select_attempt is None:
@@ -664,6 +680,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                     if stopped is not None: return stopped
                     continue
                 _durable(root/'config.json',config)
+                if intake.POLICY.extra_job_files(Path(config['job_dir'])):
+                    require(_terminal_allowed(config,intents,remaining), 'logical_boundary_invalid')
                 if os.path.lexists(root/'export.done.json'):
                     saved = single.manifest_read(root/'export.done.json')
                     expected = _export_receipt(root,config,single.manifest_read(root/'export.intent.json'),guard)
@@ -711,7 +729,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                     actions += 1; helper(intake.run, **options(),finalize=True,acknowledge_span_local_closure=True)
                     terminal = single.manifest_read(root/'finalize.intent.json')
                     single.manifest_write(root/'finalize.done.json',_done(terminal)); continue
-                if completed == len(intents) and intents and intake.POLICY.finalizable(intents[-1]['delivery']):
+                if completed == len(intents) and intents and _terminal_allowed(config,intents,remaining):
                     if not finalize: return result('awaiting_finalize')
                     terminal_intent('finalize'); continue
                 if len(intents) == completed:
@@ -825,6 +843,8 @@ def preflight(*, state_dir, select_attempt=None, deadline_seconds=120):
         guard = u.Guard(u.Limits(deadline_seconds=deadline_seconds))
         def remaining():
             guard.check(); return max(.000001,guard.end-time.monotonic())
+        if intake.POLICY.extra_job_files(Path(config['job_dir'])):
+            require(_terminal_allowed(config,intents,remaining), 'logical_boundary_invalid')
         # Terminal receipt precedence is local-only. Never invoke status.run,
         # uploader recovery or inference to turn saved receipts into live claims.
         if os.path.lexists(root/'export.done.json'):
@@ -837,7 +857,7 @@ def preflight(*, state_dir, select_attempt=None, deadline_seconds=120):
                         export_intent_present=os.path.lexists(root/'export.intent.json'))
         if os.path.lexists(root/'finalize.intent.json'):
             return dict(base,status='finalize_pending',explicit_finalize_resume_required=True)
-        if intents and intake.POLICY.finalizable(intents[-1]['delivery']):
+        if intents and _terminal_allowed(config,intents,remaining):
             _binding(config,intents[-1],completed-1,remaining)
             return dict(base,status='awaiting_finalize',explicit_finalize_required=True)
         if completed == config['max_inputs']:

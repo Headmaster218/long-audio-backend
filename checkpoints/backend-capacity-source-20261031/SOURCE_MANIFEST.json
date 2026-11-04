@@ -736,9 +736,9 @@
     },
     {
       "path": "audio_backend/recorder_capture_intake.py",
-      "size": 26843,
-      "sha": "c10b08dd8d3a37c0aca13b9a57e115e715f30571",
-      "sha256": "52eb4a1915b6d012660ebd597ca063f8ee9d167c89576651fd9ea6b06225cc31"
+      "size": 27465,
+      "sha": "e3d5f38c969348ddd15079624c448952aca9cb09",
+      "sha256": "67c524eccb376fcca895ea665e4c2c683f874a7e7d54fd3cf792398ded11d344"
     },
     {
       "path": "audio_backend/recorder_capture_profile.py",
@@ -754,9 +754,9 @@
     },
     {
       "path": "audio_backend/recorder_export_recovery.py",
-      "size": 10760,
-      "sha": "5335e00c514fde9efc0c7941ca039424f8da9b5c",
-      "sha256": "038b7aabf2d654b21ff0bacd7b3602a53dd30248532febedeae7a71d148783b7"
+      "size": 11668,
+      "sha": "e9b57246fd167f2a319ff3e4ddce28a08400ed1a",
+      "sha256": "fc50299e107f80a581209b46b453b7a581c67617f0b706db174a8d4ee7bb4e99"
     },
     {
       "path": "audio_backend/recorder_ftps_receiver.py",
@@ -772,27 +772,27 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 57153,
-      "sha": "3cdc0a23e0373b3c8fedd708c497d4344a94a9c3",
-      "sha256": "229e745c1d4603d999b119e401144d982c042927f59064d5e9285e8cf2480b23"
+      "size": 58276,
+      "sha": "7cdc260ce5d820f157f408e07dcfa415a3b5f7bb",
+      "sha256": "031a95a831fd764b4259092f752a26383e6138a036a0731ce054b2a15b4b7b94"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
-      "size": 22909,
-      "sha": "c2ce62b3c8efad0cbe5aff083bdd980a52e4eaad",
-      "sha256": "5a72be66995cd5f175a1bff1231270492ccc1675739027cabe9591ebc5dfc0bf"
+      "size": 23919,
+      "sha": "cb7f66c77ce9ddc277c8996bcb7f70fb133fe35d",
+      "sha256": "cff466acf99cbbe1a23f2c8ce2f9c3691d4a32b7b28af64e563d75fea8d02de6"
     },
     {
       "path": "audio_backend/recorder_incremental_span_intake.py",
-      "size": 9311,
-      "sha": "f7639fc188658f82766155d447fd74db65998aee",
-      "sha256": "8c601fbf0385cde7705859b25135365f7939c4144e1702c52f0fe95e84584bcd"
+      "size": 10033,
+      "sha": "3436dce72e165c559bdd11bf2a81c87aef615bae",
+      "sha256": "da5470cd03833179dac3077c5fff5c96c864ac1788cbcbc371b20330ef07909b"
     },
     {
       "path": "audio_backend/recorder_incremental_span_status.py",
-      "size": 22860,
-      "sha": "fa85f4d1b7ef781abfde557006fa5521a42316a8",
-      "sha256": "fe3837557b04a1ec8553a1f2de2a5e715590eb357b8830944da7bf4bbeefe6b9"
+      "size": 23347,
+      "sha": "9b4854f5b48ea9442c643f435ea3a57a39e834bf",
+      "sha256": "0746d53817bf78ecf84dbeaf04177e30008134b15fbe446300b809adbadab65d"
     },
     {
       "path": "audio_backend/recorder_initial_intent.py",
@@ -811,6 +811,18 @@
       "size": 12670,
       "sha": "b09d7588891c09f330ad73ff8dfa1f430a444c7b",
       "sha256": "f3017ce159e13c8d52fe9ff9829031a60c76e8a97509259e2ac94ba95deb0561"
+    },
+    {
+      "path": "audio_backend/recorder_logical_advance.py",
+      "size": 8221,
+      "sha": "c304a317e404cac5620b7c25f9d96e7d5df424b3",
+      "sha256": "0a807420c20984ae792dd2e7010b59093cc8db127be678e4e7d2f3508fced67d"
+    },
+    {
+      "path": "audio_backend/recorder_logical_boundary.py",
+      "size": 12573,
+      "sha": "b58d2f6f4878ef143726384ae670de0018668bc5",
+      "sha256": "14e36a6d3e5c9c5ac9d60b3a33596850ea10682d26e537462f43b1f6b55b7c86"
     },
     {
       "path": "audio_backend/recorder_metadata.py",
@@ -1270,9 +1282,9 @@
     },
     {
       "path": "docs/CONTINUOUS_RECORDING_LIMITS_ZH.md",
-      "size": 4386,
-      "sha": "dca05377a49c86120fe85663cf25f37a4eba2dfe",
-      "sha256": "860a20c5decabfcc21a88310e04605125a7d5f91719228ab13ccdbb698864775"
+      "size": 4460,
+      "sha": "3b58c45c4b3e8d645313a18b94a7d70571527562",
+      "sha256": "e7ede94a196fa6de43ce04196b02a29e374229d0e5dcee697cbf74fae6512193"
     },
     {
       "path": "docs/DATA_MIGRATION.md",
@@ -1869,6 +1881,12 @@
       "sha256": "fd66b73b363f8ac0e42e0c649ba7a360d7f201d8012da97af53074f5ad62f07b"
     },
     {
+      "path": "docs/LOGICAL_SPAN_FLOW_RESULT_20261104.md",
+      "size": 4570,
+      "sha": "3d8fec001dd6087e0dd4954ddc5311aad58390fe",
+      "sha256": "345971e51ae99c4b9abe357aaf3774dd347a217c29463530264f2bc0d6bd4edf"
+    },
+    {
       "path": "docs/MOSS_CELL_JOBS.md",
       "size": 10952,
       "sha": "214d1c2b6566dba05c9d2a9ed682e33e0bba323e",
@@ -2235,10 +2253,28 @@
       "sha256": "d7b94a5d47521556bf7c1536d1c64b7ff104d18a7f9e9e5aec9903b422614baa"
     },
     {
+      "path": "docs/RECORDER_LOGICAL_ADVANCE.md",
+      "size": 2871,
+      "sha": "3970919ca8c04031176ff503f4e6d7fa4a43f067",
+      "sha256": "c69b4bfc4ddd709e0f5ad156c4b83264d2fd09f70cdd8ccef903ec8a79e2d01d"
+    },
+    {
+      "path": "docs/RECORDER_LOGICAL_BOUNDARY.md",
+      "size": 6227,
+      "sha": "bdcce06063877c805576c2d281e621256623239f",
+      "sha256": "f6456943c2782551bb1d6a0dfc68ecf66ebba8e6ed679955c7e698e95274c74d"
+    },
+    {
+      "path": "docs/RECORDER_OPERATIONAL_RECOVERY_ZH.md",
+      "size": 2257,
+      "sha": "e6a0d63fbce6ef769d34b882e3e3f674031d88a4",
+      "sha256": "fe815bf33eca6cc2d2381f24afc22d5ef5fb32277c1644de6b606d215cd988f7"
+    },
+    {
       "path": "docs/RECORDER_OPERATIONAL_START_ZH.md",
-      "size": 7213,
-      "sha": "94c9911cdf715e63ebd5a6915f6c7412a1dfb5d2",
-      "sha256": "add7a0f7940d4de626380a128bde4399fc01d491125e62531f850e5e3671b04b"
+      "size": 7660,
+      "sha": "1fa451ad98b59829c1a1ec33781c9fd6d28c2e74",
+      "sha256": "43e76b6ef4f66ef9cfde8e7b930c44bfb662c8f8272c1cd58839bc1765d55d8f"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2266,9 +2302,9 @@
     },
     {
       "path": "docs/RECORDER_RECEIVER_ROUTING.md",
-      "size": 5579,
-      "sha": "dd0c96a7a0c198f58c462dad843378806ab9dd50",
-      "sha256": "ffc94f9494ff1e87b1c43c0f899f93a7691a1e0a3df2b99928fda2702cbb87cc"
+      "size": 5901,
+      "sha": "c04d0b11eca31b2e042dc47e9b40b14b1733c7c0",
+      "sha256": "f90276702ed18b52ca706b21e72b1201478c147da200d97fe7b9d3453c1cc309"
     },
     {
       "path": "docs/RECORDER_RECEIVER_STATUS.md",
@@ -5305,6 +5341,18 @@
       "size": 3895,
       "sha": "65a8deb070ed0bc6990edb030cde0eb2c7c00383",
       "sha256": "edb654f87638207542663f12a0c558d511943ca617d8946516d5c3fa316ebaa2"
+    },
+    {
+      "path": "tests/test_recorder_logical_advance.py",
+      "size": 7981,
+      "sha": "32ace1418c3007144833d8d6e3392b1669c025b3",
+      "sha256": "9d484454950e2046fecf4e8e110ba5faa2551fd3842e7b1dce9352dab5285e7b"
+    },
+    {
+      "path": "tests/test_recorder_logical_boundary.py",
+      "size": 22281,
+      "sha": "48f266cae0f1c8c577e7272ea1d2bb645a6d53bf",
+      "sha256": "43aec65390d7b6f47c591d77b9f7b22d97a5225a914215d34eb9d8947247a8c6"
     },
     {
       "path": "tests/test_recorder_metadata.py",

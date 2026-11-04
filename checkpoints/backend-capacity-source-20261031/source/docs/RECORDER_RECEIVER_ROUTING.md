@@ -17,8 +17,12 @@ startup. A reconnect does not acquire permission to rewrite old objects.
 
 The current account, TLS identity, listening address and port remain stable.
 Switching active generation requires a clean stop and restart. It is not a
-zero-interruption switch. Keep the same full retained generation list on the
-restart: omitting an old generation makes its attempts inaccessible and can
+zero-interruption switch. This version has no automatic connection-drain
+coordination: stopping during STOR can preserve a partial attempt that Android
+will not repair. Only perform a controlled switch after uploads have settled;
+this tool does not establish that condition for you. Preservation of partial
+bytes is not proof of eventual delivery. Keep the same full retained generation
+list on the restart: omitting an old generation makes its attempts inaccessible and can
 permanently block Android readback. Do not revoke old credentials or rename paths.
 Old QUEUED items that have not started an attempt may create new unique attempts
 in the active generation through the same endpoint. Existing partially uploaded
