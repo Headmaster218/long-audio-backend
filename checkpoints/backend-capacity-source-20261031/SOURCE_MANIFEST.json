@@ -1017,6 +1017,12 @@
       "sha256": "7b826c298e35927c2417e5e880f10f3bf84fb9314528528e0f15b0ac1147ef7e"
     },
     {
+      "path": "audio_backend/strict_runtime_preflight.py",
+      "size": 4895,
+      "sha": "0a40efecc70a936e71af2b8a0a18fa3dd61d72c0",
+      "sha256": "bd8360178a012facda526b002f50c07eae65e6be0006ba258500dc13b47e15fc"
+    },
+    {
       "path": "audio_backend/strict_shared_sources.py",
       "size": 10895,
       "sha": "5efec5f8824f678688d711693829ed4596ba1bd1",
@@ -2299,6 +2305,12 @@
       "size": 5249,
       "sha": "2d729386f19d2c5b7c7f5c2fac2c467cf797a6a5",
       "sha256": "c80d1d27e04dbdacb35ef939ea03465d26c7716830bc5921b940690a14390b06"
+    },
+    {
+      "path": "docs/STRICT_RUNTIME_SETUP_ZH.md",
+      "size": 4141,
+      "sha": "da21f5a21793bf43207c064191611d2958be4eec",
+      "sha256": "92a85a1dec3dcea9b61795a8291bf124fdfcaf600b7b5605c41fb869e27f53a2"
     },
     {
       "path": "docs/STRICT_WORKER_CAPTURE_REBUILD.md",
@@ -5499,6 +5511,12 @@
       "sha256": "27c4dcdc0ca948fb9058883747d508acb0f3863de4c41d49e57e02c356613cb2"
     },
     {
+      "path": "tests/test_strict_runtime_preflight.py",
+      "size": 4414,
+      "sha": "1674afeaa9f255725250dc2b3e141b5970e01d92",
+      "sha256": "29a6999a21fae36742ec61579fca8b1a10c37bf5c75064a367992fe4517f177a"
+    },
+    {
       "path": "tests/test_strict_uploader_admission.py",
       "size": 4988,
       "sha": "80832b1ea4e023bba3024ffcbaa155acc6c537e6",
@@ -5854,5 +5872,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Record independently reviewed two-page native resource gate: 56 chunks and 588 seconds with exact isolated runtime candidate; no target-server or FTPS-service qualification."
+  "source_update": "Add read-only exact strict-runtime mismatch diagnostics and target qualification guide; no runtime profile activation or pin changes, 12 independent tests pass."
 }
