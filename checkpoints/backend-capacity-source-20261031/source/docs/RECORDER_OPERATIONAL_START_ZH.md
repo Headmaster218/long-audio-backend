@@ -123,3 +123,8 @@ span/session绑定；已有音频、原始交付、runner状态和导出必须�
 切段和下一session见RECORDER_LOGICAL_BOUNDARY.md。它们分别验证，不代表已实现
 无人值守跨代际持续服务。pending是异步处理的正常状态；中断严格任务的明确恢复步骤
 见RECORDER_OPERATIONAL_RECOVERY_ZH.md。不要新建替代任务掩盖旧任务的未解决状态。
+
+跨接收代际的有界分析交接使用RECORDER_GENERATION_TRANSITION.md：先另外核验固定
+端点接收器已按新的不可变路由配置运行，并确保旧上传已完成；收到下一代的准确完整
+交付后，由同一命令保存边界、完成旧段导出并绑定下一session。它不控制接收进程、
+不自动开始下一段摄入，也不证明跨段识别/说话人连续。

@@ -96,3 +96,19 @@ The receipt is independently hash-bound by immutable job `logical-boundary.inten
 Each individually missing or altered receipt/anchor is refused. Runner's independent marker also detects removal of both job controls. This remains a trusted-owner local protocol, not protection against coordinated wholesale rollback or replacement of all independent state. Do not delete authority controls as a recovery strategy.
 
 Exports and full status reports are private provenance artifacts: they can contain original/successor paths and the next-session label. Do not commit or publish them. Normal preparation CLI output exposes only semantic flags and the receipt hash.
+
+## Explicit cross-inbox generation successor (v2)
+
+The default remains exact v1, with the same-inbox restriction above. To select a successor already published in a different receiver generation, all three additional arguments are required together:
+
+```sh
+--next-inbox-dir /private/generation-b/inbox \
+--next-receiver-state-dir /private/generation-b/publication \
+--route-config /private/endpoint/routing-b.json
+```
+
+This creates `recorder-logical-analysis-boundary-v2`; existing v1 receipts and anchors are never upgraded, reinterpreted or overwritten. V2 additionally binds the exact successor publication pair, the route configuration's canonical path and raw-byte SHA256, the exact retained old and active new generation pairs, and both selected raw/published attempt-directory identities. The old runner must already have an owned receiver-publication binding. The route configuration must retain that pair exactly once and declare the different selected pair active; every declared generation's state/raw/inbox trees must be disjoint.
+
+Only the exact selected successor is inspected under the publication shared lock. Its published copy and retained raw original must match byte-for-byte, with the existing producer identity/sequence/frame-edge checks unchanged. The selected attempt name must not be present in another declared generation. No raw receiver lease is acquired and unrelated mutable attempts are not scanned. These checks do not claim the endpoint is live or that the route file has been activated; stable endpoint routing remains a separate explicit stopped configuration/start operation.
+
+All declared routing-generation state/raw/inbox trees and the route configuration path are protected against export placement, together with existing runner and reserved next-session trees. V2 next-session advance uses precisely the new inbox/publication binding. Any changed route bytes, publication identity, selected attempt identity/content or incompatible resume arguments refuse before effects. `--deadline-seconds` bounds preparation (default and maximum 120 seconds); the deadline is an invocation budget, not part of the immutable receipt.

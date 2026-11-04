@@ -57,7 +57,8 @@ not automatic restart recovery or a substitute for the two-span result above.
   server was accessed or qualified.
 - Logical successor currently must be in the same frozen inbox. Receiver routing
   is separately verified, but an automatic cross-generation analysis transition
-  has not been implemented or accepted.
+  was not implemented or accepted by this earlier proof. Later dev67 work is
+  described separately; do not transfer this proof to that new workflow.
 - Explicit bounded commands, not atomic rollover, hot routing, automatic retries,
   indefinite scheduling, storage reclamation or long-duration endurance.
 - No claim of cross-speaker identity, overlapping-speech quality, stable semantics

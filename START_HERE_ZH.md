@@ -90,3 +90,8 @@ Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安�
 PCM 拼接与原 9 秒逐帧一致，准确下一 session 只创建一次；重复验证不发 HTTP。
 这不是无人值守跨代际轮换，也不证明识别或说话人质量连续。处理/导出为异步，
 中断后需显式检查和重试，见 `source/docs/RECORDER_OPERATIONAL_RECOVERY_ZH.md`。
+
+dev67 提供跨接收代际的有界交接入口，见
+`source/docs/RECORDER_GENERATION_TRANSITION.md`。它绑定明确路由文件和准确继任者，
+串起旧段终结/导出及下一 session；不会控制 FTPS 进程或自动开始下一段录音摄入。
+接收路由切换与正在进行的上传仍需另外协调，不能称为无人值守热轮换。

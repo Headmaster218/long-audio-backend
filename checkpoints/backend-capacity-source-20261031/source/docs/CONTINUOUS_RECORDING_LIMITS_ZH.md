@@ -46,7 +46,8 @@ exported_locally_verified，同时明确remote_completion_checked=false。
 - 同一冻结inbox内的显式逻辑切段、完整导出及准确下一session初始化现已实现，
   保留原ROTATION并用独立标记绑定回执；3秒+6秒真实原生分析PCM逐帧等于原9秒。
   详见RECORDER_LOGICAL_BOUNDARY.md和LOGICAL_SPAN_FLOW_RESULT_20261104.md。
-  尚未支持跨代际inbox的逻辑继任者，也没有自动选择/调度切段或原子轮换。
+  dev67另加入跨代际inbox的v2绑定和有界交接入口，见RECORDER_GENERATION_TRANSITION.md。
+  它只使用明确的路由配置和准确继任者，仍不自动选择/调度切段或执行原子轮换。
 - 对旧pending或部分接收输入设计经过验证的交接路径，不静默丢弃或重复归属。
 - 长期存储规划及人工确认的归档/留存策略。保留全部代际不会凭空增加磁盘容量；
   当前没有无损自动清理，也没有无限期daemon验收。

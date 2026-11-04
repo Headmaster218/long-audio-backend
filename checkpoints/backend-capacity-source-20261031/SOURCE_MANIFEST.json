@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "b06a9d8b32d0c10653896d14e0aac5f9ff2d42a2",
-      "sha256": "54ab25d01256e8f807f2d544afd2e52764f3d14ff55c312cdae7a307115eaf16"
+      "sha": "a114ff00e460280eca0fd9bd5c2aabfe58274aec",
+      "sha256": "e91d5c5e9cf425d825a2a3b1b40841757fa42e1d2d69bbcb59c50b16866b3995"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -765,6 +765,12 @@
       "sha256": "19f7901566b23dbb702dc37ea056e74c3db1518fbb794c0bc4ece994adbd9d3c"
     },
     {
+      "path": "audio_backend/recorder_generation_transition.py",
+      "size": 10964,
+      "sha": "ae3783c4b227747841a696c00376f830a0f8c4d7",
+      "sha256": "1a32e97d86c7bd01dfb49043482ac17510c36a3afcbf55a4674ff70e78dec65a"
+    },
+    {
       "path": "audio_backend/recorder_inbox.py",
       "size": 7051,
       "sha": "d7c477e7750a573193eb123dabebc394717ede26",
@@ -814,15 +820,15 @@
     },
     {
       "path": "audio_backend/recorder_logical_advance.py",
-      "size": 8221,
-      "sha": "c304a317e404cac5620b7c25f9d96e7d5df424b3",
-      "sha256": "0a807420c20984ae792dd2e7010b59093cc8db127be678e4e7d2f3508fced67d"
+      "size": 8316,
+      "sha": "b54b1250e0c6f9aed13a89367f3fe2b0dd3dbaf8",
+      "sha256": "bb5169403be3f6f091ee1d6ee6738a309d59e984c260fb22d7853f6fce40188a"
     },
     {
       "path": "audio_backend/recorder_logical_boundary.py",
-      "size": 12573,
-      "sha": "b58d2f6f4878ef143726384ae670de0018668bc5",
-      "sha256": "14e36a6d3e5c9c5ac9d60b3a33596850ea10682d26e537462f43b1f6b55b7c86"
+      "size": 19670,
+      "sha": "fbabea3a9985ab83f9532742fac978cd2dea7063",
+      "sha256": "179eeca941fde1d6737289e559838f33ef5fddf759b2409d32c00159f35f9002"
     },
     {
       "path": "audio_backend/recorder_metadata.py",
@@ -1282,9 +1288,9 @@
     },
     {
       "path": "docs/CONTINUOUS_RECORDING_LIMITS_ZH.md",
-      "size": 4460,
-      "sha": "3b58c45c4b3e8d645313a18b94a7d70571527562",
-      "sha256": "e7ede94a196fa6de43ce04196b02a29e374229d0e5dcee697cbf74fae6512193"
+      "size": 4575,
+      "sha": "d05e6fdd319835aa2e7afb6b8a1c1e1afb5dbd68",
+      "sha256": "4e316b3ee2f04b7483a5e44c8cad5004a97b7878b083adf5da64c05aec1ba709"
     },
     {
       "path": "docs/DATA_MIGRATION.md",
@@ -1882,9 +1888,9 @@
     },
     {
       "path": "docs/LOGICAL_SPAN_FLOW_RESULT_20261104.md",
-      "size": 4570,
-      "sha": "3d8fec001dd6087e0dd4954ddc5311aad58390fe",
-      "sha256": "345971e51ae99c4b9abe357aaf3774dd347a217c29463530264f2bc0d6bd4edf"
+      "size": 4680,
+      "sha": "70c95596307690a554405e8e0d97c50b65749c5c",
+      "sha256": "37795c9a09138218c7ee444702b7199d96c70cbc188e3af923c82cebec74a35a"
     },
     {
       "path": "docs/MOSS_CELL_JOBS.md",
@@ -2229,6 +2235,12 @@
       "sha256": "17bb3d90e32f000ed6d3cda284346df0a909ea8b3adf199949b7430928b332b8"
     },
     {
+      "path": "docs/RECORDER_GENERATION_TRANSITION.md",
+      "size": 5404,
+      "sha": "6f126414968b6ea859c664c6988cdee9891a6efb",
+      "sha256": "0ba90a7d233439923577274599bcb811209576c818f58f9df9000fbda8b341f5"
+    },
+    {
       "path": "docs/RECORDER_INBOX_EXPORT_RECOVERY.md",
       "size": 3149,
       "sha": "6ac92aaae95de21435af2a44894632e2de9dfb4c",
@@ -2254,15 +2266,15 @@
     },
     {
       "path": "docs/RECORDER_LOGICAL_ADVANCE.md",
-      "size": 2871,
-      "sha": "3970919ca8c04031176ff503f4e6d7fa4a43f067",
-      "sha256": "c69b4bfc4ddd709e0f5ad156c4b83264d2fd09f70cdd8ccef903ec8a79e2d01d"
+      "size": 3232,
+      "sha": "ecdc2beb5ec6e94580cb7abbfee13b359dd9c0de",
+      "sha256": "9c46cfc93a7bcf80fb751e008be195dea191122b9e0477e7130b439998bc558f"
     },
     {
       "path": "docs/RECORDER_LOGICAL_BOUNDARY.md",
-      "size": 6227,
-      "sha": "bdcce06063877c805576c2d281e621256623239f",
-      "sha256": "f6456943c2782551bb1d6a0dfc68ecf66ebba8e6ed679955c7e698e95274c74d"
+      "size": 8390,
+      "sha": "45860a70eed9d8d48e47f648e124a13491ceb972",
+      "sha256": "8b88325f10fc017aba5583759b21ca6d41ff792936a5525036736d14fc8efcfe"
     },
     {
       "path": "docs/RECORDER_OPERATIONAL_RECOVERY_ZH.md",
@@ -2272,9 +2284,9 @@
     },
     {
       "path": "docs/RECORDER_OPERATIONAL_START_ZH.md",
-      "size": 7660,
-      "sha": "1fa451ad98b59829c1a1ec33781c9fd6d28c2e74",
-      "sha256": "43e76b6ef4f66ef9cfde8e7b930c44bfb662c8f8272c1cd58839bc1765d55d8f"
+      "size": 8069,
+      "sha": "20956b03793c1df85f3f4589a8636f257cd504bb",
+      "sha256": "c1255d8eba8ad1afa7cd62e24c6d24d74e14bffe276591daf4e1c1f0f87efbe0"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2597,8 +2609,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "a5a0471bc75070a4317a6526f6051d19e3bc5f3d",
-      "sha256": "440c98cdb1554d02faafd65c0d648e1fb7a0c02a802ba29d1b06445920ef64ea"
+      "sha": "6418f2d7ef584f3e39196facdebff46a50e6b838",
+      "sha256": "33f76628fd44400893466c463c59163ce01b54cedd95fed6259062b66ed1bd31"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5235,6 +5247,12 @@
       "sha256": "88a6b3a36e31a6b28998cc16b5da8a339631002e30d526d013f3741ad3ed5f74"
     },
     {
+      "path": "tests/test_recorder_generation_transition.py",
+      "size": 12821,
+      "sha": "0097b9660f9bfffe3b9df94d455e77a076400a22",
+      "sha256": "76d0d9c03b2522f21b70009d554251502523aa00954c2fc7ad22f94d0a157b5c"
+    },
+    {
       "path": "tests/test_recorder_inbox.py",
       "size": 4937,
       "sha": "4c6d749d5e24ab9e132c43e8c87d34751ddaf05a",
@@ -5353,6 +5371,12 @@
       "size": 22281,
       "sha": "48f266cae0f1c8c577e7272ea1d2bb645a6d53bf",
       "sha256": "43aec65390d7b6f47c591d77b9f7b22d97a5225a914215d34eb9d8947247a8c6"
+    },
+    {
+      "path": "tests/test_recorder_logical_cross_inbox.py",
+      "size": 12105,
+      "sha": "bf04af22303e0911183c4ac74398375aa1448ed6",
+      "sha256": "019c0af0ee9d9160215c63c3f49144c5751723dbe15b7c794b17380a3fc614a3"
     },
     {
       "path": "tests/test_recorder_metadata.py",

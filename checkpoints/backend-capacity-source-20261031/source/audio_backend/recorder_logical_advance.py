@@ -59,11 +59,12 @@ def advance(*, state_dir, acknowledge_create_next_session=False, exclusive_write
                 manifest.get('frames')==cut['frames'],'logical_next_export_boundary_binding')
         check_old()
         nxt=cut['next_session_intent'];successor=cut['successor'];first=Path(successor['path'])
+        selected_config=boundary.source_config(cut,config)
         next_state=runner._path(nxt['state_dir'])
-        template=runner.config_from_delivery(first_delivery=first,inbox_dir=config['inbox_dir'],
+        template=runner.config_from_delivery(first_delivery=first,inbox_dir=selected_config['inbox_dir'],
             job_dir=nxt['job_dir'],output_dir=nxt['output_dir'],api=config['api'],
             session_id=initialize.PENDING,capture_id=nxt['capture_id'],max_hours=config['max_hours'],
-            max_inputs=config['max_inputs'],receiver_state_dir=config.get('receiver_publication',{}).get('state_dir'))
+            max_inputs=config['max_inputs'],receiver_state_dir=selected_config.get('receiver_publication',{}).get('state_dir'))
         expected=initialize._intent(template,first,successor['delivery'],nxt['session_name'])
         def completed_link():
             single.private_directory(next_state)
@@ -96,9 +97,9 @@ def advance(*, state_dir, acknowledge_create_next_session=False, exclusive_write
                                 'logical_next_distinct_session_required')
                     return response
             left=remaining();require(left>=1,'logical_next_deadline_bound')
-            result=initialize.initialize(state_dir=next_state,inbox_dir=config['inbox_dir'],
+            result=initialize.initialize(state_dir=next_state,inbox_dir=selected_config['inbox_dir'],
                 job_dir=nxt['job_dir'],first_delivery=first,api=config['api'],capture_id=nxt['capture_id'],
-                output_dir=nxt['output_dir'],receiver_state_dir=config.get('receiver_publication',{}).get('state_dir'),
+                output_dir=nxt['output_dir'],receiver_state_dir=selected_config.get('receiver_publication',{}).get('state_dir'),
                 max_hours=config['max_hours'],max_inputs=config['max_inputs'],session_name=nxt['session_name'],
                 exclusive_writer=True,acknowledge_span_local_closure=True,resume=os.path.lexists(next_state),
                 deadline_seconds=min(120,left),transport=CheckedTransport())
