@@ -544,9 +544,9 @@
     },
     {
       "path": "audio_backend/native_owned_cell_store.py",
-      "size": 109347,
-      "sha": "2abb807be1768024a1086f648f30cf08fd912646",
-      "sha256": "efbd83e985482d47d3337e7290cddfacc680ca77c49452c904c18457211393d8"
+      "size": 109838,
+      "sha": "6e271505faa3a0444372898f8c615570f8d446be",
+      "sha256": "845bb9005fccc2fb6763abefac7781750b3d31ce390d841cca1a3fb4ef62f343"
     },
     {
       "path": "audio_backend/native_owned_cells.py",
@@ -985,6 +985,12 @@
       "size": 2635,
       "sha": "b258f82e765153636e01535a320483138001ad19",
       "sha256": "4c6538c0ec8047e152fa8e063c8be0b194ba321e8029554d59f04eb3e0bda152"
+    },
+    {
+      "path": "audio_backend/sqlite_dynamic_identity.py",
+      "size": 14305,
+      "sha": "bf7d7256a43d3e6ebfa6cb44b23d6b3adc9ef90c",
+      "sha256": "bb0f718b99ddaa2cf94b4a512fb23e1cbbec1ea0ac0ba5cb8959b617d2aee360"
     },
     {
       "path": "audio_backend/storage.py",
@@ -1633,6 +1639,12 @@
       "size": 7038,
       "sha": "570afb37994a21e611440d20fb35352d6c3126c2",
       "sha256": "5559ab7a15bf33b9d23010952333c983ec01a30eab86fb5db8dd14a886732efa"
+    },
+    {
+      "path": "docs/DYNAMIC_SQLITE_RUNTIME_IDENTITY.md",
+      "size": 4016,
+      "sha": "195e113578c079ab33f96d948a0010e5c17d8742",
+      "sha256": "1f0d907b4c654d98513c7f369b17d37f1a451d3156bb75dd4ed1057932569b4b"
     },
     {
       "path": "docs/EMBEDDING_SPACE_PROVENANCE.md",
@@ -2680,9 +2692,9 @@
     },
     {
       "path": "qualification/audit_target_cellstore_evidence.py",
-      "size": 12181,
-      "sha": "0fcd2580938170764db106544e6081c4fa8e1920",
-      "sha256": "353a228aa72a395e6086c09af9e3e931ca19709be150be010a7d86f48e1a7447"
+      "size": 12998,
+      "sha": "112cd8697fce34342040caeeea6f307b4616d7ce",
+      "sha256": "df82d6b8c3e25fc1d99745aaa1985b2171291e818159af90c53956e1ca640a54"
     },
     {
       "path": "qualification/cellstore_crash_probe.py",
@@ -3202,9 +3214,9 @@
     },
     {
       "path": "qualification/target_runtime_observation.py",
-      "size": 6869,
-      "sha": "87c328939057bd9195d9d4ba5c9682404456b101",
-      "sha256": "24d1c7eb6457fd754c1ad83bc708b7f53d53b65207e38d4296daee81b0598668"
+      "size": 7260,
+      "sha": "aef915f8fb25c110ff89e1572997e5576dd59cb3",
+      "sha256": "37fef80c2064032bd0017de6f50550b2c1bed387cd7d78c218e40946bf3c384a"
     },
     {
       "path": "qualification/test_accepted_candidate_cellstore.py",
@@ -3295,6 +3307,12 @@
       "size": 99,
       "sha": "124a505de4a2ddfbeff5f7461b1eb64d67368945",
       "sha256": "fff968364fb8867fa7d2395f1c97041c95bc2387eb4ebefd902ec845da92aca0"
+    },
+    {
+      "path": "requirements-linux-py313-runtime.lock.txt",
+      "size": 2668,
+      "sha": "1449765e2747d28d2116dae0a9cdfaf474623c5d",
+      "sha256": "a06c032cdac3537d23629211910287d09bb6acee81578b52f8cffc0fea8186e7"
     },
     {
       "path": "requirements-lock-linux-py312.txt",
@@ -5557,6 +5575,12 @@
       "size": 2212,
       "sha": "7a61dcb0c1b046a565532afdd2d9636fc11d3c0d",
       "sha256": "21ed1714df43a5b897f48e1de210f05d4b0077f2fdbe99a40b43225ad4949ec8"
+    },
+    {
+      "path": "tests/test_sqlite_dynamic_identity.py",
+      "size": 8420,
+      "sha": "8287518bf0f1a13b87d5fe5c7cd7f92642170847",
+      "sha256": "8a2170b3625b2fed77a04227ba2241c38e1afd51235a8fbbfcb7fe5fe4ad7dda"
     },
     {
       "path": "tests/test_staged_stream_visibility.py",

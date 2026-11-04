@@ -256,16 +256,22 @@ def _runtime_hash(path, budget, maximum=64 * 1024**2):
 
 
 def runtime_fingerprints(budget=None):
-    """One observed built-in form; mapping absence is not a static-link proof."""
+    """Explicit observed binding forms; metadata never grants qualification."""
     import _sqlite3
     from importlib.machinery import BuiltinImporter
     budget = budget or Budget()
     with budget.phase():
         if sys.platform != 'linux':raise Unavailable('runtime_mapping_platform')
         spec = _sqlite3.__spec__
-        if (spec is None or spec.name != '_sqlite3' or spec.origin != 'built-in'
-                or spec.loader is not BuiltinImporter or getattr(_sqlite3, '__file__', None) is not None):
-            raise Unavailable('unqualified_sqlite_binding_form')
+        builtin = (spec is not None and spec.name == '_sqlite3' and spec.origin == 'built-in'
+                   and spec.loader is BuiltinImporter and getattr(_sqlite3, '__file__', None) is None)
+        if builtin:
+            binding = dict(sqlite3_binding='observed-built-in-no-separate-sqlite-mapping-v1',
+                sqlite3_extension_sha256=None, sqlite3_library_sha256=None,
+                sqlite3_library_realpath_sha256=None)
+        else:
+            from .sqlite_dynamic_identity import dynamic_fingerprints
+            binding = dynamic_fingerprints(_sqlite3, budget, _runtime_hash)
         executable, executable_info, executable_hash = _runtime_hash(sys.executable, budget)
         actual = os.stat('/proc/self/exe')
         if (actual.st_dev, actual.st_ino, actual.st_size) != (
@@ -301,15 +307,13 @@ def runtime_fingerprints(budget=None):
                 if len(mappings) > 256 * 1024:raise Unavailable('runtime_mapping_capacity')
         for line in mappings.splitlines():
             fields = line.split(None, 5)
-            if len(fields) == 6 and b'libsqlite3' in fields[5]:
+            if builtin and len(fields) == 6 and b'libsqlite3' in fields[5]:
                 raise Unavailable('unexpected_separate_sqlite_mapping')
         return {'interpreter_bytes': executable_info.st_size,
             'interpreter_sha256': executable_hash,
             'interpreter_realpath_sha256': hashlib.sha256(os.fsencode(executable)).hexdigest(),
             'sqlite3_package_sha256': hashlib.sha256(canonical(inventory)).hexdigest(),
-            'sqlite3_binding': 'observed-built-in-no-separate-sqlite-mapping-v1',
-            'sqlite3_extension_sha256': None, 'sqlite3_library_sha256': None,
-            'sqlite3_library_realpath_sha256': None}
+            **binding}
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,10 +349,14 @@ class RuntimeQualification:
         integer(self.interpreter_bytes, 64 * 1024**2, 1)
         for name in ('interpreter_sha256', 'interpreter_realpath_sha256', 'sqlite3_package_sha256'):
             digest(getattr(self, name))
-        if (self.sqlite3_binding != 'observed-built-in-no-separate-sqlite-mapping-v1'
-                or self.sqlite3_extension_sha256 is not None or self.sqlite3_library_sha256 is not None
-                or self.sqlite3_library_realpath_sha256 is not None):
-            raise Unavailable('unqualified_sqlite_binding_form')
+        if self.sqlite3_binding == 'observed-built-in-no-separate-sqlite-mapping-v1':
+            if any(value is not None for value in (self.sqlite3_extension_sha256,
+                    self.sqlite3_library_sha256, self.sqlite3_library_realpath_sha256)):
+                raise Unavailable('unqualified_sqlite_binding_form')
+        elif self.sqlite3_binding == 'observed-dynamic-elf64-x86_64-sqlite-relocations-v1':
+            for value in (self.sqlite3_extension_sha256, self.sqlite3_library_sha256,
+                          self.sqlite3_library_realpath_sha256):digest(value)
+        else:raise Unavailable('unqualified_sqlite_binding_form')
         if self.platform != 'linux' or self.vfs != 'unix':
             raise Unavailable('unqualified_platform_vfs')
         integer(self.filesystem_device)

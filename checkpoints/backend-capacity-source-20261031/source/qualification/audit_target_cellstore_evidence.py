@@ -144,11 +144,23 @@ actual={str(p.relative_to(package)):{'bytes':p.stat().st_size,'sha256':h(read(p,
 assert actual==ident['package_inventory']
 fp=ident['fingerprints'];assert h(json.dumps(actual,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode())==fp['sqlite3_package_sha256']
 import _sqlite3
-from importlib.machinery import BuiltinImporter
-assert sys.platform=='linux' and _sqlite3.__spec__.origin=='built-in' and _sqlite3.__spec__.loader is BuiltinImporter
-assert getattr(_sqlite3,'__file__',None) is None and b'libsqlite3' not in read(Path('/proc/self/maps'),256*1024)
-assert fp['sqlite3_binding']=='observed-built-in-no-separate-sqlite-mapping-v1'
-assert all(fp[key] is None for key in ('sqlite3_extension_sha256','sqlite3_library_sha256','sqlite3_library_realpath_sha256'))
+from importlib.machinery import BuiltinImporter, ExtensionFileLoader
+assert sys.platform=='linux'
+if fp['sqlite3_binding']=='observed-built-in-no-separate-sqlite-mapping-v1':
+ assert _sqlite3.__spec__.origin=='built-in' and _sqlite3.__spec__.loader is BuiltinImporter
+ assert getattr(_sqlite3,'__file__',None) is None and b'libsqlite3' not in read(Path('/proc/self/maps'),256*1024)
+ assert all(fp[key] is None for key in ('sqlite3_extension_sha256','sqlite3_library_sha256','sqlite3_library_realpath_sha256'))
+ binding_check='independent_builtin_file_and_mapping_observation'
+else:
+ # Journal reconstruction/typed-row audit above is independent. Dynamic live
+ # binding is rechecked by the reviewed product ELF/maps/relocation verifier;
+ # this is intentionally not claimed as a second independent ELF parser.
+ from audio_backend.sqlite_dynamic_identity import BINDING
+ from audio_backend.native_owned_cell_store import runtime_fingerprints, Budget
+ assert fp['sqlite3_binding']==BINDING and isinstance(_sqlite3.__spec__.loader,ExtensionFileLoader)
+ assert h(read(Path(_sqlite3.__file__).resolve(),4*1024**2))==fp['sqlite3_extension_sha256']
+ assert runtime_fingerprints(Budget.for_owner())==fp
+ binding_check='reviewed_shared_dynamic_elf_mapping_relocation_recheck'
 exe=Path(sys.executable).resolve();assert h(read(exe))==fp['interpreter_sha256'] and exe.stat().st_size==fp['interpreter_bytes']
 assert h(os.fsencode(exe))==fp['interpreter_realpath_sha256']
 assert E.stat().st_dev==ident['filesystem_device']
@@ -177,7 +189,7 @@ report=dict(status='accepted_production_schema_saved_byte_evidence',production_a
  changed_pages=len(changed),journal_records=nrec,sector_bytes=sector,allocated_pair_bytes=allocated,slack_bytes=slack,
  baseline_sha256=h(baseline),runtime_package_sha256=fp['sqlite3_package_sha256'],exact_recovery=True,
  all_rows_checked=count,evidence_unchanged=True,source_runtime_inventory_matches=True,
- lifecycle_receipts_consistent=True,lifecycle_independently_reobserved=False,
+ lifecycle_receipts_consistent=True,lifecycle_independently_reobserved=False,runtime_binding_check=binding_check,
  limitations=['Production DDL with synthetic opaque proofs, not recorder provenance or primary authority','Process crash, not power-loss durability','Sampled allocation does not prove instantaneous peak','Original child stop/wait events are historical receipts, not independently re-observed','No native model/service or profile activation'],
  audit_script_sha256=h(read(Path(__file__))),evidence_inventory=before)
 with O.open('x') as output:

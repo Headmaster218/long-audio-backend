@@ -45,10 +45,15 @@ def validate(value):
         digest = observed[key]
         if type(digest) is not str or len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
             raise ValueError('target_observation_digest')
-    if (observed['sqlite3_binding'] != 'observed-built-in-no-separate-sqlite-mapping-v1'
-            or any(observed[key] is not None for key in ('sqlite3_extension_sha256',
-                'sqlite3_library_sha256', 'sqlite3_library_realpath_sha256'))):
-        raise ValueError('target_observation_binding')
+    binding_keys = ('sqlite3_extension_sha256', 'sqlite3_library_sha256', 'sqlite3_library_realpath_sha256')
+    if observed['sqlite3_binding'] == 'observed-built-in-no-separate-sqlite-mapping-v1':
+        if any(observed[key] is not None for key in binding_keys):raise ValueError('target_observation_binding')
+    elif observed['sqlite3_binding'] == 'observed-dynamic-elf64-x86_64-sqlite-relocations-v1':
+        for key in binding_keys:
+            value = observed[key]
+            if type(value) is not str or len(value)!=64 or any(c not in '0123456789abcdef' for c in value):
+                raise ValueError('target_observation_binding')
+    else:raise ValueError('target_observation_binding')
     return observed
 
 
