@@ -46,13 +46,45 @@ def roles():
             elif refs: raise ValueError('unknown reference present')
     return {'schema':1,'source_selection_slots_sha256':SLOTS_SHA,'records':records}
 
+def cohort_binding(args,role_doc,receipt,receipt_path):
+    if not args.resource_cohort and not args.resource_cohort_sha:
+        if receipt['status']!='ACQUIRED_ALL_SLOTS' or receipt['selected_count']!=108:
+            raise ValueError('original108 acquisition incomplete; explicit separate resource cohort required')
+        return role_doc,6,10,None,[]
+    if not args.resource_cohort or not args.resource_cohort_sha:raise ValueError('both resource cohort path and external SHA required')
+    import reduce_resource_cohort as reduction
+    pin=h.pinned(args.resource_cohort)
+    if pin['sha256']!=args.resource_cohort_sha:raise ValueError('resource cohort changed')
+    bound=h.read_json(pin['path']); h.verify_pin(bound['plan'])
+    if bound['plan']['sha256']!='165f26e47bd6e85100fb0560545baef103485039b09bd642a814bc109c170368':raise ValueError('unregistered resource-only rule')
+    plan=h.read_json(bound['plan']['path']);h.verify_pin(plan['source'])
+    if plan['source']!=h.pinned(reduction.__file__):raise ValueError('resource rule source changed')
+    if bound['original_acquisition_receipt']!=h.pinned(receipt_path):raise ValueError('resource cohort no longer binds original receipt')
+    h.verify_pin(bound['original_terminal']);terminal=h.read_json(bound['original_terminal']['path'])
+    if terminal.get('positive_original_wait') is not True or terminal.get('exit_code')!=2 or terminal.get('acquisition_receipt_sha256')!=bound['original_acquisition_receipt']['sha256']:raise ValueError('original resource-limited process not settled')
+    original_rows=list(csv.DictReader(io.StringIO((CORPUS/'selection_slots_proposed.csv').read_text())))
+    expected=reduction.select(original_rows,receipt)
+    if expected['status']!='RESOURCE_REDUCED_COHORT_FROZEN_NO_INFERENCE' or any(bound.get(k)!=v for k,v in expected.items()):raise ValueError('resource cohort differs from frozen rule')
+    chosen=set(expected['selected_slot_ids']);all_roles=role_doc['records'];reduced=dict(role_doc)
+    reduced['records']=[r for r in all_roles if r['id'] in chosen];reduced['resource_cohort']=pin
+    excluded=[];seen=set();acquired={r['slot_id'] for r in receipt['selected']}
+    for row in all_roles:
+        key=(row['split'],row['speaker_id'])
+        if key in seen:continue
+        seen.add(key);group=[r for r in all_roles if (r['split'],r['speaker_id'])==key]
+        if all(r['id'] in chosen for r in group):continue
+        missing=[r['id'] for r in group if r['id'] not in acquired]
+        excluded.append({'split':row['split'],'speaker_id':row['speaker_id'],'original_role':row['roster_role'],
+                         'reason':'incomplete_original_slots' if missing else 'common_K_U_balance_original_order','missing_slot_ids':missing})
+    return reduced,expected['K'],expected['U'],pin,excluded
+
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--output',required=True);args=ap.parse_args()
+    ap=argparse.ArgumentParser();ap.add_argument('--output',required=True);ap.add_argument('--resource-cohort');ap.add_argument('--resource-cohort-sha');args=ap.parse_args()
     start=time.monotonic(); signal.alarm(290); resource.setrlimit(resource.RLIMIT_CPU,(120,120));resource.setrlimit(resource.RLIMIT_FSIZE,(64*1024**2,64*1024**2))
     out=Path(args.output).resolve();out.mkdir(exist_ok=False)
-    role_doc=roles();rows=role_doc['records'];h.write_json(out/'source_roles.json',role_doc)
+    role_doc=roles();all_roles=role_doc['records']
     receipt_path=CORPUS/'acquired_capped/acquisition_receipt.json'; receipt=h.read_json(receipt_path)
-    if (receipt['status']!='ACQUIRED_ALL_SLOTS' or receipt['selected_count']!=108 or receipt['planned_slots']!=108
+    if (receipt['planned_slots']!=108
         or receipt['protocol_sha256']!=SELECTION_SHA or receipt['candidate_manifest_sha256']!=CANDIDATES_SHA
         or receipt['cumulative_archive_bytes']>8589934592): raise ValueError('capped acquisition not complete or changed')
     if h.digest_file(CORPUS/'selection_protocol_candidates_v2.json')!=SELECTION_SHA: raise ValueError('selection protocol changed')
@@ -80,7 +112,21 @@ def main():
         for earlier in range(1,rank):
             if candidates[(slot,str(earlier))]['status']!='rejected': raise ValueError('selected over unresolved earlier candidate')
         if chosen!={k:v for k,v in actual.items() if k!='status'}: raise ValueError('selected candidate/history binding differs')
-    if len(receipt['selected'])!=108 or len(selected)!=108 or set(selected)!={r['id'] for r in rows}: raise ValueError('selected waveform population mismatch')
+    if len(receipt['selected'])!=receipt['selected_count'] or len(selected)!=receipt['selected_count'] or not set(selected)<={r['id'] for r in all_roles}:raise ValueError('selected waveform population mismatch')
+    reconstructed={}
+    for role in all_roles:
+        group=sorted((r for r in candidates.values() if r['slot_id']==role['id']),key=lambda r:int(r['candidate_rank']))
+        for candidate in group:
+            if candidate['status']=='unseen':break
+            if candidate['status']=='qualified':
+                reconstructed[role['id']]={k:v for k,v in candidate.items() if k!='status'};break
+            if candidate['status']!='rejected':raise ValueError('invalid candidate resolution order')
+    if reconstructed!=selected:raise ValueError('receipt selected list differs from full candidate history')
+    role_doc,K,U,cohort_pin,exclusions=cohort_binding(args,role_doc,receipt,receipt_path)
+    rows=role_doc['records'];selected={r['id']:selected[r['id']] for r in rows};distinct=2*(4*K+3*U)
+    if len(rows)!=distinct or len(selected)!=distinct:raise ValueError('derived input population mismatch')
+    h.write_json(out/'source_roles.json',role_doc)
+    h.write_json(out/'COHORT_EXCLUSIONS.json',{'resource_cohort':cohort_pin,'original_status':receipt['status'],'excluded_people':exclusions})
     for field in ('source_wav_sha256','crop_pcm_sha256'):
         seen={}
         for slot,item in selected.items():
@@ -110,7 +156,7 @@ def main():
     for split in ('C','T'):
         group=[r for r in rows if r['split']==split];samples=[all_samples[r['id']] for r in group]
         gallery=[{'person_id':r['person_id'],'sample_id':r['id']} for r in group if r['role']=='reference']
-        if len(gallery)!=6 or len(samples)!=54: raise ValueError('fixed gallery/clip count mismatch')
+        if len(gallery)!=K or len(samples)!=4*K+3*U: raise ValueError('fixed gallery/clip count mismatch')
         for field,include in [('primary',lambda r:r['role']=='primary'),('all',lambda r:r['role']!='reference')]:
             queries=[r for r in group if include(r)]
             predictor={'split':split,'gallery':gallery,'queries':[r['id'] for r in queries]}
@@ -121,22 +167,23 @@ def main():
         anchors=[next(r['id'] for r in group if r['role']=='reference'),next(r['id'] for r in group if r['roster_role']=='unknown' and r['role']=='primary')]
         plan=runner.make_plan_template(split,samples,anchors)
         p=out/(split+'_RUN_PLAN.json');h.write_json(p,plan);plans[split]=h.pinned(p)
-    protocol={'schema':1,'experiment':'smiip-tv-native-calibration-pilot-20261104','status':'frozen_before_any_pilot_encoding',
+    protocol={'schema':1,'experiment':('smiip-tv-native-calibration-pilot-20261104' if cohort_pin is None else 'smiip-tv-native-calibration-pilot-resource-reduced-v1-20261104'),'status':'frozen_before_any_pilot_encoding',
         'scoring_source':h.pinned(ROOT/'scoring.py'),'orchestrator':h.pinned(ROOT/'orchestrator.py'),
         'scoring_inputs':primary_inputs,'diagnostic_inputs':diagnostic_inputs,'source_roles':h.pinned(out/'source_roles.json'),
         'calibration_run_plan':plans['C'],'holdout_run_plan':plans['T'],'input_preparer':h.pinned(__file__),
         'design_document':h.pinned(ROOT.parent/'backend-threshold-calibration-design-20261104/PILOT_PROTOCOL.md'),
         'acquisition_receipt':h.pinned(receipt_path),'selection_protocol':h.pinned(CORPUS/'selection_protocol_candidates_v2.json'),
         'selection_slots':h.pinned(CORPUS/'selection_slots_proposed.csv'),'selection_candidates':h.pinned(CORPUS/'selection_candidates_proposed.csv'),
-        'counts':{'K_per_split':6,'unknown_people_per_split':10,'primary_queries_per_split':16,'all_queries_per_split':48,'distinct_clips_total':108,'repeat_calls_total':8,'max_encoder_calls_total':116},
+        'resource_cohort':cohort_pin,'original_32_person_acquisition_status':receipt['status'],'availability_selection_bias':('none beyond original convenience selection' if cohort_pin is None else 'complete-person archive-prefix availability and common K/U truncation; not a random population sample'),'cohort_exclusions':h.pinned(out/'COHORT_EXCLUSIONS.json'),
+        'counts':{'K_per_split':K,'unknown_people_per_split':U,'primary_queries_per_split':K+U,'all_queries_per_split':3*(K+U),'distinct_clips_total':distinct,'repeat_calls_total':8,'max_encoder_calls_total':distinct+8},
         'selection_rule':{'grid_start':0,'grid_stop':1,'grid_step':.01,'margin':.10,'baseline':.75,'C_primaries_only':True,'C_max_wrong_known':0,'C_max_unknown_accepted':0,'maximize_known_correct':True,'tie_break':'higher_threshold','no_useful_candidate':'stop_before_T'},
-        'interval_policy':{'formal_population_or_safety_CI':None,'reference_only':'conditional_iid_binomial_model_not_validated_sampling_guarantee','primary_n_known':6,'primary_n_unknown':10,'confidence':.95,'C_selected_point_CI':None},
+        'interval_policy':{'formal_population_or_safety_CI':None,'reference_only':'conditional_iid_binomial_model_not_validated_sampling_guarantee','primary_n_known':K,'primary_n_unknown':U,'confidence':.95,'C_selected_point_CI':None},
         'resource_limits':{'model_wall_seconds_total':1800,'model_cpu_seconds_total':1200,'sampled_peak_rss_bytes':3*1024**3,'model_output_bytes_total':64*1024**2,'preparation_wall_seconds':300,'preparation_cpu_seconds':120,'preparation_output_bytes':64*1024**2},
         'scope':'Chinese mobile prompted/free-text speech; format/length checks only, no purity/VAD/content verification; not meeting, domain-general, unseen-training-identity or production qualification'}
     h.write_json(out/'protocol.json',protocol); pp=h.pinned(out/'protocol.json')
     actual_c=h.read_json(plans['C']['path']);actual_c['protocol_sha256']=pp['sha256'];runner.validate_manifest(actual_c)
     h.write_json(out/'C_MANIFEST.json',actual_c)
     if time.monotonic()-start>300: raise RuntimeError('preparation wall limit exceeded')
-    h.write_json(out/'PREPARATION_RESULT.json',{'status':'prepared_no_inference','protocol':pp,'C_manifest':h.pinned(out/'C_MANIFEST.json'),'distinct_clips':108,'calls_run':0,'elapsed_seconds':time.monotonic()-start})
+    h.write_json(out/'PREPARATION_RESULT.json',{'status':'prepared_no_inference','protocol':pp,'C_manifest':h.pinned(out/'C_MANIFEST.json'),'distinct_clips':distinct,'calls_run':0,'elapsed_seconds':time.monotonic()-start})
     print(json.dumps({'protocol':pp,'C_manifest':h.pinned(out/'C_MANIFEST.json'),'model_calls':0}))
 if __name__=='__main__': main()
