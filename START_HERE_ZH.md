@@ -32,17 +32,18 @@ python -m audio_backend.recorder_inbox_runner --help
 - 一次云端本机 FTPS → watch → 原生 ASR → 导出已通过，含自然发生的导出版本冲突恢复。它使用经过单独核验的运行时适配候选，不等于新克隆默认源码在任意服务器上可以直接运行。
 - 原生运行时、模型权重、私有数据库、录音、转写及凭据不在仓库里。默认运行时校验保持原样，不提供跳过校验的开关。
 - 严格模式需要正确的监督进程和已持有的实例锁描述符，不能仅添加 `--strict-primary` 就启动。旧普通 quickstart 也不是严格收件管线的一键安装说明。
-- FTPS 成功回调适配器是产品接口；当前真实 FTPS 服务器实现仍是资格测试夹具，不是可公开部署的接收服务。不要把夹具的账号、证书、回环绑定和测试控制当成部署配置。
+- 现有可运行 FTPS 接收进程：`python -m audio_backend.recorder_ftps_receiver`，安装单独的 `requirements-receiver.txt` 并提供已有私有配置、账号和 TLS 证书。已通过本机回环测试及实际 Android Java 传输代码测试；它不是公开互联网接收器，不自动创建凭据或部署服务。详见 `docs/RECORDER_FTPS_RECEIVER_SERVICE.md`。
 - 每个选定 span 仍需人工提供已有空 strict session 和首次交付路径。没有全自动每日 session 创建、无限期 daemon 或自动留存清理。原始收件与发布区各有 8 GiB 上限，保留目录也有上限；需要明确留存方案，不能依赖无限累积。
 
 ## 运行前按顺序阅读
 
 以下路径相对恢复后的源码目录：
 
-1. `docs/RECORDER_RECEIVER_COMPLETION.md`：接收器所有写入必须经拥有流和真实完成回调，不以文件出现或 marker 到达代替传输成功。
-2. `docs/RECORDER_RECEIVER_PUBLICATION.md`：私有目录、不可变发布和不确定结果处理。
-3. `docs/RECORDER_INBOX_RUNNER.md`：已有空 session、私有独立路径、显式绑定与有限 watch。首次 configure 不会创建 session。
-4. `docs/INHERITED_LOCK_ADOPTION.md`：严格启动需要的锁所有权约定。
-5. `qualification/combined_chain_20261103/FRESH_OPTIN_RESULT.md`：实际原生管线通过的精确范围和局限。
+1. `docs/RECORDER_FTPS_RECEIVER_SERVICE.md`：接收进程配置、检查、启动、关闭、有限容量与网络边界。
+2. `docs/RECORDER_RECEIVER_COMPLETION.md`：接收器所有写入必须经拥有流和真实完成回调，不以文件出现或 marker 到达代替传输成功。
+3. `docs/RECORDER_RECEIVER_PUBLICATION.md`：私有目录、不可变发布和不确定结果处理。
+4. `docs/RECORDER_INBOX_RUNNER.md`：已有空 session、私有独立路径、显式绑定与有限 watch。首次 configure 不会创建 session。
+5. `docs/INHERITED_LOCK_ADOPTION.md`：严格启动需要的锁所有权约定。
+6. `qualification/combined_chain_20261103/FRESH_OPTIN_RESULT.md`：实际原生管线通过的精确范围和局限。
 
 API 密钥使用既有 `AUDIO_API_KEY` 机制，不写进命令参数、配置回执或 Git。源码安装与服务上线分开；接收器认证/TLS、目标服务器的精确运行时资格、监督启动和留存策略完成前，不把它当作已可上线的一键成品。

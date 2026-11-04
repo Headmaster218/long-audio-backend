@@ -1,4 +1,4 @@
-> **当前开发版入口：[从新克隆恢复并安装源码](START_HERE_ZH.md)。当前代码在 checkpoint/source，根目录是历史版本；请勿在根目录 pip install。默认运行时与生产接收器尚未完成服务器部署资格。**
+> **当前开发版入口：[从新克隆恢复并安装源码](START_HERE_ZH.md)。当前代码在 checkpoint/source，根目录是历史版本；请勿在根目录 pip install。FTPS 接收进程已做回环测试，严格原生运行时尚未完成目标服务器部署资格。**
 
 # 长录音音频分析后端
 

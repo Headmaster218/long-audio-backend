@@ -759,6 +759,12 @@
       "sha256": "038b7aabf2d654b21ff0bacd7b3602a53dd30248532febedeae7a71d148783b7"
     },
     {
+      "path": "audio_backend/recorder_ftps_receiver.py",
+      "size": 23909,
+      "sha": "322750d258e90b7b80966e6144c28c7980e14486",
+      "sha256": "bc9be5ba6b9cf5b4acee4b11ec15c874240c2069d62005b9d296a98be6a859b4"
+    },
+    {
       "path": "audio_backend/recorder_inbox.py",
       "size": 7051,
       "sha": "d7c477e7750a573193eb123dabebc394717ede26",
@@ -2127,6 +2133,12 @@
       "sha256": "8fdc590d061a77d040ecf4564abbdd067c20e133bcd102771933125494943a2a"
     },
     {
+      "path": "docs/RECORDER_FTPS_RECEIVER_SERVICE.md",
+      "size": 11350,
+      "sha": "e503442eeb3b48b636b6136302189f6fb5bbc5f2",
+      "sha256": "47f9df17d7c7aacf926328324114f63a26cd1b88c55593f207ee37361f1d2f97"
+    },
+    {
       "path": "docs/RECORDER_INBOX_EXPORT_RECOVERY.md",
       "size": 3149,
       "sha": "6ac92aaae95de21435af2a44894632e2de9dfb4c",
@@ -3157,6 +3169,12 @@
       "size": 479,
       "sha": "b0474102b14045a6ac3a2303e105557fd4e7aad2",
       "sha256": "6cf1b65d7b76168cc5eb135e037205247962ed98e0f1d8d09abfe92c01dd845b"
+    },
+    {
+      "path": "requirements-receiver.txt",
+      "size": 300,
+      "sha": "18a13b800092274ae5d422436c9796d38f1c84b2",
+      "sha256": "07ccf1202369e144f48d84dcd6e46cce09b45c400a1f2034f22ad45aa8fca906"
     },
     {
       "path": "requirements-runtime-dev9.lock.txt",
@@ -4887,6 +4905,18 @@
       "sha256": "37b1c1ebe6b624f1a377e732fa5904f20b4a297a026d225a3700b0400463ea32"
     },
     {
+      "path": "tests/test_recorder_ftps_receiver.py",
+      "size": 22678,
+      "sha": "152123d977d8026392262d0df136b1ae9725dc5b",
+      "sha256": "e23452eb68d563848f3973b5921af32bfc0fdfae501095eafe52622cb2d52163"
+    },
+    {
+      "path": "tests/test_recorder_ftps_receiver_android.py",
+      "size": 4078,
+      "sha": "43c0c5b52636663374febd3428427a4dcae31956",
+      "sha256": "88a6b3a36e31a6b28998cc16b5da8a339631002e30d526d013f3741ad3ed5f74"
+    },
+    {
       "path": "tests/test_recorder_inbox.py",
       "size": 4937,
       "sha": "4c6d749d5e24ab9e132c43e8c87d34751ddaf05a",
@@ -5806,5 +5836,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add independently reviewed bounded 256-segment receiver resource study; synthetic volume only, no FTPS or ASR/endurance qualification."
+  "source_update": "Add bounded opt-in FTPS receiver process with owned writes, before-226 completion, TLS closure, exact readback, private config and graceful stop; 82 focused tests including actual Java transport, loopback scope only."
 }

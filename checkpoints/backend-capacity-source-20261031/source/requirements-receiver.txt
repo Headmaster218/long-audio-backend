@@ -1,0 +1,10 @@
+# Optional, separate FTPS receive process. No model/inference dependencies.
+# The receive lifecycle hooks are version-specific and covered by wire tests.
+pyftpdlib==2.1.0
+pyOpenSSL==25.3.0
+cryptography==46.0.7
+pyasyncore==1.0.5
+pyasynchat==1.0.5
+cffi==2.1.1
+pycparser==3.12
+typing-extensions==4.16.0
