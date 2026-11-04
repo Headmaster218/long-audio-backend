@@ -2451,6 +2451,24 @@
       "sha256": "92c18cf6c219266936201f613261824d0f7c2a4d04d55bc6d45cffb7cc16c3d5"
     },
     {
+      "path": "docs/SPEAKER_ABSTENTION_DIAGNOSIS_20261104.md",
+      "size": 4539,
+      "sha": "a375dff83cba233d5559bb2ef9714a089082ffff",
+      "sha256": "80f5edf5f9af73f8a7b3b868b4ce542b1749cb702d64621fb9e0b0579abb7f39"
+    },
+    {
+      "path": "docs/SPEAKER_ABSTENTION_METHODS_20261104.md",
+      "size": 15721,
+      "sha": "30fa5cb7f55f25efb32244ec2768038b72305ea2",
+      "sha256": "fdae1381447355c3d5a8b43f93566b0f18a8361a2ee2be49f8e8c40d3a7402c1"
+    },
+    {
+      "path": "docs/SPEAKER_CARRYOVER_VALIDATION_DESIGN_20261104.md",
+      "size": 7891,
+      "sha": "e80fc13767cc7b7a1fa55c5bf30bdd934cf61e67",
+      "sha256": "e05b70edfe749eea995781105d810106b149288e649c3bddb3b959cce2193f19"
+    },
+    {
       "path": "docs/SPEAKER_SUPPORT_HTTP_SMOKE.md",
       "size": 2354,
       "sha": "c41a97405bb0d81ac62dcab007935543076c1774",
@@ -6286,5 +6304,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev69 plus audited formal same-session recovery and preserved negative post-recovery exploratory speaker result; no product changes or quality promotion."
+  "source_update": "dev69 plus preserved negative result, read-only cause diagnosis and source-backed conservative future design; no inference, threshold, reference or product changes."
 }
