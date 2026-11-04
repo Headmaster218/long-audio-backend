@@ -39,3 +39,16 @@ refusals, strict preflight/supervisor controls, receiver publication/completion,
 real loopback FTPS and the actual Android Java transport using assembled Android
 233ed0c source. This is a focused suite, not the entire repository test suite;
 the Java transport runs on the cloud host, not on a physical Android device.
+
+## Test-only runtime candidate controls
+
+A later explicit-evidence run passed nine real-verifier CellStore controls under
+two-CPU, 1 GiB address-space and CPU/wall limits. The test fixture rechecks the
+frozen target, pinned audit and physical result, all saved evidence, and exact
+product CellStore source hash. Only private test stores receive the candidate;
+shipped production profiles remain unchanged and are asserted unchanged.
+Schema replay/conflict/pin/restart behavior, five pre-disk runtime mismatches,
+existing-store binding refusal and unresolved-owner lock-token retention passed.
+Synthetic authority and lock tokens do not qualify OS lock integration or native
+startup. The nine controls intentionally skip when no explicit evidence is given.
+This is a separate run after the 209-test selection, not a combined 218-test run.
