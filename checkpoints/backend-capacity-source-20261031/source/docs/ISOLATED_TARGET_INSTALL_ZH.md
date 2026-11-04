@@ -2,8 +2,12 @@
 
 这是受审目标的隔离测试流程，不是跳过运行时校验的安装开关。默认生产源码保持不变。
 新服务器必须在自己的解释器、SQLite 绑定和数据盘上重新完成资格流程；不能复制云端
-的历史回执、运行时补丁或数据库来获得资格。当前只支持 Linux built-in `_sqlite3`
-绑定；普通动态 `_sqlite3`/独立 SQLite 共享库仍被拒绝，尚无通用服务器部署结论。
+的历史回执、运行时补丁或数据库来获得资格。除既有 Linux built-in `_sqlite3` 绑定外，
+现支持一种严格限定的动态绑定：Linux ELF64、小端 x86-64，使用全局、无版本的
+受支持 SQLite 函数导入及重定位。其他动态形式仍会被拒绝；默认生产资格白名单不变，
+不会因为观察成功而自动启用。具体映射、符号来源和完整性检查见
+[`DYNAMIC_SQLITE_RUNTIME_IDENTITY.md`](DYNAMIC_SQLITE_RUNTIME_IDENTITY.md)。
+这不是通用 Linux 或独立服务器验收结论；每个目标主机、运行时和数据盘都须单独验证。
 
 ## 1. 固定源码和目标
 
@@ -23,7 +27,9 @@
 在独立构建副本中工作，保留 materializer 输出不变。所有命令中的 `python` 必须是
 已完成目标资格的同一个解释器，不能安装后随意移动它或替换 SQLite 包。
 运行依赖应按所选 Linux/Python 配置的 hash 锁文件准备；安装锁文件不等于通过资格。
-当前锁文件针对已验证云端配置，不是跨平台通用依赖承诺。
+`requirements-linux-py313-runtime.lock.txt` 固定当前 Linux/Python 3.13 配置的
+运行依赖 wheel 哈希；它不替代构建工具锁文件，也不能用于任意 Python ABI/平台。
+当前锁文件针对相应云端配置，不是跨平台通用依赖承诺。
 
 ```sh
 python -I -B -m pip install --require-hashes -r source/requirements-build-dev9.lock.txt
@@ -67,3 +73,8 @@ SIGTERM 主动停止监督器的正常信号退出码为 143，不能错误地�
 不同受审目标的 wheel 可能拥有相同开发版本和文件名，但包含不同的精确运行时
 身份。必须记录 wheel SHA-256 和 materializer 回执，不能只凭文件名或版本号认定
 安装一致；不要在已有同版本安装上依赖 pip 的“已满足”判断。
+
+当前同一云主机上的实际 Python 3.13 动态绑定已通过有限物理恢复流程和九项候选
+校验，以及受审安装后的短时真实语音检查。完整范围和未通过项目见
+[`动态运行时结果`](../qualification/dynamic_install_20261104/RESULT.md)。
+这不是独立服务器安装或上线验收。

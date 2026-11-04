@@ -51,3 +51,12 @@ python -m audio_backend.recorder_inbox_runner --help
 6. `qualification/combined_chain_20261103/FRESH_OPTIN_RESULT.md`：实际原生管线通过的精确范围和局限。
 
 API 密钥使用既有 `AUDIO_API_KEY` 机制，不写进命令参数、配置回执或 Git。源码安装与服务上线分开；接收器认证/TLS、目标服务器的精确运行时资格、监督启动和留存策略完成前，不把它当作已可上线的一键成品。
+
+## 2026-11-04：另一套动态 SQLite 运行时验证
+
+新增严格动态绑定识别，没有放开默认生产白名单。在同一云主机上，以全新依赖安装的
+Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安装和短时真实语音验证。
+这不是独立服务器验收。步骤见
+[隔离目标安装说明](checkpoints/backend-capacity-source-20261031/source/docs/ISOLATED_TARGET_INSTALL_ZH.md)，
+证据范围与已知测试失败见
+[动态运行时结果](checkpoints/backend-capacity-source-20261031/source/qualification/dynamic_install_20261104/RESULT.md)。

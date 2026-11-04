@@ -5,8 +5,19 @@ never activates a production profile, weakens the product verifier, migrates a
 store, or qualifies a platform merely by observing it. Existing probe invocations
 without target arguments retain their historical exact-host identity checks.
 
-Use the intended built-in-SQLite Linux interpreter with `-I -B`. First create a
-fresh private mode-0700 parent directory on the intended data filesystem. Run:
+Use the intended Linux interpreter with `-I -B`. Supported identity forms are the
+existing built-in SQLite binding and the narrow dynamic ELF64 little-endian x86-64
+binding with supported global, unversioned SQLite function imports/relocations.
+See [`DYNAMIC_SQLITE_RUNTIME_IDENTITY.md`](../docs/DYNAMIC_SQLITE_RUNTIME_IDENTITY.md)
+for live mapping, symbol-origin and integrity checks. Other forms remain refused;
+the default production allowlist remains unchanged and fail-closed. Each target
+host, runtime and data filesystem requires its own evidence and acceptance.
+
+For the current Linux/Python 3.13 configuration, runtime dependencies are pinned in
+`requirements-linux-py313-runtime.lock.txt`. That platform-specific wheel lock does
+not qualify an interpreter, SQLite binding or another host, and is not a universal
+ABI/platform dependency lock. First create a fresh private mode-0700 parent
+directory on the intended data filesystem. Run:
 
 ```
 python -I -B qualification/target_runtime_observation.py \
@@ -59,7 +70,9 @@ Assertions must remain enabled. The auditor rejects existing report destinations
 symlinks/special evidence, oversized inventories and source paths outside the
 selected source root. It opens only the clean recovered database read-only; it
 never opens the interrupted pair with SQLite. It checks recorded lifecycle
-receipts but cannot independently re-observe past process events. See
+receipts but cannot independently re-observe past process events. Dynamic binding
+identity is rechecked through the shared product verifier, not an independent ELF
+parser; the journal reconstruction and typed-row audit remain independent. See
 `TARGET_RUNTIME_RESULT_20261104.md` for the fresh cloud-only scope.
 
 ## Test-only real-verifier candidate controls
@@ -91,3 +104,8 @@ disk open, existing-binding refusal without namespace mutation, unresolved-owner
 lock-token retention, and nonactivation of the product selector. Authority and lock
 tokens are synthetic; this does not establish native service, actual OS lock,
 recorder provenance, acoustic accuracy, migration, or deployment readiness.
+
+The actual Python 3.13 dynamic target on this same cloud host has passed finite
+physical recovery, nine candidate controls and a bounded installed native speech
+smoke. See `dynamic_install_20261104/RESULT.md` for exact scope, evidence and
+remaining failures. This is not independent-server or universal Linux acceptance.
