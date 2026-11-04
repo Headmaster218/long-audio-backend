@@ -1,0 +1,80 @@
+{
+  "status": "prepared_not_launched",
+  "actual_model_constructions": 0,
+  "actual_model_calls": 0,
+  "actual_feature_computations": 0,
+  "execution_tests_passed": 15,
+  "metric_tests_passed": 10,
+  "artifacts": [
+    {
+      "path": "frontend_experiment.py",
+      "bytes": 41301,
+      "sha256": "4c324be6150b02d513cbbd867acfd1910e3126586ab719e7ec8e5a277e4a7ed7"
+    },
+    {
+      "path": "ort_bridge.c",
+      "bytes": 6352,
+      "sha256": "7babc4a130f4872a00a856b033ba5cd123b13d58586ab79e0be7f4f67e55ed02"
+    },
+    {
+      "path": "libort_bridge.so",
+      "bytes": 15856,
+      "sha256": "70a5d86cc9f4ee2d4391f1752e0e700bcad915b6c7b4338255cca35d2bb17cb2"
+    },
+    {
+      "path": "EXPERIMENT_PLAN.md",
+      "bytes": 15193,
+      "sha256": "d434c4213fc50f6417ca6cabd379d862962656dd8376150a8f1f1c77f9367737"
+    },
+    {
+      "path": "EXPERIMENT_FREEZE.json",
+      "bytes": 536084,
+      "sha256": "fbe31b4d31c8bb43af745618f93bda75ccda9e6e11e7de6254471e3a23b5bc3f"
+    },
+    {
+      "path": "test_frontend_execution.py",
+      "bytes": 12347,
+      "sha256": "d45e385aa61b6d4c0a31a0a984bffc12c8e11f76a88b013d3828cbc110f527db"
+    },
+    {
+      "path": "test_frontend_metrics.py",
+      "bytes": 6168,
+      "sha256": "29012d2e4f2af2af16968796dbd8de73a1629f748a6b63d3ec0db96960f62dd8"
+    },
+    {
+      "path": "EXECUTION_PREFLIGHT_FINAL.log",
+      "bytes": 2040,
+      "sha256": "f56832e8f394cb3deaf13b551098bd62d4613b43fd7fd1ea2a98777d2838bf39"
+    },
+    {
+      "path": "METRICS_PREFLIGHT_FINAL.log",
+      "bytes": 1019,
+      "sha256": "c3b523cc400fcc9544408bb6d57ebcfe42aa8e65e4f066b9cf01539c2dcb13c0"
+    },
+    {
+      "path": "API_PROBE.json",
+      "bytes": 90,
+      "sha256": "ce0e4c0c95e4ac15c064a29e517761edab32239014c988c5199b2f409c622c68"
+    },
+    {
+      "path": "KNF_WHEEL_RECEIPT.json",
+      "bytes": 4744,
+      "sha256": "2685f7a53782f9b65ea79209762c5255f8c5cec19ef5dac9c41f4e590e0f7efa"
+    },
+    {
+      "path": "FETCH_RECEIPT_COMPLETE.json",
+      "bytes": 3948,
+      "sha256": "36a7fc491869e5737b76a34e53b4d46bf5126fd9f1a52f76d46cf3705b19c0fa"
+    }
+  ],
+  "bound_samples": {
+    "path": "/workspace/scratch/12ec3121e93f/backend-frontend-samples-20261104/bound_sample_manifest.json",
+    "bytes": 62737,
+    "sha256": "3afb278301172b658db455a402b796a0df5c3d6f334ff93bde28fccbc649f53f"
+  },
+  "run_command": "env PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 /workspace/scratch/12ec3121e93f/backend-frontend-comparison-20261104/research-runtime/bin/python -B -I /workspace/scratch/12ec3121e93f/backend-frontend-comparison-20261104/frontend_experiment.py run --freeze /workspace/scratch/12ec3121e93f/backend-frontend-comparison-20261104/EXPERIMENT_FREEZE.json --freeze-sha fbe31b4d31c8bb43af745618f93bda75ccda9e6e11e7de6254471e3a23b5bc3f --output /workspace/scratch/12ec3121e93f/backend-frontend-comparison-20261104/measurement-01",
+  "launch_owner": "operator only; preparation worker will not launch",
+  "output_directory": "/workspace/scratch/12ec3121e93f/backend-frontend-comparison-20261104/measurement-01",
+  "source_runtime_unchanged_check": "SETUP_RESULT.json; final original source check owned separately",
+  "note": "Preparation only; hash references preserve the exact local pre-experiment bundle. Runtime binaries and raw speech are not published."
+}
