@@ -2938,9 +2938,9 @@
     },
     {
       "path": "qualification/receiver_resource_20261104/RESULT.md",
-      "size": 4340,
-      "sha": "be3874880a2cc80a0b9f87f2ac0e4e22858aa5e2",
-      "sha256": "2fdb2386d58b9836bf3c711b70aeb0ce04f7197209d3247ce9452d2d4f0c8e97"
+      "size": 4586,
+      "sha": "8c7be361259defbfa03a3819e4ae2aeb041862ce",
+      "sha256": "2389310f8446dd96543a2d019c89b0396852269bcb6b0f129f3c48b28b8db80b"
     },
     {
       "path": "qualification/receiver_resource_20261104/audit_receiver_resource.py",
@@ -2950,15 +2950,21 @@
     },
     {
       "path": "qualification/receiver_resource_20261104/receiver_resource_workload.py",
-      "size": 4867,
-      "sha": "ebe41d9739ccfcdc7f793dd40825b4caff259b00",
-      "sha256": "338f533abea7fdebac3981d2bf9ff8b96127aae329d857ffe625ac6f7015090d"
+      "size": 5236,
+      "sha": "8cb525f45e903318ffd28240e779e9be0478c8cc",
+      "sha256": "0465cc30f5d4b75295044e9d0bc18c3e544acb3b4fc1ea9bb9d9a682b971f848"
     },
     {
       "path": "qualification/receiver_resource_20261104/receiver_summary.json",
       "size": 6646,
       "sha": "89adba2669a7dec0e03056629f7f9db83ef4a15f",
       "sha256": "38b6e1d7b22012d20a90d7dec87de613e0e247008d681f620b052868ba74f07d"
+    },
+    {
+      "path": "qualification/receiver_resource_20261104/test_receiver_resource_observer.py",
+      "size": 2290,
+      "sha": "02c37718ffdbe0713743edde9638f64da0bb66bd",
+      "sha256": "28c20826c820946460e08862df564c22eb1913f3247713d1ce681d3298c03364"
     },
     {
       "path": "qualification/receiver_wire_20261103/PLAN.md",
@@ -5836,5 +5842,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Add bounded opt-in FTPS receiver process with owned writes, before-226 completion, TLS closure, exact readback, private config and graceful stop; 82 focused tests including actual Java transport, loopback scope only."
+  "source_update": "Make reusable receiver resource monitor fail closed on observer exceptions; three focused tests and one-segment smoke, original 256-segment evidence preserved separately."
 }

@@ -6,9 +6,12 @@ PASS for the bounded synthetic owned-receiver scenario below, not end-to-end ASR
 Base backend commit `bda0ad6e87779b884a872cd4aedbde739976d829`; all 962 checkpoint
 files were verified against SOURCE_MANIFEST before testing. No product file, bound,
 verifier or test expectation was changed. Raw runtime evidence remains private.
-The portable harness differs from the executed harness only by taking source/output
-roots from environment variables instead of embedded local paths; its one-segment
-smoke also exited successfully. Source checksum receipts are in the summary.
+The initial portable harness changed only source/output roots to environment variables;
+its one-segment smoke passed. A later harness-only fix propagates observer-thread
+failures to the main process and terminal exit. The original 256-segment receipts
+and metrics were not rewritten or retroactively attributed to that revision. The
+revised harness has focused observer-failure tests and a fresh one-segment smoke,
+not another 256-segment run. Source checksum receipts are in the summary.
 
 ## Actual workload and observations
 

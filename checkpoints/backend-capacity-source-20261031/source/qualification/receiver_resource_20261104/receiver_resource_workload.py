@@ -15,15 +15,22 @@ def stat():
     d.update(time=time.time(),pid=os.getpid(),fd=len(list(Path('/proc/self/fd').iterdir())))
     return d
 stop=threading.Event()
+monitor_errors=[]
 def monitor():
-    while not stop.is_set():
-        x=stat(); x['free']=shutil.disk_usage(ROOT).free
-        x['allocated']=sum(f.stat().st_blocks*512 for f in ROOT.rglob('*') if f.is_file())
-        emit('timeseries.jsonl',x)
-        if x['VmRSS']>2*1024**3 or x['free']<10*1024**3 or x['allocated']>6*1024**3:
-            (ROOT/'SAFETY_STOP').write_text(json.dumps(x))
-        stop.wait(1)
+    try:
+        while not stop.is_set():
+            x=stat(); x['free']=shutil.disk_usage(ROOT).free
+            x['allocated']=sum(f.stat().st_blocks*512 for f in ROOT.rglob('*') if f.is_file())
+            emit('timeseries.jsonl',x)
+            if x['VmRSS']>2*1024**3 or x['free']<10*1024**3 or x['allocated']>6*1024**3:
+                (ROOT/'SAFETY_STOP').write_text(json.dumps(x))
+            stop.wait(1)
+    except BaseException:
+        monitor_errors.append(traceback.format_exc())
+        try:emit('monitor_errors.jsonl', {'error':monitor_errors[-1]})
+        except OSError:pass
 def guard():
+    assert not monitor_errors,'resource observer failed'
     assert not (ROOT/'SAFETY_STOP').exists(),'resource safety bound'
     assert time.monotonic()-started<1800,'wall deadline'
 def utf(x):
@@ -77,4 +84,7 @@ started=time.monotonic();thread=threading.Thread(target=monitor,daemon=True);thr
 try:run(int(sys.argv[1]),int(sys.argv[2]))
 except BaseException:
     emit('errors.jsonl',dict(error=traceback.format_exc(),**stat()));raise
-finally:stop.set();thread.join();emit('operations.jsonl',dict(op='terminal',wall_seconds=time.monotonic()-started,**stat()))
+finally:
+    stop.set();thread.join()
+    if monitor_errors:raise RuntimeError('resource observer failed')
+    emit('operations.jsonl',dict(op='terminal',wall_seconds=time.monotonic()-started,**stat()))
