@@ -1,5 +1,6 @@
 {
-  "status": "prospective_preparation_no_pilot_inference",
+  "status": "completed_reduced_cohort_candidate_only_no_production_change",
+  "prospective_snapshot_preserved_in_commit": "8a3da499c143cac4daf673dbaa0d08226a473b9a",
   "files": [
     {
       "path": "ACQUISITION_OUTCOME.md",
@@ -27,9 +28,14 @@
       "sha256": "56911c8dec6e422f268b3343e8e1dc0f5658119cef147980c82894d10568eafc"
     },
     {
+      "path": "PUBLIC_RESULT_AGGREGATES.json",
+      "bytes": 42393,
+      "sha256": "f3f52fb0e1df6b358fa994393c775c8e2785fac37c6edf95c854341645c6f506"
+    },
+    {
       "path": "README.md",
-      "bytes": 4514,
-      "sha256": "665cd287372af2709686807429025f2e7db1258cf2114f1acde0f9062314b5dc"
+      "bytes": 4846,
+      "sha256": "c4644cd7b4d1a801fcae181bf8103abea05aac39e773a45f7f582c073d6377b6"
     },
     {
       "path": "RESOURCE_ONLY_FALLBACK_PLAN.json",
@@ -40,6 +46,16 @@
       "path": "RESOURCE_REDUCED_PROTOCOL_ADDENDUM.md",
       "bytes": 2394,
       "sha256": "f1d7b404e8b2474abc31ccccd91642376cc06117171df50275561c172dfa7121"
+    },
+    {
+      "path": "RESULT_REPORT.md",
+      "bytes": 7520,
+      "sha256": "46f662e92273256f23c783888ebdfaf7b70dde670bbb98f2184ce95fb718f296"
+    },
+    {
+      "path": "audit_pilot_results.py",
+      "bytes": 13931,
+      "sha256": "6748798c06924a48a36d553844f486011001fb7b6c3cf19f0f308e14dba9d2f8"
     },
     {
       "path": "native_runner.py",
@@ -96,6 +112,5 @@
       "bytes": 31223,
       "sha256": "0e61fe53df03618455e36ef672816ae058214f76910acb08ab02ca82a327a938"
     }
-  ],
-  "executing_acquisition_source_sha256": "585d1bda4f1e07609543b79aa29ebeae7686c3ce357307a7fdb5964ea2fc4d21"
+  ]
 }

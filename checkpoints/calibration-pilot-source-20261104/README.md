@@ -21,3 +21,7 @@ The official corpus source is https://www.openslr.org/156/ and the archive is ht
 Before the original acquisition terminates and before any pilot model call, RESOURCE_ONLY_FALLBACK_PLAN.json freezes a separate contingency. Only a positively waited original operation ending at its wall, CPU or compressed-transfer cap can trigger it. The original32-person acquisition remains incomplete and its receipt is never rewritten. No new download is allowed. Keep only people with every original planned date slot qualified, retaining their original C/T and known/unknown roles. In original order take common K=min(complete known in C,T,6) and U=min(complete unknown in C,T,10), requiring at least K3/U5. Otherwise stop.
 
 The reduced cohort gets a new manifest/experiment identity, actual2×(4K+3U)+8 call limit, actual primary K/U denominators and an excluded-person reason table. This is archive-availability convenience selection, not a population sample. Full candidate-history/source/crop checks still apply. No scores, listening or acoustic quality choose people, and the original transfer/time caps do not increase. The contingency has not been executed in this snapshot.
+
+## Completed reduced-cohort result
+
+See RESULT_REPORT.md and PUBLIC_RESULT_AGGREGATES.json. The single frozen C/T run completed; candidate 0.46 is not promoted. Held-out known correct: primary 3/4, extra days 1/8, all three 4/12. Original 32-person acquisition remains failed. No audio, vectors or demographic tables are included.

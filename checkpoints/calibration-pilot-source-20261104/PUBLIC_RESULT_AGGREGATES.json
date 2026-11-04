@@ -1,0 +1,1136 @@
+{
+  "status": "completed_candidate_only_no_production_change",
+  "candidate_threshold": 0.46,
+  "formal_population_or_safety_ci": null,
+  "ci_unavailable_reason": "Source sampling does not establish iid or general population coverage; this pilot provides no safety certification.",
+  "T": {
+    "all_three_queries": {
+      "baseline_0_75": {
+        "counts": {
+          "known": 12,
+          "known_correct": 0,
+          "known_refused": 12,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 27,
+          "unknown": 15,
+          "unknown_accepted": 0,
+          "unknown_refused": 15,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.0,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.0,
+          "known_not_correct": 1.0,
+          "known_refused": 1.0,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": null
+        },
+        "reason_counts": {
+          "unknown_below_threshold": 27
+        },
+        "threshold": 0.75,
+        "units": {
+          "available_pair_scores": 108,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 27,
+          "query_sessions": 27,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      },
+      "candidate": {
+        "counts": {
+          "known": 12,
+          "known_correct": 4,
+          "known_refused": 8,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 27,
+          "unknown": 15,
+          "unknown_accepted": 0,
+          "unknown_refused": 15,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.3333333333333333,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.3333333333333333,
+          "known_not_correct": 0.6666666666666666,
+          "known_refused": 0.6666666666666666,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": 1.0
+        },
+        "reason_counts": {
+          "experimental_identity_match": 4,
+          "unknown_below_threshold": 23
+        },
+        "threshold": 0.46,
+        "units": {
+          "available_pair_scores": 108,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 27,
+          "query_sessions": 27,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      }
+    },
+    "primary": {
+      "baseline_0_75": {
+        "counts": {
+          "known": 4,
+          "known_correct": 0,
+          "known_refused": 4,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 9,
+          "unknown": 5,
+          "unknown_accepted": 0,
+          "unknown_refused": 5,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.0,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.0,
+          "known_not_correct": 1.0,
+          "known_refused": 1.0,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": null
+        },
+        "reason_counts": {
+          "unknown_below_threshold": 9
+        },
+        "threshold": 0.75,
+        "units": {
+          "available_pair_scores": 36,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 9,
+          "query_sessions": 9,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      },
+      "candidate": {
+        "counts": {
+          "known": 4,
+          "known_correct": 3,
+          "known_refused": 1,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 9,
+          "unknown": 5,
+          "unknown_accepted": 0,
+          "unknown_refused": 5,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.75,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.75,
+          "known_not_correct": 0.25,
+          "known_refused": 0.25,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": 1.0
+        },
+        "reason_counts": {
+          "experimental_identity_match": 3,
+          "unknown_below_threshold": 6
+        },
+        "threshold": 0.46,
+        "units": {
+          "available_pair_scores": 36,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 9,
+          "query_sessions": 9,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      }
+    },
+    "two_extra_queries_only": {
+      "baseline_0_75": {
+        "counts": {
+          "known": 8,
+          "known_correct": 0,
+          "known_refused": 8,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 18,
+          "unknown": 10,
+          "unknown_accepted": 0,
+          "unknown_refused": 10,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.0,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.0,
+          "known_not_correct": 1.0,
+          "known_refused": 1.0,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": null
+        },
+        "reason_counts": {
+          "unknown_below_threshold": 18
+        },
+        "threshold": 0.75,
+        "units": {
+          "available_pair_scores": 72,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 18,
+          "query_sessions": 18,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      },
+      "candidate": {
+        "counts": {
+          "known": 8,
+          "known_correct": 1,
+          "known_refused": 7,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 18,
+          "unknown": 10,
+          "unknown_accepted": 0,
+          "unknown_refused": 10,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.125,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.125,
+          "known_not_correct": 0.875,
+          "known_refused": 0.875,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": 1.0
+        },
+        "reason_counts": {
+          "experimental_identity_match": 1,
+          "unknown_below_threshold": 17
+        },
+        "threshold": 0.46,
+        "units": {
+          "available_pair_scores": 72,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 18,
+          "query_sessions": 18,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      }
+    }
+  },
+  "C": {
+    "all_three_queries": {
+      "baseline_0_75": {
+        "counts": {
+          "known": 12,
+          "known_correct": 0,
+          "known_refused": 12,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 27,
+          "unknown": 15,
+          "unknown_accepted": 0,
+          "unknown_refused": 15,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.0,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.0,
+          "known_not_correct": 1.0,
+          "known_refused": 1.0,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": null
+        },
+        "reason_counts": {
+          "unknown_below_threshold": 27
+        },
+        "threshold": 0.75,
+        "units": {
+          "available_pair_scores": 108,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 27,
+          "query_sessions": 27,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      },
+      "candidate": {
+        "counts": {
+          "known": 12,
+          "known_correct": 7,
+          "known_refused": 5,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 27,
+          "unknown": 15,
+          "unknown_accepted": 0,
+          "unknown_refused": 15,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.5833333333333333,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.5833333333333334,
+          "known_not_correct": 0.4166666666666667,
+          "known_refused": 0.4166666666666667,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": 1.0
+        },
+        "reason_counts": {
+          "experimental_identity_match": 7,
+          "unknown_ambiguous": 2,
+          "unknown_below_threshold": 18
+        },
+        "threshold": 0.46,
+        "units": {
+          "available_pair_scores": 108,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 27,
+          "query_sessions": 27,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      }
+    },
+    "primary": {
+      "baseline_0_75": {
+        "counts": {
+          "known": 4,
+          "known_correct": 0,
+          "known_refused": 4,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 9,
+          "unknown": 5,
+          "unknown_accepted": 0,
+          "unknown_refused": 5,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.0,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.0,
+          "known_not_correct": 1.0,
+          "known_refused": 1.0,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": null
+        },
+        "reason_counts": {
+          "unknown_below_threshold": 9
+        },
+        "threshold": 0.75,
+        "units": {
+          "available_pair_scores": 36,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 9,
+          "query_sessions": 9,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      },
+      "candidate": {
+        "counts": {
+          "known": 4,
+          "known_correct": 2,
+          "known_refused": 2,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 9,
+          "unknown": 5,
+          "unknown_accepted": 0,
+          "unknown_refused": 5,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.5,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.5,
+          "known_not_correct": 0.5,
+          "known_refused": 0.5,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": 1.0
+        },
+        "reason_counts": {
+          "experimental_identity_match": 2,
+          "unknown_ambiguous": 1,
+          "unknown_below_threshold": 6
+        },
+        "threshold": 0.46,
+        "units": {
+          "available_pair_scores": 36,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 9,
+          "query_sessions": 9,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      }
+    },
+    "two_extra_queries_only": {
+      "baseline_0_75": {
+        "counts": {
+          "known": 8,
+          "known_correct": 0,
+          "known_refused": 8,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 18,
+          "unknown": 10,
+          "unknown_accepted": 0,
+          "unknown_refused": 10,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.0,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.0,
+          "known_not_correct": 1.0,
+          "known_refused": 1.0,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": null
+        },
+        "reason_counts": {
+          "unknown_below_threshold": 18
+        },
+        "threshold": 0.75,
+        "units": {
+          "available_pair_scores": 72,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 18,
+          "query_sessions": 18,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      },
+      "candidate": {
+        "counts": {
+          "known": 8,
+          "known_correct": 5,
+          "known_refused": 3,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 18,
+          "unknown": 10,
+          "unknown_accepted": 0,
+          "unknown_refused": 10,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "known_correct_speaker_macro": 0.625,
+        "margin": 0.1,
+        "rates": {
+          "all_planned_available": 1.0,
+          "known_available": 1.0,
+          "known_correct": 0.625,
+          "known_not_correct": 0.375,
+          "known_refused": 0.375,
+          "known_unavailable": 0.0,
+          "known_wrong": 0.0,
+          "unknown_accepted": 0.0,
+          "unknown_available": 1.0,
+          "unknown_refused": 1.0,
+          "unknown_unavailable": 0.0,
+          "verified_output_precision": 1.0
+        },
+        "reason_counts": {
+          "experimental_identity_match": 5,
+          "unknown_ambiguous": 1,
+          "unknown_below_threshold": 12
+        },
+        "threshold": 0.46,
+        "units": {
+          "available_pair_scores": 72,
+          "gallery_size": 4,
+          "independent_trials": null,
+          "known_query_speakers": 4,
+          "queries": 18,
+          "query_sessions": 18,
+          "query_speakers": 9,
+          "unknown_query_speakers": 5
+        },
+        "warning": "Candidate/error estimates only; no low-risk certification or production authorization."
+      }
+    }
+  },
+  "conditional_iid_model": {
+    "independence_assumption": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+    "label": "conditional_iid_model",
+    "purpose": "Reference intervals under an assumed model only, not a population-coverage guarantee or promotion criterion.",
+    "working_points": {
+      "baseline_0_75": {
+        "known_correct": {
+          "two-sided": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_correct",
+            "event_count": 0,
+            "event_definition": "Known primary query emitted as its true gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "two-sided",
+            "trials": 4,
+            "upper": 0.6023646356164746
+          },
+          "upper": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_correct",
+            "event_count": 0,
+            "event_definition": "Known primary query emitted as its true gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "upper",
+            "trials": 4,
+            "upper": 0.527129195498412
+          }
+        },
+        "known_wrong": {
+          "two-sided": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_wrong",
+            "event_count": 0,
+            "event_definition": "Known primary query emitted as another gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "two-sided",
+            "trials": 4,
+            "upper": 0.6023646356164746
+          },
+          "upper": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_wrong",
+            "event_count": 0,
+            "event_definition": "Known primary query emitted as another gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "upper",
+            "trials": 4,
+            "upper": 0.527129195498412
+          }
+        },
+        "unknown_accepted": {
+          "two-sided": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per unknown participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "unknown_accepted",
+            "event_count": 0,
+            "event_definition": "Unknown primary query emitted as any gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "two-sided",
+            "trials": 5,
+            "upper": 0.5218237501049814
+          },
+          "upper": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per unknown participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "unknown_accepted",
+            "event_count": 0,
+            "event_definition": "Unknown primary query emitted as any gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "upper",
+            "trials": 5,
+            "upper": 0.450719728346941
+          }
+        }
+      },
+      "candidate": {
+        "known_correct": {
+          "two-sided": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_correct",
+            "event_count": 3,
+            "event_definition": "Known primary query emitted as its true gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.19412044968324343,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "two-sided",
+            "trials": 4,
+            "upper": 0.9936905367902902
+          },
+          "upper": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_correct",
+            "event_count": 3,
+            "event_definition": "Known primary query emitted as its true gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "upper",
+            "trials": 4,
+            "upper": 0.9872585449014337
+          }
+        },
+        "known_wrong": {
+          "two-sided": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_wrong",
+            "event_count": 0,
+            "event_definition": "Known primary query emitted as another gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "two-sided",
+            "trials": 4,
+            "upper": 0.6023646356164746
+          },
+          "upper": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per known participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "known_wrong",
+            "event_count": 0,
+            "event_definition": "Known primary query emitted as another gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "upper",
+            "trials": 4,
+            "upper": 0.527129195498412
+          }
+        },
+        "unknown_accepted": {
+          "two-sided": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per unknown participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "unknown_accepted",
+            "event_count": 0,
+            "event_definition": "Unknown primary query emitted as any gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "two-sided",
+            "trials": 5,
+            "upper": 0.5218237501049814
+          },
+          "upper": {
+            "confidence": 0.95,
+            "denominator": "One prespecified primary query per unknown participant against the complete fixed gallery; no repeated queries or pair counts",
+            "event": "unknown_accepted",
+            "event_count": 0,
+            "event_definition": "Unknown primary query emitted as any gallery person",
+            "independence_basis_asserted_by_caller": "Hypothetical iid Bernoulli primary-query outcomes from independently sampled participants, conditional on this fixed gallery and source domain; source evidence does not establish this assumption.",
+            "lower": 0.0,
+            "method": "Clopper-Pearson exact binomial inversion",
+            "qualification": "Conditional on the stated independent Bernoulli sampling model; not established by this helper. No multiplicity adjustment or safety certification.",
+            "sides": "upper",
+            "trials": 5,
+            "upper": 0.450719728346941
+          }
+        }
+      }
+    }
+  },
+  "supplementary_refusal_reference_intervals": {
+    "candidate": {
+      "known_refused": {
+        "upper": {
+          "event_count": 1,
+          "trials": 4,
+          "confidence": 0.95,
+          "sides": "upper",
+          "lower": 0.0,
+          "upper": 0.7513953742698185
+        },
+        "two-sided": {
+          "event_count": 1,
+          "trials": 4,
+          "confidence": 0.95,
+          "sides": "two-sided",
+          "lower": 0.006309463209709865,
+          "upper": 0.8058795503167566
+        }
+      },
+      "unknown_refused": {
+        "upper": {
+          "event_count": 5,
+          "trials": 5,
+          "confidence": 0.95,
+          "sides": "upper",
+          "lower": 0.0,
+          "upper": 1.0
+        },
+        "two-sided": {
+          "event_count": 5,
+          "trials": 5,
+          "confidence": 0.95,
+          "sides": "two-sided",
+          "lower": 0.4781762498950185,
+          "upper": 1.0
+        }
+      }
+    },
+    "baseline_0_75": {
+      "known_refused": {
+        "upper": {
+          "event_count": 4,
+          "trials": 4,
+          "confidence": 0.95,
+          "sides": "upper",
+          "lower": 0.0,
+          "upper": 1.0
+        },
+        "two-sided": {
+          "event_count": 4,
+          "trials": 4,
+          "confidence": 0.95,
+          "sides": "two-sided",
+          "lower": 0.3976353643835253,
+          "upper": 1.0
+        }
+      },
+      "unknown_refused": {
+        "upper": {
+          "event_count": 5,
+          "trials": 5,
+          "confidence": 0.95,
+          "sides": "upper",
+          "lower": 0.0,
+          "upper": 1.0
+        },
+        "two-sided": {
+          "event_count": 5,
+          "trials": 5,
+          "confidence": 0.95,
+          "sides": "two-sided",
+          "lower": 0.4781762498950185,
+          "upper": 1.0
+        }
+      }
+    }
+  },
+  "audit": {
+    "status": "PASSED_READ_ONLY_RESULT_AUDIT_NO_PRODUCTION_QUALIFICATION",
+    "input_and_output_pins_rehashed": 2151,
+    "model_calls_by_auditor": 0,
+    "total_actual_encoder_calls": 70,
+    "total_model_sessions": 2,
+    "raw_and_normalized_repeat_vectors_bitwise_equal": 8,
+    "totals": {
+      "wall_seconds": 10.677794663002715,
+      "aggregate_cpu_seconds": 15.691388999999997,
+      "allocated_output_bytes": 376832
+    },
+    "C_grid_recomputed_101_exact_rows": true,
+    "C_unique_rule_winner": 0.46,
+    "T_only_fixed_thresholds": [
+      0.46,
+      0.75
+    ],
+    "full_outcome_and_denominator_tables_recomputed": {
+      "C": {
+        "primary": {
+          "candidate": {
+            "planned": 9,
+            "known": 4,
+            "unknown": 5,
+            "unresolved_truth": 0,
+            "known_correct": 2,
+            "known_wrong": 0,
+            "known_refused": 2,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 5,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          },
+          "baseline_0_75": {
+            "planned": 9,
+            "known": 4,
+            "unknown": 5,
+            "unresolved_truth": 0,
+            "known_correct": 0,
+            "known_wrong": 0,
+            "known_refused": 4,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 5,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          }
+        },
+        "all_three_queries": {
+          "candidate": {
+            "planned": 27,
+            "known": 12,
+            "unknown": 15,
+            "unresolved_truth": 0,
+            "known_correct": 7,
+            "known_wrong": 0,
+            "known_refused": 5,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 15,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          },
+          "baseline_0_75": {
+            "planned": 27,
+            "known": 12,
+            "unknown": 15,
+            "unresolved_truth": 0,
+            "known_correct": 0,
+            "known_wrong": 0,
+            "known_refused": 12,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 15,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          }
+        },
+        "two_extra_queries_only": {
+          "candidate": {
+            "planned": 18,
+            "known": 8,
+            "unknown": 10,
+            "unresolved_truth": 0,
+            "known_correct": 5,
+            "known_wrong": 0,
+            "known_refused": 3,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 10,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          },
+          "baseline_0_75": {
+            "planned": 18,
+            "known": 8,
+            "unknown": 10,
+            "unresolved_truth": 0,
+            "known_correct": 0,
+            "known_wrong": 0,
+            "known_refused": 8,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 10,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          }
+        }
+      },
+      "T": {
+        "primary": {
+          "candidate": {
+            "planned": 9,
+            "known": 4,
+            "unknown": 5,
+            "unresolved_truth": 0,
+            "known_correct": 3,
+            "known_wrong": 0,
+            "known_refused": 1,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 5,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          },
+          "baseline_0_75": {
+            "planned": 9,
+            "known": 4,
+            "unknown": 5,
+            "unresolved_truth": 0,
+            "known_correct": 0,
+            "known_wrong": 0,
+            "known_refused": 4,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 5,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          }
+        },
+        "all_three_queries": {
+          "candidate": {
+            "planned": 27,
+            "known": 12,
+            "unknown": 15,
+            "unresolved_truth": 0,
+            "known_correct": 4,
+            "known_wrong": 0,
+            "known_refused": 8,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 15,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          },
+          "baseline_0_75": {
+            "planned": 27,
+            "known": 12,
+            "unknown": 15,
+            "unresolved_truth": 0,
+            "known_correct": 0,
+            "known_wrong": 0,
+            "known_refused": 12,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 15,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          }
+        },
+        "two_extra_queries_only": {
+          "candidate": {
+            "planned": 18,
+            "known": 8,
+            "unknown": 10,
+            "unresolved_truth": 0,
+            "known_correct": 1,
+            "known_wrong": 0,
+            "known_refused": 7,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 10,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          },
+          "baseline_0_75": {
+            "planned": 18,
+            "known": 8,
+            "unknown": 10,
+            "unresolved_truth": 0,
+            "known_correct": 0,
+            "known_wrong": 0,
+            "known_refused": 8,
+            "known_unavailable": 0,
+            "unknown_accepted": 0,
+            "unknown_refused": 10,
+            "unknown_unavailable": 0,
+            "unresolved_emitted": 0,
+            "unresolved_unavailable": 0,
+            "unresolved_no_output": 0
+          }
+        }
+      }
+    },
+    "conditional_iid_interval_objects_verified": 12,
+    "critical_limit": "T primary3/4 correct vs baseline0/4; extra-only1/8, all-three4/12. Zero known-wrong and0/5 primaryunknown accepts do not establish rare-error safety. No threshold change or production authorization."
+  },
+  "original_product_postcheck": {
+    "files_checked": 1046,
+    "mismatches": [],
+    "extra_files": [],
+    "unchanged": true
+  },
+  "artifact_sha256": {
+    "FINAL_INPUT_FREEZE.json": "b6b4902712c3e1bfa349c6c93de613c8f7c50cc0251135777ed533eb278c4b3d",
+    "CANDIDATE_LOCK.json": "b85c7290b413f02d4dcd0428581b5620d7177d92b0a163b191d2ce09194bee7d",
+    "C_SELECTION.json": "8cb529857f198bcc9307bb3e82f7163e6245fcad414e7a7be11e288c3cfb9698",
+    "T_PREDICTION_SEAL.json": "856d7afd2475a0a7d39b73d6eeff5d50a65cb01156bede85cad56522f8c4ca8f",
+    "T_REPORT.json": "701d626341f26076efeff4b6d17e2033d8a46a2876e8fcdc45cdf52be660f65b",
+    "INDEPENDENT_PILOT_RESULT_AUDIT.json": "b949732a22b0f7077d8ddf1ef6c6e94cda67d1204a8c31760f811a7e5b4b7987",
+    "C-run-01/TERMINAL.json": "4523f42179307063e9b9d0f4c6a3860de0f710dbf0e9bd0ef47dd77430d3b1dd",
+    "T-run-01/TERMINAL.json": "edafc7313f2cbe4d65ca52aae3061509c5f532c5403c152277f1fdc89649a530",
+    "ORIGINAL_PRODUCT_POSTCHECK.json": "1acc57b9fc96e0728cf53dc3f2d2a5469e942da9cd6a2081da82eaf3ff0d86fa"
+  }
+}
