@@ -1,0 +1,49 @@
+{
+  "demographic_attributes_included": false,
+  "embeddings_included": false,
+  "files": [
+    {
+      "bytes": 16564,
+      "name": "DIAGNOSTIC_AGGREGATES.json",
+      "sha256": "04aa45a78b6edd766981c6ef7cdc4fea911bdf99c922965ef51c27e0147b4451"
+    },
+    {
+      "bytes": 8671,
+      "name": "DIAGNOSTIC_REPORT.md",
+      "sha256": "42817b503bb94ef7884af89380b7ea8e59e1971e0015a4c6b80c15e5bdf22b61"
+    },
+    {
+      "bytes": 22999,
+      "name": "FROZEN_PILOT_INTEGRITY.json",
+      "sha256": "34b30e1445ebc4a23c0149b5a9f81b4a3278848083acd0a6f01caf9e2c049209"
+    },
+    {
+      "bytes": 1661,
+      "name": "README.md",
+      "sha256": "dda750c8364d5e6f5c1ea1b7966aa566ae7fe64b2377937fd32c6d9c0ff0cdc5"
+    },
+    {
+      "bytes": 1481,
+      "name": "VALIDATION.json",
+      "sha256": "f17bfc99f7f6f6cc9edf07c3fe8da2e15d926659540b07a89720e76f629eb64d"
+    },
+    {
+      "bytes": 16029,
+      "name": "diagnose_frozen.py",
+      "sha256": "247f65614f0db71d51919881624022a735203a35606f697a3f8b1d28bd9ac513"
+    },
+    {
+      "bytes": 5801,
+      "name": "export_public.py",
+      "sha256": "6b054d4e50049bf00000999dfabfb606e9fa413a463f695d11289f3e61b75566"
+    },
+    {
+      "bytes": 2113,
+      "name": "test_diagnose_frozen.py",
+      "sha256": "61275db8c19c2f5bfacc6c5ea03d28ae5691b02e32cbc17f4c121e63a45995a9"
+    }
+  ],
+  "per_input_signal_metrics_included": false,
+  "raw_audio_included": false,
+  "scope": "research_code_tests_report_aggregate_metrics_redacted_hashes_only"
+}

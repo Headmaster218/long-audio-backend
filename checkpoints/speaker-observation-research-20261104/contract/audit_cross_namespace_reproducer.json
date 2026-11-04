@@ -1,0 +1,426 @@
+{
+  "schema_version": 1,
+  "protocol_id": "prospective-multiref-v1",
+  "cohort": "new_prospective",
+  "space": {
+    "model_id": "speaker-model-immutable-v1",
+    "frontend_id": "frontend-immutable-v1",
+    "space_id": "speaker-v1.frontend-v1",
+    "model_sha256": "8e8ee3e16a9924b12f0fdef1212bf0355eb9cbea442da2479e60e2fd154240df",
+    "frontend_config_sha256": "681ead39908f124057ad6589c0cf78cfdd097a18c5e75e822b7439f047186d9f"
+  },
+  "content_hash_scheme": "pcm_s16le_mono_v1",
+  "reference_count": 2,
+  "persons": [
+    {
+      "person_id": "c-known",
+      "split": "C",
+      "enrollment": "known"
+    },
+    {
+      "person_id": "c-unknown",
+      "split": "C",
+      "enrollment": "unknown"
+    },
+    {
+      "person_id": "t-known",
+      "split": "T",
+      "enrollment": "known"
+    },
+    {
+      "person_id": "t-unknown",
+      "split": "T",
+      "enrollment": "unknown"
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": "session-0",
+      "acquisition_order": 0,
+      "recorded_on": "2026-12-01",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-1",
+      "acquisition_order": 1,
+      "recorded_on": "2026-12-02",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-2",
+      "acquisition_order": 2,
+      "recorded_on": "2026-12-03",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-3",
+      "acquisition_order": 3,
+      "recorded_on": "2026-12-04",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-4",
+      "acquisition_order": 4,
+      "recorded_on": "2026-12-05",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-5",
+      "acquisition_order": 5,
+      "recorded_on": "2026-12-06",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-6",
+      "acquisition_order": 6,
+      "recorded_on": "2026-12-07",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    },
+    {
+      "session_id": "session-7",
+      "acquisition_order": 7,
+      "recorded_on": "2026-12-08",
+      "declaration_origin": "external_review",
+      "evidence_id": "session-log-v1"
+    }
+  ],
+  "sources": [
+    {
+      "content_sha256": "c8cbe09ec32e0f64165d1f5262f76a4839188f11f522446d1a217ff9b3ac547a",
+      "session_id": "session-0",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    },
+    {
+      "content_sha256": "41100c2553d55e5f5ddacc27fca1afd996d2adec95af620f8985a5826b7a5805",
+      "session_id": "session-1",
+      "sample_rate": 16000,
+      "total_frames": 64000
+    },
+    {
+      "content_sha256": "992f4eb241ee6eefe4928025a2747db08b919834c93c5f5741725fa26b633841",
+      "session_id": "session-2",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    },
+    {
+      "content_sha256": "1d77863e33b26c9454ddffd65a8e64053f1ed58c4faa8971b82ee945723f17a5",
+      "session_id": "session-3",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    },
+    {
+      "content_sha256": "578877cff581199177fe0f3b3f2aba6d8c837f305ff38601dac447358c0ce933",
+      "session_id": "session-4",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    },
+    {
+      "content_sha256": "680cd67a8338c0f941141ddf41d6b93565acc921e070be02f199973cd04444a4",
+      "session_id": "session-5",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    },
+    {
+      "content_sha256": "6f0664de231185a8ebe53d129a2f8cd4c1ad9e9507168ab243fe94c43b1f9020",
+      "session_id": "session-6",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    },
+    {
+      "content_sha256": "b3d66b852c4fddb6f57296704bed315622e10ef63f8f870523f03888655fe8a6",
+      "session_id": "session-7",
+      "sample_rate": 16000,
+      "total_frames": 1600000
+    }
+  ],
+  "observations": [
+    {
+      "observation_id": "c-known-0",
+      "person_id": "c-known",
+      "split": "C",
+      "role": "reference",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "c8cbe09ec32e0f64165d1f5262f76a4839188f11f522446d1a217ff9b3ac547a",
+      "start_frame": 0,
+      "end_frame": 64000,
+      "crop_sha256": "41100c2553d55e5f5ddacc27fca1afd996d2adec95af620f8985a5826b7a5805",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "c-known-1",
+      "person_id": "c-known",
+      "split": "C",
+      "role": "reference",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "41100c2553d55e5f5ddacc27fca1afd996d2adec95af620f8985a5826b7a5805",
+      "start_frame": 0,
+      "end_frame": 32000,
+      "crop_sha256": "4839e64c113c5ba2c48b7c8dc72eae42fa0908fa6382f0bf8fe42f72c376c5a5",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "c-known-2",
+      "person_id": "c-known",
+      "split": "C",
+      "role": "reference",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "992f4eb241ee6eefe4928025a2747db08b919834c93c5f5741725fa26b633841",
+      "start_frame": 0,
+      "end_frame": 64000,
+      "crop_sha256": "b9663048b99e38986a8e5a5da0139bbc7377713b791654cc5f916d690fd10dd1",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "c-known-3",
+      "person_id": "c-known",
+      "split": "C",
+      "role": "query",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "1d77863e33b26c9454ddffd65a8e64053f1ed58c4faa8971b82ee945723f17a5",
+      "start_frame": 0,
+      "end_frame": 64000,
+      "crop_sha256": "0bdccab46c31bcccdf99c59ff87922a39945e34ec9d9614a4aee4af713ee785d",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "c-unknown-3",
+      "person_id": "c-unknown",
+      "split": "C",
+      "role": "query",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "1d77863e33b26c9454ddffd65a8e64053f1ed58c4faa8971b82ee945723f17a5",
+      "start_frame": 160000,
+      "end_frame": 224000,
+      "crop_sha256": "72f3241360e6df9dea19a0e5dee73a3957a85bc41426f14547a8cce740cffb7e",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "t-known-0",
+      "person_id": "t-known",
+      "split": "T",
+      "role": "reference",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "578877cff581199177fe0f3b3f2aba6d8c837f305ff38601dac447358c0ce933",
+      "start_frame": 320000,
+      "end_frame": 384000,
+      "crop_sha256": "6458b3250dabf2b9d5b50d4b54b658f7189376e696ea37da32420e2aba2ab660",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "t-known-1",
+      "person_id": "t-known",
+      "split": "T",
+      "role": "reference",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "680cd67a8338c0f941141ddf41d6b93565acc921e070be02f199973cd04444a4",
+      "start_frame": 320000,
+      "end_frame": 384000,
+      "crop_sha256": "7838b8e38ca5c85b87259adc53799e68201bef6dfff10a0395e3d475f2912f3c",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "t-known-2",
+      "person_id": "t-known",
+      "split": "T",
+      "role": "reference",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "6f0664de231185a8ebe53d129a2f8cd4c1ad9e9507168ab243fe94c43b1f9020",
+      "start_frame": 320000,
+      "end_frame": 384000,
+      "crop_sha256": "518de00cd741b9a5c8c7950ba1a1f2e2250d2c59011ecc02e1df728c36d53e0c",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "t-known-3",
+      "person_id": "t-known",
+      "split": "T",
+      "role": "query",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "b3d66b852c4fddb6f57296704bed315622e10ef63f8f870523f03888655fe8a6",
+      "start_frame": 320000,
+      "end_frame": 384000,
+      "crop_sha256": "3f0b6d83dbd69f7c59959a98f5563b6eda57b8de4865d953a93bdc73091444c1",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    },
+    {
+      "observation_id": "t-unknown-3",
+      "person_id": "t-unknown",
+      "split": "T",
+      "role": "query",
+      "space_id": "speaker-v1.frontend-v1",
+      "source_content_sha256": "b3d66b852c4fddb6f57296704bed315622e10ef63f8f870523f03888655fe8a6",
+      "start_frame": 480000,
+      "end_frame": 544000,
+      "crop_sha256": "264fb887537c7d91f292cc2995db0af40f6232f0715a2dae3e7b914fbdac6358",
+      "identity": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true
+      },
+      "speech": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "speech"
+      },
+      "overlap": {
+        "origin": "external_review",
+        "evidence_id": "annotation-v1",
+        "verified": true,
+        "status": "single_speaker"
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "scope": "research-only synthetic contract repair; no product, model, real C/T, or Git changes",
+  "before": {
+    "test_count": 59,
+    "result": "passed; later audit demonstrated a missing cross-namespace alias invariant",
+    "file_sha256": {
+      "multireference_trials.py": "cfb9d487c85a5a8eb87c0c86887b3d02aeddb7bcf24ca7748f7faf20512ef797",
+      "test_multireference_trials.py": "85ae8c61e9215d33022aac64c65118ba75379fc934a3de346ece922b98f164a2",
+      "README.md": "c977a04ae2edb5b12626a814f3a18d509bb70a647150eca2313074f5d42098d6"
+    }
+  },
+  "reproduction": {
+    "fixture": "audit_cross_namespace_reproducer.json",
+    "data": "entirely synthetic",
+    "before_status": "ready",
+    "before_c_multiple_reference_ids": [
+      "c-known-0",
+      "c-known-1"
+    ],
+    "cause": "A known crop was declared as a second source, then subcropped in a different declared session.",
+    "after_result": "ValueError: observations: cross-namespace source/crop content alias"
+  },
+  "repair": {
+    "invariants": [
+      "Reject source/crop hash equality unless it is the same source and full span.",
+      "Require full-span crop hash to equal its source hash."
+    ],
+    "added_regression_tests": 6,
+    "test_count": 65,
+    "result": "passed",
+    "py_compile": "passed",
+    "file_sha256": {
+      "multireference_trials.py": "cab7e69215943cf107656ddfd2e85b4e45e657313096de203b32cff2afcc392a",
+      "test_multireference_trials.py": "b43828c616d8903dc6148dce3c0b06ba0b63d79df9118ad3abc4ad2eb69b2b14",
+      "README.md": "61b44de69561993882d045ae75e2444f6f982dbfd66bc2efe752b53a1595cabe",
+      "audit_cross_namespace_reproducer.json": "128daf652da482a9f31ac7e345333043e587b9474be465f17213f9559a4b47f1"
+    }
+  },
+  "independent_recheck": {
+    "report": "../INDEPENDENT_CONTRACT_AUDIT.md",
+    "report_sha256": "f120c8f3d5146e5eec76e586dbf8e989ec8fade26b448c2581992c57963a44a2",
+    "source_sha256": "cab7e69215943cf107656ddfd2e85b4e45e657313096de203b32cff2afcc392a",
+    "result": "65 suite tests and six direct alias/self-crop checks passed; no remaining material issue found"
+  },
+  "pre_repair_version_clarification": {
+    "reason": "The auditor inspected an earlier source version than the implementer snapshot taken immediately before repair. These are distinct pre-repair versions, not one frozen source.",
+    "chronology": [
+      {
+        "stage": "earlier pre-repair source inspected by auditor",
+        "source_sha256": "2c24c965b5f35fe31f5e6d1370813585c64cd58be8af867beec329b6788bc5cc",
+        "state": "Alias defect present; D session-selection behavior already implemented; no trial_design output field."
+      },
+      {
+        "stage": "D-only metadata clarification, immediately before alias repair",
+        "source_sha256": "cfb9d487c85a5a8eb87c0c86887b3d02aeddb7bcf24ca7748f7faf20512ef797",
+        "state": "Alias defect still present; 59-test implementer snapshot and preserved erroneous-ready reproduction use this version.",
+        "exact_source_change": "Added only the output field trial_design=\"D_declared_disjoint_sessions\" on the plan_schema_version output line. No validation or selection logic changed."
+      },
+      {
+        "stage": "minimal alias repair and independent recheck",
+        "source_sha256": "cab7e69215943cf107656ddfd2e85b4e45e657313096de203b32cff2afcc392a",
+        "state": "Added the full-source hash consistency check and cross-namespace alias guard. 65 suite tests pass."
+      }
+    ],
+    "verification": "Reconstructed both earlier source texts in memory from the final source: removing the two alias-repair blocks exactly reproduces cfb9d487...; removing the trial_design field from that result exactly reproduces 2c24c965.... No historical source was rewritten.",
+    "scope": "This comparison concerns multireference_trials.py only. README and test-file hashes are separately recorded and are not asserted to match the earlier auditor snapshot."
+  }
+}

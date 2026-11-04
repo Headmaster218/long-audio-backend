@@ -1,0 +1,176 @@
+{
+  "retrieved_utc": "2026-11-04",
+  "purpose": "Read-only pinned source research; no downloaded model, dataset audio, or external code was executed.",
+  "sources": [
+    {
+      "key": "we_score",
+      "url": "https://github.com/wenet-e2e/wespeaker/blob/9fecd6cb4f47475d01761d87c826298dff4ef18c/wespeaker/bin/score.py",
+      "git_blob_sha": "d91153e80333ca2734f075fd33d4a2a66409e01c",
+      "repository": "wenet-e2e/wespeaker",
+      "commit": "9fecd6cb4f47475d01761d87c826298dff4ef18c",
+      "repository_path": "wespeaker/bin/score.py",
+      "source_sha256": "c829f2e193df280cf86758a6fad104e6d4bdf8edcff79965d5a932e6949e0abb",
+      "source_bytes": 3408,
+      "local_snapshot_not_for_backup": "sources/we_score.txt"
+    },
+    {
+      "key": "we_speaker",
+      "url": "https://github.com/wenet-e2e/wespeaker/blob/9fecd6cb4f47475d01761d87c826298dff4ef18c/wespeaker/cli/speaker.py",
+      "git_blob_sha": "e39f50b529746707b8b09d92756dc684f7e74662",
+      "repository": "wenet-e2e/wespeaker",
+      "commit": "9fecd6cb4f47475d01761d87c826298dff4ef18c",
+      "repository_path": "wespeaker/cli/speaker.py",
+      "source_sha256": "a00e350cbbe260250f071997528944f78b24168fc082a1296590c24078966160",
+      "source_bytes": 16707,
+      "local_snapshot_not_for_backup": "sources/we_speaker.txt"
+    },
+    {
+      "key": "we_vecmean",
+      "url": "https://github.com/wenet-e2e/wespeaker/blob/9fecd6cb4f47475d01761d87c826298dff4ef18c/tools/vector_mean.py",
+      "git_blob_sha": "f7e59021886dfe4e1446120534937c3a955a2656",
+      "repository": "wenet-e2e/wespeaker",
+      "commit": "9fecd6cb4f47475d01761d87c826298dff4ef18c",
+      "repository_path": "tools/vector_mean.py",
+      "source_sha256": "91896a7aaec18707f0770aef4b77cc1a2848b77ecad9e97f43ce0908c87dfac0",
+      "source_bytes": 2390,
+      "local_snapshot_not_for_backup": "sources/we_vecmean.txt"
+    },
+    {
+      "key": "we_extract",
+      "url": "https://github.com/wenet-e2e/wespeaker/blob/9fecd6cb4f47475d01761d87c826298dff4ef18c/examples/cnceleb/v2/local/extract_cnc.sh",
+      "git_blob_sha": "c0260350ef4d22fb0bd8aaaa5d67ea72f71a7cc3",
+      "repository": "wenet-e2e/wespeaker",
+      "commit": "9fecd6cb4f47475d01761d87c826298dff4ef18c",
+      "repository_path": "examples/cnceleb/v2/local/extract_cnc.sh",
+      "source_sha256": "90d5192131ad6e7699e5c72e4a90a1f9d68dce9e5018f7b2b2cae733e09cb713",
+      "source_bytes": 2024,
+      "local_snapshot_not_for_backup": "sources/we_extract.txt"
+    },
+    {
+      "key": "we_cn",
+      "url": "https://github.com/wenet-e2e/wespeaker/blob/9fecd6cb4f47475d01761d87c826298dff4ef18c/examples/cnceleb/v2/local/score.sh",
+      "git_blob_sha": "497e28f88950312970fbca25129914f75e434c0d",
+      "repository": "wenet-e2e/wespeaker",
+      "commit": "9fecd6cb4f47475d01761d87c826298dff4ef18c",
+      "repository_path": "examples/cnceleb/v2/local/score.sh",
+      "source_sha256": "26a1a69a7c18e4424790468cba3fa689af4be7e3232cb11df8b2ff4e5a78cf3b",
+      "source_bytes": 1657,
+      "local_snapshot_not_for_backup": "sources/we_cn.txt"
+    },
+    {
+      "key": "p_diar",
+      "url": "https://github.com/pyannote/pyannote-audio/blob/240a7f3ef60bc613169df860b536b10e338dbf3c/pyannote/audio/pipelines/speaker_diarization.py",
+      "git_blob_sha": "edfa5966cf78ad8af9fe8c1ab379e5901a0d48be",
+      "repository": "pyannote/pyannote-audio",
+      "commit": "240a7f3ef60bc613169df860b536b10e338dbf3c",
+      "repository_path": "pyannote/audio/pipelines/speaker_diarization.py",
+      "source_sha256": "0c233ab54c8e651005361526b83ae0f09279ee3301a2ce68dfa393624d181aca",
+      "source_bytes": 25601,
+      "local_snapshot_not_for_backup": "sources/p_diar.txt"
+    },
+    {
+      "key": "p_cluster",
+      "url": "https://github.com/pyannote/pyannote-audio/blob/240a7f3ef60bc613169df860b536b10e338dbf3c/pyannote/audio/pipelines/clustering.py",
+      "git_blob_sha": "cd4b3893532b2172b40776fdd512d2c245f39b01",
+      "repository": "pyannote/pyannote-audio",
+      "commit": "240a7f3ef60bc613169df860b536b10e338dbf3c",
+      "repository_path": "pyannote/audio/pipelines/clustering.py",
+      "source_sha256": "564a5b3edbe5430a5dcfb41be6fa90d080c733c1a04fce9ae22df4c4fa521f4a",
+      "source_bytes": 21401,
+      "local_snapshot_not_for_backup": "sources/p_cluster.txt"
+    },
+    {
+      "key": "s_speaker",
+      "url": "https://github.com/speechbrain/speechbrain/blob/31c1e329048c0380dc7f2acbe680c44a036b6286/speechbrain/inference/speaker.py",
+      "git_blob_sha": "efeb8a2350a071b4dd7b1b0ffce456e0631adcbb",
+      "repository": "speechbrain/speechbrain",
+      "commit": "31c1e329048c0380dc7f2acbe680c44a036b6286",
+      "repository_path": "speechbrain/inference/speaker.py",
+      "source_sha256": "02eaeeaed5c426c2703387d7cf8787eadf7d4cc1d2c8aa052c8137c3a39bd951",
+      "source_bytes": 4290,
+      "local_snapshot_not_for_backup": "sources/s_speaker.txt"
+    },
+    {
+      "key": "l_aishell",
+      "url": "https://github.com/lhotse-speech/lhotse/blob/18436e9a3461d611a0b738a659fa9dbe81d0ffa5/lhotse/recipes/aishell4.py",
+      "git_blob_sha": "ee26fa7063a152e5b224608b7fcd4acbffe342c6",
+      "repository": "lhotse-speech/lhotse",
+      "commit": "18436e9a3461d611a0b738a659fa9dbe81d0ffa5",
+      "repository_path": "lhotse/recipes/aishell4.py",
+      "source_sha256": "efb45210994c0e57cd33ad37d03ac070e83ffaf724d6871747883855ed007806",
+      "source_bytes": 7781,
+      "local_snapshot_not_for_backup": "sources/l_aishell.txt"
+    },
+    {
+      "key": "l_ali",
+      "url": "https://github.com/lhotse-speech/lhotse/blob/18436e9a3461d611a0b738a659fa9dbe81d0ffa5/lhotse/recipes/ali_meeting.py",
+      "git_blob_sha": "eb2c3b61ba90dadf7275adb2559791e76f92d4db",
+      "repository": "lhotse-speech/lhotse",
+      "commit": "18436e9a3461d611a0b738a659fa9dbe81d0ffa5",
+      "repository_path": "lhotse/recipes/ali_meeting.py",
+      "source_sha256": "b8ee5536086aa4451730fe24ba1c42f5fa80461317e02a6fcfe4495df8b09897",
+      "source_bytes": 9514,
+      "local_snapshot_not_for_backup": "sources/l_ali.txt"
+    },
+    {
+      "key": "ali_rttm",
+      "url": "https://github.com/yufan-aslp/AliMeeting/blob/692a034fd510f1720f547c2c91e0fbadc9c24bf2/speaker/local/make_textgrid_rttm.py",
+      "git_blob_sha": "f83c572d893ad7a21f8c1387e99ce79b1f3f008f",
+      "repository": "yufan-aslp/AliMeeting",
+      "commit": "692a034fd510f1720f547c2c91e0fbadc9c24bf2",
+      "repository_path": "speaker/local/make_textgrid_rttm.py",
+      "source_sha256": "81382041b8595fe5574d62a141437b7997b8e759a00ec1f68f6ee8c14384fe85",
+      "source_bytes": 1933,
+      "local_snapshot_not_for_backup": "sources/ali_rttm.txt"
+    },
+    {
+      "key": "ali_readme",
+      "url": "https://github.com/yufan-aslp/AliMeeting/blob/692a034fd510f1720f547c2c91e0fbadc9c24bf2/README.md",
+      "git_blob_sha": "1019b5217236a72b77773519ad4d7ead574dfdb1",
+      "repository": "yufan-aslp/AliMeeting",
+      "commit": "692a034fd510f1720f547c2c91e0fbadc9c24bf2",
+      "repository_path": "README.md",
+      "source_sha256": "69f9fd5a31c7cbb53aa377acedd4ff41117a6f1d1c09b268f902ba1a83624eb5",
+      "source_bytes": 4278,
+      "local_snapshot_not_for_backup": "sources/ali_readme.txt"
+    },
+    {
+      "key": "three_readme",
+      "url": "https://github.com/modelscope/3D-Speaker/blob/065629c313eaf1a01c65c640c46d77e61e9607b4/README.md",
+      "git_blob_sha": "645ccc563c6b8f628c705a6a4189fd7b3b0183f2",
+      "repository": "modelscope/3D-Speaker",
+      "commit": "065629c313eaf1a01c65c640c46d77e61e9607b4",
+      "repository_path": "README.md",
+      "source_sha256": "9ebb022164be09abd94832ea9d31ec7272bbc729ce6dd2a5c1b88fe33a66ab94",
+      "source_bytes": 13851,
+      "local_snapshot_not_for_backup": "sources/three_readme.txt"
+    }
+  ],
+  "local_snapshot_policy": "Third-party source snapshots are retained locally for inspection only and are excluded from the proposed backup. Reproduce from immutable URLs; no downloaded source was executed.",
+  "web_sources": [
+    {
+      "url": "https://www.openslr.org/119/",
+      "observed_utc": "2026-11-04"
+    },
+    {
+      "url": "https://www.openslr.org/111/",
+      "observed_utc": "2026-11-04"
+    },
+    {
+      "url": "https://www.aishelltech.com/aishell_4",
+      "observed_utc": "2026-11-04"
+    },
+    {
+      "url": "https://3dspeaker.github.io/",
+      "observed_utc": "2026-11-04"
+    },
+    {
+      "url": "https://www.cnceleb.org/dataset",
+      "observed_utc": "2026-11-04"
+    },
+    {
+      "url": "https://www.openslr.org/156/",
+      "observed_utc": "2026-11-04"
+    }
+  ]
+}

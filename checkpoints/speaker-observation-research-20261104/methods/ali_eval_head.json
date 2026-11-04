@@ -1,0 +1,23 @@
+{
+  "observed_utc": "2026-11-04T23:41Z",
+  "method": "HEAD",
+  "body_bytes_read": 0,
+  "status": 200,
+  "url": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Eval_Ali.tar.gz",
+  "headers": {
+    "server": "envoy",
+    "date": "Wed, 04 Nov 2026 23:41:16 GMT",
+    "content-type": "application/octet-stream",
+    "content-length": "3673718355",
+    "x-oss-request-id": "6AEBC29C986E293537031B1F",
+    "accept-ranges": "bytes",
+    "etag": "\"FEA425CB59FEE8781CD152B32022C964-351\"",
+    "last-modified": "Mon, 14 Feb 2022 07:18:21 GMT",
+    "x-oss-object-type": "Multipart",
+    "x-oss-hash-crc64ecma": "5690990898831359168",
+    "x-oss-storage-class": "IA",
+    "x-oss-server-time": "11",
+    "x-envoy-upstream-service-time": "197",
+    "connection": "close"
+  }
+}

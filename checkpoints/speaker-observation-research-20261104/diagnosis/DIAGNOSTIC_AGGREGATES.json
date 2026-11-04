@@ -1,0 +1,625 @@
+{
+  "boundary": "No model runs, new identity predictions, tuning, filtering, source edits, or purity claims.",
+  "frozen_candidate_counts": {
+    "C": {
+      "known": 12,
+      "known_correct": 7,
+      "known_refused": 5,
+      "known_unavailable": 0,
+      "known_wrong": 0,
+      "planned": 27,
+      "unknown": 15,
+      "unknown_accepted": 0,
+      "unknown_refused": 15,
+      "unknown_unavailable": 0,
+      "unresolved_emitted": 0,
+      "unresolved_no_output": 0,
+      "unresolved_truth": 0,
+      "unresolved_unavailable": 0
+    },
+    "T": {
+      "known": 12,
+      "known_correct": 4,
+      "known_refused": 8,
+      "known_unavailable": 0,
+      "known_wrong": 0,
+      "planned": 27,
+      "unknown": 15,
+      "unknown_accepted": 0,
+      "unknown_refused": 15,
+      "unknown_unavailable": 0,
+      "unresolved_emitted": 0,
+      "unresolved_no_output": 0,
+      "unresolved_truth": 0,
+      "unresolved_unavailable": 0
+    }
+  },
+  "group_summaries": {
+    "C_known_correct": {
+      "crop_fraction_of_source_duration": {
+        "max": 0.7692307692307693,
+        "mean": 0.4546669046016279,
+        "median": 0.3787878787878788,
+        "min": 0.24154589371980675,
+        "n": 7
+      },
+      "crop_fraction_of_source_energy": {
+        "max": 0.9891621346784001,
+        "mean": 0.5579411226050877,
+        "median": 0.3979898738257092,
+        "min": 0.2722178729564592,
+        "n": 7
+      },
+      "crop_low_energy_fraction_lt_minus50dbfs": {
+        "max": 0.29,
+        "mean": 0.12,
+        "median": 0.1,
+        "min": 0.0,
+        "n": 7
+      },
+      "crop_low_energy_fraction_lt_p95_minus30db": {
+        "max": 0.15,
+        "mean": 0.07714285714285715,
+        "median": 0.08,
+        "min": 0.01,
+        "n": 7
+      },
+      "crop_rms_dbfs": {
+        "max": -22.177219476216273,
+        "mean": -29.15939434801263,
+        "median": -29.91314797822842,
+        "min": -36.108941803842136,
+        "n": 7
+      },
+      "source_duration_seconds": {
+        "max": 8.28,
+        "mean": 5.051428571428572,
+        "median": 5.28,
+        "min": 2.6,
+        "n": 7
+      }
+    },
+    "C_known_refused": {
+      "crop_fraction_of_source_duration": {
+        "max": 0.4854368932038835,
+        "mean": 0.3631174797090972,
+        "median": 0.3597122302158273,
+        "min": 0.1953125,
+        "n": 5
+      },
+      "crop_fraction_of_source_energy": {
+        "max": 0.7107056493943834,
+        "mean": 0.3714154488535794,
+        "median": 0.35046714153692987,
+        "min": 0.14869219144066512,
+        "n": 5
+      },
+      "crop_low_energy_fraction_lt_minus50dbfs": {
+        "max": 0.41,
+        "mean": 0.16599999999999998,
+        "median": 0.21,
+        "min": 0.0,
+        "n": 5
+      },
+      "crop_low_energy_fraction_lt_p95_minus30db": {
+        "max": 0.22,
+        "mean": 0.11000000000000001,
+        "median": 0.11,
+        "min": 0.0,
+        "n": 5
+      },
+      "crop_rms_dbfs": {
+        "max": -18.50537298845451,
+        "mean": -27.25618811276114,
+        "median": -23.964461628982928,
+        "min": -46.34007647397871,
+        "n": 5
+      },
+      "source_duration_seconds": {
+        "max": 10.24,
+        "mean": 6.104000000000001,
+        "median": 5.56,
+        "min": 4.12,
+        "n": 5
+      }
+    },
+    "C_unknown_refused": {
+      "crop_fraction_of_source_duration": {
+        "max": 0.6578947368421053,
+        "mean": 0.48853315056212065,
+        "median": 0.5102040816326531,
+        "min": 0.2183406113537118,
+        "n": 15
+      },
+      "crop_fraction_of_source_energy": {
+        "max": 0.9892685750896388,
+        "mean": 0.6289409133662862,
+        "median": 0.6762574306457815,
+        "min": 0.21872379814728074,
+        "n": 15
+      },
+      "crop_low_energy_fraction_lt_minus50dbfs": {
+        "max": 0.4,
+        "mean": 0.132,
+        "median": 0.11,
+        "min": 0.0,
+        "n": 15
+      },
+      "crop_low_energy_fraction_lt_p95_minus30db": {
+        "max": 0.33,
+        "mean": 0.09000000000000002,
+        "median": 0.07,
+        "min": 0.0,
+        "n": 15
+      },
+      "crop_rms_dbfs": {
+        "max": -17.117507759650508,
+        "mean": -28.38380037261015,
+        "median": -28.89285701580935,
+        "min": -40.10846783703105,
+        "n": 15
+      },
+      "source_duration_seconds": {
+        "max": 9.16,
+        "mean": 4.517333333333334,
+        "median": 3.92,
+        "min": 3.04,
+        "n": 15
+      }
+    },
+    "T_known_correct": {
+      "crop_fraction_of_source_duration": {
+        "max": 0.78125,
+        "mean": 0.45480330470357067,
+        "median": 0.4107565011820331,
+        "min": 0.21645021645021645,
+        "n": 4
+      },
+      "crop_fraction_of_source_energy": {
+        "max": 0.9843264881828582,
+        "mean": 0.6054326595438952,
+        "median": 0.6469878211010497,
+        "min": 0.14342850779062336,
+        "n": 4
+      },
+      "crop_low_energy_fraction_lt_minus50dbfs": {
+        "max": 0.31,
+        "mean": 0.14250000000000002,
+        "median": 0.13,
+        "min": 0.0,
+        "n": 4
+      },
+      "crop_low_energy_fraction_lt_p95_minus30db": {
+        "max": 0.11,
+        "mean": 0.06,
+        "median": 0.065,
+        "min": 0.0,
+        "n": 4
+      },
+      "crop_rms_dbfs": {
+        "max": -25.60706855152835,
+        "mean": -32.36657210680287,
+        "median": -30.081822172696047,
+        "min": -43.69557553029103,
+        "n": 4
+      },
+      "source_duration_seconds": {
+        "max": 9.24,
+        "mean": 5.73,
+        "median": 5.56,
+        "min": 2.56,
+        "n": 4
+      }
+    },
+    "T_known_refused": {
+      "crop_fraction_of_source_duration": {
+        "max": 0.684931506849315,
+        "mean": 0.5004994427243417,
+        "median": 0.46765734265734266,
+        "min": 0.3424657534246575,
+        "n": 8
+      },
+      "crop_fraction_of_source_energy": {
+        "max": 0.9804952440193206,
+        "mean": 0.6482562083390788,
+        "median": 0.5821441964595577,
+        "min": 0.31258551047509736,
+        "n": 8
+      },
+      "crop_low_energy_fraction_lt_minus50dbfs": {
+        "max": 0.17,
+        "mean": 0.0475,
+        "median": 0.005,
+        "min": 0.0,
+        "n": 8
+      },
+      "crop_low_energy_fraction_lt_p95_minus30db": {
+        "max": 0.21,
+        "mean": 0.05500000000000001,
+        "median": 0.025,
+        "min": 0.0,
+        "n": 8
+      },
+      "crop_rms_dbfs": {
+        "max": -17.35276459359671,
+        "mean": -25.12896095491002,
+        "median": -25.7662863020347,
+        "min": -30.02426189323662,
+        "n": 8
+      },
+      "source_duration_seconds": {
+        "max": 5.84,
+        "mean": 4.27,
+        "median": 4.28,
+        "min": 2.92,
+        "n": 8
+      }
+    },
+    "T_unknown_refused": {
+      "crop_fraction_of_source_duration": {
+        "max": 0.7575757575757576,
+        "mean": 0.4500531926448783,
+        "median": 0.4132231404958678,
+        "min": 0.2564102564102564,
+        "n": 15
+      },
+      "crop_fraction_of_source_energy": {
+        "max": 0.9742840743320994,
+        "mean": 0.5638082261341987,
+        "median": 0.5120884521627888,
+        "min": 0.28328345611811484,
+        "n": 15
+      },
+      "crop_low_energy_fraction_lt_minus50dbfs": {
+        "max": 0.32,
+        "mean": 0.10200000000000001,
+        "median": 0.08,
+        "min": 0.0,
+        "n": 15
+      },
+      "crop_low_energy_fraction_lt_p95_minus30db": {
+        "max": 0.33,
+        "mean": 0.084,
+        "median": 0.05,
+        "min": 0.0,
+        "n": 15
+      },
+      "crop_rms_dbfs": {
+        "max": -16.348979495002162,
+        "mean": -24.62584944770627,
+        "median": -23.32736595135497,
+        "min": -34.75700349380341,
+        "n": 15
+      },
+      "source_duration_seconds": {
+        "max": 7.8,
+        "mean": 4.816,
+        "median": 4.84,
+        "min": 2.64,
+        "n": 15
+      }
+    }
+  },
+  "integrity": {
+    "central_crops_verified": 62,
+    "frozen_pilot_files_unchanged": 89,
+    "input_files_pinned_and_rechecked": 142,
+    "maximum_T_saved_score_absolute_error": 0.0,
+    "sealed_T_reference_query_scores_verified": 108
+  },
+  "method": {
+    "clipping": "counts PCM endpoints -32768/+32767; also |PCM/32768| >= .99 fraction; neither proves absence of prior clipping",
+    "cosine": "float64 normalization of saved float32 normalized vectors; same existing one-reference math; no aggregation",
+    "low_energy_absolute": "frame RMS < -50 dBFS, a descriptive amplitude proxy, not VAD",
+    "low_energy_relative": "frame RMS < within-clip 95th percentile RMS minus 30 dB, not VAD",
+    "signal": "PCM16/32768; channel 0; 20ms nonoverlapping complete frames; source tail excluded only for frame metrics",
+    "statistics": "post-hoc descriptive only; observations within a speaker are dependent; no tests, CI, quality gate, or candidate selection"
+  },
+  "person_consistency": [
+    {
+      "query_query": {
+        "max": 0.6295926784763068,
+        "mean": 0.6058889904904373,
+        "median": 0.614307379088121,
+        "min": 0.5737669139068841,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0004",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.6241153360375605,
+        "mean": 0.5605070654750077,
+        "median": 0.6065281841494516,
+        "min": 0.45087767623801084,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0020",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.5394315208913472,
+        "mean": 0.47563518178212244,
+        "median": 0.46576006952235105,
+        "min": 0.42171395493266883,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0035",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.44419544655142357,
+        "mean": 0.3783327605766207,
+        "median": 0.43020476159363413,
+        "min": 0.2605980735848043,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.6292337378383162,
+        "mean": 0.5552971111036563,
+        "median": 0.5625900081334654,
+        "min": 0.4740675873391876,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0107",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.6909467020866084,
+        "mean": 0.6323483365764407,
+        "median": 0.6351156562959241,
+        "min": 0.5709826513467895,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.5920525242114328,
+        "mean": 0.5455211853371994,
+        "median": 0.5612321334437949,
+        "min": 0.48327889835637033,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0126",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.6101981014567933,
+        "mean": 0.3957712450353276,
+        "median": 0.3067234767956793,
+        "min": 0.2703921568535103,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.529510356020128,
+        "mean": 0.47190294810572936,
+        "median": 0.46346633183328223,
+        "min": 0.42273215646377793,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0172",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.45166549438477416,
+        "mean": 0.39607222439002676,
+        "median": 0.37847837633905257,
+        "min": 0.3580728024462537,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0198",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.4440031967860076,
+        "mean": 0.3796357797904623,
+        "median": 0.4102105005779833,
+        "min": 0.284693642007396,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0217",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.4766017367512292,
+        "mean": 0.38585903053425263,
+        "median": 0.38982031634159714,
+        "min": 0.2911550385099316,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.6291019428111753,
+        "mean": 0.4754436505714681,
+        "median": 0.42899687957920707,
+        "min": 0.36823212932402194,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0311",
+      "split": "C"
+    },
+    {
+      "query_query": {
+        "max": 0.5129269285183132,
+        "mean": 0.3817354591761921,
+        "median": 0.41504033758789494,
+        "min": 0.21723911142236835,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0005",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.4375043429200219,
+        "mean": 0.3563595947220701,
+        "median": 0.3893446703430006,
+        "min": 0.2422297709031881,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0053",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.5055940990042552,
+        "mean": 0.4343988927743528,
+        "median": 0.4741799300748982,
+        "min": 0.32342264924390496,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0073",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.24614807479550943,
+        "mean": 0.16025577792758394,
+        "median": 0.14215505713776766,
+        "min": 0.09246420184947472,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.5944357525022724,
+        "mean": 0.34093378645116634,
+        "median": 0.2436066774505734,
+        "min": 0.18475892940065317,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0079",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.5471228680734399,
+        "mean": 0.5212603479246821,
+        "median": 0.5269409270455055,
+        "min": 0.48971724865510075,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.6650267191760375,
+        "mean": 0.5770681233828752,
+        "median": 0.6521784192465819,
+        "min": 0.4139992317260061,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0085",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.4539850442546172,
+        "mean": 0.3349473192750378,
+        "median": 0.2987901345347448,
+        "min": 0.2520667790357513,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.6223877266390094,
+        "mean": 0.4127154239124091,
+        "median": 0.44945092075178567,
+        "min": 0.16630762434643218,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0205",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.5318563384282813,
+        "mean": 0.4593797302995976,
+        "median": 0.4383494060314306,
+        "min": 0.40793344643908086,
+        "n": 3
+      },
+      "reference_query": {
+        "max": 0.42212905822676694,
+        "mean": 0.37008997552044826,
+        "median": 0.37535425451086624,
+        "min": 0.3127866138237115,
+        "n": 3
+      },
+      "roster_role": "known",
+      "sample_count": 4,
+      "speaker_id": "SMIIP-TV:0222",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.43705487581257085,
+        "mean": 0.33239725362242006,
+        "median": 0.3392238462871139,
+        "min": 0.2209130387675754,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0291",
+      "split": "T"
+    },
+    {
+      "query_query": {
+        "max": 0.5199889751351743,
+        "mean": 0.4103257195180903,
+        "median": 0.4190445619921172,
+        "min": 0.29194362142697944,
+        "n": 3
+      },
+      "reference_query": null,
+      "roster_role": "unknown",
+      "sample_count": 3,
+      "speaker_id": "SMIIP-TV:0318",
+      "split": "T"
+    }
+  ],
+  "status": "complete_read_only_posthoc_diagnostics",
+  "versions": {
+    "numpy": "2.3.5",
+    "python": "3.12.14"
+  }
+}

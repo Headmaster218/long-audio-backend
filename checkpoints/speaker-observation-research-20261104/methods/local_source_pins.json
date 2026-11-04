@@ -1,0 +1,37 @@
+[
+  {
+    "snapshot": "backend-voice-source-20261104",
+    "path": "audio_backend/verified_identity.py",
+    "sha256": "0217ec618168b4d4be3083109733b56fef7528c5692038d25df785f1925cedbb",
+    "bytes": 51217,
+    "operation": "read-only"
+  },
+  {
+    "snapshot": "backend-voice-source-20261104",
+    "path": "audio_backend/experimental_identity_memory.py",
+    "sha256": "dd4f300381615e066e98ea9436f6e0d91789ac5cff38e3d47a9106b01bf049ad",
+    "bytes": 13732,
+    "operation": "read-only"
+  },
+  {
+    "snapshot": "backend-voice-source-20261104",
+    "path": "audio_backend/primary_crop_support.py",
+    "sha256": "116cb54fff76a35a2c4f2af51b9ec4d761607c2a983bbcb65f5803301a6584b2",
+    "bytes": 3536,
+    "operation": "read-only"
+  },
+  {
+    "snapshot": "backend-voice-source-20261104",
+    "path": "audio_backend/support_vectors.py",
+    "sha256": "83585ca63ddf248805b899245534fb53ee7458cc0aa8cbb0b7bb853ad8c6d666",
+    "bytes": 9852,
+    "operation": "read-only"
+  },
+  {
+    "snapshot": "backend-voice-source-20261104",
+    "path": "audio_backend/recording_speaker_links.py",
+    "sha256": "88971fd7633182c57627a6ec4ac94ba6291b4976f2225c53223fd5232dcbb7c4",
+    "bytes": 77537,
+    "operation": "read-only"
+  }
+]

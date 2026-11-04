@@ -1,0 +1,47 @@
+{
+  "implementation_sha256": "247f65614f0db71d51919881624022a735203a35606f697a3f8b1d28bd9ac513",
+  "repeat_run": {
+    "downloads": 0,
+    "frozen_decisions_changed": 0,
+    "identical_outputs": [
+      {
+        "bytes": 52249,
+        "file": "DIAGNOSTIC_RESULTS.json",
+        "repeat_identical": true,
+        "sha256": "99402c4314a95860129bb5b38b21f7bcc8e34f441b411f87875fa27072966e08"
+      },
+      {
+        "bytes": 33916,
+        "file": "signal_metrics.csv",
+        "repeat_identical": true,
+        "sha256": "e44bcf72ea4cf12d3b2914eb84cc8d38ef0116a3266978d23299c3de1061007b"
+      },
+      {
+        "bytes": 12896,
+        "file": "frozen_query_diagnostics.csv",
+        "repeat_identical": true,
+        "sha256": "1cc14e234a066de512c07084638261311ef42f2f89937f85e7b75d8ecbe5270e"
+      },
+      {
+        "bytes": 7538,
+        "file": "within_person_cosines.csv",
+        "repeat_identical": true,
+        "sha256": "65c55aab144772b0fca0853d0ec7b9d91d076e51fa5ce1ee217135d15ca361eb"
+      },
+      {
+        "bytes": 15481,
+        "file": "FROZEN_PILOT_BEFORE_AFTER.json",
+        "repeat_identical": true,
+        "sha256": "6b5bab9a8c8abefdd8d393becdd746fa71bb786d7e2f932c82c4629be83aa67b"
+      }
+    ],
+    "models_called": 0
+  },
+  "status": "passed",
+  "synthetic_tests": {
+    "command": "python -B test_diagnose_frozen.py",
+    "count": 5,
+    "passed": 5
+  },
+  "test_source_sha256": "61275db8c19c2f5bfacc6c5ea03d28ae5691b02e32cbc17f4c121e63a45995a9"
+}
