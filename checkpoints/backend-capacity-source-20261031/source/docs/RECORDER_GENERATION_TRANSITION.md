@@ -95,3 +95,12 @@ This is a recoverable bounded analysis transition based on declared routing and
 verified originals, not an atomic receiver switch, physical recording STOP,
 uninterrupted recognition guarantee, device proof or indefinite storage policy.
 Originals, old generations and prior analysis artifacts remain untouched.
+
+## Installed proof
+
+The dev67 wheel was tested as an installed package across three receiver
+and analysis generations, including retained attempt readback, an interrupted
+native task with one explicit retry, and zero-HTTP repeated handoffs. The exact
+scope, artifact hashes and remaining limits are recorded in
+INSTALLED_GENERATION_FLOW_RESULT_20261104.md. This does not authorize hot switching
+or replace qualification on another server.

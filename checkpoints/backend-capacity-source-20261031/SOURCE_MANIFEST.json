@@ -1851,6 +1851,12 @@
       "sha256": "ec2f3a3657238b4fb976b56f1f31645a1eb45d52e93bc1302af599a8837030c1"
     },
     {
+      "path": "docs/INSTALLED_GENERATION_FLOW_RESULT_20261104.md",
+      "size": 5212,
+      "sha": "dd1f6a2d51ea0c359f0503d639f1fa09d6005e64",
+      "sha256": "f8193bfdc73eafcae941077d69493aeb3e6f29583ae22143e99ab185aebbbe72"
+    },
+    {
       "path": "docs/INSTALL_DEV10_ZH.md",
       "size": 16165,
       "sha": "3cd4db47e2d36a68d90d2c57c670b60e5fb21ff8",
@@ -1870,9 +1876,9 @@
     },
     {
       "path": "docs/ISOLATED_TARGET_INSTALL_ZH.md",
-      "size": 6418,
-      "sha": "3aee4d5db5445e9bf1b29ca5b0e642dba600fb11",
-      "sha256": "c10678e0223f285d71221a9483a636e440bb6803005d948520d4273c8c6abc7e"
+      "size": 6818,
+      "sha": "6907967beaafb35f417eeb7475bee919e9d23385",
+      "sha256": "487522269005edd5ef744ac229813d58f41fceb7871e595adab40190f6459a4c"
     },
     {
       "path": "docs/LEXICAL_EVIDENCE_RETENTION.md",
@@ -2236,9 +2242,9 @@
     },
     {
       "path": "docs/RECORDER_GENERATION_TRANSITION.md",
-      "size": 5404,
-      "sha": "6f126414968b6ea859c664c6988cdee9891a6efb",
-      "sha256": "0ba90a7d233439923577274599bcb811209576c818f58f9df9000fbda8b341f5"
+      "size": 5844,
+      "sha": "bbeaa0c9a8571bafe6ce292a388227e30a8396f3",
+      "sha256": "777a8386128ded640cf926996cd8c722a6261db9066f72c07eec5c73551987f3"
     },
     {
       "path": "docs/RECORDER_INBOX_EXPORT_RECOVERY.md",
@@ -2284,9 +2290,9 @@
     },
     {
       "path": "docs/RECORDER_OPERATIONAL_START_ZH.md",
-      "size": 8069,
-      "sha": "20956b03793c1df85f3f4589a8636f257cd504bb",
-      "sha256": "c1255d8eba8ad1afa7cd62e24c6d24d74e14bffe276591daf4e1c1f0f87efbe0"
+      "size": 8335,
+      "sha": "93e5508163a51b04f823ee91ad554a00d8110d5d",
+      "sha256": "2289145836120e11bfd95933916c5d1674626f9a60bbd2c113b12ee354223b69"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
