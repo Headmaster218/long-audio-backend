@@ -33,7 +33,7 @@ python -m audio_backend.recorder_inbox_runner --help
 - 原生运行时、模型权重、私有数据库、录音、转写及凭据不在仓库里。默认运行时校验保持原样，不提供跳过校验的开关。
 - 严格模式已有 `python -m audio_backend.strict_supervisor check/serve` 前台启动入口，自动持有并传递原始实例锁；需要已有私有数据目录、锁、显式模型与策略。先运行 `python -m audio_backend.strict_runtime_preflight --data-dir /绝对私有目录` 查看资格差异。默认运行时不匹配仍会拒绝，不能仅添加 `--strict-primary` 或复制旧资格回执来启动。
 - 现有可运行 FTPS 接收进程：`python -m audio_backend.recorder_ftps_receiver`，安装单独的 `requirements-receiver.txt` 并提供已有私有配置、账号和 TLS 证书。已通过本机回环测试及实际 Android Java 传输代码测试；它不是公开互联网接收器，不自动创建凭据或部署服务。详见 `docs/RECORDER_FTPS_RECEIVER_SERVICE.md`。
-- 每个选定 span 仍需人工提供已有空 strict session 和首次交付路径。没有全自动每日 session 创建、无限期 daemon 或自动留存清理。原始收件与发布区各有 8 GiB 上限，保留目录也有上限；需要明确留存方案，不能依赖无限累积。
+- 每个选定 span 仍需明确指定首次完整交付；新增 `recorder_inbox_runner initialize` 可创建一次空 session 并绑定，不再必须手工调用 API。已有确认回执可只读恢复；不确定创建不自动重发。没有自动跨run/epoch的session生命周期、无限期daemon或无损留存清理。原始收件与发布区各有8GiB上限，保留目录也有上限。
 
 ## 受审隔离安装流程
 
@@ -60,3 +60,10 @@ Python 3.13 / SQLite 3.46.1 完成物理恢复、受审源码物化、wheel 安�
 [隔离目标安装说明](checkpoints/backend-capacity-source-20261031/source/docs/ISOLATED_TARGET_INSTALL_ZH.md)，
 证据范围与已知测试失败见
 [动态运行时结果](checkpoints/backend-capacity-source-20261031/source/qualification/dynamic_install_20261104/RESULT.md)。
+
+## 接收与处理的实际操作入口
+
+新增接收配置生成、首次session初始化及停止状态的容量查询。完整顺序见
+[从接收到分析的操作流程](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_OPERATIONAL_START_ZH.md)。
+这些入口减少手工步骤，不会自动批准新运行时，也不代表无限期录音、跨人声识别质量
+或用户服务器已经验收。不要提高上限或删除旧录音来掩盖连续运行限制。

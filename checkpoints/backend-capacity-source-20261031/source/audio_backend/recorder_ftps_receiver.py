@@ -99,6 +99,10 @@ class Config:
 def load_config(path):
     """Read existing private config and secret files, without binding a socket."""
     data = json.loads(_private_file(path, 16384), object_pairs_hook=_unique_pairs)
+    return _validate_config(data)
+
+
+def _validate_config(data):
     required = {'schema', 'binding', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file'}
     optional = {'bind_host', 'port', 'passive_ports', 'max_connections', 'max_connections_per_ip',
                 'max_attempts', 'max_raw_bytes', 'idle_seconds', 'session_seconds', 'max_commands',
@@ -149,6 +153,54 @@ def load_config(path):
     return Config(binding=data['binding'], inbox_dir=inbox, cert_file=cert, key_file=key,
                   username=username, password=password, bind_host=str(address), passive_ports=ports,
                   **values)
+
+
+def configure(*, config_path, state_dir, inbox_dir, cert_file, key_file,
+              username, password_file, bind_host='127.0.0.1', port=2121,
+              passive_ports=None, allow_non_loopback=False,
+              acknowledge_data_peer_ip_only=False):
+    """Create one private config from existing inputs; never provision or listen.
+
+    Failure after exclusive file creation retains the partial file for explicit
+    operator review. It must not be treated as success or overwritten on retry.
+    """
+    path = _path(str(config_path))
+    publication._private(path.parent)
+    _require(not os.path.lexists(path), 'receiver_fresh_config_required')
+    data = dict(schema=SCHEMA, binding=publication.bind(_path(str(state_dir))),
+        inbox_dir=str(inbox_dir), cert_file=str(cert_file), key_file=str(key_file),
+        username=username, password_file=str(password_file), bind_host=bind_host,
+        port=port, allow_non_loopback=allow_non_loopback,
+        acknowledge_data_peer_ip_only=acknowledge_data_peer_ip_only)
+    if passive_ports is not None:
+        data['passive_ports'] = list(passive_ports)
+    _validate_config(data)  # All configured inputs are checked before any write.
+    publication_config = publication._config(_path(str(state_dir)))
+    _require(not any(path.is_relative_to(Path(publication_config[name])) for name in
+                     ('state_dir', 'staging_dir', 'inbox_dir')),
+             'receiver_config_must_be_outside_data_trees')
+    raw = (json.dumps(data, sort_keys=True, indent=2) + '\n').encode()
+    _require(len(raw) <= 16384, 'receiver_config_bound')
+    before = path.parent.stat()
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        _require((os.fstat(directory).st_dev, os.fstat(directory).st_ino)
+                 == (before.st_dev, before.st_ino), 'receiver_config_parent_changed')
+        fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                     0o600, dir_fd=directory)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+        os.fsync(directory)
+        publication._private(path.parent)
+        _require((path.parent.stat().st_dev, path.parent.stat().st_ino)
+                 == (before.st_dev, before.st_ino), 'receiver_config_parent_changed')
+        _require(_private_file(path, 16384) == raw, 'receiver_config_changed')
+        load_config(path)  # Detect changed input files/binding before success.
+    finally:
+        os.close(directory)
+    return dict(status='configuration_created', network_requests=0,
+                tls_material_loaded=False, automatic_intake_enabled=False,
+                credentials_created=False, service_started=False)
 
 
 class _Readback:
@@ -488,8 +540,15 @@ def create_server(config):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=('check', 'serve'))
+    parser.add_argument('operation', choices=('configure', 'check', 'serve'))
     parser.add_argument('--config', required=True, help='Existing private JSON config (no secrets on command line)')
+    for name in ('state-dir', 'inbox-dir', 'cert-file', 'key-file', 'username', 'password-file'):
+        parser.add_argument('--' + name)
+    parser.add_argument('--bind-host', default='127.0.0.1')
+    parser.add_argument('--port', type=int, default=2121)
+    parser.add_argument('--passive-ports', nargs=2, type=int, metavar=('START', 'END'))
+    parser.add_argument('--allow-non-loopback', action='store_true')
+    parser.add_argument('--acknowledge-data-peer-ip-only', action='store_true')
     args = parser.parse_args(argv)
     server = owner = None
     stopped = False
@@ -501,6 +560,20 @@ def main(argv=None):
         if server is not None:
             server.receiver_stopping = True
     try:
+        if args.operation == 'configure':
+            _require(all(getattr(args, name) is not None for name in
+                ('state_dir', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file')),
+                'receiver_configuration_inputs_required')
+            values = vars(args).copy(); values.pop('operation')
+            values['config_path'] = values.pop('config')
+            print(json.dumps(configure(**values), sort_keys=True))
+            return 0
+        # Setup-only arguments never silently override a saved configuration.
+        _require(not any(getattr(args, name) is not None for name in
+            ('state_dir', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file', 'passive_ports'))
+            and args.bind_host == '127.0.0.1' and args.port == 2121
+            and not args.allow_non_loopback and not args.acknowledge_data_peer_ip_only,
+            'receiver_setup_arguments_not_allowed')
         config = load_config(args.config)
         if args.operation == 'check':
             print(json.dumps({'status': 'configuration_valid', 'network_requests': 0,
@@ -517,9 +590,14 @@ def main(argv=None):
             return 1
         return 0
     except KeyboardInterrupt:
+        if args.operation == 'configure':
+            print(json.dumps({'status': 'cancelled', 'reason': 'receiver_configuration_interrupted',
+                              'preserve_existing_config': True}), file=sys.stderr)
+            return 130
         return 0
-    except Exception:
-        print(json.dumps({'status': 'refused', 'reason': 'receiver_configuration_or_runtime_failure'}), file=sys.stderr)
+    except Exception as exc:
+        reason = str(exc) if isinstance(exc, ConfigurationError) else 'receiver_configuration_or_runtime_failure'
+        print(json.dumps({'status': 'refused', 'reason': reason}), file=sys.stderr)
         return 1
     finally:
         try:

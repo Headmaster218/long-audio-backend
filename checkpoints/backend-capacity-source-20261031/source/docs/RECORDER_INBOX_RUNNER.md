@@ -2,11 +2,74 @@
 
 `audio_backend.recorder_inbox_runner` composes the existing incremental selected-span
 intake, read-only status and private primary export. It handles **one explicitly
-bound selected span and one operator-provided, initially empty strict session**.
-It does not create sessions, discover a target, join epochs, infer gaps, retry
+bound selected span and one initially empty strict session**. The session can be
+operator-provided through local-only `configure`, or created by the separate,
+explicit `initialize` command below. Runs never create sessions implicitly.
+It does not discover a target, join epochs, infer gaps, retry
 analysis, delete deliveries, choose the newest attempt, or run a daemon. The default `run` remains one-shot; `watch` is a separate,
 explicitly bounded foreground command.
 Importing the module and configuring a binding send no network requests.
+
+## First use: explicitly create and bind one session
+
+When no session exists yet, first publish one complete operator-selected delivery
+into the private inbox, then use `initialize`. It creates exactly one session and
+saves its ID in the private binding, so no API call or ID copy is needed by hand:
+
+```sh
+python -m audio_backend.recorder_inbox_runner initialize \
+  --state-dir /private/runner/span-23 \
+  --inbox-dir /private/received \
+  --job-dir /private/intake/span-23 \
+  --first-delivery /private/received/r-EXACT_VALID_ATTEMPT_NAME \
+  --api http://127.0.0.1:8765 \
+  --capture-id OPERATOR_SELECTED_CAPTURE \
+  --output-dir /private/exports/span-23-first \
+  --exclusive-writer --acknowledge-span-local-closure \
+  --deadline-seconds 30
+```
+
+All path/privacy, complete-delivery and selected-span rules below apply. An
+optional `--session-name` is sent to the chosen API and retained only in private
+initialization evidence; it is not echoed in the command result. Authentication
+uses `AUDIO_API_KEY` only in memory/headers. Non-loopback origins require HTTPS.
+No uploads, intake, EOS, export, background watch or daemon are started by this
+command. After `status: configured`, use the existing explicit `run` or `watch`.
+
+Before the single `POST /sessions`, initialization validates local paths and the
+exact first delivery, checks API health, and fsyncs an immutable request intent
+binding endpoint, session name, capture/span and selected delivery. The current
+API exposes the strict contract only after a session exists: initialization then
+verifies the returned session identity, strict recording contract, no existing
+chunks/capture, and unchanged selected input before completing local binding.
+Health alone is not strict-contract or native-inference qualification. An
+incompatible post-creation contract leaves a confirmed but unused session, never
+an upload or silently accepted nonstrict session.
+
+A bounded invocation makes at most six HTTP attempts and one mutation, with no
+HTTP retries. The deadline defaults to 30 seconds (allowed 1–120), is shared
+across initialization, and is checked before effects and between existing bounded
+local validations. Individual filesystem/network calls remain cooperative, not
+an OS kill guarantee. The runner lock excludes concurrent initialize/run/watch.
+
+If interrupted, preserve the state and repeat the **same initialize arguments**
+with `--resume`. A confirmed saved session response permits GET-only revalidation
+and completion of a partial local binding, without creating another session.
+Even an already-completed binding rechecks session identity and emptiness with
+GET-only requests on explicit resume. Before any upload, ordinary intake still performs its own empty-session
+checks. Once intake has started, use `run`/`watch`, not initialization.
+
+If the POST might have been sent but its response was not durably saved, resume
+refuses with `runner_session_creation_uncertain_no_retry` **without HTTP**. A crash
+between the durable attempt marker and the actual send is conservatively included.
+Do not delete/edit receipts or rerun into a fresh directory to disguise that state.
+The operator must investigate server-side outcome separately; this tool does not
+search for sessions, adopt an unconfirmed one, retry non-idempotent creation,
+remove an orphan session or roll back a server mutation. Failed health checks
+before the POST marker can be explicitly resumed safely.
+
+`configure` remains the network-free alternative when the operator already has
+an exact empty strict session ID.
 
 ## Set up one binding, then explicitly run
 

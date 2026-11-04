@@ -441,3 +441,100 @@ def test_error_after_publication_retains_copy_without_retry_and_reads_exact_copy
         with pytest.raises(ftplib.error_perm): client.mkd(source.name)
         assert calls == [1]
         client.quit()
+
+
+def setup_values(case, output):
+    return dict(config_path=output, state_dir=case['state'], inbox_dir=case['ready'],
+                cert_file=case['data']['cert_file'], key_file=case['data']['key_file'],
+                username=case['data']['username'], password_file=case['data']['password_file'])
+
+
+def test_configure_creates_private_exact_binding_without_network(configured, monkeypatch, capsys):
+    output = configured['path'].parent/'generated.json'
+    def no_socket(*a, **k):raise AssertionError('configuration must not listen')
+    monkeypatch.setattr(receiver, 'create_server', no_socket)
+    values = setup_values(configured, output)
+    args = ['configure', '--config', str(output)]
+    for key, value in values.items():
+        if key != 'config_path':args += ['--'+key.replace('_','-'),str(value)]
+    assert receiver.main(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result['status'] == 'configuration_created' and not result['service_started']
+    assert result['network_requests'] == 0 and not result['credentials_created']
+    assert output.stat().st_mode & 0o777 == 0o600
+    saved = json.loads(output.read_text())
+    assert saved['binding'] == configured['data']['binding']
+    assert 'password' not in saved and configured['config'].password not in output.read_text()
+    assert receiver.load_config(output) == configured['config']
+    assert not contents(configured['raw']) and not contents(configured['ready'])
+
+
+@pytest.mark.parametrize('change', [dict(username='anonymous'),dict(bind_host='0.0.0.0'),
+    dict(port=21),dict(passive_ports=(2121,2122)),dict(password_file='/not-existing')])
+def test_configure_invalid_inputs_leave_no_config(configured, change):
+    output = configured['path'].parent/'invalid.json'
+    with pytest.raises((ValueError,OSError)):
+        receiver.configure(**dict(setup_values(configured, output),**change))
+    assert not os.path.lexists(output)
+
+
+def test_configure_never_overwrites_or_follows_alias(configured):
+    original = configured['path'].read_bytes()
+    with pytest.raises(ValueError):receiver.configure(**setup_values(configured, configured['path']))
+    assert configured['path'].read_bytes() == original
+    link = configured['path'].parent/'alias.json';link.symlink_to(configured['path'])
+    with pytest.raises(ValueError):receiver.configure(**setup_values(configured, link))
+    assert configured['path'].read_bytes() == original
+
+
+@pytest.mark.parametrize('tree',['raw','ready','state'])
+def test_configure_refuses_control_file_inside_data_trees(configured, tree):
+    output = configured[tree]/'config-extra.json'
+    with pytest.raises(ValueError):receiver.configure(**setup_values(configured,output))
+    assert not output.exists()
+
+
+def test_configure_explicit_private_network_acknowledgment(configured):
+    output = configured['path'].parent/'network.json'
+    receiver.configure(**setup_values(configured,output),bind_host='192.0.2.1',
+        allow_non_loopback=True,acknowledge_data_peer_ip_only=True,passive_ports=(30000,30007))
+    assert receiver.load_config(output).bind_host == '192.0.2.1'
+
+
+def test_configure_sync_failure_is_retained_not_retried(configured,monkeypatch):
+    output = configured['path'].parent/'uncertain.json'
+    def fail(fd):raise OSError('synthetic fsync failure')
+    monkeypatch.setattr(os,'fsync',fail)
+    with pytest.raises(OSError):receiver.configure(**setup_values(configured,output))
+    assert output.exists()
+    with pytest.raises(ValueError):receiver.configure(**setup_values(configured,output))
+
+
+def test_saved_config_cannot_be_overridden_by_setup_args(configured,capsys):
+    assert receiver.main(['check','--config',str(configured['path']),'--port','9999']) == 1
+    result=capsys.readouterr()
+    assert configured['config'].password not in result.err
+
+
+def test_configure_two_creators_have_single_winner(configured):
+    from concurrent.futures import ThreadPoolExecutor
+    output=configured['path'].parent/'race.json'
+    def attempt():
+        try:return receiver.configure(**setup_values(configured,output))['status']
+        except (ValueError,OSError):return 'refused'
+    with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(lambda _:attempt(),range(2)))
+    assert sorted(results)==['configuration_created','refused']
+    assert receiver.load_config(output)==configured['config']
+
+
+def test_configure_interrupt_is_not_success_and_preserves_file(configured,monkeypatch,capsys):
+    output=configured['path'].parent/'interrupted.json'
+    def interrupt(fd):raise KeyboardInterrupt()
+    monkeypatch.setattr(os,'fsync',interrupt)
+    args=['configure','--config',str(output)]
+    for key,value in setup_values(configured,output).items():
+        if key != 'config_path':args += ['--'+key.replace('_','-'),str(value)]
+    assert receiver.main(args)==130
+    receipt=json.loads(capsys.readouterr().err)
+    assert receipt['preserve_existing_config'] and receipt['status']=='cancelled'
+    assert output.exists()

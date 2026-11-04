@@ -760,9 +760,9 @@
     },
     {
       "path": "audio_backend/recorder_ftps_receiver.py",
-      "size": 23909,
-      "sha": "322750d258e90b7b80966e6144c28c7980e14486",
-      "sha256": "bc9be5ba6b9cf5b4acee4b11ec15c874240c2069d62005b9d296a98be6a859b4"
+      "size": 28530,
+      "sha": "bab9727744c530e9ce7d792a52dd5d92acd661c7",
+      "sha256": "f17a56fe3703dd730cd50e6971484228259a02381ac90550654138bea42b4909"
     },
     {
       "path": "audio_backend/recorder_inbox.py",
@@ -772,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 51142,
-      "sha": "47e5bfe6adaec83fd2fc803d6c15ab0b6efd56da",
-      "sha256": "d6dbed92dee7128360b41c74d949c87a161f020af5cba97f59e9cb320245d82e"
+      "size": 52435,
+      "sha": "06b36494aa4edb2ab88cfeb2aa57f7948b719d19",
+      "sha256": "aa5860747342853c82ad506155ffd3ad3a916d58dc276b92f041fdcb1ebc16be"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -829,6 +829,18 @@
       "size": 19629,
       "sha": "f201af24c78f230d544853e49bd1f07ebb3dcbe0",
       "sha256": "d216c97afab9198cb4d14c8424658f4d1eef51efa76750960572c785dff51fd8"
+    },
+    {
+      "path": "audio_backend/recorder_receiver_status.py",
+      "size": 7588,
+      "sha": "bf4571c9a8d9f8186f4b899145fdcac958af2262",
+      "sha256": "189b3c17651c7bbb4c0d75585d9d25f0dac9425625d0eb880535274d1c705fbc"
+    },
+    {
+      "path": "audio_backend/recorder_runner_initialize.py",
+      "size": 10277,
+      "sha": "96063316a607416c0c0323d16beed404baf13b87",
+      "sha256": "591f8ffa07d5ae4c7ac1af8415e00e70acdadc96c19247ba1ab0c85611e88174"
     },
     {
       "path": "audio_backend/recorder_sequence.py",
@@ -2164,9 +2176,9 @@
     },
     {
       "path": "docs/RECORDER_FTPS_RECEIVER_SERVICE.md",
-      "size": 11350,
-      "sha": "e503442eeb3b48b636b6136302189f6fb5bbc5f2",
-      "sha256": "47f9df17d7c7aacf926328324114f63a26cd1b88c55593f207ee37361f1d2f97"
+      "size": 12736,
+      "sha": "d60f6a0aeff4ec0efab2e1a0bafe7fc7bf4f573d",
+      "sha256": "17bb3d90e32f000ed6d3cda284346df0a909ea8b3adf199949b7430928b332b8"
     },
     {
       "path": "docs/RECORDER_INBOX_EXPORT_RECOVERY.md",
@@ -2176,9 +2188,9 @@
     },
     {
       "path": "docs/RECORDER_INBOX_RUNNER.md",
-      "size": 19831,
-      "sha": "30890a3760563b196272f5bb9e2a7ab9b3ac908f",
-      "sha256": "cd980a9727ed39457c2fdcfa50fd647a24a25e83b14f99dfeab80fd8d58ce4a3"
+      "size": 23526,
+      "sha": "08be35d0b370983a071f0ebfb63b9c8b2c12cd12",
+      "sha256": "8ef1a6fa10bcb370559fca9b5d7d8852bab7a5da4963defb5050430af4fd0639"
     },
     {
       "path": "docs/RECORDER_INCREMENTAL_SPAN_EXPORT.md",
@@ -2191,6 +2203,12 @@
       "size": 9114,
       "sha": "2769f331b1e1d4df3c1b16437a63602f05f5049c",
       "sha256": "d7b94a5d47521556bf7c1536d1c64b7ff104d18a7f9e9e5aec9903b422614baa"
+    },
+    {
+      "path": "docs/RECORDER_OPERATIONAL_START_ZH.md",
+      "size": 6590,
+      "sha": "a37f4dc885101b4940cd7f46340b564940816742",
+      "sha256": "975039e3941d77a7a0dc37fae6ef5a69d000a1ea7c1342419fa914f4404328a6"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2209,6 +2227,12 @@
       "size": 9533,
       "sha": "70e569ffeed229e07994949ca28e988d3a83902c",
       "sha256": "baaf08c36c6bc76ae036670ea87909d5040b6ec595cb543608e666d2c1e11b55"
+    },
+    {
+      "path": "docs/RECORDER_RECEIVER_STATUS.md",
+      "size": 3220,
+      "sha": "1ba4809ae1b8b3f2555e6945d8d9c5d8a7a5981b",
+      "sha256": "e5f2fa58fcb77f0a5045f8d1f65611b02ca89bdc2d2e26e97a0f0c14a9ebce10"
     },
     {
       "path": "docs/RECORDER_RECEIVER_WORKFLOW.md",
@@ -2338,9 +2362,9 @@
     },
     {
       "path": "docs/STRICT_RUNTIME_SETUP_ZH.md",
-      "size": 4141,
-      "sha": "da21f5a21793bf43207c064191611d2958be4eec",
-      "sha256": "92a85a1dec3dcea9b61795a8291bf124fdfcaf600b7b5605c41fb869e27f53a2"
+      "size": 4587,
+      "sha": "e85c329ce27c7b314a366488fbe909099ae213c6",
+      "sha256": "63424eb175024f6a7b8f5bf162d29db112d333e3ea9ac20692fdbe06a1cfa1e0"
     },
     {
       "path": "docs/STRICT_WORKER_CAPTURE_REBUILD.md",
@@ -5104,9 +5128,9 @@
     },
     {
       "path": "tests/test_recorder_ftps_receiver.py",
-      "size": 22678,
-      "sha": "152123d977d8026392262d0df136b1ae9725dc5b",
-      "sha256": "e23452eb68d563848f3973b5921af32bfc0fdfae501095eafe52622cb2d52163"
+      "size": 27669,
+      "sha": "16850872c60e250de1c9c93ea34010a45482c7e0",
+      "sha256": "c2f350abeb56d65e2bb9b8c06cef76ba5c14663c96a17f1ff0ca94f496e8da28"
     },
     {
       "path": "tests/test_recorder_ftps_receiver_android.py",
@@ -5251,6 +5275,18 @@
       "size": 15201,
       "sha": "ad8842836c178b5bfc38f86a8d2a1fd11aa2f6a8",
       "sha256": "ce695dcb24e2a712eb9b28285178e9d4ccb59e8d1153c15fcca8cb0d4b272c5a"
+    },
+    {
+      "path": "tests/test_recorder_receiver_status.py",
+      "size": 5425,
+      "sha": "8699a355aa3da04f4f71eb26601e0e9780b206c2",
+      "sha256": "5cdcdae42edcd0f6b4f9596b6446ae1d2b4e3b919a2b1fc33c9d0bf987385b47"
+    },
+    {
+      "path": "tests/test_recorder_runner_initialize.py",
+      "size": 11585,
+      "sha": "cac01bcc1d423950e5f1c60e9ccd458ba2af5550",
+      "sha256": "29bf44aecff68d6203639f57eb13483f4688498ac4b295703a3c896fdd8103ee"
     },
     {
       "path": "tests/test_recorder_sequence.py",

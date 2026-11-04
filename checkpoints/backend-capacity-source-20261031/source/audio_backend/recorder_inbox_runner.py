@@ -2,7 +2,8 @@
 
 Configuration alone performs no HTTP or intake. Every run requires an explicit
 exclusive writer and span-local closure acknowledgment. There is no daemon,
-session creation, inference retry or directory cleanup. Export conflicts stop by
+implicit session creation, inference retry or directory cleanup. The separate
+initialize command explicitly creates one session with no uncertain-POST retry. Export conflicts stop by
 default; explicit recovery permits bounded fresh GET-only attempts, never replacement.
 """
 import argparse
@@ -181,8 +182,11 @@ def _done(intent):
 def _ledger(root, config):
     allowed = {'config.json', 'runner.lock', 'finalize.intent.json', 'finalize.done.json',
                'export.intent.json', 'export.done.json'}
+    if os.path.lexists(root/'initialization'):
+        from .recorder_runner_initialize import validate_completed
+        validate_completed(root,config);allowed.add('initialization')
     intents = []; completed = 0; pending = False
-    names = _names(root, 2*config['max_inputs']+6)
+    names = _names(root, 2*config['max_inputs']+7)
     for index in range(config['max_inputs']):
         name = _file(root, index, 'intent').name; done = _file(root, index, 'done').name
         if name not in names:
@@ -800,6 +804,17 @@ def main(argv=None):
     setup.add_argument('--output-dir'); setup.add_argument('--receiver-state-dir')
     setup.add_argument('--max-hours',type=int,default=12)
     setup.add_argument('--max-inputs',type=int,default=192)
+    initialize = modes.add_parser('initialize',help='Explicitly create one fresh session and bind; never retry uncertain creation')
+    for name in ('state-dir','inbox-dir','job-dir','first-delivery','api','capture-id'):
+        initialize.add_argument('--'+name,required=True)
+    initialize.add_argument('--output-dir');initialize.add_argument('--receiver-state-dir')
+    initialize.add_argument('--session-name',default='')
+    initialize.add_argument('--max-hours',type=int,default=12)
+    initialize.add_argument('--max-inputs',type=int,default=192)
+    initialize.add_argument('--deadline-seconds',type=float,default=30)
+    initialize.add_argument('--resume',action='store_true')
+    initialize.add_argument('--exclusive-writer',action='store_true',required=True)
+    initialize.add_argument('--acknowledge-span-local-closure',action='store_true',required=True)
     for mode in ('run', 'watch'):
         execute = modes.add_parser(mode,help=('One bounded reconciliation' if mode == 'run'
             else 'Finite foreground polling; explicit resume after any refusal'))
@@ -828,6 +843,9 @@ def main(argv=None):
         if command == 'configure':
             state=args.pop('state_dir'); first=args['first_delivery']; config=config_from_delivery(**args)
             value=configure(state_dir=state,config=config,first_delivery=first)
+        elif command == 'initialize':
+            from .recorder_runner_initialize import initialize
+            value=initialize(**args)
         else: value=(watch if command == 'watch' else run)(**args)
     except (Exception,KeyboardInterrupt) as exc:
         value=single.failure_report(exc); value.update(schema=SCHEMA,automatic_intake_enabled=False,

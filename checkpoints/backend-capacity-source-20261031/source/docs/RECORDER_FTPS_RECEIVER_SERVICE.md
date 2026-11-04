@@ -45,12 +45,35 @@ python -m audio_backend.recorder_receiver_publication configure \
 
 The raw and inbox directories, and their private parent, must already exist;
 state must be absent and inbox empty. This setup is not performed at service
-startup. Retain the returned state, and obtain its frozen binding with
-`recorder_receiver_publication.bind(Path('/private/receiver/state'))` in local
-Python. Preserve both fields in config rather than silently rebinding on
-restart.
+startup. The receiver can now derive and freeze the exact publication binding
+without a Python snippet or hand-written JSON. Provide existing credentials and
+TLS material using their paths; no password value is accepted on the command line:
 
-Prepare this JSON privately, replacing every placeholder with existing values.
+```sh
+python -m audio_backend.recorder_ftps_receiver configure \
+  --config /private/receiver/service.json \
+  --state-dir /private/receiver/state --inbox-dir /private/receiver/inbox \
+  --cert-file /private/tls/existing-server-chain.pem \
+  --key-file /private/tls/existing-server.key \
+  --username EXISTING_ACCOUNT_NAME \
+  --password-file /private/receiver-secrets/existing-password \
+  --bind-host 127.0.0.1 --port 2121 --passive-ports 30000 30007
+```
+
+`configure` validates all existing inputs before creating one new mode0600 file.
+Its private parent must already exist, outside Git and outside receiver state/raw/
+inbox trees. It refuses an existing file or alias and never overwrites on retry.
+A write/fsync failure may retain a partial or uncertain file: preserve it and
+inspect it explicitly; never interpret a refusal as successful configuration.
+The command does not create an account, password, certificate, directory tree,
+trust material or listener. Successful configuration does not mean a TLS handshake
+or native inference has run. Follow with `check`, then explicit `serve` below.
+For a private-network listener, both `--allow-non-loopback` and
+`--acknowledge-data-peer-ip-only` are required; this is not public-network approval.
+The saved configuration is authoritative; setup-only flags cannot override it
+when invoking `check` or `serve`.
+
+Alternatively, prepare this JSON privately, replacing every placeholder with existing values.
 The password file contains the existing account password as UTF-8, optionally
 terminated by one LF. There are no built-in account credentials. Do not place a
 password in this JSON, shell arguments, reports, logs or source control.
