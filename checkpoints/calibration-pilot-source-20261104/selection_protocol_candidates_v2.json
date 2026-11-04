@@ -1,0 +1,129 @@
+{
+  "status": "PROPOSED_V3_NOT_YET_APPROVED",
+  "created_utc": "2026-11-04",
+  "corpus": "SMIIP-TV",
+  "official_archive": "https://openslr.trmal.net/resources/156/SMIIP-TV_v2.0.tar.gz",
+  "archive_content_length": 49951256989,
+  "archive_etag": "\"ba153b19d-624932ee35f6a\"",
+  "archive_last_modified": "Wed, 16 Oct 2024 07:40:25 GMT",
+  "archive_full_digest_verified": false,
+  "author_revision": "6c27fea5d2939b77e295559103375e0bbe70e4ff",
+  "seed": "20261104",
+  "selection": "First 32 adult speaker IDs in official 1das/enroll_model order; SHA256(UTF8(seed+\"|\"+speaker_id)) ascending; first 16 C and remaining 16 T; first 6 of each split known, other 10 unknown; fixed dates; lexicographically first ti_0 utterance per speaker/date. Revised candidate rule: freeze the first 3 lexicographic ti_0 utterances for each slot; choose the first in that immutable rank order satisfying only the registered container/format/length/size tests before any model scores; record every rejection and unused candidate. No audio listening, transcription, model score or perceived speaker quality determines selection.",
+  "split_sizes": {
+    "C": {
+      "known": 6,
+      "unknown": 10
+    },
+    "T": {
+      "known": 6,
+      "unknown": 10
+    }
+  },
+  "date_plan": {
+    "C": {
+      "reference": "2020-05-01",
+      "queries": [
+        "2020-05-08",
+        "2020-05-15",
+        "2020-05-22"
+      ]
+    },
+    "T": {
+      "reference": "2020-06-01",
+      "queries": [
+        "2020-06-08",
+        "2020-06-15",
+        "2020-06-22"
+      ]
+    }
+  },
+  "audio": {
+    "channel": 0,
+    "required_sample_rate": 16000,
+    "required_sample_width_bytes": 2,
+    "required_channels": 2,
+    "crop_samples": 32000,
+    "crop_start": "floor((nframes-32000)/2)",
+    "padding": false,
+    "replacement_on_failure": "Only the fixed 3 ranked candidates before any score access; no new candidate or speaker.",
+    "format_qualification": "PCM16 little-endian WAV, 16000Hz, 2 channels, at least 32000 frames, total member size <=1048576 bytes, payload complete and no parse error."
+  },
+  "failure_policy": "All failed candidates and order remain recorded. If no fixed candidate qualifies, retain unavailable slot. If candidate order cannot be resolved because an earlier candidate is missing at acquisition cap, BLOCKED, not adaptive replacement. Final 108 selected crop manifest and hashes must be sealed before any embedding.",
+  "acquisition": {
+    "cumulative_archive_transfer_cap_bytes": 8589934592,
+    "already_transferred_archive_probe_bytes": 4194304,
+    "remaining_response_cap_bytes": 8585740288,
+    "retained_source_audio_cap_bytes": 134217728,
+    "per_selected_source_file_cap_bytes": 1048576,
+    "rough_transfer_estimate_bytes": 6684777534,
+    "estimate_is_guarantee": false,
+    "archive_order_verified_only_for_first_speaker": "0073",
+    "wall_hard_limit_seconds": 1800,
+    "wall_signal_seconds": 1790,
+    "cpu_hard_limit_seconds": 1200,
+    "cpu_signal_seconds": 1190,
+    "minimum_free_disk_bytes": 5368709120,
+    "source_member_min_bytes": 44,
+    "network_read_timeout_seconds": 60,
+    "utterance_id_regex": "[0-9]{4}_[0-9]{8}_[1-5]_[1-3]_ti_0"
+  },
+  "missing_evidence": [
+    "Public metadata has no per-item transcript/prompt text; content disjointness cannot be checked.",
+    "Cross-corpus actual-person overlap with anonymous historical corpora is not proven.",
+    "Model-training identity/waveform overlap unknown.",
+    "Household, physical device, room and acquisition-batch disjointness unverified."
+  ],
+  "source_hashes": {
+    "spk2info": "c43e5e347c6238906cb96096946827215e13efc1c61997f2726be04f142bfff9",
+    "utt2info.zh": "a856476121b6bb3d69c304747f2c2ebe5251a145df7e54a3a0742c04ce01258e",
+    "official_eval_enroll_model.txt": "836ab38aebdbbada428db2aa16c5d5d6b4a35e16badba548978b27eec51f408f"
+  },
+  "counts": {
+    "people": 32,
+    "references": 12,
+    "primary_queries": 32,
+    "diagnostic_queries": 64,
+    "clips": 108,
+    "source_candidates": 319
+  },
+  "ordered_speakers": [
+    "0203",
+    "0107",
+    "0311",
+    "0126",
+    "0172",
+    "0026",
+    "0198",
+    "0020",
+    "0035",
+    "0217",
+    "0004",
+    "0347",
+    "0277",
+    "0014",
+    "0050",
+    "0320",
+    "0205",
+    "0042",
+    "0085",
+    "0253",
+    "0079",
+    "0222",
+    "0291",
+    "0318",
+    "0073",
+    "0043",
+    "0053",
+    "0005",
+    "0232",
+    "0249",
+    "0002",
+    "0335"
+  ],
+  "revision": 3,
+  "supersedes_unexecuted_initial_manifest_sha256": "84b5edacf53dc9c4fe5bf1c28f376c8b6c186ce38d866a43c03f41ffab767530",
+  "selection_candidates_sha256": "5973e14ff61fe37e3cb54746f09b5de43492d03f9a6869e2a62f13c62b87c56f",
+  "selection_slots_sha256": "12d3a3a68e50d89e60fc7067dca80fb64d9697c6e2ce75857cb3ce124b622093",
+  "primary_only_calibration": true
+}

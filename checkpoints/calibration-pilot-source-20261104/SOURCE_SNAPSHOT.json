@@ -1,0 +1,71 @@
+{
+  "status": "prospective_preparation_no_pilot_inference",
+  "files": [
+    {
+      "path": "CORPUS_ROUTE.md",
+      "bytes": 12761,
+      "sha256": "32656012e6188ab85ce9d285db0a4f0e9577a20221ffa960f114a2a6f252bc84"
+    },
+    {
+      "path": "PILOT_PROTOCOL.md",
+      "bytes": 18198,
+      "sha256": "e7accb36e3288ed996412c4fd10b3bfd4baa52bffc687d74e97f74e775a5d554"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3139,
+      "sha256": "2e26e1db6d037f9161f374ea7dc67a90c553e832b9f69ccdda44c98f40f1bf01"
+    },
+    {
+      "path": "native_runner.py",
+      "bytes": 32790,
+      "sha256": "829774b3fc3f87848fc768d4752a22061531de2ce2432d7efd351847c0c2b4cc"
+    },
+    {
+      "path": "orchestrator.py",
+      "bytes": 28563,
+      "sha256": "1b5c8d7102956125162c2e1ff41dbbfaa8eeeb45a367b2c4be6a765f23efee02"
+    },
+    {
+      "path": "prepare_inputs.py",
+      "bytes": 11306,
+      "sha256": "7f6e93d34c76a6ad5c86a9ad78ac566ef4631e6c4fb8714002fc27d64d36ebf3"
+    },
+    {
+      "path": "scoring.py",
+      "bytes": 21401,
+      "sha256": "5dd9b93ea336f96110962d87283504873ff298efb7a0d17fda5371b6d855d1fd"
+    },
+    {
+      "path": "selection_candidates_proposed.csv",
+      "bytes": 64944,
+      "sha256": "5973e14ff61fe37e3cb54746f09b5de43492d03f9a6869e2a62f13c62b87c56f"
+    },
+    {
+      "path": "selection_protocol_candidates_v2.json",
+      "bytes": 4785,
+      "sha256": "b3f45fc7cb609a00cb9d0bca0d7b383e10c2a17daf3fe0e6a5e6f316ca966bd7"
+    },
+    {
+      "path": "selection_slots_proposed.csv",
+      "bytes": 14184,
+      "sha256": "12d3a3a68e50d89e60fc7067dca80fb64d9697c6e2ce75857cb3ce124b622093"
+    },
+    {
+      "path": "test_native_runner.py",
+      "bytes": 29644,
+      "sha256": "f225781ceaa37c5fac5dc057cfde4f4ed457f875dd9988de8053dc1978b0ad1a"
+    },
+    {
+      "path": "test_prepare_inputs.py",
+      "bytes": 3751,
+      "sha256": "276e0f55a858c1934f1b8eab36ac8f6366355ed190cb6becad114ba3a4ac4360"
+    },
+    {
+      "path": "test_scoring.py",
+      "bytes": 31223,
+      "sha256": "0e61fe53df03618455e36ef672816ae058214f76910acb08ab02ca82a327a938"
+    }
+  ],
+  "executing_acquisition_source_sha256": "585d1bda4f1e07609543b79aa29ebeae7686c3ce357307a7fdb5964ea2fc4d21"
+}
