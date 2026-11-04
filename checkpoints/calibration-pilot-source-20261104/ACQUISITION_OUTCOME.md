@@ -1,0 +1,11 @@
+# Original acquisition and separate reduced cohort
+
+The single original acquisition ended at its1790-second wall limit on2026-11-04 at23:20:19UTC. The original process handle positively returned exit2. It acquired72 of108 planned slots across21 people using4,821,008,384 cumulative compressed archive bytes, including the prior4MiB probe, and60.415CPU seconds. Source files retained total23,020,216bytes. No retry, expanded download, changed acquisition roster or model call occurred. The original32-person plan remains BLOCKED.
+
+The resource contingency had already been frozen and Git-backed before termination. Applying it only to settled metadata yields C/T each4 known plus5 unknown people,18 people total,31 distinct inputs per partition and4 fixed repeat encodings per partition:62 distinct crops and at most70 encoding calls. Original groups, roles, order and different recording dates remain unchanged. Fourteen people are excluded:11 lacked complete original slots,3 were removed by symmetric K/U truncation. This is an availability-selected descriptive cohort, not a random sample or the completed original32-person experiment.
+
+The original terminal audit named its confirmed code original_wait_exit_code; the frozen reducer expected exit_code. Its first read-only attempt therefore stopped before producing a cohort. A separate lossless field-name adapter retained the original audit pin and confirmed exit2; neither source selection rule nor original result was changed. Both attempts and the original audit remain preserved.
+
+The input preparer then verified the full original319-candidate history, exact chosen/history consistency, original source WAV hashes, fixed channel0 central32000-frame PCM, crop hashes and float32 hashes. All62 inputs are distinct by source-WAV and crop-PCM hashes. It did not check speech purity, VAD, transcript content or recognition quality. The public manifest contains no audio or vectors.
+
+At this snapshot no pilot model constructor, threshold fit or holdout run has occurred. The next step remains exact-bundle independent launch review, then C-only encoding and selection. The original .75 baseline, .10 margin, native model/frontend and production remain unchanged. Only a successful frozen C candidate may release T.

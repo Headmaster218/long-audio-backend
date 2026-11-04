@@ -2,6 +2,16 @@
   "status": "prospective_preparation_no_pilot_inference",
   "files": [
     {
+      "path": "ACQUISITION_OUTCOME.md",
+      "bytes": 2271,
+      "sha256": "20a45c353d1c86c2ff3fe7e1b3ac0d1d05c4ba28cdea824ed276491f0aab4eb6"
+    },
+    {
+      "path": "COHORT_EXCLUSIONS.json",
+      "bytes": 2987,
+      "sha256": "08d7164a43ef06bfc67468ba63c30963a528fc1109ae3d5731d37fd334220386"
+    },
+    {
       "path": "CORPUS_ROUTE.md",
       "bytes": 12761,
       "sha256": "32656012e6188ab85ce9d285db0a4f0e9577a20221ffa960f114a2a6f252bc84"
@@ -12,6 +22,11 @@
       "sha256": "e7accb36e3288ed996412c4fd10b3bfd4baa52bffc687d74e97f74e775a5d554"
     },
     {
+      "path": "PUBLIC_FROZEN_INPUTS.json",
+      "bytes": 46191,
+      "sha256": "56911c8dec6e422f268b3343e8e1dc0f5658119cef147980c82894d10568eafc"
+    },
+    {
       "path": "README.md",
       "bytes": 4514,
       "sha256": "665cd287372af2709686807429025f2e7db1258cf2114f1acde0f9062314b5dc"
@@ -20,6 +35,11 @@
       "path": "RESOURCE_ONLY_FALLBACK_PLAN.json",
       "bytes": 1096,
       "sha256": "165f26e47bd6e85100fb0560545baef103485039b09bd642a814bc109c170368"
+    },
+    {
+      "path": "RESOURCE_REDUCED_PROTOCOL_ADDENDUM.md",
+      "bytes": 2394,
+      "sha256": "f1d7b404e8b2474abc31ccccd91642376cc06117171df50275561c172dfa7121"
     },
     {
       "path": "native_runner.py",
