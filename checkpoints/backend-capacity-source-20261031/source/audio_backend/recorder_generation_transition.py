@@ -54,12 +54,14 @@ def transition(*, state_dir, route_config, successor_attempt, next_state_dir,
                max_actions=256, max_polls=256, poll_seconds=5, max_requests=1024,
                max_network_writes=512, max_network_bytes=runner.MAX_NETWORK_BYTES,
                export_recovery_attempts=0, limits=None, transport=None, cancel=None,
-               preserve_reviewed_identity_group=None,identity_generation=None,identity_policy_sha256=None):
+               preserve_reviewed_identity_group=None,identity_generation=None,identity_policy_sha256=None,
+               busy_read_retries=0):
     """Prepare the exact cut, finish/export the old span, then link one successor.
 
-All phases share a monotonic deadline. The old runner retains its independent
-action/request/byte bounds; next initialization adds at most six requests and one
-session POST (eleven requests with reviewed-bank preservation), and never retries an uncertain POST. A bounded pause is not success.
+All phases share a monotonic deadline and outer network budgets. The old runner
+retains its independent bounds; next initialization reserves up to six requests
+and one session POST (eleven requests with reviewed-bank preservation), and never
+retries an uncertain POST. A bounded pause is not success.
 """
     require(all(flag is True for flag in (acknowledge_logical_analysis_boundary,
         finalize, export, acknowledge_create_next_session, exclusive_writer,
@@ -77,6 +79,8 @@ session POST (eleven requests with reviewed-bank preservation), and never retrie
             'transition_network_byte_bound')
     require(type(export_recovery_attempts) is int and export_recovery_attempts in (0, 2, 3),
             'transition_export_recovery_bound')
+    require(type(busy_read_retries) is int and 0 <= busy_read_retries <= 3,
+            'transition_busy_read_retry_bound')
     require(type(successor_attempt) is str and runner.inbox.NAME.fullmatch(successor_attempt),
             'transition_exact_successor_required')
     require(type(next_session_name) is str and len(next_session_name) <= 200,
@@ -139,17 +143,19 @@ session POST (eleven requests with reviewed-bank preservation), and never retrie
             if handoff is not None:
                 if method!='GET' and path.startswith('/sessions/'+config['session_id']+'/'):
                     initialize.check_reviewed_identity(self.request,handoff,config['session_id'])
-                require(self.requests<max_requests and (method=='GET' or self.writes<max_network_writes),
-                        'transition_identity_network_request_bound')
-                require(self.response_bytes+u.JSON_BYTES<=max_network_bytes,
-                        'transition_identity_network_byte_bound')
+            require(self.requests<max_requests and (method=='GET' or self.writes<max_network_writes),
+                    'transition_identity_network_request_bound' if handoff is not None else 'transition_network_request_bound')
+            require(self.response_bytes+u.JSON_BYTES<=max_network_bytes,
+                    'transition_identity_network_byte_bound' if handoff is not None else 'transition_network_byte_bound')
             self.requests+=1;self.writes+=method!='GET'
+            # Failed responses and interruptions retain the conservative charge.
+            # Each actual underlying request, including identity reads, counts once.
+            self.response_bytes+=u.JSON_BYTES
             value = base.request(method, path, **kwargs)
             guard.check()
-            if handoff is not None:
-                require(type(value) is dict and len(single._json(value))<=u.JSON_BYTES,
-                        'transition_identity_response_bound')
-                self.response_bytes+=len(single._json(value))
+            require(type(value) is dict and len(single._json(value))<=u.JSON_BYTES,
+                    'transition_identity_response_bound' if handoff is not None else 'transition_response_bound')
+            self.response_bytes+=len(single._json(value))-u.JSON_BYTES
             return value
     checked = CheckedTransport()
     if handoff is not None and not os.path.lexists(state/'export.done.json'):
@@ -159,27 +165,35 @@ session POST (eleven requests with reviewed-bank preservation), and never retrie
         export_recovery_attempts=export_recovery_attempts, max_actions=max_actions,
         max_polls=max_polls, poll_seconds=poll_seconds, max_requests=max_requests,
         max_network_writes=max_network_writes, max_network_bytes=max_network_bytes,
-        deadline_seconds=remaining(), limits=limits, transport=checked, cancel=cancel)
-    requests, writes = ((checked.requests,checked.writes) if handoff is not None else
-                        (finished['network_requests'],finished['network_writes']))
+        deadline_seconds=remaining(), limits=limits, transport=checked, cancel=cancel,
+        busy_read_retries=busy_read_retries)
+    requests, writes = checked.requests, checked.writes
     if finished['status'] != 'exported':
         return result('transition_paused', 'finish_old_span', stop_reason=finished['status'],
             network_requests=requests, network_writes=writes,
+            network_response_bytes=checked.response_bytes,
+            stop_details={key:finished[key] for key in ('status', 'reason', 'category', 'error_type',
+                'http_status', 'admission_reason', 'possible_remote_effects', 'busy_read_retries',
+                'busy_read_retries_used') if key in finished},
             old_export_verified=False, next_session_linked=False,
             preserve_existing_files=True, automatic_retry=False)
     if guard.end-time.monotonic() < 1:
         return result('transition_paused', 'link_next_session', stop_reason='deadline_reached',
             network_requests=requests, network_writes=writes,
+            network_response_bytes=checked.response_bytes,
             old_export_verified=True, next_session_linked=False,
             preserve_existing_files=True, automatic_retry=False)
     _existing(state, config, expected, remaining)
-    if handoff is not None and not os.path.lexists(Path(nxt['state_dir'])/initialize.DIRECTORY/'complete.json'):
+    if not os.path.lexists(Path(nxt['state_dir'])/initialize.DIRECTORY/'complete.json'):
         # Never strand post.intent on a coordinator budget refusal that is known
         # not to have dispatched. Reserve the whole bounded bootstrap first.
-        if (checked.requests+11>max_requests or checked.writes+1>max_network_writes
-                or checked.response_bytes+11*u.JSON_BYTES>max_network_bytes):
-            return result('transition_paused','link_next_session',stop_reason='identity_initialization_budget',
+        bootstrap_requests = 11 if handoff is not None else 6
+        if (checked.requests+bootstrap_requests>max_requests or checked.writes+1>max_network_writes
+                or checked.response_bytes+bootstrap_requests*u.JSON_BYTES>max_network_bytes):
+            return result('transition_paused','link_next_session',stop_reason=(
+                'identity_initialization_budget' if handoff is not None else 'initialization_budget'),
                 network_requests=checked.requests,network_writes=checked.writes,
+                network_response_bytes=checked.response_bytes,
                 old_export_verified=True,next_session_linked=False,
                 preserve_existing_files=True,automatic_retry=False)
     following = advance.advance(state_dir=state, acknowledge_create_next_session=True,
@@ -187,8 +201,8 @@ session POST (eleven requests with reviewed-bank preservation), and never retrie
         deadline_seconds=min(120, remaining()), transport=checked)
     guard.check()
     return result('transition_complete', 'next_session_linked',
-        network_requests=checked.requests if handoff is not None else requests+following['network_requests'],
-        network_writes=checked.writes if handoff is not None else writes+following['network_writes'],
+        network_requests=checked.requests, network_writes=checked.writes,
+        network_response_bytes=checked.response_bytes,
         old_export_verified=True, next_session_linked=True,
         next_config_sha256=following['next_config_sha256'],
         next_initialization_sha256=following['next_initialization_sha256'],
@@ -217,6 +231,7 @@ def main(argv=None):
     p.add_argument('--max-network-writes', type=int, default=512)
     p.add_argument('--max-network-bytes', type=int, default=runner.MAX_NETWORK_BYTES)
     p.add_argument('--export-recovery-attempts', type=int, choices=(0, 2, 3), default=0)
+    p.add_argument('--busy-read-retries', type=int, choices=range(4), default=0)
     try:
         value = transition(**vars(p.parse_args(argv)))
     except (Exception, KeyboardInterrupt):

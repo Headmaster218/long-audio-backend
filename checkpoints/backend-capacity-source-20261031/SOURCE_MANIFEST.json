@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "7cecdacdd7081d3ef38689fcb5db0b286b6f9133",
-      "sha256": "0bff37bb4b9c91279516d8a5bee99b3ba7f97b5c15dc132f6f6f2bb4ea36c093"
+      "sha": "5a4d58147e91d5a9e55b2c2aea6eb4e787b23d49",
+      "sha256": "1d4da251b4951a981eb27697c4547f94247bd853a88b3c3908138e5c2df7be71"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -52,9 +52,9 @@
     },
     {
       "path": "audio_backend/app.py",
-      "size": 65916,
-      "sha": "66c8a7bf75e876c6999c0e6781b032e2587cb305",
-      "sha256": "931dc65a5ef79553cf0ab231696f0c374f0ef2e883f54ef0d5f99aafc790f34a"
+      "size": 66105,
+      "sha": "08c37b6dbac59ac9ab93db949965af4f1cea666f",
+      "sha256": "a1639ab918dfaff51f35d5d67774218754abb946694e1c05195df68921420dab"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -766,9 +766,9 @@
     },
     {
       "path": "audio_backend/recorder_generation_transition.py",
-      "size": 13981,
-      "sha": "cb589cb0ed7d9fc4fd54fda3b42f9d713e3acda0",
-      "sha256": "a633abaa298f0b47854bb2bca5ca5b05cab56ccb33d03e5fdbfd8067a0340bfd"
+      "size": 15005,
+      "sha": "6ea2ef64bd0b88cef9dd02714c863974ccf982a9",
+      "sha256": "4bea48e09d6ead443b1e1f1a54a2977acf6c641426c2bcd6b5f91d751963dee3"
     },
     {
       "path": "audio_backend/recorder_inbox.py",
@@ -778,9 +778,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 59742,
-      "sha": "e5b7375a321e6689df89ca1e08db58c803dbaff5",
-      "sha256": "c717752517067a0a53e8d9ec3b86ae49bd0e4953e7980e121fdb46cd92c5ec9e"
+      "size": 63198,
+      "sha": "a5dee2151ecdb3ba7e6a7fe8a5192dafb267b374",
+      "sha256": "68c69dbb06ab996acd24e338534f2bc1fcbba2d9c7e66beebfeb76726cd06220"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -958,9 +958,9 @@
     },
     {
       "path": "audio_backend/recording_uploader.py",
-      "size": 99819,
-      "sha": "31159570644363bf5f77ade334d7269b0fc6dafc",
-      "sha256": "6d9e2573c8d0a7b99c2dc9bbfe6880804a040292b01ef61118458ed8b46f58fb"
+      "size": 100495,
+      "sha": "7f37baa58fcdde53c7fec6c75e91e96afaa1755b",
+      "sha256": "73ee93a64eee2d2ab5e025db58ba8a5e7d06087bef377f73f8c0b8a67c82e1c4"
     },
     {
       "path": "audio_backend/recording_uploader_history.py",
@@ -1084,9 +1084,9 @@
     },
     {
       "path": "audio_backend/strict_supervisor.py",
-      "size": 18334,
-      "sha": "9cf8df0e964a3dc695e73adcbc61b5e9b9a7d2cc",
-      "sha256": "854e95cb888ad342925a17eb98007ac81d606fe2aac97749b1fba693a30ee6e5"
+      "size": 22424,
+      "sha": "1ce60c24914cc996fde7204302d89ba99ae342dd",
+      "sha256": "69b4be62c179ee56405c6e68bf42084f7f9343b610489ff613faf09e49b4c3ea"
     },
     {
       "path": "audio_backend/support_vectors.py",
@@ -1243,6 +1243,12 @@
       "size": 10689,
       "sha": "daf8f44857f9b9e328564bf360240f83728387a9",
       "sha256": "44a3f9df3c7d0a6faee5f4bc5e4e3ced6583cb443ae301a0035b44e7431defa2"
+    },
+    {
+      "path": "docs/BOUNDED_BUSY_READ_RECOVERY.md",
+      "size": 4018,
+      "sha": "e8ede40acaed01983871944745bb8972fa1a0bb5",
+      "sha256": "a3b45d53bd51da0f4bf7cf4cd05dd13b2cdf8dae7a56802ee7fbc63c43fe198e"
     },
     {
       "path": "docs/BOUNDED_MULTI_CORE_SUPPORT.md",
@@ -2415,6 +2421,12 @@
       "sha256": "54dd0fee37ed55bc947cc27cce29f60dbc79a264b667ff004a6209dc473b6ac4"
     },
     {
+      "path": "docs/REVIEWED_IDENTITY_FLOW_BLOCKER_20261104.md",
+      "size": 6953,
+      "sha": "ddc3bb4c921e0b6d0df5e70af8653a733009737b",
+      "sha256": "27f8459f8c7c0175d55aa424704d6ebfb02cd016cb1864c248a3d7b87df1f46f"
+    },
+    {
       "path": "docs/REVIEWED_PRIMARY_PERSONS.md",
       "size": 7114,
       "sha": "3ae8130e669c36af93c3e99a1ef32fb4e1c6e300",
@@ -2446,9 +2458,9 @@
     },
     {
       "path": "docs/STRICT_BACKEND_SUPERVISOR.md",
-      "size": 11085,
-      "sha": "bebb67e21164995689aa3abb762499f2aa2c50ba",
-      "sha256": "f389bc4269bb109c37ddbb09053d4fbda4f4d961c9e3a11a3e1bf3289cbcfdcf"
+      "size": 12963,
+      "sha": "59113da6e18743cc59f5eeb151967b7a0ae10379",
+      "sha256": "fa053b88ca1304e071e6a6c512a08fa83cf7b1be7a1b4f82c04e24ae46a9a7b8"
     },
     {
       "path": "docs/STRICT_LIFETIME_QUOTAS.md",
@@ -2627,8 +2639,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "9d1fe66140b004ff683ff1d8176159d0c7d5c3b7",
-      "sha256": "a7c7af44070088801430bc81896b6c27db4d5c22b1d7dbe14c2b1149b9ac7c2d"
+      "sha": "7b226c3ba494ccf9139941ff2ef35e2450d56768",
+      "sha256": "16503617ca4aabc8c65fc54b2fc9715d55b3541d3607b09521bb55509a9ee916"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5199,6 +5211,12 @@
       "sha256": "61f188d23d03ac35e91ae53960f891ac4a234c144afe6befa19b9bca9c72d8a7"
     },
     {
+      "path": "tests/test_recorder_busy_read_recovery.py",
+      "size": 17344,
+      "sha": "289dc3b94cdd07350ff5992ca6083ca95181e0b8",
+      "sha256": "695de849de9249d3bbc6c867829bfbb6a95b3199e44e9f3dcad048b374c63f9c"
+    },
+    {
       "path": "tests/test_recorder_capture_intake.py",
       "size": 10334,
       "sha": "a6dbecd940bb9fe046d839e99f17016cac9e9990",
@@ -5902,9 +5920,9 @@
     },
     {
       "path": "tests/test_strict_supervisor.py",
-      "size": 24351,
-      "sha": "b67f9f55f19cb96d607d003e95c7af65653e8487",
-      "sha256": "9e7b7c9ddef028ea834bd641a663b75913812373cb3eb47a3aa6bf1ebb757e15"
+      "size": 33853,
+      "sha": "2ca9d551d9664dd07ec1f005312ecfe73dce1580",
+      "sha256": "8b4690fbc461e2dcc988de0841bac53071e5a43e2fa046134e7d9d51af6b3178"
     },
     {
       "path": "tests/test_strict_uploader_admission.py",
@@ -6262,5 +6280,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev68 opt-in reviewed identity group handoff and strict supervisor configuration; existing audio, models and identity matching policies unchanged. Observed checks are not atomic generation pinning."
+  "source_update": "dev69: bounded typed busy GET recovery and constructor-free voice runtime diagnostic; preserves failed dev68 speech study; fresh CP312 qualification and repaired operational retest pending."
 }

@@ -370,13 +370,33 @@ class _WatchTransportStopped(Refused):
 
 class _Transport:
     def __init__(self, http, guard, config, max_requests, max_writes, check, *,
-                 watch=False, max_bytes=MAX_NETWORK_BYTES, reviewed_identity_handoff=None):
+                 watch=False, max_bytes=MAX_NETWORK_BYTES, reviewed_identity_handoff=None,
+                 busy_read_retries=0):
+        require(type(busy_read_retries) is int and 0 <= busy_read_retries <= 3,
+                'runner_busy_read_retry_bound')
+        require(not busy_read_retries or watch, 'runner_busy_read_retry_watch_only')
         self.http, self.guard, self.config, self.check = http, guard, config, check
         self.max_requests, self.max_writes = max_requests, max_writes
         self.requests = self.writes = self.bytes = 0
         self.watch, self.max_bytes = watch, max_bytes
         self.export_recovery_phase = False
         self.reviewed_identity_handoff = reviewed_identity_handoff
+        self.busy_read_retries = busy_read_retries
+        self.busy_read_retries_used = 0
+
+    def _busy_read_target(self, path):
+        """Only canonical reads used by the recorder, never arbitrary GET routes."""
+        base = '/sessions/'+self.config['session_id']
+        capture = base+'/recordings/'+self.config['capture_id']
+        if path in (base, base+'/recording-contract', capture, base+'/chunks?limit=1'):
+            return True
+        if (re.fullmatch(re.escape(capture)+r'/pages/[1-9][0-9]{0,8}', path) or
+                re.fullmatch(re.escape(base)+r'/chunks\?after=(?:0|[1-9][0-9]{0,18})&limit=(?:16|500)', path)):
+            return True
+        handoff = self.reviewed_identity_handoff
+        return handoff is not None and path in (
+            '/sessions/'+handoff['source_session_id'],
+            '/identity-groups/'+handoff['identity_group']+'/reviewed-person-bank')
 
     def check_identity(self):
         if self.reviewed_identity_handoff is not None:
@@ -384,6 +404,26 @@ class _Transport:
             check_reviewed_identity(self.request,self.reviewed_identity_handoff,self.config['session_id'])
 
     def request(self, method, path, **kwargs):
+        retry = False
+        while True:
+            try:
+                return self._attempt(method, path, kwargs, retry)
+            except _WatchTransportStopped as stopped:
+                exc = stopped.cause
+                if not (self.watch and not self.export_recovery_phase and method == 'GET' and
+                        not kwargs and self._busy_read_target(path) and type(exc) is u.HTTPFailure and
+                        exc.status == 503 and exc.admission_reason in u.STRICT_BUSY_REASONS and
+                        self.busy_read_retries_used < self.busy_read_retries):
+                    raise
+                # One invocation-wide allowance; never restart a helper or write.
+                # All guards, including local bindings, run again in _attempt.
+                delay = exc.retry_after
+                if type(delay) not in (int, float) or not 0 <= delay <= 3600:
+                    delay = 1
+                self.guard.pause(min(max(.1, delay), max(0, self.guard.end-time.monotonic())))
+                retry = True
+
+    def _attempt(self, method, path, kwargs, retry):
         self.guard.check(); require(method in ('GET','PUT','POST'), 'runner_http_method')
         require(not self.export_recovery_phase or (method == 'GET' and not kwargs),
                 'runner_export_recovery_get_only')
@@ -402,7 +442,11 @@ class _Transport:
             require(self.bytes + u.JSON_BYTES <= self.max_bytes, 'runner_network_byte_bound')
         self.check(method != 'GET')
         self.requests += 1; self.writes += method != 'GET'
-        if self.export_recovery_phase: self.bytes += u.JSON_BYTES
+        self.busy_read_retries_used += retry
+        # Keep legacy default watch accounting unchanged. Opt-in busy recovery
+        # must retain failed-response reservations across its extra attempts.
+        reserved = self.export_recovery_phase or (self.watch and self.busy_read_retries > 0)
+        if reserved: self.bytes += u.JSON_BYTES
         try:
             value = self.http.request(method, path, **kwargs)
         except (u.HTTPFailure, u.Uncertain) as exc:
@@ -420,7 +464,8 @@ class _Transport:
         require(type(value) is dict, 'runner_response_object')
         raw = single._json(value)
         require(len(raw) <= u.JSON_BYTES, 'runner_response_bound')
-        if not self.export_recovery_phase: self.bytes += len(raw)
+        if not self.export_recovery_phase:
+            self.bytes += len(raw) - (u.JSON_BYTES if reserved else 0)
         require(self.bytes <= self.max_bytes, 'runner_network_byte_bound')
         return value
 
@@ -564,7 +609,8 @@ def _recovery_export_receipt(root, config, intent, guard):
 def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
          finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=1, max_requests=1024,
          max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None,
-         poll_seconds=None, max_polls=1, max_network_bytes=MAX_NETWORK_BYTES, wait_for_marker_last=False, watching=False):
+         poll_seconds=None, max_polls=1, max_network_bytes=MAX_NETWORK_BYTES, wait_for_marker_last=False, watching=False,
+         busy_read_retries=0):
     started = time.monotonic()
     require(exclusive_writer is True and acknowledge_span_local_closure is True,
             'runner_explicit_acknowledgments_required')
@@ -572,6 +618,9 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
     require(type(export_recovery_attempts) is int and export_recovery_attempts in (0,2,3),
             'runner_export_recovery_bound')
     require(not export_recovery_attempts or export, 'runner_export_recovery_requires_export')
+    require(type(busy_read_retries) is int and 0 <= busy_read_retries <= 3,
+            'runner_busy_read_retry_bound')
+    require(not busy_read_retries or watching, 'runner_busy_read_retry_watch_only')
     for value, maximum in ((max_actions,MAX_WATCH_ACTIONS if watching else MAX_ACTIONS),(max_requests,MAX_REQUESTS),(max_network_writes,MAX_NETWORK_WRITES)):
         require(type(value) is int and 1 <= value <= maximum, 'runner_invocation_bound')
     require(type(deadline_seconds) in (int,float) and 0 < deadline_seconds <= 86400,
@@ -621,7 +670,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
         handoff = completed_handoff(root,config)
         http = _Transport(transport or u.HTTPTransport(config['api'], guard), guard, config,
                           max_requests, max_network_writes, check,
-                          watch=watching, max_bytes=max_network_bytes,reviewed_identity_handoff=handoff)
+                          watch=watching, max_bytes=max_network_bytes,reviewed_identity_handoff=handoff,
+                          busy_read_retries=busy_read_retries)
         actions = 0; helper_actions = 0; polls = 0; last_status = None
         def result(outcome, **extra):
             if watching:
@@ -629,6 +679,9 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                     network_response_bytes=http.bytes, last_status=last_status,
                     continuous_polling_enabled=True, automatic_resume_enabled=False,
                     daemon_installed=False, invocation_bounded=True)
+                if busy_read_retries:
+                    extra.update(busy_read_retries=busy_read_retries,
+                        busy_read_retries_used=http.busy_read_retries_used)
             return dict(schema=SCHEMA, status=outcome, inputs=completed,
                 next_sequence=config['span_origin']['first_sequence']+completed,
                 actions=actions, network_requests=http.requests, network_writes=http.writes,
@@ -801,6 +854,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
             cause = exc.cause if isinstance(exc, _WatchTransportStopped) else exc
             failure = single.failure_report(cause)
             failure.pop('schema'); failure.pop('status')
+            if type(cause) is u.HTTPFailure and cause.admission_reason in u.STRICT_BUSY_REASONS:
+                failure['admission_reason'] = cause.admission_reason
             if isinstance(exc, _WatchTransportStopped): failure['reason'] = str(exc)
             stopped = 'cancelled' if isinstance(cause, (InterruptedError, KeyboardInterrupt)) or (cancel and cancel()) else (
                 'deadline_reached' if time.monotonic() >= guard.end else 'unresolved')
@@ -822,13 +877,15 @@ def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fal
 def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
           finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=256, max_requests=1024,
           max_network_writes=512, max_network_bytes=MAX_NETWORK_BYTES, deadline_seconds=120,
-          poll_seconds=5, max_polls=256, wait_for_marker_last=False, limits=None, transport=None, cancel=None):
+          poll_seconds=5, max_polls=256, wait_for_marker_last=False, limits=None, transport=None, cancel=None,
+          busy_read_retries=0):
     """Finite watch. By default only clean missing input and pending status repeat.
 
     The original runner lock, exact configuration, transport and all budgets stay
     live for the entire invocation. Every refusal/uncertain effect requires an
-    explicit new invocation. Opt-in export recovery alone can start fresh GET-only
-    attempts after exact typed transcript revision conflicts; other failures stop.
+    explicit new invocation. Explicit busy-read recovery repeats only allowlisted
+    exact GETs after typed strict-store admission failures, at most three times in
+    total. Export recovery keeps its separate transcript-revision contract.
     """
     return _run(state_dir=state_dir, exclusive_writer=exclusive_writer,
         acknowledge_span_local_closure=acknowledge_span_local_closure, finalize=finalize,
@@ -836,7 +893,7 @@ def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=F
         max_requests=max_requests, max_network_writes=max_network_writes,
         max_network_bytes=max_network_bytes, deadline_seconds=deadline_seconds,
         poll_seconds=poll_seconds, max_polls=max_polls, wait_for_marker_last=wait_for_marker_last, watching=True, limits=limits,
-        transport=transport, cancel=cancel)
+        transport=transport, cancel=cancel, busy_read_retries=busy_read_retries)
 
 
 def preflight(*, state_dir, select_attempt=None, deadline_seconds=120):
@@ -935,6 +992,7 @@ def main(argv=None):
         execute.add_argument('--max-requests',type=int,default=1024); execute.add_argument('--max-network-writes',type=int,default=512)
         execute.add_argument('--deadline-seconds',type=float,default=120)
         if mode == 'watch':
+            execute.add_argument('--busy-read-retries',type=int,choices=range(4),default=0)
             execute.add_argument('--poll-seconds',type=float,default=5)
             execute.add_argument('--max-polls',type=int,default=256)
             execute.add_argument('--wait-for-marker-last',action='store_true')

@@ -93,6 +93,7 @@ def test_unqualified_runtime_refuses_without_assets_service_or_data_mutation(tmp
         return {'status': 'unqualified', 'reason': 'synthetic_unqualified'}
     monkeypatch.setattr(runtime, 'inspect_runtime', inspect)
     monkeypatch.setattr(supervisor, '_assets', lambda _: pytest.fail('Assets touched after runtime refusal'))
+    monkeypatch.setattr(supervisor, '_voice_embedding_preflight', lambda _: pytest.fail('Embedding inspection after refusal'))
     monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Child started on refusal'))
     extra = reviewed_arguments(tmp_path / 'intentionally-missing-policy.json') if reviewed else []
     assert supervisor.main(arguments(data, action) + extra) == 2
@@ -211,6 +212,7 @@ def test_reviewed_policy_path_and_exact_bounded_schema_refuse_before_launch(tmp_
 def test_busy_lock_refuses_before_runtime_inspection(tmp_path, monkeypatch):
     data = directory(tmp_path)
     monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: pytest.fail('Read before ownership'))
+    monkeypatch.setattr(supervisor, '_voice_embedding_preflight', lambda _: pytest.fail('Embedding inspection before ownership'))
     with (data / 'instance.lock').open('rb') as original:
         fcntl.flock(original, fcntl.LOCK_EX | fcntl.LOCK_NB)
         assert supervisor.main(arguments(data)) == 1
@@ -406,6 +408,7 @@ def test_signal_request_before_launch_creates_no_child(tmp_path, monkeypatch):
         return {'status': 'matched'}
     monkeypatch.setattr(runtime, 'inspect_runtime', inspect)
     monkeypatch.setattr(supervisor, '_assets', lambda _: None)
+    monkeypatch.setattr(supervisor, '_voice_embedding_preflight', lambda _: pytest.fail('Stop request inspected embedding'))
     monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Stop request launched child'))
     assert supervisor.main(arguments(data, 'serve')) == 143
     available(data)
@@ -468,6 +471,160 @@ def test_uncertain_positive_wait_keeps_cli_alive_and_original_lock_held(tmp_path
     if mode != 'logging_failure':
         assert 'Ownership is unresolved; retaining the original lock' in stderr
     available(data)  # Only the fixture's explicit SIGKILL ends this hold.
+
+
+@pytest.fixture
+def structural_voice_preflight(tmp_path, monkeypatch):
+    """Synthetic byte binding only; never evidence for a real runtime or voice."""
+    import copy
+    import hashlib
+    from types import SimpleNamespace
+    from audio_backend import embedding_space as space
+    from audio_backend import recording_speaker_probe_runner as probe
+    from audio_backend import moss_handy_profile
+    data = directory(tmp_path)
+    provision_assets(data)
+    args = supervisor._parser().parse_args(arguments(data))
+    binding = copy.deepcopy(space._AUDITED_BINDINGS[probe.BINDING_ID])
+    binding['model']['sha256'] = hashlib.sha256(args.recording_speaker_model.read_bytes()).hexdigest()
+    binding_id = space._digest(binding)
+    monkeypatch.setitem(space._AUDITED_BINDINGS, binding_id, binding)
+    monkeypatch.setattr(probe, 'BINDING_ID', binding_id)
+    monkeypatch.setattr(probe, 'MODEL_SHA256', binding['model']['sha256'])
+    class Config:
+        def __init__(self, **kwargs): self.__dict__.update(kwargs)
+    class Extractor:
+        def __init__(self, *a, **k): pytest.fail('Preflight constructed an extractor')
+    roots = tmp_path / 'synthetic-site'; roots.mkdir()
+    artifact = roots / 'runtime.so'; artifact.write_bytes(b'not a real runtime')
+    sherpa = SimpleNamespace(__file__=str(roots / 'sherpa.py'),
+        SpeakerEmbeddingExtractorConfig=Config, SpeakerEmbeddingExtractor=Extractor)
+    monkeypatch.setitem(sys.modules, 'sherpa_onnx', sherpa)
+    monkeypatch.setitem(sys.modules, 'numpy', SimpleNamespace(__file__=str(roots / 'numpy.py')))
+    monkeypatch.setattr(moss_handy_profile, 'runtime_site_paths', lambda: (roots,))
+    observed_runtime = copy.deepcopy(binding['runtime'])
+    numpy_runtime = copy.deepcopy(binding['output']['numpy'])
+    defaults = {key: binding['frontend'][key] for key in (
+        'sampling_rate', 'feature_dim', 'low_freq', 'high_freq', 'dither', 'normalize_samples', 'snip_edges')}
+    def snapshot(attestor, actual):
+        assert actual is sherpa
+        attestor._runtime_paths = {'sherpa_extension': artifact}
+        return observed_runtime, numpy_runtime, defaults, []
+    monkeypatch.setattr(space.SherpaSpaceAttestor, '_runtime_snapshot', snapshot)
+    return SimpleNamespace(data=data, args=args, space=space, probe=probe, sherpa=sherpa,
+        observed_runtime=observed_runtime, numpy_runtime=numpy_runtime, defaults=defaults,
+        roots=roots, artifact=artifact)
+
+
+def test_voice_preflight_reuses_begin_without_extractor_database_or_child(structural_voice_preflight, monkeypatch):
+    import sqlite3
+    fixture = structural_voice_preflight
+    monkeypatch.setattr(sqlite3, 'connect', lambda *a, **k: pytest.fail('Voice check opened a database'))
+    monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Voice check created a child'))
+    original = fixture.space.SherpaSpaceAttestor.begin
+    calls = []
+    def begin(attestor, sherpa, config, model_hash):
+        calls.append((config.provider, config.num_threads, config.model, model_hash))
+        return original(attestor, sherpa, config, model_hash)
+    monkeypatch.setattr(fixture.space.SherpaSpaceAttestor, 'begin', begin)
+    report = supervisor._voice_embedding_preflight(fixture.args)
+    assert report['status'] == 'preconstruction_supported'
+    assert report['reason'] == 'existing_probe_binding_match'
+    assert report['expected_binding_id'] == fixture.probe.BINDING_ID
+    assert report['expected_space_id'] == fixture.probe.expected_space()[1]
+    assert report['extractor'] == 'not_constructed' and report['inference'] == 'not_run'
+    assert report['quality'] == 'not_evaluated'
+    assert calls == [('cpu', 2, str(fixture.args.recording_speaker_model), fixture.probe.MODEL_SHA256)]
+
+
+@pytest.mark.parametrize('damage,reason', [
+    ('sherpa', 'embedding_runtime_model_unverified'), ('numpy', 'embedding_runtime_model_unverified'),
+    ('model', 'embedding_model_bytes_unverified'), ('frontend', 'embedding_frontend_unverified'),
+    ('platform', 'embedding_platform_unverified'), ('descriptor', 'probe_embedding_space_mismatch')])
+def test_voice_preflight_preserves_exact_attestor_rejections(structural_voice_preflight, monkeypatch, damage, reason):
+    fixture = structural_voice_preflight
+    if damage == 'sherpa': fixture.observed_runtime['artifacts']['sherpa_extension'] = 'f' * 64
+    elif damage == 'numpy': fixture.numpy_runtime['version'] = 'unverified'
+    elif damage == 'model': fixture.args.recording_speaker_model.write_bytes(b'changed model')
+    elif damage == 'frontend': fixture.defaults['snip_edges'] = True
+    elif damage == 'platform': monkeypatch.setattr(fixture.space.platform, 'system', lambda: 'unverified')
+    else:
+        expected, space_id = fixture.probe.expected_space()
+        expected['extractor']['num_threads'] = 1
+        monkeypatch.setattr(fixture.probe, 'expected_space', lambda: (expected, space_id))
+    report = supervisor._voice_embedding_preflight(fixture.args)
+    assert report['status'] == 'unsupported' and report['reason'] == reason
+    assert report['extractor'] == 'not_constructed' and report['inference'] == 'not_run'
+
+
+@pytest.mark.parametrize('error,reason', [
+    (ImportError, 'embedding_dependency_unavailable'), (OSError, 'embedding_artifact_read_failed'),
+    (ValueError, 'embedding_inspection_failed'), (RuntimeError, 'embedding_inspection_failed')])
+def test_voice_preflight_sanitizes_inspection_errors(structural_voice_preflight, monkeypatch, error, reason):
+    fixture = structural_voice_preflight
+    def fail(*a, **k): raise error('/private/model/path: private native exception')
+    monkeypatch.setattr(fixture.space.SherpaSpaceAttestor, 'begin', fail)
+    report = supervisor._voice_embedding_preflight(fixture.args)
+    assert report['status'] == 'inspection_failed' and report['reason'] == reason
+    assert 'private' not in json.dumps(report)
+
+
+def test_voice_preflight_rejects_foreign_runtime_origin(structural_voice_preflight):
+    fixture = structural_voice_preflight
+    fixture.sherpa.__file__ = str(fixture.roots.parent / 'foreign/sherpa.py')
+    report = supervisor._voice_embedding_preflight(fixture.args)
+    assert report['status'] == 'inspection_failed' and report['reason'] == 'foreign_runtime_origin'
+
+
+@pytest.mark.parametrize('reviewed', [False, True])
+def test_voice_preflight_is_advisory_and_separate_from_readonly_bank_configuration(
+        structural_voice_preflight, monkeypatch, capsys, reviewed):
+    import sqlite3
+    fixture = structural_voice_preflight
+    fixture.observed_runtime['artifacts']['sherpa_extension'] = 'f' * 64
+    extra = reviewed_arguments(reviewed_policy(fixture.data.parent)) if reviewed else []
+    monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: {'status': 'matched'})
+    monkeypatch.setattr(sqlite3, 'connect', lambda *a, **k: pytest.fail('Check opened a database'))
+    monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('Check launched a child'))
+    before = {p: p.read_bytes() for p in fixture.data.parent.rglob('*') if p.is_file()}
+    assert supervisor.main(arguments(fixture.data) + extra) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report['status'] == 'preflight_passed'
+    assert report['voice_embedding']['status'] == 'unsupported'
+    assert report['reviewed_primary_persons_enabled'] is reviewed
+    assert report['person_bank'] == 'not_opened_or_activated'
+    assert report['models'] == 'not_loaded' and report['service'] == 'not_started'
+    assert {p: p.read_bytes() for p in fixture.data.parent.rglob('*') if p.is_file()} == before
+    available(fixture.data)
+
+
+def test_serve_reports_advisory_voice_failure_before_dispatch(structural_voice_preflight, monkeypatch, capsys):
+    fixture = structural_voice_preflight
+    fixture.observed_runtime['artifacts']['sherpa_extension'] = 'f' * 64
+    monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: {'status': 'matched'})
+    def dispatch(owner, command, signals, grace):
+        conflict(fixture.data)
+        notice = capsys.readouterr().err
+        assert 'embedding_runtime_model_unverified' in notice
+        assert 'continuing the strict service' in notice
+        assert command == supervisor._child_command(
+            supervisor._parser().parse_args(arguments(fixture.data, 'serve')), owner.lock.file.fileno())
+        return 23
+    monkeypatch.setattr(supervisor, '_run_child', dispatch)
+    assert supervisor.main(arguments(fixture.data, 'serve')) == 23
+    available(fixture.data)
+
+
+def test_stop_during_voice_inspection_prevents_dispatch(structural_voice_preflight, monkeypatch):
+    fixture = structural_voice_preflight
+    monkeypatch.setattr(runtime, 'inspect_runtime', lambda _: {'status': 'matched'})
+    def inspect(_):
+        os.kill(os.getpid(), signal.SIGTERM)
+        return {'status': 'inspection_failed'}
+    monkeypatch.setattr(supervisor, '_voice_embedding_preflight', inspect)
+    monkeypatch.setattr(supervisor, '_run_child', lambda *a: pytest.fail('Stop request launched child'))
+    assert supervisor.main(arguments(fixture.data, 'serve')) == 143
+    available(fixture.data)
 
 
 @pytest.mark.parametrize('action', ['check', 'serve'])

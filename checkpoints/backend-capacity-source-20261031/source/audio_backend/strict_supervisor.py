@@ -1,9 +1,9 @@
 """Linux foreground supervisor for the existing strict CPU backend.
 
 No asset download, runtime qualification, session creation or automatic restart.
-The check command reads metadata and an explicitly supplied policy, and holds an
-existing lock without starting a service. Serve uses the same preflight before
-one child launch.
+The check command reads metadata, an explicitly supplied policy and optional
+embedding-runtime/model hashes without constructing a model or starting a child.
+Serve uses the same preflight before one child launch.
 """
 from __future__ import annotations
 
@@ -87,6 +87,64 @@ def _assets(args):
         # does. This reads configuration only, never opens or activates a bank.
         from .verified_identity import policy_file
         policy_file(_canonical(args.verified_identity_policy))
+
+
+def _voice_embedding_preflight(args):
+    """Advisory current-process snapshot, never bank or acoustic qualification.
+
+    Reuse the probe's authoritative pre-construction check. Native runtime
+    libraries/configuration may load, but no extractor is constructed. The real
+    child must still repeat its unchanged checks immediately before extraction.
+    """
+    report = {'status': 'inspection_failed', 'reason': 'embedding_inspection_failed',
+              'scope': 'current_process_preconstruction_snapshot',
+              'provider': 'cpu', 'num_threads': 2, 'extractor': 'not_constructed',
+              'inference': 'not_run', 'quality': 'not_evaluated'}
+    try:
+        from .embedding_space import SherpaSpaceAttestor
+        from .recording_speaker_probe_runner import BINDING_ID, MODEL_SHA256, expected_space
+        from .moss_handy_profile import runtime_site_paths
+        expected, space_id = expected_space()
+        report.update(expected_binding_id=BINDING_ID, expected_space_id=space_id)
+        import numpy as np
+        import sherpa_onnx as sherpa
+        config = sherpa.SpeakerEmbeddingExtractorConfig(
+            model=str(args.recording_speaker_model), provider='cpu', num_threads=2)
+        attestor = SherpaSpaceAttestor()
+        snapshot = attestor.begin(sherpa, config, MODEL_SHA256)
+        if snapshot['descriptor'] != expected:
+            report.update(status='unsupported', reason='probe_embedding_space_mismatch')
+            return report
+        # A matching foreign PYTHONPATH package cannot establish support in the
+        # selected interpreter's isolated child. This is an origin check only;
+        # compatibility remains exclusively the existing attestor's decision.
+        roots = runtime_site_paths()
+        paths = [Path(sherpa.__file__).resolve(), Path(np.__file__).resolve(),
+                 *attestor._runtime_paths.values()]
+        if any(not any(path.is_relative_to(root) for root in roots) for path in paths):
+            report['reason'] = 'foreign_runtime_origin'
+            return report
+        report.update(status='preconstruction_supported', reason='existing_probe_binding_match')
+    except ImportError:
+        report['reason'] = 'embedding_dependency_unavailable'
+    except OSError:
+        report['reason'] = 'embedding_artifact_read_failed'
+    except ValueError as error:
+        # Fixed codes only: native exceptions can contain private model paths.
+        reason = {
+            'Embedding runtime platform unverified': 'embedding_platform_unverified',
+            'Unrecognized extractor implementation': 'extractor_implementation_unverified',
+            'Unrecognized extractor configuration': 'extractor_configuration_unverified',
+            'Embedding model changed since analyzer initialization': 'embedding_model_bytes_unverified',
+            'Effective frontend defaults differ from audited runtime': 'embedding_frontend_unverified',
+            'Embedding runtime/model proof unavailable': 'embedding_runtime_model_unverified',
+            'Sherpa wrapper and native versions disagree': 'embedding_runtime_version_mismatch',
+        }.get(str(error))
+        if reason is not None:
+            report.update(status='unsupported', reason=reason)
+    except Exception:
+        pass  # Diagnostic failure never legalizes evidence or blocks core ASR.
+    return report
 
 
 def _child_command(args, fd):
@@ -348,6 +406,10 @@ def main(argv=None):
             owner.lock.verify_inherited()
             if signals.requested is not None:
                 return 128 + signals.requested
+            voice_embedding = _voice_embedding_preflight(args)
+            owner.lock.verify_inherited()
+            if signals.requested is not None:
+                return 128 + signals.requested
             if args.action == 'check':
                 print(json.dumps({'schema': 'strict-supervisor-check-v1', 'status': 'preflight_passed',
                     'runtime': runtime, 'assets': 'existing_paths_only_not_content_or_license_verified',
@@ -356,8 +418,14 @@ def main(argv=None):
                     'verified_identity_policy': ('validated_configuration_only' if args.reviewed_primary_persons
                                                  else 'not_requested'),
                     'person_bank': 'not_opened_or_activated',
+                    'voice_embedding': voice_embedding,
                     'models': 'not_loaded', 'service': 'not_started', 'session': 'not_created'}, sort_keys=True))
                 return 0
+            _notice('Voice embedding diagnostic (advisory, not service readiness):',
+                    json.dumps(voice_embedding, sort_keys=True))
+            if voice_embedding['status'] != 'preconstruction_supported':
+                _notice('Optional voice embeddings are not preflight-supported; continuing the strict service. '
+                        'Model-free reviewed-person configuration is separate from acoustic matching.')
             _notice('Preflight passed. Starting one strict CPU service on loopback; no automatic restart. '
                     'Existing queued work may run. Process start is not service readiness.')
             return _run_child(owner, _child_command(args, owner.lock.file.fileno()), signals,

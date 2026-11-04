@@ -604,7 +604,11 @@ def _create_app(settings,analyzer_factory=None,*,fragment_provider_factory=None,
     @app.exception_handler(StrictMutationBusy)
     async def strict_mutation_busy(request,exc):
         # Only the current mutex admission failed; earlier request effects are not undone.
-        return JSONResponse({'detail':'Strict mutation admission is busy; inspect state before explicit retry'},status_code=503)
+        body = {'detail':'Strict mutation admission is busy; inspect state before explicit retry'}
+        reason = str(exc)
+        if reason in ('strict_archive_busy', 'strict_publication_busy', 'strict_mutation_busy'):
+            body['admission_reason'] = reason
+        return JSONResponse(body,status_code=503)
     @app.exception_handler(RecordingStorageCapacityError)
     async def recording_storage_capacity(request,exc):
         return JSONResponse({'detail':str(exc)},status_code=507)

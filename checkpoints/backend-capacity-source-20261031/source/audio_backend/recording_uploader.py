@@ -37,6 +37,8 @@ JSON_BYTES = 512 * 1024
 STDERR_BYTES = 8192
 POLICY = 'finalized-file-mono16k-v1'
 FORMAT = {'sample_rate': RATE, 'channels': 1, 'sample_width': 2, 'encoding': 'pcm_s16le'}
+STRICT_BUSY_DETAIL = 'Strict mutation admission is busy; inspect state before explicit retry'
+STRICT_BUSY_REASONS = frozenset(('strict_archive_busy', 'strict_publication_busy', 'strict_mutation_busy'))
 
 # Unresolved inherited owners survive temporary callers and GC until process
 # exit. Supervisors must independently retain ownership until positive wait.
@@ -54,6 +56,7 @@ class HTTPFailure(Incomplete):
         # Retain only an exact, bounded typed error. Never recover by parsing the
         # truncated human exception string, which can omit or spoof evidence.
         self.response_reason = None
+        self.admission_reason = None
         if type(detail) is str and len(detail) <= JSON_BYTES:
             try:
                 def unique(pairs):
@@ -66,6 +69,12 @@ class HTTPFailure(Incomplete):
                 if (type(value) is dict and set(value) == {'detail'} and
                         value['detail'] == 'transcript_revision_changed'):
                     self.response_reason = 'transcript_revision_changed'
+                if (type(status) is int and status == 503 and type(value) is dict and
+                        set(value) == {'detail', 'admission_reason'} and
+                        value['detail'] == STRICT_BUSY_DETAIL and
+                        type(value['admission_reason']) is str and
+                        value['admission_reason'] in STRICT_BUSY_REASONS):
+                    self.admission_reason = value['admission_reason']
             except (ValueError, TypeError, RecursionError):
                 pass
         super().__init__(f'HTTP {status}: {detail[:1000]}')

@@ -73,6 +73,9 @@ before asset inspection, database construction, worker/model initialization,
 child creation or listener startup. Successful checks additionally stat the
 required model files, but never load them. No target database is opened or
 created. Lock bytes are unchanged; normal read/metadata atime effects may occur.
+The separate advisory voice-embedding check described below also reads bounded
+runtime/model hashes and imports optional native runtime libraries, without
+constructing a model or starting a child.
 
 Only `status: preflight_passed` with exit status `0` passes this preflight. Exit
 `2` means the existing runtime qualification did not match. Exit `1` means a
@@ -151,6 +154,32 @@ Serving with this opt-in can install the existing guarded schema; it does not
 activate a bank, enroll voices or associate a person automatically. Existing
 explicit bank activation/review APIs and immutable policy rules still apply.
 This launcher change adds no recognition, enrollment or quality qualification.
+
+### Advisory voice-embedding diagnostic
+
+Both commands report `voice_embedding` independently of the reviewed-person
+configuration. After normal runtime and asset admission, this reuses the exact
+recording probe's `SherpaSpaceAttestor.begin` check with the existing model hash,
+CPU provider and two threads, and compares its descriptor to the probe's expected
+space. It never calls the extractor constructor or runs inference. The check
+imports optional Sherpa/NumPy runtime libraries, reads their bounded hashes and
+the speaker model hash, and requires matching runtime origins to stay within
+the selected interpreter's site roots. No new binding or equivalence is accepted.
+
+`preconstruction_supported` means only that the current-process snapshot matched
+the existing probe binding. `unsupported` means an existing attestor check or
+exact probe-space comparison rejected it. `inspection_failed` means support
+could not be established. Reasons are fixed codes, not private paths or native
+exception messages. A matching snapshot is not extractor readiness, acoustic
+quality, bank availability, or permission to skip the child's own checks.
+
+This diagnostic is **advisory**: it does not change the check's admission exit
+status or block primary ASR solely because optional voice embeddings are
+unsupported. `serve` prints it before dispatch and warns on any nonmatching
+result. Model-free reviewed-person operations remain a separate capability;
+enabling their flags cannot make an unsupported embedding runtime compatible.
+In particular, matching package versions alone do not establish audited binary
+compatibility across Python builds. Existing banks and data are not opened.
 
 ## Ownership and shutdown
 
