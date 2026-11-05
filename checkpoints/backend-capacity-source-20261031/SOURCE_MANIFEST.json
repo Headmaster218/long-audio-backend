@@ -1924,9 +1924,9 @@
     },
     {
       "path": "docs/ISOLATED_TARGET_INSTALL_ZH.md",
-      "size": 6818,
-      "sha": "6907967beaafb35f417eeb7475bee919e9d23385",
-      "sha256": "487522269005edd5ef744ac229813d58f41fceb7871e595adab40190f6459a4c"
+      "size": 9365,
+      "sha": "bfcd18b92852ca0fee1349a2e0099d45ee9f1800",
+      "sha256": "3f7d1d180250d1bf4597235d231e9ceaa2840ed10f3f94a9fe57321740e524c1"
     },
     {
       "path": "docs/LEXICAL_EVIDENCE_RETENTION.md",
@@ -3207,6 +3207,12 @@
       "sha256": "724380448a23dd5dbc8cb3505b184118c4b8921eab5a59f057df70c59d95d8c6"
     },
     {
+      "path": "qualification/prepare_target_evidence.py",
+      "size": 14186,
+      "sha": "62e98701071f5db5b0df6552a66e58db6fd27a65",
+      "sha256": "b1a6b3f96c31685c31bc48d6abd220729f961a4bfb1920a81e8fbc900129b9b8"
+    },
+    {
       "path": "qualification/public_speech_native_audit_20261103/audit_public_speech.py",
       "size": 36350,
       "sha": "23eb85c12ab52dfa91dec3da4ebfc9476a2c4e4e",
@@ -3517,6 +3523,12 @@
       "size": 9318,
       "sha": "52109dccbe37e053d3bfb88fa4082282809e9603",
       "sha256": "81b5a12be012fbc835b74fa8f951e39047be05f37248403f10b4a651750fd1d5"
+    },
+    {
+      "path": "qualification/test_prepare_target_evidence.py",
+      "size": 6716,
+      "sha": "0335b35826bfa0f6a9f576a0b95584572e3726fb",
+      "sha256": "2cff11cbfb73fddcf812549705f40f2f6f3af9c41b2848a474d6a881161be168"
     },
     {
       "path": "qualification/test_session_request_atomic_init.py",
@@ -6430,5 +6442,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev73 adds read-only conditional capacity preflight and explicit fresh-only deployment configuration bundles. Independent29 focused tests and167 related regressions passed (overlapping counts). Fresh installed workflow proof remains separately pending."
+  "source_update": "Product remains dev73 with unchanged audio_backend bytes. Portable existing target-evidence preparation and startup documentation repair added outside product package; independent15 tests and92 related regressions passed (overlapping). Actual preparation command evidence is separate."
 }

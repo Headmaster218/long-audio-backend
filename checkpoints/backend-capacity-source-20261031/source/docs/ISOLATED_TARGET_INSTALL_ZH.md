@@ -12,10 +12,31 @@
 ## 1. 固定源码和目标
 
 先按仓库 `START_HERE_ZH.md` 恢复源码并保存该提交内的 `SOURCE_MANIFEST.json`。
-使用最终准备运行服务的解释器、独立私有目录和选定数据盘，依次执行
-`qualification/TARGET_RUNTIME_OBSERVATION.md` 中的目标观察、物理崩溃恢复和独立
-字节审计，再运行明确提供全部证据的九项候选校验。不要把退出成功或单个 JSON
-布尔值当成自动批准。保留真实失败、原始结果和测试 JUnit。
+使用最终准备运行服务的同一个全新 virtualenv 解释器和目标数据盘。目标环境不安装
+pytest 或开发/test extra；它不是上面用于开发的 editable 安装环境。运行依赖须事先准备完毕；
+测试工具另放在经过固定清单/hash 核验的独立目录，不往目标运行环境安装测试依赖。
+以下命令复用 `TARGET_RUNTIME_OBSERVATION.md` 中既有的目标观察、物理崩溃恢复、
+独立字节审计及九项候选校验，保留实际退出结果、原始日志、JUnit 和哈希绑定回执：
+
+```sh
+python -I -B /absolute/source/qualification/prepare_target_evidence.py \
+  --source /absolute/source \
+  --manifest /absolute/SOURCE_MANIFEST.json \
+  --manifest-sha256 EXACT_SOURCE_MANIFEST_SHA256 \
+  --output /absolute/private-target-volume/new-evidence \
+  --test-tools /absolute/verified-test-tools \
+  --acknowledge-physical-probes
+```
+
+`--output` 必须不存在，父目录必须已存在、私有且位于最终数据盘；不要指向源码、
+现有数据库或旧证据目录。`--test-tools` 只进入测试子进程的导入路径，不进入服务
+或目标观察进程，不应包含另一个产品源码副本。准备命令不下载或安装依赖。需要 Linux 和至少两个可用 CPU；主工作总限时 600 秒，
+失败后另有最多 30 秒的最终字节观察，子进程关闭有单独有界等待。源文件、测试工具、
+目标依赖（含 SQLite 包、扩展/库和解释器）的前后字节必须一致才报告等待审查。
+失败或中断的输出保留用于检查，拒绝覆盖和自动重放；只有明确选择一个全新输出
+目录才能开始另一次实验。成功只意味着证据准备完毕、等待独立审查，不生成批准
+basis，不修改产品资格或启动模型/服务。不要把退出成功或单个 JSON 布尔值当成
+自动批准。单步工具仍可用于独立检查，见 `qualification/TARGET_RUNTIME_OBSERVATION.md`。
 
 独立审查后，按 `qualification/MATERIALIZE_TARGET_CANDIDATE.md` 生成并核验明确的
 受审 basis。`materialize_target_candidate.py` 接收其精确摘要，只向全新目录复制
@@ -32,12 +53,33 @@
 当前锁文件针对相应云端配置，不是跨平台通用依赖承诺。
 
 ```sh
+set -eu
 python -I -B -m pip install --require-hashes -r source/requirements-build-dev9.lock.txt
+test ! -e wheel-input
+mkdir wheels
 cp -a source wheel-input
 python -I -B -m pip wheel --no-build-isolation --no-deps --wheel-dir wheels wheel-input
-python -I -B -m pip install --no-deps --no-compile wheels/long_audio_backend-0.2.0rc3.dev66-py3-none-any.whl
+python -I -B - <<'PYTHON'
+import hashlib
+from pathlib import Path
+import subprocess
+import sys
+
+wheels = list(Path("wheels").glob("*.whl"))
+if len(wheels) != 1:
+    raise SystemExit("Expected exactly one newly built wheel; preserve and inspect this directory")
+wheel = wheels[0]
+if wheel.is_symlink() or not wheel.is_file() or not wheel.name.startswith("long_audio_backend-"):
+    raise SystemExit("Unexpected wheel output")
+digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+print(f"Installing exact wheel: {wheel.name} SHA256={digest}", flush=True)
+subprocess.run([sys.executable, "-I", "-B", "-m", "pip", "install", "--no-deps",
+                "--no-compile", str(wheel.resolve())], check=True)
+PYTHON
 ```
 
+`wheel-input` 和 `wheels` 均须为本次新路径；示例在已有路径上停止，不复用旧 wheel。
+保存打印出的精确 wheel 文件名与 SHA-256，不依赖文档中的历史版本号猜测安装文件。
 使用全新隔离环境，不覆盖正在工作的安装。`--no-deps` 仅适用于运行依赖已经按固定
 清单准备完毕的情况；不是忽略依赖。构建工具必须先安装好，原生模型/库另行准备。
 `--no-compile` 防止安装生成产品字节码；首次验证前不导入产品。不要在服务的
@@ -93,7 +135,9 @@ SIGTERM 主动停止监督器的正常信号退出码为 143，不能错误地�
 身份。必须记录 wheel SHA-256 和 materializer 回执，不能只凭文件名或版本号认定
 安装一致；不要在已有同版本安装上依赖 pip 的“已满足”判断。
 
-当前同一云主机上的实际 Python 3.13 动态绑定已通过有限物理恢复流程和九项候选
+以下是历史版本证据，不替代当前提交和实际服务器的完整验证。
+
+此前同一云主机上的实际 Python 3.13 动态绑定已通过有限物理恢复流程和九项候选
 校验，以及受审安装后的短时真实语音检查。完整范围和未通过项目见
 [`动态运行时结果`](../qualification/dynamic_install_20261104/RESULT.md)。
 这不是独立服务器安装或上线验收。
