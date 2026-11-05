@@ -1,0 +1,22 @@
+{
+  "schema": "overlap-initial-panel-outcome-v1",
+  "outcome": "failed_before_candidate_calls",
+  "completed_primary_exports": [
+    "en-overlap-1",
+    "en-overlap-2"
+  ],
+  "failed_primary_case": "zh-overlap-1",
+  "failed_chunk": "ee64bb0ef3fb43749d4f7bbb13da941a",
+  "failed_chunk_seconds": 1.03,
+  "committed_next_offset": 0,
+  "candidate_calls": 0,
+  "completed_comparison_pairs": 0,
+  "trigger": "Read-only status request returned HTTP503; later saved state shows Chinese tail failed with Native diarizer process exited. Exact causal relation to cleanup is uncertain.",
+  "sampled_peak_rss_bytes": 897024000,
+  "live_owned_processes_after_cleanup": 0,
+  "original_handles_waited": 47,
+  "original_handles_total": 47,
+  "public_score_sha256": "7ab53e51ce03458178833160caee3abdecf65be866dc2d691ef9213a6c06ab8b",
+  "recovery": "One product-supported formal retry of original verified failed/manual tail is permitted after independent state and launch review; not yet executed. Original failure retained.",
+  "quality_conclusion": "No candidate recognition comparison yet. Zero completed pairs must not be read as zero error."
+}
