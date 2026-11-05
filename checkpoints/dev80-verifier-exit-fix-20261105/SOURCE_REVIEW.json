@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0rc3.dev80",
+  "changed_files": [
+    "audio_backend/recorder_candidate_resources.py",
+    "tests/test_recorder_candidate_resources.py"
+  ],
+  "freeze_sha256": "823bbb6899e148b9612e88f7833ae94a3dffc8094a1c255d3edaa0e49f3646c2",
+  "review_sha256": "719545d33e241d7e5825e7ca24cfcb1c29f3eb19400f94524cd06046feb586c0",
+  "independent_resource_tests": 76,
+  "failures": 0,
+  "skips": 0,
+  "source_manifest_sha256": "fa522b64f1b2874a002c1eeda469af996a3a82829c985686dfa9e89378a9bf3a",
+  "models_loaded": false,
+  "actual_postphase_verified": false,
+  "affected_suite": {
+    "passed": 146,
+    "failures": 0,
+    "skips": 0,
+    "elapsed_seconds": 33.62,
+    "result_sha256": "20eb145e5a88440b884eca84d86ba39dec52d98445623ef0d460f9deef9f5b4e"
+  }
+}

@@ -350,15 +350,30 @@ class ResourceGate:
                                      expected_plan_sha256=expected_plan)
         require(command == expected, 'candidate_command_not_product_owned')
 
-    def sample(self, optional_identity=None, *, admission=False):
+    def _original_exited(self, identity, process, optional):
+        """Only the retained, unreaped original can supply terminal evidence."""
+        if process is None:
+            return False
+        require(isinstance(process, subprocess.Popen) and process.pid == identity.pid and
+                process.returncode is None, 'optional_original_handle_not_unreaped')
+        require(self.reader.identity(identity.pid) == identity, 'optional_original_identity_changed')
+        if not _exited(process):
+            return False
+        require(self.reader.identity(identity.pid) == identity, 'optional_original_identity_changed')
+        require(not (set(optional) - {identity.pid}) and
+                not [child for child in _children() if child.pid != identity.pid],
+                'optional_descendants_outlived_leader')
+        return True
+
+    def sample(self, optional_identity=None, *, admission=False, original_process=None):
         try:
-            return self._sample(optional_identity, admission=admission)
+            return self._sample(optional_identity, admission=admission, original_process=original_process)
         except CandidateResourceBlocked:
             raise
         except (OSError, ValueError, psutil.Error, ResourceLimit) as exc:
             raise CandidateResourceBlocked('resource_visibility_or_read_failed: ' + str(exc)) from exc
 
-    def _sample(self, optional_identity, *, admission):
+    def _sample(self, optional_identity, *, admission, original_process=None, exit_retry=False):
         reader = self.reader
         require(reader.visibility() == self.namespaces and reader.no_gpu() == self.gpu_inventory,
                 'resource_visibility_or_gpu_inventory_changed')
@@ -385,8 +400,27 @@ class ResourceGate:
         require(not set(project).intersection(optional), 'primary_optional_trees_overlap')
         # Include the owner wrapper as well; never put it in cleanup targets.
         selected = {**project, **optional, self.owner.pid: self.owner}
-        for identity in selected.values():
-            require(reader.namespaces(identity.pid) == self.namespaces, 'descendant_namespace_changed')
+        exited_original = None
+        for identity in tuple(selected.values()):
+            terminal_original = (identity == optional_identity and
+                                 self._original_exited(identity, original_process, optional))
+            if not terminal_original:
+                try:
+                    require(reader.namespaces(identity.pid) == self.namespaces, 'descendant_namespace_changed')
+                except FileNotFoundError:
+                    # Exit can occur between WNOWAIT and the namespace read. A
+                    # missing path alone never proves exit, reuse, or zero RSS.
+                    if identity != optional_identity or not self._original_exited(identity, original_process, optional):
+                        raise
+                    require(not exit_retry, 'inconsistent_original_exit_observation')
+                    # Do not return a mixture of pre-exit and terminal readings.
+                    # Rebuild one complete sample; all required roots and caps
+                    # are checked again, and only this exact original may retire.
+                    return self._sample(optional_identity, admission=admission,
+                                        original_process=original_process, exit_retry=True)
+            if terminal_original:
+                selected.pop(identity.pid)
+                exited_original = asdict(identity)
         if self.boundary:
             require(self.boundary['mount'] in reader.mounts(), 'cgroup_mount_changed')
             values = reader.cgroup_values(self.boundary)
@@ -428,7 +462,8 @@ class ResourceGate:
                           cpu_execution_profile='handy-moss-q8_0-cpu-experimental-v1',
                           runtime_verified=self.runtime_verified,
                           accessible_accelerator_nodes=False, primary_identity=self.primary_identity,
-                          primary_observation_only=True, combined_rss_bytes=combined,
+                          primary_observation_only=True, exited_optional_original=exited_original,
+                          combined_rss_bytes=combined,
                           optional_rss_bytes=own_rss, peak_combined_rss_bytes=self.peak_combined,
                           host_available_bytes=memory['MemAvailable'], cgroup_remaining_bytes=remaining,
                           optional_admission_reserve_bytes=OPTIONAL_ENVELOPE,
@@ -690,7 +725,7 @@ def supervise(command, *, gate, output_dir, deadline_seconds, cancel=lambda: Fal
             require(time.monotonic() < end, 'optional_deadline_exceeded')
             require(directory.resolve(strict=True) == directory and
                     (directory.stat().st_dev, directory.stat().st_ino) == directory_identity, 'optional_output_directory_changed')
-            gate.sample(identity)
+            gate.sample(identity, original_process=process)
             require(gate.reader.disk(directory) >= DISK_RESERVE, 'optional_disk_reserve_breached')
             require(_artifact_bytes(directory) <= artifact_cap, 'optional_artifact_cap_exceeded')
             for key, _ in pipes.select(.05):
@@ -706,7 +741,7 @@ def supervise(command, *, gate, output_dir, deadline_seconds, cancel=lambda: Fal
             if _exited(process):
                 # A naturally exited leader with live/adopted children is not success.
                 require(not [c for c in _children() if c.pid != process.pid], 'optional_descendants_outlived_leader')
-                gate.sample(identity)
+                gate.sample(identity, original_process=process)
                 if pipes.get_map():
                     continue  # Drain bounded pipes through EOF before reading the receipt.
                 result['status'] = 'completed'

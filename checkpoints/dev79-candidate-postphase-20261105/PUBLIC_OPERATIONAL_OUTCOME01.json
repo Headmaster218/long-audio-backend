@@ -1,0 +1,58 @@
+{
+  "schema": "dev79-optional-postphase-operational-outcome-v1",
+  "status": "primary_recovered_candidate_not_executed",
+  "product_version": "0.2.0rc3.dev79",
+  "scope": "Previously exposed 12-second public-speech fixture. Operational integration test only, not a recognition-quality evaluation.",
+  "first_attempt": {
+    "status": "failed_harness_retained",
+    "cause": "Eight terminal polls expired while primary analysis remained pending. Enhancement was deferred without candidate effects.",
+    "cleanup": "All 15 original process handles were waited; no surviving owned service.",
+    "result_sha256": "d1b663997713cff65f097c14a4113fa324b408b4adfe6d5930ecbcb20e69609c"
+  },
+  "authorized_recovery": {
+    "formal_original_chunk_retry_count": 1,
+    "new_uploads": 0,
+    "new_primary_sessions": 0,
+    "committed_prefix_frames_preserved": 84000,
+    "source_frames_completed": 192000,
+    "completed_native_chunks": 2,
+    "native_export_artifacts": 3,
+    "native_export_separately_validated": true,
+    "full_preimage_verified": true,
+    "status": "primary_completed_recovery_harness_failed",
+    "result_sha256": "41d04dc0ee6cf91069604ce6c220833baec0a7bcad7de24db82f716b87b63090"
+  },
+  "optional_outcome": {
+    "candidate_model_calls": 0,
+    "candidate_reservations": 0,
+    "candidate_dispatch_intents": 0,
+    "stopped_repeat_executed": false,
+    "reason": "Resource admission could not read a short-lived verifier process namespace. The code also unconditionally sampled that namespace after a positive child-exit observation.",
+    "evidence_limit": "Saved evidence does not establish the verifier exit code or whether the pre-exit race or explicit post-exit sampling site caused this instance."
+  },
+  "separate_harness_issue": {
+    "reason": "Read-only source validation ran while the harness still owned the live primary service, exceeding that reader's separate 512 MiB process-tree limit.",
+    "outer_peak_rss_bytes": 867680256,
+    "outer_6_GiB_breach_observed": false
+  },
+  "preservation": {
+    "recovery_original_handles_waited": 5,
+    "recovery_primary_service_exit_code": 143,
+    "surviving_owned_processes": 0,
+    "original_failure_retained": true,
+    "accepted_prefix_source_export_and_preimage_verified": true,
+    "old_runtime_model_source_and_protected_evidence_pins_unchanged": true,
+    "original_plus_recovery_and_preimage_bytes": 10394337
+  },
+  "audit_sha256": {
+    "first_attempt": "eb3fa1edb1768794849597c70ca2fa5d113da55047b6e4564e5bdc5d48234ee6",
+    "recovery": "97a57a4ee30097bbcaeabaf0fb1d4724dcd9589615178592c0f9924d73840239"
+  },
+  "next_scope": "A minimal verifier lifecycle fix and a separately authorized new short trial. Existing dev79 plan/ledger bindings will not be rewritten or migrated. Any later success will not replace these failures.",
+  "claims": {
+    "automatic_candidate_integration_verified": false,
+    "recognition_quality_improved": false,
+    "speaker_identity_verified": false,
+    "phone_or_user_server_tested": false
+  }
+}

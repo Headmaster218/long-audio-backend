@@ -467,3 +467,166 @@ print(json.dumps({'deferred_through_gap_then_restored':True}))
     result = subprocess.run([sys.executable,'-c',script,str(output),cleanup_mode],capture_output=True,text=True,timeout=12)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)['deferred_through_gap_then_restored']
+
+
+def bound_original(snapshot, process):
+    identity = r.Identity.bind(process.pid)
+    snapshot.identities[identity.pid] = identity
+    snapshot.processes[identity.pid] = (snapshot.owner.pid, identity.created)
+    snapshot.memory_by_pid[identity.pid] = 128*r.MiB
+    snapshot.member[identity.pid] = '/limited/' + str(identity.pid)
+    return identity
+
+
+def await_unreaped_exit(process):
+    import time
+    deadline = time.monotonic() + 5
+    while not r._exited(process):
+        assert time.monotonic() < deadline
+        time.sleep(.005)
+    assert process.returncode is None
+
+
+def test_actual_unreaped_original_exit_does_not_require_disappeared_namespace():
+    snapshot = Snapshot(cgroup=True); observed = gate(snapshot)
+    process = subprocess.Popen([sys.executable, '-c', 'pass'])
+    try:
+        identity = bound_original(snapshot, process)
+        await_unreaped_exit(process)
+        original_namespaces = snapshot.namespaces
+        # Exercise the real proc namespace read: Linux drops a zombie's mnt link.
+        snapshot.namespaces = lambda pid: (r.LinuxReader().namespaces(pid) if pid == process.pid
+                                          else original_namespaces(pid))
+        with pytest.raises(FileNotFoundError): snapshot.namespaces(process.pid)
+        proof = observed.sample(identity, original_process=process)
+        assert proof['exited_optional_original'] == {'pid': identity.pid, 'created': identity.created}
+        assert proof['optional_rss_bytes'] == 0
+        assert process.returncode is None  # WNOWAIT never consumes the cleanup owner's wait.
+    finally:
+        if process.returncode is None:
+            process.kill(); process.wait(timeout=5)
+
+
+def test_exit_between_initial_observation_and_namespace_read_rechecks_exact_original(monkeypatch):
+    snapshot = Snapshot(); observed = gate(snapshot)
+    process = subprocess.Popen([sys.executable, '-c', 'pass'])
+    try:
+        identity = bound_original(snapshot, process); await_unreaped_exit(process)
+        actual_exited = r._exited; calls = []
+        def first_read_precedes_exit(handle):
+            calls.append(handle)
+            return False if len(calls) == 1 else actual_exited(handle)
+        monkeypatch.setattr(r, '_exited', first_read_precedes_exit)
+        original_namespaces = snapshot.namespaces
+        def vanished_mnt(pid):
+            if pid == process.pid: raise FileNotFoundError('/proc/fixture/ns/mnt')
+            return original_namespaces(pid)
+        snapshot.namespaces = vanished_mnt
+        assert observed.sample(identity, original_process=process)['exited_optional_original']['pid'] == process.pid
+        assert len(calls) == 3
+    finally:
+        if process.returncode is None:
+            process.kill(); process.wait(timeout=5)
+
+
+@pytest.mark.parametrize('fault', ['live', 'reused', 'unknown_identity', 'reaped_handle', 'no_handle',
+                                   'other_owned_descendant', 'primary_namespace', 'owner_namespace',
+                                   'unrelated_descendant_namespace'])
+def test_terminal_exception_never_accepts_live_reused_unknown_or_required_roots(fault):
+    snapshot = Snapshot(); observed = gate(snapshot)
+    process = subprocess.Popen([sys.executable, '-c', 'import sys; sys.stdin.read()'], stdin=subprocess.PIPE)
+    try:
+        identity = bound_original(snapshot, process)
+        if fault != 'live':
+            process.stdin.close(); await_unreaped_exit(process)
+        if fault == 'reused': snapshot.identities[process.pid] = r.Identity(process.pid, identity.created+1)
+        if fault == 'unknown_identity': snapshot.identities.pop(process.pid)
+        if fault == 'reaped_handle': process.wait(timeout=5)
+        if fault == 'other_owned_descendant':
+            snapshot.processes[987654] = (process.pid, 99.)
+        if fault == 'unrelated_descendant_namespace':
+            snapshot.processes[987653] = (30, 98.)
+        missing_pid = (30 if fault == 'primary_namespace' else 10 if fault == 'owner_namespace' else
+                       987653 if fault == 'unrelated_descendant_namespace' else process.pid)
+        original_namespaces = snapshot.namespaces
+        def vanished(pid):
+            if pid == missing_pid: raise FileNotFoundError('/proc/fixture/ns/mnt')
+            return original_namespaces(pid)
+        snapshot.namespaces = vanished
+        with pytest.raises(r.CandidateResourceBlocked):
+            observed.sample(identity, original_process=None if fault == 'no_handle' else process)
+    finally:
+        if process.returncode is None:
+            process.kill(); process.wait(timeout=5)
+        if process.stdin and not process.stdin.closed: process.stdin.close()
+
+
+def test_actual_fast_exit_supervisor_with_real_optional_namespace_reads(tmp_path):
+    entry=tmp_path/'entry'; entry.mkdir(mode=0o700)
+    script="""
+import json,os,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[2])
+from test_recorder_candidate_resources import Snapshot
+from audio_backend import recorder_candidate_resources as r
+class ActualOptional(Snapshot):
+    def __init__(self):
+        super().__init__()
+        self.owner=r.Identity.bind(os.getpid())
+        self.identities[self.owner.pid]=self.owner
+        self.processes[self.owner.pid]=(1,self.owner.created)
+        self.ns=r.LinuxReader().namespaces(self.owner.pid)
+    def identity(self,pid):
+        return self.identities[pid] if pid in self.identities else r.Identity.bind(pid)
+    def namespaces(self,pid):
+        return self.ns if pid in self.identities else r.LinuxReader().namespaces(pid)
+    def table(self):
+        table=super().table()
+        table.update({pid:row for pid,row in r.process_table().items() if row[0]==os.getpid()})
+        return table
+    def rss(self,selected):
+        fixed={pid:value for pid,value in selected.items() if pid in self.identities}
+        live={pid:value for pid,value in selected.items() if pid not in self.identities}
+        return super().rss(fixed)+r.rss_records(live)
+reader=ActualOptional()
+gate=r.preflight('http://127.0.0.1:8765',reader=reader)
+gate.validate_command=lambda *args:None
+result=r.supervise([sys.executable,'-c',"print('harmless-fast-exit')"],gate=gate,output_dir=Path(sys.argv[1]),deadline_seconds=5)
+assert result['status']=='completed',result
+assert result['exit_code']==0,result
+assert result['cleanup']['cleanup_verified'],result
+assert result['cleanup']['original_handle_waited_and_reaped'],result
+assert result['resource_proof']['exited_optional_original'],result
+assert not r.pending_cleanup()
+assert not r._children()
+print(json.dumps(result))
+"""
+    result=subprocess.run([sys.executable,'-c',script,str(entry),str(Path(__file__).parent)],
+                          capture_output=True,text=True,timeout=12)
+    assert result.returncode==0,result.stderr
+
+
+@pytest.mark.parametrize('changed_fact', ['host_headroom', 'primary_identity'])
+def test_exit_race_rebuilds_full_sample_and_rechecks_required_facts(monkeypatch, changed_fact):
+    snapshot=Snapshot(); observed=gate(snapshot)
+    process=subprocess.Popen([sys.executable,'-c','pass'])
+    try:
+        identity=bound_original(snapshot,process); await_unreaped_exit(process)
+        actual_exited=r._exited; calls=[]
+        def first_before_exit(handle):
+            calls.append(handle)
+            return False if len(calls)==1 else actual_exited(handle)
+        monkeypatch.setattr(r,'_exited',first_before_exit)
+        ordinary=snapshot.namespaces
+        def exit_race(pid):
+            if pid==process.pid:
+                if changed_fact=='host_headroom': snapshot.mem['MemAvailable']=r.GiB
+                else: snapshot.identities[30]=r.Identity(30,99.)
+                raise FileNotFoundError('/proc/fixture/ns/mnt')
+            return ordinary(pid)
+        snapshot.namespaces=exit_race
+        with pytest.raises(r.CandidateResourceBlocked):
+            observed.sample(identity,original_process=process)
+    finally:
+        if process.returncode is None:
+            process.kill();process.wait(timeout=5)

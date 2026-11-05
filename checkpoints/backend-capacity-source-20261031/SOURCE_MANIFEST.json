@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "b49af800b2cc18790188c8bfe4e40d1c0e9badc0",
-      "sha256": "9b78b3896cc35b7fb78e969b7d5a8b53d15e6253f6431544113c1e7a2df58df2"
+      "sha": "c65d74e97ec4df864ed22487e175e8f0f1a70e27",
+      "sha256": "c796390c03a023b86b6a62dbd032a1e5fe38093d202d3599115550e9cbe58edd"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -772,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_candidate_resources.py",
-      "size": 41805,
-      "sha": "783b2654ae6ff14a9459d5eae17afba86f44c04e",
-      "sha256": "93dcf7f552ca625fcdc5f3d51553c99eda350507cb83aaa8f4e73e2d5fde78a8"
+      "size": 44119,
+      "sha": "e453fffa32c2b1edf1ba43f5e72a608a04116a07",
+      "sha256": "db9cfc597c38e60b74f8febdc85132ecaad4aab1916e5e486d36a2ac10d4e3f3"
     },
     {
       "path": "audio_backend/recorder_capacity_preflight.py",
@@ -2789,8 +2789,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "5f18d0dea6a6508b2810694f97be6f76bc974d89",
-      "sha256": "77a0cefa54e14912a60b17ba49fdeca6caf7591d04e3832deb97bbfdf14cb63f"
+      "sha": "8f2fe34639a9e083cb1cf0c6f1d9f12cf007e1ec",
+      "sha256": "d4ceb083251ac59f7c9354c0983acc36e471d90602bd5537f96d404f43aa39a8"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5440,9 +5440,9 @@
     },
     {
       "path": "tests/test_recorder_candidate_resources.py",
-      "size": 22117,
-      "sha": "0d14e258fe19af7a820af03792c15ed72cac0604",
-      "sha256": "8f3caecdac5ce45ad7388d80ebc71b52df3314aa97a50a31f48ffad57696980b"
+      "size": 30130,
+      "sha": "dd065db7306289b6b01549f769a2a9d684b2763d",
+      "sha256": "f2885b6626469a05dd54edf629206464e5f3cf4e7b95511b42b0e2423edc8b02"
     },
     {
       "path": "tests/test_recorder_capacity_preflight.py",
@@ -6549,6 +6549,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "2868df4d93c7cde7687960f1c31fc54873b02e0d",
-  "source_update": "dev79 explicit bounded finite-plan candidate postphase; durable no-replay reservations and validated completed-result reuse; local CPU resource admission and owned-only cleanup retention; default behavior unchanged. Source reviewed; fresh installation and operational proof pending."
+  "source_base_commit": "df6a15809f89085f7d61ed197ba01429e0c5bb8b",
+  "source_update": "dev80 fixes namespace observation of a positively exited original optional verifier; identity, descendant, resource and cleanup checks unchanged. dev79 evidence retained; no ledger migration. Fresh installation and independent new operational trial pending."
 }
