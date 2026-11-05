@@ -1,0 +1,14 @@
+{
+  "audit_sha256": "79bac1d39955fdef7d15ddf212fcf57c5221dfaffb294dfd60e078267c693da4",
+  "exit_code": 0,
+  "junit_sha256": "b9ffa07452c23724fd29efc7f326258a4f3c51519c0e40d3c9209a782ecc43bb",
+  "limits": "2 CPUs, 1 GiB AS, CPU90/100 sec, alarm120 sec",
+  "physical_result_sha256": "3f72141b77df70423b7e827349209efc5c09ac68a2a4629c4f4c37d60845b47a",
+  "production_profile_activated": false,
+  "schema": "target-candidate-regression-receipt-v1",
+  "source_manifest_sha256": "a073aed6b9281af15965f0829106a7aeb1bb21047d6551a6fdcc727b84481272",
+  "source_module_sha256": "845bb9005fccc2fb6763abefac7781750b3d31ce390d841cca1a3fb4ef62f343",
+  "source_test_sha256": "8da1ceae39a3b15acf6f874c6fe72a5c3f4d952b8f3b24fecb8390e0147d9382",
+  "target_sha256": "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26",
+  "tests_passed": 9
+}

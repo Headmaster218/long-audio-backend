@@ -1,0 +1,32 @@
+{
+  "candidate_module_sha256": "51636ef9b73ab533f2a84312b21c570d6b5992c365dae76ca3527da8e8662fa5",
+  "dependency_files_unchanged": 1832,
+  "existing_store_migration_authorized": false,
+  "general_production_rollout_approved": false,
+  "installed_verification": {
+    "materialization_receipt_sha256": "7ba00494afda72d18c793023d5e69ea6b6a54f9b5a295cd09e960539654ff901",
+    "models_loaded": false,
+    "product_bytes": 4324114,
+    "product_files": 185,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "live_bad_receipt_gate": true,
+  "materialization_receipt": "/workspace/scratch/12ec3121e93f/backend-dev71-fresh-materialized-20261105-0118/RECEIPT.json",
+  "materialization_receipt_sha256": "7ba00494afda72d18c793023d5e69ea6b6a54f9b5a295cd09e960539654ff901",
+  "materializer_verifier_tests": 41,
+  "models_loaded": false,
+  "passed": true,
+  "qualification_tests": 9,
+  "reviewed_basis_sha256": "65b46fbf4cede2418b418daed1f6596a21dcdca0f6503e1e8692eef523f56c05",
+  "runtime": "/workspace/scratch/12ec3121e93f/backend-dev71-fresh-runtime-20261105-0118",
+  "schema": "fresh-dev71-product-install-v1",
+  "service_started": false,
+  "source_files_unchanged": 1062,
+  "source_manifest_sha256": "a073aed6b9281af15965f0829106a7aeb1bb21047d6551a6fdcc727b84481272",
+  "version": "0.2.0rc3.dev71",
+  "wheel": "/workspace/scratch/12ec3121e93f/backend-dev71-fresh-proof-20261105-0118/product-wheel/long_audio_backend-0.2.0rc3.dev71-py3-none-any.whl",
+  "wheel_sha256": "12cc53b99c4fbd437d86b2662f591fc49ebf8c15f54dc9aff36094b88da83410"
+}

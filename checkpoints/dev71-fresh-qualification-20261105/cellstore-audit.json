@@ -1,0 +1,100 @@
+{
+  "all_rows_checked": 55,
+  "allocated_pair_bytes": 49975296,
+  "audit_script_sha256": "df82d6b8c3e25fc1d99745aaa1985b2171291e818159af90c53956e1ca640a54",
+  "baseline_sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c",
+  "changed_pages": 47,
+  "evidence_inventory": {
+    "RESULT.json": {
+      "bytes": 29818,
+      "sha256": "3f72141b77df70423b7e827349209efc5c09ac68a2a4629c4f4c37d60845b47a"
+    },
+    "attempt-1/before_commit.json": {
+      "bytes": 2156,
+      "sha256": "89f2466d927e1c8e9e5bb509cfe281c4e7c436c0c1a5512e83cc310ad2ccd8c2"
+    },
+    "attempt-1/crash.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt-1/expected_rows.json": {
+      "bytes": 84,
+      "sha256": "0a9d8ffc244f0941cc64ea8b588c0369f367892ca4a0cf852f132a6fb66a7570"
+    },
+    "attempt-1/store/cells.sqlite3": {
+      "bytes": 25165824,
+      "sha256": "29962f608b23cf06758d8ee515aec17a0fe53423fd9070b5d3601cd8a5f1b004"
+    },
+    "attempt-1/store/cells.sqlite3-journal": {
+      "bytes": 24805088,
+      "sha256": "ba7e4828f9bbcff6929f4114ec59c49fce623eb97ca611c19a7a70790b4dc7fc"
+    },
+    "baseline/expected_rows.json": {
+      "bytes": 84,
+      "sha256": "0a9d8ffc244f0941cc64ea8b588c0369f367892ca4a0cf852f132a6fb66a7570"
+    },
+    "baseline/fill.json": {
+      "bytes": 2146,
+      "sha256": "1ca92660e18295f40114a674e34321575136472e51265ad1620789bfc19d45b3"
+    },
+    "baseline/fill.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "baseline/oracle.json": {
+      "bytes": 1250,
+      "sha256": "95da592252f312fb86d2b0e4a1784d53755fe257e75a6f0a775d86ca175edb38"
+    },
+    "baseline/store/cells.sqlite3": {
+      "bytes": 25165824,
+      "sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c"
+    },
+    "captured-database.bin": {
+      "bytes": 25165824,
+      "sha256": "29962f608b23cf06758d8ee515aec17a0fe53423fd9070b5d3601cd8a5f1b004"
+    },
+    "captured-journal.bin": {
+      "bytes": 24805088,
+      "sha256": "ba7e4828f9bbcff6929f4114ec59c49fce623eb97ca611c19a7a70790b4dc7fc"
+    },
+    "recovery/expected_rows.json": {
+      "bytes": 84,
+      "sha256": "0a9d8ffc244f0941cc64ea8b588c0369f367892ca4a0cf852f132a6fb66a7570"
+    },
+    "recovery/oracle.json": {
+      "bytes": 1250,
+      "sha256": "95da592252f312fb86d2b0e4a1784d53755fe257e75a6f0a775d86ca175edb38"
+    },
+    "recovery/recover.json": {
+      "bytes": 2146,
+      "sha256": "1ca92660e18295f40114a674e34321575136472e51265ad1620789bfc19d45b3"
+    },
+    "recovery/recover.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "recovery/store/cells.sqlite3": {
+      "bytes": 25165824,
+      "sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c"
+    }
+  },
+  "evidence_unchanged": true,
+  "exact_recovery": true,
+  "journal_records": 6044,
+  "lifecycle_independently_reobserved": false,
+  "lifecycle_receipts_consistent": true,
+  "limitations": [
+    "Production DDL with synthetic opaque proofs, not recorder provenance or primary authority",
+    "Process crash, not power-loss durability",
+    "Sampled allocation does not prove instantaneous peak",
+    "Original child stop/wait events are historical receipts, not independently re-observed",
+    "No native model/service or profile activation"
+  ],
+  "production_activation_approved": false,
+  "runtime_binding_check": "reviewed_shared_dynamic_elf_mapping_relocation_recheck",
+  "runtime_package_sha256": "3c9211c34ffe6a871f5d3f45e1b2c2e0ebfc7713939281139e8ed6f32f03757f",
+  "sector_bytes": 512,
+  "slack_bytes": 4384,
+  "source_runtime_inventory_matches": true,
+  "status": "accepted_production_schema_saved_byte_evidence"
+}
