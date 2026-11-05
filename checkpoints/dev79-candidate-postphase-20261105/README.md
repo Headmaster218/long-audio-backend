@@ -4,4 +4,4 @@ Explicit, default-off enhancement after finite-plan completion. The original pri
 
 See the [operator guide](../backend-capacity-source-20261031/source/docs/FINITE_PLAN_CANDIDATE_POSTPHASE.md) for the private configuration, resource prerequisites, persistent budgets and cleanup-intervention behavior.
 
-This checkpoint records source tests and independent review only. Fresh installed qualification and actual operational verification are pending; it is not a recognition-quality result.
+This checkpoint records source tests and independent review only. Fresh same-host strict qualification and both installations now pass using one shared wheel; see INSTALL_SUMMARY.json. Actual operational verification remains pending. Neither installation verification nor this source checkpoint is a recognition-quality result.
