@@ -1,0 +1,156 @@
+{
+  "scope": "English same-day cross-meeting mechanism study, historical exposure unknown, not final acceptance",
+  "thresholds": {
+    "single": 0.25,
+    "multi3": 0.43
+  },
+  "margin": 0.1,
+  "formal_population_or_safety_ci": null,
+  "production_changes": false,
+  "model_sessions": 2,
+  "unique_clips": 36,
+  "total_encoder_calls": 44,
+  "results": {
+    "C": {
+      "single": {
+        "primary": {
+          "known": 2,
+          "known_correct": 2,
+          "known_refused": 0,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 4,
+          "unknown": 2,
+          "unknown_accepted": 0,
+          "unknown_refused": 2,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "all_queries_diagnostic": {
+          "known": 6,
+          "known_correct": 6,
+          "known_refused": 0,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 12,
+          "unknown": 6,
+          "unknown_accepted": 1,
+          "unknown_refused": 5,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        }
+      },
+      "multi3": {
+        "primary": {
+          "known": 2,
+          "known_correct": 2,
+          "known_refused": 0,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 4,
+          "unknown": 2,
+          "unknown_accepted": 0,
+          "unknown_refused": 2,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "all_queries_diagnostic": {
+          "known": 6,
+          "known_correct": 5,
+          "known_refused": 1,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 12,
+          "unknown": 6,
+          "unknown_accepted": 0,
+          "unknown_refused": 6,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        }
+      }
+    },
+    "T": {
+      "single": {
+        "primary": {
+          "known": 2,
+          "known_correct": 2,
+          "known_refused": 0,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 4,
+          "unknown": 2,
+          "unknown_accepted": 0,
+          "unknown_refused": 2,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "all_queries_diagnostic": {
+          "known": 6,
+          "known_correct": 4,
+          "known_refused": 2,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 12,
+          "unknown": 6,
+          "unknown_accepted": 1,
+          "unknown_refused": 5,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        }
+      },
+      "multi3": {
+        "primary": {
+          "known": 2,
+          "known_correct": 2,
+          "known_refused": 0,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 4,
+          "unknown": 2,
+          "unknown_accepted": 0,
+          "unknown_refused": 2,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        },
+        "all_queries_diagnostic": {
+          "known": 6,
+          "known_correct": 4,
+          "known_refused": 2,
+          "known_unavailable": 0,
+          "known_wrong": 0,
+          "planned": 12,
+          "unknown": 6,
+          "unknown_accepted": 0,
+          "unknown_refused": 6,
+          "unknown_unavailable": 0,
+          "unresolved_emitted": 0,
+          "unresolved_no_output": 0,
+          "unresolved_truth": 0,
+          "unresolved_unavailable": 0
+        }
+      }
+    }
+  },
+  "conclusion": "Primary holdout tied. Diagnostic holdout unknown acceptance decreased by one, with equal known-correct counts but two changed known decisions; no general superiority claim."
+}

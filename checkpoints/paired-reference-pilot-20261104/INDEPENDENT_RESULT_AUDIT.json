@@ -1,0 +1,78 @@
+{
+  "status": "PASS",
+  "method": "Independent NumPy normalization/centroids/dot products and C-grid selection, saved artifact hashes and positive process terminal checks; no scorer imports or inference.",
+  "results": {
+    "C": {
+      "single": {
+        "threshold": 0.25,
+        "primary": {
+          "known_correct": 2,
+          "known_wrong": 0,
+          "known_refused": 0,
+          "unknown_accepted": 0,
+          "unknown_refused": 2
+        },
+        "all_queries_diagnostic": {
+          "known_correct": 6,
+          "known_wrong": 0,
+          "known_refused": 0,
+          "unknown_accepted": 1,
+          "unknown_refused": 5
+        }
+      },
+      "multi3": {
+        "threshold": 0.43,
+        "primary": {
+          "known_correct": 2,
+          "known_wrong": 0,
+          "known_refused": 0,
+          "unknown_accepted": 0,
+          "unknown_refused": 2
+        },
+        "all_queries_diagnostic": {
+          "known_correct": 5,
+          "known_wrong": 0,
+          "known_refused": 1,
+          "unknown_accepted": 0,
+          "unknown_refused": 6
+        }
+      }
+    },
+    "T": {
+      "single": {
+        "threshold": 0.25,
+        "primary": {
+          "known_correct": 2,
+          "known_wrong": 0,
+          "known_refused": 0,
+          "unknown_accepted": 0,
+          "unknown_refused": 2
+        },
+        "all_queries_diagnostic": {
+          "known_correct": 4,
+          "known_wrong": 0,
+          "known_refused": 2,
+          "unknown_accepted": 1,
+          "unknown_refused": 5
+        }
+      },
+      "multi3": {
+        "threshold": 0.43,
+        "primary": {
+          "known_correct": 2,
+          "known_wrong": 0,
+          "known_refused": 0,
+          "unknown_accepted": 0,
+          "unknown_refused": 2
+        },
+        "all_queries_diagnostic": {
+          "known_correct": 4,
+          "known_wrong": 0,
+          "known_refused": 2,
+          "unknown_accepted": 0,
+          "unknown_refused": 6
+        }
+      }
+    }
+  }
+}
