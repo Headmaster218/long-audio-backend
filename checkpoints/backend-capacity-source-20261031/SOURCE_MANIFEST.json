@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "c40c41401dcd9ff5bb6afdc33406bbf17ce59bba",
-      "sha256": "33c34f3b2255a2300ff48a5a99b7870e5e7a81be260f06589ef3e1fcab3fd405"
+      "sha": "3ce22f74398b915dcce7e77e9d1ed7e2a98db5e5",
+      "sha256": "f3dc1f61c73f9df2623f80eef5220040e3dd3fa2ff305328d0e33763d7faac26"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -747,6 +747,12 @@
       "sha256": "2d7e412b104f9bb567d81a7ee4d753dd37d760881e6ba0a278f8a1463cc25b56"
     },
     {
+      "path": "audio_backend/recorder_capacity_preflight.py",
+      "size": 12054,
+      "sha": "2b82898129c1acade13bc4c01a24de0114e9e4a8",
+      "sha256": "7662c15658390bced3668073b14368638fec062c6942293720ad7bea8ff3a267"
+    },
+    {
       "path": "audio_backend/recorder_capture_intake.py",
       "size": 27465,
       "sha": "e3d5f38c969348ddd15079624c448952aca9cb09",
@@ -765,6 +771,12 @@
       "sha256": "27062fee264c5ef30a506dfa5cd36c4fdcc007ececfdbe73a8bb15da1ab90c4a"
     },
     {
+      "path": "audio_backend/recorder_deployment_bundle.py",
+      "size": 9858,
+      "sha": "dd59a1a32c98853cf4f5880b6f54c98c6453d068",
+      "sha256": "04c304f290c88287db768a23fc1a6c511a207c0e4ea735cd4fa93ab86654c7f8"
+    },
+    {
       "path": "audio_backend/recorder_export_recovery.py",
       "size": 11668,
       "sha": "e9b57246fd167f2a319ff3e4ddce28a08400ed1a",
@@ -772,9 +784,9 @@
     },
     {
       "path": "audio_backend/recorder_ftps_receiver.py",
-      "size": 30946,
-      "sha": "4b8906f7645b159cdafba21159d913a6b2198096",
-      "sha256": "92143b118b563a3dfae7f42c25352a02a454f867404d1a5802f4a12a789d62da"
+      "size": 31264,
+      "sha": "37e261bc6069d2405e71b2bdc7e4ae6b0eecfc54",
+      "sha256": "b4992654749faff77a66a6f83e3c95620df98063088b59cc47aa7e57d565ea56"
     },
     {
       "path": "audio_backend/recorder_generation_transition.py",
@@ -2271,6 +2283,12 @@
       "sha256": "c56d15808ed097821299b31202c9cb5f50f26675a7bd56e2a0e3d9c97a2e3bc6"
     },
     {
+      "path": "docs/RECORDER_CAPACITY_PREFLIGHT.md",
+      "size": 3743,
+      "sha": "80f0a8944b24306a3570050d5e772c1d0666b7b2",
+      "sha256": "588ccce80ee6f8b1f47e830ebaabfec0469335b7515981708e82f0968c409e94"
+    },
+    {
       "path": "docs/RECORDER_DELIVERY_INTEGRATION_EXPERIMENT.md",
       "size": 8093,
       "sha": "ba815f5e10bd03a095fd5c17681c82a599e48bb5",
@@ -2293,6 +2311,12 @@
       "size": 8107,
       "sha": "041bef40dfaa3c950761539d0088d730db8d8472",
       "sha256": "722c352d253a892366a5d650adae0735701f139a8f56ee33ae8ea79e6f112123"
+    },
+    {
+      "path": "docs/RECORDER_FRESH_DEPLOYMENT_BUNDLE.md",
+      "size": 6336,
+      "sha": "06eb593b23fdf5be216aac479d3169e3c22c3fe2",
+      "sha256": "8822a3fc7614e5be1a04d97136f017f36c438202a938dc413019e513d2da6d51"
     },
     {
       "path": "docs/RECORDER_FTPS_RECEIVER_SERVICE.md",
@@ -2711,8 +2735,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "32a9caac6747f11d576b77881ea8ee4ad059e31c",
-      "sha256": "9383a35320beead0ecfe42a67f6e4db0256dbc0772bdff4e75420b60591d9aae"
+      "sha": "6c8434379548d697d72a0207efd6e8e470ac92fb",
+      "sha256": "70a781b38109753ac2512ab43a75a8c29fccc9d3d3a27c4bd6164854bf9b1eb1"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5325,6 +5349,12 @@
       "sha256": "695de849de9249d3bbc6c867829bfbb6a95b3199e44e9f3dcad048b374c63f9c"
     },
     {
+      "path": "tests/test_recorder_capacity_preflight.py",
+      "size": 6182,
+      "sha": "d55d4964d7f749d81e54ddf904d9faa3ae18dfd8",
+      "sha256": "9157b1c5148563968cef84a70b2ed72e81a4ad1d003ddf395232f58fadf4cdf3"
+    },
+    {
       "path": "tests/test_recorder_capture_intake.py",
       "size": 10334,
       "sha": "a6dbecd940bb9fe046d839e99f17016cac9e9990",
@@ -5359,6 +5389,12 @@
       "size": 3283,
       "sha": "4fc7372de793d57eee0c8e9c098be60cbdec8bda",
       "sha256": "ab7cf9d2b512ae4649db836e48a4e5928681cb7efb2246c595494d2e360b5751"
+    },
+    {
+      "path": "tests/test_recorder_deployment_bundle.py",
+      "size": 3972,
+      "sha": "8c5f53039d11f29c4f6c1eb91d547176014c6c77",
+      "sha256": "2264d2943613f0db6f3efa916f4e39e5dab1119dddb5f19fc1d7c97588afae00"
     },
     {
       "path": "tests/test_recorder_exact_stop.py",
@@ -6394,5 +6430,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev72 adds a bounded immutable finite analysis plan over up to eight prepared generations. Independent 66-test code review passed; whole-package installed native qualification remains separate pending evidence."
+  "source_update": "dev73 adds read-only conditional capacity preflight and explicit fresh-only deployment configuration bundles. Independent29 focused tests and167 related regressions passed (overlapping counts). Fresh installed workflow proof remains separately pending."
 }

@@ -168,7 +168,7 @@ def _validate_config(data):
 def configure(*, config_path, state_dir, inbox_dir, cert_file, key_file,
               username, password_file, bind_host='127.0.0.1', port=2121,
               passive_ports=None, allow_non_loopback=False,
-              acknowledge_data_peer_ip_only=False):
+              acknowledge_data_peer_ip_only=False, max_attempts=None, max_raw_bytes=None):
     """Create one private config from existing inputs; never provision or listen.
 
     Failure after exclusive file creation retains the partial file for explicit
@@ -182,6 +182,8 @@ def configure(*, config_path, state_dir, inbox_dir, cert_file, key_file,
         username=username, password_file=str(password_file), bind_host=bind_host,
         port=port, allow_non_loopback=allow_non_loopback,
         acknowledge_data_peer_ip_only=acknowledge_data_peer_ip_only)
+    if max_attempts is not None: data['max_attempts'] = max_attempts
+    if max_raw_bytes is not None: data['max_raw_bytes'] = max_raw_bytes
     if passive_ports is not None:
         data['passive_ports'] = list(passive_ports)
     _validate_config(data)  # All configured inputs are checked before any write.
@@ -594,6 +596,8 @@ def main(argv=None):
     parser.add_argument('--config', required=True, help='Existing private JSON config (no secrets on command line)')
     for name in ('state-dir', 'inbox-dir', 'cert-file', 'key-file', 'username', 'password-file'):
         parser.add_argument('--' + name)
+    parser.add_argument('--max-attempts', type=int)
+    parser.add_argument('--max-raw-bytes', type=int)
     parser.add_argument('--bind-host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=2121)
     parser.add_argument('--passive-ports', nargs=2, type=int, metavar=('START', 'END'))
@@ -620,7 +624,7 @@ def main(argv=None):
             return 0
         # Setup-only arguments never silently override a saved configuration.
         _require(not any(getattr(args, name) is not None for name in
-            ('state_dir', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file', 'passive_ports'))
+            ('state_dir', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file', 'passive_ports', 'max_attempts', 'max_raw_bytes'))
             and args.bind_host == '127.0.0.1' and args.port == 2121
             and not args.allow_non_loopback and not args.acknowledge_data_peer_ip_only,
             'receiver_setup_arguments_not_allowed')
