@@ -1,0 +1,111 @@
+{
+  "schema": "overlap-input-summary-public-v1",
+  "protocol_sha256": "536637dd41054558d609170b60b8ae7cab72e7df66cd9bc654c73ceca1b98bba",
+  "private_manifest_sha256": "b25898ccbcac50656f6763b2079fd5367ceb0519c3ff1fcf9df4e988577fcb22",
+  "cases": [
+    {
+      "case_id": "en-overlap-1",
+      "language": "en",
+      "class": "overlap",
+      "status": "ready",
+      "meeting": "ES2014d",
+      "start_frame": 12540800,
+      "end_frame": 12732800,
+      "reference_counts": [
+        8,
+        7
+      ],
+      "crop_sha256": "ac0c1285be528e7d60529090d7ef58889206e23072e9e7f4962c6abf2e2f8344",
+      "gold_sha256": "820daee4f0e08f4ee368ba5963db153d8ece57089fb58a82aa6bfc55ea048855"
+    },
+    {
+      "case_id": "en-overlap-2",
+      "language": "en",
+      "class": "overlap",
+      "status": "ready",
+      "meeting": "ES2015d",
+      "start_frame": 8564800,
+      "end_frame": 8756800,
+      "reference_counts": [
+        12,
+        6
+      ],
+      "crop_sha256": "945107b99d3533996e3fae695c3b24c19ecb27c84c81e260d58ba9554e4f5751",
+      "gold_sha256": "f16c21caf77a833d2c065d8827f73000986936f62479c268f52297d7f2d8d843"
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "language": "zh",
+      "class": "overlap",
+      "status": "ready",
+      "meeting": "R8001_M8004",
+      "start_frame": 10703520,
+      "end_frame": 10888000,
+      "reference_counts": [
+        28,
+        37
+      ],
+      "crop_sha256": "3297237ac0a80d0c4d5c8c24f9036ce2eb4a7b6017d1df8a3d37e03bba5aedce",
+      "gold_sha256": "a8f25d4d8bb4df13525cfd8c82cf4bbc695b47ebad2060ac0ed409c234016bca"
+    },
+    {
+      "case_id": "zh-overlap-2",
+      "language": "zh",
+      "class": "overlap",
+      "status": "unavailable_no_eligible_component",
+      "meeting": null,
+      "start_frame": null,
+      "end_frame": null,
+      "reference_counts": [],
+      "crop_sha256": null,
+      "gold_sha256": "c47f03b6e79e2c47c3c83e626173326066f42c87d999ed5ff5e83d0d427ed535"
+    },
+    {
+      "case_id": "en-solo-1",
+      "language": "en",
+      "class": "solo",
+      "status": "ready",
+      "meeting": "ES2014a",
+      "start_frame": 3785600,
+      "end_frame": 3977600,
+      "reference_counts": [
+        20
+      ],
+      "crop_sha256": "99f4abbdcdb163c068a82ba72bde4adf6f962f987212647ceb187c1ce6c9aa09",
+      "gold_sha256": "8001b1e5bfff7cb6567ea3876047cfc8cb4d5054bab96d26094bb69eefddd762"
+    },
+    {
+      "case_id": "zh-solo-1",
+      "language": "zh",
+      "class": "solo",
+      "status": "ready",
+      "meeting": "R8001_M8004",
+      "start_frame": 106400,
+      "end_frame": 362880,
+      "reference_counts": [
+        83
+      ],
+      "crop_sha256": "274fa127bcc1594218255da821e449fc261aabe168c7a00cc14822bc9fa50744",
+      "gold_sha256": "21fcccc4300a43b07853800f75c07b356a4f7d3e383c168b6e0d95c723e63584"
+    },
+    {
+      "case_id": "digital-zero-1",
+      "language": "en",
+      "class": "synthetic_zero",
+      "status": "ready",
+      "meeting": null,
+      "start_frame": 0,
+      "end_frame": 96000,
+      "reference_counts": [],
+      "crop_sha256": "47b589098cc9e4b92774cd5b6a57ccca0713c02396bf755b2318f7e81cdc534e",
+      "gold_sha256": "c1378f032b949e29d703437c219f01357f7ac8e061a7ec18116b7af0d5764cbd"
+    }
+  ],
+  "total_audio_seconds": 69.56,
+  "limitations": [
+    "Previously exposed public meetings; not held out.",
+    "Direct multi-speaker ASR, not waveform separation.",
+    "Human annotation timing and channel audibility have limitations.",
+    "No inference yet."
+  ]
+}

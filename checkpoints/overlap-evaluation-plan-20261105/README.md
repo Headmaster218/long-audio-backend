@@ -1,0 +1,11 @@
+# Prospective bounded overlap-recognition mechanism panel
+
+This checkpoint is saved before model inference. It records annotation-only selection and acquired fixed assets, not recognition success. The final execution seal, scorer review and integration review are still pending. Seven cases were planned; six meet the frozen rules, totaling69.56seconds. Chinese overlap case2 remains unavailable rather than changing the rule or substituting an easier case.
+
+The available panel contains two12-second AMI English overlapping-speaker clips, one11.53-second AliMeeting Chinese overlapping-speaker clip, one solo clip per language, and one explicitly synthetic6-second digital-zero negative control. All meetings have prior experimental exposure and cannot be described as held-out. Exact human word/utterance annotations, reference text and audio stay private; sanitized case coordinates/counts/hashes and the frozen rule hash are preserved here. Human timing, microphone audibility and incomplete annotation remain limitations.
+
+The proposed optional arm is direct multi-speaker MOSS recognition, not waveform separation. It must be compared with the unchanged mixed SenseVoice baseline using identical frozen normalization, permutation-aware errors, missing/extra-track penalties, per-reference errors and control hallucination counts. Two labels are never sufficient evidence that both speakers were recognized. The optional output remains anonymous, unverified text associated with original source ranges; it cannot update speaker identity or silently replace baseline text.
+
+Existing HandyQ8 profile64ec654d… is distinct from the historical locally converted551c… model. Historical scores and memory numbers do not qualify this weight. Exact model/runtime and Chinese corpus were acquired from their pinned public sources with full hashes/license provenance, no model inference. Desired total memory is6GiB, hard requested ceiling10GiB; existing3.5GiB controller limits are not raised. Failed or uncertain calls must be retained, never retried automatically.
+
+No audio, human-reference text, model-generated transcription, weights, database, secrets or binaries are uploaded. Integration source and actual results will be backed up separately after review.

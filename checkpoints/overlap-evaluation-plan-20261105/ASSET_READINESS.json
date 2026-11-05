@@ -1,0 +1,186 @@
+{
+  "status": "ready_for_separately_authorized_bounded_evaluation",
+  "root": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01",
+  "inference_performed": false,
+  "product_edits": false,
+  "git_actions": false,
+  "download_attempts": {
+    "model": 1,
+    "alimeeting": 1
+  },
+  "model": {
+    "path": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/downloads/MOSS-Transcribe-Diarize-Q8_0.gguf",
+    "bytes": 986899616,
+    "sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039",
+    "repository": "handy-computer/moss-transcribe-diarize-gguf",
+    "revision": "bfa3d24438711391d8713c6ab0efd6264527757c",
+    "url": "https://huggingface.co/handy-computer/moss-transcribe-diarize-gguf/resolve/bfa3d24438711391d8713c6ab0efd6264527757c/MOSS-Transcribe-Diarize-Q8_0.gguf",
+    "license": "Apache-2.0",
+    "verification": "Existing moss_handy_profile.verify_model passed; distinct from historical local-conversion model."
+  },
+  "runtime": {
+    "python": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/runtime/bin/python",
+    "python_version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "site_paths": [
+      "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/runtime/lib/python3.12/site-packages"
+    ],
+    "package_closure": [
+      {
+        "name": "pip",
+        "version": "25.0.1"
+      },
+      {
+        "name": "psutil",
+        "version": "7.2.2"
+      },
+      {
+        "name": "transcribe-cpp",
+        "version": "0.2.3"
+      },
+      {
+        "name": "transcribe-cpp-native",
+        "version": "0.2.3"
+      }
+    ],
+    "verified_runtime_member_count": 36,
+    "verified_psutil_member_count": 15,
+    "runtime_manifest_sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a",
+    "canonical_profile_sha256": "52cb17452185076c51b036c15a94de5484cc6867651ff72a072d3dd761df84af",
+    "hash_only_verification": "moss_handy_profile.verify_runtime passed; no transcribe_cpp, transcribe_cpp_native or psutil imported during verification",
+    "native_load_or_inference_verification": false
+  },
+  "alimeeting": {
+    "archive": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/downloads/Eval_Ali.tar.gz",
+    "archive_bytes": 3673718355,
+    "archive_sha256": "dc47343b2474b5ebcf458927e878155f6ddeb59c85e685b3645c32a1f9578d92",
+    "archive_url": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Eval_Ali.tar.gz",
+    "license": "CC BY-SA 4.0",
+    "license_source": "https://www.openslr.org/resources/119/info.txt",
+    "license_terms": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source": {
+      "Eval_Ali/Eval_Ali_far/audio_dir/R8001_M8004_MS801.wav": {
+        "path": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/alimeeting-R8001_M8004/R8001_M8004_MS801.wav",
+        "bytes": 402905680,
+        "sha256": "f5a719e6b9d9d69b3f00d0447922c09e71320724afeefd3070d25a64b7f1dcf1"
+      },
+      "Eval_Ali/Eval_Ali_far/textgrid_dir/R8001_M8004.TextGrid": {
+        "path": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/alimeeting-R8001_M8004/R8001_M8004.TextGrid",
+        "bytes": 76496,
+        "sha256": "e5fe941174fe4140bb5923b7caf2cbdd68d8d2a86086e4f00c68afc90d09dbad"
+      }
+    },
+    "mono": {
+      "path": "/workspace/scratch/12ec3121e93f/overlap-assets-preparation-20261105-01/alimeeting-R8001_M8004/channel1.wav",
+      "logical_filename": "channel1.wav",
+      "operation": "Physical channel 1, zero-based index 0; every channel-1 sample retained exactly; no cropping, resampling or downmixing",
+      "container": "Canonical 44-byte RIFF PCM16 mono header",
+      "file_bytes": 50363244,
+      "file_sha256": "7312be8c5c34e2cfc5b53812010449023a8c5648565e1908080d481216710c9e",
+      "pcm_bytes": 50363200,
+      "pcm_sha256": "9557fb6c4289d5884209a1036ed4f1d4bf91ac4d42702a261d023bb22969981e",
+      "channels": 1,
+      "sample_rate_hz": 16000,
+      "bits_per_sample": 16,
+      "frames": 25181600,
+      "duration_seconds": 1573.85,
+      "independent_exact_channel_sample_matches": 25181600
+    },
+    "gzip_crc_and_complete_eof": "passed",
+    "safe_member_count": 73,
+    "expanded_tar_bytes": 5385922560,
+    "reference_content_interpreted": false,
+    "official_digest_qualification": "No official digest is asserted. Acquired archive matches the prior established local provenance hash; official source and license metadata verified freshly."
+  },
+  "disk": {
+    "logical_bytes_before_this_small_manifest": 5222311496,
+    "allocated_bytes_before_this_small_manifest": 5224402944,
+    "new_disk_cap_bytes": 10737418240
+  },
+  "provenance_receipts": [
+    {
+      "path": "provenance/DEV55_ALIMEETING_EVAL_PROVENANCE.json",
+      "bytes": 4911,
+      "sha256": "6adb5c19be1a32a37862a3fa7224f393d2c9aaf93f3cea91c51ed12305f0dd9b"
+    },
+    {
+      "path": "provenance/OpenMOSS-Apache-2.0-LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "provenance/alimeeting-extraction.json",
+      "bytes": 11841,
+      "sha256": "3853acfd0943d70df1b3cb222c1c2e60b537300d92f7faefe7eebef0252c9eb6"
+    },
+    {
+      "path": "provenance/alimeeting-transfer.json",
+      "bytes": 995,
+      "sha256": "957974b7b9ec5347d0fdfad20ae8e77420e678efcceda88906982160df72dac5"
+    },
+    {
+      "path": "provenance/hf-pinned-README.md",
+      "bytes": 21045,
+      "sha256": "c3a5ad8116568dc64732b19e3d3d1f2b712e588da5ce1456e5480ebfc3c6c62f"
+    },
+    {
+      "path": "provenance/hf-pinned-model.json",
+      "bytes": 8280,
+      "sha256": "035268bc7f511bdfb643e79aabd72490c4c291b258773a275450ee228d4cc6ac"
+    },
+    {
+      "path": "provenance/metadata-receipts.json",
+      "bytes": 2314,
+      "sha256": "bd5d8f8dadf5fbd942b661d54948bbbbb4e9c41fb0254cc46a5ca434c679e211"
+    },
+    {
+      "path": "provenance/model-license-verification.json",
+      "bytes": 894,
+      "sha256": "bf4ed3f4551747d5ca6c48d7be5057b6eeaa876ec072fd5e32be6738f8b545e0"
+    },
+    {
+      "path": "provenance/model-transfer.json",
+      "bytes": 1129,
+      "sha256": "d045784077b01eadb25f7c9d558ad56f396237ca1579a5b2675e6a454b863089"
+    },
+    {
+      "path": "provenance/moss-td-cpp-model-manifest.json",
+      "bytes": 18130,
+      "sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a"
+    },
+    {
+      "path": "provenance/moss_handy_q8_0.json",
+      "bytes": 980,
+      "sha256": "84b9d65a315d8942f3bc312137e14b081f3570864154a6d8419252849076e374"
+    },
+    {
+      "path": "provenance/openslr-119-info.txt",
+      "bytes": 902,
+      "sha256": "8a6fbef48ca02e7b08ea431bf32e6cad854f88ae2e264794f6b90b78ff2abab5"
+    },
+    {
+      "path": "provenance/pypi-psutil-7.2.2.json",
+      "bytes": 40819,
+      "sha256": "84f9d2597c3c15fe19d1ce069bfdbf25951dc423dc51d67c3979468c029b6415"
+    },
+    {
+      "path": "provenance/pypi-transcribe-cpp-0.2.3.json",
+      "bytes": 7749,
+      "sha256": "e1ab8294f4788588523df67fa765140090acd53b8b18969a59b611984ace0de9"
+    },
+    {
+      "path": "provenance/pypi-transcribe-cpp-native-0.2.3.json",
+      "bytes": 8138,
+      "sha256": "a7b77f9ec94c10a3315be7a7fba2fcd6893ba83de82bfd19058bab28dd3984b2"
+    },
+    {
+      "path": "provenance/runtime-verification.json",
+      "bytes": 19113,
+      "sha256": "9950079e77eda4496f0938c59db3fd2dc964f13bfb9f5b6e085d20acf479d203"
+    },
+    {
+      "path": "provenance/verified-wheel-provenance.json",
+      "bytes": 1603,
+      "sha256": "400a7bf01df94e54afdf40365a213e860ce6697c61378f89fc3c7669cfc3d79e"
+    }
+  ]
+}
