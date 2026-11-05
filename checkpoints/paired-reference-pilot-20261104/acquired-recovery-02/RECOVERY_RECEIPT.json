@@ -1,0 +1,45 @@
+{
+  "status": "complete_recovered_not_original_single_attempt",
+  "original_status": "interrupted_without_completion_receipt",
+  "original_partial": {
+    "bytes": 7864320,
+    "sha256": "1783ca091718227e75ab20525a5b85151345192ca95a0cd910b4d7c4f3af08a4"
+  },
+  "files": [
+    {
+      "path": "/workspace/scratch/12ec3121e93f/backend-paired-reference-pilot-20261104/acquired-official-01/ES2014a.Mix-Headset.wav",
+      "bytes": 36768472,
+      "sha256": "9d29e308566b8c7be4c328f4a2998e371e5f506384f111042ec91b465f7f792c",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2014a/audio/ES2014a.Mix-Headset.wav"
+    },
+    {
+      "path": "/workspace/scratch/12ec3121e93f/backend-paired-reference-pilot-20261104/acquired-official-01/ES2014d.Mix-Headset.wav",
+      "bytes": 93163564,
+      "sha256": "5293a8197d393e61b06d4c5ea1bf3b340a8a77178ba6facacd6be32bd6978005",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2014d/audio/ES2014d.Mix-Headset.wav"
+    },
+    {
+      "path": "/workspace/scratch/12ec3121e93f/backend-paired-reference-pilot-20261104/acquired-official-01/ES2015a.Mix-Headset.wav",
+      "bytes": 36689964,
+      "sha256": "918aeaf28fe9025378f33e089f44f29906842c0b247b1b775e709673801212dd",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2015a/audio/ES2015a.Mix-Headset.wav"
+    },
+    {
+      "path": "/workspace/scratch/12ec3121e93f/backend-paired-reference-pilot-20261104/acquired-recovery-02/ES2015d.Mix-Headset.wav",
+      "bytes": 61810050,
+      "sha256": "0e7a2c371f73c461bfca6244f491760fa76047f7b64dc74cbecfff67af921222",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2015d/audio/ES2015d.Mix-Headset.wav"
+    }
+  ],
+  "transferred_bytes": 61810050,
+  "original_transfer_conservative_upper_bound": 228432226,
+  "recovery_max_bytes": 61810050,
+  "combined_transfer_upper_bound": 290242276,
+  "cap_bytes": 536870912,
+  "wall_seconds": 800,
+  "no_inference": true,
+  "no_substitutions": true,
+  "license": "https://groups.inf.ed.ac.uk/ami/corpus/license.shtml",
+  "attribution": "AMI Meeting Corpus, CC BY 4.0; unchanged original WAVs, prospective two-second crops.",
+  "elapsed_seconds": 78.10353519199998
+}
