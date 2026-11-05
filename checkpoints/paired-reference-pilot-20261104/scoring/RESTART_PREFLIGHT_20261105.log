@@ -1,0 +1,42 @@
+test_at_least_two_people (test_paired_scoring.PairedTests.test_at_least_two_people) ... ok
+test_atomic_exclusive_seals (test_paired_scoring.PairedTests.test_atomic_exclusive_seals) ... ok
+test_c_missing_reference_blocks_lock (test_paired_scoring.PairedTests.test_c_missing_reference_blocks_lock) ... ok
+test_c_truth_must_match_source_roles (test_paired_scoring.PairedTests.test_c_truth_must_match_source_roles) ... ok
+test_calls_exact_product_functions (test_paired_scoring.PairedTests.test_calls_exact_product_functions) ... ok
+test_changed_protocol_rejected (test_paired_scoring.PairedTests.test_changed_protocol_rejected) ... ok
+test_changed_source_rejected (test_paired_scoring.PairedTests.test_changed_source_rejected) ... ok
+test_duplicate_json_keys_rejected (test_paired_scoring.PairedTests.test_duplicate_json_keys_rejected) ... ok
+test_duplicate_or_overlapping_predictor_ids (test_paired_scoring.PairedTests.test_duplicate_or_overlapping_predictor_ids) ... ok
+test_end_to_end_counts_and_locked_thresholds (test_paired_scoring.PairedTests.test_end_to_end_counts_and_locked_thresholds) ... ok
+test_extra_vector_id_rejected (test_paired_scoring.PairedTests.test_extra_vector_id_rejected) ... ok
+test_failure_before_atomic_link_leaves_no_lock (test_paired_scoring.PairedTests.test_failure_before_atomic_link_leaves_no_lock) ... ok
+test_independent_thresholds_and_tie_higher (test_paired_scoring.PairedTests.test_independent_thresholds_and_tie_higher) ... ok
+test_invalid_reference_variants (test_paired_scoring.PairedTests.test_invalid_reference_variants) ... ok
+test_known_reference_query_day_labels_must_match (test_paired_scoring.PairedTests.test_known_reference_query_day_labels_must_match) ... ok
+test_lock_tamper_rejected (test_paired_scoring.PairedTests.test_lock_tamper_rejected) ... ok
+test_missing_query_keeps_denominator (test_paired_scoring.PairedTests.test_missing_query_keeps_denominator) ... ok
+test_missing_unused_single_reference_disables_both_arms (test_paired_scoring.PairedTests.test_missing_unused_single_reference_disables_both_arms) ... ok
+test_native_npz_and_invalid_mask (test_paired_scoring.PairedTests.test_native_npz_and_invalid_mask) ... ok
+test_native_npz_duplicate_and_length_mismatch (test_paired_scoring.PairedTests.test_native_npz_duplicate_and_length_mismatch) ... ok
+test_one_arm_no_candidate_stops_both (test_paired_scoring.PairedTests.test_one_arm_no_candidate_stops_both) ... ok
+test_partial_lock_even_with_new_hash_rejected (test_paired_scoring.PairedTests.test_partial_lock_even_with_new_hash_rejected) ... ok
+test_prediction_seal_precedes_truth_parse (test_paired_scoring.PairedTests.test_prediction_seal_precedes_truth_parse) ... ok
+test_reordered_predictor_file_rejected (test_paired_scoring.PairedTests.test_reordered_predictor_file_rejected) ... ok
+test_reordered_reference_changes_binding (test_paired_scoring.PairedTests.test_reordered_reference_changes_binding) ... ok
+test_resealed_selection_tamper_recomputed (test_paired_scoring.PairedTests.test_resealed_selection_tamper_recomputed) ... ok
+test_source_evidence_rejects_dummy_unknown_reference_and_ct_speaker_overlap (test_paired_scoring.PairedTests.test_source_evidence_rejects_dummy_unknown_reference_and_ct_speaker_overlap) ... ok
+test_source_evidence_requires_three_distinct_earlier_meeting_turns (test_paired_scoring.PairedTests.test_source_evidence_requires_three_distinct_earlier_meeting_turns) ... ok
+test_source_session_metadata_is_consistent (test_paired_scoring.PairedTests.test_source_session_metadata_is_consistent) ... ok
+test_substituted_c_vectors_rejected_even_with_new_pin (test_paired_scoring.PairedTests.test_substituted_c_vectors_rejected_even_with_new_pin) ... ok
+test_t_no_lock_creation_or_retuning (test_paired_scoring.PairedTests.test_t_no_lock_creation_or_retuning) ... ok
+test_t_prediction_seal_precedes_truth_parse (test_paired_scoring.PairedTests.test_t_prediction_seal_precedes_truth_parse) ... ok
+test_t_requires_lock_before_vector_access (test_paired_scoring.PairedTests.test_t_requires_lock_before_vector_access) ... ok
+test_t_threshold_tamper_with_new_prediction_hash_rejected (test_paired_scoring.PairedTests.test_t_threshold_tamper_with_new_prediction_hash_rejected) ... ok
+test_truth_primary_duplicates_and_unknown_reference (test_paired_scoring.PairedTests.test_truth_primary_duplicates_and_unknown_reference) ... ok
+test_vector_key_reordering_semantically_same_but_pin_changed (test_paired_scoring.PairedTests.test_vector_key_reordering_semantically_same_but_pin_changed) ... ok
+test_zero_centroid_disables_both_arms (test_paired_scoring.PairedTests.test_zero_centroid_disables_both_arms) ... ok
+
+----------------------------------------------------------------------
+Ran 37 tests in 1.376s
+
+OK
