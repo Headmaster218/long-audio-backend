@@ -1,0 +1,53 @@
+{
+  "schema": "public-hash-only-admission-summary-v1",
+  "latest_passed": true,
+  "scope": "Source-level hash-only admission beside unchanged installed dev80 runtimes; no installed-bootstrap qualification",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": false,
+      "verifier_exit_code": 1,
+      "reason": "Selected-root metadata guard refused strict-site distribution shadowing",
+      "audit_sha256": "2fcca9d98e3fa0bfbabd6c2c799cf1f392607a5ba56e39aab11d31af27d72a60"
+    },
+    {
+      "attempt": 2,
+      "passed": false,
+      "verifier_exit_code": 0,
+      "reason": "Hash verification succeeded, but global FD observation blocked before positive exit was visible",
+      "audit_sha256": "94225e8c5f4eeada2f0d4c304de286866383ceba75400a7405222346fee82745"
+    },
+    {
+      "attempt": 3,
+      "passed": true,
+      "verifier_exit_code": 0,
+      "reason": "Targeted primary ownership and scoped resource observations admitted the verified CPU runtime",
+      "audit_sha256": "abf5771461840109532ebbd9ae499c6cad1520f4480a2c905ddc73fdbef93b3c"
+    }
+  ],
+  "latest_evidence": {
+    "runtime_and_model_receipt_files": 37,
+    "positive_verifier_wait_and_cleanup": true,
+    "positive_service_and_driver_wait": true,
+    "remaining_owned_processes": 0,
+    "source_and_runtime_pins_unchanged": true,
+    "preimage_entries": 187,
+    "logical_rows_and_protected_files_unchanged": true,
+    "sqlite_maintenance_bytes_may_change": true,
+    "idle_predicates_zero": 14,
+    "candidate_ledger_empty": true,
+    "sampled_peak_rss_bytes": 210538496,
+    "elapsed_seconds": 6.91919,
+    "sampled_cpu_seconds": 8.15,
+    "maximum_observation_gap_ms": 57.35,
+    "combined_artifact_bytes": 10913641
+  },
+  "all_attempts": {
+    "audio_submissions": 0,
+    "audio_retries": 0,
+    "candidate_model_calls": 0,
+    "prior_failures_preserved": true
+  },
+  "next_gate": "Fresh installed one-wheel/two-runtime qualification and separately reviewed fixed operational trial",
+  "quality_claim": false
+}

@@ -4,4 +4,4 @@ Initial discovery examines only readable supported product launchers for the exa
 
 Namespace equality is checked on the pinned primary, supervisor and observing owner. Other known descendants retain identity, RSS and actual cgroup membership checks without irrelevant namespace-link reads. Hard 10 GiB physical/common-cgroup requirements, 6 GiB observed target, 2 GiB reserve and owned-only cleanup are unchanged.
 
-Source tests and independent review passed. A source-level hash-only admission run and independent terminal audit passed with zero audio or candidate calls. Fresh installed operational verification is not yet claimed. Prior failed trials and immutable ledgers remain unchanged.
+Source tests and independent review passed. A source-level hash-only admission run and independent terminal audit passed with zero audio or candidate calls. Fresh same-host strict qualification and both installations now pass using one shared wheel (INSTALL_SUMMARY.json). The actual installed candidate flow remains pending; source-only admission history is retained in PUBLIC_HASH_ONLY_ADMISSION_SUMMARY03.json. Prior failed trials and immutable ledgers remain unchanged.

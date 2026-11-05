@@ -1,0 +1,59 @@
+{
+  "schema": "dev83-installation-summary-v1",
+  "source_commit": "26aed23716c676f20dcb39e6ede1abc81fbde1fd",
+  "strict": {
+    "candidate_module_sha256": "4cbf958b4737a10967b18e2b20ec375842556c2a9315d8412574e89d773df9ea",
+    "dependency_files_unchanged": 1832,
+    "existing_store_migration_authorized": false,
+    "general_production_rollout_approved": false,
+    "installed_verification": {
+      "materialization_receipt_sha256": "d2274b97bcfb2e9ab5b12e6d65cae8f0d3ca9570bff4a07fb858b715f1a9b823",
+      "models_loaded": false,
+      "product_bytes": 4524646,
+      "product_files": 195,
+      "runtime_qualified": false,
+      "schema": "installed-target-source-verification-v1",
+      "service_started": false,
+      "verified": true
+    },
+    "live_bad_receipt_gate": true,
+    "materialization_receipt_sha256": "d2274b97bcfb2e9ab5b12e6d65cae8f0d3ca9570bff4a07fb858b715f1a9b823",
+    "materializer_verifier_tests": 41,
+    "models_loaded": false,
+    "passed": true,
+    "qualification_tests": 9,
+    "reviewed_basis_sha256": "93460f9f88f095b0743bce20fd23074164f7d0f0f83082cdc7f0529548a8ec0d",
+    "schema": "fresh-dev83-product-install-v1",
+    "service_started": false,
+    "source_files_unchanged": 1092,
+    "source_manifest_sha256": "b7a6eadb1502914b690819d12c18b19cc881eeb18d826f8dc82c4b58dcf7d962",
+    "version": "0.2.0rc3.dev83",
+    "wheel_sha256": "c9a5011e660a01b5edbde1e9df4e9d3cc35a3b535a6b4e29f1060430202536dd"
+  },
+  "optional": {
+    "dependencies_lock_sha256": "d4f52c0b1c94dc202ae5d2db47e58ec43557f23be2b1f542edb898fbe80644e1",
+    "dependency_files_unchanged": 616,
+    "dependency_inventory_sha256": "a9a318e7517d1cd3e355f00cbb37ae8c8b7e5dd603e1593fc55f985ddab5a393",
+    "member_verification_sha256": "a5ae5c654c3f9fa79e74f429ab410b97978ad70255dfdb202a82d47c5596d859",
+    "models_loaded": false,
+    "pinned_runtime_members": 36,
+    "pip_check_passed": true,
+    "product_files": 195,
+    "product_receipt_sha256": "d2274b97bcfb2e9ab5b12e6d65cae8f0d3ca9570bff4a07fb858b715f1a9b823",
+    "product_wheel": {
+      "bytes": 1218737,
+      "sha256": "c9a5011e660a01b5edbde1e9df4e9d3cc35a3b535a6b4e29f1060430202536dd"
+    },
+    "profile_sha256": "52cb17452185076c51b036c15a94de5484cc6867651ff72a072d3dd761df84af",
+    "python_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+    "qualification": "Optional Python3.12 installation-only, not strict SQLite-qualified",
+    "runtime_manifest_sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a",
+    "services_started": false,
+    "status": "installed_hash_verified_no_inference",
+    "verified_wheel_members": 750,
+    "version": "0.2.0rc3.dev83"
+  },
+  "one_product_wheel_for_both": true,
+  "actual_candidate_postphase_verified": false,
+  "scope": "Fresh same-host strict qualification and separate optional installation verification. Prior source-only admission success does not establish installed operational success; fixed new trial pending."
+}
