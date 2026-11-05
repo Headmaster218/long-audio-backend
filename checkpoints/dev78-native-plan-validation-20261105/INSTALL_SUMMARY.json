@@ -1,0 +1,32 @@
+{
+  "candidate_module_sha256": "72e5467cc61778016bad82f7fe4bfb701e07368935637de626065f0de8841727",
+  "dependency_files_unchanged": 1832,
+  "existing_store_migration_authorized": false,
+  "general_production_rollout_approved": false,
+  "installed_verification": {
+    "materialization_receipt_sha256": "6f6a41b8e0d61e3bf3e9111df5ff562b2d970bc4084fbbc29fdb90268c00064f",
+    "models_loaded": false,
+    "product_bytes": 4434600,
+    "product_files": 193,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "live_bad_receipt_gate": true,
+  "materialization_receipt_sha256": "6f6a41b8e0d61e3bf3e9111df5ff562b2d970bc4084fbbc29fdb90268c00064f",
+  "materializer_verifier_tests": 41,
+  "models_loaded": false,
+  "passed": true,
+  "qualification_tests": 9,
+  "reviewed_basis_sha256": "1113a7c7e502e34fecbe19488544f9af5c0e2046ff35df0970244911d1029335",
+  "schema": "fresh-dev78-product-install-v1",
+  "service_started": false,
+  "source_files_unchanged": 1085,
+  "source_manifest_sha256": "e4a1196dd9a9405b382a293112a6a44890000cffc80af5d49d0fba590b58f037",
+  "version": "0.2.0rc3.dev78",
+  "wheel_sha256": "d2c89dc2c2b16a396743593af8c05d460e1a2665e19286b469f53e5cb58b966f",
+  "source_commit": "9234f46961e64c4d8e9de7003e01cbfd2afb3f0d",
+  "selected_regression_tests": 444,
+  "compatibility_policy": "Accept exactly strict integer caps 41,050 and 73,978; validate each receipt against its original cap. Unknown policies are refused and writer defaults remain unchanged."
+}

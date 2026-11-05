@@ -1,0 +1,64 @@
+{
+  "status": "installed_flow_validated_separately_original_harness_failure_preserved",
+  "version": "0.2.0rc3.dev78",
+  "legacy_default_repeat": {
+    "passed": true,
+    "old_receipt_request_cap": 41050,
+    "completed_edges": 2,
+    "network_attempts": 0,
+    "old_artifact_bytes_and_identities_unchanged": true,
+    "result_sha256": "b2adb3a82b21e08d3c42dc7f76bc86b3d43d162af22b80a69a5716c755b1b651"
+  },
+  "native_flow": {
+    "generated_bundle_opt_in": "--native-turns",
+    "first_primary_plan_status": "plan_complete",
+    "generations": 3,
+    "primary_frames": 144000,
+    "first_plan_network_requests": 252,
+    "first_plan_network_writes": 14,
+    "native_exports": 3,
+    "artifact_names": [
+      "export.json",
+      "transcript.txt",
+      "native-turns.json"
+    ],
+    "candidate_calls": 0,
+    "original_harness_passed": false,
+    "original_harness_failure": "Stale recovery-directory assertion after primary plan completed; no primary replay.",
+    "separate_saved_validation_passed": true,
+    "separate_stopped_repeat_network_attempts": 0,
+    "separate_stopped_repeat_writes": 0,
+    "saved_validation_result_sha256": "603429680cfb5a12075cd080b2e486227ef0921ecf0f6c08409ab2f5692cd484"
+  },
+  "fixture": {
+    "corpus": "AMI",
+    "recording": "EN2002a.Mix-Headset.wav",
+    "source_sha256": "a15017d0d3c871866971ee178052a0ce3a7e44d6fbf89fc23dcab326511b65f5",
+    "source_frames": [
+      26672000,
+      26816000
+    ],
+    "sample_rate_hz": 16000,
+    "pcm_sha256": "824962e469c1b5c3969804b2846b1428fe4a194a1744d5599aa595ae7f69af73",
+    "license": "CC BY 4.0",
+    "real_recorded_audio": true,
+    "synthetic_observation_timing": true,
+    "previously_exposed": true,
+    "accuracy_evaluation": false
+  },
+  "primary_resource_observations": {
+    "peak_owned_rss_bytes": 887255040,
+    "last_sample_elapsed_seconds": 38.56936490199587,
+    "sampled_CPU_seconds": 40.45,
+    "max_sample_gap_seconds": 0.09111250400019344,
+    "watchdog_error": null,
+    "remaining_owned_processes": []
+  },
+  "limits": [
+    "Native export plus revision-recovery remains explicitly unsupported before effects.",
+    "Candidate inference remains an explicit separate command and cannot replace the primary transcript.",
+    "Fixed guest physical capacity under10GiB is not cgroup isolation; RSS/CPU observations are sampled.",
+    "No physical device, user-server, long-duration or recognition-quality qualification.",
+    "Original dev77 predispatch and legacy-control failures, and dev78 layout-assertion failure, remain preserved."
+  ]
+}

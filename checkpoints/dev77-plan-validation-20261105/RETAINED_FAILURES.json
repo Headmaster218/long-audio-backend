@@ -1,0 +1,31 @@
+{
+  "schema": "dev77-installed-plan-retained-failures-v1",
+  "source_commit": "0983376f7312d6a67628ecd51e1110e515be7134",
+  "fresh_flow_attempt": {
+    "status": "failed_before_producer_or_service_start",
+    "reason": "Harness attempted to JSON-serialize a pathlib.Path argv member.",
+    "completed_action": "Installed-byte verifier only.",
+    "actual_primary_frames_submitted": 0,
+    "planned_fixture_frames": 144000,
+    "model_calls": 0,
+    "services_started": 0,
+    "original_process_handles_waited": true,
+    "remaining_owned_processes": 0,
+    "original_evidence_preserved": true,
+    "next_step": "Narrow private harness argv string normalization; no qualification relaxation."
+  },
+  "stopped_legacy_control": {
+    "status": "failed_closed",
+    "reason": "runner_recovery_audit_binding",
+    "old_request_cap": 41050,
+    "current_request_cap": 73978,
+    "only_header_mismatch": "requests_bound",
+    "http_attempts": 0,
+    "writes": 0,
+    "model_calls": 0,
+    "old_receipts_preserved": true,
+    "classification": "All three actual legacy recovery exports pass the old dev73 reader and fail unchanged dev76 and installed dev77; the reader source is unchanged, but an earlier global default cap increase changed reconstructed headers. This is a genuine existing compatibility gap, not proof that dev77 is compatible.",
+    "fix_scope": "Prospective support for exactly the two known caps, preserving original recorded limits and all other source/artifact checks. Unknown caps remain rejected."
+  },
+  "quality_or_deployment_approved": false
+}
