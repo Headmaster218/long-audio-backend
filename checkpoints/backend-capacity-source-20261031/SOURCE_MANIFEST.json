@@ -856,9 +856,9 @@
     },
     {
       "path": "audio_backend/recorder_receiver_routing.py",
-      "size": 10336,
-      "sha": "c07a7afa18f13f0bed6e5a0fe9e70e7c48b12531",
-      "sha256": "c7dd47434a9b28f9de18664cc32167d5b689e8bf2e9d5deeae6d64122aa11b58"
+      "size": 10578,
+      "sha": "01339e5f75100e8536f43493f8aefc564e72c4ba",
+      "sha256": "011417ac38374dc814dc09d3931d48d0960abf24fe16e2ff8cc467cc842221de"
     },
     {
       "path": "audio_backend/recorder_receiver_status.py",
@@ -2221,6 +2221,12 @@
       "size": 4253,
       "sha": "92ae21395af2e070193a3060e408ddc2fe96f255",
       "sha256": "56e7c88d6dbea6ae8c5d7bc0a4ec3a541c490e0071ad376716201c36cbb02ff1"
+    },
+    {
+      "path": "docs/RECORDER_AUTOMATIC_ADMISSION_RESULT_20261105.md",
+      "size": 2761,
+      "sha": "a9280f2ba4a21f07f7b4ba422e528b36f254ed25",
+      "sha256": "6ecf9145502961d564e4a707fb31b9c52d2a93e8a0613a503690c4b792f22baa"
     },
     {
       "path": "docs/RECORDER_BINDING_PROPOSAL.md",
@@ -5218,9 +5224,9 @@
     },
     {
       "path": "tests/test_recorder_automatic_routing.py",
-      "size": 4109,
-      "sha": "9ba226c7447cc1f9f5d830c7101fc34c16652778",
-      "sha256": "4ecec701c288d9bfa87e820c0d799bbd5796ce82f75d9362f893b547215fdd0e"
+      "size": 5080,
+      "sha": "a059576c870e47bc3dcc5a0636872c61624c2468",
+      "sha256": "98c5a73d915d65d4d6ddbdbd73e4409cca39629974b889ada9573183ce81ce88"
     },
     {
       "path": "tests/test_recorder_automatic_routing_review.py",
@@ -6328,5 +6334,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev70 adds opt-in bounded automatic receiver generation admission with whole-attempt quota reservations, preserved in-flight ownership/readback, conservative restart and fail-closed uncertain writes. Source and installed receiver-focused tests passed; broader regression tracked separately."
+  "source_update": "dev70 bounded automatic receiver admission with whole-attempt reservations and global retained-publication ambiguity check; final installed 101 focused tests pass. Broad historical audit failures reproduced on pre-feature baseline; final broad regression pending."
 }

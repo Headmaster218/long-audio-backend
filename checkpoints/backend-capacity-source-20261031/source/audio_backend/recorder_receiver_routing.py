@@ -84,11 +84,14 @@ class Routes:
         index=self.active
         if self.automatic:
             selected=None
+            # Even retired generations can retain an ambiguous preparation.
+            # Reject fresh writes globally, but leave resolve/readback available.
+            publication_capacity=[o.publication_admission_available() for o in self.owners]
             for candidate in range(self.active,len(self.owners)):
                 owner=self.owners[candidate]
                 # Ambiguous namespace/publication errors escape; only an explicit
                 # quota False permits scanning a later prepared generation.
-                publication_ok=owner.publication_admission_available()
+                publication_ok=publication_capacity[candidate]
                 raw_ok=owner.admission_available()
                 if publication_ok and raw_ok:
                     selected=candidate;break

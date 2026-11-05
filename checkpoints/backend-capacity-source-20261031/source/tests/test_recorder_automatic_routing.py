@@ -78,3 +78,20 @@ def test_automatic_config_requires_boolean_and_routes(configured,value):
  data=dict(configured['data'],auto_advance_generations=value)
  with pytest.raises(receiver.ConfigurationError,match='automatic_routing'):
   receiver._validate_config(data)
+
+
+def test_retired_pending_preparation_blocks_new_admission_but_not_readback(configured,tmp_path):
+ config,raw,ready,state=automatic(configured,tmp_path,max_attempts=1)
+ first=configured['source'];second=delivery(tmp_path/'second/templates',1,close='ROTATION')
+ with running(config) as (server,routes):
+  client=connect(server,config);client.mkd(first.name);upload(client,first)
+  client.mkd(second.name);upload(client,second);client.quit()
+ (configured['state']/'prepare'/('pending-'+'a'*32)).mkdir(mode=0o700)
+ with running(config) as (server,routes):
+  assert routes.active==1
+  before=[(set(o._names),o._charged_bytes) for o in routes.owners]
+  with pytest.raises(publication.Refused,match='pending_publication'):
+   routes.begin(first.name[:-32]+'f'*32)
+  assert before==[(set(o._names),o._charged_bytes) for o in routes.owners]
+  client=connect(server,config);client.cwd(first.name)
+  assert read(client,'audio.wav')==(first/'audio.wav').read_bytes();client.quit()
