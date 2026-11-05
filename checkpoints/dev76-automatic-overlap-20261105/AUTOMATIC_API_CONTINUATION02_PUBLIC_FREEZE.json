@@ -1,0 +1,32 @@
+{
+  "schema": "automatic-api-continuation02-public-result-freeze-v1",
+  "created_utc": "2026-11-05T05:29:43.627775+00:00",
+  "files": [
+    {
+      "name": "PUBLIC_AUTOMATIC_API_CONTINUATION02_OUTCOME.json",
+      "sha256": "3512803c72c4179791643d706b5185ea5f524f72be62a13798c125726bb89c1e",
+      "bytes": 22080
+    },
+    {
+      "name": "PUBLIC_AUTOMATIC_API_CONTINUATION02_FINDINGS.md",
+      "sha256": "30ac97f0343b37e0a85dcd3f5424637d6ac77d484abcd1b2ae372b7db485cca7",
+      "bytes": 3268
+    },
+    {
+      "name": "PUBLIC_AUTOMATIC_API_EXECUTION01_OUTCOME.json",
+      "sha256": "558e90a79ae76c6a5f1ca84cbda2dc959ea8b6b7f9e4d0a795856fff832b24a9",
+      "bytes": 8187
+    },
+    {
+      "name": "AUTOMATIC_API_CONTINUATION_AMENDMENT_01.json",
+      "sha256": "1380e82a7c85b0e2531088da8a82f9e5169b09a0fa15b8736dd9a6fba0c63894",
+      "bytes": 5572
+    }
+  ],
+  "terminal_independent_audit_sha256": "5092b2f5ebf0e4dbebf26f4823237e8d69a11b2604b151257f3085b841f2df97",
+  "independent_reporting_review": "Public outcome draft independently accepted before final audit binding. Finalization adds terminal-audit status/hash, final combined artifact count/scope, independent preservation/cleanup facts and exact support-audio total. No transcript, metric, selection or conclusion changes.",
+  "recognition_quality_qualified": false,
+  "all_five_supports_boundary_unscorable": true,
+  "original_failed_attempt_unchanged": true,
+  "additional_model_calls_authorized": false
+}

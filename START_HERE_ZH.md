@@ -18,6 +18,19 @@
    [有限多代分析计划](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_FINITE_ANALYSIS_PLAN.md)。
    最多八代，不自动扩容、清理或重放不确定写入；终端 ROTATION 耗尽计划不等于录音结束。
 
+5. 可选的[重叠语音候选](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_OVERLAP_CANDIDATES.md)：
+   主分析完成后，用 `--native-turns` 创建新的绑定导出，再在独立可选运行时使用
+   `--auto-native-overlap` 自动选择有界区间。默认关闭，不覆盖主转写，不把模型局部标签当作人物身份。
+   需要单独准备文档指定的模型与运行时，并管理所有进程的总资源；不是在严格主服务中启用任意分离插件。
+   这一步仍需显式执行：现有配置包/有限计划默认导出不含 native-turns，不能直接用于自动候选。
+   新导出需要已保留的完整原始输入与可访问的原服务；候选阶段可在服务停止后运行。
+
+[实测结果与保留失败](checkpoints/dev74-overlap-results-20261105/README.md)：
+小样本已观察到中英文多人文本输出，但有少数人文本错误、额外通道及数字静音幻觉，整体质量验收未通过。
+后续精确全零输入保护只跳过全零 PCM 的模型调用，不保证非零环境噪声不会产生幻觉。
+[自动选区覆盖](checkpoints/dev76-automatic-overlap-20261105/PUBLIC_AUTOMATIC_SELECTOR_FINDINGS01.md)
+是另外的检测/上下文覆盖检查，不代表新候选的识别准确率。
+
 最新[六分钟并发接收与原生处理证据](checkpoints/dev73-concurrent-120s-20261105/README.md)
 验证了同一云主机三份连续 120 秒公开 AMI 输入、单次计划和真实上传/分析重叠。
 原始测试脚本的单 chunk 断言失败保留，独立只读聚合验证完成结果；本轮未测试重复调用。

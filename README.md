@@ -1,5 +1,7 @@
 > **当前开发版入口：[从新克隆恢复并安装源码](START_HERE_ZH.md)。当前代码在 checkpoint/source，根目录是历史版本；请勿在根目录 pip install。FTPS 接收进程已做回环测试，严格原生运行时尚未完成目标服务器部署资格。**
 
+当前 checkpoint 开发版已包含可选的[原生交叠证据与自动候选区间](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_OVERLAP_CANDIDATES.md)。候选不覆盖主转写；[小样本实测与保留失败](checkpoints/dev74-overlap-results-20261105/README.md)尚未达到整体质量验收。以下根目录版本章节是历史说明。
+
 # 长录音音频分析后端
 
 本地单用户音频 API，提供增量转写、独立说话人活动、声音事件、来源回执和断点恢复。推理使用本地模型，不调用外部转写服务。
