@@ -13,6 +13,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / 'moss-td-cpp-model-manifest.json'
+try:
+    MANIFEST_PATH.lstat()
+except FileNotFoundError:
+    MANIFEST_PATH = Path(__file__).resolve().parent / 'profiles/moss-td-cpp-model-manifest.json'
 BACKEND = 'moss_td_experimental'
 
 

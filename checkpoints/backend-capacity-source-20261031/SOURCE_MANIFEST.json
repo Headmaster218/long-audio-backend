@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "3ce22f74398b915dcce7e77e9d1ed7e2a98db5e5",
-      "sha256": "f3dc1f61c73f9df2623f80eef5220040e3dd3fa2ff305328d0e33763d7faac26"
+      "sha": "a4e64f10fdd39c31a2911753ec595d38274ed61a",
+      "sha256": "c4880d4a565a4d301474ea71c74b0ca31097a8dff060f42729dcaa442d8eebda"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -490,9 +490,9 @@
     },
     {
       "path": "audio_backend/moss_td_cpp_assets.py",
-      "size": 12076,
-      "sha": "22cb24afffaa29ace5da21c808bf70c153959a4a",
-      "sha256": "a74cc5006c7aff5bcfcc1222a5e93ae390aa4e539dc36b027af80c187409f0e5"
+      "size": 12230,
+      "sha": "a244e33ebbb234acabcd973aa08cc59a1e1ba38e",
+      "sha256": "7bbe6de7ccfc6c8f7b26271e33b795825a58ba1c71ae44f03280e45afc558767"
     },
     {
       "path": "audio_backend/moss_td_recovery.py",
@@ -675,6 +675,12 @@
       "sha256": "670388018d7af578bc54405a27287422d54d0bd98a181f8c366c13f6d80da590"
     },
     {
+      "path": "audio_backend/profiles/moss-td-cpp-model-manifest.json",
+      "size": 18130,
+      "sha": "1dc40989a91c6952137d5b5c7f0a74ea7904c249",
+      "sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a"
+    },
+    {
       "path": "audio_backend/profiles/moss_handy_q8_0.json",
       "size": 980,
       "sha": "98451e7a21b07a9134e492da39439d72b0bf622f",
@@ -820,9 +826,9 @@
     },
     {
       "path": "audio_backend/recorder_incremental_span_status.py",
-      "size": 23347,
-      "sha": "9b4854f5b48ea9442c643f435ea3a57a39e834bf",
-      "sha256": "0746d53817bf78ecf84dbeaf04177e30008134b15fbe446300b809adbadab65d"
+      "size": 24620,
+      "sha": "8da664edeecf4c3e175738633db0afa2a3cc1bd9",
+      "sha256": "96d110c9e5c74483145770df9da4a2928a0a634b6c4aa264cca988bb04c363b3"
     },
     {
       "path": "audio_backend/recorder_initial_intent.py",
@@ -859,6 +865,12 @@
       "size": 8915,
       "sha": "57807bb014de26548f6a9696ba4c10bd82ad448a",
       "sha256": "fd8bb8ec51246fd62564773612a8e1ed4a2c4ba13bb0e2ede21d7532cda3c0fd"
+    },
+    {
+      "path": "audio_backend/recorder_overlap_candidates.py",
+      "size": 19321,
+      "sha": "a72e5a303396fb73271323310593205e62af1c82",
+      "sha256": "0a11272e19b7e4347955d215189fad3d3e3313c482ab0d25ae3cfc84cc5264c2"
     },
     {
       "path": "audio_backend/recorder_receiver_completion.py",
@@ -2379,6 +2391,12 @@
       "sha256": "2289145836120e11bfd95933916c5d1674626f9a60bbd2c113b12ee354223b69"
     },
     {
+      "path": "docs/RECORDER_OVERLAP_CANDIDATES.md",
+      "size": 6179,
+      "sha": "f41eef2f768df1d9285a0f091ab8560cd54d32be",
+      "sha256": "528232488399b173e7cfc4e83ed6eb72c2a8ec6647b9745d7f03d36c9b351090"
+    },
+    {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
       "size": 6229,
       "sha": "9fbe1abda32e5db8bc4fdca07182c734913783eb",
@@ -2735,8 +2753,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "6c8434379548d697d72a0207efd6e8e470ac92fb",
-      "sha256": "70a781b38109753ac2512ab43a75a8c29fccc9d3d3a27c4bd6164854bf9b1eb1"
+      "sha": "77a1772fac05b23a69943d5cd908f7757efcfad6",
+      "sha256": "3fc24d87d0390cb0b9c553be05df64d8e923db9bdc14d8bd650e23f5fab1338b"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5589,6 +5607,12 @@
       "sha256": "e047997baf244afbb433d94c8513df5cc79dbdea23ca9faefed3d5b8eb7bf63b"
     },
     {
+      "path": "tests/test_recorder_overlap_candidates.py",
+      "size": 10681,
+      "sha": "f442307cb690388386b13db69e66fb62709d2b0c",
+      "sha256": "f4951857d5db6225ff57db9f104c861d2487ffcde9c20326fdb00e5dd8bd9085"
+    },
+    {
       "path": "tests/test_recorder_receiver_completion.py",
       "size": 12799,
       "sha": "daeff391d53fb487b9db59312b4ce754229e95a5",
@@ -6447,6 +6471,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Product remains dev73 unchanged. Existing target-evidence tool completed actual finite preparation with minimal official hashlocked external pytest tooling; setup docs/lock added afterward, tool and product bytes unchanged. Preparation remains review-needed, not runtime or service approval."
+  "source_base_commit": "5de26d41fbbf6bf19915fa7ed9a6ffe3fe583820",
+  "source_update": "Add optional bounded post-primary multi-voice candidates and export content binding; dev74. Recognition quality pending frozen panel."
 }

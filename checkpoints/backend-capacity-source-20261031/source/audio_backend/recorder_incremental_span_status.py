@@ -250,6 +250,28 @@ def _piece_hashes(journal, guard):
     require(piece is None, 'incremental_span_status_extra_piece')
 
 
+def source_content_binding(header, records, journal, policy):
+    """Versioned export-time binding of already validated local/remote receipts.
+
+    Hashes associate the observed baseline with exact originals and target;
+    they are not authentication of the remote service or the producer.
+    """
+    def rows_hash(rows):
+        digest = hashlib.sha256()
+        for row in rows:
+            journal.guard.check()
+            raw = u._json(row); digest.update(len(raw).to_bytes(8, 'big')); digest.update(raw)
+        return digest.hexdigest()
+    return dict(schema='recorder-export-source-content-v1',
+        target=header['target'], header_sha256=hashlib.sha256(u._json(header)).hexdigest(),
+        originals=[dict(ordinal=i, delivery=record['delivery']) for i, record in enumerate(records)],
+        input_history_sha256=rows_hash(journal.iter_inputs()),
+        remote_page_receipts_sha256=rows_hash(journal.iter_pages()),
+        closure_sha256=hashlib.sha256(u._json(policy.result_fields(records,header))).hexdigest(),
+        frames=journal.data['completed_frames'],
+        authentication='operator-selected-target-and-observed-receipts-not-remote-authentication')
+
+
 def _contract(contract, session_id, capture_id, frames):
     single.check_contract(contract, session_id, frames)
     require(all(observer._int(contract.get(k)) for k in ('sample_rate_hz', 'channels',
@@ -324,6 +346,7 @@ def run(*, job_dir, api, session_id, capture_id, exclusive_writer=False,
             remote_request_identity_verified=False, target_identity_authenticated=False,
             producer_identity_authenticated=False, accuracy_verified=False, physical_continuity_proven=False,
             **policy.result_fields(records, header), input_mapping=mapping,
+            source_content_binding=source_content_binding(header, records, journal, policy),
             session_id=session_id, capture_id=capture_id, frames=d['emitted_frames'], inputs=len(receipts),
             pages=d['page_count'], work_chunks=len(work), capture_state=capture['state'], blocked_chunks=blocked,
             optional_receipts=optional,
