@@ -1,0 +1,107 @@
+{
+  "approval_generated": false,
+  "automatic_retry": false,
+  "commands": [
+    {
+      "argv": [
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-runtime-20261105/bin/python",
+        "-I",
+        "-B",
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-integration-20261105/restored/qualification/target_runtime_observation.py",
+        "--data-dir",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/target-data",
+        "--output",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/target.json"
+      ],
+      "exit_code": 0,
+      "name": "observation",
+      "timeout_seconds": 30
+    },
+    {
+      "argv": [
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-runtime-20261105/bin/python",
+        "-I",
+        "-B",
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-integration-20261105/restored/qualification/cellstore_crash_probe.py",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/physical",
+        "--target-observation",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/target.json",
+        "--target-sha256",
+        "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26"
+      ],
+      "exit_code": 0,
+      "name": "physical",
+      "timeout_seconds": 270
+    },
+    {
+      "argv": [
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-runtime-20261105/bin/python",
+        "-I",
+        "-B",
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-integration-20261105/restored/qualification/audit_target_cellstore_evidence.py",
+        "--evidence",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/physical",
+        "--source",
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-integration-20261105/restored",
+        "--report",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/audit.json",
+        "--target-observation",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/target.json",
+        "--target-sha256",
+        "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26"
+      ],
+      "exit_code": 0,
+      "name": "audit",
+      "timeout_seconds": 120
+    },
+    {
+      "argv": [
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-runtime-20261105/bin/python",
+        "-I",
+        "-B",
+        "-c",
+        "\nimport hashlib,json,os,resource,signal,sys\nfrom pathlib import Path\ns,p,t=map(Path,sys.argv[1:4])\nos.sched_setaffinity(0,set(sorted(os.sched_getaffinity(0))[:2]))\nresource.setrlimit(resource.RLIMIT_AS,(1024**3,1024**3));resource.setrlimit(resource.RLIMIT_CPU,(90,100));signal.alarm(120)\nh=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()\nos.environ.update(TARGET_OBSERVATION=str(p/'target.json'),TARGET_SHA256=h(p/'target.json'),TARGET_AUDIT=str(p/'audit.json'),TARGET_AUDIT_SHA256=h(p/'audit.json'),TARGET_EVIDENCE=str(p/'physical'),TARGET_RESULT_SHA256=h(p/'physical/RESULT.json'),PYTEST_DISABLE_PLUGIN_AUTOLOAD='1')\n# Standard library precedes external tools; source/test roots deliberately select\n# the unchanged source under qualification, never the installed product.\nsys.path[:0]=[str(s),str(s/'tests')];sys.path.append(str(t))\nimport pytest\nassert Path(pytest.__file__).resolve().is_relative_to(t)\nraise SystemExit(pytest.main(['-q','-p','no:cacheprovider',str(s/'qualification/test_target_candidate_cellstore.py'),'--basetemp',str(p/'test-temp'),'--junitxml',str(p/'candidate-tests.xml')]))\n",
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-integration-20261105/restored",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools",
+        "/workspace/scratch/12ec3121e93f/backend-minimal-evidence-test-tools-20261105"
+      ],
+      "exit_code": 0,
+      "name": "candidate-tests",
+      "timeout_seconds": 130
+    },
+    {
+      "argv": [
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-runtime-20261105/bin/python",
+        "-I",
+        "-B",
+        "/workspace/scratch/12ec3121e93f/backend-portable-prep-integration-20261105/restored/qualification/target_runtime_observation.py",
+        "--data-dir",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/target-data",
+        "--output",
+        "/workspace/scratch/12ec3121e93f/backend-portable-preparation-proof-20261105/run02-minimal-tools/target-after.json"
+      ],
+      "exit_code": 0,
+      "name": "observation-after",
+      "timeout_seconds": 30
+    }
+  ],
+  "elapsed_seconds": 3.896979081000609,
+  "hashes": {
+    "audit.json": "be9d9a41b7ec9d4978e0781cede177ed85da16ce75bced52b69bdb7f2835b6e2",
+    "candidate-tests-receipt.json": "63bc6831228e6222fde3e85e968ab1bb9b33f85ce81b3f5e7796225d22e0c515",
+    "physical/RESULT.json": "51ab308e0e6a9379e08e0a0f6492e594101e679cac9e795a04c74c57de8fc934",
+    "target.json": "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26"
+  },
+  "models_loaded": false,
+  "production_profile_activated": false,
+  "qualified": false,
+  "review_needed": true,
+  "schema": "portable-target-evidence-preparation-v1",
+  "services_started": false,
+  "source_manifest_sha256": "12eb95bf3fe1fed9f4e4fad1f688757096579a6adefee4336c163c847031a6e7",
+  "source_unchanged": true,
+  "status": "review_needed",
+  "target_dependencies_unchanged": true,
+  "target_executable": "/workspace/scratch/12ec3121e93f/backend-portable-prep-runtime-20261105/bin/python",
+  "test_tools_unchanged": true
+}

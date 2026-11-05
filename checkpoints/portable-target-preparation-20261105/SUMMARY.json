@@ -1,0 +1,52 @@
+{
+  "status": "review_needed",
+  "review_needed": true,
+  "qualified": false,
+  "elapsed_seconds": 3.9937347829982173,
+  "source_unchanged": true,
+  "test_tools_unchanged": true,
+  "target_dependencies_unchanged": true,
+  "production_profile_activated": false,
+  "approval_generated": false,
+  "commands": [
+    {
+      "name": "observation",
+      "exit_code": 0,
+      "cleanup_exit_code": null
+    },
+    {
+      "name": "physical",
+      "exit_code": 0,
+      "cleanup_exit_code": null
+    },
+    {
+      "name": "audit",
+      "exit_code": 0,
+      "cleanup_exit_code": null
+    },
+    {
+      "name": "candidate-tests",
+      "exit_code": 0,
+      "cleanup_exit_code": null
+    },
+    {
+      "name": "observation-after",
+      "exit_code": 0,
+      "cleanup_exit_code": null
+    }
+  ],
+  "hashes": {
+    "RESULT.json": "c8d1fb86c90cc6dcda46cf46a03a2cf7c718321cb008b58dbfb1732072f95f7f",
+    "candidate-tests-receipt.json": "98529b3105dc03cf2f93237cbd4f22fe903751fba8b085b2252c137a451b0e0a",
+    "candidate-tests.xml": "bdaad5af63dc85337abaac88ac9ebd18e21d5d271aab5fd8623fc36ab251d997",
+    "target.json": "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26",
+    "physical/RESULT.json": "fd035b4973acf7a2a477f542c6d518ef890e9518ea0141f0fc1740b015cdf43b",
+    "audit.json": "e449654b5a55b9648eaeaa48060ad9e9e325b52707943e867e49e4939a97840b"
+  },
+  "provenance": {
+    "local_commit": "92e472c17475a7207b913727d5b89cf0a933f712",
+    "remote_commit": "daf6905de2d3f898063bbb731e056d236dd31e86",
+    "same_tree": "51c5b633c213d5f7f9e5e0b38b3b733b6b15181a",
+    "source_manifest_sha256": "12eb95bf3fe1fed9f4e4fad1f688757096579a6adefee4336c163c847031a6e7"
+  }
+}

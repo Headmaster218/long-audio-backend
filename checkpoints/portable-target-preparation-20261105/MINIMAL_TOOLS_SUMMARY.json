@@ -1,0 +1,23 @@
+{
+  "status": "review_needed",
+  "review_needed": true,
+  "qualified": false,
+  "elapsed_seconds": 3.896979081000609,
+  "source_unchanged": true,
+  "test_tools_unchanged": true,
+  "target_dependencies_unchanged": true,
+  "production_profile_activated": false,
+  "approval_generated": false,
+  "minimal_external_test_tool_files": 509,
+  "source_manifest_tested": "12eb95bf3fe1fed9f4e4fad1f688757096579a6adefee4336c163c847031a6e7",
+  "tool_code_unchanged": true,
+  "new_lock_and_docs_follow_tested_source_metadata": true,
+  "original_run01_preserved": true,
+  "official_pypi_provenance_sha256": "8029e162f43b219b380b0ef758e545af2e256cce45d28c8b74d4d5d6e9ea2786",
+  "hashes": {
+    "RESULT.json": "5ed297c63c66112360fe24a22c5f6d5ca5c3acc5e08a758331d10143fa7c757f",
+    "candidate-tests-receipt.json": "63bc6831228e6222fde3e85e968ab1bb9b33f85ce81b3f5e7796225d22e0c515",
+    "candidate-tests.xml": "95c23a8871b0082ea23d6d2a75ffd56b88cf43c3de832168ddb10241e8fa9593",
+    "test-tools-before.json": "b467fbcd7f8fbdcb6284ae82e1a7949ccb04b2bab9761b40a4562fb156c487f3"
+  }
+}

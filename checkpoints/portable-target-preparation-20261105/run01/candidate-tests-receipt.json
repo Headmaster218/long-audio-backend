@@ -1,0 +1,14 @@
+{
+  "audit_sha256": "e449654b5a55b9648eaeaa48060ad9e9e325b52707943e867e49e4939a97840b",
+  "dependency_inventory_sha256": "0ec06db17cb05cbaab457a7d89c4fcb0ed05ee7d084bed426a0f2e449f2d5fef",
+  "exit_code": 0,
+  "junit_sha256": "bdaad5af63dc85337abaac88ac9ebd18e21d5d271aab5fd8623fc36ab251d997",
+  "physical_result_sha256": "fd035b4973acf7a2a477f542c6d518ef890e9518ea0141f0fc1740b015cdf43b",
+  "production_profile_activated": false,
+  "schema": "target-candidate-regression-receipt-v1",
+  "source_manifest_sha256": "12eb95bf3fe1fed9f4e4fad1f688757096579a6adefee4336c163c847031a6e7",
+  "source_module_sha256": "845bb9005fccc2fb6763abefac7781750b3d31ce390d841cca1a3fb4ef62f343",
+  "target_sha256": "86cdd5429b6362e44bf42ceb5c452b0ebeb94bd39b72edb83f86f88c323fab26",
+  "test_tools_inventory_sha256": "cab8ff9a1030d7caa5e57900659a729065c76c5827b3dc355df9eb0190e92f10",
+  "tests_passed": 9
+}

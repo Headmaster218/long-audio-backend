@@ -1924,9 +1924,9 @@
     },
     {
       "path": "docs/ISOLATED_TARGET_INSTALL_ZH.md",
-      "size": 9365,
-      "sha": "bfcd18b92852ca0fee1349a2e0099d45ee9f1800",
-      "sha256": "3f7d1d180250d1bf4597235d231e9ceaa2840ed10f3f94a9fe57321740e524c1"
+      "size": 10935,
+      "sha": "e5288052fcc8dbb868a557b31bc9b88e384a6480",
+      "sha256": "92d48ed5992d5358f9f3d48f470542ec41433d0d6151aefd6000e5aad029ebaf"
     },
     {
       "path": "docs/LEXICAL_EVIDENCE_RETENTION.md",
@@ -3643,6 +3643,12 @@
       "size": 2668,
       "sha": "6ba6d2e0add8f993a81eb05045ead7f4e4651acf",
       "sha256": "81fe0bc6a72ac8e9ad29e2ea14df9c151c157cda76a698cef8bcff30b0b63dbc"
+    },
+    {
+      "path": "requirements-target-evidence-test-tools.lock.txt",
+      "size": 941,
+      "sha": "d7e15b1a277ef3fa2077dabf7fe52028845b8eca",
+      "sha256": "71d13107f83b6583ecc6c26540bfd9cf35b134f191a384e49b34b00ad8589e09"
     },
     {
       "path": "scripts/benchmarks/audit_moss_endurance_candidates.py",
@@ -6442,5 +6448,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "Product remains dev73 with unchanged audio_backend bytes. Portable existing target-evidence preparation and startup documentation repair added outside product package; independent15 tests and92 related regressions passed (overlapping). Actual preparation command evidence is separate."
+  "source_update": "Product remains dev73 unchanged. Existing target-evidence tool completed actual finite preparation with minimal official hashlocked external pytest tooling; setup docs/lock added afterward, tool and product bytes unchanged. Preparation remains review-needed, not runtime or service approval."
 }

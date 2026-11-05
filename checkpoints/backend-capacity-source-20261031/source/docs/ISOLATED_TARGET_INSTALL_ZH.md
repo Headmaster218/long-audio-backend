@@ -15,6 +15,31 @@
 使用最终准备运行服务的同一个全新 virtualenv 解释器和目标数据盘。目标环境不安装
 pytest 或开发/test extra；它不是上面用于开发的 editable 安装环境。运行依赖须事先准备完毕；
 测试工具另放在经过固定清单/hash 核验的独立目录，不往目标运行环境安装测试依赖。
+先在全新外部目录安装这九项 gate 的最小测试工具。以下锁仅包含 pytest 及其四个
+Linux/Python 3.13 依赖，来自官方 PyPI 的固定 wheel/hash，不需要复制任何云端工具目录。
+将 `PREP_PYTHON` 指向已有 pip 的准备环境解释器（Linux/Python 3.12+）；目标运行
+virtualenv 可以不安装 pip。五个包都是纯 Python 通用 wheel；`--target` 明确指定外部目录，
+不会把这些包安装到目标运行环境。不要使用 `pip install pytest` 替代这一命令。
+
+```sh
+set -eu
+PREP_PYTHON=/absolute/preparation/bin/python
+TOOLS=/absolute/private-parent/new-evidence-test-tools
+SOURCE=/absolute/restored-source
+test ! -e "$TOOLS" && test ! -L "$TOOLS"
+umask 077
+"$PREP_PYTHON" -I -B -m pip install --disable-pip-version-check \
+  --no-cache-dir --no-compile --only-binary=:all: --require-hashes \
+  --index-url https://pypi.org/simple --target "$TOOLS" \
+  -r "$SOURCE/requirements-target-evidence-test-tools.lock.txt"
+```
+
+外部目录也必须全新，且不能与源码、证据输出或目标 virtualenv 重叠。安装失败时保留
+部分目录，检查后改用另一个明确新路径，不加 `--upgrade` 或覆盖。离线时可先按此锁
+下载 wheel，再把 `--index-url` 换成 `--no-index --find-links /absolute/verified-wheels`；
+仍保留 `--require-hashes`。不要重新打包私有已安装目录来猜测 wheel hash。
+后面的 `--test-tools` 使用这里的 `$TOOLS`，不是目标环境的 site-packages。
+
 以下命令复用 `TARGET_RUNTIME_OBSERVATION.md` 中既有的目标观察、物理崩溃恢复、
 独立字节审计及九项候选校验，保留实际退出结果、原始日志、JUnit 和哈希绑定回执：
 
@@ -55,7 +80,8 @@ basis，不修改产品资格或启动模型/服务。不要把退出成功或�
 ```sh
 set -eu
 python -I -B -m pip install --require-hashes -r source/requirements-build-dev9.lock.txt
-test ! -e wheel-input
+test ! -e wheel-input && test ! -L wheel-input
+test ! -e wheels && test ! -L wheels
 mkdir wheels
 cp -a source wheel-input
 python -I -B -m pip wheel --no-build-isolation --no-deps --wheel-dir wheels wheel-input
