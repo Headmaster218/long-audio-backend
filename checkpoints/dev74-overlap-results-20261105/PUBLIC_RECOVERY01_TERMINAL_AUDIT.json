@@ -1,0 +1,142 @@
+{
+  "schema": "overlap-public-terminal-integrity-audit-v1",
+  "status": "terminal_evidence_integrity_verified_with_retained_case_failure",
+  "reviewed_at_utc": "2026-11-05T04:33:00Z",
+  "overall_qualification_accepted": false,
+  "execution_exit_status": 0,
+  "execution_result_status": "completed_with_case_failures",
+  "global_execution_failure": null,
+  "retained_case_failure": "digital-zero-1:candidate_parse_failure",
+  "interpretation": "Execution and evidence collection terminated cleanly. This is not a successful silence test, uninterrupted original run, or general product qualification.",
+  "evidence_sha256": {
+    "RESULT.json": "b5ef21a353a493d36a9e02f738747d01081d4d85d61796ab5ba790920c5a886f",
+    "predictions.json": "1883d5447819773532f6b7d1a3c805ee2e3d2b06c93f7ceba7aa3055377c8b18",
+    "RESOURCE_RECEIPT.json": "d0d5ef5a54a3ae3c7350a48a8705ddeab46dff506f5cdad1fedb47c383de3cc3",
+    "CHINESE_RECOVERY_OUTCOME.json": "3ad06cbedb02a7534a934d91354c8c7160dc0b5694347e310bb932e054a65e08",
+    "COMBINED_BUDGET.json": "760326502970ef5e8aaab644f35fde178c4b9c1a3289006a482505a89de64867",
+    "ORIGINAL_IMMUTABLE_INVENTORY.json": "74764aaab1afde3fdff65aba15cfba65ae65d970e5f6b34873286644b9e07fff",
+    "PREIMAGE_INVENTORY.json": "0eecf6cac529d1b4ede348c723c0752970c25c0224c0b342fc0196ff311f2693"
+  },
+  "sealed_code_and_binding": {
+    "harness_sha256": "d4c5f09b75e6a2791cbe5afa7609060fcd31ecf6f002471a1dc9897dfee7afb9",
+    "binding_sha256": "2265f9c82b6eca64362665cb0eedd03bc0d95fda67cb036879cf2b364c8e121a",
+    "plan_sha256": "a322a54c19057ea96b1b8ac60fe67da3db44cb3800b0effdd795366bd117cd1a",
+    "current_files_match_seal": true
+  },
+  "original_preservation": {
+    "immutable_non_native_files": 271,
+    "full_stopped_preimage_files": 285,
+    "all_inventory_hashes_match": true,
+    "preimage_database_sha256": "edccb064e76423cab12ead9e669fc3480dfb344f4c7bdb6b33bf60a7602615ed",
+    "original_result_remains_failed": true,
+    "original_live_database_legitimately_changed": true,
+    "previously_completed_chunks_with_unchanged_chunk_outcome_payload_and_witness_rows": 5
+  },
+  "formal_retry": {
+    "retry_POSTs_in_server_log": 1,
+    "original_tail_source_digest_unchanged": true,
+    "original_tail_frames": 16480,
+    "previous_committed_cursor_frames": 0,
+    "final_committed_cursor_frames": 16480,
+    "accepted_tail_outcomes": 1,
+    "accepted_tail_intervals": [
+      [
+        0,
+        16480
+      ]
+    ],
+    "all_final_primary_outcome_intervals_gapfree_nonoverlapping": true,
+    "final_primary_chunks": 11,
+    "final_sessions": 6,
+    "native_context_reconstruction_possible": true,
+    "native_primary_compute_calls": "unknown"
+  },
+  "call_counts": {
+    "original_primary_submissions": 3,
+    "continuation_first_session_creations": 3,
+    "continuation_first_intakes": 3,
+    "continuation_first_finalizations": 3,
+    "candidate_commands": 6,
+    "candidate_intents": 6,
+    "each_candidate_construct_session_and_run_attempts": 1,
+    "candidate_retries": 0
+  },
+  "source_and_raw_integrity": {
+    "installed_offline_snapshot_validation_passed_cases": 6,
+    "original_PCM_hashes_match_submitted_supports": true,
+    "source_frames_total": 1112960,
+    "candidate_raw_hashes_match_validated_native_receipts": true,
+    "raw_label_spans_reconstruct_every_character": true,
+    "prediction_tracks_and_raw_spans_match_retained_candidate_artifacts": true,
+    "planned_case_rows": 21,
+    "unique_case_arm_rows": 21,
+    "unavailable_case_preserved": true,
+    "digital_zero_nonempty_output_retained_and_unscorable": true,
+    "raw_hypothesis_text_published": false
+  },
+  "runtime_bytes": {
+    "independent_hash_only_verifiers_passed": 4,
+    "strict_product_files": 190,
+    "strict_product_bytes": 4411204,
+    "strict_dependency_entries": 1834,
+    "optional_environment_entries": 1675,
+    "strict_and_optional_package_digest": "7aeb9a3c3ad1ce3876d41b53e32858f1d5c70b6ae02779d22dd90cbedb524c13",
+    "strict_model_and_asset_pins_independently_rehashed": 8,
+    "MOSS_model_bytes": 986899616,
+    "MOSS_model_sha256": "64ec654dc6ffcfdfe180422dffce1d33422b0c30959b7edfd131bad77ee35039",
+    "all_model_asset_hashes_match_binding": true,
+    "post_execution_verifier_commands_passed": 4,
+    "verification_loaded_models": false
+  },
+  "cleanup": {
+    "strict_service_exit": 143,
+    "strict_original_handle_waited": true,
+    "recovery_process_handles": 29,
+    "all_original_handles_waited": true,
+    "child_exit_counts": {
+      "0": 28,
+      "143": 1
+    },
+    "candidate_native_model_and_session_closed": 6,
+    "candidate_cleanup_verified": 6,
+    "recovery_observed_process_identities": 80,
+    "current_matching_live_owned_processes": 0,
+    "watchdog_error": null,
+    "ownership_uncertain": false,
+    "watchdogs_joined": true,
+    "scope": "Observed owned PID/create-time identities, not kernel containment against unseen forks."
+  },
+  "resource_observations": {
+    "recovery_samples": 2692,
+    "recovery_last_sample_elapsed_seconds": 143.07132223100052,
+    "recovery_sampled_CPU_seconds": 218.45,
+    "combined_last_sample_elapsed_seconds": 182.11251269000059,
+    "combined_sampled_CPU_seconds": 253.7,
+    "maximum_sampled_owned_RSS_bytes": 1618710528,
+    "maximum_recovery_sample_gap_seconds": 0.09988447000068845,
+    "minimum_sampled_MemAvailable_bytes": 6616870912,
+    "physical_MemTotal_bytes": 10451427328,
+    "swap_bytes": 0,
+    "accelerator_devices_observed": false,
+    "inherited_hard_per_process_AS_bytes": 8589934592,
+    "final_combined_artifact_bytes_at_review": 27322703,
+    "artifact_limit_bytes": 1073741824,
+    "limits_observed_without_watchdog_failure": true,
+    "interpretation": "Sampled usage, not exact kernel aggregate CPU/RSS or full elapsed time. Physical ceiling is the accepted current guest RAM basis, not cgroup isolation or portable provider guarantee."
+  },
+  "public_sanitization": {
+    "public_score_sha256": "a9503e363c08420013235d80828a49afc5235e35ae6e7eb397ccc56472a5fa6f",
+    "public_outcome_sha256_before_terminal_audit_binding": "f90a4296f4a23e845e879b2dec21a5c59dbe2b264e42ab73c0585e559656a7b8",
+    "reviewed_artifacts": [
+      "PUBLIC_SCORE_RECOVERY01.json",
+      "PUBLIC_RECOVERY01_OUTCOME.json"
+    ],
+    "raw_audio_or_transcript_content_found": false,
+    "gold_lexical_content_found": false,
+    "original_speaker_labels_or_person_identifiers_found": false,
+    "private_filesystem_paths_found": false,
+    "published_values": "Counts, scores, anonymous case/track ordinals, hashes, and qualified methodology/limitations only."
+  },
+  "remaining_integrity_blockers": [],
+  "review_actions": "Read-only byte, database, receipt, and source checks; no inference, service launch, or evidence modification."
+}

@@ -1,0 +1,649 @@
+{
+  "schema": "overlap-public-recovered-panel-outcome-v1",
+  "status": "completed_with_case_failures_after_one_permitted_original_task_recovery",
+  "overall_qualification_accepted": false,
+  "original_attempt_status": "failed",
+  "original_failure_preserved": true,
+  "recovery_failure": null,
+  "case_failures": [
+    "digital-zero-1:candidate_parse_failure"
+  ],
+  "chinese_recovery_status": "completed_after_formal_retry",
+  "reporting_scope": "Six available fixed cases from seven planned slots; annotation-only selection before calls. One original failed attempt and one specifically approved continuation, not an uninterrupted run or fresh holdout.",
+  "score_sha256": "a9503e363c08420013235d80828a49afc5235e35ae6e7eb397ccc56472a5fa6f",
+  "original_failed_score_sha256": "7ab53e51ce03458178833160caee3abdecf65be866dc2d691ef9213a6c06ab8b",
+  "recovery_seal_sha256": "2fb85464a5c7f6e0965e78d9621ef3f188a0d5979664d26d175c5077b8fa5513",
+  "evidence_sha256": {
+    "RESULT.json": "b5ef21a353a493d36a9e02f738747d01081d4d85d61796ab5ba790920c5a886f",
+    "predictions.json": "1883d5447819773532f6b7d1a3c805ee2e3d2b06c93f7ceba7aa3055377c8b18",
+    "RESOURCE_RECEIPT.json": "d0d5ef5a54a3ae3c7350a48a8705ddeab46dff506f5cdad1fedb47c383de3cc3",
+    "COMBINED_BUDGET.json": "760326502970ef5e8aaab644f35fde178c4b9c1a3289006a482505a89de64867",
+    "formal-retry.intent.json": "a65d6b5acdd87d156866b7f5fec63575bf55d916b545ff04055491994ec72a1a",
+    "formal-retry.response.json": "b4a5ae3dc7b2dad118844ff4144c7862d06154317f3430372277c7a207848d18",
+    "CHINESE_RECOVERY_OUTCOME.json": "3ad06cbedb02a7534a934d91354c8c7160dc0b5694347e310bb932e054a65e08",
+    "ORIGINAL_IMMUTABLE_INVENTORY.json": "74764aaab1afde3fdff65aba15cfba65ae65d970e5f6b34873286644b9e07fff",
+    "PREIMAGE_INVENTORY.json": "0eecf6cac529d1b4ede348c723c0752970c25c0224c0b342fc0196ff311f2693"
+  },
+  "preservation_checks": {
+    "original_terminal_result_predictions_resources_and_english_exports_match_preflight": true,
+    "full_original_preimage_present": true,
+    "preimage_database_sha256_matches_stopped_original": true,
+    "carried_english_transcripts_raw_hashes_and_primary_units_exact": true,
+    "live_original_native_database": "Legitimately changed by the same-task formal recovery; do not claim the full live original directory is unchanged."
+  },
+  "execution_counts": {
+    "original_primary_submissions": 3,
+    "continuation_first_primary_submissions": 3,
+    "formal_original_chinese_failed_tail_retry_posts": 1,
+    "candidate_first_model_runs": 6,
+    "candidate_retries": 0,
+    "native_primary_compute_calls": "unknown; unchanged chunk/context pipeline and formal recovery may reconstitute earlier context. These are not equal to primary submission counts."
+  },
+  "candidate_call_receipts": [
+    {
+      "case_id": "digital-zero-1",
+      "status_sha256": "4abb2b761a9d88f657a1e4cc2e91ee67adeaff11cc1a05381b9906b603ceda5d",
+      "raw_sha256": "452e896a176c16d51a5dd1b41fcc3b95741d6d7b7773e588c32e732af00aa960",
+      "construct_attempts": 1,
+      "session_attempts": 1,
+      "run_attempts": 1,
+      "raw_bytes": 55,
+      "native_aborted": false,
+      "native_truncated": false,
+      "cleanup_verified": true
+    },
+    {
+      "case_id": "en-overlap-1",
+      "status_sha256": "a8f45fd3cce006955dcd59e7a8451b745954e0ad9893784ec327a973141fd003",
+      "raw_sha256": "3d290e8a263cc7d3ec9351a1c217036da8c3d018b3a2bcbfcdf4fb753a385504",
+      "construct_attempts": 1,
+      "session_attempts": 1,
+      "run_attempts": 1,
+      "raw_bytes": 147,
+      "native_aborted": false,
+      "native_truncated": false,
+      "cleanup_verified": true
+    },
+    {
+      "case_id": "en-overlap-2",
+      "status_sha256": "9ff9c135b5d464887fba201e368e483d49840f3f9e58e9f435a336a992d1eec1",
+      "raw_sha256": "bf2c69fdfab7ed15b54024ce7c97de55a6fc5a9b6cc6943e089883f17582a4c3",
+      "construct_attempts": 1,
+      "session_attempts": 1,
+      "run_attempts": 1,
+      "raw_bytes": 196,
+      "native_aborted": false,
+      "native_truncated": false,
+      "cleanup_verified": true
+    },
+    {
+      "case_id": "en-solo-1",
+      "status_sha256": "80fd13953d3cd1860c33d4977d33a54f7d91c21568c5a2543689cd70884edbf2",
+      "raw_sha256": "04a593bf08e02ad5f98d9ed9028134e6c9a91f8b28558a93c7070c72285856f0",
+      "construct_attempts": 1,
+      "session_attempts": 1,
+      "run_attempts": 1,
+      "raw_bytes": 124,
+      "native_aborted": false,
+      "native_truncated": false,
+      "cleanup_verified": true
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "status_sha256": "9c6f04ce36b4e435c8ef7e9b423a97ee4278b4404752470b66248dc5b76a922a",
+      "raw_sha256": "65c37e24b460e1b3793ee2d1982f3dbb3e690c162b98171e9cf60eaaa8f52049",
+      "construct_attempts": 1,
+      "session_attempts": 1,
+      "run_attempts": 1,
+      "raw_bytes": 310,
+      "native_aborted": false,
+      "native_truncated": false,
+      "cleanup_verified": true
+    },
+    {
+      "case_id": "zh-solo-1",
+      "status_sha256": "6295d2d31c7582282f3e1c477d148ca9a02b93469c63cf4ae8a95763e3bf69cb",
+      "raw_sha256": "5aa4dfa9af94f6ac706857c783fff03cf449168d163c1a29096d9e02ea06727c",
+      "construct_attempts": 1,
+      "session_attempts": 1,
+      "run_attempts": 1,
+      "raw_bytes": 324,
+      "native_aborted": false,
+      "native_truncated": false,
+      "cleanup_verified": true
+    }
+  ],
+  "case_results": [
+    {
+      "case_id": "en-overlap-1",
+      "class": "overlap",
+      "language": "en",
+      "reference_status": "ready",
+      "baseline_provenance": "carried_forward_original",
+      "candidate_provenance": "first_executed_continuation",
+      "candidate": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "metric": "excerpt_permutation_invariant_WER",
+        "errors": 1,
+        "reference_units": 15,
+        "error_rate": 0.06666666666666667,
+        "per_reference_voice": [
+          {
+            "reference_ordinal": 1,
+            "hypothesis_track_ordinal": 1,
+            "reference_units": 8,
+            "hypothesis_units": 9,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 1,
+            "matches": 8,
+            "errors": 1,
+            "error_rate": 0.125,
+            "distinct_matched_unit_types": 8,
+            "matched_reference_exclusive_unit_occurrences": 8,
+            "matched_reference_exclusive_unit_types": 8,
+            "full_reference_sequence_exact_under_frozen_normalization": false,
+            "missing_output_stream": false
+          },
+          {
+            "reference_ordinal": 2,
+            "hypothesis_track_ordinal": 2,
+            "reference_units": 7,
+            "hypothesis_units": 7,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "matches": 7,
+            "errors": 0,
+            "error_rate": 0.0,
+            "distinct_matched_unit_types": 7,
+            "matched_reference_exclusive_unit_occurrences": 7,
+            "matched_reference_exclusive_unit_types": 7,
+            "full_reference_sequence_exact_under_frozen_normalization": true,
+            "missing_output_stream": false
+          }
+        ],
+        "extra_tracks": [],
+        "minority_reference_ordinal": 2,
+        "assignment_tied": false,
+        "optimal_assignment_count": 1,
+        "missing_reference_streams": 0,
+        "parse_error_count": 0,
+        "raw_output_sha256": "3d290e8a263cc7d3ec9351a1c217036da8c3d018b3a2bcbfcdf4fb753a385504"
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "errors": 14,
+        "reference_units": 15,
+        "error_rate": 0.9333333333333333
+      },
+      "actual_primary_scope_score": {
+        "status": "completed",
+        "scoring_status": "independent_output_scope_unscorable",
+        "error_rate": null
+      }
+    },
+    {
+      "case_id": "en-overlap-2",
+      "class": "overlap",
+      "language": "en",
+      "reference_status": "ready",
+      "baseline_provenance": "carried_forward_original",
+      "candidate_provenance": "first_executed_continuation",
+      "candidate": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "metric": "excerpt_permutation_invariant_WER",
+        "errors": 5,
+        "reference_units": 18,
+        "error_rate": 0.2777777777777778,
+        "per_reference_voice": [
+          {
+            "reference_ordinal": 1,
+            "hypothesis_track_ordinal": 1,
+            "reference_units": 12,
+            "hypothesis_units": 12,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "matches": 12,
+            "errors": 0,
+            "error_rate": 0.0,
+            "distinct_matched_unit_types": 11,
+            "matched_reference_exclusive_unit_occurrences": 11,
+            "matched_reference_exclusive_unit_types": 10,
+            "full_reference_sequence_exact_under_frozen_normalization": true,
+            "missing_output_stream": false
+          },
+          {
+            "reference_ordinal": 2,
+            "hypothesis_track_ordinal": 2,
+            "reference_units": 6,
+            "hypothesis_units": 3,
+            "substitutions": 0,
+            "deletions": 3,
+            "insertions": 0,
+            "matches": 3,
+            "errors": 3,
+            "error_rate": 0.5,
+            "distinct_matched_unit_types": 3,
+            "matched_reference_exclusive_unit_occurrences": 2,
+            "matched_reference_exclusive_unit_types": 2,
+            "full_reference_sequence_exact_under_frozen_normalization": false,
+            "missing_output_stream": false
+          }
+        ],
+        "extra_tracks": [
+          {
+            "hypothesis_track_ordinal": 3,
+            "insertion_units": 2
+          }
+        ],
+        "minority_reference_ordinal": 2,
+        "assignment_tied": false,
+        "optimal_assignment_count": 1,
+        "missing_reference_streams": 0,
+        "parse_error_count": 0,
+        "raw_output_sha256": "bf2c69fdfab7ed15b54024ce7c97de55a6fc5a9b6cc6943e089883f17582a4c3"
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "errors": 10,
+        "reference_units": 18,
+        "error_rate": 0.5555555555555556
+      },
+      "actual_primary_scope_score": {
+        "status": "completed",
+        "scoring_status": "independent_output_scope_unscorable",
+        "error_rate": null
+      }
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "class": "overlap",
+      "language": "zh",
+      "reference_status": "ready",
+      "baseline_provenance": "recovered_original_after_one_formal_retry",
+      "candidate_provenance": "first_executed_continuation",
+      "candidate": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "metric": "excerpt_permutation_invariant_CER",
+        "errors": 8,
+        "reference_units": 65,
+        "error_rate": 0.12307692307692308,
+        "per_reference_voice": [
+          {
+            "reference_ordinal": 1,
+            "hypothesis_track_ordinal": 1,
+            "reference_units": 28,
+            "hypothesis_units": 29,
+            "substitutions": 5,
+            "deletions": 0,
+            "insertions": 1,
+            "matches": 23,
+            "errors": 6,
+            "error_rate": 0.21428571428571427,
+            "distinct_matched_unit_types": 21,
+            "matched_reference_exclusive_unit_occurrences": 21,
+            "matched_reference_exclusive_unit_types": 20,
+            "full_reference_sequence_exact_under_frozen_normalization": false,
+            "missing_output_stream": false
+          },
+          {
+            "reference_ordinal": 2,
+            "hypothesis_track_ordinal": 2,
+            "reference_units": 37,
+            "hypothesis_units": 37,
+            "substitutions": 2,
+            "deletions": 0,
+            "insertions": 0,
+            "matches": 35,
+            "errors": 2,
+            "error_rate": 0.05405405405405406,
+            "distinct_matched_unit_types": 24,
+            "matched_reference_exclusive_unit_occurrences": 33,
+            "matched_reference_exclusive_unit_types": 23,
+            "full_reference_sequence_exact_under_frozen_normalization": false,
+            "missing_output_stream": false
+          }
+        ],
+        "extra_tracks": [],
+        "minority_reference_ordinal": 1,
+        "assignment_tied": false,
+        "optimal_assignment_count": 1,
+        "missing_reference_streams": 0,
+        "parse_error_count": 0,
+        "raw_output_sha256": "65c37e24b460e1b3793ee2d1982f3dbb3e690c162b98171e9cf60eaaa8f52049"
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "errors": 60,
+        "reference_units": 65,
+        "error_rate": 0.9230769230769231
+      },
+      "actual_primary_scope_score": {
+        "status": "completed",
+        "scoring_status": "independent_output_scope_unscorable",
+        "error_rate": null
+      }
+    },
+    {
+      "case_id": "zh-overlap-2",
+      "class": "overlap",
+      "language": "zh",
+      "reference_status": "unavailable_no_eligible_component",
+      "baseline_provenance": "not_attempted_or_unavailable",
+      "candidate_provenance": "not_attempted_or_unavailable",
+      "candidate": {
+        "status": "not_attempted",
+        "scoring_status": "reference_unavailable",
+        "metric": "excerpt_permutation_invariant_CER",
+        "errors": null,
+        "reference_units": null,
+        "error_rate": null,
+        "raw_output_sha256": null
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "not_attempted",
+        "scoring_status": "reference_unavailable",
+        "errors": null,
+        "reference_units": null,
+        "error_rate": null
+      },
+      "actual_primary_scope_score": {
+        "status": "not_attempted",
+        "scoring_status": "reference_unavailable",
+        "error_rate": null
+      }
+    },
+    {
+      "case_id": "en-solo-1",
+      "class": "solo",
+      "language": "en",
+      "reference_status": "ready",
+      "baseline_provenance": "first_executed_continuation",
+      "candidate_provenance": "first_executed_continuation",
+      "candidate": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "metric": "excerpt_permutation_invariant_WER",
+        "errors": 2,
+        "reference_units": 20,
+        "error_rate": 0.1,
+        "per_reference_voice": [
+          {
+            "reference_ordinal": 1,
+            "hypothesis_track_ordinal": 1,
+            "reference_units": 20,
+            "hypothesis_units": 19,
+            "substitutions": 1,
+            "deletions": 1,
+            "insertions": 0,
+            "matches": 18,
+            "errors": 2,
+            "error_rate": 0.1,
+            "distinct_matched_unit_types": 16,
+            "matched_reference_exclusive_unit_occurrences": 18,
+            "matched_reference_exclusive_unit_types": 16,
+            "full_reference_sequence_exact_under_frozen_normalization": false,
+            "missing_output_stream": false
+          }
+        ],
+        "extra_tracks": [],
+        "minority_reference_ordinal": null,
+        "assignment_tied": false,
+        "optimal_assignment_count": 1,
+        "missing_reference_streams": 0,
+        "parse_error_count": 0,
+        "raw_output_sha256": "04a593bf08e02ad5f98d9ed9028134e6c9a91f8b28558a93c7070c72285856f0"
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "errors": 8,
+        "reference_units": 20,
+        "error_rate": 0.4
+      },
+      "actual_primary_scope_score": {
+        "status": "completed",
+        "scoring_status": "independent_output_scope_unscorable",
+        "error_rate": null
+      }
+    },
+    {
+      "case_id": "zh-solo-1",
+      "class": "solo",
+      "language": "zh",
+      "reference_status": "ready",
+      "baseline_provenance": "first_executed_continuation",
+      "candidate_provenance": "first_executed_continuation",
+      "candidate": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "metric": "excerpt_permutation_invariant_CER",
+        "errors": 12,
+        "reference_units": 83,
+        "error_rate": 0.14457831325301204,
+        "per_reference_voice": [
+          {
+            "reference_ordinal": 1,
+            "hypothesis_track_ordinal": 1,
+            "reference_units": 83,
+            "hypothesis_units": 79,
+            "substitutions": 5,
+            "deletions": 5,
+            "insertions": 1,
+            "matches": 73,
+            "errors": 11,
+            "error_rate": 0.13253012048192772,
+            "distinct_matched_unit_types": 45,
+            "matched_reference_exclusive_unit_occurrences": 73,
+            "matched_reference_exclusive_unit_types": 45,
+            "full_reference_sequence_exact_under_frozen_normalization": false,
+            "missing_output_stream": false
+          }
+        ],
+        "extra_tracks": [
+          {
+            "hypothesis_track_ordinal": 2,
+            "insertion_units": 1
+          }
+        ],
+        "minority_reference_ordinal": null,
+        "assignment_tied": false,
+        "optimal_assignment_count": 1,
+        "missing_reference_streams": 0,
+        "parse_error_count": 0,
+        "raw_output_sha256": "5aa4dfa9af94f6ac706857c783fff03cf449168d163c1a29096d9e02ea06727c"
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "errors": 25,
+        "reference_units": 83,
+        "error_rate": 0.30120481927710846
+      },
+      "actual_primary_scope_score": {
+        "status": "completed",
+        "scoring_status": "independent_output_scope_unscorable",
+        "error_rate": null
+      }
+    },
+    {
+      "case_id": "digital-zero-1",
+      "class": "synthetic_zero",
+      "language": "en",
+      "reference_status": "ready",
+      "baseline_provenance": "first_executed_continuation",
+      "candidate_provenance": "first_executed_continuation",
+      "candidate": {
+        "status": "parse_failure",
+        "scoring_status": "independent_output_scope_unscorable",
+        "metric": "excerpt_permutation_invariant_WER",
+        "errors": null,
+        "reference_units": 0,
+        "error_rate": null,
+        "zero_control": {
+          "generated_word_units": 8,
+          "generated_character_units": 33,
+          "nonempty_tracks": 1,
+          "error_rate": null
+        },
+        "parse_error_count": 3,
+        "raw_output_sha256": "452e896a176c16d51a5dd1b41fcc3b95741d6d7b7773e588c32e732af00aa960"
+      },
+      "prespecified_unattributed_baseline": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "errors": 0,
+        "reference_units": 0,
+        "error_rate": null,
+        "zero_control": {
+          "generated_word_units": 0,
+          "generated_character_units": 0,
+          "nonempty_tracks": 0,
+          "error_rate": null
+        }
+      },
+      "actual_primary_scope_score": {
+        "status": "completed",
+        "scoring_status": "completed_output",
+        "error_rate": null
+      }
+    }
+  ],
+  "overlap_comparisons": [
+    {
+      "comparison": "moss_vs_actual_primary",
+      "language": "en",
+      "class": "overlap",
+      "completed_pair_count": 0,
+      "reference_units": 0,
+      "baseline_errors": 0,
+      "candidate_errors": 0,
+      "baseline_error_rate": null,
+      "candidate_error_rate": null,
+      "candidate_minus_baseline_errors": 0
+    },
+    {
+      "comparison": "moss_vs_actual_primary",
+      "language": "zh",
+      "class": "overlap",
+      "completed_pair_count": 0,
+      "reference_units": 0,
+      "baseline_errors": 0,
+      "candidate_errors": 0,
+      "baseline_error_rate": null,
+      "candidate_error_rate": null,
+      "candidate_minus_baseline_errors": 0
+    },
+    {
+      "comparison": "moss_vs_unattributed_mixture_sensitivity",
+      "language": "en",
+      "class": "overlap",
+      "completed_pair_count": 2,
+      "reference_units": 33,
+      "baseline_errors": 24,
+      "candidate_errors": 6,
+      "baseline_error_rate": 0.7272727272727273,
+      "candidate_error_rate": 0.18181818181818182,
+      "candidate_minus_baseline_errors": -18
+    },
+    {
+      "comparison": "moss_vs_unattributed_mixture_sensitivity",
+      "language": "zh",
+      "class": "overlap",
+      "completed_pair_count": 1,
+      "reference_units": 65,
+      "baseline_errors": 60,
+      "candidate_errors": 8,
+      "baseline_error_rate": 0.9230769230769231,
+      "candidate_error_rate": 0.12307692307692308,
+      "candidate_minus_baseline_errors": -52
+    }
+  ],
+  "comparison_interpretation": {
+    "moss_vs_actual_primary": "Zero scorable whole-clip native-primary pairs because local speaker scopes are independent. This does not mean the primary had no useful local diarization or recognized content. Empty-set zero sums/deltas are not measured equality.",
+    "moss_vs_unattributed_mixture_sensitivity": "Prespecified single-stream projection of each actual primary export, every lexical unit exactly once. The oracle-permutation error includes missing separate-voice stream penalties and is not a pure content-recall improvement. English 2 pairs, Chinese 1 recovered-baseline pair.",
+    "direct_candidate_errors": "English overlap total 6/33 word edits; Chinese overlap 8/65 character edits. Do not combine WER and CER into a single rate.",
+    "exactness": "Every overlap case retains at least one error or extra output; no complete two-reference transcript recovery claim is made. Per-voice exactness flags refer only to literal frozen-normalized sequences under oracle assignment.",
+    "extra_streams": "Extra streams are retained and penalized. They are output channels, not evidence of additional physical people."
+  },
+  "negative_control": {
+    "primary": "Completed, zero lexical output units on six seconds of digital zeros.",
+    "candidate": "Parse failure and nonempty unrelated English refusal text on exact digital-zero audio. The raw output and one labeled lexical stream are retained; this is fabricated speech, not a silence pass.",
+    "candidate_frozen_normalization_counts": {
+      "generated_word_units": 8,
+      "generated_character_units": 33,
+      "nonempty_tracks": 1,
+      "error_rate": null
+    },
+    "raw_text_published": false
+  },
+  "resource_observations": {
+    "original_failed_attempt": {
+      "sample_count": 739,
+      "sampled_peak_owned_rss_bytes": 897024000,
+      "last_sample_elapsed_seconds": 39.04119045900006,
+      "observed_cpu_seconds": 35.25,
+      "max_sample_gap_seconds": 0.0670235750003485,
+      "max_observed_artifact_bytes": 8083949,
+      "minimum_sampled_memavailable_bytes": 7382511616,
+      "watchdog_error": null,
+      "remaining_live_owned_count": 0,
+      "ownership_uncertain": false,
+      "watchdog_joined": true,
+      "disk_watchdog_joined": true,
+      "original_process_handles": 47,
+      "all_original_process_handles_waited": true
+    },
+    "continuation": {
+      "sample_count": 2692,
+      "sampled_peak_owned_rss_bytes": 1618710528,
+      "last_sample_elapsed_seconds": 143.07132223100052,
+      "observed_cpu_seconds": 218.45,
+      "max_sample_gap_seconds": 0.09988447000068845,
+      "max_observed_artifact_bytes": 25771614,
+      "minimum_sampled_memavailable_bytes": 6616870912,
+      "watchdog_error": null,
+      "remaining_live_owned_count": 0,
+      "ownership_uncertain": false,
+      "watchdog_joined": true,
+      "disk_watchdog_joined": true,
+      "original_process_handles": 29,
+      "all_original_process_handles_waited": true
+    },
+    "maximum_sampled_owned_rss_bytes_across_attempts": 1618710528,
+    "sum_last_sample_elapsed_seconds": 182.11251269000059,
+    "sum_observed_cpu_seconds": 253.7,
+    "interpretation": "Sampled observations, not exact cumulative process/cleanup CPU or full elapsed wall time. Summed RSS can double-count shared pages. Physical guest capacity is 10451427328 bytes with no swap/GPU, not cgroup or summed-RSS hard isolation. Conservative sampled6GiB stop,2GiB available reserve and inherited8GiB per-process address-space controls stayed active. Continuation artifact observations include both roots and original preimage. No remaining observed owned process at termination.",
+    "final_combined_artifact_bytes_at_independent_terminal_review": 27322703,
+    "final_artifact_measurement_note": "27,322,703 is the final independently measured combined old+new artifact bytes including terminal receipts. It is distinct from the continuation sampled maximum25,771,614 and does not replace that sampled observation."
+  },
+  "limitations": [
+    "Three real overlap excerpts only: two English and one Mandarin; a second Mandarin slot remained unavailable under the frozen rule.",
+    "Meetings/speakers were exposed in earlier work; no fresh holdout or general language/model accuracy claim.",
+    "Direct anonymous multi-speaker text generation, not waveform separation plus the same ASR.",
+    "No persistent speaker identity, acoustic separation proof, exact generated timing validation, or boolean guarantee that both physical people were recognized.",
+    "Chinese primary output required the one explicitly authorized formal failed-tail retry; cause of the original503/native exit remains uncertain.",
+    "Silence failure, extra streams, imperfect minority text, all raw outputs and unavailable/failed rows remain in the report."
+  ],
+  "decision": "Promising small-panel lexical mechanism evidence, but this run does not qualify automatic replacement of the primary transcript. Preserve as an optional diagnostic candidate with review; the silence failure is material.",
+  "public_text_policy": "No audio, gold transcript, raw hypothesis text, original speaker labels, or private filesystem paths.",
+  "terminal_audit": {
+    "artifact": "PUBLIC_RECOVERY01_TERMINAL_AUDIT.json",
+    "sha256": "90d4c243a7d65bb7de22adcbe2666e1fb1fdffb152e25e19040a6642e5985c61",
+    "status": "terminal_evidence_integrity_verified_with_retained_case_failure",
+    "remaining_integrity_blockers": [],
+    "current_matching_live_owned_processes": 0,
+    "does_not_override_case_failure_or_original_failed_attempt": true
+  },
+  "independent_score_review_sha256": "d2dbf1e9e87eb584fa1df86cc7fb91e2c6fc3ad8481ecaad930de61dabee15d1",
+  "independent_pre_terminal_outcome_review_sha256": "f53308302f8528b016758b8bd95d9e902508f858b109a0054e9c837a62c0132d",
+  "pre_terminal_outcome_sha256": "f90a4296f4a23e845e879b2dec21a5c59dbe2b264e42ab73c0585e559656a7b8"
+}

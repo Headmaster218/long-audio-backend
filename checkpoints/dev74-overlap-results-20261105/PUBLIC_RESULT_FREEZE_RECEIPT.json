@@ -1,0 +1,25 @@
+{
+  "schema": "overlap-public-result-freeze-v1",
+  "status": "final_frozen_no_further_mutation_without_notice",
+  "artifacts": {
+    "PUBLIC_SCORE_RECOVERY01.json": {
+      "bytes": 49226,
+      "sha256": "a9503e363c08420013235d80828a49afc5235e35ae6e7eb397ccc56472a5fa6f"
+    },
+    "PUBLIC_RECOVERY01_OUTCOME.json": {
+      "bytes": 26720,
+      "sha256": "5f216e6237f337d05967dd97575d5f87bfa0ddae2c2787b998757deeb227b7d8"
+    },
+    "PUBLIC_RECOVERY01_TERMINAL_AUDIT.json": {
+      "bytes": 6729,
+      "sha256": "90d4c243a7d65bb7de22adcbe2666e1fb1fdffb152e25e19040a6642e5985c61"
+    },
+    "score_paired.py": {
+      "bytes": 15398,
+      "sha256": "db901697f77f884fe30710c2fb42b9f9487721c11ddcce038b81a3080204d233"
+    }
+  },
+  "no_new_inference": true,
+  "remaining_qualification_failure": "digital-zero candidate parse_failure with retained nonempty fabricated speech",
+  "future_saved_output_error_analysis": "Separate additive files; never alters these frozen results."
+}
