@@ -1,0 +1,44 @@
+{
+  "status": "frozen_one_bounded_acquisition_no_inference",
+  "scope": "English same-day separate-meeting mechanism experiment; C/T global IDs disjoint; historical exposure unknown because older complete manifests unavailable; not Chinese, cross-day, long-duration or final acceptance",
+  "candidates": {
+    "path": "/workspace/scratch/12ec3121e93f/fresh-ami-feasibility-20261104/prospective_annotation_candidates.json",
+    "bytes": 45564,
+    "sha256": "fc297e67fbee68481809c600068ffc159df0742c395f00a1b51f767a13a16e52"
+  },
+  "headers": {
+    "path": "/workspace/scratch/12ec3121e93f/fresh-ami-feasibility-20261104/official_wav_range_headers.json",
+    "bytes": 4149,
+    "sha256": "746b89f19121805a5d28cd50dd1540f3f2202e1fdde7f82bb134e77ef51ae1b8"
+  },
+  "source": {
+    "path": "/workspace/scratch/12ec3121e93f/backend-paired-reference-pilot-20261104/acquire_sources.py",
+    "bytes": 4593,
+    "sha256": "e2d6a2109b7798a911783a31847e1913cf488cc0e8509deedcd3ed5d460cf44c"
+  },
+  "tests": {
+    "path": "/workspace/scratch/12ec3121e93f/backend-paired-reference-pilot-20261104/test_acquire_sources.py",
+    "bytes": 2589,
+    "sha256": "13d8c5e6578cca662939a8f8afa782df4e8393dc5c1473d01347e37b4e05d99e"
+  },
+  "metadata_selector": {
+    "path": "/workspace/scratch/12ec3121e93f/fresh-ami-feasibility-20261104/build_annotation_candidates.py",
+    "bytes": 6881,
+    "sha256": "9ea35608e160b0c158a87bbb17e8d1c1504ee4f0573414ba1afd04b06fa71650"
+  },
+  "annotation_qualification": "Manual annotation lexical-time support and non-overlap; no human listening or physical purity guarantee",
+  "limits": {
+    "transfer_bytes": 536870912,
+    "known_full_WAV_bytes": 228432050,
+    "prior_probe_bytes": 176,
+    "wall_seconds": 1200,
+    "cpu_seconds": 600,
+    "disk_reserve_bytes": 5368709120,
+    "retained_bytes_upper_bound": 540016640,
+    "attempts": 1,
+    "substitutions": false
+  },
+  "expected_unique_clips": 36,
+  "sample_selection_may_not_change_after_acquisition": true,
+  "production_changes": false
+}

@@ -1,0 +1,357 @@
+{
+  "status": "FRESH_PERSON_CLEARANCE_INCOMPLETE",
+  "known_or_conservative_source_sessions": [
+    "EN2001a",
+    "EN2001b",
+    "EN2001d",
+    "EN2001e",
+    "EN2002a",
+    "EN2002b",
+    "ES2002a",
+    "ES2004a",
+    "ES2011a",
+    "TS3003a"
+  ],
+  "session_people": {
+    "EN2001a": [
+      "MEE068",
+      "FEO066",
+      "FEO065",
+      "MEE067",
+      "MEO069"
+    ],
+    "EN2001b": [
+      "FEO066",
+      "MEO069",
+      "FEO065",
+      "MEE068"
+    ],
+    "EN2001d": [
+      "FEO066",
+      "MEO069",
+      "FEO065",
+      "MEE067",
+      "MEE068"
+    ],
+    "EN2001e": [
+      "FEO066",
+      "MEO069",
+      "FEO065",
+      "MEE067",
+      "MEE068"
+    ],
+    "EN2002a": [
+      "FEO070",
+      "MEE071",
+      "FEO072",
+      "MEE073"
+    ],
+    "EN2002b": [
+      "FEO070",
+      "MEE071",
+      "FEO072",
+      "MEE073"
+    ],
+    "ES2002a": [
+      "FEE005",
+      "MEE006",
+      "MEE007",
+      "MEE008"
+    ],
+    "ES2004a": [
+      "FEE013",
+      "MEE014",
+      "MEO015",
+      "FEE016"
+    ],
+    "ES2011a": [
+      "FEE041",
+      "FEE042",
+      "FEE043",
+      "FEE044"
+    ],
+    "TS3003a": [
+      "MTD009PM",
+      "MTD0010ID",
+      "MTD011UID",
+      "MTD012ME"
+    ]
+  },
+  "excluded_global_person_ids": [
+    "FEE005",
+    "FEE013",
+    "FEE016",
+    "FEE041",
+    "FEE042",
+    "FEE043",
+    "FEE044",
+    "FEO065",
+    "FEO066",
+    "FEO070",
+    "FEO072",
+    "MEE006",
+    "MEE007",
+    "MEE008",
+    "MEE014",
+    "MEE067",
+    "MEE068",
+    "MEE071",
+    "MEE073",
+    "MEO015",
+    "MEO069",
+    "MTD0010ID",
+    "MTD009PM",
+    "MTD011UID",
+    "MTD012ME"
+  ],
+  "all_meetings_with_excluded_person": {
+    "ES2002a": [
+      "FEE005",
+      "MEE006",
+      "MEE007",
+      "MEE008"
+    ],
+    "ES2002b": [
+      "FEE005",
+      "MEE006",
+      "MEE007",
+      "MEE008"
+    ],
+    "ES2002c": [
+      "FEE005",
+      "MEE006",
+      "MEE007",
+      "MEE008"
+    ],
+    "ES2002d": [
+      "FEE005",
+      "MEE006",
+      "MEE007",
+      "MEE008"
+    ],
+    "ES2004a": [
+      "FEE013",
+      "FEE016",
+      "MEE014",
+      "MEO015"
+    ],
+    "ES2004b": [
+      "FEE013",
+      "FEE016",
+      "MEE014",
+      "MEO015"
+    ],
+    "ES2004c": [
+      "FEE013",
+      "FEE016",
+      "MEE014",
+      "MEO015"
+    ],
+    "ES2004d": [
+      "FEE013",
+      "FEE016",
+      "MEE014",
+      "MEO015"
+    ],
+    "ES2011a": [
+      "FEE041",
+      "FEE042",
+      "FEE043",
+      "FEE044"
+    ],
+    "ES2011b": [
+      "FEE041",
+      "FEE042",
+      "FEE043",
+      "FEE044"
+    ],
+    "ES2011c": [
+      "FEE041",
+      "FEE042",
+      "FEE043",
+      "FEE044"
+    ],
+    "ES2011d": [
+      "FEE041",
+      "FEE042",
+      "FEE043",
+      "FEE044"
+    ],
+    "TS3003a": [
+      "MTD0010ID",
+      "MTD009PM",
+      "MTD011UID",
+      "MTD012ME"
+    ],
+    "TS3003b": [
+      "MTD0010ID",
+      "MTD009PM",
+      "MTD011UID",
+      "MTD012ME"
+    ],
+    "TS3003c": [
+      "MTD0010ID",
+      "MTD009PM",
+      "MTD011UID",
+      "MTD012ME"
+    ],
+    "TS3003d": [
+      "MTD0010ID",
+      "MTD009PM",
+      "MTD011UID",
+      "MTD012ME"
+    ],
+    "EN2001a": [
+      "FEO065",
+      "FEO066",
+      "MEE067",
+      "MEE068",
+      "MEO069"
+    ],
+    "EN2001b": [
+      "FEO065",
+      "FEO066",
+      "MEE068",
+      "MEO069"
+    ],
+    "EN2001d": [
+      "FEO065",
+      "FEO066",
+      "MEE067",
+      "MEE068",
+      "MEO069"
+    ],
+    "EN2001e": [
+      "FEO065",
+      "FEO066",
+      "MEE067",
+      "MEE068",
+      "MEO069"
+    ],
+    "EN2002a": [
+      "FEO070",
+      "FEO072",
+      "MEE071",
+      "MEE073"
+    ],
+    "EN2002b": [
+      "FEO070",
+      "FEO072",
+      "MEE071",
+      "MEE073"
+    ],
+    "EN2002c": [
+      "FEO072",
+      "MEE071",
+      "MEE073"
+    ],
+    "EN2002d": [
+      "FEO070",
+      "FEO072",
+      "MEE071",
+      "MEE073"
+    ]
+  },
+  "candidates": {
+    "ES2014a": {
+      "persons": [
+        "MEE053",
+        "MEE054",
+        "FEE055",
+        "MEE056"
+      ],
+      "overlap_with_known_exclusions": [],
+      "historical_calibration_clearance": "unresolved"
+    },
+    "ES2014d": {
+      "persons": [
+        "MEE053",
+        "MEE054",
+        "FEE055",
+        "MEE056"
+      ],
+      "overlap_with_known_exclusions": [],
+      "historical_calibration_clearance": "unresolved"
+    },
+    "ES2015a": {
+      "persons": [
+        "FEE057",
+        "FEE058",
+        "FEE059",
+        "FEE060"
+      ],
+      "overlap_with_known_exclusions": [],
+      "historical_calibration_clearance": "unresolved"
+    },
+    "ES2015d": {
+      "persons": [
+        "FEE057",
+        "FEE058",
+        "FEE059",
+        "FEE060"
+      ],
+      "overlap_with_known_exclusions": [],
+      "historical_calibration_clearance": "unresolved"
+    }
+  },
+  "evidence": [
+    {
+      "path": "audio-dev71-recovered-20261023/reports/DEV62_AMI_CROSSDAY_INSUFFICIENT_EVIDENCE.json",
+      "fields": [
+        "corpus.recordings",
+        "corpus.sessions.participant_mapping"
+      ]
+    },
+    {
+      "path": "audio-dev71-recovered-20261023/scripts/benchmarks/replay_correction_identity.py",
+      "lines": [
+        183,
+        184,
+        189,
+        191,
+        194,
+        203,
+        207,
+        264
+      ],
+      "note": "Names EN2001a/b/d/e and ES2004a, and loads previously evaluated unnamed fresh_holdout persons from missing benchmarks/private_speaker_embeddings/*.json."
+    },
+    {
+      "path": "audio-dev71-recovered-20261023/scripts/benchmarks/replay_epoch_identity.py",
+      "line": 49,
+      "note": "TS3003a native raw-stage artifact mentioned; conservatively exclude whole person group, though old payload absent."
+    },
+    {
+      "path": "audio-dev71-recovered-20261023/docs/reports/AMI21_DEV44_SPOKEN_SEAM_RESULT.md",
+      "note": "ES2002a historical exposure identifier"
+    },
+    {
+      "path": "audio-dev71-recovered-20261023/tools/dev63_ami_v2_operations/ATTRIBUTION.txt",
+      "note": "ES2011a historical exposure identifier"
+    },
+    {
+      "path": "audio-dev71-recovered-20261023/audio_backend/profiles/eres2net-ami20-v1.json",
+      "fields": [
+        "evidence.calibration_people",
+        "evidence.enrolled_calibration_people",
+        "evidence.unknown_calibration_people",
+        "evidence.calibration_artifact_sha256",
+        "limitations"
+      ],
+      "note": "20 calibration persons (16 enrolled, 4 withheld), unnamed fresh-person source sessions. Referenced calibration artifact SHA256 a971c82cc368af62286ac820567a47732083109de557155bf4149b40ec94b8fa."
+    }
+  ],
+  "limits": [
+    "No audio, vectors, model execution, or score values inspected. Text files scanned only to extract corpus identifiers.",
+    "Untouched annotation corpus metadata is not evidence of exposure. Generic full-corpus lists do not exclude all AMI people.",
+    "Original calibration 20-person roster and reused fresh_holdout roster not recovered. Therefore no candidate can be certified never previously exposed from available records.",
+    "Sources scanned exclude .git, dependencies, tests, payload-like score/prediction filenames, and files larger than 3MB; complete historical absence cannot be proved."
+  ],
+  "metadata_scan": {
+    "files_scanned": 127271,
+    "size_skipped": 0,
+    "identifier_index": "historical_identifier_index.json",
+    "candidate_session_or_person_matches_in_historical_scan": [],
+    "scan_excludes_current_fresh_feasibility_directory": true
+  }
+}
