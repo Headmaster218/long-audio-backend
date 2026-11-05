@@ -1,0 +1,16 @@
+{
+  "schema": "optional-runtime-preparation-summary-v1",
+  "version": "0.2.0rc3.dev74",
+  "python": "3.12",
+  "strict_runtime_qualified": false,
+  "wheel_sha256": "4e9af9e357a6bf8b9a3b22baa6e2eda1f336e226f1362bd69cea4ad6ed076878",
+  "pip_check_passed": true,
+  "original_wheel_members_verified": 745,
+  "final_runtime_inventory_files": 1675,
+  "runtime_inventory_sha256": "3e3234182b02be83f932751ae243a0f11a7b40626cba6cfa3fe76fffc3d8a2ac",
+  "readiness_sha256": "21ef0d7e0121e4ce23b726aa6bfa6a934b284def67ec8b4b5da8266e73237fc7",
+  "profile_sha256": "52cb17452185076c51b036c15a94de5484cc6867651ff72a072d3dd761df84af",
+  "runtime_manifest_sha256": "f4c92fe1ae5bd79950744e9cec1fd3b8cd4c4c04a6b8351eafbdaa63870d6c8a",
+  "models_loaded": false,
+  "inference_calls": 0
+}
