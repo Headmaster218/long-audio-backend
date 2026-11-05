@@ -12,7 +12,7 @@ import ctypes
 import hashlib
 import json
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import ipaddress
 import os
 from pathlib import Path, PurePosixPath
@@ -49,6 +49,27 @@ class CandidateResourceBlocked(ResourceLimit):
 def require(condition, reason):
     if not condition:
         raise CandidateResourceBlocked(reason)
+
+
+class _OriginalExitRace(Exception):
+    """Request one new complete sample, never accept a partial observation."""
+
+
+@dataclass(frozen=True)
+class _ExitedOriginal:
+    identity: Identity
+    process: subprocess.Popen
+
+    def observed(self, reader):
+        require(isinstance(self.process, subprocess.Popen) and self.process.pid == self.identity.pid and
+                self.process.returncode is None, 'optional_original_handle_not_unreaped')
+        require(reader.identity(self.identity.pid) == self.identity, 'optional_original_identity_changed')
+        if not _exited(self.process):
+            return False
+        require(reader.identity(self.identity.pid) == self.identity, 'optional_original_identity_changed')
+        require(not [child for child in _children() if child.pid != self.identity.pid],
+                'optional_descendants_outlived_leader')
+        return True
 
 
 def endpoint(origin):
@@ -192,12 +213,18 @@ class LinuxReader:
         require(len(found) == 1, 'missing_or_ambiguous_listener')
         return found[0]
 
-    def listener(self, address, port):
+    def listener(self, address, port, *, terminal_original=None):
+        if terminal_original is not None:
+            require(type(terminal_original) is _ExitedOriginal and terminal_original.observed(self),
+                    'listener_terminal_original_unverified')
         inode = self._listeners(address, port)
         owners = set()
         for directory in self.proc.iterdir():
             if not directory.name.isdigit():
                 continue
+            if terminal_original is not None and int(directory.name) == terminal_original.identity.pid:
+                require(terminal_original.observed(self), 'listener_terminal_original_changed')
+                continue  # A positively exited original has closed its FDs; its PID is still pinned.
             try:
                 descriptors = list((directory / 'fd').iterdir())
             except FileNotFoundError:
@@ -212,6 +239,8 @@ class LinuxReader:
         identity = self.identity(owners.pop())
         require(self._listeners(address, port) == inode, 'listener_changed_during_read')
         require(self.identity(identity.pid) == identity, 'listener_identity_changed')
+        if terminal_original is not None:
+            require(terminal_original.observed(self), 'listener_terminal_original_changed')
         return identity, inode
 
     def membership(self, pid):
@@ -354,30 +383,39 @@ class ResourceGate:
         """Only the retained, unreaped original can supply terminal evidence."""
         if process is None:
             return False
-        require(isinstance(process, subprocess.Popen) and process.pid == identity.pid and
-                process.returncode is None, 'optional_original_handle_not_unreaped')
-        require(self.reader.identity(identity.pid) == identity, 'optional_original_identity_changed')
-        if not _exited(process):
+        if not _ExitedOriginal(identity, process).observed(self.reader):
             return False
-        require(self.reader.identity(identity.pid) == identity, 'optional_original_identity_changed')
-        require(not (set(optional) - {identity.pid}) and
-                not [child for child in _children() if child.pid != identity.pid],
-                'optional_descendants_outlived_leader')
+        require(not (set(optional) - {identity.pid}), 'optional_descendants_outlived_leader')
         return True
+
+    def _read_listener(self, optional_identity, original_process, optional, terminal_original):
+        try:
+            return self.reader.listener(*self.address, terminal_original=terminal_original)
+        except PermissionError as exc:
+            # EACCES alone says nothing about exit. Only this exact directory
+            # plus fresh owned-original exit proof can request a complete retry.
+            if (optional_identity is not None and exc.filename ==
+                    str(self.reader.proc / str(optional_identity.pid) / 'fd') and
+                    self._original_exited(optional_identity, original_process, optional)):
+                raise _OriginalExitRace from exc
+            raise
 
     def sample(self, optional_identity=None, *, admission=False, original_process=None):
         try:
-            return self._sample(optional_identity, admission=admission, original_process=original_process)
+            for attempt in range(2):
+                try:
+                    return self._sample(optional_identity, admission=admission, original_process=original_process)
+                except _OriginalExitRace:
+                    require(attempt == 0, 'inconsistent_original_exit_observation')
         except CandidateResourceBlocked:
             raise
         except (OSError, ValueError, psutil.Error, ResourceLimit) as exc:
             raise CandidateResourceBlocked('resource_visibility_or_read_failed: ' + str(exc)) from exc
 
-    def _sample(self, optional_identity, *, admission, original_process=None, exit_retry=False):
+    def _sample(self, optional_identity, *, admission, original_process=None):
         reader = self.reader
         require(reader.visibility() == self.namespaces and reader.no_gpu() == self.gpu_inventory,
                 'resource_visibility_or_gpu_inventory_changed')
-        require(reader.listener(*self.address) == (self.primary, self.inode), 'primary_listener_changed')
         for identity in (*self.project_roots, self.owner):
             require(reader.identity(identity.pid) == identity and reader.namespaces(identity.pid) == self.namespaces,
                     'primary_or_owner_identity_namespace_changed')
@@ -398,13 +436,18 @@ class ResourceGate:
         self.known_project.update(project)
         self.known_optional.update(optional)
         require(not set(project).intersection(optional), 'primary_optional_trees_overlap')
+        terminal_original = None
+        if optional_identity is not None and self._original_exited(optional_identity, original_process, optional):
+            terminal_original = _ExitedOriginal(optional_identity, original_process)
+        require(self._read_listener(optional_identity, original_process, optional, terminal_original) ==
+                (self.primary, self.inode), 'primary_listener_changed')
         # Include the owner wrapper as well; never put it in cleanup targets.
         selected = {**project, **optional, self.owner.pid: self.owner}
         exited_original = None
         for identity in tuple(selected.values()):
-            terminal_original = (identity == optional_identity and
+            terminal_identity = (identity == optional_identity and
                                  self._original_exited(identity, original_process, optional))
-            if not terminal_original:
+            if not terminal_identity:
                 try:
                     require(reader.namespaces(identity.pid) == self.namespaces, 'descendant_namespace_changed')
                 except FileNotFoundError:
@@ -412,15 +455,11 @@ class ResourceGate:
                     # missing path alone never proves exit, reuse, or zero RSS.
                     if identity != optional_identity or not self._original_exited(identity, original_process, optional):
                         raise
-                    require(not exit_retry, 'inconsistent_original_exit_observation')
-                    # Do not return a mixture of pre-exit and terminal readings.
-                    # Rebuild one complete sample; all required roots and caps
-                    # are checked again, and only this exact original may retire.
-                    return self._sample(optional_identity, admission=admission,
-                                        original_process=original_process, exit_retry=True)
-            if terminal_original:
+                    raise _OriginalExitRace
+            if terminal_identity:
                 selected.pop(identity.pid)
                 exited_original = asdict(identity)
+                terminal_original = _ExitedOriginal(identity, original_process)
         if self.boundary:
             require(self.boundary['mount'] in reader.mounts(), 'cgroup_mount_changed')
             values = reader.cgroup_values(self.boundary)
@@ -454,7 +493,8 @@ class ResourceGate:
                         'cgroup_migration_during_sample')
             require(after['memory.max'] - after['memory.current'] >= HEADROOM + (OPTIONAL_ENVELOPE if admission else 0),
                     'cgroup_headroom_changed_during_sample')
-        require(reader.listener(*self.address) == (self.primary, self.inode), 'inconsistent_primary_observation')
+        require(self._read_listener(optional_identity, original_process, optional, terminal_original) ==
+                (self.primary, self.inode), 'inconsistent_primary_observation')
         self.peak_combined = max(self.peak_combined, combined)
         self.proof = dict(schema='candidate-local-resource-proof-v1', mode=self.mode,
                           hard_memory_cap_bytes=HARD_CAP, physical_ram_bytes=self.memory_total,
@@ -512,7 +552,11 @@ def preflight(api_origin, *, runtime_profile=None, cancel=lambda: False, reader=
             result = supervise(gate.verification_command, gate=gate, output_dir=root,
                                deadline_seconds=120, artifact_cap=MiB, cancel=cancel)
             require(result['status'] == 'completed' and result['cleanup']['cleanup_verified'],
-                    'cpu_runtime_verifier_failed_' + result.get('reason', str(result['exit_code'])))
+                    'cpu_runtime_verifier_failed_' + result.get('reason', str(result['exit_code'])) +
+                    '; hash_only_verifier_exit_code=' + str(result['exit_code']) +
+                    '; original_post_failure_state=' + result.get('original_post_failure_state', 'not_observed') +
+                    '; original_waited=' + str(result['cleanup']['original_handle_waited_and_reaped']) +
+                    '; cleanup_verified=' + str(result['cleanup']['cleanup_verified']))
             receipt = json.loads((root / 'supervisor.stdout.txt').read_text())
             require(receipt['profile'] == runtime_profile['profile_sha256'] and receipt['backend'] == 'cpu',
                     'cpu_runtime_verifier_identity_mismatch')
@@ -669,6 +713,7 @@ def supervise(command, *, gate, output_dir, deadline_seconds, cancel=lambda: Fal
     """
     process, pipes, logs = None, selectors.DefaultSelector(), []
     spawn_attempted = False
+    identity = None
     prior_subreaper, prior_signals = None, {}
     received = []
     cleanup = dict(cleanup_verified=True, original_handle_waited_and_reaped=False, remaining_live_owned=[])
@@ -748,6 +793,15 @@ def supervise(command, *, gate, output_dir, deadline_seconds, cancel=lambda: Fal
                 break
     except (CandidateResourceBlocked, OSError, psutil.Error, ResourceLimit, ValueError) as exc:
         result['reason'] = getattr(exc, 'reason', type(exc).__name__)
+        if process is not None and identity is not None:
+            try:
+                if Identity.bind(process.pid) != identity:
+                    state = 'identity_changed'
+                else:
+                    state = 'positively_exited_unreaped' if _exited(process) else 'live_at_observation'
+                result['original_post_failure_state'] = state
+            except (OSError, psutil.Error, ResourceLimit):
+                result['original_post_failure_state'] = 'unknown'
     except BaseException as exc:
         result['status'], result['reason'] = 'failed', type(exc).__name__
     finally:

@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0rc3.dev81",
+  "changed_files": [
+    "audio_backend/recorder_candidate_resources.py",
+    "tests/test_recorder_candidate_resources.py"
+  ],
+  "freeze_sha256": "762993c86a4de5c890b023994e261591e4a9ca0836934acb579a5e69a5b10f92",
+  "review_sha256": "33936e210c85721bc2a3f8553b39d5416c518c22dabc8a42e43d25539da687ed",
+  "independent_resource_tests": 93,
+  "failures": 0,
+  "skips": 0,
+  "source_manifest_sha256": "e4a67a8393fa59ba9259957df74c97e76d9c905ce9e49445214c65f11f5ef7f8",
+  "models_loaded": false,
+  "actual_admission_verified": false,
+  "fresh_installation_verified": false
+}

@@ -13,6 +13,7 @@ from audio_backend import recorder_candidate_resources as r
 
 class Snapshot:
     def __init__(self, cgroup=False):
+        self.proc = Path('/proc')
         self.owner = r.Identity(10, 1.)
         self.primary = r.Identity(30, 3.)
         self.ns = ('pid:[1]', 'mnt:[1]', 'net:[1]', 'cgroup:[1]')
@@ -45,7 +46,7 @@ class Snapshot:
     def command(self, pid): return self.commands[pid]
     def parent(self, pid): return 20
     def primary_source_files(self, pid): return {}
-    def listener(self, address, port): return self.primary, self.inode
+    def listener(self, address, port, *, terminal_original=None): return self.primary, self.inode
     def cgroup_boundary(self, identities): return copy.deepcopy(self.cg)
     def cgroup_values(self, boundary):
         r.require(self.cg['memory.swap.max'] == self.cg['memory.swap.current'] == 0, 'cgroup_swap_not_zero')
@@ -147,7 +148,7 @@ def test_unreadable_observation_is_not_zero():
 
 def test_inconsistent_listener_read_blocks():
     snapshot = Snapshot(); observed = gate(snapshot); calls = [0]
-    def changing(*args):
+    def changing(*args, **kwargs):
         calls[0] += 1
         return snapshot.primary, snapshot.inode if calls[0] == 1 else 'replacement'
     snapshot.listener = changing
@@ -515,7 +516,7 @@ def test_exit_between_initial_observation_and_namespace_read_rechecks_exact_orig
         actual_exited = r._exited; calls = []
         def first_read_precedes_exit(handle):
             calls.append(handle)
-            return False if len(calls) == 1 else actual_exited(handle)
+            return False if len(calls) <= 2 else actual_exited(handle)
         monkeypatch.setattr(r, '_exited', first_read_precedes_exit)
         original_namespaces = snapshot.namespaces
         def vanished_mnt(pid):
@@ -523,7 +524,7 @@ def test_exit_between_initial_observation_and_namespace_read_rechecks_exact_orig
             return original_namespaces(pid)
         snapshot.namespaces = vanished_mnt
         assert observed.sample(identity, original_process=process)['exited_optional_original']['pid'] == process.pid
-        assert len(calls) == 3
+        assert len(calls) >= 4
     finally:
         if process.returncode is None:
             process.kill(); process.wait(timeout=5)
@@ -615,7 +616,7 @@ def test_exit_race_rebuilds_full_sample_and_rechecks_required_facts(monkeypatch,
         actual_exited=r._exited; calls=[]
         def first_before_exit(handle):
             calls.append(handle)
-            return False if len(calls)==1 else actual_exited(handle)
+            return False if len(calls)<=2 else actual_exited(handle)
         monkeypatch.setattr(r,'_exited',first_before_exit)
         ordinary=snapshot.namespaces
         def exit_race(pid):
@@ -630,3 +631,168 @@ def test_exit_race_rebuilds_full_sample_and_rechecks_required_facts(monkeypatch,
     finally:
         if process.returncode is None:
             process.kill();process.wait(timeout=5)
+
+
+def test_listener_terminal_proof_omits_only_exact_exited_original(tmp_path, monkeypatch):
+    import errno
+    reader=proc_socket_fixture(tmp_path,owners=(987640,))
+    process=subprocess.Popen([sys.executable,'-c','pass'])
+    try:
+        identity=r.Identity.bind(process.pid); await_unreaped_exit(process)
+        fd=reader.proc/str(process.pid)/'fd';fd.mkdir(parents=True)
+        reader.identity=lambda pid: r.Identity.bind(pid) if pid==process.pid else r.Identity(pid,1.)
+        denied={fd}; ordinary=Path.iterdir
+        def guarded(path):
+            if path in denied: raise PermissionError(errno.EACCES,'fixture denied',str(path))
+            return ordinary(path)
+        monkeypatch.setattr(Path,'iterdir',guarded)
+        with pytest.raises(PermissionError):reader.listener('127.0.0.1',8765)
+        proof=r._ExitedOriginal(identity,process)
+        assert reader.listener('127.0.0.1',8765,terminal_original=proof)==(r.Identity(987640,1.),'123')
+        unrelated=reader.proc/'987641'/'fd';unrelated.mkdir(parents=True);denied.add(unrelated)
+        with pytest.raises(PermissionError):reader.listener('127.0.0.1',8765,terminal_original=proof)
+        denied.remove(unrelated)
+        # A second genuine socket owner still defeats uniqueness.
+        (unrelated/'4').symlink_to('socket:[123]')
+        with pytest.raises(r.CandidateResourceBlocked,match='ambiguous_socket_owner'):
+            reader.listener('127.0.0.1',8765,terminal_original=proof)
+    finally:
+        if process.returncode is None:process.kill();process.wait(timeout=5)
+
+
+@pytest.mark.parametrize('fault',['live','reused','reaped','raw_pid','unknown_identity'])
+def test_listener_never_accepts_unproven_terminal_exclusion(tmp_path,fault):
+    reader=proc_socket_fixture(tmp_path,owners=(987640,))
+    process=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.read()'],stdin=subprocess.PIPE)
+    try:
+        identity=r.Identity.bind(process.pid)
+        if fault!='live':process.stdin.close();await_unreaped_exit(process)
+        reader.identity=lambda pid: r.Identity.bind(pid) if pid==process.pid else r.Identity(pid,1.)
+        proof=r._ExitedOriginal(identity,process)
+        if fault=='reused':proof=r._ExitedOriginal(r.Identity(process.pid,identity.created+1),process)
+        if fault=='reaped':process.wait(timeout=5)
+        if fault=='raw_pid':proof=process.pid
+        if fault=='unknown_identity':
+            def denied(pid):raise PermissionError('identity unavailable')
+            reader.identity=denied
+        with pytest.raises((r.CandidateResourceBlocked,PermissionError)):
+            reader.listener('127.0.0.1',8765,terminal_original=proof)
+    finally:
+        if process.returncode is None:process.kill();process.wait(timeout=5)
+        if process.stdin and not process.stdin.closed:process.stdin.close()
+
+
+def test_fd_exit_race_restarts_full_sample_and_threads_proof_to_both_scans(monkeypatch):
+    import errno
+    snapshot=Snapshot(); observed=gate(snapshot)
+    process=subprocess.Popen([sys.executable,'-c','pass'])
+    try:
+        identity=bound_original(snapshot,process);await_unreaped_exit(process)
+        real_exited=r._exited;exits=[]
+        def first_live(handle):
+            exits.append(handle)
+            return False if len(exits)==1 else real_exited(handle)
+        monkeypatch.setattr(r,'_exited',first_live)
+        scans=[]; memories=[];ordinary_memory=snapshot.memory
+        def read_memory():memories.append(1);return ordinary_memory()
+        snapshot.memory=read_memory
+        def listener(address,port,*,terminal_original=None):
+            scans.append(terminal_original)
+            if len(scans)==1:raise PermissionError(errno.EACCES,'fixture denied',str(snapshot.proc/str(process.pid)/'fd'))
+            assert type(terminal_original) is r._ExitedOriginal
+            assert terminal_original.observed(snapshot)
+            return snapshot.primary,snapshot.inode
+        snapshot.listener=listener
+        result=observed.sample(identity,original_process=process)
+        assert result['exited_optional_original']['pid']==process.pid
+        assert len(memories)==2 and len(scans)==3
+        assert scans[0] is None and scans[1] is not None and scans[2] is not None
+    finally:
+        if process.returncode is None:process.kill();process.wait(timeout=5)
+
+
+@pytest.mark.parametrize('fault',['live','unrelated','primary','owner','fd_child','aliased_path','missing_filename','headroom_changed'])
+def test_fd_permission_failure_never_skips_live_unknown_unrelated_or_partial_sample(monkeypatch,fault):
+    import errno
+    snapshot=Snapshot();observed=gate(snapshot)
+    process=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.read()'],stdin=subprocess.PIPE)
+    try:
+        identity=bound_original(snapshot,process)
+        if fault!='live':process.stdin.close();await_unreaped_exit(process)
+        real_exited=r._exited;calls=[]
+        def first_live(handle):
+            calls.append(handle)
+            return False if len(calls)==1 else real_exited(handle)
+        monkeypatch.setattr(r,'_exited',first_live)
+        path=str(snapshot.proc/str(process.pid)/'fd')
+        if fault in ('unrelated','primary','owner'):path=str(snapshot.proc/str({'unrelated':987641,'primary':30,'owner':10}[fault])/'fd')
+        if fault=='fd_child':path+='/3'
+        if fault=='aliased_path':path=str(snapshot.proc/str(process.pid)/'..'/str(process.pid)/'fd')
+        if fault=='missing_filename':path=None
+        def denied(*args,**kwargs):
+            if fault=='headroom_changed':snapshot.mem['MemAvailable']=r.GiB
+            raise PermissionError(errno.EACCES,'fixture denied',path)
+        snapshot.listener=denied
+        with pytest.raises(r.CandidateResourceBlocked):observed.sample(identity,original_process=process)
+    finally:
+        if process.returncode is None:process.kill();process.wait(timeout=5)
+        if process.stdin and not process.stdin.closed:process.stdin.close()
+
+
+def test_hash_verifier_failure_reason_retains_exit_and_cleanup_scalars(monkeypatch,tmp_path):
+    from types import SimpleNamespace
+    from audio_backend import recorder_candidate_postphase as postphase
+    policy={'settings':{'python':sys.executable,'model':str(tmp_path/'unused-model')},
+            'python_executable':str(Path(sys.executable).resolve())}
+    monkeypatch.setattr(postphase,'verify_policy',lambda value:None)
+    monkeypatch.setattr(r,'ResourceGate',lambda *args,**kwargs:SimpleNamespace(runtime_files={}))
+    monkeypatch.setattr(r,'supervise',lambda *args,**kwargs:{'status':'resource_blocked','exit_code':0,
+        'reason':'fixture_fd_permission_denied','original_post_failure_state':'positively_exited_unreaped',
+        'cleanup':{'cleanup_verified':True,'original_handle_waited_and_reaped':True,'remaining_live_owned':[]}})
+    with pytest.raises(r.CandidateResourceBlocked) as caught:
+        r.preflight('http://127.0.0.1:8765',runtime_profile=policy)
+    message=caught.value.reason
+    assert 'fixture_fd_permission_denied' in message
+    assert 'hash_only_verifier_exit_code=0' in message
+    assert 'original_post_failure_state=positively_exited_unreaped' in message
+    assert 'original_waited=True' in message and 'cleanup_verified=True' in message
+
+
+def test_selected_python_hash_fixture_lifecycle_with_real_fd_reader(tmp_path):
+    """Same selected interpreter exec, live FD scan, terminal scan, original wait.
+
+    This is a harmless hash fixture, not profile admission or a backend service.
+    The real idle-primary/hash-only preflight remains a separate qualification.
+    """
+    selected=os.environ.get('CANDIDATE_TEST_OPTIONAL_PYTHON',sys.executable)
+    script="""
+import hashlib,json,os,socket,subprocess,sys,time
+from audio_backend import recorder_candidate_resources as r
+listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen()
+reader=r.LinuxReader();owner=r.Identity.bind(os.getpid());address=('127.0.0.1',listener.getsockname()[1])
+child=subprocess.Popen([sys.argv[1],'-I','-B','-S','-c',
+    "import hashlib,sys;print('ready',flush=True);sys.stdin.read();print(hashlib.sha256(b'bounded hash fixture').hexdigest(),flush=True)"],
+    stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+try:
+    identity=r.Identity.bind(child.pid)
+    assert child.stdout.readline()==b'ready\\n'
+    observed,inode=reader.listener(*address)
+    assert observed==owner
+    child.stdin.close()
+    end=time.monotonic()+5
+    while not r._exited(child):
+        assert time.monotonic()<end
+        time.sleep(.005)
+    proof=r._ExitedOriginal(identity,child)
+    assert reader.listener(*address,terminal_original=proof)==(owner,inode)
+    assert child.stdout.read().strip().decode()==hashlib.sha256(b'bounded hash fixture').hexdigest()
+    assert child.returncode is None
+    assert child.wait(timeout=5)==0
+    print(json.dumps({'live_scan':True,'terminal_scan':True,'original_waited':True,'exit_code':0}))
+finally:
+    if child.returncode is None:child.kill();child.wait(timeout=5)
+    listener.close()
+"""
+    result=subprocess.run([sys.executable,'-c',script,selected],capture_output=True,text=True,timeout=12)
+    assert result.returncode==0,result.stderr
+    assert json.loads(result.stdout)['original_waited']

@@ -1,0 +1,35 @@
+{
+  "schema": "public-operational-outcome-v1",
+  "version": "dev80",
+  "trial": "independent fresh previously exposed public 12-second recording; operational only",
+  "original_harness_passed": false,
+  "primary": {
+    "status": "completed on first attempt",
+    "frames": 192000,
+    "native_chunks": 2,
+    "export_independently_validated": true,
+    "retry_count": 0
+  },
+  "optional": {
+    "status": "resource admission blocked",
+    "candidate_calls": 0,
+    "reserved_calls": 0,
+    "repeat_tested": false,
+    "retained_error": "Permission denied while enumerating an owned verifier process file descriptors",
+    "diagnosis": "Global listener enumeration occurs before the retained-original positive-exit exemption. The saved evidence does not establish verifier exit code or live/exec/zombie state at the denied read."
+  },
+  "cleanup": {
+    "original_handles_waited": 15,
+    "service_exit_code": 143,
+    "remaining_owned_processes": 0,
+    "resource_watchdog_error": null
+  },
+  "preservation": {
+    "old_evidence_unchanged": true,
+    "new_files": 145,
+    "new_bytes": 4998269
+  },
+  "audit_sha256": "e2af92acc9f12e10c5df169bb6826d77e6748f73dd4ce691cef20687b6864239",
+  "result_sha256": "fae8a9a8bc8ac5ffd9a55dd0d971a8ed8cc4e6d79a9dc9e340aae68743b0da6c",
+  "quality_improvement_claim": false
+}

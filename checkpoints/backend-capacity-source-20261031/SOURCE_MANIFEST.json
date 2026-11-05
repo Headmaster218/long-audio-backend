@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "c65d74e97ec4df864ed22487e175e8f0f1a70e27",
-      "sha256": "c796390c03a023b86b6a62dbd032a1e5fe38093d202d3599115550e9cbe58edd"
+      "sha": "1231885c31f114f6f8e5eed287ff852e06a167bc",
+      "sha256": "b97878ef01e48dac9fb1ce44143430dcdc23566612a369af9cf8156be5edbf7f"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -772,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_candidate_resources.py",
-      "size": 44119,
-      "sha": "e453fffa32c2b1edf1ba43f5e72a608a04116a07",
-      "sha256": "db9cfc597c38e60b74f8febdc85132ecaad4aab1916e5e486d36a2ac10d4e3f3"
+      "size": 47028,
+      "sha": "383967cb968cdbeeb800f7cf7cc960e5b515e8b2",
+      "sha256": "8441f14e72b73e0ba0df6614d792137ef8c9072a3bd1ed3f10b1718e17d82e04"
     },
     {
       "path": "audio_backend/recorder_capacity_preflight.py",
@@ -2789,8 +2789,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "8f2fe34639a9e083cb1cf0c6f1d9f12cf007e1ec",
-      "sha256": "d4ceb083251ac59f7c9354c0983acc36e471d90602bd5537f96d404f43aa39a8"
+      "sha": "3d48df94c2f12a860140ffc8a614c972967026b9",
+      "sha256": "115662a7ddc74f4b47b36bbabf53bd3048a7b2132bb4e3e0d62a395ddeb3456f"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5440,9 +5440,9 @@
     },
     {
       "path": "tests/test_recorder_candidate_resources.py",
-      "size": 30130,
-      "sha": "dd065db7306289b6b01549f769a2a9d684b2763d",
-      "sha256": "f2885b6626469a05dd54edf629206464e5f3cf4e7b95511b42b0e2423edc8b02"
+      "size": 39436,
+      "sha": "65e84fafd7e8b705cfc0385ac1df9e7cfd21a58b",
+      "sha256": "07bacb4d28d089ee33a3977c4b2f3b90d66320f72ecb80d09651a063b1d90530"
     },
     {
       "path": "tests/test_recorder_capacity_preflight.py",
@@ -6549,6 +6549,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "df6a15809f89085f7d61ed197ba01429e0c5bb8b",
-  "source_update": "dev80 fixes namespace observation of a positively exited original optional verifier; identity, descendant, resource and cleanup checks unchanged. dev79 evidence retained; no ledger migration. Fresh installation and independent new operational trial pending."
+  "source_base_commit": "fa74ea1aa812f4f0a81613b733723bdbb5f053c3",
+  "source_update": "dev81 applies retained-original positive exit proof before both listener FD scans, preserves all other permission/identity/resource failures, and retains verifier outcome diagnostics. Source reviewed; hash-only real admission and fresh installation pending. No old ledger migration."
 }
