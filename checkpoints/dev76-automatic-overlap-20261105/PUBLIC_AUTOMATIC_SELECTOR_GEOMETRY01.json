@@ -1,0 +1,1078 @@
+{
+  "schema": "native-selector-public-geometry-score-v1",
+  "status": "posthoc_familiar_panel_saved_source_only_geometry",
+  "protocol_sha256": "2c1ddfb7df4b31c7f3a56c2ff34bb3db2b1653368bc9e308b9adbe4eb166aa3f",
+  "private_index_sha256": "b709efa8f2bfdf8c6370b39db98136a395ab3d1cb72082b8e9f63d4e2917b6df",
+  "private_input_manifest_sha256": "b25898ccbcac50656f6763b2079fd5367ceb0519c3ff1fcf9df4e988577fcb22",
+  "source_manifest_sha256": "ddd518143bf625c7f1373b5f49a682227e7cf4b9433cfce36ecfd271db909c34",
+  "scorer_sha256": "1c1ee7eb71190bb098523c53362b78f36efea6076a22191cd860e75d82b45ff8",
+  "source_module_hashes_checked": 187,
+  "saved_file_hashes_rechecked": 118,
+  "product_geometry_source_sha256": {
+    "audio_backend/recorder_native_overlap.py": "8227f84ca9558a746a51b53d3af318c794d928d86074f6d424732eb7b5be86d9",
+    "audio_backend/overlap_geometry.py": "47f81bae5fcb90149c8fa562e5b8148a8df2427568ccea9719af5c39c899d06d"
+  },
+  "sample_rate_hz": 16000,
+  "model_calls": 0,
+  "service_calls": 0,
+  "installed_service_qualified": false,
+  "recognition_evaluated": false,
+  "original_quality_results_changed": false,
+  "case_count": 7,
+  "rows": [
+    {
+      "case_id": "en-overlap-1",
+      "language": "en",
+      "class": "overlap",
+      "status": "scored_source_only_saved_geometry",
+      "annotation_resolution": "forced_aligned_human_word",
+      "crop_frames": 192000,
+      "crop_seconds": 12.0,
+      "artifacts_sha256": {
+        "inputs.json": "5e3dca7f05a1a4f3a929f4b8c338444e254d6ab78ba61ccd56bbb4366aeb9d2e",
+        "native-turns.json": "b89daaf35de3bd7dd726b0146bf24a8a72f53ac4751ff7dd142a44ed2689269b",
+        "selection.json": "47a50c690e1165277edd91eb403b739d8e8c9479c4a4c8819dd6da2525122a03"
+      },
+      "gold_sha256": "820daee4f0e08f4ee368ba5963db153d8ece57089fb58a82aa6bfc55ea048855",
+      "crop_sha256": "ac0c1285be528e7d60529090d7ef58889206e23072e9e7f4962c6abf2e2f8344",
+      "source_content_binding_sha256": "d53a440ba7acff76f1de76bc6b32017c9df2426a9f1380a2db9e9f5a6543107a",
+      "independent_geometry_matches_selector": true,
+      "metrics": {
+        "accepted_source_frames": 192000,
+        "annotated_speech_support_frames": 68320,
+        "annotated_overlap_frames": 17920,
+        "detected_overlap_frames": 11808,
+        "detected_true_overlap_frames": 8624,
+        "missed_annotated_overlap_frames": 9296,
+        "detected_nonoverlap_frames": 3184,
+        "selected_support_frames": 43808,
+        "selected_annotated_overlap_frames": 17920,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 25888,
+        "selected_native_detection_frames": 11808,
+        "unselected_native_detection_frames": 0,
+        "context_frames_outside_native_detection": 32000,
+        "selected_single_reference_support_frames": 25888,
+        "selected_outside_any_reference_support_frames": 0,
+        "prebudget_support_frames": 43808,
+        "budget_omitted_support_frames": 0,
+        "budget_omitted_annotated_overlap_frames": 0,
+        "annotated_overlap_outside_accepted_source_frames": 0,
+        "detection_annotation_recall": 0.48125,
+        "detection_annotation_precision": 0.7303523035230353,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.40905770635500366,
+        "selected_support_per_covered_overlap": 2.444642857142857
+      },
+      "duration_seconds": {
+        "accepted_source_seconds": 12.0,
+        "annotated_speech_support_seconds": 4.27,
+        "annotated_overlap_seconds": 1.12,
+        "detected_overlap_seconds": 0.738,
+        "detected_true_overlap_seconds": 0.539,
+        "missed_annotated_overlap_seconds": 0.581,
+        "detected_nonoverlap_seconds": 0.199,
+        "selected_support_seconds": 2.738,
+        "selected_annotated_overlap_seconds": 1.12,
+        "selection_missed_annotated_overlap_seconds": 0.0,
+        "selected_nonoverlap_seconds": 1.618,
+        "selected_native_detection_seconds": 0.738,
+        "unselected_native_detection_seconds": 0.0,
+        "selected_single_reference_support_seconds": 1.618,
+        "selected_outside_any_reference_support_seconds": 0.0,
+        "prebudget_support_seconds": 2.738,
+        "budget_omitted_support_seconds": 0.0,
+        "budget_omitted_annotated_overlap_seconds": 0.0,
+        "annotated_overlap_outside_accepted_source_seconds": 0.0
+      },
+      "selection_cost": {
+        "planned_candidate_calls": 1,
+        "executed_candidate_calls": 0,
+        "selected_range_sum_frames": 43808,
+        "selected_unique_frames": 43808,
+        "duplicate_dispatch_frames": 0,
+        "max_selected_range_frames": 43808,
+        "prebudget_range_count": 1,
+        "omitted_range_count": 0,
+        "selected_fraction_of_crop": 0.22816666666666666
+      },
+      "detected_regions": [
+        {
+          "region_ordinal": 1,
+          "chunk_ordinal": 1,
+          "core_ordinal": 2,
+          "start_frame": 124336,
+          "end_frame": 136144,
+          "detected_source_count": 2,
+          "context_start_frame": 108336,
+          "context_end_frame": 152144
+        }
+      ],
+      "selected_ranges": [
+        {
+          "range_ordinal": 1,
+          "start_frame": 108336,
+          "end_frame": 152144,
+          "seconds": 2.738,
+          "contributing_region_ordinals": [
+            1
+          ],
+          "intersected_reference_intervals": 13,
+          "fully_contained_reference_intervals": 11,
+          "boundary_crossing_reference_intervals": 2,
+          "left_boundary_crossings": 1,
+          "right_boundary_crossings": 1,
+          "lexical_boundary_status": "unscorable_boundary"
+        }
+      ],
+      "omitted_ranges": [],
+      "sets": {
+        "A": [
+          [
+            0,
+            84000
+          ],
+          [
+            84000,
+            168000
+          ],
+          [
+            168000,
+            192000
+          ]
+        ],
+        "B": [
+          [
+            105760,
+            167520
+          ],
+          [
+            176480,
+            183040
+          ]
+        ],
+        "O": [
+          [
+            127520,
+            145440
+          ]
+        ],
+        "D": [
+          [
+            124336,
+            136144
+          ]
+        ],
+        "U": [
+          [
+            108336,
+            152144
+          ]
+        ],
+        "W": [
+          [
+            108336,
+            152144
+          ]
+        ],
+        "J": []
+      },
+      "reference_events": [
+        {
+          "event_ordinal": 1,
+          "start_frame": 127520,
+          "end_frame": 145440,
+          "frames": 17920,
+          "detected_intersection_frames": 8624,
+          "selected_intersection_frames": 17920,
+          "detected_missed_frames": 9296,
+          "selected_missed_frames": 0
+        }
+      ],
+      "event_counts": {
+        "total": 1,
+        "any_detected": 1,
+        "fully_detected": 0,
+        "any_selected": 1,
+        "fully_selected": 1
+      },
+      "annotated_negative_trigger": null,
+      "annotated_negative_selected": null
+    },
+    {
+      "case_id": "en-overlap-2",
+      "language": "en",
+      "class": "overlap",
+      "status": "scored_source_only_saved_geometry",
+      "annotation_resolution": "forced_aligned_human_word",
+      "crop_frames": 192000,
+      "crop_seconds": 12.0,
+      "artifacts_sha256": {
+        "inputs.json": "2cbb3e6b3deee6518bdc92dc251d9f59bbd47e49bf597fc600be252838f345b9",
+        "native-turns.json": "9d1cd9e6600ea3e6919d75d79c1b448678ca67fde67d43c28558b7f0210057a0",
+        "selection.json": "bc19c964746d52fa1e98c97d1fb9878a17f0f2d2e1e401cbb2ef072669cea1f1"
+      },
+      "gold_sha256": "f16c21caf77a833d2c065d8827f73000986936f62479c268f52297d7f2d8d843",
+      "crop_sha256": "945107b99d3533996e3fae695c3b24c19ecb27c84c81e260d58ba9554e4f5751",
+      "source_content_binding_sha256": "0ca68454b5d715607f719c4e47688b9a27160ecaea04dbd18d256e55a6c006ad",
+      "independent_geometry_matches_selector": true,
+      "metrics": {
+        "accepted_source_frames": 192000,
+        "annotated_speech_support_frames": 74560,
+        "annotated_overlap_frames": 33440,
+        "detected_overlap_frames": 35808,
+        "detected_true_overlap_frames": 32464,
+        "missed_annotated_overlap_frames": 976,
+        "detected_nonoverlap_frames": 3344,
+        "selected_support_frames": 67808,
+        "selected_annotated_overlap_frames": 33440,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 34368,
+        "selected_native_detection_frames": 35808,
+        "unselected_native_detection_frames": 0,
+        "context_frames_outside_native_detection": 32000,
+        "selected_single_reference_support_frames": 27344,
+        "selected_outside_any_reference_support_frames": 7024,
+        "prebudget_support_frames": 67808,
+        "budget_omitted_support_frames": 0,
+        "budget_omitted_annotated_overlap_frames": 0,
+        "annotated_overlap_outside_accepted_source_frames": 0,
+        "detection_annotation_recall": 0.9708133971291866,
+        "detection_annotation_precision": 0.9066130473637176,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.4931571495988674,
+        "selected_support_per_covered_overlap": 2.027751196172249
+      },
+      "duration_seconds": {
+        "accepted_source_seconds": 12.0,
+        "annotated_speech_support_seconds": 4.66,
+        "annotated_overlap_seconds": 2.09,
+        "detected_overlap_seconds": 2.238,
+        "detected_true_overlap_seconds": 2.029,
+        "missed_annotated_overlap_seconds": 0.061,
+        "detected_nonoverlap_seconds": 0.209,
+        "selected_support_seconds": 4.238,
+        "selected_annotated_overlap_seconds": 2.09,
+        "selection_missed_annotated_overlap_seconds": 0.0,
+        "selected_nonoverlap_seconds": 2.148,
+        "selected_native_detection_seconds": 2.238,
+        "unselected_native_detection_seconds": 0.0,
+        "selected_single_reference_support_seconds": 1.709,
+        "selected_outside_any_reference_support_seconds": 0.439,
+        "prebudget_support_seconds": 4.238,
+        "budget_omitted_support_seconds": 0.0,
+        "budget_omitted_annotated_overlap_seconds": 0.0,
+        "annotated_overlap_outside_accepted_source_seconds": 0.0
+      },
+      "selection_cost": {
+        "planned_candidate_calls": 1,
+        "executed_candidate_calls": 0,
+        "selected_range_sum_frames": 67808,
+        "selected_unique_frames": 67808,
+        "duplicate_dispatch_frames": 0,
+        "max_selected_range_frames": 67808,
+        "prebudget_range_count": 1,
+        "omitted_range_count": 0,
+        "selected_fraction_of_crop": 0.3531666666666667
+      },
+      "detected_regions": [
+        {
+          "region_ordinal": 1,
+          "chunk_ordinal": 1,
+          "core_ordinal": 1,
+          "start_frame": 22256,
+          "end_frame": 58064,
+          "detected_source_count": 2,
+          "context_start_frame": 6256,
+          "context_end_frame": 74064
+        }
+      ],
+      "selected_ranges": [
+        {
+          "range_ordinal": 1,
+          "start_frame": 6256,
+          "end_frame": 74064,
+          "seconds": 4.238,
+          "contributing_region_ordinals": [
+            1
+          ],
+          "intersected_reference_intervals": 17,
+          "fully_contained_reference_intervals": 16,
+          "boundary_crossing_reference_intervals": 1,
+          "left_boundary_crossings": 0,
+          "right_boundary_crossings": 1,
+          "lexical_boundary_status": "unscorable_boundary"
+        }
+      ],
+      "omitted_ranges": [],
+      "sets": {
+        "A": [
+          [
+            0,
+            84000
+          ],
+          [
+            84000,
+            168000
+          ],
+          [
+            168000,
+            192000
+          ]
+        ],
+        "B": [
+          [
+            13280,
+            81920
+          ],
+          [
+            168320,
+            174240
+          ]
+        ],
+        "O": [
+          [
+            25600,
+            59040
+          ]
+        ],
+        "D": [
+          [
+            22256,
+            58064
+          ]
+        ],
+        "U": [
+          [
+            6256,
+            74064
+          ]
+        ],
+        "W": [
+          [
+            6256,
+            74064
+          ]
+        ],
+        "J": []
+      },
+      "reference_events": [
+        {
+          "event_ordinal": 1,
+          "start_frame": 25600,
+          "end_frame": 59040,
+          "frames": 33440,
+          "detected_intersection_frames": 32464,
+          "selected_intersection_frames": 33440,
+          "detected_missed_frames": 976,
+          "selected_missed_frames": 0
+        }
+      ],
+      "event_counts": {
+        "total": 1,
+        "any_detected": 1,
+        "fully_detected": 0,
+        "any_selected": 1,
+        "fully_selected": 1
+      },
+      "annotated_negative_trigger": null,
+      "annotated_negative_selected": null
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "language": "zh",
+      "class": "overlap",
+      "status": "scored_source_only_saved_geometry",
+      "annotation_resolution": "human_utterance",
+      "crop_frames": 184480,
+      "crop_seconds": 11.53,
+      "artifacts_sha256": {
+        "inputs.json": "ed096b417f0aee9f2ed240bf72cb65d4e4c5a70e42546a57005e8e3d4fc28595",
+        "native-turns.json": "3afaa829a3642c8a8c3de0c88c47fb27769cc8d3b14ed8266b9bc6218ae67a05",
+        "selection.json": "74b65205f0ba7817a936f95133d22993bf5f760a2854b65865c1682595731c5c"
+      },
+      "gold_sha256": "a8f25d4d8bb4df13525cfd8c82cf4bbc695b47ebad2060ac0ed409c234016bca",
+      "crop_sha256": "3297237ac0a80d0c4d5c8c24f9036ce2eb4a7b6017d1df8a3d37e03bba5aedce",
+      "source_content_binding_sha256": "ebc1ce18ef86839adc297f5d1f148d44211cb98abe0de8d7c9afb345e9de072e",
+      "independent_geometry_matches_selector": true,
+      "metrics": {
+        "accepted_source_frames": 184480,
+        "annotated_speech_support_frames": 176480,
+        "annotated_overlap_frames": 27200,
+        "detected_overlap_frames": 28384,
+        "detected_true_overlap_frames": 15824,
+        "missed_annotated_overlap_frames": 11376,
+        "detected_nonoverlap_frames": 12560,
+        "selected_support_frames": 110800,
+        "selected_annotated_overlap_frames": 27200,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 83600,
+        "selected_native_detection_frames": 28384,
+        "unselected_native_detection_frames": 0,
+        "context_frames_outside_native_detection": 82416,
+        "selected_single_reference_support_frames": 83600,
+        "selected_outside_any_reference_support_frames": 0,
+        "prebudget_support_frames": 110800,
+        "budget_omitted_support_frames": 0,
+        "budget_omitted_annotated_overlap_frames": 0,
+        "annotated_overlap_outside_accepted_source_frames": 0,
+        "detection_annotation_recall": 0.581764705882353,
+        "detection_annotation_precision": 0.5574971815107103,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.24548736462093862,
+        "selected_support_per_covered_overlap": 4.073529411764706
+      },
+      "duration_seconds": {
+        "accepted_source_seconds": 11.53,
+        "annotated_speech_support_seconds": 11.03,
+        "annotated_overlap_seconds": 1.7,
+        "detected_overlap_seconds": 1.774,
+        "detected_true_overlap_seconds": 0.989,
+        "missed_annotated_overlap_seconds": 0.711,
+        "detected_nonoverlap_seconds": 0.785,
+        "selected_support_seconds": 6.925,
+        "selected_annotated_overlap_seconds": 1.7,
+        "selection_missed_annotated_overlap_seconds": 0.0,
+        "selected_nonoverlap_seconds": 5.225,
+        "selected_native_detection_seconds": 1.774,
+        "unselected_native_detection_seconds": 0.0,
+        "selected_single_reference_support_seconds": 5.225,
+        "selected_outside_any_reference_support_seconds": 0.0,
+        "prebudget_support_seconds": 6.925,
+        "budget_omitted_support_seconds": 0.0,
+        "budget_omitted_annotated_overlap_seconds": 0.0,
+        "annotated_overlap_outside_accepted_source_seconds": 0.0
+      },
+      "selection_cost": {
+        "planned_candidate_calls": 3,
+        "executed_candidate_calls": 0,
+        "selected_range_sum_frames": 110800,
+        "selected_unique_frames": 110800,
+        "duplicate_dispatch_frames": 0,
+        "max_selected_range_frames": 46368,
+        "prebudget_range_count": 3,
+        "omitted_range_count": 0,
+        "selected_fraction_of_crop": 0.6006071118820469
+      },
+      "detected_regions": [
+        {
+          "region_ordinal": 1,
+          "chunk_ordinal": 1,
+          "core_ordinal": 1,
+          "start_frame": 28976,
+          "end_frame": 43344,
+          "detected_source_count": 2,
+          "context_start_frame": 12976,
+          "context_end_frame": 59344
+        },
+        {
+          "region_ordinal": 2,
+          "chunk_ordinal": 1,
+          "core_ordinal": 2,
+          "start_frame": 86416,
+          "end_frame": 95184,
+          "detected_source_count": 2,
+          "context_start_frame": 84000,
+          "context_end_frame": 111184
+        },
+        {
+          "region_ordinal": 3,
+          "chunk_ordinal": 1,
+          "core_ordinal": 2,
+          "start_frame": 143856,
+          "end_frame": 149104,
+          "detected_source_count": 2,
+          "context_start_frame": 127856,
+          "context_end_frame": 165104
+        }
+      ],
+      "selected_ranges": [
+        {
+          "range_ordinal": 1,
+          "start_frame": 12976,
+          "end_frame": 59344,
+          "seconds": 2.898,
+          "contributing_region_ordinals": [
+            1
+          ],
+          "intersected_reference_intervals": 2,
+          "fully_contained_reference_intervals": 0,
+          "boundary_crossing_reference_intervals": 2,
+          "left_boundary_crossings": 1,
+          "right_boundary_crossings": 1,
+          "lexical_boundary_status": "unscorable_boundary"
+        },
+        {
+          "range_ordinal": 2,
+          "start_frame": 84000,
+          "end_frame": 111184,
+          "seconds": 1.699,
+          "contributing_region_ordinals": [
+            2
+          ],
+          "intersected_reference_intervals": 2,
+          "fully_contained_reference_intervals": 1,
+          "boundary_crossing_reference_intervals": 1,
+          "left_boundary_crossings": 1,
+          "right_boundary_crossings": 1,
+          "lexical_boundary_status": "unscorable_boundary"
+        },
+        {
+          "range_ordinal": 3,
+          "start_frame": 127856,
+          "end_frame": 165104,
+          "seconds": 2.328,
+          "contributing_region_ordinals": [
+            3
+          ],
+          "intersected_reference_intervals": 2,
+          "fully_contained_reference_intervals": 0,
+          "boundary_crossing_reference_intervals": 2,
+          "left_boundary_crossings": 1,
+          "right_boundary_crossings": 1,
+          "lexical_boundary_status": "unscorable_boundary"
+        }
+      ],
+      "omitted_ranges": [],
+      "sets": {
+        "A": [
+          [
+            0,
+            84000
+          ],
+          [
+            84000,
+            168000
+          ],
+          [
+            168000,
+            184480
+          ]
+        ],
+        "B": [
+          [
+            4000,
+            180480
+          ]
+        ],
+        "O": [
+          [
+            32320,
+            41920
+          ],
+          [
+            89120,
+            94080
+          ],
+          [
+            147840,
+            160480
+          ]
+        ],
+        "D": [
+          [
+            28976,
+            43344
+          ],
+          [
+            86416,
+            95184
+          ],
+          [
+            143856,
+            149104
+          ]
+        ],
+        "U": [
+          [
+            12976,
+            59344
+          ],
+          [
+            84000,
+            111184
+          ],
+          [
+            127856,
+            165104
+          ]
+        ],
+        "W": [
+          [
+            12976,
+            59344
+          ],
+          [
+            84000,
+            111184
+          ],
+          [
+            127856,
+            165104
+          ]
+        ],
+        "J": []
+      },
+      "reference_events": [
+        {
+          "event_ordinal": 1,
+          "start_frame": 32320,
+          "end_frame": 41920,
+          "frames": 9600,
+          "detected_intersection_frames": 9600,
+          "selected_intersection_frames": 9600,
+          "detected_missed_frames": 0,
+          "selected_missed_frames": 0
+        },
+        {
+          "event_ordinal": 2,
+          "start_frame": 89120,
+          "end_frame": 94080,
+          "frames": 4960,
+          "detected_intersection_frames": 4960,
+          "selected_intersection_frames": 4960,
+          "detected_missed_frames": 0,
+          "selected_missed_frames": 0
+        },
+        {
+          "event_ordinal": 3,
+          "start_frame": 147840,
+          "end_frame": 160480,
+          "frames": 12640,
+          "detected_intersection_frames": 1264,
+          "selected_intersection_frames": 12640,
+          "detected_missed_frames": 11376,
+          "selected_missed_frames": 0
+        }
+      ],
+      "event_counts": {
+        "total": 3,
+        "any_detected": 3,
+        "fully_detected": 2,
+        "any_selected": 3,
+        "fully_selected": 3
+      },
+      "annotated_negative_trigger": null,
+      "annotated_negative_selected": null
+    },
+    {
+      "case_id": "zh-overlap-2",
+      "language": "zh",
+      "class": "overlap",
+      "status": "reference_unavailable",
+      "evidence_status": "not_attempted"
+    },
+    {
+      "case_id": "en-solo-1",
+      "language": "en",
+      "class": "solo",
+      "status": "scored_source_only_saved_geometry",
+      "annotation_resolution": "forced_aligned_human_word",
+      "crop_frames": 192000,
+      "crop_seconds": 12.0,
+      "artifacts_sha256": {
+        "inputs.json": "b3d49099bfffc540871e5d7a74a365db29454484108c1eba0e7c6d732448c403",
+        "native-turns.json": "da5aa7d3da2c6c85e8f88077433dbe2c6d2685da8bd7ee1c37f61a0b65efd895",
+        "selection.json": "1bb84cffc4d4c5ac0c67a3a1feab0849233e34ac5754cefd03eaa2e00fa0a77c"
+      },
+      "gold_sha256": "8001b1e5bfff7cb6567ea3876047cfc8cb4d5054bab96d26094bb69eefddd762",
+      "crop_sha256": "99f4abbdcdb163c068a82ba72bde4adf6f962f987212647ceb187c1ce6c9aa09",
+      "source_content_binding_sha256": "d270c389df62242fe91bae1b36ccc77c7a4a886a322cdbd4dd056299b11ba42a",
+      "independent_geometry_matches_selector": true,
+      "metrics": {
+        "accepted_source_frames": 192000,
+        "annotated_speech_support_frames": 147040,
+        "annotated_overlap_frames": 0,
+        "detected_overlap_frames": 0,
+        "detected_true_overlap_frames": 0,
+        "missed_annotated_overlap_frames": 0,
+        "detected_nonoverlap_frames": 0,
+        "selected_support_frames": 0,
+        "selected_annotated_overlap_frames": 0,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 0,
+        "selected_native_detection_frames": 0,
+        "unselected_native_detection_frames": 0,
+        "context_frames_outside_native_detection": 0,
+        "selected_single_reference_support_frames": 0,
+        "selected_outside_any_reference_support_frames": 0,
+        "prebudget_support_frames": 0,
+        "budget_omitted_support_frames": 0,
+        "budget_omitted_annotated_overlap_frames": 0,
+        "annotated_overlap_outside_accepted_source_frames": 0,
+        "detection_annotation_recall": null,
+        "detection_annotation_precision": null,
+        "selection_annotation_overlap_coverage": null,
+        "selected_overlap_fraction": null,
+        "selected_support_per_covered_overlap": null
+      },
+      "duration_seconds": {
+        "accepted_source_seconds": 12.0,
+        "annotated_speech_support_seconds": 9.19,
+        "annotated_overlap_seconds": 0.0,
+        "detected_overlap_seconds": 0.0,
+        "detected_true_overlap_seconds": 0.0,
+        "missed_annotated_overlap_seconds": 0.0,
+        "detected_nonoverlap_seconds": 0.0,
+        "selected_support_seconds": 0.0,
+        "selected_annotated_overlap_seconds": 0.0,
+        "selection_missed_annotated_overlap_seconds": 0.0,
+        "selected_nonoverlap_seconds": 0.0,
+        "selected_native_detection_seconds": 0.0,
+        "unselected_native_detection_seconds": 0.0,
+        "selected_single_reference_support_seconds": 0.0,
+        "selected_outside_any_reference_support_seconds": 0.0,
+        "prebudget_support_seconds": 0.0,
+        "budget_omitted_support_seconds": 0.0,
+        "budget_omitted_annotated_overlap_seconds": 0.0,
+        "annotated_overlap_outside_accepted_source_seconds": 0.0
+      },
+      "selection_cost": {
+        "planned_candidate_calls": 0,
+        "executed_candidate_calls": 0,
+        "selected_range_sum_frames": 0,
+        "selected_unique_frames": 0,
+        "duplicate_dispatch_frames": 0,
+        "max_selected_range_frames": 0,
+        "prebudget_range_count": 0,
+        "omitted_range_count": 0,
+        "selected_fraction_of_crop": 0.0
+      },
+      "detected_regions": [],
+      "selected_ranges": [],
+      "omitted_ranges": [],
+      "sets": {
+        "A": [
+          [
+            0,
+            84000
+          ],
+          [
+            84000,
+            168000
+          ],
+          [
+            168000,
+            192000
+          ]
+        ],
+        "B": [
+          [
+            42880,
+            189920
+          ]
+        ],
+        "O": [],
+        "D": [],
+        "U": [],
+        "W": [],
+        "J": []
+      },
+      "reference_events": [],
+      "event_counts": {
+        "total": 0,
+        "any_detected": 0,
+        "fully_detected": 0,
+        "any_selected": 0,
+        "fully_selected": 0
+      },
+      "annotated_negative_trigger": false,
+      "annotated_negative_selected": false
+    },
+    {
+      "case_id": "zh-solo-1",
+      "language": "zh",
+      "class": "solo",
+      "status": "scored_source_only_saved_geometry",
+      "annotation_resolution": "human_utterance",
+      "crop_frames": 256480,
+      "crop_seconds": 16.03,
+      "artifacts_sha256": {
+        "inputs.json": "07c13505ca3026e48ce7bfea9601d81278e561fc56dabbdb27b8c502b05486db",
+        "native-turns.json": "65089ccffb4893539d418c330e015bfffa9087a02d5f43d2b8be2f9a5e99a96f",
+        "selection.json": "699f4864d7c0e88668bdce764f0e29927e4f4c3a9fd83477feeba0c86cf026ae"
+      },
+      "gold_sha256": "21fcccc4300a43b07853800f75c07b356a4f7d3e383c168b6e0d95c723e63584",
+      "crop_sha256": "274fa127bcc1594218255da821e449fc261aabe168c7a00cc14822bc9fa50744",
+      "source_content_binding_sha256": "a0c6c472bb5420abf4e1b42edd539c92f90ce7c6a544f0cfaf62e0cc114e2163",
+      "independent_geometry_matches_selector": true,
+      "metrics": {
+        "accepted_source_frames": 256480,
+        "annotated_speech_support_frames": 241440,
+        "annotated_overlap_frames": 0,
+        "detected_overlap_frames": 0,
+        "detected_true_overlap_frames": 0,
+        "missed_annotated_overlap_frames": 0,
+        "detected_nonoverlap_frames": 0,
+        "selected_support_frames": 0,
+        "selected_annotated_overlap_frames": 0,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 0,
+        "selected_native_detection_frames": 0,
+        "unselected_native_detection_frames": 0,
+        "context_frames_outside_native_detection": 0,
+        "selected_single_reference_support_frames": 0,
+        "selected_outside_any_reference_support_frames": 0,
+        "prebudget_support_frames": 0,
+        "budget_omitted_support_frames": 0,
+        "budget_omitted_annotated_overlap_frames": 0,
+        "annotated_overlap_outside_accepted_source_frames": 0,
+        "detection_annotation_recall": null,
+        "detection_annotation_precision": null,
+        "selection_annotation_overlap_coverage": null,
+        "selected_overlap_fraction": null,
+        "selected_support_per_covered_overlap": null
+      },
+      "duration_seconds": {
+        "accepted_source_seconds": 16.03,
+        "annotated_speech_support_seconds": 15.09,
+        "annotated_overlap_seconds": 0.0,
+        "detected_overlap_seconds": 0.0,
+        "detected_true_overlap_seconds": 0.0,
+        "missed_annotated_overlap_seconds": 0.0,
+        "detected_nonoverlap_seconds": 0.0,
+        "selected_support_seconds": 0.0,
+        "selected_annotated_overlap_seconds": 0.0,
+        "selection_missed_annotated_overlap_seconds": 0.0,
+        "selected_nonoverlap_seconds": 0.0,
+        "selected_native_detection_seconds": 0.0,
+        "unselected_native_detection_seconds": 0.0,
+        "selected_single_reference_support_seconds": 0.0,
+        "selected_outside_any_reference_support_seconds": 0.0,
+        "prebudget_support_seconds": 0.0,
+        "budget_omitted_support_seconds": 0.0,
+        "budget_omitted_annotated_overlap_seconds": 0.0,
+        "annotated_overlap_outside_accepted_source_seconds": 0.0
+      },
+      "selection_cost": {
+        "planned_candidate_calls": 0,
+        "executed_candidate_calls": 0,
+        "selected_range_sum_frames": 0,
+        "selected_unique_frames": 0,
+        "duplicate_dispatch_frames": 0,
+        "max_selected_range_frames": 0,
+        "prebudget_range_count": 0,
+        "omitted_range_count": 0,
+        "selected_fraction_of_crop": 0.0
+      },
+      "detected_regions": [],
+      "selected_ranges": [],
+      "omitted_ranges": [],
+      "sets": {
+        "A": [
+          [
+            0,
+            84000
+          ],
+          [
+            84000,
+            168000
+          ],
+          [
+            168000,
+            252000
+          ],
+          [
+            252000,
+            256480
+          ]
+        ],
+        "B": [
+          [
+            4000,
+            186240
+          ],
+          [
+            193280,
+            252480
+          ]
+        ],
+        "O": [],
+        "D": [],
+        "U": [],
+        "W": [],
+        "J": []
+      },
+      "reference_events": [],
+      "event_counts": {
+        "total": 0,
+        "any_detected": 0,
+        "fully_detected": 0,
+        "any_selected": 0,
+        "fully_selected": 0
+      },
+      "annotated_negative_trigger": false,
+      "annotated_negative_selected": false
+    },
+    {
+      "case_id": "digital-zero-1",
+      "language": "en",
+      "class": "synthetic_zero",
+      "status": "scored_source_only_saved_geometry",
+      "annotation_resolution": "synthetic_exact_zero",
+      "crop_frames": 96000,
+      "crop_seconds": 6.0,
+      "artifacts_sha256": {
+        "inputs.json": "d9e7e63762bc12ecfb590980b4a6cf7a287ddb03364a36795043bf73fcfb8c0c",
+        "native-turns.json": "c9d494eb123f850787c7be377ceba742ccfae6369b4b3d06cc3bbd20a1812708",
+        "selection.json": "80bbfe58b1d6c2ee0f20fdd21e47f90937b04f0f74cb95fc5b511a9b7b5ee7a6"
+      },
+      "gold_sha256": "c1378f032b949e29d703437c219f01357f7ac8e061a7ec18116b7af0d5764cbd",
+      "crop_sha256": "47b589098cc9e4b92774cd5b6a57ccca0713c02396bf755b2318f7e81cdc534e",
+      "source_content_binding_sha256": "7d9b3d372626f199aa273e928ddbc21379839c61e2d168f3c4df7a0473f407cc",
+      "independent_geometry_matches_selector": true,
+      "metrics": {
+        "accepted_source_frames": 96000,
+        "annotated_speech_support_frames": 0,
+        "annotated_overlap_frames": 0,
+        "detected_overlap_frames": 0,
+        "detected_true_overlap_frames": 0,
+        "missed_annotated_overlap_frames": 0,
+        "detected_nonoverlap_frames": 0,
+        "selected_support_frames": 0,
+        "selected_annotated_overlap_frames": 0,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 0,
+        "selected_native_detection_frames": 0,
+        "unselected_native_detection_frames": 0,
+        "context_frames_outside_native_detection": 0,
+        "selected_single_reference_support_frames": 0,
+        "selected_outside_any_reference_support_frames": 0,
+        "prebudget_support_frames": 0,
+        "budget_omitted_support_frames": 0,
+        "budget_omitted_annotated_overlap_frames": 0,
+        "annotated_overlap_outside_accepted_source_frames": 0,
+        "detection_annotation_recall": null,
+        "detection_annotation_precision": null,
+        "selection_annotation_overlap_coverage": null,
+        "selected_overlap_fraction": null,
+        "selected_support_per_covered_overlap": null
+      },
+      "duration_seconds": {
+        "accepted_source_seconds": 6.0,
+        "annotated_speech_support_seconds": 0.0,
+        "annotated_overlap_seconds": 0.0,
+        "detected_overlap_seconds": 0.0,
+        "detected_true_overlap_seconds": 0.0,
+        "missed_annotated_overlap_seconds": 0.0,
+        "detected_nonoverlap_seconds": 0.0,
+        "selected_support_seconds": 0.0,
+        "selected_annotated_overlap_seconds": 0.0,
+        "selection_missed_annotated_overlap_seconds": 0.0,
+        "selected_nonoverlap_seconds": 0.0,
+        "selected_native_detection_seconds": 0.0,
+        "unselected_native_detection_seconds": 0.0,
+        "selected_single_reference_support_seconds": 0.0,
+        "selected_outside_any_reference_support_seconds": 0.0,
+        "prebudget_support_seconds": 0.0,
+        "budget_omitted_support_seconds": 0.0,
+        "budget_omitted_annotated_overlap_seconds": 0.0,
+        "annotated_overlap_outside_accepted_source_seconds": 0.0
+      },
+      "selection_cost": {
+        "planned_candidate_calls": 0,
+        "executed_candidate_calls": 0,
+        "selected_range_sum_frames": 0,
+        "selected_unique_frames": 0,
+        "duplicate_dispatch_frames": 0,
+        "max_selected_range_frames": 0,
+        "prebudget_range_count": 0,
+        "omitted_range_count": 0,
+        "selected_fraction_of_crop": 0.0
+      },
+      "detected_regions": [],
+      "selected_ranges": [],
+      "omitted_ranges": [],
+      "sets": {
+        "A": [
+          [
+            0,
+            84000
+          ],
+          [
+            84000,
+            96000
+          ]
+        ],
+        "B": [],
+        "O": [],
+        "D": [],
+        "U": [],
+        "W": [],
+        "J": []
+      },
+      "reference_events": [],
+      "event_counts": {
+        "total": 0,
+        "any_detected": 0,
+        "fully_detected": 0,
+        "any_selected": 0,
+        "fully_selected": 0
+      },
+      "annotated_negative_trigger": false,
+      "annotated_negative_selected": false
+    }
+  ],
+  "language_overlap_totals": [
+    {
+      "language": "en",
+      "scored_overlap_cases": 2,
+      "micro": {
+        "annotated_overlap_frames": 51360,
+        "detected_overlap_frames": 47616,
+        "detected_true_overlap_frames": 41088,
+        "missed_annotated_overlap_frames": 10272,
+        "detected_nonoverlap_frames": 6528,
+        "selected_support_frames": 111616,
+        "selected_annotated_overlap_frames": 51360,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 60256,
+        "detection_annotation_recall": 0.8,
+        "detection_annotation_precision": 0.8629032258064516,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.4601490825688073
+      },
+      "macro_defined_rates": {
+        "detection_annotation_recall": 0.7260316985645933,
+        "detection_annotation_precision": 0.8184826754433765,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.45110742797693554
+      }
+    },
+    {
+      "language": "zh",
+      "scored_overlap_cases": 1,
+      "micro": {
+        "annotated_overlap_frames": 27200,
+        "detected_overlap_frames": 28384,
+        "detected_true_overlap_frames": 15824,
+        "missed_annotated_overlap_frames": 11376,
+        "detected_nonoverlap_frames": 12560,
+        "selected_support_frames": 110800,
+        "selected_annotated_overlap_frames": 27200,
+        "selection_missed_annotated_overlap_frames": 0,
+        "selected_nonoverlap_frames": 83600,
+        "detection_annotation_recall": 0.581764705882353,
+        "detection_annotation_precision": 0.5574971815107103,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.24548736462093862
+      },
+      "macro_defined_rates": {
+        "detection_annotation_recall": 0.581764705882353,
+        "detection_annotation_precision": 0.5574971815107103,
+        "selection_annotation_overlap_coverage": 1.0,
+        "selected_overlap_fraction": 0.24548736462093862
+      }
+    }
+  ],
+  "limitations": [
+    "Already exposed fixed cases; posthoc familiar-panel result, not heldout performance.",
+    "Source-only readonly facade validation, not installed HTTP/API or deployment qualification.",
+    "D is native overlap detection; W is padded dispatch support, so selected nonoverlap includes deliberate context.",
+    "Annotation support is forced-aligned lexical words in English and utterance spans in Mandarin, not exact acoustic overlap truth.",
+    "Outside-reference support is unannotated, not proved silent.",
+    "Any boundary-crossing Mandarin utterance makes a full subrange transcript denominator unavailable; no character apportionment or gold-driven range change.",
+    "No candidate calls or lexical recognition evidence follow from geometry coverage."
+  ],
+  "public_text_policy": "No transcript text, original speaker/session/chunk labels, audio or private paths; anonymous ordinal geometry and hashes only."
+}

@@ -1,0 +1,182 @@
+{
+  "schema": "automatic-native-api-failed-attempt-outcome-v1",
+  "created_utc": "2026-11-05T05:21:18.487548Z",
+  "attempt": "automatic-api-execution01",
+  "status": "failed_watchdog_observation_gap",
+  "overall_qualification_accepted": false,
+  "quality_qualified": false,
+  "original_failed_attempt_preserved": true,
+  "prior_fullclip_quality_result_unchanged": true,
+  "evidence_hashes": {
+    "original_launch_seal_sha256": "11e137075e893746203092940d17a88cbc8c427af502c26a071eaa069cc67377",
+    "harness_sha256": "4967ab211341ebb59b529c6e9252c434d7ed41e61dd04cb069139dcb76c2ecd8",
+    "binding_sha256": "639dd59edc1ba1ee90eb128b77201407e0dda6879a08612a19a71240debde0e5",
+    "independent_terminal_audit_sha256": "91df0d7f9fdfeb34f689bc05bdb6c618cea9b3a7bfc199126f80442949944b65",
+    "RESULT.json": "ca074579a6013d7db0beb34b2776d8c9df38cc090f8363f694474bbd3fddadc8",
+    "RESOURCE_RECEIPT.json": "69bef16b6adadbfb9d348a14999e7ae76a6fdb7541b6d3da090d855a40c23f69",
+    "FAILURE.json": "eedd260095bdbfd0148f85c4eb278b184c16517e06ad04573966ba80e8b82aa9",
+    "CLEANUP_FAILURE.json": "eedd260095bdbfd0148f85c4eb278b184c16517e06ad04573966ba80e8b82aa9",
+    "PRESERVATION.json": "330149c0105723a65304da53587447ce9711f27b04506cdb8b43c9cbf8316c9c",
+    "PREIMAGE_VERIFICATION.json": "45838573493b27394e885db401e2291ed469913575ff54a6c56c0949e1202c96",
+    "BEFORE.json": "28214290bed1fd360315584e367ade6bd98c8513392533ad86bf5bf660d89f30",
+    "AFTER_START.json": "28214290bed1fd360315584e367ade6bd98c8513392533ad86bf5bf660d89f30",
+    "AFTER_STOP.json": "28214290bed1fd360315584e367ade6bd98c8513392533ad86bf5bf660d89f30"
+  },
+  "completed_work": {
+    "native_evidence_GETs_HTTP200": 11,
+    "committed_native_exports": 1,
+    "installed_snapshot_and_exact_selector_proofs": 1,
+    "second_export_process_returncode": -15,
+    "second_export_committed_output": false,
+    "candidate_intents": 0,
+    "candidate_model_calls": 0,
+    "primary_submissions": 0,
+    "primary_retries": 0
+  },
+  "failure": {
+    "reason": "watchdog_observation_gap",
+    "original_maximum_observation_gap_seconds": 0.1,
+    "nominal_sampling_interval_seconds": 0.05,
+    "exact_rejected_gap_seconds": null,
+    "maximum_saved_gap_field_seconds": 0.05776009900000645,
+    "maximum_adjacent_saved_elapsed_difference_seconds": 0.22747172699746443,
+    "interpretation": "The violating observation raised before it was saved. Neither the saved gap-field maximum nor the adjacent saved elapsed difference is the exact rejected gap. The retained 57.8 ms maximum does not establish compliance with the original 100 ms threshold. No memory-limit failure or recognition outcome is inferred."
+  },
+  "cleanup": {
+    "original_Popen_handles_waited": 4,
+    "strict_service_returncode": 143,
+    "owned_identities_recorded": 5,
+    "remaining_live_owned": 0,
+    "ownership_uncertain": false,
+    "both_watchdogs_joined": true,
+    "independent_current_identity_matches": 0,
+    "independent_current_audio_service_processes": 0,
+    "independent_current_port53975_listeners": 0,
+    "cleanup_failure_filename_interpretation": "CLEANUP_FAILURE.json repeats watchdog_observation_gap through Guard.close() final check after successful reap and thread joins. It is not evidence of an unreaped child. The resource failure remains a failure and is not waived."
+  },
+  "preservation": {
+    "independent_terminal_checks_passed": true,
+    "all_76_primary_database_tables_and_schemas_equal_preimage": true,
+    "reviewed_logical_state_unchanged": true,
+    "original_source_namespace_outputs_runtime_models_unchanged": true,
+    "jobs_database_bytes_changed_as_permitted": true,
+    "cells_database_bytes_unchanged": true,
+    "restoration_performed": false,
+    "postfailure_preservation_checks_outside_active_resource_guard": true
+  },
+  "resource_observations": {
+    "peak_retained_owned_RSS_bytes": 184061952,
+    "maximum_sampled_CPU_seconds": 5.07,
+    "last_retained_elapsed_seconds": 5.024009973996726,
+    "minimum_retained_MemAvailable_bytes": 8039690240,
+    "sampled_artifact_bytes_maximum": 17226311,
+    "combined_original_store_and_execution_artifact_bytes_at_independent_review": 17302933,
+    "execution_directory_final_file_bytes_at_report": 8819881,
+    "resource_accounting_note": "Sampled maxima are not instantaneous or exact cumulative totals. Combined artifact scope includes the original live store and execution artifacts; execution-directory bytes are a separately labelled subset. Physical guest RAM basis is not a cgroup or aggregate process-RSS limit."
+  },
+  "cases": [
+    {
+      "case_id": "en-overlap-1",
+      "reference_status": "ready",
+      "installed_export_status": "complete",
+      "expected_support_count": 1,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unattempted",
+      "support_outcomes": [
+        {
+          "range_ordinal": 1,
+          "start_frame": 108336,
+          "end_frame": 152144,
+          "execution_status": "unattempted",
+          "reference_boundary_status": "unscorable_boundary"
+        }
+      ]
+    },
+    {
+      "case_id": "en-overlap-2",
+      "reference_status": "ready",
+      "installed_export_status": "interrupted_no_committed_output",
+      "expected_support_count": 1,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unattempted",
+      "support_outcomes": [
+        {
+          "range_ordinal": 1,
+          "start_frame": 6256,
+          "end_frame": 74064,
+          "execution_status": "unattempted",
+          "reference_boundary_status": "unscorable_boundary"
+        }
+      ]
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "reference_status": "ready",
+      "installed_export_status": "not_attempted",
+      "expected_support_count": 3,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unattempted",
+      "support_outcomes": [
+        {
+          "range_ordinal": 1,
+          "start_frame": 12976,
+          "end_frame": 59344,
+          "execution_status": "unattempted",
+          "reference_boundary_status": "unscorable_boundary"
+        },
+        {
+          "range_ordinal": 2,
+          "start_frame": 84000,
+          "end_frame": 111184,
+          "execution_status": "unattempted",
+          "reference_boundary_status": "unscorable_boundary"
+        },
+        {
+          "range_ordinal": 3,
+          "start_frame": 127856,
+          "end_frame": 165104,
+          "execution_status": "unattempted",
+          "reference_boundary_status": "unscorable_boundary"
+        }
+      ]
+    },
+    {
+      "case_id": "zh-overlap-2",
+      "reference_status": "unavailable",
+      "installed_export_status": "unavailable",
+      "expected_support_count": 0,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unavailable",
+      "support_outcomes": []
+    },
+    {
+      "case_id": "en-solo-1",
+      "reference_status": "ready",
+      "installed_export_status": "not_attempted",
+      "expected_support_count": 0,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unattempted",
+      "support_outcomes": []
+    },
+    {
+      "case_id": "zh-solo-1",
+      "reference_status": "ready",
+      "installed_export_status": "not_attempted",
+      "expected_support_count": 0,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unattempted",
+      "support_outcomes": []
+    },
+    {
+      "case_id": "digital-zero-1",
+      "reference_status": "ready",
+      "installed_export_status": "not_attempted",
+      "expected_support_count": 0,
+      "candidate_model_calls": 0,
+      "recognition_observation_status": "unattempted",
+      "support_outcomes": []
+    }
+  ],
+  "recognition_reporting": "Zero candidate model calls. All five fixed supports remain unattempted; no CER/WER, speaker-recovery, model silence-pass or recognition-quality observation is available from this attempt. Source-only geometry and prior full-clip quality results are not relabelled as this installed-path result.",
+  "continuation": "The original launch seal is consumed. Any continuation needs a new reviewed exact-byte binding and separate seal; the original failed outcome remains unchanged."
+}

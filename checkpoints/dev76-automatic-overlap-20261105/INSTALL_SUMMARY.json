@@ -1,0 +1,31 @@
+{
+  "candidate_module_sha256": "1cb2f94ab2f96054c59efc5d797446e2f7dded39c9401c57d606528060b72433",
+  "dependency_files_unchanged": 1832,
+  "existing_store_migration_authorized": false,
+  "general_production_rollout_approved": false,
+  "installed_verification": {
+    "materialization_receipt_sha256": "133988b2ed0484960eed69ae3ee23e09acd74a541fed4bdc175bca8629ca7165",
+    "models_loaded": false,
+    "product_bytes": 4430382,
+    "product_files": 193,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "live_bad_receipt_gate": true,
+  "materialization_receipt_sha256": "133988b2ed0484960eed69ae3ee23e09acd74a541fed4bdc175bca8629ca7165",
+  "materializer_verifier_tests": 41,
+  "models_loaded": false,
+  "passed": true,
+  "qualification_tests": 9,
+  "reviewed_basis_sha256": "2d8af14b40a519c115c3717e0ed30789f8bb898cacdadb23a410754fbff03fb6",
+  "schema": "fresh-dev76-product-install-v1",
+  "service_started": false,
+  "source_files_unchanged": 1083,
+  "source_manifest_sha256": "7c9d8e07ee750dcc686be15b8140772f36c1c2cc15463a38089f62fc1ee49272",
+  "version": "0.2.0rc3.dev76",
+  "wheel_sha256": "ade185e2f9c1ea671886f8a795ff4d0dfbb92fa467f2ef1ff72d8f80a1c874d9",
+  "source_commit": "ce10947d6b254edbb6e646a17bc67315800ff784",
+  "broader_suite": "16 passed / 2 failures also reproduced on unchanged base; not a full-suite pass."
+}
