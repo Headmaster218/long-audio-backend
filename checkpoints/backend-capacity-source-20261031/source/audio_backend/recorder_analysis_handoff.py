@@ -22,7 +22,7 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
             acknowledge_span_local_closure=False, deadline_seconds=120,
             max_polls=64, poll_seconds=5, max_actions=256, max_requests=1024,
             max_network_writes=512, max_network_bytes=runner.MAX_NETWORK_BYTES,
-            export_recovery_attempts=0, busy_read_retries=0,
+            export_recovery_attempts=0, busy_read_retries=0, native_turns=False,
             limits=None, transport=None, cancel=None,
             preserve_reviewed_identity_group=None, identity_generation=None, identity_policy_sha256=None):
     """Discover, link, and watch one successor; standalone behavior is unchanged."""
@@ -35,7 +35,7 @@ def _coordinate(*, state_dir, route_config, next_state_dir, next_job_dir,
             acknowledge_span_local_closure=False, deadline_seconds=120,
             max_polls=64, poll_seconds=5, max_actions=256, max_requests=1024,
             max_network_writes=512, max_network_bytes=runner.MAX_NETWORK_BYTES,
-            export_recovery_attempts=0, busy_read_retries=0,
+            export_recovery_attempts=0, busy_read_retries=0, native_turns=False,
             limits=None, transport=None, cancel=None,
             preserve_reviewed_identity_group=None, identity_generation=None, identity_policy_sha256=None,
                 link_only=False, phase_budget=None, shared_guard=None, allow_physical_stop=False):
@@ -45,6 +45,7 @@ def _coordinate(*, state_dir, route_config, next_state_dir, next_job_dir,
     pauses inside transition or successor intake are returned, never replayed.
     The supplied route must select the intended successor and retain the old one.
     """
+    native_options = runner.native_export_options(native_turns, export_recovery_attempts)
     require(acknowledge_automatic_handoff is True and exclusive_writer is True
             and acknowledge_span_local_closure is True, 'handoff_explicit_ack_required')
     require(type(deadline_seconds) in (int, float) and math.isfinite(deadline_seconds)
@@ -67,6 +68,8 @@ def _coordinate(*, state_dir, route_config, next_state_dir, next_job_dir,
     state = runner._path(str(state_dir))
     single.private_directory(state)
     config = single.manifest_read(state/'config.json'); runner._config(config, state)
+    runner.check_export_policy(state, native_turns)
+    runner.check_export_policy(runner._path(str(next_state_dir)), native_turns)
     pair, provenance, _ = boundary.routing_selection(route_config, config)
     base = transport or u.HTTPTransport(config['api'], guard)
     class Budget:
@@ -86,7 +89,7 @@ def _coordinate(*, state_dir, route_config, next_state_dir, next_job_dir,
         max_actions=max_actions, max_polls=1, poll_seconds=poll_seconds,
         max_requests=max_requests, max_network_writes=max_network_writes,
         max_network_bytes=max_network_bytes, limits=limits, transport=checked, cancel=cancel,
-        busy_read_retries=busy_read_retries)
+        busy_read_retries=busy_read_retries, **native_options)
     def result(status, phase, **extra):
         return dict(schema=SCHEMA, status=status, phase=phase, invocation_bounded=True,
             network_requests=checked.requests, network_writes=checked.writes,
@@ -240,6 +243,7 @@ def main(argv=None):
                           ('max-network-writes',512),('max-network-bytes',runner.MAX_NETWORK_BYTES)):
         p.add_argument('--'+name, type=int, default=default)
     p.add_argument('--export-recovery-attempts', type=int, choices=(0,2,3), default=0)
+    p.add_argument('--native-turns', action='store_true')
     p.add_argument('--busy-read-retries', type=int, choices=range(4), default=0)
     p.add_argument('--deadline-seconds', type=float, default=120)
     p.add_argument('--poll-seconds', type=float, default=5)

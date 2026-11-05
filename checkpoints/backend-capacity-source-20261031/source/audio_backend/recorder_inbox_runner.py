@@ -42,6 +42,31 @@ MAX_NETWORK_BYTES = 256 * 1024**2
 MAX_WATCH_POLLS = 4096
 MAX_WATCH_ACTIONS = 4096
 require = single.require
+NATIVE_EXPORT_POLICY = 'native-turns-v1'
+
+
+def native_export_options(native_turns, recovery_attempts=0):
+    """Default-off export policy; revision recovery remains baseline-only."""
+    require(type(native_turns) is bool, 'runner_native_turn_option')
+    require(not (native_turns and recovery_attempts), 'runner_native_turn_recovery_unsupported')
+    return {'native_turns': True} if native_turns else {}
+
+
+def _export_artifacts(intent):
+    native = 'export_policy' in intent
+    if native:
+        require(intent['export_policy'] == NATIVE_EXPORT_POLICY, 'runner_export_policy_invalid')
+        require('recovery_attempts' not in intent, 'runner_native_turn_recovery_unsupported')
+    return {'export.json', 'transcript.txt'} | ({'native-turns.json'} if native else set())
+
+
+def check_export_policy(root, native_turns):
+    """A saved export intent pins policy, including already committed exports."""
+    path = root/'export.intent.json'
+    if os.path.lexists(path):
+        saved = single.manifest_read(path)
+        _export_artifacts(saved)
+        require(('export_policy' in saved) == native_turns, 'runner_export_policy_changed')
 
 
 def _same(a, b):
@@ -233,6 +258,9 @@ def _ledger(root, config, *, logical_preparing=False):
                 bound = saved['recovery_attempts']
                 require(type(bound) is int and 2 <= bound <= 3, 'runner_export_recovery_bound')
                 expected['recovery_attempts'] = bound
+            if kind == 'export':
+                _export_artifacts(saved)
+                if 'export_policy' in saved:expected['export_policy'] = saved['export_policy']
             require(_same(saved, expected), 'runner_terminal_intent_binding')
             if kind == 'finalize' and os.path.lexists(dp):
                 require(_same(single.manifest_read(dp), _done(expected)), 'runner_finalize_receipt_binding')
@@ -471,13 +499,15 @@ class _Transport:
 
 
 def _export_receipt(root, config, intent, guard):
+    artifacts = _export_artifacts(intent)
+    names = artifacts | {'complete.json'}
     if 'recovery_attempts' in intent:
         return _recovery_export_receipt(root, config, intent, guard)
     output = Path(config['output_dir']); single.private_directory(output)
     directory = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         held = os.fstat(directory)
-        require(_names(output, 3) == {'export.json','transcript.txt','complete.json'}, 'runner_export_artifacts_changed')
+        require(_names(output, len(names)) == names, 'runner_export_artifacts_changed')
         def read(name, maximum, *, expected_size=None, collect=False):
             guard.check()
             fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory)
@@ -504,7 +534,10 @@ def _export_receipt(root, config, intent, guard):
         manifest = json.loads(raw)
         require(type(manifest) is dict and manifest.get('schema') == exporter.SCHEMA and manifest.get('status') == 'exported'
                 and type(manifest.get('artifacts')) is dict
-                and set(manifest['artifacts']) == {'export.json','transcript.txt'}, 'runner_export_manifest_changed')
+                and set(manifest['artifacts']) == artifacts, 'runner_export_manifest_changed')
+        if 'export_policy' in intent:
+            require(manifest.get('local_publication') == 'manifest_commits_three_artifacts',
+                    'runner_export_manifest_changed')
         total = 0
         for name, expected in manifest['artifacts'].items():
             require(type(expected) is dict and set(expected) == {'bytes','sha256'} and
@@ -517,7 +550,7 @@ def _export_receipt(root, config, intent, guard):
         guard.check(); single.private_directory(output)
         require(u._signature(held) == u._signature(os.fstat(directory)) == u._signature(output.lstat()),
                 'runner_export_directory_changed')
-        require(_names(output,3) == {'export.json','transcript.txt','complete.json'},'runner_export_artifacts_changed')
+        require(_names(output,len(names)) == names,'runner_export_artifacts_changed')
         return dict(**_done(intent), complete_sha256=complete_hash)
     finally: os.close(directory)
 
@@ -610,7 +643,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
          finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=1, max_requests=1024,
          max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None,
          poll_seconds=None, max_polls=1, max_network_bytes=MAX_NETWORK_BYTES, wait_for_marker_last=False, watching=False,
-         busy_read_retries=0):
+         busy_read_retries=0, native_turns=False):
+    native_options = native_export_options(native_turns, export_recovery_attempts)
     started = time.monotonic()
     require(exclusive_writer is True and acknowledge_span_local_closure is True,
             'runner_explicit_acknowledgments_required')
@@ -641,6 +675,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
         root_identity = (root.stat().st_dev, root.stat().st_ino)
         lock_identity = u._signature(os.fstat(lock))
         config = single.manifest_read(root/'config.json'); _config(config, root)
+        check_export_policy(root, native_turns)
         require(not export or config['output_dir'] is not None, 'runner_export_destination_required')
         effective = replace(limits or u.Limits(), deadline_seconds=deadline_seconds,
                             output_frames=config['max_hours']*3600*u.RATE)
@@ -661,6 +696,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                         u._signature(os.fstat(lock)) == u._signature((root/'runner.lock').lstat()) == lock_identity,
                         'runner_lock_or_state_replaced')
             require(_same(single.manifest_read(root/'config.json'), config), 'runner_config_changed')
+            check_export_policy(root, native_turns)
             current, count = _ledger(root, config)
             require(_same(current,intents) and count == completed, 'runner_ledger_changed')
             _job_prefix(config, intents, completed, writes=writes)
@@ -712,6 +748,8 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                          input_intents_sha256=_hash(intents))
             if kind == 'export' and export_recovery_attempts:
                 value['recovery_attempts'] = export_recovery_attempts
+            if kind == 'export' and native_turns:
+                value['export_policy'] = NATIVE_EXPORT_POLICY
             path = root/(kind+'.intent.json')
             if not os.path.lexists(path): single.manifest_write(path,value)
             _durable(path,value); return value
@@ -781,7 +819,7 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
                             finally:
                                 http.export_recovery_phase = False
                         else:
-                            helper(exporter.run, **options(), output_dir=config['output_dir'])
+                            helper(exporter.run, **options(), output_dir=config['output_dir'], **native_options)
                         receipt = _export_receipt(root,config,terminal,guard)
                         single.manifest_write(root/'export.done.json',receipt)
                         return result('exported',export_completed=True, **({key:receipt[key] for key in
@@ -865,20 +903,21 @@ def _run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=Fa
 
 def run(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
         finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=1, max_requests=1024,
-        max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None):
+        max_network_writes=512, deadline_seconds=120, limits=None, transport=None, cancel=None, native_turns=False):
     """One bounded reconciliation. Existing manual-resume behavior is unchanged."""
     return _run(state_dir=state_dir, exclusive_writer=exclusive_writer,
         acknowledge_span_local_closure=acknowledge_span_local_closure, finalize=finalize,
         export=export, export_recovery_attempts=export_recovery_attempts, select_attempt=select_attempt, max_actions=max_actions,
         max_requests=max_requests, max_network_writes=max_network_writes,
-        deadline_seconds=deadline_seconds, limits=limits, transport=transport, cancel=cancel)
+        deadline_seconds=deadline_seconds, limits=limits, transport=transport, cancel=cancel,
+        **native_export_options(native_turns, export_recovery_attempts))
 
 
 def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=False,
           finalize=False, export=False, export_recovery_attempts=0, select_attempt=None, max_actions=256, max_requests=1024,
           max_network_writes=512, max_network_bytes=MAX_NETWORK_BYTES, deadline_seconds=120,
           poll_seconds=5, max_polls=256, wait_for_marker_last=False, limits=None, transport=None, cancel=None,
-          busy_read_retries=0):
+          busy_read_retries=0, native_turns=False):
     """Finite watch. By default only clean missing input and pending status repeat.
 
     The original runner lock, exact configuration, transport and all budgets stay
@@ -893,7 +932,8 @@ def watch(*, state_dir, exclusive_writer=False, acknowledge_span_local_closure=F
         max_requests=max_requests, max_network_writes=max_network_writes,
         max_network_bytes=max_network_bytes, deadline_seconds=deadline_seconds,
         poll_seconds=poll_seconds, max_polls=max_polls, wait_for_marker_last=wait_for_marker_last, watching=True, limits=limits,
-        transport=transport, cancel=cancel, busy_read_retries=busy_read_retries)
+        transport=transport, cancel=cancel, busy_read_retries=busy_read_retries,
+        **native_export_options(native_turns, export_recovery_attempts))
 
 
 def preflight(*, state_dir, select_attempt=None, deadline_seconds=120):
@@ -988,6 +1028,7 @@ def main(argv=None):
         execute.add_argument('--acknowledge-span-local-closure',action='store_true',required=True)
         execute.add_argument('--finalize',action='store_true'); execute.add_argument('--export',action='store_true')
         execute.add_argument('--export-recovery-attempts',type=int,choices=(0,2,3),default=0)
+        execute.add_argument('--native-turns',action='store_true')
         execute.add_argument('--select-attempt'); execute.add_argument('--max-actions',type=int,default=256 if mode == 'watch' else 1)
         execute.add_argument('--max-requests',type=int,default=1024); execute.add_argument('--max-network-writes',type=int,default=512)
         execute.add_argument('--deadline-seconds',type=float,default=120)

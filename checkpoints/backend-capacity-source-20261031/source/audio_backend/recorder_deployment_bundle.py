@@ -54,7 +54,8 @@ def prepare(*, bundle_dir, endpoint_config, api, generations=3, segment_seconds=
             max_attempts=144,max_raw_bytes=8*1024**3,max_hours=12,max_inputs=192,
             phase_max_actions=16,phase_max_polls=192,max_total_actions=32768,
             max_total_polls=4096,max_requests=4096,max_network_writes=1024,
-            max_network_bytes=256*1024**2,acknowledge_fresh_only=False):
+            max_network_bytes=256*1024**2,acknowledge_fresh_only=False,native_turns=False):
+    plan.runner.native_export_options(native_turns)
     require(acknowledge_fresh_only is True,'bundle_fresh_acknowledgment_required')
     root = publication._path(str(bundle_dir)); template = publication._path(str(endpoint_config))
     publication._private(root.parent)
@@ -68,6 +69,7 @@ def prepare(*, bundle_dir, endpoint_config, api, generations=3, segment_seconds=
         max_total_actions=max_total_actions,max_total_polls=max_total_polls,max_requests=max_requests,
         max_network_writes=max_network_writes,max_network_bytes=max_network_bytes)
     report = capacity.profile(**settings)
+    if native_turns:settings['native_turns'] = True
     require(report['conditional_profile_fits'],'bundle_profile_does_not_fit')
     data, snapshot = _snapshot(template)
     old = publication.validate_binding(data['binding'],data['inbox_dir'])
@@ -125,6 +127,7 @@ def prepare(*, bundle_dir, endpoint_config, api, generations=3, segment_seconds=
         analyze=['python','-I','-B','-m','audio_backend.recorder_analysis_plan','--plan-file',str(root/'plan.json'),
             '--control-dir',str(control),'--acknowledge-finite-plan','--exclusive-writer','--acknowledge-span-local-closure',
             *[part for key,value in budgets.items() for part in ('--'+key.replace('_','-'),str(value))]])
+    if native_turns:commands['analyze'].append('--native-turns')
     _write(root/'commands.json',commands)
     unchanged()
     for config in configs+routes:receiver.load_config(config)
@@ -141,6 +144,7 @@ def prepare(*, bundle_dir, endpoint_config, api, generations=3, segment_seconds=
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('bundle-dir','endpoint-config','api'):p.add_argument('--'+name,required=True)
+    p.add_argument('--native-turns',action='store_true')
     p.add_argument('--acknowledge-fresh-only',action='store_true',required=True)
     for name,default in (('generations',3),('segment-seconds',300),('max-attempts',144),('max-raw-bytes',8*1024**3),
         ('max-hours',12),('max-inputs',192),('phase-max-actions',16),('phase-max-polls',192),

@@ -39,3 +39,14 @@ Review then execute the `analyze` array in `commands.json`. It uses phase action
 Inspect each result. A paused or unresolved result is not success and is not permission to loop automatically. Preserve all receipts and resolve the reported condition before an explicit later invocation. An exact completed repeat checks durable receipts and does not recreate sessions. Final ROTATION with no next entry is `plan_exhausted`, not recording completion. Early verified physical STOP exports the recording and reports unused entries.
 
 Existing stored generations are not resized by this workflow. Use the read-only capacity preflight for stopped, locked inventories across every retained generation; a configuration-only calculation cannot establish the state of a live receiver or authorize edits to it.
+
+## Optional native-turn evidence
+
+Add `--native-turns` when preparing a fresh bundle to include that flag in its
+generated `analyze` command and record `native_turns: true` in the bundle
+settings. Initialization and receiver commands are unchanged. Without the flag,
+the generated settings, commands, and baseline two-artifact export behavior
+remain unchanged. The generated finite plan pins the chosen export policy on
+its first execution. Follow [the finite-plan export policy and resume rules](RECORDER_FINITE_ANALYSIS_PLAN.md#optional-native-turn-evidence-export),
+including the explicit refusal of native mode with export recovery. Preparing
+the bundle still starts no service, inference, candidate work, or export.

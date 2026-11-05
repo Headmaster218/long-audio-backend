@@ -124,7 +124,9 @@ class _LocalPin:
 
 
 def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=False,
-        limits=None, recovery_limits=None, export_limits=None, transport=None, cancel=None):
+        limits=None, recovery_limits=None, export_limits=None, transport=None, cancel=None, native_turns=False):
+    export.require(type(native_turns) is bool, 'span_export_native_turn_option')
+    export.require(not native_turns, 'export_recovery_native_turns_unsupported')
     export.require(exclusive_writer is True, 'span_status_exclusive_writer_ack_required')
     bounds = recovery_limits or RecoveryLimits()
     export.require(type(bounds) is RecoveryLimits, 'export_recovery_invalid_limit')
@@ -197,6 +199,8 @@ def main(argv=None):
     for name in ('job-dir', 'api', 'session-id', 'capture-id', 'output-dir'):
         parser.add_argument('--'+name, required=True)
     parser.add_argument('--exclusive-writer', action='store_true', required=True)
+    parser.add_argument('--native-turns', action='store_true',
+                        help='Unsupported with recovery; fails before any effect')
     parser.add_argument('--attempts', type=int, choices=(1, 2, 3), default=2)
     parser.add_argument('--deadline-seconds', type=float, default=120)
     args = vars(parser.parse_args(argv))

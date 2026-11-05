@@ -152,3 +152,38 @@ This is a finite orchestration primitive, not indefinite storage, automatic
 provisioning, a system service, a phone delivery guarantee or long-duration
 recognition qualification. It does not start/restart the receiver, remove data,
 repair partial uploads, or relax existing primary-analysis qualification gates.
+
+## Optional native-turn evidence export
+
+Pass `--native-turns` (Python API `native_turns=True`) to opt in for every
+export in this finite plan. The default remains the existing two-artifact
+baseline. Native mode exports exactly `export.json`, `transcript.txt`, and
+`native-turns.json`, plus `complete.json` committing their individual sizes
+and SHA-256 hashes. Native source/content validation and paired stable reads
+remain the direct exporter's responsibility. This evidence describes native
+turn detection; it does not establish recognition accuracy or global speaker
+identity, schedule overlap candidates, run an extra model, or replace primary
+transcripts.
+
+The finite plan's immutable `plan.intent.json` records
+`export_policy: "native-turns-v1"` only when enabled, before any phase effects.
+Each span's `export.intent.json` records the same policy before publication.
+Omitting the flag on a native plan resume, or adding it to a baseline plan
+resume, refuses before network activity. Exact completed repeats verify the
+same artifact set and hashes without exporting again. Existing baseline
+configs, plan intents, export intents, and receipts retain their old shapes;
+there is no false-valued field or receipt migration.
+
+The same default-off flag is available on standalone handoff, generation
+transition, and runner `run`/`watch`. A saved export intent pins their choice and
+an incompatible invocation is refused before effects. Unlike the finite plan,
+these standalone commands do not have an outer policy intent: a pause before
+an export intent exists does not pin the option. Use the finite plan when the
+choice must be immutable across earlier intake/finalization pauses.
+
+Native mode currently cannot be combined with `--export-recovery-attempts`.
+That combination is refused before filesystem or network effects, including
+at nested entry points. The direct export-recovery command also explicitly
+refuses `--native-turns`; its baseline partial-file validation is unchanged.
+On any native export failure, preserve all output and receipts. An incomplete
+or uncertain publication is never adopted, overwritten, or upgraded in place.

@@ -147,7 +147,8 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
         max_network_writes=1024, max_network_bytes=runner.MAX_NETWORK_BYTES,
         max_total_actions=32768, max_total_polls=4096, phase_max_actions=64,
         phase_max_polls=64, poll_seconds=1, export_recovery_attempts=0,busy_read_retries=0,
-        limits=None, transport=None, cancel=None):
+        limits=None, transport=None, cancel=None, native_turns=False):
+    native_options = runner.native_export_options(native_turns, export_recovery_attempts)
     require(acknowledge_finite_plan is True and exclusive_writer is True and
             acknowledge_span_local_closure is True, 'plan_explicit_ack_required')
     require(type(deadline_seconds) in (int,float) and math.isfinite(deadline_seconds)
@@ -171,6 +172,10 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
     control = runner._path(str(control_dir)); single.private_directory(control)
     file = runner._path(str(plan_file))
     plan, config, intent, templates = _validate(file, control, guard)
+    for state in (plan['state_dir'], *(edge['next_state_dir'] for edge in plan['edges'])):
+        runner.check_export_policy(Path(state), native_turns)
+    if native_turns:intent['export_policy'] = runner.NATIVE_EXPORT_POLICY
+    require(len(single._json(intent)) <= single.MAX_MANIFEST, 'plan_intent_size')
     require(runner._names(control,2) <= {'chain.lock',INTENT}, 'plan_unknown_control_file')
     lock = runner.engine.held_lock(control/'chain.lock', create=not os.path.lexists(control/'chain.lock'))
     try:
@@ -248,7 +253,7 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
                     deadline_seconds=remaining(),max_actions=phase_max_actions,max_polls=phase_max_polls,
                     poll_seconds=poll_seconds,export_recovery_attempts=export_recovery_attempts,
                     busy_read_retries=busy_read_retries,limits=limits,transport=network,cancel=cancel,
-                    link_only=True,allow_physical_stop=True,phase_budget=phases,shared_guard=guard,**allowance)
+                    link_only=True,allow_physical_stop=True,phase_budget=phases,shared_guard=guard,**native_options,**allowance)
                 guard.check()
                 if network.mutation_stopped:
                     return result('plan_refused','mutation_review_required',stop_details=linked)
@@ -283,7 +288,7 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
                 following=runner.watch(state_dir=state,exclusive_writer=True,acknowledge_span_local_closure=True,
                     finalize=True,export=True,deadline_seconds=remaining(),max_actions=phase_max_actions,max_polls=polls,
                     poll_seconds=poll_seconds,export_recovery_attempts=export_recovery_attempts,busy_read_retries=busy_read_retries,
-                    limits=limits,transport=network,cancel=cancel,**allowance)
+                    limits=limits,transport=network,cancel=cancel,**native_options,**allowance)
                 guard.check()
                 if network.mutation_stopped:
                     return result('plan_refused','mutation_review_required',stop_details=following)
@@ -317,6 +322,7 @@ def main(argv=None):
         p.add_argument('--'+name,type=int,default=default)
     p.add_argument('--deadline-seconds',type=float,default=120);p.add_argument('--poll-seconds',type=float,default=1)
     p.add_argument('--export-recovery-attempts',type=int,choices=(0,2,3),default=0)
+    p.add_argument('--native-turns',action='store_true')
     p.add_argument('--busy-read-retries',type=int,choices=range(4),default=0)
     try:value=run(**vars(p.parse_args(argv)))
     except (Exception,KeyboardInterrupt):value=dict(schema=SCHEMA,status='plan_refused',preserve_existing_files=True,automatic_retry=False)

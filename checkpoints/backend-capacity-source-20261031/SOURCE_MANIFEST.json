@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "043265a1df0663b54088da6829101749b9fb8e66",
-      "sha256": "f68bfa3ca0ce45bca6816bf35e6a29b6f6765509e9e6d728e9fa86415b28febe"
+      "sha": "a98e469d2f6b543dcfdc35089418c504832119c3",
+      "sha256": "e1ccfb10c295e3f48e97306e742c2c4e123a2f1714b1077d7f3723108c9578b3"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -736,15 +736,15 @@
     },
     {
       "path": "audio_backend/recorder_analysis_handoff.py",
-      "size": 16373,
-      "sha": "3e5172e717f7847f508224bab589025901f52948",
-      "sha256": "1cadb6abc671267a6cebe3fee70dc2332030ae7446bb856ecff14bbfe71936f4"
+      "size": 16711,
+      "sha": "b8dc09ba4344f872cf5e4239cbc6710ca2239d27",
+      "sha256": "57c1afc6e115c3e5f0470e120be105427e6530f5defeb2a620f3608144144608"
     },
     {
       "path": "audio_backend/recorder_analysis_plan.py",
-      "size": 22150,
-      "sha": "9a7d469d1af3a134e1d304d9ebdaaf09be8ba8b1",
-      "sha256": "878ed3a3dbacd3dd39bc6a050c7dcf9ea980c996365014bf93fec41fcc8ca0e0"
+      "size": 22660,
+      "sha": "39856c730bc45dded39681fb05478351c1fe3dff",
+      "sha256": "2f7a8317b7c23009e87c31278e156bbe4817776e46bf2c419a4e559f607da334"
     },
     {
       "path": "audio_backend/recorder_batch_intake.py",
@@ -790,15 +790,15 @@
     },
     {
       "path": "audio_backend/recorder_deployment_bundle.py",
-      "size": 9858,
-      "sha": "dd59a1a32c98853cf4f5880b6f54c98c6453d068",
-      "sha256": "04c304f290c88287db768a23fc1a6c511a207c0e4ea735cd4fa93ab86654c7f8"
+      "size": 10103,
+      "sha": "d23b43e64c406ca5c87d611c175d713ef857ecde",
+      "sha256": "79b2d3642c6a66046fb4541eb6253b5170bae07bc86df193eee20a69c79f632d"
     },
     {
       "path": "audio_backend/recorder_export_recovery.py",
-      "size": 11668,
-      "sha": "e9b57246fd167f2a319ff3e4ddce28a08400ed1a",
-      "sha256": "fc50299e107f80a581209b46b453b7a581c67617f0b706db174a8d4ee7bb4e99"
+      "size": 11996,
+      "sha": "a43544df6bddcd5024dcc956ab027c4c759319da",
+      "sha256": "cff796f80b8acf70b12e5cecdd071a609bc9f4cd94a42a68cc4019827a0d3bb7"
     },
     {
       "path": "audio_backend/recorder_ftps_receiver.py",
@@ -808,9 +808,9 @@
     },
     {
       "path": "audio_backend/recorder_generation_transition.py",
-      "size": 15614,
-      "sha": "e04d044c5e0677903c7d2d45062a15c4c75058d5",
-      "sha256": "51712a38f85f398b2fd41ae80ef13fec1557987952373c7b7c48da53779db30a"
+      "size": 15940,
+      "sha": "08e0e1e79eb7d5c38fe37c16a54d0a0ac95261d2",
+      "sha256": "6e9db3ecdb94eec0ec5f2b84ca6b00183542df8d1a09fb18d0fe1ec4783260c8"
     },
     {
       "path": "audio_backend/recorder_inbox.py",
@@ -820,9 +820,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 63198,
-      "sha": "a5dee2151ecdb3ba7e6a7fe8a5192dafb267b374",
-      "sha256": "68c69dbb06ab996acd24e338534f2bc1fcbba2d9c7e66beebfeb76726cd06220"
+      "size": 65272,
+      "sha": "faaedba9335dc36abfd4fb5783d0b3a32b77ca1d",
+      "sha256": "f8d8002566e841e7372e25cb9066fa1173e3dcdcff044f069354daadd7b10931"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -2338,15 +2338,15 @@
     },
     {
       "path": "docs/RECORDER_FINITE_ANALYSIS_PLAN.md",
-      "size": 8107,
-      "sha": "041bef40dfaa3c950761539d0088d730db8d8472",
-      "sha256": "722c352d253a892366a5d650adae0735701f139a8f56ee33ae8ea79e6f112123"
+      "size": 10254,
+      "sha": "3d5593c2292f8c29824b8b62ce13593cb8a26274",
+      "sha256": "b8f06fe3fe1c616b7e26c9efccb81a8ba6b2291c78fce27fc2a2939a76aac5c2"
     },
     {
       "path": "docs/RECORDER_FRESH_DEPLOYMENT_BUNDLE.md",
-      "size": 6336,
-      "sha": "06eb593b23fdf5be216aac479d3169e3c22c3fe2",
-      "sha256": "8822a3fc7614e5be1a04d97136f017f36c438202a938dc413019e513d2da6d51"
+      "size": 7058,
+      "sha": "b6c18545b9c911760fdbec7ba6a3d95a518bde0f",
+      "sha256": "157109e1a8860346ede8f229887e4555a6e4cdbc9b99a7045d53ac8045232253"
     },
     {
       "path": "docs/RECORDER_FTPS_RECEIVER_SERVICE.md",
@@ -2771,8 +2771,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "caf0960e89af018ed2a6b652c0351b49d42e9082",
-      "sha256": "c351ce4e796a6ea5df965577cb77b9102bd9f6a8f0d88b7e311d5e9b94369a3d"
+      "sha": "08906d0c44d34513d690aaf8429b5effe40cba43",
+      "sha256": "d052cb4209e2309acd1c33ed466489da978cef98552bf5318728d1f7bce6c434"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5637,6 +5637,12 @@
       "sha256": "fc48c89905483998de42694160412fd9728c67120334c3dcc47faa0d5531b9b3"
     },
     {
+      "path": "tests/test_recorder_native_plan_exports.py",
+      "size": 11246,
+      "sha": "6ba833ed64886a5560116f50a51ea7e32372d8c3",
+      "sha256": "6a7ece599727c1b6e3e6e335c65ff0de0c8902bcc5cd1e04664717444b10638d"
+    },
+    {
       "path": "tests/test_recorder_overlap_candidates.py",
       "size": 14835,
       "sha": "376090fb4ed8795bbfacf4ec7aed903755eb2174",
@@ -6501,6 +6507,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "90064cbaf154a4845da67c80f7b2cdb45e423f0f",
-  "source_update": "dev76 optional source-bound native-turn export and bounded automatic overlap selection; keeps zero guard and primary unchanged. Detection accuracy/runtime proof pending."
+  "source_base_commit": "e22ff972f230b0df806c48edfcfc6ea408dc21c5",
+  "source_update": "dev77 default-off native-turns export through bundle/finite plan; old two-artifact defaults retained, no candidate scheduling, native plus export-recovery fails before effects. Fresh installed flow pending."
 }

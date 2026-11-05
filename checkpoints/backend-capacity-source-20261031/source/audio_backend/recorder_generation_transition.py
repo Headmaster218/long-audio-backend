@@ -56,7 +56,7 @@ def transition(*, state_dir, route_config, successor_attempt, next_state_dir,
                export_recovery_attempts=0, limits=None, transport=None, cancel=None,
                preserve_reviewed_identity_group=None,identity_generation=None,identity_policy_sha256=None,
                busy_read_retries=0, expected_config_sha256=None, expected_routing_provenance=None,
-               expected_successor_sha256=None):
+               expected_successor_sha256=None, native_turns=False):
     """Prepare the exact cut, finish/export the old span, then link one successor.
 
 All phases share a monotonic deadline and outer network budgets. The old runner
@@ -64,6 +64,7 @@ retains its independent bounds; next initialization reserves up to six requests
 and one session POST (eleven requests with reviewed-bank preservation), and never
 retries an uncertain POST. A bounded pause is not success.
 """
+    native_options = runner.native_export_options(native_turns, export_recovery_attempts)
     require(all(flag is True for flag in (acknowledge_logical_analysis_boundary,
         finalize, export, acknowledge_create_next_session, exclusive_writer,
         acknowledge_span_local_closure)), 'transition_explicit_ack_required')
@@ -97,6 +98,8 @@ retries an uncertain POST. A bounded pause is not success.
     try:
         config = single.manifest_read(state/'config.json')
         runner._config(config, state)
+        runner.check_export_policy(state, native_turns)
+        runner.check_export_policy(runner._path(str(next_state_dir)), native_turns)
         require(config['output_dir'] is not None, 'transition_old_export_required')
         pair, provenance, _ = boundary.routing_selection(route_config, config)
         require(expected_config_sha256 is None or boundary.digest(config) == expected_config_sha256,
@@ -173,7 +176,7 @@ retries an uncertain POST. A bounded pause is not success.
         max_polls=max_polls, poll_seconds=poll_seconds, max_requests=max_requests,
         max_network_writes=max_network_writes, max_network_bytes=max_network_bytes,
         deadline_seconds=remaining(), limits=limits, transport=checked, cancel=cancel,
-        busy_read_retries=busy_read_retries)
+        busy_read_retries=busy_read_retries, **native_options)
     requests, writes = checked.requests, checked.writes
     if finished['status'] != 'exported':
         return result('transition_paused', 'finish_old_span', stop_reason=finished['status'],
@@ -238,6 +241,7 @@ def main(argv=None):
     p.add_argument('--max-network-writes', type=int, default=512)
     p.add_argument('--max-network-bytes', type=int, default=runner.MAX_NETWORK_BYTES)
     p.add_argument('--export-recovery-attempts', type=int, choices=(0, 2, 3), default=0)
+    p.add_argument('--native-turns', action='store_true')
     p.add_argument('--busy-read-retries', type=int, choices=range(4), default=0)
     try:
         value = transition(**vars(p.parse_args(argv)))
