@@ -1,0 +1,137 @@
+{
+  "frames": 5760000,
+  "harness_sha256": "60f18ad57f4efb768e91f3633b6e38607ec278dc95b78c86fb4677ee88cac140",
+  "native_stage_resources": {
+    "1": {
+      "artifact_first": 67802124,
+      "artifact_last": 89949407,
+      "cpu_seconds_delta": 90.93,
+      "rss_first": 130101248,
+      "rss_last": 819990528,
+      "rss_peak": 894070784,
+      "samples": 496
+    },
+    "2": {
+      "artifact_first": 93790426,
+      "artifact_last": 107543316,
+      "cpu_seconds_delta": 97.1,
+      "rss_first": 819990528,
+      "rss_last": 817356800,
+      "rss_peak": 896860160,
+      "samples": 471
+    },
+    "3": {
+      "artifact_first": 111388192,
+      "artifact_last": 110257008,
+      "cpu_seconds_delta": 89.03000000000003,
+      "rss_first": 817328128,
+      "rss_last": 823689216,
+      "rss_peak": 906473472,
+      "samples": 449
+    }
+  },
+  "network_requests": 0,
+  "no_accuracy_or_long_run_claim": true,
+  "original_harness_error": "AssertionError:",
+  "original_harness_passed": false,
+  "overlap_native_cpu_delta": 0.7200000000000006,
+  "overlap_running_samples": 36,
+  "overlap_upload_ordinal": 2,
+  "phase_resources": {
+    "analysis-after-upload-1": {
+      "artifact_first": 59886306,
+      "artifact_last": 63547024,
+      "cpu_seconds_delta": 3.0900000000000007,
+      "end": 36530.944278445,
+      "rss_first": 128483328,
+      "rss_last": 164495360,
+      "rss_peak": 164495360,
+      "samples": 93,
+      "start": 36510.464040745
+    },
+    "analysis-after-upload-2": {
+      "artifact_first": 71561681,
+      "artifact_last": 110257008,
+      "cpu_seconds_delta": 273.49,
+      "end": 36823.125972891,
+      "rss_first": 309874688,
+      "rss_last": 823689216,
+      "rss_peak": 906473472,
+      "samples": 1290,
+      "start": 36533.521386701
+    },
+    "analysis-awaiting-upload-1": {
+      "artifact_first": 44504887,
+      "artifact_last": 52202131,
+      "cpu_seconds_delta": 0.1200000000000001,
+      "end": 36508.532298023,
+      "rss_first": 128372736,
+      "rss_last": 128450560,
+      "rss_peak": 128450560,
+      "samples": 5,
+      "start": 36507.642438082
+    },
+    "setup": {
+      "artifact_first": 35058616,
+      "artifact_last": 44473414,
+      "cpu_seconds_delta": 2.06,
+      "end": 36507.430969593,
+      "rss_first": 0,
+      "rss_last": 127885312,
+      "rss_peak": 127885312,
+      "samples": 29,
+      "start": 36500.788561594
+    },
+    "upload-1": {
+      "artifact_first": 52202131,
+      "artifact_last": 59884973,
+      "cpu_seconds_delta": 0.02999999999999936,
+      "end": 36510.21949658,
+      "rss_first": 128450560,
+      "rss_last": 128471040,
+      "rss_peak": 128483328,
+      "samples": 36,
+      "start": 36508.589029002
+    },
+    "upload-2": {
+      "artifact_first": 63547024,
+      "artifact_last": 71910447,
+      "cpu_seconds_delta": 0.9900000000000002,
+      "end": 36533.270900699,
+      "rss_first": 166928384,
+      "rss_last": 294989824,
+      "rss_peak": 337309696,
+      "samples": 43,
+      "start": 36530.991707496
+    }
+  },
+  "primary_plan_complete": true,
+  "repeat_tested": false,
+  "result_sha256": "6967e1cd8fe6c1d83fd5f52c3540c3ac2ffd03b836c54d07f69c5b2f3353ccc1",
+  "schema": "concurrent-multichunk-read-only-validation-v1",
+  "spans": [
+    {
+      "export_sha256": "47a57b4f67bfb718e399f553edc3bad533be77c09cff352f30846f17f23c8f43",
+      "frames": 1920000,
+      "native_chunks": 12,
+      "ordinal": 0,
+      "session_id": "05a5de7da02f467a9d66acc1dbcf1107"
+    },
+    {
+      "export_sha256": "c88f9f7a55f32defdbb6b33192b09151ff51bb9e843117743cbba311c30c347a",
+      "frames": 1920000,
+      "native_chunks": 12,
+      "ordinal": 1,
+      "session_id": "f2e90a4dbb6d438aba18a8fceb490708"
+    },
+    {
+      "export_sha256": "dc5149ee6d7c32638593c66881faddd0abceb2ccb4f15ef7f4ad18b02c1e85f4",
+      "frames": 1920000,
+      "native_chunks": 12,
+      "ordinal": 2,
+      "session_id": "fea9c4d020364d6a90a5e19b06948218"
+    }
+  ],
+  "telemetry_sha256": "4eddf3069b05f958e25cf410d618595b635a40aef04371c235dd24c852a0ac48",
+  "validated": true
+}

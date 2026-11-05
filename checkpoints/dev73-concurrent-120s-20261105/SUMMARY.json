@@ -1,0 +1,62 @@
+{
+  "primary_plan": "plan_complete",
+  "original_harness_passed": false,
+  "original_harness_error": "AssertionError:",
+  "read_only_validation": true,
+  "repeat_tested": false,
+  "elapsed_seconds": 323.7576588459997,
+  "frames": 5760000,
+  "native_chunks": [
+    12,
+    12,
+    12
+  ],
+  "peak_native_rss": 907038720,
+  "peak_sampled_artifact_bytes": 112072330,
+  "native_cpu_seconds": 280.03000000000003,
+  "overlap_samples": 36,
+  "overlap_cpu_seconds": 0.7200000000000006,
+  "stage_resources": {
+    "1": {
+      "artifact_first": 67802124,
+      "artifact_last": 89949407,
+      "cpu_seconds_delta": 90.93,
+      "rss_first": 130101248,
+      "rss_last": 819990528,
+      "rss_peak": 894070784,
+      "samples": 496
+    },
+    "2": {
+      "artifact_first": 93790426,
+      "artifact_last": 107543316,
+      "cpu_seconds_delta": 97.1,
+      "rss_first": 819990528,
+      "rss_last": 817356800,
+      "rss_peak": 896860160,
+      "samples": 471
+    },
+    "3": {
+      "artifact_first": 111388192,
+      "artifact_last": 110257008,
+      "cpu_seconds_delta": 89.03000000000003,
+      "rss_first": 817328128,
+      "rss_last": 823689216,
+      "rss_peak": 906473472,
+      "samples": 449
+    }
+  },
+  "plan": {
+    "network_requests": 1284,
+    "network_writes": 66,
+    "reserved_action_allowance": 1024,
+    "reserved_poll_allowance": 389
+  },
+  "sha256": {
+    "RESULT.json": "6967e1cd8fe6c1d83fd5f52c3540c3ac2ffd03b836c54d07f69c5b2f3353ccc1",
+    "VALIDATION.json": "cbb2aa99fbd667ba68bc0af411bc237e26aa383847969a676c99bfb845b5b22a",
+    "TELEMETRY.json": "4eddf3069b05f958e25cf410d618595b635a40aef04371c235dd24c852a0ac48"
+  },
+  "telemetry_peak_native_rss": 906473472,
+  "observed_http_503_gets": 2,
+  "independent_terminal_audit_cleared": true
+}
