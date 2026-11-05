@@ -1,0 +1,351 @@
+{
+  "schema": "saved-real-recording-lexical-error-analysis-v1",
+  "status": "posthoc_descriptive_only_no_new_inference_or_official_score_change",
+  "evidence_sha256": {
+    "score": "a9503e363c08420013235d80828a49afc5235e35ae6e7eb397ccc56472a5fa6f",
+    "predictions": "1883d5447819773532f6b7d1a3c805ee2e3d2b06c93f7ceba7aa3055377c8b18",
+    "input_manifest": "b25898ccbcac50656f6763b2079fd5367ceb0519c3ff1fcf9df4e988577fcb22",
+    "frozen_scorer": "db901697f77f884fe30710c2fb42b9f9487721c11ddcce038b81a3080204d233"
+  },
+  "analysis_script_sha256": "7711bb4b2e6ba2768a3c0e1d540961aa60adf497ddaa03f201de300bfec475ec",
+  "alignment_ties": "Same match/substitution/deletion/insertion tie order as frozen scorer. Per-voice assignment and extra tracks are taken unchanged from the frozen result.",
+  "cases": [
+    {
+      "case_id": "en-overlap-1",
+      "language": "en",
+      "class": "overlap",
+      "reference_units": 15,
+      "errors": 1,
+      "edit_counts": {
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "matches": 15,
+        "extra_track_insertions": 0
+      },
+      "per_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "reference_units": 8,
+          "hypothesis_units": 9,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 1,
+          "matches": 8,
+          "errors": 1,
+          "error_rate": 0.125,
+          "distinct_matched_unit_types": 8,
+          "matched_reference_exclusive_unit_occurrences": 8,
+          "missing_output_stream": false,
+          "minority_reference": false,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 0,
+          "assignment_tied": false,
+          "english_reference_word_error_coordinates": [],
+          "english_word_units_with_positive_other_voice_annotation_intersection": {
+            "total": 3,
+            "matches": 3,
+            "substitutions": 0,
+            "deletions": 0
+          }
+        },
+        {
+          "reference_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "reference_units": 7,
+          "hypothesis_units": 7,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "matches": 7,
+          "errors": 0,
+          "error_rate": 0.0,
+          "distinct_matched_unit_types": 7,
+          "matched_reference_exclusive_unit_occurrences": 7,
+          "missing_output_stream": false,
+          "minority_reference": true,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 0,
+          "assignment_tied": false,
+          "english_reference_word_error_coordinates": [],
+          "english_word_units_with_positive_other_voice_annotation_intersection": {
+            "total": 5,
+            "matches": 5,
+            "substitutions": 0,
+            "deletions": 0
+          }
+        }
+      ],
+      "extra_tracks": [],
+      "extra_track_units_matching_deleted_reference_multiset": 0,
+      "remaining_extra_units_without_deleted_reference_multiset_match": 0,
+      "interpretation": "Extra/deleted lexical overlap is a posthoc exact-token multiset diagnostic, not a rescored merge, a verified physical speaker assignment, or proof of correct temporal placement."
+    },
+    {
+      "case_id": "en-overlap-2",
+      "language": "en",
+      "class": "overlap",
+      "reference_units": 18,
+      "errors": 5,
+      "edit_counts": {
+        "substitutions": 0,
+        "deletions": 3,
+        "insertions": 0,
+        "matches": 15,
+        "extra_track_insertions": 2
+      },
+      "per_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "reference_units": 12,
+          "hypothesis_units": 12,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "matches": 12,
+          "errors": 0,
+          "error_rate": 0.0,
+          "distinct_matched_unit_types": 11,
+          "matched_reference_exclusive_unit_occurrences": 11,
+          "missing_output_stream": false,
+          "minority_reference": false,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 0,
+          "assignment_tied": false,
+          "english_reference_word_error_coordinates": [],
+          "english_word_units_with_positive_other_voice_annotation_intersection": {
+            "total": 7,
+            "matches": 7,
+            "substitutions": 0,
+            "deletions": 0
+          }
+        },
+        {
+          "reference_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "reference_units": 6,
+          "hypothesis_units": 3,
+          "substitutions": 0,
+          "deletions": 3,
+          "insertions": 0,
+          "matches": 3,
+          "errors": 3,
+          "error_rate": 0.5,
+          "distinct_matched_unit_types": 3,
+          "matched_reference_exclusive_unit_occurrences": 2,
+          "missing_output_stream": false,
+          "minority_reference": true,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 2,
+          "assignment_tied": false,
+          "english_reference_word_error_coordinates": [
+            {
+              "reference_token_ordinal": 2,
+              "operation": "deletion",
+              "start_seconds_in_clip": 2.07,
+              "end_seconds_in_clip": 2.42,
+              "positive_intersection_with_other_reference_word_support": true
+            },
+            {
+              "reference_token_ordinal": 4,
+              "operation": "deletion",
+              "start_seconds_in_clip": 2.96,
+              "end_seconds_in_clip": 3.26,
+              "positive_intersection_with_other_reference_word_support": true
+            },
+            {
+              "reference_token_ordinal": 5,
+              "operation": "deletion",
+              "start_seconds_in_clip": 3.26,
+              "end_seconds_in_clip": 3.69,
+              "positive_intersection_with_other_reference_word_support": true
+            }
+          ],
+          "english_word_units_with_positive_other_voice_annotation_intersection": {
+            "total": 5,
+            "matches": 2,
+            "substitutions": 0,
+            "deletions": 3
+          }
+        }
+      ],
+      "extra_tracks": [
+        {
+          "hypothesis_track_ordinal": 3,
+          "insertion_units": 2
+        }
+      ],
+      "extra_track_units_matching_deleted_reference_multiset": 2,
+      "remaining_extra_units_without_deleted_reference_multiset_match": 0,
+      "interpretation": "Extra/deleted lexical overlap is a posthoc exact-token multiset diagnostic, not a rescored merge, a verified physical speaker assignment, or proof of correct temporal placement."
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "language": "zh",
+      "class": "overlap",
+      "reference_units": 65,
+      "errors": 8,
+      "edit_counts": {
+        "substitutions": 7,
+        "deletions": 0,
+        "insertions": 1,
+        "matches": 58,
+        "extra_track_insertions": 0
+      },
+      "per_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "reference_units": 28,
+          "hypothesis_units": 29,
+          "substitutions": 5,
+          "deletions": 0,
+          "insertions": 1,
+          "matches": 23,
+          "errors": 6,
+          "error_rate": 0.21428571428571427,
+          "distinct_matched_unit_types": 21,
+          "matched_reference_exclusive_unit_occurrences": 21,
+          "missing_output_stream": false,
+          "minority_reference": true,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 0,
+          "assignment_tied": false,
+          "temporal_error_localization": "Not available: Chinese gold has utterance intervals, not per-character or word times. Do not localize individual substitutions/deletions to overlap."
+        },
+        {
+          "reference_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "reference_units": 37,
+          "hypothesis_units": 37,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 0,
+          "matches": 35,
+          "errors": 2,
+          "error_rate": 0.05405405405405406,
+          "distinct_matched_unit_types": 24,
+          "matched_reference_exclusive_unit_occurrences": 33,
+          "missing_output_stream": false,
+          "minority_reference": false,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 0,
+          "assignment_tied": false,
+          "temporal_error_localization": "Not available: Chinese gold has utterance intervals, not per-character or word times. Do not localize individual substitutions/deletions to overlap."
+        }
+      ],
+      "extra_tracks": [],
+      "extra_track_units_matching_deleted_reference_multiset": 0,
+      "remaining_extra_units_without_deleted_reference_multiset_match": 0,
+      "interpretation": "Extra/deleted lexical overlap is a posthoc exact-token multiset diagnostic, not a rescored merge, a verified physical speaker assignment, or proof of correct temporal placement."
+    },
+    {
+      "case_id": "en-solo-1",
+      "language": "en",
+      "class": "solo",
+      "reference_units": 20,
+      "errors": 2,
+      "edit_counts": {
+        "substitutions": 1,
+        "deletions": 1,
+        "insertions": 0,
+        "matches": 18,
+        "extra_track_insertions": 0
+      },
+      "per_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "reference_units": 20,
+          "hypothesis_units": 19,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "matches": 18,
+          "errors": 2,
+          "error_rate": 0.1,
+          "distinct_matched_unit_types": 16,
+          "matched_reference_exclusive_unit_occurrences": 18,
+          "missing_output_stream": false,
+          "minority_reference": false,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 0,
+          "assignment_tied": false,
+          "english_reference_word_error_coordinates": [
+            {
+              "reference_token_ordinal": 3,
+              "operation": "substitution",
+              "start_seconds_in_clip": 3.78,
+              "end_seconds_in_clip": 4.21,
+              "positive_intersection_with_other_reference_word_support": false
+            },
+            {
+              "reference_token_ordinal": 19,
+              "operation": "deletion",
+              "start_seconds_in_clip": 10.06,
+              "end_seconds_in_clip": 11.41,
+              "positive_intersection_with_other_reference_word_support": false
+            }
+          ],
+          "english_word_units_with_positive_other_voice_annotation_intersection": {
+            "total": 0,
+            "matches": 0,
+            "substitutions": 0,
+            "deletions": 0
+          }
+        }
+      ],
+      "extra_tracks": [],
+      "extra_track_units_matching_deleted_reference_multiset": 0,
+      "remaining_extra_units_without_deleted_reference_multiset_match": 0,
+      "interpretation": "Extra/deleted lexical overlap is a posthoc exact-token multiset diagnostic, not a rescored merge, a verified physical speaker assignment, or proof of correct temporal placement."
+    },
+    {
+      "case_id": "zh-solo-1",
+      "language": "zh",
+      "class": "solo",
+      "reference_units": 83,
+      "errors": 12,
+      "edit_counts": {
+        "substitutions": 5,
+        "deletions": 5,
+        "insertions": 1,
+        "matches": 73,
+        "extra_track_insertions": 1
+      },
+      "per_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "reference_units": 83,
+          "hypothesis_units": 79,
+          "substitutions": 5,
+          "deletions": 5,
+          "insertions": 1,
+          "matches": 73,
+          "errors": 11,
+          "error_rate": 0.13253012048192772,
+          "distinct_matched_unit_types": 45,
+          "matched_reference_exclusive_unit_occurrences": 73,
+          "missing_output_stream": false,
+          "minority_reference": false,
+          "deleted_reference_units_also_present_in_extra_tracks_multiset": 1,
+          "assignment_tied": false,
+          "temporal_error_localization": "Not available: Chinese gold has utterance intervals, not per-character or word times. Do not localize individual substitutions/deletions to overlap."
+        }
+      ],
+      "extra_tracks": [
+        {
+          "hypothesis_track_ordinal": 2,
+          "insertion_units": 1
+        }
+      ],
+      "extra_track_units_matching_deleted_reference_multiset": 1,
+      "remaining_extra_units_without_deleted_reference_multiset_match": 0,
+      "interpretation": "Extra/deleted lexical overlap is a posthoc exact-token multiset diagnostic, not a rescored merge, a verified physical speaker assignment, or proof of correct temporal placement."
+    }
+  ],
+  "limitations": [
+    "Noise, acoustic masking, hearing errors, annotation omissions and causal failure mechanisms are not established by text-only diagnostics; no new listening, inference, or acoustic separation was performed.",
+    "English error coordinates come from forced-aligned human-word annotations and indicate support overlap, not verified acoustic concurrency.",
+    "Chinese transcript errors cannot be localized within utterance-level annotation spans.",
+    "Insertions are relative to the frozen reference and need not prove absent acoustic speech in real recordings.",
+    "The selected small, previously exposed meetings cannot establish general Mandarin/English accuracy."
+  ],
+  "public_text_policy": "No transcript tokens, original speaker labels, private paths or audio. Only ordinals, counts, clip-relative coordinates and evidence hashes."
+}

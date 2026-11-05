@@ -1,0 +1,32 @@
+{
+  "candidate_module_sha256": "3afa51f46d67d007c1eacfe3481460bf2a97dac1e68d8dab530367fc44c8391d",
+  "dependency_files_unchanged": 1832,
+  "existing_store_migration_authorized": false,
+  "general_production_rollout_approved": false,
+  "installed_verification": {
+    "materialization_receipt_sha256": "f120512be864fca36615f28ef23f14c2bc09522a8fffaaba320abef802ba6f5e",
+    "models_loaded": false,
+    "product_bytes": 4412410,
+    "product_files": 190,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "live_bad_receipt_gate": true,
+  "materialization_receipt_sha256": "f120512be864fca36615f28ef23f14c2bc09522a8fffaaba320abef802ba6f5e",
+  "materializer_verifier_tests": 41,
+  "models_loaded": false,
+  "passed": true,
+  "qualification_tests": 9,
+  "reviewed_basis_sha256": "0b3a0e6b487e1cbcea2e6f435ef46f2b621d99dbd39279f78fedd108798e7456",
+  "schema": "fresh-dev75-product-install-v1",
+  "service_started": false,
+  "source_files_unchanged": 1078,
+  "source_manifest_sha256": "8d0619227de23cc03ef721e2da39161bb584f6d982461c039306526316b28fc4",
+  "version": "0.2.0rc3.dev75",
+  "wheel_sha256": "9a96f6ef9ce715e9e1965b9bf24a52bf27fbba38f841588a81e6c13285bce41e",
+  "source_commit": "b870b5cf45b7af455664e3e21767fac772a41ebf",
+  "installed_synthetic_zero_tests": 5,
+  "scope": "Fresh same-host qualification and installed bytes, not general rollout or speech-quality approval."
+}

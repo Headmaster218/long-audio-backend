@@ -1,0 +1,1314 @@
+{
+  "schema_id": "posthoc_saved_phrase_timing_coverage_v1",
+  "arm_id": "moss_td_q8",
+  "posthoc": true,
+  "descriptive_only": true,
+  "qualification_change": false,
+  "word_recovery_inference": false,
+  "alignment_validation": false,
+  "new_model_calls": 0,
+  "private_manifest_sha256": "b25898ccbcac50656f6763b2079fd5367ceb0519c3ff1fcf9df4e988577fcb22",
+  "private_predictions_sha256": "1883d5447819773532f6b7d1a3c805ee2e3d2b06c93f7ceba7aa3055377c8b18",
+  "frozen_score_sha256": "a9503e363c08420013235d80828a49afc5235e35ae6e7eb397ccc56472a5fa6f",
+  "frozen_scorer_sha256": "db901697f77f884fe30710c2fb42b9f9487721c11ddcce038b81a3080204d233",
+  "diagnostic_script_sha256": "032372e23092ffbe989890e4d4b8a9f8d1e8aa3fccb987a3bb6b67f3a16d4e6c",
+  "case_count": 5,
+  "rows": [
+    {
+      "case_id": "en-overlap-1",
+      "class_id": "overlap",
+      "language_id": "en",
+      "annotation_unit_id": "forced_aligned_human_word",
+      "sample_rate_hz": 16000,
+      "clip_seconds": 12.0,
+      "gold_sha256": "820daee4f0e08f4ee368ba5963db153d8ece57089fb58a82aa6bfc55ea048855",
+      "candidate_sha256": "79feeae40bc81acc003d2ffb30d274576e7debf010ee136df46ca876c5b9cd48",
+      "status_sha256": "a8f45fd3cce006955dcd59e7a8451b745954e0ad9893784ec327a973141fd003",
+      "raw_sha256": "3d290e8a263cc7d3ec9351a1c217036da8c3d018b3a2bcbfcdf4fb753a385504",
+      "assignment_recomputed_and_equal": true,
+      "assignment_tied": false,
+      "optimal_assignment_count": 1,
+      "hypothesis_track_count": 2,
+      "reference_voice_count": 2,
+      "reference_annotation_span_health": {
+        "span_count": 15,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "raw_predicted_span_health": {
+        "span_count": 4,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "diagnostic_predicted_span_health": {
+        "span_count": 4,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "missing_or_nonfinite_diagnostic_timing_count": 0,
+      "raw_diagnostic_coordinate_mismatch_count": 0,
+      "timestamp_adjusted_phrase_count": 0,
+      "analysis_clipped_phrase_count": 0,
+      "hypothesis_tracks_without_valid_timing_count": 0,
+      "parse_error_count": 0,
+      "reference_annotation_intervals": [
+        {
+          "reference_ordinal": 1,
+          "interval_count": 8,
+          "clip_relative_intervals_seconds": [
+            [
+              6.61,
+              6.99
+            ],
+            [
+              6.99,
+              7.08
+            ],
+            [
+              7.08,
+              7.16
+            ],
+            [
+              7.16,
+              7.46
+            ],
+            [
+              7.46,
+              8.02
+            ],
+            [
+              8.02,
+              8.31
+            ],
+            [
+              8.31,
+              9.09
+            ],
+            [
+              11.03,
+              11.44
+            ]
+          ]
+        },
+        {
+          "reference_ordinal": 2,
+          "interval_count": 7,
+          "clip_relative_intervals_seconds": [
+            [
+              7.97,
+              8.2
+            ],
+            [
+              8.2,
+              8.57
+            ],
+            [
+              8.57,
+              8.8
+            ],
+            [
+              8.8,
+              8.91
+            ],
+            [
+              8.91,
+              9.49
+            ],
+            [
+              9.49,
+              10.35
+            ],
+            [
+              10.35,
+              10.47
+            ]
+          ]
+        }
+      ],
+      "predicted_phrase_intervals": [
+        {
+          "phrase_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            0.88,
+            1.22
+          ],
+          "diagnostic_interval_seconds": [
+            0.88,
+            1.22
+          ],
+          "clipped_interval_seconds": [
+            0.88,
+            1.22
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 2,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            6.54,
+            8.44
+          ],
+          "diagnostic_interval_seconds": [
+            6.54,
+            8.44
+          ],
+          "clipped_interval_seconds": [
+            6.54,
+            8.44
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 3,
+          "hypothesis_track_ordinal": 2,
+          "raw_interval_seconds": [
+            7.96,
+            10.52
+          ],
+          "diagnostic_interval_seconds": [
+            7.96,
+            10.52
+          ],
+          "clipped_interval_seconds": [
+            7.96,
+            10.52
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 4,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            10.95,
+            11.31
+          ],
+          "diagnostic_interval_seconds": [
+            10.95,
+            11.31
+          ],
+          "clipped_interval_seconds": [
+            10.95,
+            11.31
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        }
+      ],
+      "per_mapped_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "annotation_interval_count": 8,
+          "predicted_phrase_count": 3,
+          "annotation_support_seconds": 2.89,
+          "predicted_support_seconds": 2.6,
+          "intersection_seconds": 2.11,
+          "reference_coverage_ratio": 0.7301038062283737,
+          "annotation_uncovered_seconds": 0.78,
+          "predicted_outside_annotation_seconds": 0.49,
+          "annotation_union_intervals_seconds": [
+            [
+              6.61,
+              9.09
+            ],
+            [
+              11.03,
+              11.44
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              0.88,
+              1.22
+            ],
+            [
+              6.54,
+              8.44
+            ],
+            [
+              10.95,
+              11.31
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              6.61,
+              8.44
+            ],
+            [
+              11.03,
+              11.31
+            ]
+          ]
+        },
+        {
+          "reference_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "annotation_interval_count": 7,
+          "predicted_phrase_count": 1,
+          "annotation_support_seconds": 2.5,
+          "predicted_support_seconds": 2.56,
+          "intersection_seconds": 2.5,
+          "reference_coverage_ratio": 1.0,
+          "annotation_uncovered_seconds": 0.0,
+          "predicted_outside_annotation_seconds": 0.06,
+          "annotation_union_intervals_seconds": [
+            [
+              7.97,
+              10.47
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              7.96,
+              10.52
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              7.97,
+              10.47
+            ]
+          ]
+        }
+      ],
+      "extra_tracks": [],
+      "assigned_voice_coactivity": {
+        "annotation_support_seconds": 1.12,
+        "predicted_support_seconds": 0.48,
+        "intersection_seconds": 0.47,
+        "reference_coverage_ratio": 0.41964285714285715,
+        "annotation_uncovered_seconds": 0.65,
+        "predicted_outside_annotation_seconds": 0.01,
+        "annotation_union_intervals_seconds": [
+          [
+            7.97,
+            9.09
+          ]
+        ],
+        "prediction_union_intervals_seconds": [
+          [
+            7.96,
+            8.44
+          ]
+        ],
+        "intersection_intervals_seconds": [
+          [
+            7.97,
+            8.44
+          ]
+        ]
+      }
+    },
+    {
+      "case_id": "en-overlap-2",
+      "class_id": "overlap",
+      "language_id": "en",
+      "annotation_unit_id": "forced_aligned_human_word",
+      "sample_rate_hz": 16000,
+      "clip_seconds": 12.0,
+      "gold_sha256": "f16c21caf77a833d2c065d8827f73000986936f62479c268f52297d7f2d8d843",
+      "candidate_sha256": "75cc07cc7fe9c195b398966cd5fd08f17707ae13a218b90b4251fb7bbc168e69",
+      "status_sha256": "9ff9c135b5d464887fba201e368e483d49840f3f9e58e9f435a336a992d1eec1",
+      "raw_sha256": "bf2c69fdfab7ed15b54024ce7c97de55a6fc5a9b6cc6943e089883f17582a4c3",
+      "assignment_recomputed_and_equal": true,
+      "assignment_tied": false,
+      "optimal_assignment_count": 1,
+      "hypothesis_track_count": 3,
+      "reference_voice_count": 2,
+      "reference_annotation_span_health": {
+        "span_count": 18,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "raw_predicted_span_health": {
+        "span_count": 5,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "diagnostic_predicted_span_health": {
+        "span_count": 5,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "missing_or_nonfinite_diagnostic_timing_count": 0,
+      "raw_diagnostic_coordinate_mismatch_count": 0,
+      "timestamp_adjusted_phrase_count": 0,
+      "analysis_clipped_phrase_count": 0,
+      "hypothesis_tracks_without_valid_timing_count": 0,
+      "parse_error_count": 0,
+      "reference_annotation_intervals": [
+        {
+          "reference_ordinal": 1,
+          "interval_count": 12,
+          "clip_relative_intervals_seconds": [
+            [
+              0.83,
+              0.97
+            ],
+            [
+              0.97,
+              1.19
+            ],
+            [
+              1.19,
+              1.48
+            ],
+            [
+              1.48,
+              1.59
+            ],
+            [
+              1.59,
+              1.91
+            ],
+            [
+              1.91,
+              2.52
+            ],
+            [
+              2.52,
+              2.95
+            ],
+            [
+              2.95,
+              3.07
+            ],
+            [
+              3.07,
+              3.36
+            ],
+            [
+              3.36,
+              3.44
+            ],
+            [
+              3.44,
+              4.57
+            ],
+            [
+              4.57,
+              5.12
+            ]
+          ]
+        },
+        {
+          "reference_ordinal": 2,
+          "interval_count": 6,
+          "clip_relative_intervals_seconds": [
+            [
+              1.6,
+              2.07
+            ],
+            [
+              2.07,
+              2.42
+            ],
+            [
+              2.42,
+              2.96
+            ],
+            [
+              2.96,
+              3.26
+            ],
+            [
+              3.26,
+              3.69
+            ],
+            [
+              10.52,
+              10.89
+            ]
+          ]
+        }
+      ],
+      "predicted_phrase_intervals": [
+        {
+          "phrase_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            0.81,
+            3.71
+          ],
+          "diagnostic_interval_seconds": [
+            0.81,
+            3.71
+          ],
+          "clipped_interval_seconds": [
+            0.81,
+            3.71
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "raw_interval_seconds": [
+            1.54,
+            2.65
+          ],
+          "diagnostic_interval_seconds": [
+            1.54,
+            2.65
+          ],
+          "clipped_interval_seconds": [
+            1.54,
+            2.65
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 3,
+          "hypothesis_track_ordinal": 3,
+          "raw_interval_seconds": [
+            2.91,
+            3.62
+          ],
+          "diagnostic_interval_seconds": [
+            2.91,
+            3.62
+          ],
+          "clipped_interval_seconds": [
+            2.91,
+            3.62
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 4,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            4.54,
+            4.85
+          ],
+          "diagnostic_interval_seconds": [
+            4.54,
+            4.85
+          ],
+          "clipped_interval_seconds": [
+            4.54,
+            4.85
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 5,
+          "hypothesis_track_ordinal": 2,
+          "raw_interval_seconds": [
+            10.48,
+            10.88
+          ],
+          "diagnostic_interval_seconds": [
+            10.48,
+            10.88
+          ],
+          "clipped_interval_seconds": [
+            10.48,
+            10.88
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        }
+      ],
+      "per_mapped_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "annotation_interval_count": 12,
+          "predicted_phrase_count": 2,
+          "annotation_support_seconds": 4.29,
+          "predicted_support_seconds": 3.21,
+          "intersection_seconds": 3.19,
+          "reference_coverage_ratio": 0.7435897435897436,
+          "annotation_uncovered_seconds": 1.1,
+          "predicted_outside_annotation_seconds": 0.02,
+          "annotation_union_intervals_seconds": [
+            [
+              0.83,
+              5.12
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              0.81,
+              3.71
+            ],
+            [
+              4.54,
+              4.85
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              0.83,
+              3.71
+            ],
+            [
+              4.54,
+              4.85
+            ]
+          ]
+        },
+        {
+          "reference_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "annotation_interval_count": 6,
+          "predicted_phrase_count": 2,
+          "annotation_support_seconds": 2.46,
+          "predicted_support_seconds": 1.51,
+          "intersection_seconds": 1.41,
+          "reference_coverage_ratio": 0.573170731707317,
+          "annotation_uncovered_seconds": 1.05,
+          "predicted_outside_annotation_seconds": 0.1,
+          "annotation_union_intervals_seconds": [
+            [
+              1.6,
+              3.69
+            ],
+            [
+              10.52,
+              10.89
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              1.54,
+              2.65
+            ],
+            [
+              10.48,
+              10.88
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              1.6,
+              2.65
+            ],
+            [
+              10.52,
+              10.88
+            ]
+          ]
+        }
+      ],
+      "extra_tracks": [
+        {
+          "hypothesis_track_ordinal": 3,
+          "phrase_count": 1,
+          "predicted_support_seconds": 0.71,
+          "intervals_seconds": [
+            [
+              2.91,
+              3.62
+            ]
+          ],
+          "any_annotation_intersection_seconds": 0.71,
+          "assigned_prediction_intersection_seconds": 0.71
+        }
+      ],
+      "assigned_voice_coactivity": {
+        "annotation_support_seconds": 2.09,
+        "predicted_support_seconds": 1.11,
+        "intersection_seconds": 1.05,
+        "reference_coverage_ratio": 0.5023923444976076,
+        "annotation_uncovered_seconds": 1.04,
+        "predicted_outside_annotation_seconds": 0.06,
+        "annotation_union_intervals_seconds": [
+          [
+            1.6,
+            3.69
+          ]
+        ],
+        "prediction_union_intervals_seconds": [
+          [
+            1.54,
+            2.65
+          ]
+        ],
+        "intersection_intervals_seconds": [
+          [
+            1.6,
+            2.65
+          ]
+        ]
+      }
+    },
+    {
+      "case_id": "zh-overlap-1",
+      "class_id": "overlap",
+      "language_id": "zh",
+      "annotation_unit_id": "human_utterance",
+      "sample_rate_hz": 16000,
+      "clip_seconds": 11.53,
+      "gold_sha256": "a8f25d4d8bb4df13525cfd8c82cf4bbc695b47ebad2060ac0ed409c234016bca",
+      "candidate_sha256": "b9085cca10db3a1fb1c84a1c7ae3f60e7352cfb168cd34193f12e2dd99c9ea5b",
+      "status_sha256": "9c6f04ce36b4e435c8ef7e9b423a97ee4278b4404752470b66248dc5b76a922a",
+      "raw_sha256": "65c37e24b460e1b3793ee2d1982f3dbb3e690c162b98171e9cf60eaaa8f52049",
+      "assignment_recomputed_and_equal": true,
+      "assignment_tied": false,
+      "optimal_assignment_count": 1,
+      "hypothesis_track_count": 2,
+      "reference_voice_count": 2,
+      "reference_annotation_span_health": {
+        "span_count": 4,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "raw_predicted_span_health": {
+        "span_count": 5,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "diagnostic_predicted_span_health": {
+        "span_count": 5,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "missing_or_nonfinite_diagnostic_timing_count": 0,
+      "raw_diagnostic_coordinate_mismatch_count": 0,
+      "timestamp_adjusted_phrase_count": 0,
+      "analysis_clipped_phrase_count": 0,
+      "hypothesis_tracks_without_valid_timing_count": 0,
+      "parse_error_count": 0,
+      "reference_annotation_intervals": [
+        {
+          "reference_ordinal": 1,
+          "interval_count": 3,
+          "clip_relative_intervals_seconds": [
+            [
+              0.25,
+              2.62
+            ],
+            [
+              5.57,
+              5.88
+            ],
+            [
+              9.24,
+              11.28
+            ]
+          ]
+        },
+        {
+          "reference_ordinal": 2,
+          "interval_count": 1,
+          "clip_relative_intervals_seconds": [
+            [
+              2.02,
+              10.03
+            ]
+          ]
+        }
+      ],
+      "predicted_phrase_intervals": [
+        {
+          "phrase_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            0.0,
+            2.72
+          ],
+          "diagnostic_interval_seconds": [
+            0.0,
+            2.72
+          ],
+          "clipped_interval_seconds": [
+            0.0,
+            2.72
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "raw_interval_seconds": [
+            2.0,
+            9.28
+          ],
+          "diagnostic_interval_seconds": [
+            2.0,
+            9.28
+          ],
+          "clipped_interval_seconds": [
+            2.0,
+            9.28
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 3,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            5.58,
+            5.92
+          ],
+          "diagnostic_interval_seconds": [
+            5.58,
+            5.92
+          ],
+          "clipped_interval_seconds": [
+            5.58,
+            5.92
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 4,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            9.16,
+            11.2
+          ],
+          "diagnostic_interval_seconds": [
+            9.16,
+            11.2
+          ],
+          "clipped_interval_seconds": [
+            9.16,
+            11.2
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 5,
+          "hypothesis_track_ordinal": 2,
+          "raw_interval_seconds": [
+            11.04,
+            11.32
+          ],
+          "diagnostic_interval_seconds": [
+            11.04,
+            11.32
+          ],
+          "clipped_interval_seconds": [
+            11.04,
+            11.32
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        }
+      ],
+      "per_mapped_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "annotation_interval_count": 3,
+          "predicted_phrase_count": 3,
+          "annotation_support_seconds": 4.72,
+          "predicted_support_seconds": 5.1,
+          "intersection_seconds": 4.63,
+          "reference_coverage_ratio": 0.9809322033898306,
+          "annotation_uncovered_seconds": 0.09,
+          "predicted_outside_annotation_seconds": 0.47,
+          "annotation_union_intervals_seconds": [
+            [
+              0.25,
+              2.62
+            ],
+            [
+              5.57,
+              5.88
+            ],
+            [
+              9.24,
+              11.28
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              0.0,
+              2.72
+            ],
+            [
+              5.58,
+              5.92
+            ],
+            [
+              9.16,
+              11.2
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              0.25,
+              2.62
+            ],
+            [
+              5.58,
+              5.88
+            ],
+            [
+              9.24,
+              11.2
+            ]
+          ]
+        },
+        {
+          "reference_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "annotation_interval_count": 1,
+          "predicted_phrase_count": 2,
+          "annotation_support_seconds": 8.01,
+          "predicted_support_seconds": 7.56,
+          "intersection_seconds": 7.26,
+          "reference_coverage_ratio": 0.9063670411985019,
+          "annotation_uncovered_seconds": 0.75,
+          "predicted_outside_annotation_seconds": 0.3,
+          "annotation_union_intervals_seconds": [
+            [
+              2.02,
+              10.03
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              2.0,
+              9.28
+            ],
+            [
+              11.04,
+              11.32
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              2.02,
+              9.28
+            ]
+          ]
+        }
+      ],
+      "extra_tracks": [],
+      "assigned_voice_coactivity": {
+        "annotation_support_seconds": 1.7,
+        "predicted_support_seconds": 1.34,
+        "intersection_seconds": 0.94,
+        "reference_coverage_ratio": 0.5529411764705883,
+        "annotation_uncovered_seconds": 0.76,
+        "predicted_outside_annotation_seconds": 0.4,
+        "annotation_union_intervals_seconds": [
+          [
+            2.02,
+            2.62
+          ],
+          [
+            5.57,
+            5.88
+          ],
+          [
+            9.24,
+            10.03
+          ]
+        ],
+        "prediction_union_intervals_seconds": [
+          [
+            2.0,
+            2.72
+          ],
+          [
+            5.58,
+            5.92
+          ],
+          [
+            9.16,
+            9.28
+          ],
+          [
+            11.04,
+            11.2
+          ]
+        ],
+        "intersection_intervals_seconds": [
+          [
+            2.02,
+            2.62
+          ],
+          [
+            5.58,
+            5.88
+          ],
+          [
+            9.24,
+            9.28
+          ]
+        ]
+      }
+    },
+    {
+      "case_id": "en-solo-1",
+      "class_id": "solo",
+      "language_id": "en",
+      "annotation_unit_id": "forced_aligned_human_word",
+      "sample_rate_hz": 16000,
+      "clip_seconds": 12.0,
+      "gold_sha256": "8001b1e5bfff7cb6567ea3876047cfc8cb4d5054bab96d26094bb69eefddd762",
+      "candidate_sha256": "e08fc3239d4416b0266401372f0e11b3efa089122b9a8d9f61572edfb5725480",
+      "status_sha256": "80fd13953d3cd1860c33d4977d33a54f7d91c21568c5a2543689cd70884edbf2",
+      "raw_sha256": "04a593bf08e02ad5f98d9ed9028134e6c9a91f8b28558a93c7070c72285856f0",
+      "assignment_recomputed_and_equal": true,
+      "assignment_tied": false,
+      "optimal_assignment_count": 1,
+      "hypothesis_track_count": 1,
+      "reference_voice_count": 1,
+      "reference_annotation_span_health": {
+        "span_count": 20,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "raw_predicted_span_health": {
+        "span_count": 1,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "diagnostic_predicted_span_health": {
+        "span_count": 1,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "missing_or_nonfinite_diagnostic_timing_count": 0,
+      "raw_diagnostic_coordinate_mismatch_count": 0,
+      "timestamp_adjusted_phrase_count": 0,
+      "analysis_clipped_phrase_count": 0,
+      "hypothesis_tracks_without_valid_timing_count": 0,
+      "parse_error_count": 0,
+      "reference_annotation_intervals": [
+        {
+          "reference_ordinal": 1,
+          "interval_count": 20,
+          "clip_relative_intervals_seconds": [
+            [
+              2.68,
+              3.36
+            ],
+            [
+              3.36,
+              3.78
+            ],
+            [
+              3.78,
+              4.21
+            ],
+            [
+              4.21,
+              4.61
+            ],
+            [
+              4.61,
+              4.7
+            ],
+            [
+              4.7,
+              4.78
+            ],
+            [
+              4.78,
+              4.94
+            ],
+            [
+              4.94,
+              5.61
+            ],
+            [
+              5.61,
+              5.82
+            ],
+            [
+              5.82,
+              6.55
+            ],
+            [
+              6.55,
+              6.99
+            ],
+            [
+              6.99,
+              7.15
+            ],
+            [
+              7.15,
+              7.22
+            ],
+            [
+              7.22,
+              8.02
+            ],
+            [
+              8.02,
+              8.43
+            ],
+            [
+              8.43,
+              9.76
+            ],
+            [
+              9.76,
+              9.91
+            ],
+            [
+              9.91,
+              10.06
+            ],
+            [
+              10.06,
+              11.41
+            ],
+            [
+              11.41,
+              11.87
+            ]
+          ]
+        }
+      ],
+      "predicted_phrase_intervals": [
+        {
+          "phrase_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            2.58,
+            11.82
+          ],
+          "diagnostic_interval_seconds": [
+            2.58,
+            11.82
+          ],
+          "clipped_interval_seconds": [
+            2.58,
+            11.82
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        }
+      ],
+      "per_mapped_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "annotation_interval_count": 20,
+          "predicted_phrase_count": 1,
+          "annotation_support_seconds": 9.19,
+          "predicted_support_seconds": 9.24,
+          "intersection_seconds": 9.14,
+          "reference_coverage_ratio": 0.9945593035908596,
+          "annotation_uncovered_seconds": 0.05,
+          "predicted_outside_annotation_seconds": 0.1,
+          "annotation_union_intervals_seconds": [
+            [
+              2.68,
+              11.87
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              2.58,
+              11.82
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              2.68,
+              11.82
+            ]
+          ]
+        }
+      ],
+      "extra_tracks": [],
+      "assigned_voice_coactivity": null
+    },
+    {
+      "case_id": "zh-solo-1",
+      "class_id": "solo",
+      "language_id": "zh",
+      "annotation_unit_id": "human_utterance",
+      "sample_rate_hz": 16000,
+      "clip_seconds": 16.03,
+      "gold_sha256": "21fcccc4300a43b07853800f75c07b356a4f7d3e383c168b6e0d95c723e63584",
+      "candidate_sha256": "400701cf724183010cda0624a937a48703fc4524e06c7bcba13375fee76af82e",
+      "status_sha256": "6295d2d31c7582282f3e1c477d148ca9a02b93469c63cf4ae8a95763e3bf69cb",
+      "raw_sha256": "5aa4dfa9af94f6ac706857c783fff03cf449168d163c1a29096d9e02ea06727c",
+      "assignment_recomputed_and_equal": true,
+      "assignment_tied": false,
+      "optimal_assignment_count": 1,
+      "hypothesis_track_count": 2,
+      "reference_voice_count": 1,
+      "reference_annotation_span_health": {
+        "span_count": 2,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "raw_predicted_span_health": {
+        "span_count": 3,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "diagnostic_predicted_span_health": {
+        "span_count": 3,
+        "zero_length_span_count": 0,
+        "reverse_span_count": 0,
+        "out_of_range_span_count": 0
+      },
+      "missing_or_nonfinite_diagnostic_timing_count": 0,
+      "raw_diagnostic_coordinate_mismatch_count": 0,
+      "timestamp_adjusted_phrase_count": 0,
+      "analysis_clipped_phrase_count": 0,
+      "hypothesis_tracks_without_valid_timing_count": 0,
+      "parse_error_count": 0,
+      "reference_annotation_intervals": [
+        {
+          "reference_ordinal": 1,
+          "interval_count": 2,
+          "clip_relative_intervals_seconds": [
+            [
+              0.25,
+              11.64
+            ],
+            [
+              12.08,
+              15.78
+            ]
+          ]
+        }
+      ],
+      "predicted_phrase_intervals": [
+        {
+          "phrase_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            0.15,
+            11.81
+          ],
+          "diagnostic_interval_seconds": [
+            0.15,
+            11.81
+          ],
+          "clipped_interval_seconds": [
+            0.15,
+            11.81
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 2,
+          "hypothesis_track_ordinal": 2,
+          "raw_interval_seconds": [
+            0.45,
+            0.75
+          ],
+          "diagnostic_interval_seconds": [
+            0.45,
+            0.75
+          ],
+          "clipped_interval_seconds": [
+            0.45,
+            0.75
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        },
+        {
+          "phrase_ordinal": 3,
+          "hypothesis_track_ordinal": 1,
+          "raw_interval_seconds": [
+            11.81,
+            15.97
+          ],
+          "diagnostic_interval_seconds": [
+            11.81,
+            15.97
+          ],
+          "clipped_interval_seconds": [
+            11.81,
+            15.97
+          ],
+          "raw_diagnostic_coordinate_difference": false,
+          "clipped_for_analysis": false
+        }
+      ],
+      "per_mapped_reference_voice": [
+        {
+          "reference_ordinal": 1,
+          "hypothesis_track_ordinal": 1,
+          "annotation_interval_count": 2,
+          "predicted_phrase_count": 2,
+          "annotation_support_seconds": 15.09,
+          "predicted_support_seconds": 15.82,
+          "intersection_seconds": 15.09,
+          "reference_coverage_ratio": 1.0,
+          "annotation_uncovered_seconds": 0.0,
+          "predicted_outside_annotation_seconds": 0.73,
+          "annotation_union_intervals_seconds": [
+            [
+              0.25,
+              11.64
+            ],
+            [
+              12.08,
+              15.78
+            ]
+          ],
+          "prediction_union_intervals_seconds": [
+            [
+              0.15,
+              15.97
+            ]
+          ],
+          "intersection_intervals_seconds": [
+            [
+              0.25,
+              11.64
+            ],
+            [
+              12.08,
+              15.78
+            ]
+          ]
+        }
+      ],
+      "extra_tracks": [
+        {
+          "hypothesis_track_ordinal": 2,
+          "phrase_count": 1,
+          "predicted_support_seconds": 0.3,
+          "intervals_seconds": [
+            [
+              0.45,
+              0.75
+            ]
+          ],
+          "any_annotation_intersection_seconds": 0.3,
+          "assigned_prediction_intersection_seconds": 0.3
+        }
+      ],
+      "assigned_voice_coactivity": null
+    }
+  ]
+}

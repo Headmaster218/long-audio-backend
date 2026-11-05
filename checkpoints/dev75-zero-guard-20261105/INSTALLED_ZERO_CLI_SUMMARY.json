@@ -1,0 +1,17 @@
+{
+  "cli_exit_code": 0,
+  "exact_zero_verified": true,
+  "frames": 96000,
+  "seconds": 6,
+  "missing_model_path": true,
+  "model_call_count": 0,
+  "passed": true,
+  "source_and_export_unchanged": true,
+  "skip_receipt_sha256": "2ed9fd69918c8ae2f7e94c144bff6088a923fc749ec3a11891f35d3328113963",
+  "child_observation": "2ms sampled descendants, not kernel spawn trace",
+  "skip_status": "skipped_exact_zero_pcm",
+  "no_call_intent_or_controller_directory": true,
+  "prior_failed_evaluation_preserved": true,
+  "nonzero_environmental_noise_safety_proven": false,
+  "primary_transcript_overwritten": false
+}
