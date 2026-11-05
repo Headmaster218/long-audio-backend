@@ -2224,9 +2224,9 @@
     },
     {
       "path": "docs/RECORDER_AUTOMATIC_ADMISSION_RESULT_20261105.md",
-      "size": 2761,
-      "sha": "a9280f2ba4a21f07f7b4ba422e528b36f254ed25",
-      "sha256": "6ecf9145502961d564e4a707fb31b9c52d2a93e8a0613a503690c4b792f22baa"
+      "size": 3574,
+      "sha": "778f28df5804a9167cfdd99f8bfe4419bb10553c",
+      "sha256": "89a87c4a072765c18237afc8b7d0de113b1fd5db429ee4b870a6d1d3a6ccef7e"
     },
     {
       "path": "docs/RECORDER_BINDING_PROPOSAL.md",
@@ -3795,10 +3795,22 @@
       "sha256": "7b9e4e5e62d9631edd1e5ba4fb676de1c5f0895f98155f4cb80ddbc72f474593"
     },
     {
+      "path": "tests/fixtures/README_NATIVE_AUDIT.md",
+      "size": 795,
+      "sha": "4cfb6917b68216991f9724f8db339dacc0f148c2",
+      "sha256": "7808c9105a03ca5933804af25d709bf61fec8d704b097485c6bc322daf0438bb"
+    },
+    {
       "path": "tests/fixtures/capture_boundaries_reviewed.json",
       "size": 634,
       "sha": "43725195bd5bfc4649eb45ab4ca42ff96cb55e98",
       "sha256": "05297d8713dedd9b6c377c0fe3942c4865852f1f654f166daa8ad75037194343"
+    },
+    {
+      "path": "tests/fixtures/native_owned_cell_store_20261103.py.txt",
+      "size": 109347,
+      "sha": "2abb807be1768024a1086f648f30cf08fd912646",
+      "sha256": "efbd83e985482d47d3337e7290cddfacc680ca77c49452c904c18457211393d8"
     },
     {
       "path": "tests/fixtures/overlap_schema_dev8.sql",
@@ -5554,9 +5566,9 @@
     },
     {
       "path": "tests/test_recorder_span_native_audit.py",
-      "size": 4066,
-      "sha": "d6310fc42af4392243a46f2c6d6a81be30cfadd7",
-      "sha256": "9101e87dae04e5acaac476ff1f20700a4296e523d75e325142eebd32a137886d"
+      "size": 4780,
+      "sha": "e556c834fd004282c302ec7b41a4d3e91819d9d7",
+      "sha256": "a3d784e74e983f4cf84fb79206f2f93f39d29e742a015078e8adc4bc0bdd393e"
     },
     {
       "path": "tests/test_recorder_span_status.py",
@@ -6334,5 +6346,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev70 bounded automatic receiver admission with whole-attempt reservations and global retained-publication ambiguity check; final installed 101 focused tests pass. Broad historical audit failures reproduced on pre-feature baseline; final broad regression pending."
+  "source_update": "dev70 bounded automatic receiver admission. Final installed 101 focused checks passed; full recorder run 1612 passed/10 skipped/4 historical fixture failures. Historical fixture corrected without changing qualification gates; separate module rerun 10 passed, independently verified."
 }

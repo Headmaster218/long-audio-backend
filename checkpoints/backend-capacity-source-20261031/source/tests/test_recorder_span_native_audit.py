@@ -9,6 +9,8 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# Exact already-published historical profile, not a new qualification of current source.
+FROZEN_NATIVE = ROOT / 'tests/fixtures/native_owned_cell_store_20261103.py.txt'
 SPEC = importlib.util.spec_from_file_location('span_native_audit',
     ROOT / 'qualification/independent_recorder_span_audit_20261103.py')
 audit = importlib.util.module_from_spec(SPEC)
@@ -21,7 +23,7 @@ def candidates(tmp_path):
         (root / 'audio_backend').mkdir(parents=True)
         (root / 'tools').mkdir()
         (root / 'qualification').mkdir()
-        shutil.copyfile(ROOT / 'audio_backend/native_owned_cell_store.py',
+        shutil.copyfile(FROZEN_NATIVE,
                         root / 'audio_backend/native_owned_cell_store.py')
         shutil.copyfile(ROOT / 'qualification/ACCEPTED_RUNTIME_BASIS_20261103.json',
                         root / 'qualification/ACCEPTED_RUNTIME_BASIS_20261103.json')
@@ -83,3 +85,13 @@ def test_pcm_refuses_noncanonical_or_overlong(tmp_path, channels, frames, reason
     with pytest.raises(RuntimeError, match=reason):
         audit.pcm(path)
     assert audit.digest(path) == before
+
+
+def test_historical_fixture_pin_and_current_profile_remains_unqualified(tmp_path):
+    assert audit.digest(FROZEN_NATIVE) == 'efbd83e985482d47d3337e7290cddfacc680ca77c49452c904c18457211393d8'
+    source, candidate, run = candidates(tmp_path)
+    current = ROOT / 'audio_backend/native_owned_cell_store.py'
+    assert audit.digest(current) != audit.digest(FROZEN_NATIVE)
+    shutil.copyfile(current, source / 'audio_backend/native_owned_cell_store.py')
+    with pytest.raises(RuntimeError, match='production_profile_changed'):
+        audit.verify_sources(source, candidate, run)

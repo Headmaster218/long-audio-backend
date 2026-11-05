@@ -14,7 +14,9 @@ Development source version: 0.2.0rc3.dev70. This is cloud-only functional eviden
 
 The first whole recorder test selection completed: 1,605 passed, 10 skipped, four failed in 473.26 seconds. The four failures are all historical `test_recorder_span_native_audit.py` fixture expectations: its frozen 2026-11-03 audit rejects the later production profile hash before those tests reach their intended assertions. An isolated checkout of the pre-feature commit 4e885651d6407a31cbbcf18aec393d74d998f747 reproduced exactly four failures and five passes in that module. No qualification hash or native source was relaxed or changed.
 
-The ten skips require explicitly supplied Java producer/Android transport source fixtures. They are not passes. Final-code recorder regression excluding that separately reproduced historical module is running at this checkpoint; do not describe it as a complete pass. Focused final-code installed checks above have completed.
+The final product-code whole recorder selection completed in 483.65 seconds: 1,612 passed, ten skipped and the same four historical fixture failures. The intended ignore option did not exclude an explicitly selected file, so these four remained in that completed run. The ten skips require explicitly supplied Java producer/Android transport source fixtures and are not passes.
+
+The historical test fixture has now been repaired without changing production native code or the frozen audit tool. It uses the exact already-published historical source from Git commit 4e5712d, SHA256 efbd83e985482d47d3337e7290cddfacc680ca77c49452c904c18457211393d8. An additional negative test confirms current production source remains rejected by that historical qualification. All ten tests in the corrected module passed, and an independent reviewer reproduced ten passes and verified both the original Git bytes and unchanged audit/production source. This is a completed broad run plus a separate corrected-module rerun, not a claimed single all-green whole-suite invocation. The 101 installed receiver-focused tests above passed on final product code.
 
 ## Remaining work
 
