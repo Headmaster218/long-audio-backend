@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "5a4d58147e91d5a9e55b2c2aea6eb4e787b23d49",
-      "sha256": "1d4da251b4951a981eb27697c4547f94247bd853a88b3c3908138e5c2df7be71"
+      "sha": "e51e01553107a5c174bd6794a53e04605b701e1f",
+      "sha256": "03fdbe8f6e7aa1d8e9caef731672625b01e23978b45f40d27361d72e50dd81e9"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -760,9 +760,9 @@
     },
     {
       "path": "audio_backend/recorder_ftps_receiver.py",
-      "size": 30631,
-      "sha": "cc9b22422039235fa389fc2ff410b40a8bd8ad69",
-      "sha256": "19f7901566b23dbb702dc37ea056e74c3db1518fbb794c0bc4ece994adbd9d3c"
+      "size": 30946,
+      "sha": "4b8906f7645b159cdafba21159d913a6b2198096",
+      "sha256": "92143b118b563a3dfae7f42c25352a02a454f867404d1a5802f4a12a789d62da"
     },
     {
       "path": "audio_backend/recorder_generation_transition.py",
@@ -838,9 +838,9 @@
     },
     {
       "path": "audio_backend/recorder_receiver_completion.py",
-      "size": 17967,
-      "sha": "897fac03569168ef543cb1d48928db8213a4af71",
-      "sha256": "be093da17069898f2be09652de406c28353c01b0618f78444cb82470bfb399f2"
+      "size": 20493,
+      "sha": "cceca543631cd885e13e22a99eb666de640c4ae7",
+      "sha256": "a44f89947649d56b193f18c99cbf671a3490237a12ec699b159b0f4ee17728a4"
     },
     {
       "path": "audio_backend/recorder_receiver_generation.py",
@@ -856,9 +856,9 @@
     },
     {
       "path": "audio_backend/recorder_receiver_routing.py",
-      "size": 8283,
-      "sha": "09d5d319990dd17abd568464a33f820b6566686b",
-      "sha256": "d9c1ba20243214bbe38dbc87ea7ffeb0d1e17adac503017262de06d3bf2aec33"
+      "size": 10336,
+      "sha": "c07a7afa18f13f0bed6e5a0fe9e70e7c48b12531",
+      "sha256": "c7dd47434a9b28f9de18664cc32167d5b689e8bf2e9d5deeae6d64122aa11b58"
     },
     {
       "path": "audio_backend/recorder_receiver_status.py",
@@ -2217,6 +2217,12 @@
       "sha256": "641c78b2bbc2edfdd421d43d3976c9162665c79601a7680729bd91c8c5ad4aa6"
     },
     {
+      "path": "docs/RECORDER_AUTOMATIC_ADMISSION.md",
+      "size": 4253,
+      "sha": "92ae21395af2e070193a3060e408ddc2fe96f255",
+      "sha256": "56e7c88d6dbea6ae8c5d7bc0a4ec3a541c490e0071ad376716201c36cbb02ff1"
+    },
+    {
       "path": "docs/RECORDER_BINDING_PROPOSAL.md",
       "size": 7104,
       "sha": "6544e1cc44455b335003661d7361299cc40214ff",
@@ -2663,8 +2669,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "7b226c3ba494ccf9139941ff2ef35e2450d56768",
-      "sha256": "16503617ca4aabc8c65fc54b2fc9715d55b3541d3607b09521bb55509a9ee916"
+      "sha": "11e907eaeeb81af6f788c2cfef042bf415938702",
+      "sha256": "3f097028996f698256e7f33970f4e9a84997797ad8020d9a361391e8e52643d7"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5211,6 +5217,18 @@
       "sha256": "6cc6edfd4c6cd4df6d6322eb0419d2418c189d5a56bf1f3a57d5e6773e726bf4"
     },
     {
+      "path": "tests/test_recorder_automatic_routing.py",
+      "size": 4109,
+      "sha": "9ba226c7447cc1f9f5d830c7101fc34c16652778",
+      "sha256": "4ecec701c288d9bfa87e820c0d799bbd5796ce82f75d9362f893b547215fdd0e"
+    },
+    {
+      "path": "tests/test_recorder_automatic_routing_review.py",
+      "size": 7398,
+      "sha": "73f1bd11fdb97611313f3f315692b6cb57841623",
+      "sha256": "2ed9c11d5528a8a649ae514a0f01776c9d32ec05d5e646bf601339b14e85634c"
+    },
+    {
       "path": "tests/test_recorder_batch_intake.py",
       "size": 6642,
       "sha": "f98331da802f046bd621aee4636baf3f76bfa281",
@@ -5305,6 +5323,12 @@
       "size": 4078,
       "sha": "43c0c5b52636663374febd3428427a4dcae31956",
       "sha256": "88a6b3a36e31a6b28998cc16b5da8a339631002e30d526d013f3741ad3ed5f74"
+    },
+    {
+      "path": "tests/test_recorder_full_reservation.py",
+      "size": 2672,
+      "sha": "f3f0f4e0561055e6345ef55b7b9839e098436ec8",
+      "sha256": "4a4388081d451d7d7b635732d5b44cc8e71aef17fd709270d94a6668ee1578dc"
     },
     {
       "path": "tests/test_recorder_generation_transition.py",
@@ -6304,5 +6328,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev69 plus preserved negative result, read-only cause diagnosis and source-backed conservative future design; no inference, threshold, reference or product changes."
+  "source_update": "dev70 adds opt-in bounded automatic receiver generation admission with whole-attempt quota reservations, preserved in-flight ownership/readback, conservative restart and fail-closed uncertain writes. Source and installed receiver-focused tests passed; broader regression tracked separately."
 }

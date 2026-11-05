@@ -179,7 +179,9 @@ class ReceiverCompletion:
     """
     def __init__(self, *, binding, inbox_dir, exclusive_receiver=False,
                  max_attempts=MAX_ATTEMPTS, max_raw_bytes=MAX_RAW_BYTES,
-                 deadline_seconds=120):
+                 deadline_seconds=120, reserve_full_attempt=False):
+        require(type(reserve_full_attempt) is bool, 'completion_reservation_mode')
+        self._reserve_full_attempt = reserve_full_attempt
         require(exclusive_receiver is True, 'completion_exclusive_receiver_required')
         require(type(max_attempts) is int and 1 <= max_attempts <= MAX_ATTEMPTS,
                 'completion_attempt_bound')
@@ -243,6 +245,36 @@ class ReceiverCompletion:
                 'completion_attempt_replaced')
         publication._private(attempt.path)
 
+    def admission_available(self):
+        """Read-only quota decision, never a reason to retry an uncertain write."""
+        with self._guard():
+            raw_ok = (len(self._names) < self._max_attempts and
+                      self._charged_bytes + sum(LIMITS.values()) <= self._max_raw_bytes)
+            return raw_ok
+
+    def publication_admission_available(self):
+        """Conservative publication capacity; ambiguity is an exception, not full."""
+        with self._guard() as remaining:
+            state = Path(self._config['state_dir'])
+            with publication._lock(state, self._config, 'preparation.lock', remaining):
+                with publication._lock(state, self._config, 'publication.lock', remaining):
+                    pfd = os.open(state/'prepare', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                    try:
+                        ifd = os.open(self._inbox, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                        try:
+                            require(not publication._names(pfd, publication.MAX_PREPARATIONS),
+                                    'completion_pending_publication_review_required')
+                            published = publication._names(ifd, publication.inbox.MAX_ENTRIES)
+                            require(set(published) <= self._names, 'completion_unowned_publication')
+                            retained = publication._storage_bytes(ifd, pfd, remaining)
+                            return (len(self._names) < publication.inbox.MAX_ENTRIES and
+                                retained + self._charged_bytes + sum(LIMITS.values())
+                                <= publication.MAX_STORAGE_BYTES)
+                        finally:
+                            os.close(ifd)
+                    finally:
+                        os.close(pfd)
+
     def begin_attempt(self, name):
         """Atomically create and fsync a fresh attempt before the receiver's MKD."""
         require(type(name) is str and publication.inbox.NAME.fullmatch(name) is not None,
@@ -250,6 +282,12 @@ class ReceiverCompletion:
         with self._guard():
             require(name not in self._names, 'completion_existing_attempt_not_adopted')
             require(len(self._names) < self._max_attempts, 'completion_raw_attempt_capacity')
+            if self._reserve_full_attempt:
+                require(self._charged_bytes + sum(LIMITS.values()) <= self._max_raw_bytes,
+                        'completion_full_attempt_reservation')
+                # Charge before the first filesystem effect. An exception, even
+                # before a returned handle, never releases an uncertain reserve.
+                self._charged_bytes += sum(LIMITS.values())
             # A directory is a durable no-reuse fence, never a completion record.
             os.mkdir(name, 0o700, dir_fd=self._fd)
             self._names.add(name)
@@ -267,12 +305,14 @@ class ReceiverCompletion:
             require(attempt.state == 'receiving', 'completion_attempt_not_receiving')
             require(name not in attempt.writers, 'completion_duplicate_writer')
             self._same_attempt(attempt)
-            require(self._charged_bytes + LIMITS[name] <= self._max_raw_bytes,
-                    'completion_raw_byte_reservation')
+            if not self._reserve_full_attempt:
+                require(self._charged_bytes + LIMITS[name] <= self._max_raw_bytes,
+                        'completion_raw_byte_reservation')
             fd = os.open(attempt.path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             try:
                 publication.snapshot._same_directory(attempt.path, fd)
-                self._charged_bytes += LIMITS[name]
+                if not self._reserve_full_attempt:
+                    self._charged_bytes += LIMITS[name]
                 stream = None
                 try:
                     raw = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,

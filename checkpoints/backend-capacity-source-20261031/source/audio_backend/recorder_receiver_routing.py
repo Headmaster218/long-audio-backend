@@ -1,4 +1,4 @@
-"""Opt-in bounded startup routing. No hot rollover, adoption, moves or deletion."""
+"""Bounded retained routing with optional fresh-attempt capacity advance."""
 import os
 from pathlib import Path
 from . import recorder_receiver_completion as completion
@@ -28,12 +28,15 @@ def validate(generations, binding, inbox):
 class Routes:
     def __init__(self,config):
         self.generations,self.active=validate(config.generations,config.binding,config.inbox_dir)
+        self.automatic=config.auto_advance_generations
+        publication.require(type(self.automatic) is bool, 'routing_automatic_mode')
+        self._admission_failed=False
         self.owners=[]; self.routes={}
         try:
             for binding,inbox,raw in self.generations:
                 self.owners.append(completion.ReceiverCompletion(binding=binding,inbox_dir=inbox,
                     exclusive_receiver=True,max_attempts=config.max_attempts,max_raw_bytes=config.max_raw_bytes,
-                    deadline_seconds=config.publication_seconds))
+                    deadline_seconds=config.publication_seconds,reserve_full_attempt=self.automatic))
             for index,owner in enumerate(self.owners):
                 with owner._guard():
                     for name in owner._names:
@@ -47,6 +50,10 @@ class Routes:
                     for count,entry in enumerate(entries,1):
                         publication.require(count<=config.max_attempts and entry.name in owner._names
                             and entry.is_dir(follow_symlinks=False),'routing_unowned_published_attempt')
+            if self.automatic:
+                # Existing directories, including incomplete ones, are durable
+                # no-reuse fences. No old handle is recreated on restart.
+                self.active=max([self.active]+[i for i,o in enumerate(self.owners) if o._names])
         except BaseException:
             self.close();raise
 
@@ -71,10 +78,32 @@ class Routes:
     def begin(self,name):
         self._check()
         publication.require(name not in self.routes,'routing_existing_attempt')
-        index=self.active;owner=self.owners[index]
-        attempt=owner.begin_attempt(name)
-        self.routes[name]=(index,attempt.identity)
-        return owner,attempt
+        publication.require(not self._admission_failed,'routing_admission_review_required')
+        publication.require(type(name) is str and publication.inbox.NAME.fullmatch(name) is not None,
+                            'routing_attempt_name')
+        index=self.active
+        if self.automatic:
+            selected=None
+            for candidate in range(self.active,len(self.owners)):
+                owner=self.owners[candidate]
+                # Ambiguous namespace/publication errors escape; only an explicit
+                # quota False permits scanning a later prepared generation.
+                publication_ok=owner.publication_admission_available()
+                raw_ok=owner.admission_available()
+                if publication_ok and raw_ok:
+                    selected=candidate;break
+            publication.require(selected is not None,'routing_all_generations_full')
+            index=selected
+        owner=self.owners[index]
+        try:
+            attempt=owner.begin_attempt(name)
+            self.routes[name]=(index,attempt.identity)
+            self.active=index
+            return owner,attempt
+        except BaseException:
+            # Never replay an uncertain MKD in another generation or session.
+            self._admission_failed=True
+            raise
 
     def close(self):
         error=None
@@ -84,7 +113,8 @@ class Routes:
         if error is not None:raise error
 
 
-def configure(*, endpoint_config, generation_configs, active_generation, output):
+def configure(*, endpoint_config, generation_configs, active_generation, output,
+              auto_advance_generations=False):
     """Create a fresh private config, preserving endpoint policy; never listen."""
     import json
     from . import recorder_ftps_receiver as receiver
@@ -112,7 +142,11 @@ def configure(*, endpoint_config, generation_configs, active_generation, output)
     # namespace advertised by the endpoint we are replacing.
     retained=endpoint.get('generations') or [dict(binding=endpoint['binding'],inbox_dir=endpoint['inbox_dir'])]
     require(all(item in generations for item in retained),'routing_endpoint_generation_omitted')
-    data=dict(endpoint,generations=generations,**generations[active_generation])
+    require(type(auto_advance_generations) is bool,'routing_automatic_mode')
+    if auto_advance_generations:
+        require(generations[:len(retained)] == list(retained),'routing_automatic_order_changed')
+    data=dict(endpoint,generations=generations,auto_advance_generations=auto_advance_generations,
+              **generations[active_generation])
     config=receiver._validate_config(data)
     entries,_=validate(config.generations,config.binding,config.inbox_dir)
     path=receiver._path(str(output));publication._private(path.parent)
@@ -139,7 +173,7 @@ def configure(*, endpoint_config, generation_configs, active_generation, output)
     finally:os.close(directory)
     return dict(status='routing_configuration_created',generations=len(generations),
                 active_generation=active_generation,network_requests=0,service_started=False,
-                hot_rollover_enabled=False)
+                hot_rollover_enabled=False,automatic_admission_routing=auto_advance_generations)
 
 
 def main(argv=None):
@@ -151,6 +185,7 @@ def main(argv=None):
     parser.add_argument('--generation-config',dest='generation_configs',action='append',required=True)
     parser.add_argument('--active-generation',type=int,required=True)
     parser.add_argument('--output',required=True)
+    parser.add_argument('--auto-advance-generations',action='store_true')
     try:value=configure(**vars(parser.parse_args(argv)))
     except Exception:
         # Input may contain credentials. Never print raw exception/config data.

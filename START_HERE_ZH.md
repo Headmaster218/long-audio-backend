@@ -101,3 +101,7 @@ dev67 提供跨接收代际的有界交接入口，见
 不再发HTTP。安装前后184个产品文件一致，相关575项回归通过。精确来源和限制见
 `source/docs/INSTALLED_GENERATION_FLOW_RESULT_20261104.md`。这是同一云主机的
 9秒公开语音验证，不是用户服务器、实体手机、长时或跨人声识别质量验收。
+
+## dev70：固定端点的有界自动接收换代
+
+新增显式启用的容量换代：只在新MKD之前选择已准备下一代，旧上传可继续完成、旧回读保留，首个目录写入结果不明时不重放。最多八代，不删数据、不自动推进分析session，也不是无限期录音保证。详见 [自动接收准入](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_AUTOMATIC_ADMISSION.md)。

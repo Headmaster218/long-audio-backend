@@ -95,6 +95,7 @@ class Config:
     max_commands: int = 10000
     publication_seconds: int = 30
     generations: tuple | None = None
+    auto_advance_generations: bool = False
 
 
 def load_config(path):
@@ -107,7 +108,7 @@ def _validate_config(data):
     required = {'schema', 'binding', 'inbox_dir', 'cert_file', 'key_file', 'username', 'password_file'}
     optional = {'bind_host', 'port', 'passive_ports', 'max_connections', 'max_connections_per_ip',
                 'max_attempts', 'max_raw_bytes', 'idle_seconds', 'session_seconds', 'max_commands',
-                'generations', 'publication_seconds', 'allow_non_loopback', 'acknowledge_data_peer_ip_only', 'max_readback_bytes'}
+                'generations', 'auto_advance_generations', 'publication_seconds', 'allow_non_loopback', 'acknowledge_data_peer_ip_only', 'max_readback_bytes'}
     _require(type(data) is dict and required <= data.keys() and not data.keys() - required - optional
              and data['schema'] == SCHEMA, 'receiver_config_fields')
     username = data['username']
@@ -152,11 +153,14 @@ def _validate_config(data):
     _require(values['max_connections_per_ip'] <= values['max_connections'], 'receiver_connection_bound')
     _require(ports is None or values['port'] not in ports, 'receiver_passive_control_overlap')
     generations = data.get('generations')
+    automatic = data.get('auto_advance_generations', False)
+    _require(type(automatic) is bool and (not automatic or generations is not None),
+             'receiver_automatic_routing_requires_generations')
     if generations is not None:
         from .recorder_receiver_routing import validate
         validate(generations,data['binding'],inbox)
         generations = tuple(generations)
-    return Config(generations=generations,binding=data['binding'], inbox_dir=inbox, cert_file=cert, key_file=key,
+    return Config(auto_advance_generations=automatic,generations=generations,binding=data['binding'], inbox_dir=inbox, cert_file=cert, key_file=key,
                   username=username, password=password, bind_host=str(address), passive_ports=ports,
                   **values)
 
