@@ -1,0 +1,29 @@
+{
+  "schema": "preserved-first-attempt-summary-v1",
+  "passed": false,
+  "bounded_pause_clean_restart_verified": true,
+  "result_sha256": "a75eb6164401a973b17850141d064d57d66512440951670ac4c9abff279b9024",
+  "reason": "Second handoff paused at bodyless GET pages/1 with strict_archive_busy HTTP503; default busy-read retries zero. No C session created; no write replay. Original state retained.",
+  "installed_target_after": {
+    "materialization_receipt_sha256": "7ba00494afda72d18c793023d5e69ea6b6a54f9b5a295cd09e960539654ff901",
+    "models_loaded": false,
+    "product_bytes": 4324114,
+    "product_files": 185,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "native_runs": [
+    {
+      "exit": 143,
+      "phase": "bounded-pause-clean-restart"
+    },
+    {
+      "exit": 143,
+      "phase": "final"
+    }
+  ],
+  "receiver_runs": [],
+  "recorded_children_remaining": []
+}
