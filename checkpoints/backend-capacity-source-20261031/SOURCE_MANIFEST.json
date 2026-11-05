@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "ecd3298d9b385f329fbb2ba5adbc576e45e3fcea",
-      "sha256": "3772eb9823d3fec0bb2a92e7be6f81211bcbd45824a2ee2f17f4ced601683e90"
+      "sha": "b49af800b2cc18790188c8bfe4e40d1c0e9badc0",
+      "sha256": "9b78b3896cc35b7fb78e969b7d5a8b53d15e6253f6431544113c1e7a2df58df2"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -466,9 +466,9 @@
     },
     {
       "path": "audio_backend/moss_handy_runner.py",
-      "size": 12906,
-      "sha": "7e0a8f7f73001eecf0bb567bcae5c847f4c361a5",
-      "sha256": "4d17d60806bf2a02d0f248d7957bd423ef15feee8ec79b1fa235ce059b8a0858"
+      "size": 13384,
+      "sha": "4cb2c010dc3e78b2310ac1f64b1350e59b3e1999",
+      "sha256": "5465e05918a49b808c893a29cf9ee8be0b5424d0df06dedbcbf4aa68bc80566a"
     },
     {
       "path": "audio_backend/moss_result_store.py",
@@ -742,9 +742,9 @@
     },
     {
       "path": "audio_backend/recorder_analysis_plan.py",
-      "size": 22660,
-      "sha": "39856c730bc45dded39681fb05478351c1fe3dff",
-      "sha256": "2f7a8317b7c23009e87c31278e156bbe4817776e46bf2c419a4e559f607da334"
+      "size": 25426,
+      "sha": "dd0b2c5aeeb5a9216c1fc6463a9e8f5b7ce29afb",
+      "sha256": "5a9fa17cff3f3efeff44685cc4edb41dcbd61e172b647ef7e0e4c13ae81b545b"
     },
     {
       "path": "audio_backend/recorder_batch_intake.py",
@@ -763,6 +763,18 @@
       "size": 11451,
       "sha": "410743ea8844b9c09a8a3fc0cea4010f2b5a6f35",
       "sha256": "2d7e412b104f9bb567d81a7ee4d753dd37d760881e6ba0a278f8a1463cc25b56"
+    },
+    {
+      "path": "audio_backend/recorder_candidate_postphase.py",
+      "size": 38052,
+      "sha": "056d5c0e594c726dd5335a83f1b5c89157452dd2",
+      "sha256": "c0ae29aff82d10d0154f78843a6d80551985b215895f830bf050adc4f1597351"
+    },
+    {
+      "path": "audio_backend/recorder_candidate_resources.py",
+      "size": 41805,
+      "sha": "783b2654ae6ff14a9459d5eae17afba86f44c04e",
+      "sha256": "93dcf7f552ca625fcdc5f3d51553c99eda350507cb83aaa8f4e73e2d5fde78a8"
     },
     {
       "path": "audio_backend/recorder_capacity_preflight.py",
@@ -886,9 +898,9 @@
     },
     {
       "path": "audio_backend/recorder_overlap_candidates.py",
-      "size": 22442,
-      "sha": "e63b2bbf83554dfade710e4b01e03ae821926a21",
-      "sha256": "c55f852da435e66d7034d3fa1bb891841edf16f16f4fcf10923d9fdc73fe3791"
+      "size": 23286,
+      "sha": "df7a8a3bbbc1b9ae438e0cfb837a8e2c162365d3",
+      "sha256": "2d4373bf29b9d7338565d8887fafcad738487cb30308bf30fae0d4bd05dbec96"
     },
     {
       "path": "audio_backend/recorder_receiver_completion.py",
@@ -1833,6 +1845,12 @@
       "sha256": "5d277991a95428b7ceabfad87b20e6b04ece8a5e9ee95fb1454bcea54bdada61"
     },
     {
+      "path": "docs/FINITE_PLAN_CANDIDATE_POSTPHASE.md",
+      "size": 6102,
+      "sha": "79e227571854094088cca0d1c81c0222c9327161",
+      "sha256": "7358d797e9e639f54788f8f2d515b2ecf1f48643bb6ecf0d33e0f89d25a36146"
+    },
+    {
       "path": "docs/FRAGMENT_BRIDGE_SOURCE_ALLOWLIST.json",
       "size": 10911,
       "sha": "f05a0b07ac8ad87a9d25bd95979ad1b564803cc2",
@@ -2771,8 +2789,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "37bf4677459165065839dcbbe3e680068bdf36ce",
-      "sha256": "4a32f735b205483981d5c7255c746b56df062c371141e1f66bcd4e2f257ab29c"
+      "sha": "5f18d0dea6a6508b2810694f97be6f76bc974d89",
+      "sha256": "77a0cefa54e14912a60b17ba49fdeca6caf7591d04e3832deb97bbfdf14cb63f"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5409,6 +5427,24 @@
       "sha256": "695de849de9249d3bbc6c867829bfbb6a95b3199e44e9f3dcad048b374c63f9c"
     },
     {
+      "path": "tests/test_recorder_candidate_plan.py",
+      "size": 5642,
+      "sha": "7acbb317c17e9b41b0bad29e48028236368201d0",
+      "sha256": "2e1da51a8b8b1e097966447933b50224a2474c6414587a2da5e3836e95f243f1"
+    },
+    {
+      "path": "tests/test_recorder_candidate_postphase.py",
+      "size": 19266,
+      "sha": "bb4f13cbf307f30ad70d356b1f6e7f36de898c99",
+      "sha256": "148f4d86b9b49154bc500d4f40b70fde6e2c57423625652938f883411864f99a"
+    },
+    {
+      "path": "tests/test_recorder_candidate_resources.py",
+      "size": 22117,
+      "sha": "0d14e258fe19af7a820af03792c15ed72cac0604",
+      "sha256": "8f3caecdac5ce45ad7388d80ebc71b52df3314aa97a50a31f48ffad57696980b"
+    },
+    {
       "path": "tests/test_recorder_capacity_preflight.py",
       "size": 6182,
       "sha": "d55d4964d7f749d81e54ddf904d9faa3ae18dfd8",
@@ -6513,6 +6549,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "0983376f7312d6a67628ecd51e1110e515be7134",
-  "source_update": "dev78 legacy recovery receipt reader accepts exactly published41050/current73978 request caps, preserving original recorded cap and all other bindings; writer defaults unchanged. Installed compatibility proof pending."
+  "source_base_commit": "2868df4d93c7cde7687960f1c31fc54873b02e0d",
+  "source_update": "dev79 explicit bounded finite-plan candidate postphase; durable no-replay reservations and validated completed-result reuse; local CPU resource admission and owned-only cleanup retention; default behavior unchanged. Source reviewed; fresh installation and operational proof pending."
 }

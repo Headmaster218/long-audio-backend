@@ -1,0 +1,31 @@
+{
+  "schema": "candidate-postphase-source-review-summary-v1",
+  "version": "0.2.0rc3.dev79",
+  "changed_source_manifest_sha256": "5847b9479bddfdf961e11db13860d082ca17cdc0e30a33854684c86b9adf1063",
+  "independent_review_sha256": "51298a3bac789e210745eaab56a4576034c527bd6551c12aff40b2e99ae8d388",
+  "independent_tests": 223,
+  "independent_subtests": 53,
+  "failures": 0,
+  "skips": 0,
+  "source_files": 1091,
+  "source_manifest_sha256": "e9306e390edeb95c4c8677aa72ac51dee25bfac95f87b14527512df738fe858a",
+  "fresh_installation_verified": false,
+  "actual_candidate_postphase_verified": false,
+  "model_calls_in_source_review": 0,
+  "limits": [
+    "Explicit opt-in only; triggers after plan_complete, including early physical STOP.",
+    "Primary exports are never overwritten.",
+    "Owned completed candidates are validated before reuse; failed or unknown calls are not replayed.",
+    "Unsupported local resource evidence blocks enhancement only.",
+    "Exceptional unresolved cleanup retains ownership and locks; no additional inference.",
+    "No recognition accuracy or long-duration qualification claim."
+  ],
+  "exact_final_related_regression": {
+    "tests": 444,
+    "failures": 0,
+    "skips": 0,
+    "elapsed_seconds": 200.71,
+    "source_hashes_unchanged": true
+  },
+  "combined_source_result_sha256": "b887f2d2e3a63bc7e59d5f75efe4af99272907b75b91da24c26756594c11e67c"
+}

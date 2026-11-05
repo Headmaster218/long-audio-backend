@@ -201,9 +201,45 @@ class Output:
         if self.fd is not None: os.close(self.fd); self.fd = None
         if self.parent is not None: os.close(self.parent); self.parent = None
 
+def prepare(root, baseline, selected_ranges, cancel, check, *, auto_native_overlap=False):
+    """Pure local preflight shared with the finite-plan postphase; no model load."""
+    binding, receipts, mapping, work = snapshot(root, baseline, cancel)
+    require(type(auto_native_overlap) is bool, 'overlap_auto_option')
+    selection=None
+    if auto_native_overlap:
+        from . import recorder_native_overlap as native
+        require(selected_ranges is None and binding['native_turns_sha256'] is not None,
+                'overlap_bound_native_turns_required')
+        evidence=json.loads(read(baseline/'native-turns.json',export.MAX_OUTPUT_BYTES))
+        primary=json.loads(read(baseline/'export.json',export.MAX_OUTPUT_BYTES))
+        native.validate_work(work,binding['frames'],check)
+        hashes={}
+        for w in work:
+            check()
+            selected=dict(start_frame=w['span_start_frame'],end_frame=w['span_end_frame'])
+            pcm=pcm_for(receipts,mapping,selected,cancel)
+            hashes[w['chunk_id']]=digest(u.LegacyAppendUploader._header(len(pcm)//2)+pcm)
+        selection=native.select(evidence,primary['completion']['source_content_binding'],work,hashes,check=check)
+        chosen=selection['ranges']
+        if chosen:ranges(chosen,binding['frames'])
+    else:
+        chosen = ranges(selected_ranges, binding['frames'])
+    check()
+    # No mutable output until every selected range and source validates.
+    selected_pcm = [pcm_for(receipts, mapping, row, cancel) for row in chosen]
+    pinned = snapshot(root, baseline, cancel)[0]
+    require(pinned == binding, 'overlap_source_changed')
+    selected_profile = profile(NAME)
+    plan = dict(schema=SCHEMA, source=binding, ranges=chosen, profile_sha256=selected_profile.sha256,
+                provenance='completed-export-and-finalized-originals-not-native-support-capture',
+                automatic_selection=selection)
+    return binding, receipts, mapping, work, selection, chosen, selected_pcm, selected_profile, plan
+
 def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_inputs=False,
         aggregate_budget_managed=False, cancel=None, deadline_seconds=1200, _controller=MossController,
-        auto_native_overlap=False):
+        auto_native_overlap=False, expected_plan_sha256=None):
+    require(expected_plan_sha256 is None or (type(expected_plan_sha256) is str and
+        re.fullmatch(r"[a-f0-9]{64}",expected_plan_sha256)), "overlap_expected_plan_digest")
     require(exclusive_inputs is True and aggregate_budget_managed is True, 'overlap_exclusive_source_and_resource_ack_required')
     cancel = cancel or threading.Event()
     require(type(deadline_seconds) is int and 1 <= deadline_seconds <= 3600, 'overlap_deadline_bound')
@@ -222,39 +258,14 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
     try:
         for path in (root/'intake.lock', root/'uploader/uploader.lock'):
             fd = status.engine.held_lock(path); locks.append((fd, path, u._signature(os.fstat(fd))))
-        binding, receipts, mapping, work = snapshot(root, baseline, cancel)
-        require(type(auto_native_overlap) is bool, 'overlap_auto_option')
-        selection=None
-        if auto_native_overlap:
-            from . import recorder_native_overlap as native
-            require(selected_ranges is None and binding['native_turns_sha256'] is not None,
-                    'overlap_bound_native_turns_required')
-            evidence=json.loads(read(baseline/'native-turns.json',export.MAX_OUTPUT_BYTES))
-            primary=json.loads(read(baseline/'export.json',export.MAX_OUTPUT_BYTES))
-            native.validate_work(work,binding['frames'],check)
-            hashes={}
-            for w in work:
-                check()
-                selected=dict(start_frame=w['span_start_frame'],end_frame=w['span_end_frame'])
-                pcm=pcm_for(receipts,mapping,selected,cancel)
-                hashes[w['chunk_id']]=digest(u.LegacyAppendUploader._header(len(pcm)//2)+pcm)
-            selection=native.select(evidence,primary['completion']['source_content_binding'],work,hashes,check=check)
-            chosen=selection['ranges']
-            if chosen:ranges(chosen,binding['frames'])
-        else:
-            chosen = ranges(selected_ranges, binding['frames'])
+        binding, receipts, mapping, work, selection, chosen, selected_pcm, selected_profile, plan = prepare(
+            root, baseline, selected_ranges, cancel, check, auto_native_overlap=auto_native_overlap)
         export._destination(output, protected=(root, baseline,
             *(Path(r['path']) for r in receipts), *(Path(r['snapshot_path']) for r in receipts)))
-        check()
-        # No mutable output until every selected range and source validates.
-        selected_pcm = [pcm_for(receipts, mapping, row, cancel) for row in chosen]
-        pinned = snapshot(root, baseline, cancel)[0]
-        require(pinned == binding, 'overlap_source_changed')
-        selected_profile = profile(NAME)
-        plan = dict(schema=SCHEMA, source=binding, ranges=chosen, profile_sha256=selected_profile.sha256,
-                    provenance='completed-export-and-finalized-originals-not-native-support-capture',
-                    automatic_selection=selection)
-        plan_sha = digest(u._json(plan)); writer = Output(output); writer.write('plan.json', plan)
+        plan_sha = digest(u._json(plan))
+        require(expected_plan_sha256 is None or plan_sha == expected_plan_sha256,
+                'overlap_reserved_plan_changed_before_dispatch')
+        writer = Output(output); writer.write('plan.json', plan)
         if selection is not None: writer.write('selection.json',selection)
         for i, (row, pcm) in enumerate(zip(chosen, selected_pcm)):
             check()
@@ -362,6 +373,7 @@ def main(argv=None):
     group.add_argument('--ranges')
     group.add_argument('--auto-native-overlap',action='store_true')
     parser.add_argument('--deadline-seconds', type=int, default=1200)
+    parser.add_argument('--expected-plan-sha256')
     parser.add_argument('--exclusive-inputs', action='store_true')
     parser.add_argument('--aggregate-budget-managed', action='store_true')
     args = parser.parse_args(argv); cancel = threading.Event()
@@ -371,7 +383,8 @@ def main(argv=None):
         result = run(job_dir=args.job_dir, export_dir=args.export_dir, selected_ranges=value,
                      model=args.model, output_dir=args.output_dir, exclusive_inputs=args.exclusive_inputs,
                      aggregate_budget_managed=args.aggregate_budget_managed, cancel=cancel,
-                     deadline_seconds=args.deadline_seconds, auto_native_overlap=args.auto_native_overlap)
+                     deadline_seconds=args.deadline_seconds, auto_native_overlap=args.auto_native_overlap,
+                     expected_plan_sha256=args.expected_plan_sha256)
         print(json.dumps(result)); return 0
     except Exception:
         print(json.dumps(dict(schema=SCHEMA, status='refused_or_incomplete', replay_allowed=False))); return 2

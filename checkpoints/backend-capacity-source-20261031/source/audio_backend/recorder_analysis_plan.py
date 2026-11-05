@@ -147,7 +147,10 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
         max_network_writes=1024, max_network_bytes=runner.MAX_NETWORK_BYTES,
         max_total_actions=32768, max_total_polls=4096, phase_max_actions=64,
         phase_max_polls=64, poll_seconds=1, export_recovery_attempts=0,busy_read_retries=0,
-        limits=None, transport=None, cancel=None, native_turns=False):
+        limits=None, transport=None, cancel=None, native_turns=False,
+        candidate_postphase=False, candidate_config=None):
+    from . import recorder_candidate_postphase as candidates
+    candidate_policy = candidates.policy(candidate_config, enabled=candidate_postphase, native_turns=native_turns)
     native_options = runner.native_export_options(native_turns, export_recovery_attempts)
     require(acknowledge_finite_plan is True and exclusive_writer is True and
             acknowledge_span_local_closure is True, 'plan_explicit_ack_required')
@@ -175,6 +178,9 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
     for state in (plan['state_dir'], *(edge['next_state_dir'] for edge in plan['edges'])):
         runner.check_export_policy(Path(state), native_turns)
     if native_turns:intent['export_policy'] = runner.NATIVE_EXPORT_POLICY
+    if candidate_policy is not None:
+        candidates.validate_locations(candidate_policy,plan,config,templates,control,file)
+        intent['candidate_policy'] = candidate_policy
     require(len(single._json(intent)) <= single.MAX_MANIFEST, 'plan_intent_size')
     require(runner._names(control,2) <= {'chain.lock',INTENT}, 'plan_unknown_control_file')
     lock = runner.engine.held_lock(control/'chain.lock', create=not os.path.lexists(control/'chain.lock'))
@@ -182,6 +188,8 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
         resumed = os.path.lexists(control/INTENT)
         if resumed:require(runner._same(single.manifest_read(control/INTENT),intent), 'plan_saved_intent_changed')
         _existing_destinations(plan, config, templates, resumed)
+        if candidate_policy is not None:
+            candidates.initialize_ledger(candidate_policy,intent,resumed=resumed)
         if not resumed:single.manifest_write(control/INTENT,intent)
         runner._durable(control/INTENT,intent)
         control_identity=(control.stat().st_dev,control.stat().st_ino)
@@ -229,7 +237,7 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
                 return value
         network=Network(); phases=PhaseBudget(max_total_actions,max_total_polls,guard); completed=0
         def result(status,phase,**extra):
-            return dict(schema=SCHEMA,status=status,phase=phase,completed_edges=completed,
+            value = dict(schema=SCHEMA,status=status,phase=phase,completed_edges=completed,
                 unused_edges=len(plan['edges'])-completed,network_requests=network.requests,
                 network_writes=network.writes,network_response_bytes=network.bytes,
                 reserved_action_allowance=phases.actions,reserved_poll_allowance=phases.polls,
@@ -237,6 +245,23 @@ def run(*, plan_file, control_dir, acknowledge_finite_plan=False, exclusive_writ
                 invocation_bounded=True,automatic_retry=False,preserve_existing_files=True,
                 recording_complete=False,recognition_continuity_verified=False,
                 receiver_process_changed=False,**extra)
+            if candidate_policy is not None:
+                value['primary_status'] = status
+                if status != 'plan_complete' or extra.get('terminal_stop_verified') is not True:
+                    value['enhancement'] = candidates.status('enhancement_deferred',reason='primary_not_safely_complete',
+                        candidate_attempts_started=0)
+                else:
+                    try:
+                        states = [plan['state_dir'], *(e['next_state_dir'] for e in plan['edges'][:completed])]
+                        generations=[]
+                        for state_path in states:
+                            cfg=single.manifest_read(Path(state_path)/'config.json')
+                            generations.append((Path(cfg['job_dir']),Path(cfg['output_dir'])))
+                        value['enhancement'] = candidates.drain(policy=candidate_policy,plan_intent=intent,
+                            generations=generations,api_origin=config['api'],cancel=cancel,verify=verify)
+                    except (Exception,KeyboardInterrupt) as exc:
+                        value['enhancement'] = candidates.status('candidate_review_required',reason=single.failure_report(exc))
+            return value
         def budgets():
             return dict(max_requests=max_requests-network.requests,max_network_writes=max_network_writes-network.writes,
                 max_network_bytes=max_network_bytes-network.bytes)
@@ -323,11 +348,25 @@ def main(argv=None):
     p.add_argument('--deadline-seconds',type=float,default=120);p.add_argument('--poll-seconds',type=float,default=1)
     p.add_argument('--export-recovery-attempts',type=int,choices=(0,2,3),default=0)
     p.add_argument('--native-turns',action='store_true')
+    p.add_argument('--candidate-postphase',action='store_true')
+    p.add_argument('--candidate-config')
     p.add_argument('--busy-read-retries',type=int,choices=range(4),default=0)
     try:value=run(**vars(p.parse_args(argv)))
     except (Exception,KeyboardInterrupt):value=dict(schema=SCHEMA,status='plan_refused',preserve_existing_files=True,automatic_retry=False)
-    print(json.dumps(value,sort_keys=True))
-    return 0 if value['status']=='plan_complete' else 3 if value['status'] in ('plan_paused','plan_exhausted') else 2
+    from . import recorder_candidate_postphase as candidates
+    if candidates.pending_cleanup():
+        value['candidate_cleanup'] = dict(status='cleanup_incomplete',requires_operator_attention=True,
+            original_owner_retained=True,new_work_allowed=False,
+            detail='Only owned-child cleanup will continue. Restore process visibility or resolve the owned child; no inference retry or primary control occurs.')
+    try:print(json.dumps(value,sort_keys=True),flush=True)
+    finally:
+        # A broken redirected stdout cannot discard a pending owned handle.
+        if candidates.retain_cleanup():
+            candidates.cleanup_notice(dict(schema=SCHEMA,status='candidate_cleanup_complete',primary_status=value['status'],
+                new_candidate_work_started=False,automatic_retry=False))
+    if value['status']=='plan_complete':
+        return 0 if value.get('enhancement',{}).get('status','candidate_drain_complete')=='candidate_drain_complete' else 3
+    return 3 if value['status'] in ('plan_paused','plan_exhausted') else 2
 
 
 if __name__=='__main__':raise SystemExit(main())

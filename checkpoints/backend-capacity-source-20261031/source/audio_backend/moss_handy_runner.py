@@ -13,6 +13,14 @@ import wave
 
 ROOT = Path(__file__).resolve().parents[1]
 if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        raise SystemExit('The owned controller supplies an isolated request and its hash')
+    # -B prevents writes, not reads. Never load ambient product bytecode before
+    # profile/runtime verification in this nested owned process.
+    unused_cache = Path(sys.argv[1]) / 'unused-bytecode'
+    if os.path.lexists(unused_cache):
+        raise SystemExit('Owned source-only bytecode prefix must be absent')
+    sys.pycache_prefix = str(unused_cache)
     sys.path.insert(0, str(ROOT))
 
 from audio_backend.moss_handy_adapter import retain_raw
