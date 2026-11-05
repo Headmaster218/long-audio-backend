@@ -1,0 +1,13 @@
+# Generated dev73 bundle: actual installed workflow
+
+The generated configuration package was used directly, not replaced with hand-crafted equivalent commands. Its check, receiver launch, real first-delivery initialization and finite-plan command arrays completed three real native exports and 144000 exact PCM frames in one invocation. Exports were independently checked before repeat. Exact repeat used zero HTTP requests/writes and left the complete bundle byte-identical. Stopped all-generation capacity preflight left the inventory unchanged and used no HTTP or writes. Original spool, raw and published files stayed unchanged. All 188 product files, 1832 dependencies and eight model assets retained their hashes; all tracked processes exited.
+
+This uses three-second public-speech segments and one attempt per generation. The receiver was stopped before analysis. It tests the generated-command workflow, not concurrent ingestion/analysis, 300-second/144-attempt real-duration capacity, physical Android hardware, a user server, recognition quality or indefinite unattended service. The default five-minute profile remains conditional arithmetic with explicit assumptions, not a twelve-hour run.
+
+Related source regressions: 167 passed; independent focused review: 29 passed (overlap, not additive). Fresh installation qualification is in dev73-fresh-qualification-20261105. Frozen product source is remote commit 80d9399efa148c1321702e3c25447844181a8302. Installed byte-verifier runtime_qualified=false is intentional and separate from reviewed runtime evidence.
+
+Deployment instructions are in source/docs/RECORDER_FRESH_DEPLOYMENT_BUNDLE.md and RECORDER_CAPACITY_PREFLIGHT.md. New bundles must not replace a used endpoint and strand historical readback. Existing settings/data are not resized, deleted or adopted. This cloud-specific evidence harness is not a portable deployment script. Only code and hash/count summaries are published, no audio, transcription, model, database, credentials or binary artifacts.
+
+The generated analyze arguments were preserved, with the exact qualified interpreter and three explicit supported options added: deadline 300 seconds, export recovery attempts 3, busy GET retries 3. No HTTP503 occurred, so busy recovery was not exercised. Preflight correctly distinguished conditional profile fit from current headroom: all three one-attempt smoke generations were full, so current admission headroom was false.
+
+Independent terminal review revalidated the exact generated arguments, all 132 bundle files, 44 preflight inventory files, native PCM and exports, product/dependency/model hashes and clean process shutdown.

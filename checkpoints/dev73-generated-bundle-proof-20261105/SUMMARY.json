@@ -1,0 +1,92 @@
+{
+  "passed": true,
+  "error": null,
+  "elapsed_seconds": 41.72347803199955,
+  "exact_native_pcm_frames": 144000,
+  "first_invocation_verified": true,
+  "exact_repeat_artifacts_unchanged": true,
+  "preflight_inventory_unchanged": true,
+  "recorded_children_remaining": [],
+  "native_runs": [
+    {
+      "exit": 143,
+      "phase": "final"
+    }
+  ],
+  "receiver_runs": [
+    {
+      "exit": 0,
+      "generation": 0
+    }
+  ],
+  "dependency_before": {
+    "files": 1832,
+    "phase": "after",
+    "verified": true
+  },
+  "dependency_after": {
+    "files": 1832,
+    "phase": "after",
+    "verified": true
+  },
+  "plan": {
+    "status": "plan_complete",
+    "completed_edges": 2,
+    "network_requests": 241,
+    "network_writes": 15,
+    "reserved_action_allowance": 96,
+    "reserved_poll_allowance": 27
+  },
+  "repeat": {
+    "status": "plan_complete",
+    "network_requests": 0,
+    "network_writes": 0
+  },
+  "result_sha256": "b842735a981b47ba28d35bbe1ee522551e7ea8ae8262b9ed2544ca11e466d6a9",
+  "harness_sha256": "cdd52bce77c328aba10f314dd2c764c068dfc552552d7de6f3c169c77d75be0b",
+  "installed_target_before": {
+    "materialization_receipt_sha256": "fbdfa7b3c403bd8a21272402881c4666f97e8d51859afb96057fed103ab4fd3e",
+    "models_loaded": false,
+    "product_bytes": 4372326,
+    "product_files": 188,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "installed_target_after": {
+    "materialization_receipt_sha256": "fbdfa7b3c403bd8a21272402881c4666f97e8d51859afb96057fed103ab4fd3e",
+    "models_loaded": false,
+    "product_bytes": 4372326,
+    "product_files": 188,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "installed_identity": {
+    "isolated": 1,
+    "origin": "/workspace/scratch/12ec3121e93f/backend-dev73-fresh-runtime-20261105-0214/lib/python3.13/site-packages/audio_backend/__init__.py",
+    "version": "0.2.0rc3.dev73"
+  },
+  "runtime_receipt_sha256": "fbdfa7b3c403bd8a21272402881c4666f97e8d51859afb96057fed103ab4fd3e",
+  "first_invocation_evidence_sha256": "a4d39fdc5b8622d1bfde4f31c87e278690d81a786bd15b2831851e22dee16956",
+  "original_bytes_unchanged": true,
+  "old_generation_bytes_unchanged": true,
+  "physical_device": false,
+  "recognition_continuity_verified": false,
+  "short_fixture_profile_separate_from_300_second_capacity": true,
+  "schema": "dev73-generated-bundle-smoke-summary-v1",
+  "receiver_stopped_before_analysis": true,
+  "model_assets_unchanged": true,
+  "default_300_second_144_attempt_native_test": false,
+  "explicit_analysis_options": {
+    "deadline_seconds": 300,
+    "export_recovery_attempts": 3,
+    "busy_read_retries": 3
+  },
+  "http_503_observations": [],
+  "conditional_profile_fits": true,
+  "all_generations_have_admission_headroom": false,
+  "independent_audit_cleared": true
+}
