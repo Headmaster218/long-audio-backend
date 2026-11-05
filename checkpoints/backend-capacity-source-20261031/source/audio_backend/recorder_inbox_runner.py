@@ -587,7 +587,13 @@ def _recovery_export_receipt(root, config, intent, guard):
     require(3 <= len(records) <= 7 and len(records) % 2 == 1, 'runner_recovery_audit_shape')
     count = (len(records)-1)//2
     require(count <= intent['recovery_attempts'], 'runner_recovery_attempt_bound')
-    limits = export_recovery.RecoveryLimits(attempts=intent['recovery_attempts'])
+    # Both exact request ceilings were published before the reader learned to
+    # retain this policy. Never reinterpret an older receipt using today's cap.
+    header = records[0]
+    require(type(header) is dict and type(header.get('requests_bound')) is int
+            and header['requests_bound'] in (41050, 73978), 'runner_recovery_audit_binding')
+    limits = export_recovery.RecoveryLimits(attempts=intent['recovery_attempts'],
+        requests=header['requests_bound'])
     expected = dict(schema=export_recovery.SCHEMA, job_dir=config['job_dir'],
         session_id=config['session_id'], capture_id=config['capture_id'], remote_read_only=True,
         inference_replay=False, attempts=limits.attempts, requests_bound=limits.requests,

@@ -187,3 +187,10 @@ at nested entry points. The direct export-recovery command also explicitly
 refuses `--native-turns`; its baseline partial-file validation is unchanged.
 On any native export failure, preserve all output and receipts. An incomplete
 or uncertain publication is never adopted, overwritten, or upgraded in place.
+
+Completed baseline recovery receipts retain their recorded request policy. The
+reader accepts only the two previously published exact ceilings, 41050 and
+73978, and checks every recorded request count against that receipt's own
+ceiling. All other audit-header, source, file, hash and budget checks remain
+exact. This read-only compatibility does not rewrite receipts, expand an old
+budget, accept arbitrary ceilings, or resume an uncertain recovery attempt.

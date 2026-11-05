@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "a98e469d2f6b543dcfdc35089418c504832119c3",
-      "sha256": "e1ccfb10c295e3f48e97306e742c2c4e123a2f1714b1077d7f3723108c9578b3"
+      "sha": "ecd3298d9b385f329fbb2ba5adbc576e45e3fcea",
+      "sha256": "3772eb9823d3fec0bb2a92e7be6f81211bcbd45824a2ee2f17f4ced601683e90"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -820,9 +820,9 @@
     },
     {
       "path": "audio_backend/recorder_inbox_runner.py",
-      "size": 65272,
-      "sha": "faaedba9335dc36abfd4fb5783d0b3a32b77ca1d",
-      "sha256": "f8d8002566e841e7372e25cb9066fa1173e3dcdcff044f069354daadd7b10931"
+      "size": 65669,
+      "sha": "714576a0d8e25341457b7cad991a2791f5df568d",
+      "sha256": "8b5ff832715c7b55423e375179fdf275c7a2e040e10018720efdb28c7b2a7894"
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
@@ -2338,9 +2338,9 @@
     },
     {
       "path": "docs/RECORDER_FINITE_ANALYSIS_PLAN.md",
-      "size": 10254,
-      "sha": "3d5593c2292f8c29824b8b62ce13593cb8a26274",
-      "sha256": "b8f06fe3fe1c616b7e26c9efccb81a8ba6b2291c78fce27fc2a2939a76aac5c2"
+      "size": 10713,
+      "sha": "74d188a7b70752a1f1f1b3587eccac8563dfd77f",
+      "sha256": "2c13cee8497a083f9cb47e1132491ae4bec366043d37a369c211b4845ccb1010"
     },
     {
       "path": "docs/RECORDER_FRESH_DEPLOYMENT_BUNDLE.md",
@@ -2771,8 +2771,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "08906d0c44d34513d690aaf8429b5effe40cba43",
-      "sha256": "d052cb4209e2309acd1c33ed466489da978cef98552bf5318728d1f7bce6c434"
+      "sha": "37bf4677459165065839dcbbe3e680068bdf36ce",
+      "sha256": "4a32f735b205483981d5c7255c746b56df062c371141e1f66bcd4e2f257ab29c"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5691,6 +5691,12 @@
       "sha256": "5cdcdae42edcd0f6b4f9596b6446ae1d2b4e3b919a2b1fc33c9d0bf987385b47"
     },
     {
+      "path": "tests/test_recorder_recovery_cap_compat.py",
+      "size": 6687,
+      "sha": "1a23242d30e18c1b1757e5217eb219f0231926be",
+      "sha256": "9c240b70284e5e612d6aaaad7efeb6351fd52a800acadea11abe9fd625454f22"
+    },
+    {
       "path": "tests/test_recorder_reviewed_identity_handoff.py",
       "size": 19604,
       "sha": "8f1dd3dd7d3e10bd324b6f75bc3f03cd1cc91eb0",
@@ -6507,6 +6513,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "e22ff972f230b0df806c48edfcfc6ea408dc21c5",
-  "source_update": "dev77 default-off native-turns export through bundle/finite plan; old two-artifact defaults retained, no candidate scheduling, native plus export-recovery fails before effects. Fresh installed flow pending."
+  "source_base_commit": "0983376f7312d6a67628ecd51e1110e515be7134",
+  "source_update": "dev78 legacy recovery receipt reader accepts exactly published41050/current73978 request caps, preserving original recorded cap and all other bindings; writer defaults unchanged. Installed compatibility proof pending."
 }
