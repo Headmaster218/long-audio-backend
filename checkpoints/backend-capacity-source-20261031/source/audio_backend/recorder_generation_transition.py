@@ -55,7 +55,8 @@ def transition(*, state_dir, route_config, successor_attempt, next_state_dir,
                max_network_writes=512, max_network_bytes=runner.MAX_NETWORK_BYTES,
                export_recovery_attempts=0, limits=None, transport=None, cancel=None,
                preserve_reviewed_identity_group=None,identity_generation=None,identity_policy_sha256=None,
-               busy_read_retries=0):
+               busy_read_retries=0, expected_config_sha256=None, expected_routing_provenance=None,
+               expected_successor_sha256=None):
     """Prepare the exact cut, finish/export the old span, then link one successor.
 
 All phases share a monotonic deadline and outer network budgets. The old runner
@@ -98,6 +99,10 @@ retries an uncertain POST. A bounded pause is not success.
         runner._config(config, state)
         require(config['output_dir'] is not None, 'transition_old_export_required')
         pair, provenance, _ = boundary.routing_selection(route_config, config)
+        require(expected_config_sha256 is None or boundary.digest(config) == expected_config_sha256,
+                'transition_discovery_config_changed')
+        require(expected_routing_provenance is None or runner._same(provenance, expected_routing_provenance),
+                'transition_discovery_route_changed')
     finally:
         os.close(lock)
     nxt = dict(state_dir=str(runner._path(str(next_state_dir))),
@@ -127,6 +132,8 @@ retries an uncertain POST. A bounded pause is not success.
             identity_policy_sha256=identity_policy_sha256)
     cut = _existing(state, config, expected, remaining)
     require(cut['successor']['path'] == str(first), 'transition_saved_successor_changed')
+    require(expected_successor_sha256 is None or boundary.digest(cut['successor']['delivery']) == expected_successor_sha256,
+            'transition_discovery_successor_changed')
 
     def result(status, phase, **extra):
         return dict(schema=SCHEMA, status=status, phase=phase,

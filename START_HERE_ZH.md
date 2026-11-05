@@ -105,3 +105,7 @@ dev67 提供跨接收代际的有界交接入口，见
 ## dev70：固定端点的有界自动接收换代
 
 新增显式启用的容量换代：只在新MKD之前选择已准备下一代，旧上传可继续完成、旧回读保留，首个目录写入结果不明时不重放。最多八代，不删数据、不自动推进分析session，也不是无限期录音保证。详见 [自动接收准入](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_AUTOMATIC_ADMISSION.md)。
+
+## dev71：单次自动分析交接
+
+新增明确启用的一次有界交接入口，可发现唯一连续继任录音、完成旧段导出、准确创建/核验下一session并启动摄入。每次只面向预先配置的一个继任代；暂停后仍需显式再调用。已用新客户端和接收器对现有合格dev67后端验证三段原生导出、原PCM共144000帧完全一致，重复交接零HTTP。该证明不是新整包原生资格或长期无人值守验收。详见 [自动分析交接](checkpoints/backend-capacity-source-20261031/source/docs/RECORDER_AUTOMATIC_ANALYSIS_HANDOFF.md)。

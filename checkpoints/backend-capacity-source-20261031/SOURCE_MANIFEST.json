@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "e51e01553107a5c174bd6794a53e04605b701e1f",
-      "sha256": "03fdbe8f6e7aa1d8e9caef731672625b01e23978b45f40d27361d72e50dd81e9"
+      "sha": "296caaa85e347b3e6d4cc8d98a4a729750332406",
+      "sha256": "89ee92545a42fba49ac1b0c4f83f8ad33108b3371b23fe0572c1f47eaf85cf7c"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -717,6 +717,12 @@
       "sha256": "6689b3222690bd5d1247dfe9b2165270ded6495472d8b6b67ebc784ca62e933f"
     },
     {
+      "path": "audio_backend/recorder_analysis_handoff.py",
+      "size": 12541,
+      "sha": "3bf320b7021275b69d9c52e0d498226fcadfd154",
+      "sha256": "e2361628e5dfa3498eca53692cb55a41f9bad6ee70e9bacdb86f6b17b52747d3"
+    },
+    {
       "path": "audio_backend/recorder_batch_intake.py",
       "size": 11677,
       "sha": "1237594d6b5efc803a4351988951508d68f42f69",
@@ -766,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_generation_transition.py",
-      "size": 15005,
-      "sha": "6ea2ef64bd0b88cef9dd02714c863974ccf982a9",
-      "sha256": "4bea48e09d6ead443b1e1f1a54a2977acf6c641426c2bcd6b5f91d751963dee3"
+      "size": 15614,
+      "sha": "e04d044c5e0677903c7d2d45062a15c4c75058d5",
+      "sha256": "51712a38f85f398b2fd41ae80ef13fec1557987952373c7b7c48da53779db30a"
     },
     {
       "path": "audio_backend/recorder_inbox.py",
@@ -1159,6 +1165,12 @@
       "size": 4356,
       "sha": "c6882fedf1624ebfdce6cc0b6be14cdb2b49cdf2",
       "sha256": "33d714a439a84f72e548543cc15d2340dfe35d0bbaea81d1bedf9a7ecefd1181"
+    },
+    {
+      "path": "docs/AUTOMATIC_ANALYSIS_HANDOFF_VALIDATION_20261105.json",
+      "size": 2254,
+      "sha": "0e74178034332a90eabe7e867d7254643ad2b99f",
+      "sha256": "828de511b3549fd32babbd5ecb96c5b322cc8a379d8f3b0cf581e5c5526af241"
     },
     {
       "path": "docs/AUTOMATIC_MOSS.md",
@@ -1695,6 +1707,12 @@
       "sha256": "cf15561c1ed76e56ad8959689ded01f7e5aaa1a16418fd6a262d25074dd6748f"
     },
     {
+      "path": "docs/DEV71_COMBINED_INTEGRATION_20261105.json",
+      "size": 1740,
+      "sha": "60aa12cf6e3c94667b7a358155d42209ddd4e8d3",
+      "sha256": "b3dcc7751b45b3af9a37910d5fcd4aacfc034d3b5b82019921a03260b449818b"
+    },
+    {
       "path": "docs/DEV9_RELEASE_NOTES_ZH.md",
       "size": 4770,
       "sha": "9877a85052496c8e3c577941720803d632a98e0e",
@@ -2229,6 +2247,12 @@
       "sha256": "89a87c4a072765c18237afc8b7d0de113b1fd5db429ee4b870a6d1d3a6ccef7e"
     },
     {
+      "path": "docs/RECORDER_AUTOMATIC_ANALYSIS_HANDOFF.md",
+      "size": 8478,
+      "sha": "8c6ce54dbe302144421410f0edaa006a09e8a940",
+      "sha256": "24d89e34b952d2247fe99f036c6389e7112fceba9f0189b3570cb800aed1d0d0"
+    },
+    {
       "path": "docs/RECORDER_BINDING_PROPOSAL.md",
       "size": 7104,
       "sha": "6544e1cc44455b335003661d7361299cc40214ff",
@@ -2675,8 +2699,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "11e907eaeeb81af6f788c2cfef042bf415938702",
-      "sha256": "3f097028996f698256e7f33970f4e9a84997797ad8020d9a361391e8e52643d7"
+      "sha": "8426398dd683c50cabf12a6abc95692ba3e265d3",
+      "sha256": "bd314f6744ee4166855c702c7f07c1cb2fba42a2a930fd2be0247409cb40b6ab"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5235,6 +5259,12 @@
       "sha256": "6cc6edfd4c6cd4df6d6322eb0419d2418c189d5a56bf1f3a57d5e6773e726bf4"
     },
     {
+      "path": "tests/test_recorder_analysis_handoff.py",
+      "size": 5480,
+      "sha": "98dec4a54890e61f77520ebdb2c2b746e920b33b",
+      "sha256": "ea89b662cd5a49a4dd8d8b6c8693ede4e21390b8101eb9b52f3b4bba55e9a03c"
+    },
+    {
       "path": "tests/test_recorder_automatic_routing.py",
       "size": 5080,
       "sha": "a059576c870e47bc3dcc5a0636872c61624c2468",
@@ -5350,9 +5380,9 @@
     },
     {
       "path": "tests/test_recorder_generation_transition.py",
-      "size": 12821,
-      "sha": "0097b9660f9bfffe3b9df94d455e77a076400a22",
-      "sha256": "76d0d9c03b2522f21b70009d554251502523aa00954c2fc7ad22f94d0a157b5c"
+      "size": 12849,
+      "sha": "97ff521e2b8052820ed50e8b498f0ba09fc8e42c",
+      "sha256": "f68641bdecd1139a288951749c7641d42dce50df987128d49576d31bd1a15186"
     },
     {
       "path": "tests/test_recorder_inbox.py",
@@ -6346,5 +6376,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev70 bounded automatic receiver admission. Final installed 101 focused checks passed; full recorder run 1612 passed/10 skipped/4 historical fixture failures. Historical fixture corrected without changing qualification gates; separate module rerun 10 passed, independently verified."
+  "source_update": "dev71 combines bounded automatic receiver admission and one preplanned automatic analysis handoff; 344 installed-package related tests passed. Exact 185 product-file match. New source client/receiver native chain against qualified dev67 is separate evidence, not full new-package native qualification."
 }

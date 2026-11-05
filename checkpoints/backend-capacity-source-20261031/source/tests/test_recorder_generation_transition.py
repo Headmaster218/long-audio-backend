@@ -28,7 +28,7 @@ class PeerPair:
         return peer.request(method, path, **kwargs)
 
 
-def setup(case, tmp_path, monkeypatch):
+def setup(case, tmp_path, monkeypatch, *, admit=True):
     config, raw, ready, state = two(case, tmp_path)
     templates = tmp_path/'transition-templates'; templates.mkdir(mode=0o700)
     sources = [delivery(templates, 23+i, epoch=7, start=1000+4*i, boundary='RESTART',
@@ -45,7 +45,8 @@ def setup(case, tmp_path, monkeypatch):
         receiver_state_dir=case['state'])
     root = tmp_path/'runner'; runner.configure(state_dir=root, config=old_config,
         first_delivery=case['ready']/sources[0].name)
-    old = Peer(); assert invoke(root, old, max_actions=2)['inputs'] == 2
+    old = Peer()
+    if admit: assert invoke(root, old, max_actions=2)['inputs'] == 2
     route = tmp_path/'route.json'
     route.write_text(json.dumps(dict(case['data'], generations=list(config.generations),
         binding=publication.bind(state), inbox_dir=str(ready)))); route.chmod(0o600)

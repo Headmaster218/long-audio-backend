@@ -1,0 +1,38 @@
+{
+  "schema": "dev71-combined-integration-v1",
+  "version": "0.2.0rc3.dev71",
+  "baseline_commit": "4fcd9a03c92a2e817f27894baf793df268edb773",
+  "wheel_sha256": "3868d8c1f09229bf5abb764f79494761b797968eaeae7fd24de844f215f0a65d",
+  "product_files_exactly_matched": 185,
+  "installed_tests": {
+    "passed": 344,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 4,
+    "seconds": 89.2,
+    "junit_sha256": "0a722581a14d81a289f14951fe2375e31e7304e0dee3a4c26167bd03b8e2d308"
+  },
+  "test_modules": [
+    "tests.test_recorder_analysis_handoff",
+    "tests.test_recorder_automatic_routing",
+    "tests.test_recorder_automatic_routing_review",
+    "tests.test_recorder_ftps_receiver",
+    "tests.test_recorder_ftps_receiver_android",
+    "tests.test_recorder_full_reservation",
+    "tests.test_recorder_generation_transition",
+    "tests.test_recorder_inbox_runner",
+    "tests.test_recorder_logical_advance",
+    "tests.test_recorder_logical_boundary",
+    "tests.test_recorder_logical_cross_inbox",
+    "tests.test_recorder_receiver_routing",
+    "tests.test_recorder_reviewed_identity_handoff",
+    "tests.test_recorder_runner_initialize",
+    "tests.test_recorder_span_native_audit"
+  ],
+  "android_production_transport_host_test_included": true,
+  "physical_android_device": false,
+  "user_server_accessed": false,
+  "full_new_package_native_qualification": false,
+  "actual_native_chain_evidence": "AUTOMATIC_ANALYSIS_HANDOFF_VALIDATION_20261105.json: new source client/receiver against qualified installed dev67 service, not this full dev71 package.",
+  "scope": "Bounded automatic receiver admission and one preplanned automatic analysis handoff. No indefinite daemon, automatic archive/deletion, or recognition continuity guarantee."
+}

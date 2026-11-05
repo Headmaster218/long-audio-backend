@@ -1,0 +1,83 @@
+{
+  "baseline_commit": "24d6e81aae02c8226f8707e802751f3f6299d588",
+  "date": "2026-11-05",
+  "exact_native_pcm_frames": 144000,
+  "execution": "new source client and receiver against existing qualified installed dev67 native service",
+  "full_new_package_qualification": false,
+  "handoffs": {
+    "repeat_handoff_0": {
+      "network_requests": 0,
+      "network_writes": 0,
+      "status": "handoff_complete"
+    },
+    "repeat_handoff_1": {
+      "network_requests": 0,
+      "network_writes": 0,
+      "status": "handoff_complete"
+    },
+    "transition_0": {
+      "network_requests": 109,
+      "network_writes": 6,
+      "status": "handoff_paused"
+    },
+    "transition_1": {
+      "network_requests": 138,
+      "network_writes": 11,
+      "status": "handoff_complete"
+    }
+  },
+  "harness_sha256": "b0d6722f2257b30223ede62840b7c491f13bb306738bf9f6887206d2c6c517f2",
+  "native_runs": [
+    {
+      "exit": 143,
+      "phase": "final"
+    }
+  ],
+  "old_generation_bytes_unchanged": true,
+  "original_bytes_unchanged": true,
+  "passed": true,
+  "peak_sampled_native_rss": 780648448,
+  "physical_device": false,
+  "primary_text_units": [
+    1,
+    1,
+    4
+  ],
+  "receiver_runs": [
+    {
+      "exit": 0,
+      "generation": 0
+    }
+  ],
+  "recognition_continuity_verified": false,
+  "recorded_children_remaining": [],
+  "results_sha256": "4a677518b875b276e4413a414c8507aaa3bcf459f3cf903a95b7443e0ef1c576",
+  "retained_attempt_readback_verified": true,
+  "schema": "automatic-analysis-handoff-validation-v1",
+  "session_frames": [
+    48000,
+    48000,
+    48000
+  ],
+  "source_sha256": {
+    "recorder_analysis_handoff.py": "e2361628e5dfa3498eca53692cb55a41f9bad6ee70e9bacdb86f6b17b52747d3",
+    "recorder_generation_transition.py": "51712a38f85f398b2fd41ae80ef13fec1557987952373c7b7c48da53779db30a"
+  },
+  "tests": {
+    "focused_handoff_and_transition": {
+      "passed": 41
+    },
+    "related_regression": {
+      "failed": 0,
+      "junit_sha256": "64efdbcf2ea091cb31eef380d092e046c002afd3b2bd8c3bab46b2612c625dfc",
+      "passed": 200,
+      "warnings": 1
+    },
+    "reviewed_identity_regression": {
+      "failed": 0,
+      "passed": 32,
+      "warnings": 1
+    },
+    "warning": "Existing Starlette/httpx TestClient deprecation"
+  }
+}
