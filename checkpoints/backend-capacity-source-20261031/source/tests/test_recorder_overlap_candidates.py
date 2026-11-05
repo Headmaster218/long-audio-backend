@@ -194,3 +194,75 @@ def test_manifest_fallback_only_genuine_absence(tmp_path,monkeypatch,kind):
         exec(source,namespace)
         expected=package/'profiles/moss-td-cpp-model-manifest.json' if kind=='absent' else original
         assert namespace['MANIFEST_PATH']==expected
+
+
+def zero_guard_delivery(root, frames, pcm):
+    """Real delivery hashes; downstream completion remains synthetic fixture data."""
+    import hashlib
+    from test_recorder_metadata import metadata, utf, i
+    from audio_backend import recording_uploader as u
+    root.mkdir()
+    wav = u.LegacyAppendUploader._header(frames) + pcm
+    source = 'segment-' + hashlib.sha256(b'capture').hexdigest() + '-11.ready'
+    body = metadata(sequence=11, epoch=7, start=100003, frames=frames, target=frames,
+        close='INTERRUPTION', seam=False, boundary='RESTART', run='restarted', capture='capture',
+        pcm=hashlib.sha256(pcm).hexdigest(), wav=hashlib.sha256(wav).hexdigest())
+    envelope = b'RFT1' + utf('rev') + utf(source) + i(len(body)) + body
+    wh = hashlib.sha256(wav).hexdigest()
+    binding = hashlib.sha256((source + '\n' + wh + '\nrev').encode()).hexdigest()
+    marker = '\n'.join(('RECORDER-DELIVERY-V1', 'r-' + binding + '-' + '0'*32,
+        'rev', source, str(len(wav)), wh, str(len(envelope)), hashlib.sha256(envelope).hexdigest(), ''))
+    (root/'audio.wav').write_bytes(wav)
+    (root/'segment.v1.bin').write_bytes(envelope)
+    (root/'delivery.v1.txt').write_text(marker)
+
+
+@pytest.mark.parametrize('sample', [b'\0\0', b'\1\0', b'\0\1', b'\xff\xff'])
+def test_exact_zero_only_no_controller_and_primary_unchanged(tmp_path, monkeypatch, sample):
+    import test_recorder_incremental_span_status as fixtures
+    pcm = bytearray(32000 * 2)
+    pcm[100:102] = sample
+    monkeypatch.setattr(fixtures, 'large_delivery',
+        lambda path, frames: zero_guard_delivery(path, frames, bytes(pcm)))
+    class CountConstruct(Fake):
+        constructions = 0
+        def __init__(self, *a, **kw): type(self).constructions += 1
+    with fixture(tmp_path, count=1, frames=32000) as (args, run, routes, *_):
+        export.run(**run, output_dir=tmp_path/'export')
+        before = {p.name:p.read_bytes() for p in (tmp_path/'export').iterdir()}
+        requests = len(routes.calls)
+        kw=arguments(tmp_path,args);kw['_controller']=CountConstruct
+        result=candidate.run(**kw)
+        zero=sample == b'\0\0'
+        assert CountConstruct.constructions == (0 if zero else 1)
+        assert result['model_call_count'] == (0 if zero else 1)
+        assert result['exact_zero_ranges_skipped'] == int(zero)
+        assert result['accuracy_verified'] is False and result['complete_content'] is False
+        assert len(routes.calls) == requests
+        assert before == {p.name:p.read_bytes() for p in (tmp_path/'export').iterdir()}
+        if zero:
+            data=json.loads((tmp_path/'candidates/skipped-00.json').read_text())
+            assert data['model_invoked'] is False and data['transcripts'] == []
+            assert data['state']=='skipped_exact_zero_pcm'
+            assert data['source_binding']['pcm16le_sha256']==candidate.digest(bytes(pcm[:32000]))
+            assert not (tmp_path/'candidates/call-00.intent.json').exists()
+            assert not (tmp_path/'candidates/owned-00').exists()
+            assert result['missing_or_unparsed_candidates']==0
+        with pytest.raises(Exception): candidate.run(**kw)
+        assert CountConstruct.constructions == (0 if zero else 1)
+
+
+def test_zero_and_nonzero_ranges_keep_distinct_records(tmp_path,monkeypatch):
+    import test_recorder_incremental_span_status as fixtures
+    pcm=b'\0\0'*16000 + b'\1\0'*16000
+    monkeypatch.setattr(fixtures,'large_delivery',
+        lambda path,frames:zero_guard_delivery(path,frames,pcm))
+    with fixture(tmp_path,count=1,frames=32000) as (args,run,*_):
+        export.run(**run,output_dir=tmp_path/'export');kw=arguments(tmp_path,args)
+        kw['selected_ranges']=[dict(start_frame=0,end_frame=16000),dict(start_frame=16000,end_frame=32000)]
+        Fake.calls=0;result=candidate.run(**kw)
+        assert Fake.calls==1 and result['candidate_count']==2
+        assert result['model_call_count']==result['exact_zero_ranges_skipped']==1
+        assert (tmp_path/'candidates/skipped-00.json').exists()
+        assert (tmp_path/'candidates/candidate-01.json').exists()
+        assert not (tmp_path/'candidates/call-00.intent.json').exists()

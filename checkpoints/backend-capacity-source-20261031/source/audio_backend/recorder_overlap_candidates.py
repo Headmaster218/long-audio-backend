@@ -237,6 +237,21 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
             require(snapshot(root, baseline, cancel)[0] == binding, 'overlap_source_changed')
             require(all(u._signature(os.fstat(fd)) == u._signature(path.lstat()) == pin
                         for fd, path, pin in locks), 'overlap_lock_changed')
+            # Exact digital zero is a byte-level input fact, not a VAD threshold
+            # or a claim that ordinary background noise contains no speech.
+            if not any(pcm):
+                item = dict(range=row, state='skipped_exact_zero_pcm',
+                    complete_content=False, speaker_identity_valid=False,
+                    transcripts=[], parse_errors=[], raw_label_spans=None,
+                    model_invoked=False, model_call_count=0,
+                    reason='all_selected_pcm16le_bytes_are_zero',
+                    source_binding=dict(schema='original-pcm-slice-v1',
+                        pcm16le_sha256=digest(pcm), frames=len(pcm)//2,
+                        input_mapping=mapping, native_core_attested=False,
+                        native_owned_capture_authority=False))
+                writer.write('skipped-%02d.json' % i, item)
+                results.append(item)
+                continue
             support = SourceSupport(binding['export_sha256'], plan_sha,
                 selected_profile.payload()['runtime_manifest_sha256'],
                 digest(pcm), binding['frames'], row['start_frame'], row['end_frame'],
@@ -293,7 +308,11 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
                     for fd, path, pin in locks), 'overlap_lock_changed')
         result = dict(schema=SCHEMA, status='candidates_recorded', source=binding,
             selected_ranges=chosen, candidate_count=len(results),
-            missing_or_unparsed_candidates=sum(not r['transcripts'] or bool(r['parse_errors']) for r in results),
+            model_call_count=sum(r['state'] != 'skipped_exact_zero_pcm' for r in results),
+            exact_zero_ranges_skipped=sum(r['state'] == 'skipped_exact_zero_pcm' for r in results),
+            missing_or_unparsed_candidates=sum(
+                r['state'] != 'skipped_exact_zero_pcm' and
+                (not r['transcripts'] or bool(r['parse_errors'])) for r in results),
             complete_content=False,
             speaker_identity_valid=False, accuracy_verified=False, waveform_separation=False,
             unselected_audio='not_processed', primary_baseline='unchanged', replay_allowed=False)

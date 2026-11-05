@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "a4e64f10fdd39c31a2911753ec595d38274ed61a",
-      "sha256": "c4880d4a565a4d301474ea71c74b0ca31097a8dff060f42729dcaa442d8eebda"
+      "sha": "7284ca8a9a712188fc94522909406e8972b1e516",
+      "sha256": "f9eef1292ee9cb7a3e1efd0581d12f3a1b663042ca340bd05bbd05335fa7a134"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -868,9 +868,9 @@
     },
     {
       "path": "audio_backend/recorder_overlap_candidates.py",
-      "size": 19321,
-      "sha": "a72e5a303396fb73271323310593205e62af1c82",
-      "sha256": "0a11272e19b7e4347955d215189fad3d3e3313c482ab0d25ae3cfc84cc5264c2"
+      "size": 20527,
+      "sha": "64e27e96e0bfc775bfeded0674846d6cc80147ea",
+      "sha256": "f0014bd1c47dffc55b67d68eefed362ee4db11c4cf703fe16f520d6a3b1eed48"
     },
     {
       "path": "audio_backend/recorder_receiver_completion.py",
@@ -2392,9 +2392,9 @@
     },
     {
       "path": "docs/RECORDER_OVERLAP_CANDIDATES.md",
-      "size": 6179,
-      "sha": "f41eef2f768df1d9285a0f091ab8560cd54d32be",
-      "sha256": "528232488399b173e7cfc4e83ed6eb72c2a8ec6647b9745d7f03d36c9b351090"
+      "size": 7488,
+      "sha": "370e0caf1584a1ed02f1ccc5fb58af8dd685bad3",
+      "sha256": "f18eb39a472b194fd80355eb86da74b620c3d5f2405aa5bd02e5b9051190235a"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2753,8 +2753,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "77a1772fac05b23a69943d5cd908f7757efcfad6",
-      "sha256": "3fc24d87d0390cb0b9c553be05df64d8e923db9bdc14d8bd650e23f5fab1338b"
+      "sha": "8725d066c7ca76584f65768fabfa26ac7b90bff4",
+      "sha256": "c2b4a7aa8a4317e3fea4093bd1451d1d1068006c2397168d76a8dc0a1d966ac9"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5608,9 +5608,9 @@
     },
     {
       "path": "tests/test_recorder_overlap_candidates.py",
-      "size": 10681,
-      "sha": "f442307cb690388386b13db69e66fb62709d2b0c",
-      "sha256": "f4951857d5db6225ff57db9f104c861d2487ffcde9c20326fdb00e5dd8bd9085"
+      "size": 14835,
+      "sha": "376090fb4ed8795bbfacf4ec7aed903755eb2174",
+      "sha256": "cd8ff75ca186b3cc350c6f1b20a33da236dc060f84ce2062b45f4f75af7bab43"
     },
     {
       "path": "tests/test_recorder_receiver_completion.py",
@@ -6471,6 +6471,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "5de26d41fbbf6bf19915fa7ed9a6ffe3fe583820",
-  "source_update": "Add optional bounded post-primary multi-voice candidates and export content binding; dev74. Recognition quality pending frozen panel."
+  "source_base_commit": "39451ad57f56b580c0c9f3007209ae36a962606f",
+  "source_update": "dev75: exact all-zero validated PCM support skips model dispatch with explicit no-call receipt; no nonzero noise guarantee or retrospective quality pass."
 }

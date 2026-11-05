@@ -99,3 +99,24 @@ explicit `original-pcm-slice-v1` binding denies native-owned-capture authority.
 Model-generated timestamps are unverified, labels are local to one support,
 and EOS/generated-token completeness remain unknown. Keep the original primary
 transcript alongside these candidates, including disagreements and failures.
+
+### Exact digital-zero dispatch guard (prospective)
+
+After verifying the completed export and selected original PCM, a selected slice
+whose PCM16LE bytes are **all zero** is recorded as `skipped_exact_zero_pcm` in
+`skipped-NN.json`. No controller is constructed, no model call is made, and no
+voice/text candidate is invented. The receipt binds the selected range, frame
+count and PCM hash. Other selected ranges retain the existing model path. Even
+one nonzero sample (including amplitude 1) is not skipped. This is not a VAD,
+noise threshold, or a claim about natural silence, quiet speech or ambient noise.
+
+`candidate_count` still counts all selected range records; `model_call_count`
+and `exact_zero_ranges_skipped` distinguish actual dispatches and these explicit
+no-call records. An exact-zero skip is not a model success, recognition-quality
+pass, or speaker-coverage result. All confidence/identity claims remain false.
+Primary exports are never overwritten. Existing output directories are refused.
+
+The earlier frozen digital-zero evaluation produced unrelated refusal text and
+remains a failed qualification with its raw output and score preserved. This
+prospective deterministic guard does not reinterpret or repair that measurement,
+and no new model-quality panel has been run for this change.
