@@ -24,7 +24,7 @@ if __name__ == '__main__':
     sys.path.insert(0, str(ROOT))
 
 from audio_backend.moss_handy_adapter import retain_raw
-from audio_backend.moss_handy_profile import NAME, canonical, profile, runtime_site_paths, verify_model, verify_runtime
+from audio_backend.moss_handy_profile import NAME, canonical, profile, activate_runtime_sites, verify_model, verify_runtime
 from audio_backend.native_lexical_alternatives import SourceSupport
 
 CAPS = {'owner.json': 1024, 'request.json': 16384, 'support.wav': 640044,
@@ -246,10 +246,7 @@ def main(directory, request_sha):
         # -S avoids sitecustomize/.pth execution; expose package metadata only
         # after the stdlib request/support checks. Runtime sources load through
         # the unchanged hash-verifying finder, never ambient bytecode.
-        sites = runtime_site_paths()
-        for location in sites:
-            if str(location) not in sys.path:
-                sys.path.append(str(location))
+        sites = activate_runtime_sites(ROOT)
         _, paths, hashes = verify_runtime(NAME, sites=sites)
         from audio_backend import moss_td_cpp_assets as assets
         api = assets.load_verified_runtime(paths, hashes)

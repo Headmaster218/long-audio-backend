@@ -145,6 +145,39 @@ def runtime_site_paths(executable=None):
     return tuple(roots)
 
 
+def activate_runtime_sites(product_root):
+    """Keep pinned product imports, but expose only selected dependency metadata.
+
+    The isolated caller imports this package from its explicitly pinned root
+    first. Removing that root from sys.path does not change the loaded package's
+    __path__, so later audio_backend imports still use those same source files.
+    """
+    root = Path(product_root)
+    package = sys.modules.get('audio_backend')
+    expected = root / 'audio_backend'
+    def bound_package():
+        return (package is not None and
+                Path(getattr(package, '__file__', '')) == expected / '__init__.py' and
+                Path(package.__file__).resolve() == expected / '__init__.py' and
+                tuple(getattr(package, '__path__', ())) == (str(expected),) and
+                Path(__file__) == expected / 'moss_handy_profile.py' and
+                Path(__file__).resolve() == expected / 'moss_handy_profile.py')
+    if (not root.is_absolute() or root.resolve() != root or
+            any(item.is_symlink() for item in (expected, *expected.parents)) or
+            not bound_package()):
+        raise ValueError('Pinned product package origin differs')
+    if any(name.split('.')[0] in {'transcribe_cpp', 'transcribe_cpp_native'} for name in sys.modules):
+        raise ValueError('Selected runtime must not be imported before isolation')
+    sites = runtime_site_paths()
+    sys.path[:] = [entry for entry in sys.path if entry != str(root)]
+    for site in sites:
+        if str(site) not in sys.path:
+            sys.path.append(str(site))
+    if not bound_package():
+        raise ValueError('Pinned product package origin changed during isolation')
+    return sites
+
+
 def _selected_runtime_metadata(assets, roots):
     """Close metadata discovery to selected roots before unchanged verification."""
     normalize = lambda value: value.lower().replace('_', '-').replace('.', '-')

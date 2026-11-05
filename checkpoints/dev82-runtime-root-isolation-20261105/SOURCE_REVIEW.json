@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0rc3.dev82",
+  "changed_files": [
+    "audio_backend/moss_handy_profile.py",
+    "audio_backend/recorder_candidate_resources.py",
+    "audio_backend/recorder_candidate_postphase.py",
+    "audio_backend/moss_handy_runner.py",
+    "tests/test_candidate_runtime_isolation.py"
+  ],
+  "freeze_sha256": "bcc61e3e4ed2c7ad53a822c537f786060ac79cb8aaf85d443b1927707d721d43",
+  "review_sha256": "c6afc365d5e3309a5aad541afe7f0af9a258b80ac1b7705176df57d3781712fa",
+  "tests": 181,
+  "subtests": 43,
+  "failures": 0,
+  "skips": 0,
+  "source_manifest_sha256": "81c3f021d63c099657d1ecd0333271696d12ef225e68dc05e8b3bdc71c3ef152",
+  "model_calls": 0,
+  "actual_admission_verified": false,
+  "fresh_installation_verified": false
+}

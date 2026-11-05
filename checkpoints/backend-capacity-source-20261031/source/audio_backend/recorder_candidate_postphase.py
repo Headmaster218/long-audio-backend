@@ -364,8 +364,8 @@ def command(policy, job, baseline, output, deadline, expected_plan_sha256=None):
     # before dispatch. The bootstrap contains only fixed trusted module calls.
     bootstrap = ('import sys; sys.pycache_prefix='+repr(str(output.parent/'unused-bytecode'))+'; '
         'sys.path.insert(0, '+repr(str(ROOT))+'); '
-        'from audio_backend.moss_handy_profile import NAME, runtime_site_paths, verify_runtime, verify_model; '
-        'sites=runtime_site_paths(); sys.path.extend(map(str,sites)); '
+        'from audio_backend.moss_handy_profile import NAME, activate_runtime_sites, verify_runtime, verify_model; '
+        'sites=activate_runtime_sites('+repr(str(ROOT))+'); '
         'verify_runtime(NAME,sites=sites); verify_model(sys.argv[1]); '
         'from audio_backend.recorder_overlap_candidates import main; '
         'raise SystemExit(main(sys.argv[2:]))')

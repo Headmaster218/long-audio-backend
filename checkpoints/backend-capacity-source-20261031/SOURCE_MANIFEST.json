@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "1231885c31f114f6f8e5eed287ff852e06a167bc",
-      "sha256": "b97878ef01e48dac9fb1ce44143430dcdc23566612a369af9cf8156be5edbf7f"
+      "sha": "8e36cb288dcccaedb95a2f147a85dc22d65c392a",
+      "sha256": "f41ce61f4439155fba822ebcf5949aa07ba52f4817f4fe0336e8aa4d5a1464de"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -460,15 +460,15 @@
     },
     {
       "path": "audio_backend/moss_handy_profile.py",
-      "size": 9975,
-      "sha": "99aa9ab676095aaef276242e061215d564237b2b",
-      "sha256": "502cb490e148b550b73b6589480ecee26d011ed74d27b89e82c85ba20d358c77"
+      "size": 11686,
+      "sha": "bfcb04cca7b89effbcaa3d1645e2af463cbff289",
+      "sha256": "9101127e5b30a9caddb35087d25be8c6c46fbae331fcde4143e937360a024a2c"
     },
     {
       "path": "audio_backend/moss_handy_runner.py",
-      "size": 13384,
-      "sha": "4cb2c010dc3e78b2310ac1f64b1350e59b3e1999",
-      "sha256": "5465e05918a49b808c893a29cf9ee8be0b5424d0df06dedbcbf4aa68bc80566a"
+      "size": 13272,
+      "sha": "a8605b83c1ea93fff4dfdce79269957b077a4cc2",
+      "sha256": "13c4d24ec3af0075eac1e17b3ba77e3debbf80d322d1ad2c5ef93159c937b62a"
     },
     {
       "path": "audio_backend/moss_result_store.py",
@@ -766,15 +766,15 @@
     },
     {
       "path": "audio_backend/recorder_candidate_postphase.py",
-      "size": 38052,
-      "sha": "056d5c0e594c726dd5335a83f1b5c89157452dd2",
-      "sha256": "c0ae29aff82d10d0154f78843a6d80551985b215895f830bf050adc4f1597351"
+      "size": 38046,
+      "sha": "f17e7d6c9c6a12d85cc48ece9cdb504c9acaa07e",
+      "sha256": "acc9635bc1d20a264c58769f1c298b91a87e6ff90f2e602ee42c9aba73923bc5"
     },
     {
       "path": "audio_backend/recorder_candidate_resources.py",
-      "size": 47028,
-      "sha": "383967cb968cdbeeb800f7cf7cc960e5b515e8b2",
-      "sha256": "8441f14e72b73e0ba0df6614d792137ef8c9072a3bd1ed3f10b1718e17d82e04"
+      "size": 47057,
+      "sha": "8a7ebbca702c4f9293e90d590deb4e68dd1f2cb8",
+      "sha256": "90dd5f8e3443f1d1e0c584bf0b3f5186de372707271a52092c0ed9ee11964cd3"
     },
     {
       "path": "audio_backend/recorder_capacity_preflight.py",
@@ -2789,8 +2789,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "3d48df94c2f12a860140ffc8a614c972967026b9",
-      "sha256": "115662a7ddc74f4b47b36bbabf53bd3048a7b2132bb4e3e0d62a395ddeb3456f"
+      "sha": "bb3d5510fea87e534f3da3ff82fefdafba093fe0",
+      "sha256": "7c321f3d0e8dbef10e2c3faec88bd9055d9502fe8d387c9d8a4d2a0bce852c04"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -4231,6 +4231,12 @@
       "size": 3565,
       "sha": "aa0759b9eac78dd8e697d275389efb1d069b4306",
       "sha256": "46f3316daa7c780da6e8213c0f60bfd0bbb6e6d23b63e68f1e428f23f06c22a0"
+    },
+    {
+      "path": "tests/test_candidate_runtime_isolation.py",
+      "size": 6995,
+      "sha": "2a5c540fe6eba875fde1ac9536c6302c6ae92b52",
+      "sha256": "4f734560e4e1c753dbbd8e26a8d36f5800e4f448268cb5e7fff680034222b833"
     },
     {
       "path": "tests/test_canonical_duration_eos.py",
@@ -6549,6 +6555,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "fa74ea1aa812f4f0a81613b733723bdbb5f053c3",
-  "source_update": "dev81 applies retained-original positive exit proof before both listener FD scans, preserves all other permission/identity/resource failures, and retains verifier outcome diagnostics. Source reviewed; hash-only real admission and fresh installation pending. No old ledger migration."
+  "source_base_commit": "cd2295ea76743eea9c4aee65523f69a331e5e891",
+  "source_update": "dev82 keeps the pinned product package origin while restricting optional dependency and metadata discovery to selected runtime sites in verifier, candidate and leaf bootstraps. Existing root/provider/hash checks unchanged. Source reviewed; full source admission and fresh installation pending."
 }

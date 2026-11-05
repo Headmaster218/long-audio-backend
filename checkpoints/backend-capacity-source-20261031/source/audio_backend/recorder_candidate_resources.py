@@ -539,9 +539,9 @@ def preflight(api_origin, *, runtime_profile=None, cancel=lambda: False, reader=
         try:
             bootstrap = ('import sys; sys.pycache_prefix = ' + repr(str(root / 'unused-pycache')) + '; '
                 'sys.path.insert(0, ' + repr(str(postphase.ROOT)) + '); '
-                'from audio_backend.moss_handy_profile import NAME, profile, runtime_site_paths, verify_runtime, verify_model; '
-                'sys.path.extend(str(p) for p in runtime_site_paths()); '
-                'chosen, paths, hashes = verify_runtime(NAME); verify_model(sys.argv[1]); '
+                'from audio_backend.moss_handy_profile import NAME, profile, activate_runtime_sites, verify_runtime, verify_model; '
+                'sites = activate_runtime_sites(' + repr(str(postphase.ROOT)) + '); '
+                'chosen, paths, hashes = verify_runtime(NAME, sites=sites); verify_model(sys.argv[1]); '
                 'import json; from pathlib import Path; '
                 'files = list(paths.values()) + [Path(sys.argv[1])]; '
                 'signature = lambda p: [p.stat().st_dev, p.stat().st_ino, p.stat().st_size, p.stat().st_mtime_ns, p.stat().st_ctime_ns]; '
