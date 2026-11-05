@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "production_profile_activated": false,
+  "full_capacity": {
+    "cells": 55,
+    "full_events": 5,
+    "pages": 6144,
+    "sources": 2048,
+    "sqlite_full": true
+  },
+  "audit": {
+    "baseline_sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c",
+    "changed_pages": 54,
+    "database_sha256": "302dc7b8932a07d5b1eb3c0d9772f0992386ff45d754a926ab21053d9600880e",
+    "journal_headers": 1,
+    "journal_records": 6044,
+    "journal_sha256": "cc341fae037bc22beee63099cc7cc921f4fa73236184687bb9500c21eba5dd45",
+    "reconstructed_sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c",
+    "sector_bytes": 512
+  },
+  "capture": {
+    "attempt": 1,
+    "sample": 3,
+    "stop_acknowledged": true
+  },
+  "allocation_observation": "sampled_not_instantaneous_or_power_loss",
+  "physical_result_sha256": "28fd0b567fe7668d96f855aa22be5f5bc6d7265f66187a196521d824d7f29708",
+  "source_manifest_sha256": "d9d225255efb9350684b0e85eb9f8f294fdaa0826e151ad729fa440a30904668",
+  "frozen_source_commit": "80d9399efa148c1321702e3c25447844181a8302"
+}

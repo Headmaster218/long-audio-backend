@@ -1,0 +1,111 @@
+{
+  "combined_lock_sha256": "b1247c91baebe92b39be9250723822cf27ff6b217692755160f7b7632fa6845c",
+  "pin_difference": {
+    "combined": "3.12",
+    "name": "pycparser",
+    "runtime_only": "3.1"
+  },
+  "product_installed": false,
+  "receiver_wheels": [
+    {
+      "bytes": 221824,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "cffi",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2",
+      "version": "2.1.1"
+    },
+    {
+      "bytes": 4459756,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "cryptography",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b",
+      "version": "46.0.7"
+    },
+    {
+      "bytes": 7869,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "pyasynchat-1.0.5-py3-none-any.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "pyasynchat",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "35b7859515693e479e8d95ebe9f32cbf4d6312ab7599ced39fc24699e51de46f",
+      "version": "1.0.5"
+    },
+    {
+      "bytes": 10237,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "pyasyncore-1.0.5-py3-none-any.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "pyasyncore",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "269bbc5252671827387636822841a1fb721ec6e858b23a3e12cf92eb1f97da2a",
+      "version": "1.0.5"
+    },
+    {
+      "bytes": 62600,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "pycparser-3.12-py3-none-any.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "pycparser",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e",
+      "version": "3.12"
+    },
+    {
+      "build_tools": {
+        "packaging": "26.3",
+        "setuptools": "84.0.0",
+        "wheel": "0.48.0"
+      },
+      "bytes": 82742,
+      "filename": "pyftpdlib-2.1.0-py3-none-any.whl",
+      "name": "pyftpdlib",
+      "origin": "locally-built-wheel-from-hash-verified-official-sdist",
+      "sha256": "b76435821cb2e388b5015cfcd953914388493ddcb9f77b4bb4547d6ad6a2b881",
+      "source": {
+        "bytes": 205767,
+        "filename": "pyftpdlib-2.1.0.tar.gz",
+        "metadata_url": "https://pypi.org/pypi/pyftpdlib/2.1.0/json",
+        "sha256": "5e92e7ba37c3e458ec458e5c201e2deb992cb6011c963e6a8512a634d8d80116",
+        "url": "https://files.pythonhosted.org/packages/fc/67/3299ce20585601d21e05153eb9275cb799ae408fe15ab93e48e4582ea9fe/pyftpdlib-2.1.0.tar.gz"
+      },
+      "version": "2.1.0"
+    },
+    {
+      "bytes": 57268,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "pyopenssl-25.3.0-py3-none-any.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "pyopenssl",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "1fda6fc034d5e3d179d39e59c1895c9faeaf40a79de5fc4cbbfbe0d36f4a77b6",
+      "version": "25.3.0"
+    },
+    {
+      "bytes": 45571,
+      "download_log_sha256": "c1bc5fa5ae30a1b824ee3261a214eac175136660bdc104d949452b3a080d843a",
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "independent_metadata_recheck": "unavailable_proxy_403",
+      "name": "typing-extensions",
+      "origin": "downloaded-with-explicit-official-PyPI-index",
+      "registry_index": "https://pypi.org/simple",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "version": "4.16.0"
+    }
+  ],
+  "runtime_lock_sha256": "a06c032cdac3537d23629211910287d09bb6acee81578b52f8cffc0fea8186e7",
+  "schema": "operational-runtime-receiver-wheels-v1",
+  "services_started": false
+}
