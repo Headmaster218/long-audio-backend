@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "production_profile_activated": false,
+  "full_capacity": {
+    "cells": 55,
+    "full_events": 5,
+    "pages": 6144,
+    "sources": 2048,
+    "sqlite_full": true
+  },
+  "audit": {
+    "baseline_sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c",
+    "changed_pages": 110,
+    "database_sha256": "6e23ba3cf8dc48d1aeb82171fe334362ce03638c248a663bff0e65ca6db69ec9",
+    "journal_headers": 1,
+    "journal_records": 6044,
+    "journal_sha256": "fa588d9e7b6905824c7a41b5ad1a5560847c7b4583f6a91e305a4d555a0170da",
+    "reconstructed_sha256": "e00b71c160d68d87402fa246a64152dd0259a8d6a095cbd2d065b6b158405e2c",
+    "sector_bytes": 512
+  },
+  "capture": {
+    "attempt": 1,
+    "sample": 6,
+    "stop_acknowledged": true
+  },
+  "allocation_observation": "sampled_not_instantaneous_or_power_loss",
+  "physical_result_sha256": "f7591ff5515b08fa1559de2268e04201e21a9a2004c426eb1e3e9e9a2b796aec",
+  "source_manifest_sha256": "0bd9fcb0ad1027dcd882d28df4073a1515681b2007091074c98447aecb3355ff",
+  "frozen_source_commit": "b387833c987ed17a61026d7c1b6e8ba5aa1b6f4e"
+}

@@ -1,0 +1,25 @@
+{
+  "passed": false,
+  "error": "FileNotFoundError:[Errno 2] No such file or directory: '/workspace/scratch/12ec3121e93f/backend-installed-plan-proof-20261105/native-data/jobs.sqlite3-shm'",
+  "installed_target_after": {
+    "materialization_receipt_sha256": "f01fb4986ee67bf027bea16ca702bf25dd12b7f040073c2b38c03ee637401b2c",
+    "models_loaded": false,
+    "product_bytes": 4350096,
+    "product_files": 186,
+    "runtime_qualified": false,
+    "schema": "installed-target-source-verification-v1",
+    "service_started": false,
+    "verified": true
+  },
+  "native_runs": [
+    {
+      "exit": 143,
+      "phase": "final"
+    }
+  ],
+  "receiver_runs": [],
+  "recorded_children_remaining": [],
+  "result_sha256": "a8d17c9cb0b4c2a3bee8a1f5c6ce9b8fb390e0024e61997029e481ae1a2061f3",
+  "uncertain_plan_outcome_not_retried": true,
+  "original_evidence_preserved": true
+}

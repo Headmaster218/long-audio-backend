@@ -1,0 +1,13 @@
+{
+  "junit_sha256": "ea393bf520605dab190418f5097ed026f2bfa2b91682cdace5a9f8e67804257a",
+  "passed": true,
+  "runner_sha256": "a8f54a7e4858483ea5f8a89fbe54ae0f782fe4d784c7b0590f6ae25c5ed67152",
+  "schema": "materialization-control-tests-v1",
+  "scope": "Synthetic control tests only, not fresh physical qualification approval",
+  "source_manifest_sha256": "0bd9fcb0ad1027dcd882d28df4073a1515681b2007091074c98447aecb3355ff",
+  "source_tests": {
+    "test_materialize_target_candidate.py": "81b5a12be012fbc835b74fa8f951e39047be05f37248403f10b4a651750fd1d5",
+    "test_verify_installed_target.py": "0cda18a3e83b6d81bb666e39000ff99c713190d78ba002057db48879f564bf5a"
+  },
+  "tests": 41
+}

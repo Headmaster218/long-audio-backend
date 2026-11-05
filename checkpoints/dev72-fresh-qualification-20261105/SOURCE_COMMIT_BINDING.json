@@ -1,0 +1,8 @@
+{
+  "remote_commit": "b387833c987ed17a61026d7c1b6e8ba5aa1b6f4e",
+  "tree": "5b891cd2b1d6e15c848750017bea809f57502bbc",
+  "reviewed_local_commit": "f870b9d155ce51a92e7a727b0f41d517cc4ddcb3",
+  "source_manifest_sha256": "0bd9fcb0ad1027dcd882d28df4073a1515681b2007091074c98447aecb3355ff",
+  "reviewer_independently_verified_source_and_git_blobs": true,
+  "remote_publication_verified_by_parent": true
+}

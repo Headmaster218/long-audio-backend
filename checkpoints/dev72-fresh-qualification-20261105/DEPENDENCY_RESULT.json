@@ -1,0 +1,309 @@
+{
+  "combined_lock_sha256": "b1247c91baebe92b39be9250723822cf27ff6b217692755160f7b7632fa6845c",
+  "environment": "/workspace/scratch/12ec3121e93f/backend-dev72-fresh-runtime-20261105-0152",
+  "imports_passed": [
+    "annotated_doc",
+    "annotated_types",
+    "anyio",
+    "cffi",
+    "_cffi_backend",
+    "click",
+    "fastapi",
+    "h11",
+    "idna",
+    "numpy",
+    "opencc",
+    "opentelemetry.trace",
+    "psutil",
+    "pycparser",
+    "pydantic",
+    "pydantic_core",
+    "pydantic_settings",
+    "dotenv",
+    "python_multipart",
+    "sherpa_onnx",
+    "soundfile",
+    "starlette",
+    "transcribe_cpp",
+    "typing_extensions",
+    "typing_inspection",
+    "uvicorn",
+    "pyftpdlib",
+    "pyftpdlib.handlers",
+    "pyftpdlib.servers",
+    "OpenSSL",
+    "cryptography",
+    "asyncore",
+    "asynchat"
+  ],
+  "models_loaded": false,
+  "network_used": false,
+  "packages": {
+    "annotated-doc": "0.0.5",
+    "annotated-types": "0.8.0",
+    "anyio": "4.15.1",
+    "cffi": "2.1.1",
+    "click": "8.5.0",
+    "cryptography": "46.0.7",
+    "fastapi": "0.143.0",
+    "h11": "0.16.0",
+    "idna": "3.20",
+    "numpy": "2.5.3",
+    "opencc-python-reimplemented": "0.1.7",
+    "opentelemetry-api": "1.45.1",
+    "psutil": "7.2.2",
+    "pyasynchat": "1.0.5",
+    "pyasyncore": "1.0.5",
+    "pycparser": "3.12",
+    "pydantic": "2.13.5",
+    "pydantic-core": "2.46.5",
+    "pydantic-settings": "2.15.0",
+    "pyftpdlib": "2.1.0",
+    "pyopenssl": "25.3.0",
+    "python-dotenv": "1.2.4",
+    "python-multipart": "0.0.32",
+    "sherpa-onnx": "1.13.8",
+    "sherpa-onnx-core": "1.13.8",
+    "soundfile": "0.14.0",
+    "starlette": "1.7.0",
+    "transcribe-cpp": "0.2.3",
+    "transcribe-cpp-native": "0.2.3",
+    "typing-extensions": "4.16.0",
+    "typing-inspection": "0.4.4",
+    "uvicorn": "0.54.0"
+  },
+  "passed": true,
+  "product_installed": false,
+  "pyftpdlib_origin": "previous locally built wheel from hash-verified official sdist; see copied provenance",
+  "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+  "schema": "fresh-final-dependency-environment-v1",
+  "secondary_metadata_recheck": "historically not completed; no new network verification claimed",
+  "selected_wheels": [
+    {
+      "bytes": 5302,
+      "name": "annotated-doc",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/annotated_doc-0.0.5-py3-none-any.whl",
+      "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+      "version": "0.0.5"
+    },
+    {
+      "bytes": 13427,
+      "name": "annotated-types",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/annotated_types-0.8.0-py3-none-any.whl",
+      "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+      "version": "0.8.0"
+    },
+    {
+      "bytes": 132079,
+      "name": "anyio",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/anyio-4.15.1-py3-none-any.whl",
+      "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+      "version": "4.15.1"
+    },
+    {
+      "bytes": 221824,
+      "name": "cffi",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2",
+      "version": "2.1.1"
+    },
+    {
+      "bytes": 125251,
+      "name": "click",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/click-8.5.0-py3-none-any.whl",
+      "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+      "version": "8.5.0"
+    },
+    {
+      "bytes": 144665,
+      "name": "fastapi",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/fastapi-0.143.0-py3-none-any.whl",
+      "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+      "version": "0.143.0"
+    },
+    {
+      "bytes": 37515,
+      "name": "h11",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/h11-0.16.0-py3-none-any.whl",
+      "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+      "version": "0.16.0"
+    },
+    {
+      "bytes": 69583,
+      "name": "idna",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/idna-3.20-py3-none-any.whl",
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+      "version": "3.20"
+    },
+    {
+      "bytes": 16708577,
+      "name": "numpy",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/numpy-2.5.3-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "a5fa86b80fd24bcd1aff83ad23be44ea323de3f787be8f8b15d4a65621e25321",
+      "version": "2.5.3"
+    },
+    {
+      "bytes": 481813,
+      "name": "opencc-python-reimplemented",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl",
+      "sha256": "41b3b92943c7bed291f448e9c7fad4b577c8c2eae30fcfe5a74edf8818493aa6",
+      "version": "0.1.7"
+    },
+    {
+      "bytes": 60256,
+      "name": "opentelemetry-api",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/opentelemetry_api-1.45.1-py3-none-any.whl",
+      "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+      "version": "1.45.1"
+    },
+    {
+      "bytes": 155560,
+      "name": "psutil",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9",
+      "version": "7.2.2"
+    },
+    {
+      "bytes": 472589,
+      "name": "pydantic",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/pydantic-2.13.5-py3-none-any.whl",
+      "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73",
+      "version": "2.13.5"
+    },
+    {
+      "bytes": 2066633,
+      "name": "pydantic-core",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/pydantic_core-2.46.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "6f7b393a8b3da82f5c1fc0751e6d01ac6c55b93c18226a60bdfba4a724efafd1",
+      "version": "2.46.5"
+    },
+    {
+      "bytes": 69413,
+      "name": "pydantic-settings",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/pydantic_settings-2.15.0-py3-none-any.whl",
+      "sha256": "0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42",
+      "version": "2.15.0"
+    },
+    {
+      "bytes": 23266,
+      "name": "python-dotenv",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/python_dotenv-1.2.4-py3-none-any.whl",
+      "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc",
+      "version": "1.2.4"
+    },
+    {
+      "bytes": 30042,
+      "name": "python-multipart",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/python_multipart-0.0.32-py3-none-any.whl",
+      "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+      "version": "0.0.32"
+    },
+    {
+      "bytes": 4401242,
+      "name": "sherpa-onnx",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/sherpa_onnx-1.13.8-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "0e5d870fb0648befb94e260c11de4cf4b293b2a90a63e3a6a2869be698927bc4",
+      "version": "1.13.8"
+    },
+    {
+      "bytes": 10642497,
+      "name": "sherpa-onnx-core",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/sherpa_onnx_core-1.13.8-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "4da90acf435373d7b2ba9cc0be806e7e274d28f63f5780880b5dea6721626e36",
+      "version": "1.13.8"
+    },
+    {
+      "bytes": 1315963,
+      "name": "soundfile",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl",
+      "sha256": "1e38bac1853412871318e82a1ba69a8be677619b56025bbfcccdb41b6cafe82d",
+      "version": "0.14.0"
+    },
+    {
+      "bytes": 78980,
+      "name": "starlette",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/starlette-1.7.0-py3-none-any.whl",
+      "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+      "version": "1.7.0"
+    },
+    {
+      "bytes": 34910,
+      "name": "transcribe-cpp",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/transcribe_cpp-0.2.3-py3-none-any.whl",
+      "sha256": "be4ec773c3e48993301f5b4256781ee5ef96ff075e904fc495c0effd096f1a03",
+      "version": "0.2.3"
+    },
+    {
+      "bytes": 24329742,
+      "name": "transcribe-cpp-native",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/transcribe_cpp_native-0.2.3-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "8e4c36f8fe2e3c596c829c3b9c5d571e71c02e0cf7c1276c720c56dd0b809ece",
+      "version": "0.2.3"
+    },
+    {
+      "bytes": 45571,
+      "name": "typing-extensions",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/typing_extensions-4.16.0-py3-none-any.whl",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "version": "4.16.0"
+    },
+    {
+      "bytes": 14750,
+      "name": "typing-inspection",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/typing_inspection-0.4.4-py3-none-any.whl",
+      "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+      "version": "0.4.4"
+    },
+    {
+      "bytes": 87427,
+      "name": "uvicorn",
+      "path": "/workspace/scratch/12ec3121e93f/backend-dynamic-proof-20261104/wheels/uvicorn-0.54.0-py3-none-any.whl",
+      "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+      "version": "0.54.0"
+    },
+    {
+      "bytes": 4459756,
+      "name": "cryptography",
+      "path": "/workspace/scratch/12ec3121e93f/backend-operational-proof-20261104/receiver-wheels/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
+      "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b",
+      "version": "46.0.7"
+    },
+    {
+      "bytes": 7869,
+      "name": "pyasynchat",
+      "path": "/workspace/scratch/12ec3121e93f/backend-operational-proof-20261104/receiver-wheels/pyasynchat-1.0.5-py3-none-any.whl",
+      "sha256": "35b7859515693e479e8d95ebe9f32cbf4d6312ab7599ced39fc24699e51de46f",
+      "version": "1.0.5"
+    },
+    {
+      "bytes": 10237,
+      "name": "pyasyncore",
+      "path": "/workspace/scratch/12ec3121e93f/backend-operational-proof-20261104/receiver-wheels/pyasyncore-1.0.5-py3-none-any.whl",
+      "sha256": "269bbc5252671827387636822841a1fb721ec6e858b23a3e12cf92eb1f97da2a",
+      "version": "1.0.5"
+    },
+    {
+      "bytes": 62600,
+      "name": "pycparser",
+      "path": "/workspace/scratch/12ec3121e93f/backend-operational-proof-20261104/receiver-wheels/pycparser-3.12-py3-none-any.whl",
+      "sha256": "a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e",
+      "version": "3.12"
+    },
+    {
+      "bytes": 82742,
+      "name": "pyftpdlib",
+      "path": "/workspace/scratch/12ec3121e93f/backend-operational-proof-20261104/receiver-wheels/pyftpdlib-2.1.0-py3-none-any.whl",
+      "sha256": "b76435821cb2e388b5015cfcd953914388493ddcb9f77b4bb4547d6ad6a2b881",
+      "version": "2.1.0"
+    },
+    {
+      "bytes": 57268,
+      "name": "pyopenssl",
+      "path": "/workspace/scratch/12ec3121e93f/backend-operational-proof-20261104/receiver-wheels/pyopenssl-25.3.0-py3-none-any.whl",
+      "sha256": "1fda6fc034d5e3d179d39e59c1895c9faeaf40a79de5fc4cbbfbe0d36f4a77b6",
+      "version": "25.3.0"
+    }
+  ],
+  "service_started": false,
+  "sqlite_version": "3.46.1"
+}
