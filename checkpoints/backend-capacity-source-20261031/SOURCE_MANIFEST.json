@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "296caaa85e347b3e6d4cc8d98a4a729750332406",
-      "sha256": "89ee92545a42fba49ac1b0c4f83f8ad33108b3371b23fe0572c1f47eaf85cf7c"
+      "sha": "c40c41401dcd9ff5bb6afdc33406bbf17ce59bba",
+      "sha256": "33c34f3b2255a2300ff48a5a99b7870e5e7a81be260f06589ef3e1fcab3fd405"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -718,9 +718,15 @@
     },
     {
       "path": "audio_backend/recorder_analysis_handoff.py",
-      "size": 12541,
-      "sha": "3bf320b7021275b69d9c52e0d498226fcadfd154",
-      "sha256": "e2361628e5dfa3498eca53692cb55a41f9bad6ee70e9bacdb86f6b17b52747d3"
+      "size": 16373,
+      "sha": "3e5172e717f7847f508224bab589025901f52948",
+      "sha256": "1cadb6abc671267a6cebe3fee70dc2332030ae7446bb856ecff14bbfe71936f4"
+    },
+    {
+      "path": "audio_backend/recorder_analysis_plan.py",
+      "size": 22150,
+      "sha": "9a7d469d1af3a134e1d304d9ebdaaf09be8ba8b1",
+      "sha256": "878ed3a3dbacd3dd39bc6a050c7dcf9ea980c996365014bf93fec41fcc8ca0e0"
     },
     {
       "path": "audio_backend/recorder_batch_intake.py",
@@ -2283,6 +2289,12 @@
       "sha256": "8fdc590d061a77d040ecf4564abbdd067c20e133bcd102771933125494943a2a"
     },
     {
+      "path": "docs/RECORDER_FINITE_ANALYSIS_PLAN.md",
+      "size": 8107,
+      "sha": "041bef40dfaa3c950761539d0088d730db8d8472",
+      "sha256": "722c352d253a892366a5d650adae0735701f139a8f56ee33ae8ea79e6f112123"
+    },
+    {
       "path": "docs/RECORDER_FTPS_RECEIVER_SERVICE.md",
       "size": 12736,
       "sha": "d60f6a0aeff4ec0efab2e1a0bafe7fc7bf4f573d",
@@ -2699,8 +2711,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "8426398dd683c50cabf12a6abc95692ba3e265d3",
-      "sha256": "bd314f6744ee4166855c702c7f07c1cb2fba42a2a930fd2be0247409cb40b6ab"
+      "sha": "32a9caac6747f11d576b77881ea8ee4ad059e31c",
+      "sha256": "9383a35320beead0ecfe42a67f6e4db0256dbc0772bdff4e75420b60591d9aae"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5265,6 +5277,12 @@
       "sha256": "ea89b662cd5a49a4dd8d8b6c8693ede4e21390b8101eb9b52f3b4bba55e9a03c"
     },
     {
+      "path": "tests/test_recorder_analysis_plan.py",
+      "size": 16237,
+      "sha": "fd90253a88ff47955b953265807a6f02787c349a",
+      "sha256": "8468649b618e0329c815d3103d26ed5c838cd180137984dc4e43681a7d7d2d84"
+    },
+    {
       "path": "tests/test_recorder_automatic_routing.py",
       "size": 5080,
       "sha": "a059576c870e47bc3dcc5a0636872c61624c2468",
@@ -6376,5 +6394,5 @@
     }
   ],
   "source_base_commit": "4e910ce57b1f976cdf78b00224bbc94db5d05964",
-  "source_update": "dev71 combines bounded automatic receiver admission and one preplanned automatic analysis handoff; 344 installed-package related tests passed. Exact 185 product-file match. New source client/receiver native chain against qualified dev67 is separate evidence, not full new-package native qualification."
+  "source_update": "dev72 adds a bounded immutable finite analysis plan over up to eight prepared generations. Independent 66-test code review passed; whole-package installed native qualification remains separate pending evidence."
 }

@@ -25,6 +25,20 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
             export_recovery_attempts=0, busy_read_retries=0,
             limits=None, transport=None, cancel=None,
             preserve_reviewed_identity_group=None, identity_generation=None, identity_policy_sha256=None):
+    """Discover, link, and watch one successor; standalone behavior is unchanged."""
+    return _coordinate(**locals())
+
+
+def _coordinate(*, state_dir, route_config, next_state_dir, next_job_dir,
+            next_output_dir, next_capture_id, next_session_name='',
+            acknowledge_automatic_handoff=False, exclusive_writer=False,
+            acknowledge_span_local_closure=False, deadline_seconds=120,
+            max_polls=64, poll_seconds=5, max_actions=256, max_requests=1024,
+            max_network_writes=512, max_network_bytes=runner.MAX_NETWORK_BYTES,
+            export_recovery_attempts=0, busy_read_retries=0,
+            limits=None, transport=None, cancel=None,
+            preserve_reviewed_identity_group=None, identity_generation=None, identity_policy_sha256=None,
+                link_only=False, phase_budget=None, shared_guard=None, allow_physical_stop=False):
     """Discover a unique contiguous successor, link once, then run its intake.
 
     Only clean missing-input observations repeat. Uncertain mutations and bounded
@@ -46,7 +60,7 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
             'handoff_network_byte_bound')
     require(type(export_recovery_attempts) is int and export_recovery_attempts in (0,2,3), 'handoff_export_recovery_bound')
     require(type(busy_read_retries) is int and 0 <= busy_read_retries <= 3, 'handoff_busy_read_bound')
-    guard = u.Guard(u.Limits(deadline_seconds=deadline_seconds), cancel)
+    guard = shared_guard or u.Guard(u.Limits(deadline_seconds=deadline_seconds), cancel)
     def remaining():
         guard.check()
         return min(120, max(.000001, guard.end-time.monotonic()))
@@ -82,6 +96,38 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
             per_phase_max_actions=max_actions, discovery_max_polls=max_polls,
             total_action_upper_bound=(max_polls+2)*max_actions,
             total_poll_upper_bound=3*max_polls, **extra)
+    def physical_stop_prefix():
+        guard.check()
+        lock = runner.engine.held_lock(state/'runner.lock')
+        try:
+            require(runner._same(single.manifest_read(state/'config.json'), config), 'handoff_runner_changed')
+            intents, completed = runner._ledger(state, config)
+            runner._job_prefix(config, intents, completed)
+            if not (completed == len(intents) and completed > 0
+                    and intents[-1]['delivery']['close_reason'] == 'STOP'
+                    and not boundary.extra(Path(config['job_dir']))):return False
+            runner._inspect(config, intents, remaining)
+            guard.check()
+            return True
+        finally:os.close(lock)
+
+    def finish_terminal():
+        require(physical_stop_prefix(), 'handoff_physical_stop_required')
+        if phase_budget is not None and not phase_budget.reserve(max_actions, max_polls):
+            return result('handoff_paused', 'terminal_export', stop_reason='phase_budget')
+        terminal_budgets = dict(common, max_polls=max_polls,
+            max_requests=max_requests-checked.requests, max_network_writes=max_network_writes-checked.writes,
+            max_network_bytes=max_network_bytes-checked.bytes)
+        if (terminal_budgets['max_requests'] < 1 or terminal_budgets['max_network_writes'] < 1
+                or terminal_budgets['max_network_bytes'] < u.JSON_BYTES):
+            return result('handoff_paused', 'terminal_export', stop_reason='network_budget')
+        terminal = runner.watch(state_dir=state, finalize=True, export=True,
+            export_recovery_attempts=export_recovery_attempts, deadline_seconds=remaining(), **terminal_budgets)
+        guard.check()
+        require(physical_stop_prefix(), 'handoff_physical_stop_changed')
+        return result('handoff_terminal' if terminal['status'] == 'exported' else 'handoff_paused',
+            'terminal_export', physical_stop_observed=True, stop_details=terminal)
+
     try:
         for poll in range(max_polls):
             guard.check()
@@ -96,12 +142,19 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
                 successor = saved_successor['attempt']
                 successor_sha256 = boundary.digest(saved_successor)
                 break
+            if allow_physical_stop and physical_stop_prefix():return finish_terminal()
             drain_budgets = dict(common, max_requests=max_requests-checked.requests,
                 max_network_writes=max_network_writes-checked.writes, max_network_bytes=max_network_bytes-checked.bytes)
             if (drain_budgets['max_requests'] < 1 or drain_budgets['max_network_writes'] < 1
                     or drain_budgets['max_network_bytes'] < u.JSON_BYTES):
                 return result('handoff_paused', 'drain_old_span', stop_reason='network_budget')
+            if phase_budget is not None and not phase_budget.reserve(max_actions, 1):
+                return result('handoff_paused', 'drain_old_span', stop_reason='phase_budget')
             drained = runner.watch(state_dir=state, deadline_seconds=remaining(), **drain_budgets)
+            if shared_guard is not None:guard.check()
+            if allow_physical_stop and (drained['status'] in ('awaiting_finalize', 'exported') or
+                    drained['status'] == 'poll_limit' and drained.get('last_status') in (None, 'waiting_for_input')):
+                if physical_stop_prefix():return finish_terminal()
             if drained['status'] != 'poll_limit' or drained.get('last_status') not in (None, 'waiting_for_input'):
                 return result('handoff_paused', 'drain_old_span', stop_details=drained)
             lock = runner.engine.held_lock(state/'runner.lock')
@@ -140,6 +193,8 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
         if (transition_budgets['max_requests'] < 1 or transition_budgets['max_network_writes'] < 1
                 or transition_budgets['max_network_bytes'] < u.JSON_BYTES):
             return result('handoff_paused', 'transition', stop_reason='network_budget')
+        if phase_budget is not None and not phase_budget.reserve(max_actions, max_polls):
+            return result('handoff_paused', 'transition', stop_reason='phase_budget')
         linked = transition.transition(state_dir=state, route_config=route_config,
             successor_attempt=successor, next_state_dir=next_state_dir, next_job_dir=next_job_dir,
             next_output_dir=next_output_dir, next_capture_id=next_capture_id,
@@ -151,8 +206,11 @@ def handoff(*, state_dir, route_config, next_state_dir, next_job_dir,
             identity_generation=identity_generation, identity_policy_sha256=identity_policy_sha256,
             expected_config_sha256=boundary.digest(config), expected_routing_provenance=provenance,
             expected_successor_sha256=successor_sha256, **transition_budgets)
+        if shared_guard is not None:guard.check()
         if linked['status'] != 'transition_complete':
             return result('handoff_paused', 'transition', stop_details=linked)
+        if link_only:
+            return result('handoff_linked', 'next_session_linked', next_session_linked=True, transition=linked)
         next_budgets = dict(common, max_polls=max_polls,
             max_requests=max_requests-checked.requests, max_network_writes=max_network_writes-checked.writes,
             max_network_bytes=max_network_bytes-checked.bytes)
