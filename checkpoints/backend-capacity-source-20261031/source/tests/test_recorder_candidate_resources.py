@@ -46,7 +46,8 @@ class Snapshot:
     def command(self, pid): return self.commands[pid]
     def parent(self, pid): return 20
     def primary_source_files(self, pid): return {}
-    def listener(self, address, port, *, terminal_original=None): return self.primary, self.inode
+    def listener(self, address, port): return self.primary, self.inode
+    def pinned_listener(self, address, port, identity, inode): return self.primary, self.inode
     def cgroup_boundary(self, identities): return copy.deepcopy(self.cg)
     def cgroup_values(self, boundary):
         r.require(self.cg['memory.swap.max'] == self.cg['memory.swap.current'] == 0, 'cgroup_swap_not_zero')
@@ -151,13 +152,13 @@ def test_inconsistent_listener_read_blocks():
     def changing(*args, **kwargs):
         calls[0] += 1
         return snapshot.primary, snapshot.inode if calls[0] == 1 else 'replacement'
-    snapshot.listener = changing
+    snapshot.pinned_listener = changing
     with pytest.raises(r.CandidateResourceBlocked, match='inconsistent_primary'):
         observed.sample()
 
 
 def test_retained_primary_descendant_remains_observed_after_reparenting():
-    snapshot = Snapshot(); snapshot.processes[50] = (30, 5.)
+    snapshot = Snapshot(); snapshot.processes[50] = (30, 5.); snapshot.identities[50] = r.Identity(50, 5.)
     snapshot.memory_by_pid[50] = 100*r.MiB
     observed = gate(snapshot)
     snapshot.processes[50] = (1, 5.)
@@ -172,8 +173,14 @@ def proc_socket_fixture(tmp_path, *, address='0100007F', owners=(22,)):
     for pid in owners:
         fd = proc/str(pid)/'fd'; fd.mkdir(parents=True)
         (fd/'3').symlink_to('socket:[123]')
+        (proc/str(pid)/'cmdline').write_bytes(('\0'.join(Snapshot().commands[30])+'\0').encode())
     reader = r.LinuxReader(proc=proc)
     reader.identity = lambda pid: r.Identity(pid, 1.)
+    reader.namespaces = lambda pid: ('pid:[1]', 'mnt:[1]', 'net:[1]', 'cgroup:[1]')
+    reader.parent = lambda pid: 987639
+    reader.primary_source_files = lambda pid: {}
+    (proc/'987639').mkdir(exist_ok=True)
+    (proc/'987639/cmdline').write_bytes(('\0'.join(Snapshot().commands[20])+'\0').encode())
     return reader
 
 
@@ -488,81 +495,70 @@ def await_unreaped_exit(process):
     assert process.returncode is None
 
 
-def test_actual_unreaped_original_exit_does_not_require_disappeared_namespace():
-    snapshot = Snapshot(cgroup=True); observed = gate(snapshot)
-    process = subprocess.Popen([sys.executable, '-c', 'pass'])
+@pytest.mark.parametrize('exited',[False,True])
+def test_actual_original_is_accounted_without_namespace_link_reads(exited):
+    snapshot=Snapshot(cgroup=True);observed=gate(snapshot)
+    process=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.read()'],stdin=subprocess.PIPE)
     try:
-        identity = bound_original(snapshot, process)
-        await_unreaped_exit(process)
-        original_namespaces = snapshot.namespaces
-        # Exercise the real proc namespace read: Linux drops a zombie's mnt link.
-        snapshot.namespaces = lambda pid: (r.LinuxReader().namespaces(pid) if pid == process.pid
-                                          else original_namespaces(pid))
-        with pytest.raises(FileNotFoundError): snapshot.namespaces(process.pid)
-        proof = observed.sample(identity, original_process=process)
-        assert proof['exited_optional_original'] == {'pid': identity.pid, 'created': identity.created}
-        assert proof['optional_rss_bytes'] == 0
-        assert process.returncode is None  # WNOWAIT never consumes the cleanup owner's wait.
+        identity=bound_original(snapshot,process)
+        if exited:process.stdin.close();await_unreaped_exit(process)
+        ordinary=snapshot.namespaces
+        def no_optional_namespace(pid):
+            if pid==process.pid:raise AssertionError('Optional namespace must not be read')
+            return ordinary(pid)
+        snapshot.namespaces=no_optional_namespace
+        ordinary_rss=snapshot.rss;sampled=[]
+        def actual_rss(selected):
+            rows=r.rss_records({process.pid:identity});sampled.extend(rows)
+            return ordinary_rss({pid:i for pid,i in selected.items() if pid!=process.pid})+rows
+        snapshot.rss=actual_rss
+        proof=observed.sample(identity)
+        assert proof['optional_rss_bytes']==sampled[-1]['rss']
+        assert proof['optional_rss_bytes']==0 if exited else proof['optional_rss_bytes']>0
+        assert process.returncode is None
     finally:
-        if process.returncode is None:
-            process.kill(); process.wait(timeout=5)
+        if process.returncode is None:process.kill();process.wait(timeout=5)
+        if process.stdin and not process.stdin.closed:process.stdin.close()
 
 
-def test_exit_between_initial_observation_and_namespace_read_rechecks_exact_original(monkeypatch):
-    snapshot = Snapshot(); observed = gate(snapshot)
-    process = subprocess.Popen([sys.executable, '-c', 'pass'])
-    try:
-        identity = bound_original(snapshot, process); await_unreaped_exit(process)
-        actual_exited = r._exited; calls = []
-        def first_read_precedes_exit(handle):
-            calls.append(handle)
-            return False if len(calls) <= 2 else actual_exited(handle)
-        monkeypatch.setattr(r, '_exited', first_read_precedes_exit)
-        original_namespaces = snapshot.namespaces
-        def vanished_mnt(pid):
-            if pid == process.pid: raise FileNotFoundError('/proc/fixture/ns/mnt')
-            return original_namespaces(pid)
-        snapshot.namespaces = vanished_mnt
-        assert observed.sample(identity, original_process=process)['exited_optional_original']['pid'] == process.pid
-        assert len(calls) >= 4
-    finally:
-        if process.returncode is None:
-            process.kill(); process.wait(timeout=5)
+def test_primary_descendant_namespace_is_not_resource_boundary():
+    snapshot=Snapshot();snapshot.processes[50]=(30,5.);snapshot.identities[50]=r.Identity(50,5.)
+    snapshot.memory_by_pid[50]=100*r.MiB
+    ordinary=snapshot.namespaces
+    def no_descendant_namespace(pid):
+        if pid==50:raise AssertionError('Descendant namespace must not be read')
+        return ordinary(pid)
+    snapshot.namespaces=no_descendant_namespace
+    assert gate(snapshot).sample()['combined_rss_bytes']==r.GiB+196*r.MiB
 
 
-@pytest.mark.parametrize('fault', ['live', 'reused', 'unknown_identity', 'reaped_handle', 'no_handle',
-                                   'other_owned_descendant', 'primary_namespace', 'owner_namespace',
-                                   'unrelated_descendant_namespace'])
-def test_terminal_exception_never_accepts_live_reused_unknown_or_required_roots(fault):
-    snapshot = Snapshot(); observed = gate(snapshot)
-    process = subprocess.Popen([sys.executable, '-c', 'import sys; sys.stdin.read()'], stdin=subprocess.PIPE)
-    try:
-        identity = bound_original(snapshot, process)
-        if fault != 'live':
-            process.stdin.close(); await_unreaped_exit(process)
-        if fault == 'reused': snapshot.identities[process.pid] = r.Identity(process.pid, identity.created+1)
-        if fault == 'unknown_identity': snapshot.identities.pop(process.pid)
-        if fault == 'reaped_handle': process.wait(timeout=5)
-        if fault == 'other_owned_descendant':
-            snapshot.processes[987654] = (process.pid, 99.)
-        if fault == 'unrelated_descendant_namespace':
-            snapshot.processes[987653] = (30, 98.)
-        missing_pid = (30 if fault == 'primary_namespace' else 10 if fault == 'owner_namespace' else
-                       987653 if fault == 'unrelated_descendant_namespace' else process.pid)
-        original_namespaces = snapshot.namespaces
-        def vanished(pid):
-            if pid == missing_pid: raise FileNotFoundError('/proc/fixture/ns/mnt')
-            return original_namespaces(pid)
-        snapshot.namespaces = vanished
-        with pytest.raises(r.CandidateResourceBlocked):
-            observed.sample(identity, original_process=None if fault == 'no_handle' else process)
-    finally:
-        if process.returncode is None:
-            process.kill(); process.wait(timeout=5)
-        if process.stdin and not process.stdin.closed: process.stdin.close()
+@pytest.mark.parametrize('fault',['identity_reused','identity_denied','rss_denied','membership_denied',
+                                  'membership_escape','primary_namespace','owner_namespace','supervisor_parent'])
+def test_required_identity_rss_membership_and_root_observations_still_block(fault):
+    snapshot=Snapshot(cgroup=True);observed=gate(snapshot);identity=snapshot.identities[40]
+    if fault=='identity_reused':snapshot.identities[40]=r.Identity(40,99.)
+    if fault=='identity_denied':
+        ordinary=snapshot.identity
+        def denied(pid):
+            if pid==40:raise PermissionError('selected identity denied')
+            return ordinary(pid)
+        snapshot.identity=denied
+    if fault=='rss_denied':snapshot.rss=lambda selected:(_ for _ in ()).throw(PermissionError('RSS denied'))
+    if fault=='membership_denied':
+        ordinary=snapshot.membership
+        def denied(pid):
+            if pid==40:raise PermissionError('selected membership denied')
+            return ordinary(pid)
+        snapshot.membership=denied
+    if fault=='membership_escape':snapshot.member[40]='/outside'
+    if fault in ('primary_namespace','owner_namespace'):
+        bad=30 if fault=='primary_namespace' else 10;ordinary=snapshot.namespaces
+        snapshot.namespaces=lambda pid: ('changed',) if pid==bad else ordinary(pid)
+    if fault=='supervisor_parent':snapshot.parent=lambda pid:98765
+    with pytest.raises(r.CandidateResourceBlocked):observed.sample(identity)
 
 
-def test_actual_fast_exit_supervisor_with_real_optional_namespace_reads(tmp_path):
+def test_actual_fast_exit_supervisor_without_optional_namespace_reads(tmp_path):
     entry=tmp_path/'entry'; entry.mkdir(mode=0o700)
     script="""
 import json,os,sys
@@ -580,7 +576,8 @@ class ActualOptional(Snapshot):
     def identity(self,pid):
         return self.identities[pid] if pid in self.identities else r.Identity.bind(pid)
     def namespaces(self,pid):
-        return self.ns if pid in self.identities else r.LinuxReader().namespaces(pid)
+        if pid not in self.identities:raise AssertionError('Optional namespace read')
+        return self.ns
     def table(self):
         table=super().table()
         table.update({pid:row for pid,row in r.process_table().items() if row[0]==os.getpid()})
@@ -597,7 +594,7 @@ assert result['status']=='completed',result
 assert result['exit_code']==0,result
 assert result['cleanup']['cleanup_verified'],result
 assert result['cleanup']['original_handle_waited_and_reaped'],result
-assert result['resource_proof']['exited_optional_original'],result
+assert result['resource_proof']['optional_rss_bytes']==0,result
 assert not r.pending_cleanup()
 assert not r._children()
 print(json.dumps(result))
@@ -607,136 +604,80 @@ print(json.dumps(result))
     assert result.returncode==0,result.stderr
 
 
-@pytest.mark.parametrize('changed_fact', ['host_headroom', 'primary_identity'])
-def test_exit_race_rebuilds_full_sample_and_rechecks_required_facts(monkeypatch, changed_fact):
-    snapshot=Snapshot(); observed=gate(snapshot)
-    process=subprocess.Popen([sys.executable,'-c','pass'])
-    try:
-        identity=bound_original(snapshot,process); await_unreaped_exit(process)
-        actual_exited=r._exited; calls=[]
-        def first_before_exit(handle):
-            calls.append(handle)
-            return False if len(calls)<=2 else actual_exited(handle)
-        monkeypatch.setattr(r,'_exited',first_before_exit)
-        ordinary=snapshot.namespaces
-        def exit_race(pid):
-            if pid==process.pid:
-                if changed_fact=='host_headroom': snapshot.mem['MemAvailable']=r.GiB
-                else: snapshot.identities[30]=r.Identity(30,99.)
-                raise FileNotFoundError('/proc/fixture/ns/mnt')
-            return ordinary(pid)
-        snapshot.namespaces=exit_race
-        with pytest.raises(r.CandidateResourceBlocked):
-            observed.sample(identity,original_process=process)
-    finally:
-        if process.returncode is None:
-            process.kill();process.wait(timeout=5)
-
-
-def test_listener_terminal_proof_omits_only_exact_exited_original(tmp_path, monkeypatch):
+def test_unrelated_unreadable_metadata_and_fds_do_not_change_positive_target(tmp_path, monkeypatch):
     import errno
-    reader=proc_socket_fixture(tmp_path,owners=(987640,))
-    process=subprocess.Popen([sys.executable,'-c','pass'])
-    try:
-        identity=r.Identity.bind(process.pid); await_unreaped_exit(process)
-        fd=reader.proc/str(process.pid)/'fd';fd.mkdir(parents=True)
-        reader.identity=lambda pid: r.Identity.bind(pid) if pid==process.pid else r.Identity(pid,1.)
-        denied={fd}; ordinary=Path.iterdir
-        def guarded(path):
-            if path in denied: raise PermissionError(errno.EACCES,'fixture denied',str(path))
+    reader=proc_socket_fixture(tmp_path)
+    for pid in (31,32):
+        directory=reader.proc/str(pid);directory.mkdir();(directory/'fd').mkdir()
+        (directory/'cmdline').write_bytes(b'unknown-process\0')
+    ordinary_command=reader.command; ordinary_iterdir=Path.iterdir
+    def command(pid):
+        if pid==31:raise PermissionError(errno.EACCES,'unrelated cmdline',str(reader.proc/'31/cmdline'))
+        return ordinary_command(pid)
+    def iterdir(path):
+        if path in {reader.proc/'31/fd',reader.proc/'32/fd'}:
+            raise AssertionError('unrelated FD directory must never be inspected')
+        return ordinary_iterdir(path)
+    reader.command=command;monkeypatch.setattr(Path,'iterdir',iterdir)
+    identity,inode=reader.listener('127.0.0.1',8765)
+    assert (identity,inode)==(r.Identity(22,1.),'123')
+    # A shared FD in unrelated code is outside this positive-possession proof.
+    (reader.proc/'32/fd/9').symlink_to('socket:[123]')
+    assert reader.pinned_listener('127.0.0.1',8765,identity,inode)==(identity,inode)
+
+
+@pytest.mark.parametrize('fault',['fd_denied','identity_denied','namespace','cpu','source','supervisor'])
+def test_matched_candidate_required_proof_refuses_uncertainty(tmp_path,monkeypatch,fault):
+    reader=proc_socket_fixture(tmp_path)
+    if fault=='fd_denied':
+        ordinary=Path.iterdir
+        def denied(path):
+            if path==reader.proc/'22/fd':raise PermissionError('matched primary fd denied')
             return ordinary(path)
-        monkeypatch.setattr(Path,'iterdir',guarded)
-        with pytest.raises(PermissionError):reader.listener('127.0.0.1',8765)
-        proof=r._ExitedOriginal(identity,process)
-        assert reader.listener('127.0.0.1',8765,terminal_original=proof)==(r.Identity(987640,1.),'123')
-        unrelated=reader.proc/'987641'/'fd';unrelated.mkdir(parents=True);denied.add(unrelated)
-        with pytest.raises(PermissionError):reader.listener('127.0.0.1',8765,terminal_original=proof)
-        denied.remove(unrelated)
-        # A second genuine socket owner still defeats uniqueness.
-        (unrelated/'4').symlink_to('socket:[123]')
-        with pytest.raises(r.CandidateResourceBlocked,match='ambiguous_socket_owner'):
-            reader.listener('127.0.0.1',8765,terminal_original=proof)
-    finally:
-        if process.returncode is None:process.kill();process.wait(timeout=5)
+        monkeypatch.setattr(Path,'iterdir',denied)
+    elif fault=='identity_denied':
+        reader.identity=lambda pid: (_ for _ in ()).throw(PermissionError('identity denied'))
+    elif fault=='namespace':reader.namespaces=lambda pid: ('other',) if pid==22 else ('required',)
+    elif fault=='cpu':
+        path=reader.proc/'22/cmdline';path.write_bytes(path.read_bytes().replace(b'cpu',b'cuda'))
+    elif fault=='source':
+        reader.primary_source_files=lambda pid: (_ for _ in ()).throw(r.CandidateResourceBlocked('source differs'))
+    elif fault=='supervisor':(reader.proc/'987639/cmdline').write_bytes(b'unknown-supervisor\0')
+    with pytest.raises((r.CandidateResourceBlocked,PermissionError)):
+        reader.listener('127.0.0.1',8765)
 
 
-@pytest.mark.parametrize('fault',['live','reused','reaped','raw_pid','unknown_identity'])
-def test_listener_never_accepts_unproven_terminal_exclusion(tmp_path,fault):
-    reader=proc_socket_fixture(tmp_path,owners=(987640,))
-    process=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.read()'],stdin=subprocess.PIPE)
-    try:
-        identity=r.Identity.bind(process.pid)
-        if fault!='live':process.stdin.close();await_unreaped_exit(process)
-        reader.identity=lambda pid: r.Identity.bind(pid) if pid==process.pid else r.Identity(pid,1.)
-        proof=r._ExitedOriginal(identity,process)
-        if fault=='reused':proof=r._ExitedOriginal(r.Identity(process.pid,identity.created+1),process)
-        if fault=='reaped':process.wait(timeout=5)
-        if fault=='raw_pid':proof=process.pid
-        if fault=='unknown_identity':
-            def denied(pid):raise PermissionError('identity unavailable')
-            reader.identity=denied
-        with pytest.raises((r.CandidateResourceBlocked,PermissionError)):
-            reader.listener('127.0.0.1',8765,terminal_original=proof)
-    finally:
-        if process.returncode is None:process.kill();process.wait(timeout=5)
-        if process.stdin and not process.stdin.closed:process.stdin.close()
+@pytest.mark.parametrize('fault',['reused','socket_changed','socket_missing','fd_denied'])
+def test_targeted_primary_identity_and_socket_changes_block(tmp_path,monkeypatch,fault):
+    reader=proc_socket_fixture(tmp_path);identity,inode=reader.listener('127.0.0.1',8765)
+    if fault=='reused':reader.identity=lambda pid:r.Identity(pid,99.)
+    elif fault=='socket_changed':
+        path=reader.proc/'net/tcp';path.write_text(path.read_text().replace(' 123 1',' 124 1'))
+    elif fault=='socket_missing':(reader.proc/'22/fd/3').unlink()
+    else:
+        ordinary=Path.iterdir
+        def denied(path):
+            if path==reader.proc/'22/fd':raise PermissionError('primary fd denied')
+            return ordinary(path)
+        monkeypatch.setattr(Path,'iterdir',denied)
+    with pytest.raises((r.CandidateResourceBlocked,PermissionError)):
+        reader.pinned_listener('127.0.0.1',8765,identity,inode)
 
 
-def test_fd_exit_race_restarts_full_sample_and_threads_proof_to_both_scans(monkeypatch):
-    import errno
-    snapshot=Snapshot(); observed=gate(snapshot)
-    process=subprocess.Popen([sys.executable,'-c','pass'])
-    try:
-        identity=bound_original(snapshot,process);await_unreaped_exit(process)
-        real_exited=r._exited;exits=[]
-        def first_live(handle):
-            exits.append(handle)
-            return False if len(exits)==1 else real_exited(handle)
-        monkeypatch.setattr(r,'_exited',first_live)
-        scans=[]; memories=[];ordinary_memory=snapshot.memory
-        def read_memory():memories.append(1);return ordinary_memory()
-        snapshot.memory=read_memory
-        def listener(address,port,*,terminal_original=None):
-            scans.append(terminal_original)
-            if len(scans)==1:raise PermissionError(errno.EACCES,'fixture denied',str(snapshot.proc/str(process.pid)/'fd'))
-            assert type(terminal_original) is r._ExitedOriginal
-            assert terminal_original.observed(snapshot)
-            return snapshot.primary,snapshot.inode
-        snapshot.listener=listener
-        result=observed.sample(identity,original_process=process)
-        assert result['exited_optional_original']['pid']==process.pid
-        assert len(memories)==2 and len(scans)==3
-        assert scans[0] is None and scans[1] is not None and scans[2] is not None
-    finally:
-        if process.returncode is None:process.kill();process.wait(timeout=5)
-
-
-@pytest.mark.parametrize('fault',['live','unrelated','primary','owner','fd_child','aliased_path','missing_filename','headroom_changed'])
-def test_fd_permission_failure_never_skips_live_unknown_unrelated_or_partial_sample(monkeypatch,fault):
-    import errno
-    snapshot=Snapshot();observed=gate(snapshot)
-    process=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.read()'],stdin=subprocess.PIPE)
-    try:
-        identity=bound_original(snapshot,process)
-        if fault!='live':process.stdin.close();await_unreaped_exit(process)
-        real_exited=r._exited;calls=[]
-        def first_live(handle):
-            calls.append(handle)
-            return False if len(calls)==1 else real_exited(handle)
-        monkeypatch.setattr(r,'_exited',first_live)
-        path=str(snapshot.proc/str(process.pid)/'fd')
-        if fault in ('unrelated','primary','owner'):path=str(snapshot.proc/str({'unrelated':987641,'primary':30,'owner':10}[fault])/'fd')
-        if fault=='fd_child':path+='/3'
-        if fault=='aliased_path':path=str(snapshot.proc/str(process.pid)/'..'/str(process.pid)/'fd')
-        if fault=='missing_filename':path=None
-        def denied(*args,**kwargs):
-            if fault=='headroom_changed':snapshot.mem['MemAvailable']=r.GiB
-            raise PermissionError(errno.EACCES,'fixture denied',path)
-        snapshot.listener=denied
-        with pytest.raises(r.CandidateResourceBlocked):observed.sample(identity,original_process=process)
-    finally:
-        if process.returncode is None:process.kill();process.wait(timeout=5)
-        if process.stdin and not process.stdin.closed:process.stdin.close()
+def test_sampling_never_rediscovers_or_reads_optional_fds():
+    snapshot=Snapshot();observed=gate(snapshot);checks=[]
+    def discovery_forbidden(*args,**kwargs):raise AssertionError('rediscovery forbidden')
+    snapshot.listener=discovery_forbidden
+    def targeted(address,port,identity,inode):
+        checks.append(identity)
+        assert identity==snapshot.primary
+        return identity,inode
+    snapshot.pinned_listener=targeted
+    proof=observed.sample(snapshot.identities[40])
+    assert checks==[snapshot.primary,snapshot.primary]
+    assert proof['optional_rss_bytes']==128*r.MiB
+    assert proof['listener_proof']=='pinned_product_possession'
+    assert proof['global_socket_exclusivity_verified'] is False
 
 
 def test_hash_verifier_failure_reason_retains_exit_and_cleanup_scalars(monkeypatch,tmp_path):
@@ -776,15 +717,14 @@ child=subprocess.Popen([sys.argv[1],'-I','-B','-S','-c',
 try:
     identity=r.Identity.bind(child.pid)
     assert child.stdout.readline()==b'ready\\n'
-    observed,inode=reader.listener(*address)
-    assert observed==owner
+    inode=reader._listeners(*address)
+    assert reader.pinned_listener(*address,owner,inode)==(owner,inode)
     child.stdin.close()
     end=time.monotonic()+5
     while not r._exited(child):
         assert time.monotonic()<end
         time.sleep(.005)
-    proof=r._ExitedOriginal(identity,child)
-    assert reader.listener(*address,terminal_original=proof)==(owner,inode)
+    assert reader.pinned_listener(*address,owner,inode)==(owner,inode)
     assert child.stdout.read().strip().decode()==hashlib.sha256(b'bounded hash fixture').hexdigest()
     assert child.returncode is None
     assert child.wait(timeout=5)==0

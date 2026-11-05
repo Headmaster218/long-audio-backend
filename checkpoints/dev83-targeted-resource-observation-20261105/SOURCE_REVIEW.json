@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0rc3.dev83",
+  "changed_files": [
+    "audio_backend/recorder_candidate_resources.py",
+    "tests/test_recorder_candidate_resources.py"
+  ],
+  "freeze_sha256": "51b1e3483c78f3fb39d4c7415e607ff96b58f45eb8d5635a2d682cb65f4c6db4",
+  "review_sha256": "55df9ecfae3e19f11bca8486dcddfc6904b0d46c3b569a43b37b73a477075407",
+  "tests": 176,
+  "subtests": 43,
+  "failures": 0,
+  "skips": 0,
+  "source_manifest_sha256": "b7a6eadb1502914b690819d12c18b19cc881eeb18d826f8dc82c4b58dcf7d962",
+  "model_calls": 0,
+  "source_admission_smoke": "Passed independent terminal audit; source-level only, no audio or candidate",
+  "source_admission_result_sha256": "132f536de43ffe67b0a0aabb8e941b50b5a6a145938b2a4560b243901470fbdd",
+  "fresh_installation_verified": false,
+  "source_admission_audit_sha256": "abf5771461840109532ebbd9ae499c6cad1520f4480a2c905ddc73fdbef93b3c"
+}

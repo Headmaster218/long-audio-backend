@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "8e36cb288dcccaedb95a2f147a85dc22d65c392a",
-      "sha256": "f41ce61f4439155fba822ebcf5949aa07ba52f4817f4fe0336e8aa4d5a1464de"
+      "sha": "65f22a52acb8ce27d801b08832c2fb36fcdade2f",
+      "sha256": "560a030c4183c29477db98dffced3ab4995b5465b7b73d8160e199a9a1f4b9f0"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -772,9 +772,9 @@
     },
     {
       "path": "audio_backend/recorder_candidate_resources.py",
-      "size": 47057,
-      "sha": "8a7ebbca702c4f9293e90d590deb4e68dd1f2cb8",
-      "sha256": "90dd5f8e3443f1d1e0c584bf0b3f5186de372707271a52092c0ed9ee11964cd3"
+      "size": 46313,
+      "sha": "31ddb449bd98aae540e47181df1bc9b24178e968",
+      "sha256": "408adf8d94f472535f930463b8059b4c22096ba708498f2e18747f72f85b47dc"
     },
     {
       "path": "audio_backend/recorder_capacity_preflight.py",
@@ -2789,8 +2789,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "bb3d5510fea87e534f3da3ff82fefdafba093fe0",
-      "sha256": "7c321f3d0e8dbef10e2c3faec88bd9055d9502fe8d387c9d8a4d2a0bce852c04"
+      "sha": "292f441258886d0dc257ec15848dc15f8b05b8e1",
+      "sha256": "d9fb0f630a444d6a591166ece82dc46ff6da5c48c1b6ba64be88bc5ec815cba3"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -5446,9 +5446,9 @@
     },
     {
       "path": "tests/test_recorder_candidate_resources.py",
-      "size": 39436,
-      "sha": "65e84fafd7e8b705cfc0385ac1df9e7cfd21a58b",
-      "sha256": "07bacb4d28d089ee33a3977c4b2f3b90d66320f72ecb80d09651a063b1d90530"
+      "size": 36044,
+      "sha": "a14e740bdf59d6eafacccdcd3b696b4807a13f86",
+      "sha256": "a06f38a6c9ce1b63aa16dcd424b5e80e6c279b9b516ad19a65ec52fbafb885e8"
     },
     {
       "path": "tests/test_recorder_capacity_preflight.py",
@@ -6555,6 +6555,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "cd2295ea76743eea9c4aee65523f69a331e5e891",
-  "source_update": "dev82 keeps the pinned product package origin while restricting optional dependency and metadata discovery to selected runtime sites in verifier, candidate and leaf bootstraps. Existing root/provider/hash checks unchanged. Source reviewed; full source admission and fresh installation pending."
+  "source_base_commit": "3ea4766a751b235d9ac6ec1958ce97be17b49c3e",
+  "source_update": "dev83 observes positively verified product-primary listener possession and relevant resource trees without global FD enumeration or descendant namespace-link reads. Primary/owner roots, identity/RSS/cgroup and hard limits remain checked. No new CLI, terminal exclusions, sampling retry or ledger migration. Fresh installation pending."
 }

@@ -1,0 +1,37 @@
+{
+  "schema": "public-hash-only-operational-outcome-v1",
+  "passed": false,
+  "scope": "One whole-source-package hash-only admission check beside unchanged installed dev80 runtime/service; not installed-bootstrap qualification",
+  "verifier": {
+    "calls": 1,
+    "exit_code": 0,
+    "selected_runtime_and_model_hash_receipt_valid": true,
+    "receipt_files": 37,
+    "metadata_root_fix_observed": true,
+    "resource_admission": "blocked",
+    "retained_failure": "Permission denied reading the owned verifier file-descriptor directory before a positive terminal observation",
+    "observation_limit": "The saved live_at_observation label means WNOWAIT had not yet reported exit; it does not distinguish executing code from kernel exit teardown.",
+    "original_handle_waited_and_reaped": true,
+    "cleanup_verified": true
+  },
+  "primary_audio_submissions": 0,
+  "primary_retries": 0,
+  "candidate_model_calls": 0,
+  "preservation": {
+    "verified_preimage": true,
+    "logical_rows_unchanged": true,
+    "protected_files_unchanged": true,
+    "sqlite_maintenance_bytes_may_change": true,
+    "idle_predicates_zero": 14,
+    "old_failures_preserved": true
+  },
+  "resource": {
+    "sampled_peak_rss_bytes": 210530304,
+    "elapsed_seconds": 5.1581,
+    "sampled_cpu_seconds": 6.68,
+    "combined_artifact_bytes": 10892609
+  },
+  "remaining_owned_processes": 0,
+  "audit_sha256": "94225e8c5f4eeada2f0d4c304de286866383ceba75400a7405222346fee82745",
+  "quality_claim": false
+}
