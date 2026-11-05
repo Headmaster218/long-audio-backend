@@ -41,8 +41,8 @@
     {
       "path": "audio_backend/__init__.py",
       "size": 108,
-      "sha": "7284ca8a9a712188fc94522909406e8972b1e516",
-      "sha256": "f9eef1292ee9cb7a3e1efd0581d12f3a1b663042ca340bd05bbd05335fa7a134"
+      "sha": "043265a1df0663b54088da6829101749b9fb8e66",
+      "sha256": "f68bfa3ca0ce45bca6816bf35e6a29b6f6765509e9e6d728e9fa86415b28febe"
     },
     {
       "path": "audio_backend/__main__.py",
@@ -52,9 +52,9 @@
     },
     {
       "path": "audio_backend/app.py",
-      "size": 66105,
-      "sha": "08c37b6dbac59ac9ab93db949965af4f1cea666f",
-      "sha256": "a1639ab918dfaff51f35d5d67774218754abb946694e1c05195df68921420dab"
+      "size": 66306,
+      "sha": "da26162a2bd3eaea60d622ecdedf257b426b552a",
+      "sha256": "fbb5e8dc84528097534c6bfe87f802ca50490b0ca7ab7a85a229b0b87792c125"
     },
     {
       "path": "audio_backend/boundaries.py",
@@ -597,6 +597,12 @@
       "sha256": "3f1dd47c80aaf51c6037d1ce73023134a8193fd239eb0ddfae112bd2d9788935"
     },
     {
+      "path": "audio_backend/native_turn_evidence_http.py",
+      "size": 2752,
+      "sha": "055663090910fab31e369ae603d024d1dcf610aa",
+      "sha256": "15d7651cd6644daebd225fee6bb34c6ca370cf861076d30e3b4c251dc1266fa8"
+    },
+    {
       "path": "audio_backend/native_worker.py",
       "size": 10188,
       "sha": "2f25668befd6b855adb6dda53295639e75a667f5",
@@ -604,9 +610,9 @@
     },
     {
       "path": "audio_backend/overlap.py",
-      "size": 7947,
-      "sha": "4706ccfa2abb815afb795ecde9f3327b7a285639",
-      "sha256": "31982119d37071145e4f3a1f696b9cb5e336d7d5e05e815afd41d52d79935208"
+      "size": 6909,
+      "sha": "c30ea9f32cadbef2abfdcddf2e468e5dc1ebcecf",
+      "sha256": "bac752e4b11f5b0b36622f8003d954c98a46c5df25f847da0fde32af85b2a2af"
     },
     {
       "path": "audio_backend/overlap_candidates.py",
@@ -619,6 +625,12 @@
       "size": 14628,
       "sha": "a918657555adf4ec4159887c0795a2fad2d50d7f",
       "sha256": "9e8e2f2c41a971f5533ac455b08a5eb20b1189ef926820259d8ed92a98b0c54a"
+    },
+    {
+      "path": "audio_backend/overlap_geometry.py",
+      "size": 1148,
+      "sha": "826428e6168d75c1cf7fdae5acabf05d93c87f69",
+      "sha256": "47f81bae5fcb90149c8fa562e5b8148a8df2427568ccea9719af5c39c899d06d"
     },
     {
       "path": "audio_backend/overlap_ownership.py",
@@ -814,9 +826,9 @@
     },
     {
       "path": "audio_backend/recorder_incremental_span_export.py",
-      "size": 23919,
-      "sha": "cb7f66c77ce9ddc277c8996bcb7f70fb133fe35d",
-      "sha256": "cff466acf99cbbe1a23f2c8ce2f9c3691d4a32b7b28af64e563d75fea8d02de6"
+      "size": 26155,
+      "sha": "4c50434ab4c94497ebe3b6b36d16d4d6c4e1a862",
+      "sha256": "b94dd1f53438daabc93883cdf6e20deb495056eb5c545bea648f9228cff1d7cd"
     },
     {
       "path": "audio_backend/recorder_incremental_span_intake.py",
@@ -867,10 +879,16 @@
       "sha256": "fd8bb8ec51246fd62564773612a8e1ed4a2c4ba13bb0e2ede21d7532cda3c0fd"
     },
     {
+      "path": "audio_backend/recorder_native_overlap.py",
+      "size": 6934,
+      "sha": "37db7d55900961759056a279bc169035663e45d6",
+      "sha256": "8227f84ca9558a746a51b53d3af318c794d928d86074f6d424732eb7b5be86d9"
+    },
+    {
       "path": "audio_backend/recorder_overlap_candidates.py",
-      "size": 20527,
-      "sha": "64e27e96e0bfc775bfeded0674846d6cc80147ea",
-      "sha256": "f0014bd1c47dffc55b67d68eefed362ee4db11c4cf703fe16f520d6a3b1eed48"
+      "size": 22442,
+      "sha": "e63b2bbf83554dfade710e4b01e03ae821926a21",
+      "sha256": "c55f852da435e66d7034d3fa1bb891841edf16f16f4fcf10923d9fdc73fe3791"
     },
     {
       "path": "audio_backend/recorder_receiver_completion.py",
@@ -1096,9 +1114,9 @@
     },
     {
       "path": "audio_backend/strict_payload_v2.py",
-      "size": 92596,
-      "sha": "56ffe6f56bade5dc7bcd35d5858fab62a5f8da44",
-      "sha256": "88435d422e2b4607b64619a6e77654c8f5e792fa654fb53e039b574b79cccdc1"
+      "size": 96420,
+      "sha": "345667b4cd0c5deb82ce823393bf8806ba48e398",
+      "sha256": "976689e69dbb3cdb8b915242c8bcdcb58a02a35cc8b04e71376d072625c91a3c"
     },
     {
       "path": "audio_backend/strict_recording.py",
@@ -2392,9 +2410,9 @@
     },
     {
       "path": "docs/RECORDER_OVERLAP_CANDIDATES.md",
-      "size": 7488,
-      "sha": "370e0caf1584a1ed02f1ccc5fb58af8dd685bad3",
-      "sha256": "f18eb39a472b194fd80355eb86da74b620c3d5f2405aa5bd02e5b9051190235a"
+      "size": 10241,
+      "sha": "742d691de47dac54ac20ff06ffe0c21bd0f083c5",
+      "sha256": "7879115ff4468db4a604e0c5452890d212e2fecd3de10142fda6cc29f3f924b0"
     },
     {
       "path": "docs/RECORDER_OWNED_SNAPSHOT.md",
@@ -2753,8 +2771,8 @@
     {
       "path": "pyproject.toml",
       "size": 905,
-      "sha": "8725d066c7ca76584f65768fabfa26ac7b90bff4",
-      "sha256": "c2b4a7aa8a4317e3fea4093bd1451d1d1068006c2397168d76a8dc0a1d966ac9"
+      "sha": "caf0960e89af018ed2a6b652c0351b49d42e9082",
+      "sha256": "c351ce4e796a6ea5df965577cb77b9102bd9f6a8f0d88b7e311d5e9b94369a3d"
     },
     {
       "path": "qualification/ACCEPTED_RUNTIME_BASIS_20261103.json",
@@ -4971,6 +4989,12 @@
       "sha256": "e6844bbf0df3dd1473bfe4cf4fbf46e07963a674cdd16e2f2b29184daa27542f"
     },
     {
+      "path": "tests/test_native_turn_evidence.py",
+      "size": 7075,
+      "sha": "c829bd87edad2b3aa01ff8a553e2bdb3bf049522",
+      "sha256": "6b3fc0b48555d9a7bc7433791fcdb6c3cdd361a1a29d28f00caed155e1dee861"
+    },
+    {
       "path": "tests/test_optional_claim_gate_budget.py",
       "size": 7436,
       "sha": "2a8129a3986ece41ac6d6adba87a169ba1c62ed0",
@@ -5605,6 +5629,12 @@
       "size": 10362,
       "sha": "2086f1c0dc6fb57073ff12468f58fdf1eaca1a57",
       "sha256": "e047997baf244afbb433d94c8513df5cc79dbdea23ca9faefed3d5b8eb7bf63b"
+    },
+    {
+      "path": "tests/test_recorder_native_overlap.py",
+      "size": 10876,
+      "sha": "65b6b929d5aab7547ef1896a98bfbc3e3eabcfdf",
+      "sha256": "fc48c89905483998de42694160412fd9728c67120334c3dcc47faa0d5531b9b3"
     },
     {
       "path": "tests/test_recorder_overlap_candidates.py",
@@ -6471,6 +6501,6 @@
       "sha256": "38016e437066caa381e2ab5ff9f8ca722dab6b4d84237023e3ab18bd6388dd20"
     }
   ],
-  "source_base_commit": "39451ad57f56b580c0c9f3007209ae36a962606f",
-  "source_update": "dev75: exact all-zero validated PCM support skips model dispatch with explicit no-call receipt; no nonzero noise guarantee or retrospective quality pass."
+  "source_base_commit": "90064cbaf154a4845da67c80f7b2cdb45e423f0f",
+  "source_update": "dev76 optional source-bound native-turn export and bounded automatic overlap selection; keeps zero guard and primary unchanged. Detection accuracy/runtime proof pending."
 }

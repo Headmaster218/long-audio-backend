@@ -25,7 +25,7 @@ MAX_PAGES = 48 * 60
 MAX_UNITS = 200000
 MAX_OUTPUT_BYTES = 64 * 1024**2
 MAX_NETWORK_BYTES = 256 * 1024**2
-MAX_REQUESTS = 2 * (2 * status.MAX_PAGES + status.MAX_WORK_CHUNKS + 5) + 2 * MAX_PAGES
+MAX_REQUESTS = 2 * (2 * status.MAX_PAGES + status.MAX_WORK_CHUNKS + 5) + 2 * MAX_PAGES + 2 * status.MAX_WORK_CHUNKS
 require = single.require
 
 
@@ -282,8 +282,9 @@ def _unit(row, sid, work, frames, block, known, identities):
 
 
 def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=False,
-        limits=None, export_limits=None, transport=None, cancel=None):
+        limits=None, export_limits=None, transport=None, cancel=None, native_turns=False):
     require(exclusive_writer is True, 'span_status_exclusive_writer_ack_required')
+    require(type(native_turns) is bool, 'span_export_native_turn_option')
     destination = single.target(api, 'operator-selected-unverified', session_id, capture_id, 0)
     path = _destination(output_dir)
     # Anchored logical input/reservation paths are available before any GET.
@@ -309,6 +310,34 @@ def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=Fa
         _destination(path, protected)
         output = _Output(path, guard, bounds)
         for name in ('export.json.partial', 'transcript.txt.partial'): output.open(name)
+        native_checks=[]
+        if native_turns:
+            from . import recorder_overlap_candidates as candidates
+            from . import recorder_native_overlap as native
+            # Reconstruct each exact canonical source WAV from the verified originals.
+            _, local_receipts, _, _ = status._local(Path(job_dir), destination, status_guard)
+            class Cancellation:
+                def is_set(self):
+                    guard.check()
+                    return False
+            native_rows=[]; native_bytes=0
+            for cid,w in work.items():
+                guard.check()
+                selected=dict(start_frame=w['start'],end_frame=w['start']+w['frames'])
+                pcm=candidates.pcm_for(local_receipts,report['input_mapping'],selected,Cancellation())
+                sha=hashlib.sha256(u.LegacyAppendUploader._header(w['frames'])+pcm).hexdigest()
+                endpoint=f'/sessions/{session_id}/chunks/{cid}/native-turn-evidence?source_sha256={sha}&frames={w["frames"]}'
+                value=http.request('GET',endpoint)
+                native.validate_chunk(value,session_id,cid,w['frames'],w['start'],sha)
+                native_bytes+=len(c.encoded(value))
+                require(native_bytes<=bounds.output_bytes,'span_export_native_turn_output_bound')
+                native_rows.append(value);native_checks.append((endpoint,c.digest(value)))
+            document=dict(schema=native.SCHEMA,source_content_binding=report['source_content_binding'],
+                frames=report['frames'],chunks=native_rows,
+                semantics='validated-native-turn-detection-not-recognition-or-global-identity')
+            output.open('native-turns.json.partial')
+            output.write('native-turns.json.partial',c.encoded(document)+b'\n')
+
         metadata = dict(schema=SCHEMA, projection='primary-baseline-v1', sample_rate=c.RATE,
             completion=report, complete_content=False, eos=None, speaker_identity_valid=False,
             word_alignment_verified=False, word_times=None, accuracy_verified=False,
@@ -362,7 +391,8 @@ def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=Fa
         summary = dict(projection='primary-baseline-v1', frames=report['frames'], transcript_pages=count,
             units=units, nonempty_text_units=nonempty, text_status='primary_text_observed' if nonempty else 'no_primary_text_observed',
             transcript_revision=revision, policy_sha256=c.POLICY_HASH, complete_content=False,
-            observation_atomic=False, local_publication='manifest_commits_artifact_pair')
+            observation_atomic=False, local_publication=('manifest_commits_three_artifacts' if native_turns
+                else 'manifest_commits_artifact_pair'))
         if report.get('closure_kind') == 'logical_analysis_boundary':
             summary.update({key:report[key] for key in ('closure_kind','recording_complete',
                 'recognition_continuity_verified','logical_boundary_sha256','eos_meaning')})
@@ -378,6 +408,9 @@ def run(*, job_dir, api, session_id, capture_id, output_dir, exclusive_writer=Fa
         for block, expected in enumerate(digests):
             _, observed = _page(http, session_id, block, revision, count)
             require(observed == expected, 'span_export_transcript_changed_during_read')
+        for endpoint, expected in native_checks:
+            require(c.digest(http.request('GET',endpoint))==expected,
+                    'span_export_native_turns_changed_during_read')
         output.check()
 
     def check_outer():
@@ -411,6 +444,7 @@ def main(argv=None):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--exclusive-writer', action='store_true', required=True)
     parser.add_argument('--deadline-seconds', type=float, default=120)
+    parser.add_argument('--native-turns', action='store_true')
     args = vars(parser.parse_args(argv)); deadline = args.pop('deadline_seconds')
     try:
         result = run(**args, limits=u.Limits(output_frames=history.MAX_FRAMES, deadline_seconds=deadline))

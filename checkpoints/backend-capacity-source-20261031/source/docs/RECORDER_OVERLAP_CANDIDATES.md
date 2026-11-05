@@ -120,3 +120,45 @@ The earlier frozen digital-zero evaluation produced unrelated refusal text and
 remains a failed qualification with its raw output and score preserved. This
 prospective deterministic guard does not reinterpret or repair that measurement,
 and no new model-quality panel has been run for this change.
+
+### Automatic intervals from bound native turns (opt-in)
+
+For a new completed-span export, add `--native-turns` to
+`python -I -B -m audio_backend.recorder_incremental_span_export` with the usual
+job/API/session/capture/output/exclusive-writer arguments. This makes bounded,
+GET-only per-work-chunk reads and writes an additional `native-turns.json`
+artifact committed by `complete.json`. Each read verifies the actual canonical
+source, original source-range coverage, completed accepted cores, retained
+packet or packetless witness, and exact persisted turn partition. The exporter
+also compares each canonical WAV hash reconstructed from local originals and
+rereads every evidence response before publishing. Native-turn evidence has its
+own content digest; an ASR transcript revision does not bind these turns.
+Unsupported or missing evidence refuses the export. Do not treat absence as
+silence or zero overlap. Existing exports remain unchanged; obtain a fresh
+GET-only export when the completed service/source is available.
+
+Use `--auto-native-overlap` instead of `--ranges FILE` on the candidate command.
+It requires this completed bound export and rechecks the local source hashes.
+No gold annotations or ASR text choose intervals. The existing model-free
+intersection routine considers distinct native local labels only within one
+accepted core/window. Positive intersections are padded by one second, clipped
+to the accepted core, and overlapping/touching time supports are merged. This
+merges time supports only, never speakers or output tracks. Supports are split
+at 20 seconds and at most the first eight, in chronological order, are passed
+to the unchanged serial model controller. The shared invocation deadline and
+resource acknowledgments remain required.
+
+`selection.json` preserves detected regions, their chunk/core proof association,
+detected union frames, selected detected frames, support frames and omitted
+support-range count. These are detector coverage statistics, not human-reference
+recall or recognition quality. False negatives, false positives, fragmented
+labels and natural-noise hallucination remain possible. No person identity or
+full-recording coverage is asserted. Fully validated evidence with no positive
+intersection produces `no_detected_native_overlap`, zero calls, and an explicit
+selection receipt; missing or refused evidence never produces that outcome.
+Candidate receipts retain original-slice provenance, not native-owned-core
+capture authority. Primary transcripts are never overwritten.
+
+This source change has model-free tests only. Previous fixed-interval evaluation
+and its digital-zero failure remain unchanged; no new automatic-selection
+recognition result or new runtime qualification is implied.

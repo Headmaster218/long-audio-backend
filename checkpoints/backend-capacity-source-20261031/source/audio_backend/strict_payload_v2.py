@@ -1019,8 +1019,8 @@ def _read_core_witnesses(owner,db,cid):
     return result
 
 
-def _collect(owner,cid):
-    """Only payload owners retire; their full original source/proof closure is saved."""
+def _collect(owner,cid,*,native_turns_only=False,expected=None):
+    """Validate original source/proof closure; optionally project only native turns."""
     from . import strict_recording as strict,native_owned_core_seams as core
     from . import recording_primary_provenance as pp,lexical_evidence as lexical
     from . import speaker_support as support,support_vectors as vectors,transcript_contract as contract
@@ -1031,6 +1031,8 @@ def _collect(owner,cid):
         get=lambda table,where,args,cap,**kw:_rows(owner,db,table,where,args,cap,**kw)
         chunk=_one(get('chunks','id=?',(cid,),1),'payload_chunk_missing');sid=chunk['session_id']
         session=_one(get('sessions','id=?',(sid,),1),'payload_session_missing')
+        if native_turns_only:
+            _require(expected==(sid,chunk['digest'],strict.frame(chunk['duration'])),'native_turn_source_mismatch')
         policy=_one(get('strict_recording_policy','sid=?',(sid,),1),'payload_policy_missing')
         control=_one(get('strict_recording_control','cid=?',(cid,),1),'payload_control_missing')
         frames=strict.frame(chunk['duration'])
@@ -1201,6 +1203,38 @@ def _collect(owner,cid):
         _require(len(referenced)==len(set(referenced)) and set(referenced)==ids,'payload_primary_unbound')
         _require(len(turn_referenced)==len(set(turn_referenced)) and set(turn_referenced)==set(turn_by_id),
                  'payload_turn_unbound')
+        if native_turns_only:
+            # All original source, accepted-core and exact turn-partition checks
+            # above remain authoritative. Do not collect identity/support payloads.
+            docs={p['packet']['commit']['part']['source_start']:(p['packet'],p['header']['digest']) for p in packets}
+            docs.update({d['binding'][4]:(d,h['digest']) for h,d in witnesses})
+            cores=[]
+            for out in outcomes:
+                doc,proof=docs[out['start_frame']];part=doc['commit']['part']
+                selected=[]
+                for ordinal,label,a,b,lo,hi in doc['turns']:
+                    start=max(a,part['logical_start']);end=min(b,part['logical_end'])
+                    if end>start:
+                        selected.append({'ordinal':ordinal,'speaker_local_id':doc['labels'][label],
+                            'start_frame':strict.frame(chunk['timeline_start'])+start-part['logical_start']+part['source_start'],
+                            'end_frame':strict.frame(chunk['timeline_start'])+end-part['logical_start']+part['source_start']})
+                cores.append({'start_frame':out['start_frame'],'end_frame':out['end_frame'],
+                    'slot':out['slot'],'status':out['status'],'proof_sha256':proof,
+                    'scope':doc['commit']['scope'],'turns':selected})
+            mapping=[]
+            for r in own['ranges']:
+                src=sources[r['source_id']][0]
+                mapping.append({**{k:r[k] for k in ('source_id','relation','work_start_frame',
+                    'source_start_frame','capture_start_frame','frames')},'source_sha256':src['digest']})
+            mapping.sort(key=lambda r:(r['work_start_frame'],r['relation'],r['source_id'],r['source_start_frame']))
+            value={'schema':'bound-native-turn-evidence-v1','session_id':sid,'chunk_id':cid,
+                'source_sha256':chunk['digest'],'frames':frames,
+                'timeline_start_frame':strict.frame(chunk['timeline_start']),
+                'capture_start_frame':own['work']['capture_start_frame'],
+                'receipt_sha256':receipt.receipt_id,'source_mapping':mapping,'cores':cores}
+            raw=_canonical(value);owner.budget.projection(len(raw))
+            _require(len(raw)<=256*1024,'native_turn_response_capacity')
+            return dict(value,evidence_sha256=_sha(raw))
         supports=get('speaker_support','chunk_id=?',(cid,),MAX_SUPPORTS,exclude=('pcm',));support_rows=[];links=[];vector_rows=[]
         observations=get('speaker_observations','chunk_id=?',(cid,),MAX_SUPPORTS)
         observation_ids={r['id'] for r in observations}
@@ -1443,3 +1477,26 @@ def maintain_payloads(store,witness,budget):
             finally:owner.transition.clear();owner.locators.clear();owner.transition_db=None
         return {'state':'committed','retired_units':1,'cid':cid,'unit_id':unit_id,'bucket':bucket,
                 'resumed':saved is not None,'cold_bytes':sum(x['bytes'] for x in targets),'archive_bytes':size}
+
+
+def read_native_turn_evidence(store,*,sid,cid,source_sha256,frames,cancel=None):
+    """Bounded model-free read of one fully accepted source chunk; no writes."""
+    _require(type(sid) is str and re.fullmatch('[a-f0-9]{32}',sid) is not None
+             and type(cid) is str and re.fullmatch('[a-f0-9]{32}',cid) is not None
+             and type(source_sha256) is str and _ID.fullmatch(source_sha256) is not None
+             and type(frames) is int and 0<frames<=MAX_FRAMES,'native_turn_request')
+    budget=PayloadBudget()
+    if cancel is not None:
+        _require(callable(cancel),'native_turn_cancel_callback')
+        class CancellationCaller:
+            # Preserve the original fixed deadline and SQLite admission wait.
+            # caller_check intentionally means zero-wait in other read paths.
+            def check(self):
+                if cancel():raise PayloadCapacityError('native_turn_read_cancelled')
+            def remaining_seconds(self):
+                self.check()
+                return max(0.,budget.deadline-time.monotonic())
+            def progress(self):return 0
+        budget.caller=CancellationCaller()
+    with _operation(store,budget) as owner:
+        return _collect(owner,cid,native_turns_only=True,expected=(sid,source_sha256,frames))

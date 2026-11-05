@@ -70,7 +70,8 @@ def snapshot(root, baseline, cancel):
     manifest = json.loads(manifest_raw)
     require(manifest.get('schema') == export.SCHEMA and manifest.get('status') == 'exported' and
             manifest.get('projection') == 'primary-baseline-v1' and
-            set(manifest.get('artifacts', {})) == {'export.json', 'transcript.txt'}, 'overlap_export_required')
+            set(manifest.get('artifacts', {})) in ({'export.json', 'transcript.txt'},
+                {'export.json', 'transcript.txt', 'native-turns.json'}), 'overlap_export_required')
     artifacts = {}
     for name, binding in manifest['artifacts'].items():
         raw = read(baseline / name, export.MAX_OUTPUT_BYTES)
@@ -103,6 +104,7 @@ def snapshot(root, baseline, cancel):
     guard.check()
     binding = dict(export_complete_sha256=digest(manifest_raw),
         export_sha256=digest(artifacts['export.json']), transcript_sha256=digest(artifacts['transcript.txt']),
+        native_turns_sha256=digest(artifacts['native-turns.json']) if 'native-turns.json' in artifacts else None,
         finalized_local_sha256=fingerprint(local), journal_sha256=fingerprint(identity), frames=frames)
     return binding, receipts, expected, data['work_text_coverage']
 
@@ -200,7 +202,8 @@ class Output:
         if self.parent is not None: os.close(self.parent); self.parent = None
 
 def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_inputs=False,
-        aggregate_budget_managed=False, cancel=None, deadline_seconds=1200, _controller=MossController):
+        aggregate_budget_managed=False, cancel=None, deadline_seconds=1200, _controller=MossController,
+        auto_native_overlap=False):
     require(exclusive_inputs is True and aggregate_budget_managed is True, 'overlap_exclusive_source_and_resource_ack_required')
     cancel = cancel or threading.Event()
     require(type(deadline_seconds) is int and 1 <= deadline_seconds <= 3600, 'overlap_deadline_bound')
@@ -220,7 +223,26 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
         for path in (root/'intake.lock', root/'uploader/uploader.lock'):
             fd = status.engine.held_lock(path); locks.append((fd, path, u._signature(os.fstat(fd))))
         binding, receipts, mapping, work = snapshot(root, baseline, cancel)
-        chosen = ranges(selected_ranges, binding['frames'])
+        require(type(auto_native_overlap) is bool, 'overlap_auto_option')
+        selection=None
+        if auto_native_overlap:
+            from . import recorder_native_overlap as native
+            require(selected_ranges is None and binding['native_turns_sha256'] is not None,
+                    'overlap_bound_native_turns_required')
+            evidence=json.loads(read(baseline/'native-turns.json',export.MAX_OUTPUT_BYTES))
+            primary=json.loads(read(baseline/'export.json',export.MAX_OUTPUT_BYTES))
+            native.validate_work(work,binding['frames'],check)
+            hashes={}
+            for w in work:
+                check()
+                selected=dict(start_frame=w['span_start_frame'],end_frame=w['span_end_frame'])
+                pcm=pcm_for(receipts,mapping,selected,cancel)
+                hashes[w['chunk_id']]=digest(u.LegacyAppendUploader._header(len(pcm)//2)+pcm)
+            selection=native.select(evidence,primary['completion']['source_content_binding'],work,hashes,check=check)
+            chosen=selection['ranges']
+            if chosen:ranges(chosen,binding['frames'])
+        else:
+            chosen = ranges(selected_ranges, binding['frames'])
         export._destination(output, protected=(root, baseline,
             *(Path(r['path']) for r in receipts), *(Path(r['snapshot_path']) for r in receipts)))
         check()
@@ -230,8 +252,10 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
         require(pinned == binding, 'overlap_source_changed')
         selected_profile = profile(NAME)
         plan = dict(schema=SCHEMA, source=binding, ranges=chosen, profile_sha256=selected_profile.sha256,
-                    provenance='completed-export-and-finalized-originals-not-native-support-capture')
+                    provenance='completed-export-and-finalized-originals-not-native-support-capture',
+                    automatic_selection=selection)
         plan_sha = digest(u._json(plan)); writer = Output(output); writer.write('plan.json', plan)
+        if selection is not None: writer.write('selection.json',selection)
         for i, (row, pcm) in enumerate(zip(chosen, selected_pcm)):
             check()
             require(snapshot(root, baseline, cancel)[0] == binding, 'overlap_source_changed')
@@ -306,8 +330,10 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
         check()
         require(all(u._signature(os.fstat(fd)) == u._signature(path.lstat()) == pin
                     for fd, path, pin in locks), 'overlap_lock_changed')
-        result = dict(schema=SCHEMA, status='candidates_recorded', source=binding,
-            selected_ranges=chosen, candidate_count=len(results),
+        result = dict(schema=SCHEMA, status=('no_detected_native_overlap' if selection is not None and not chosen
+            else 'candidates_recorded'), source=binding,
+            selected_ranges=chosen, candidate_count=len(results), automatic_selection=selection,
+            model_invoked=any(r['state'] != 'skipped_exact_zero_pcm' for r in results),
             model_call_count=sum(r['state'] != 'skipped_exact_zero_pcm' for r in results),
             exact_zero_ranges_skipped=sum(r['state'] == 'skipped_exact_zero_pcm' for r in results),
             missing_or_unparsed_candidates=sum(
@@ -330,19 +356,22 @@ def run(*, job_dir, export_dir, selected_ranges, model, output_dir, exclusive_in
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    for key in ('job-dir', 'export-dir', 'ranges', 'model', 'output-dir'):
+    for key in ('job-dir', 'export-dir', 'model', 'output-dir'):
         parser.add_argument('--'+key, required=True)
+    group=parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--ranges')
+    group.add_argument('--auto-native-overlap',action='store_true')
     parser.add_argument('--deadline-seconds', type=int, default=1200)
     parser.add_argument('--exclusive-inputs', action='store_true')
     parser.add_argument('--aggregate-budget-managed', action='store_true')
     args = parser.parse_args(argv); cancel = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM): signal.signal(sig, lambda *_: cancel.set())
     try:
-        value = json.loads(read(Path(args.ranges), 16384))
+        value = json.loads(read(Path(args.ranges), 16384)) if args.ranges else None
         result = run(job_dir=args.job_dir, export_dir=args.export_dir, selected_ranges=value,
                      model=args.model, output_dir=args.output_dir, exclusive_inputs=args.exclusive_inputs,
                      aggregate_budget_managed=args.aggregate_budget_managed, cancel=cancel,
-                     deadline_seconds=args.deadline_seconds)
+                     deadline_seconds=args.deadline_seconds, auto_native_overlap=args.auto_native_overlap)
         print(json.dumps(result)); return 0
     except Exception:
         print(json.dumps(dict(schema=SCHEMA, status='refused_or_incomplete', replay_allowed=False))); return 2
